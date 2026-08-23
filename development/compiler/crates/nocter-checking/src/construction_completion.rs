@@ -2,8 +2,9 @@ use std::fmt;
 
 use nocter_declarations::{CallableKind, CallableOwner, DeclarationGraph};
 use nocter_model::{
-    BuiltinType, CallableId, ModuleId, NominalTypeId, Symbol, TypeKind, TypeStore, VariantId,
+    BuiltinType, CallableId, NominalTypeId, Symbol, TypeKind, TypeStore, VariantId,
 };
+use nocter_source::SourceId;
 
 use crate::{
     CheckedProgram, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
@@ -136,14 +137,16 @@ impl CheckedProgram {
     pub fn construction_completions(
         &self,
         owner: ConstructionCompletionOwner,
-        module: ModuleId,
+        source: SourceId,
     ) -> Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_construction_completions(
             self.graph(),
             self.types(),
             self.construction_surfaces(),
             owner,
-            module,
+            access,
         )
     }
 
@@ -169,14 +172,16 @@ impl PreparedSemanticProgram {
     pub fn construction_completions(
         &self,
         owner: ConstructionCompletionOwner,
-        module: ModuleId,
+        source: SourceId,
     ) -> Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_construction_completions(
             self.graph(),
             self.types(),
             self.construction_surfaces(),
             owner,
-            module,
+            access,
         )
     }
 }
@@ -186,14 +191,14 @@ fn select_construction_completions(
     types: &TypeStore,
     surfaces: &ConstructionSurfaceTable,
     owner: ConstructionCompletionOwner,
-    module: ModuleId,
+    access: crate::SourceAccessContext<'_>,
 ) -> Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError> {
     let surface = match owner {
         ConstructionCompletionOwner::Nominal(nominal) => {
-            surfaces.accessible_surface(graph, nominal, module)?
+            surfaces.accessible_surface(graph, nominal, access)?
         }
         ConstructionCompletionOwner::Builtin(builtin) => {
-            surfaces.accessible_builtin_surface(graph, builtin, module)?
+            surfaces.accessible_builtin_surface(graph, builtin, access)?
         }
     };
     let mut candidates = Vec::new();
@@ -352,12 +357,13 @@ mod tests {
         };
 
         let names = |module| {
+            let source = frontend_bindings.module_sources(module).unwrap()[0];
             select_construction_completions(
                 graph,
                 prepared.types(),
                 prepared.construction_surfaces(),
                 ConstructionCompletionOwner::Nominal(choice),
-                module,
+                crate::SourceAccessContext::for_source(prepared.source_access(), source).unwrap(),
             )
             .unwrap()
             .iter()

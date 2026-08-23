@@ -2,9 +2,10 @@ use std::fmt;
 
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    BodyId, BorrowCapability, BuiltinType, CallableId, FieldIdentity, ModuleId, Symbol, TypeId,
-    TypeKind, TypeStore,
+    BodyId, BorrowCapability, BuiltinType, CallableId, FieldIdentity, Symbol, TypeId, TypeKind,
+    TypeStore,
 };
+use nocter_source::SourceId;
 
 use crate::body_check::body_assumptions;
 use crate::field_selection::{FieldSelectionError, select_field};
@@ -46,7 +47,7 @@ pub enum MemberCompletionTarget {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MemberCompletionContext {
     owner: BodyOwner,
-    module: ModuleId,
+    source: SourceId,
     receiver: TypeId,
     available: BorrowCapability,
     owned: bool,
@@ -56,14 +57,14 @@ impl MemberCompletionContext {
     #[must_use]
     pub const fn new(
         owner: BodyOwner,
-        module: ModuleId,
+        source: SourceId,
         receiver: TypeId,
         available: BorrowCapability,
         can_consume: bool,
     ) -> Self {
         Self {
             owner,
-            module,
+            source,
             receiver,
             available,
             owned: can_consume,
@@ -74,6 +75,7 @@ impl MemberCompletionContext {
 /// Failure to apply the ordinary compiler member-selection authority as a tooling query.
 #[derive(Debug)]
 pub enum MemberCompletionError {
+    SourceAccess(nocter_frontend_bindings::SourceAccessError),
     Assumptions(crate::SubstitutionError),
     FieldSelection,
     Selection(crate::InstanceSelectionError),
@@ -85,6 +87,7 @@ pub enum MemberCompletionError {
 impl fmt::Display for MemberCompletionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SourceAccess(error) => error.fmt(formatter),
             Self::Assumptions(error) => error.fmt(formatter),
             Self::FieldSelection => formatter.write_str("member field selection is inconsistent"),
             Self::Selection(error) => error.fmt(formatter),
@@ -126,6 +129,7 @@ impl CheckedProgram {
             self.conformances(),
             self.instance_operations(),
             self.copyabilities(),
+            self.source_access(),
             context,
         )
     }
@@ -148,6 +152,7 @@ impl PreparedSemanticProgram {
             self.conformances(),
             self.instance_operations(),
             self.copyabilities(),
+            self.source_access(),
             context,
         )
     }
@@ -159,6 +164,7 @@ pub(crate) fn select_member_completions(
     conformances: &ConformanceTable,
     instance_operations: &InstanceOperationTable,
     copyabilities: &CopyabilityTable,
+    source_access: &nocter_frontend_bindings::SourceAccessTable,
     context: MemberCompletionContext,
 ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
     let mut types = types.clone();
@@ -168,7 +174,9 @@ pub(crate) fn select_member_completions(
         Some(_) => context.receiver,
         None => return Err(MemberCompletionError::UnknownReceiver(context.receiver)),
     };
-    let mut completions = field_completions(graph, &mut types, context.module, receiver)?;
+    let access = crate::SourceAccessContext::for_source(source_access, context.source)
+        .map_err(MemberCompletionError::SourceAccess)?;
+    let mut completions = field_completions(graph, &mut types, access, receiver)?;
     let assumptions = body_assumptions(
         graph,
         &mut types,
@@ -183,7 +191,7 @@ pub(crate) fn select_member_completions(
         instance_operations,
         assumptions.declared(),
         assumptions.intrinsic(),
-        context.module,
+        access,
     );
     let methods = InstanceOperationSelector::new(selection, &mut types, &mut copyabilities)
         .select_member_completions(receiver, context.available, context.owned)
@@ -213,7 +221,7 @@ pub(crate) fn select_member_completions(
 fn field_completions(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    module: ModuleId,
+    access: crate::SourceAccessContext<'_>,
     receiver: TypeId,
 ) -> Result<Vec<MemberCompletionCandidate>, MemberCompletionError> {
     let names = match types.get(receiver) {
@@ -247,7 +255,7 @@ fn field_completions(
         let Some(spelling) = graph.symbols().spelling(name) else {
             return Err(MemberCompletionError::FieldSelection);
         };
-        match select_field(graph, types, module, receiver, spelling) {
+        match select_field(graph, types, access, receiver, spelling) {
             Ok(field) => completions.push(MemberCompletionCandidate {
                 name,
                 target: MemberCompletionTarget::Field(field.field()),
@@ -265,7 +273,8 @@ fn field_completions(
                 | FieldSelectionError::AmbiguousField(_)
                 | FieldSelectionError::GenericArity(_)
                 | FieldSelectionError::Substitution(_)
-                | FieldSelectionError::UnknownBorrowType(_),
+                | FieldSelectionError::UnknownBorrowType(_)
+                | FieldSelectionError::SourceAccess(_),
             ) => return Err(MemberCompletionError::FieldSelection),
         }
     }

@@ -59,7 +59,12 @@ impl BodyChecker<'_, '_> {
             NameTarget::Exported(ExportedEntity::NominalType(nominal)) => {
                 if let Some(variant) = self
                     .construction_surfaces
-                    .variant(nominal, member_name)
+                    .variant(
+                        self.graph,
+                        nominal,
+                        member_name,
+                        self.source_access_context(),
+                    )
                     .map_err(BodyCheckInternalError::from)?
                 {
                     let owner = self.inferred_nominal_construction_type(nominal)?;
@@ -123,7 +128,12 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         if let Some(variant) = self
             .construction_surfaces
-            .variant(owner.definition, member_name)
+            .variant(
+                self.graph,
+                owner.definition,
+                member_name,
+                self.source_access_context(),
+            )
             .map_err(BodyCheckInternalError::from)?
         {
             return self.finish_variant_construction(
@@ -181,7 +191,7 @@ impl BodyChecker<'_, '_> {
         let name = self.segment_symbol(token)?;
         let Some(variant) = self
             .construction_surfaces
-            .variant(nominal, name)
+            .variant(self.graph, nominal, name, self.source_access_context())
             .map_err(BodyCheckInternalError::from)?
         else {
             self.record_construction_interruption(token, completion_owner)?;
@@ -214,7 +224,12 @@ impl BodyChecker<'_, '_> {
         let name = self.segment_symbol(owner.member)?;
         let Some(variant) = self
             .construction_surfaces
-            .variant(owner.definition, name)
+            .variant(
+                self.graph,
+                owner.definition,
+                name,
+                self.source_access_context(),
+            )
             .map_err(BodyCheckInternalError::from)?
         else {
             self.record_construction_interruption(
@@ -356,7 +371,12 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let callable_id = self
             .construction_surfaces
-            .named_function(self.graph, construction, member_name, self.source.module())
+            .named_function(
+                self.graph,
+                construction,
+                member_name,
+                self.source_access_context(),
+            )
             .map_err(BodyCheckInternalError::from)?;
         let Some(callable_id) = callable_id else {
             let completion_owner = self.construction_declaration_completion_owner(construction)?;

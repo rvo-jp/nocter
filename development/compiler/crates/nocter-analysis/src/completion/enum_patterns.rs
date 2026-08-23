@@ -35,7 +35,7 @@ pub(super) fn checked_completions(
         return Ok(None);
     };
     let definition = variant_owner(program.graph(), variant)?;
-    let candidates = program.enum_pattern_completions(definition, module)?;
+    let candidates = program.enum_pattern_completions(definition, source)?;
     let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),

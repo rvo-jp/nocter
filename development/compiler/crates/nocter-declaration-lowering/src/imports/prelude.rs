@@ -144,12 +144,37 @@ impl PreparedNamespaces<'_> {
                         .is_err()
                 })
                 .map(|(name, binding)| (*name, binding.entity));
+            let source_id = source.syntax().source();
+            let directly_included = self
+                .imports
+                .generics
+                .headers
+                .reserved
+                .includes
+                .iter()
+                .copied()
+                .filter(|include| include.source().index() == index)
+                .filter_map(|include| {
+                    self.imports
+                        .generics
+                        .headers
+                        .reserved
+                        .sources
+                        .get(include.target().index())
+                        .map(|target| target.syntax().source())
+                });
             self.imports
                 .generics
                 .headers
                 .reserved
                 .source_index
-                .define_source_namespace(source.syntax().source(), authored, fallback);
+                .define_source_namespace(source_id, authored, fallback);
+            self.imports
+                .generics
+                .headers
+                .reserved
+                .source_index
+                .define_source_access(source_id, directly_included);
         }
         let namespaces = self
             .imports

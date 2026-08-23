@@ -313,6 +313,7 @@ pub enum SurfaceError {
     ImplementationVisibility(NodeId),
     InvalidNominalContract(NodeId),
     MissingConstructionContractVisibility(NodeId),
+    InconsistentIncludeResolution(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
 }
@@ -345,6 +346,12 @@ impl fmt::Display for SurfaceError {
                 formatter,
                 "bodyless public construction contract member {node:?} requires explicit visibility"
             ),
+            Self::InconsistentIncludeResolution(node) => {
+                write!(
+                    formatter,
+                    "include declaration {node:?} lost its resolved target"
+                )
+            }
             Self::InconsistentUseResolution(node) => {
                 write!(
                     formatter,
@@ -511,11 +518,11 @@ fn collect_source(
                 let resolution = input
                     .include_resolutions
                     .get(&(child.source(), child.index()))
-                    .ok_or(SurfaceError::InconsistentUseResolution(child))?;
+                    .ok_or(SurfaceError::InconsistentIncludeResolution(child))?;
                 let target = *input
                     .source_by_path
                     .get(resolution.target_source())
-                    .ok_or(SurfaceError::InconsistentUseResolution(child))?;
+                    .ok_or(SurfaceError::InconsistentIncludeResolution(child))?;
                 includes.push(SurfaceInclude {
                     source: source_id,
                     node: child,

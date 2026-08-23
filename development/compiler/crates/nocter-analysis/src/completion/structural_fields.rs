@@ -47,7 +47,7 @@ pub(super) fn checked_completions(
         return Ok(None);
     };
     let used_fields = fields.iter().map(|(field, _)| *field).collect::<Vec<_>>();
-    let candidates = program.structural_field_completions(definition, module, &used_fields)?;
+    let candidates = program.structural_field_completions(definition, source, &used_fields)?;
     let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),

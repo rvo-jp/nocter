@@ -148,6 +148,8 @@ pub enum BodyCheckInternalError {
     MissingBodySource(BodyId),
     MissingBodyNames(BodyId),
     BodyIdentityMismatch(BodyId),
+    SourceAccess(nocter_frontend_bindings::SourceAccessError),
+    SourceModuleMismatch(BodyId),
     InvalidSyntax(NodeId),
     UnsupportedSyntax(NodeId, NodeKind),
     MissingNameUse(NodeId),

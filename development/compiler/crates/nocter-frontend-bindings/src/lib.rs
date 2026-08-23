@@ -12,6 +12,11 @@ use nocter_model::{
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, SyntaxToken};
 
+mod access;
+
+use access::SourceAccessTableBuilder;
+pub use access::{SourceAccessError, SourceAccessTable};
+
 /// Closed source-local name authority selected by declaration lowering.
 ///
 /// A source sees its own declarations, declarations from sources it directly includes, and its
@@ -79,6 +84,7 @@ pub struct FrontendBindings {
     declarations: HashMap<SyntaxToken, Box<[FrontendDeclaration]>>,
     block_imports: HashMap<NodeId, ModuleId>,
     source_namespaces: SourceNamespaceTable,
+    source_access: SourceAccessTable,
 }
 
 impl FrontendBindings {
@@ -89,9 +95,7 @@ impl FrontendBindings {
 
     #[must_use]
     pub fn module_for_source(&self, source: SourceId) -> Option<ModuleId> {
-        self.module_sources
-            .iter()
-            .find_map(|(module, sources)| sources.contains(&source).then_some(*module))
+        self.source_access.module_for_source(source).ok()
     }
 
     #[must_use]
@@ -132,6 +136,12 @@ impl FrontendBindings {
         &self.source_namespaces
     }
 
+    /// Returns the direct-source authority used for private declaration access.
+    #[must_use]
+    pub const fn source_access(&self) -> &SourceAccessTable {
+        &self.source_access
+    }
+
     #[must_use]
     pub fn with_block_imports(
         mut self,
@@ -150,6 +160,7 @@ pub struct FrontendBindingsBuilder {
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
     source_namespaces: HashMap<SourceId, SourceNamespaceBuilder>,
+    source_access: SourceAccessTableBuilder,
 }
 
 #[derive(Debug, Default)]
@@ -166,6 +177,7 @@ impl FrontendBindingsBuilder {
 
     pub fn add_module_source(&mut self, module: ModuleId, source: SourceId) {
         self.module_sources.entry(module).or_default().push(source);
+        self.source_access.define_source_module(source, module);
     }
 
     pub fn add_body_block(&mut self, body: BodyId, block: NodeId) {
@@ -199,6 +211,32 @@ impl FrontendBindingsBuilder {
                 fallback: fallback.into_iter().collect(),
             },
         );
+    }
+
+    pub fn define_source_access(
+        &mut self,
+        source: SourceId,
+        directly_included: impl IntoIterator<Item = SourceId>,
+    ) {
+        self.source_access.define_source(source, directly_included);
+    }
+
+    pub fn define_declaration_site_source(
+        &mut self,
+        site: nocter_model::DeclarationSiteId,
+        source: SourceId,
+    ) {
+        self.source_access.define_site(site, source);
+    }
+
+    pub fn define_nominal_representation_source(
+        &mut self,
+        nominal: NominalTypeId,
+        source: SourceId,
+        contract_private: bool,
+    ) {
+        self.source_access
+            .define_representation(nominal, source, contract_private);
     }
 
     #[must_use]
@@ -253,6 +291,7 @@ impl FrontendBindingsBuilder {
                     })
                     .collect(),
             },
+            source_access: self.source_access.finish(),
             block_imports: HashMap::new(),
         }
     }

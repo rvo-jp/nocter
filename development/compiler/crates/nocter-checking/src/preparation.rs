@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_frontend_bindings::{FrontendBindings, SourceNamespaceTable};
+use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -35,6 +35,7 @@ pub struct PreparedChecking<'syntax> {
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_namespaces: SourceNamespaceTable,
+    source_access: SourceAccessTable,
     source_index: SourceIndex,
 }
 
@@ -54,6 +55,7 @@ pub struct PreparedSemanticProgram {
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
     body_names: Arena<BodyId, ResolvedBodyNames>,
+    source_access: SourceAccessTable,
     source_index: SourceIndex,
 }
 
@@ -101,6 +103,11 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub const fn body_names(&self) -> &Arena<BodyId, ResolvedBodyNames> {
         &self.body_names
+    }
+
+    #[must_use]
+    pub const fn source_access(&self) -> &SourceAccessTable {
+        &self.source_access
     }
 
     #[must_use]
@@ -165,6 +172,11 @@ impl<'syntax> PreparedChecking<'syntax> {
         &self.source_index
     }
 
+    #[must_use]
+    pub const fn source_access(&self) -> &SourceAccessTable {
+        &self.source_access
+    }
+
     pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
         PreparedCheckingParts {
             graph: self.graph,
@@ -178,6 +190,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_namespaces: self.source_namespaces,
+            source_access: self.source_access,
             source_index: self.source_index,
         }
     }
@@ -195,6 +208,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
+    pub(crate) source_access: SourceAccessTable,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -210,6 +224,7 @@ impl PreparedCheckingParts<'_> {
             drops: self.drops,
             standard_semantics: self.standard_semantics,
             body_names: self.body_names,
+            source_access: self.source_access,
             source_index: self.source_index,
         }
     }
@@ -441,7 +456,11 @@ fn prepare_program_checking_internal<'syntax>(
     let drops = declaration_stage!(DropTable::build(&graph, &types));
     let conformances =
         declaration_stage!(build_conformance_table(&graph, &mut types, &source_index));
-    let construction_surfaces = declaration_stage!(ConstructionSurfaceTable::build(&graph, &types));
+    let construction_surfaces = declaration_stage!(ConstructionSurfaceTable::build(
+        &graph,
+        &types,
+        bindings.source_access(),
+    ));
     let instance_operations = declaration_stage!(build_instance_operation_table(
         &graph,
         &mut types,
@@ -492,6 +511,7 @@ fn prepare_program_checking_internal<'syntax>(
         body_sources,
         body_names,
         source_namespaces: bindings.source_namespaces().clone(),
+        source_access: bindings.source_access().clone(),
         source_index,
     })
 }

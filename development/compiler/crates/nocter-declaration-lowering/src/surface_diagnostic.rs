@@ -129,6 +129,7 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         | SurfaceError::SyntaxErrors(_)
         | SurfaceError::InvalidRootShape(_)
         | SurfaceError::InvalidItemShape(_)
+        | SurfaceError::InconsistentIncludeResolution(_)
         | SurfaceError::InconsistentUseResolution(_) => None,
     }
 }

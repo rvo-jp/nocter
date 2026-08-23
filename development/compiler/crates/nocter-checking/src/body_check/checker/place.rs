@@ -315,13 +315,8 @@ impl BodyChecker<'_, '_> {
     ) -> Result<(), BodyCheckError> {
         let base = self.place_projection_base(draft)?;
         let spelling = self.token_text(field_token)?.to_owned();
-        let selected = match select_field(
-            self.graph,
-            self.types,
-            self.source.module(),
-            base,
-            &spelling,
-        ) {
+        let access = self.source_access_context();
+        let selected = match select_field(self.graph, self.types, access, base, &spelling) {
             Ok(selected) => selected,
             Err(FieldSelectionError::NoFields(_) | FieldSelectionError::MissingField(_)) => {
                 return Err(self.token_rule(BodyRule::UnknownField, field_token)?);
@@ -339,7 +334,8 @@ impl BodyChecker<'_, '_> {
                 | FieldSelectionError::AmbiguousField(_)
                 | FieldSelectionError::GenericArity(_)
                 | FieldSelectionError::Substitution(_)
-                | FieldSelectionError::UnknownBorrowType(_),
+                | FieldSelectionError::UnknownBorrowType(_)
+                | FieldSelectionError::SourceAccess(_),
             ) => return Err(BodyCheckInternalError::FieldSelection.into()),
         };
         if draft.access == PlaceAccess::Owned

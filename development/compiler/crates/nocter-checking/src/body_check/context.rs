@@ -1,5 +1,5 @@
 use nocter_declarations::{BodyOwner, DeclarationGraph};
-use nocter_frontend_bindings::SourceNamespaceTable;
+use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -19,6 +19,7 @@ pub(super) struct BodyProgramFacts<'program> {
     instance_operations: &'program InstanceOperationTable,
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
+    source_access: &'program SourceAccessTable,
     source_index: &'program SourceIndex,
 }
 
@@ -63,6 +64,7 @@ impl<'program> BodyProgramFacts<'program> {
             instance_operations: &prepared.instance_operations,
             standard_semantics: &prepared.standard_semantics,
             source_namespaces: &prepared.source_namespaces,
+            source_access: &prepared.source_access,
             source_index: &prepared.source_index,
         }
     }
@@ -93,6 +95,10 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn source_namespaces(self) -> &'program SourceNamespaceTable {
         self.source_namespaces
+    }
+
+    pub(super) const fn source_access(self) -> &'program SourceAccessTable {
+        self.source_access
     }
 
     pub(super) const fn source_index(self) -> &'program SourceIndex {

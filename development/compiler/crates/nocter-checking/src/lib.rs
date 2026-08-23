@@ -29,6 +29,7 @@ mod pattern_requirements;
 mod preparation;
 mod provenance;
 mod recovery;
+mod source_visibility;
 mod standard_semantics;
 #[cfg(test)]
 mod standard_semantics_tests;
@@ -128,6 +129,7 @@ pub use preparation::{
     prepare_program_checking, prepare_program_checking_recovering,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, SemanticAnalysisRecovery};
+pub(crate) use source_visibility::SourceAccessContext;
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{
     StructuralFieldCompletionCandidate, StructuralFieldCompletionError,

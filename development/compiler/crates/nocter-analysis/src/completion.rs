@@ -395,14 +395,12 @@ fn interrupted_completions(
     if origin.source() != source || !origin.span().range().contains_cursor(offset) {
         return Ok(None);
     }
-    let Some(index) = snapshot.source_index() else {
-        return Ok(None);
-    };
+    let index = recovery.prepared().source_index();
     let spellings =
         VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
-            let Some(candidates) = recovery.interrupted_member_completions(module) else {
+            let Some(candidates) = recovery.interrupted_member_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -428,7 +426,7 @@ fn interrupted_completions(
             ))
         }
         TypedBodyInterruptionKind::ConstructionSelection { .. } => {
-            let Some(candidates) = recovery.interrupted_construction_completions(module) else {
+            let Some(candidates) = recovery.interrupted_construction_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -439,7 +437,7 @@ fn interrupted_completions(
             )))
         }
         TypedBodyInterruptionKind::StructuralConstruction { .. } => {
-            let Some(candidates) = recovery.interrupted_structural_field_completions(module) else {
+            let Some(candidates) = recovery.interrupted_structural_field_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -450,7 +448,7 @@ fn interrupted_completions(
             )))
         }
         TypedBodyInterruptionKind::EnumPattern { .. } => {
-            let Some(candidates) = recovery.interrupted_enum_pattern_completions(module) else {
+            let Some(candidates) = recovery.interrupted_enum_pattern_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -532,7 +530,7 @@ fn checked_member_completions(
     let (available, owned) = receiver_access(receiver.preparation());
     let candidates = program.member_completions(MemberCompletionContext::new(
         body.owner(),
-        module,
+        source,
         receiver_type,
         available,
         owned,

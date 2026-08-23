@@ -1,5 +1,5 @@
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{ModuleId, TypeStore};
+use nocter_model::TypeStore;
 use nocter_source_index::SourceIndex;
 
 use crate::member_completion::select_member_completions;
@@ -141,7 +141,7 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_member_completions(
         &self,
-        module: ModuleId,
+        source: nocter_source::SourceId,
     ) -> Option<Result<Box<[MemberCompletionCandidate]>, MemberCompletionError>> {
         let typed = self.typed.as_ref()?;
         let TypedBodyInterruptionKind::MemberSelection {
@@ -163,7 +163,8 @@ impl BodyAnalysisRecovery {
             self.prepared.conformances(),
             self.prepared.instance_operations(),
             &typed.copyabilities,
-            MemberCompletionContext::new(owner, module, *receiver, *available, *owned),
+            self.prepared.source_access(),
+            MemberCompletionContext::new(owner, source, *receiver, *available, *owned),
         ))
     }
 
@@ -171,21 +172,21 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_construction_completions(
         &self,
-        module: ModuleId,
+        source: nocter_source::SourceId,
     ) -> Option<Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError>> {
         let typed = self.typed.as_ref()?;
         let TypedBodyInterruptionKind::ConstructionSelection { owner } = typed.interruption.kind()
         else {
             return None;
         };
-        Some(self.prepared.construction_completions(*owner, module))
+        Some(self.prepared.construction_completions(*owner, source))
     }
 
     /// Applies the structural construction selector to fields fixed before a body failure.
     #[must_use]
     pub fn interrupted_structural_field_completions(
         &self,
-        module: ModuleId,
+        source: nocter_source::SourceId,
     ) -> Option<
         Result<
             Box<[crate::StructuralFieldCompletionCandidate]>,
@@ -202,7 +203,7 @@ impl BodyAnalysisRecovery {
         };
         Some(
             self.prepared
-                .structural_field_completions(*definition, module, initialized),
+                .structural_field_completions(*definition, source, initialized),
         )
     }
 
@@ -210,7 +211,7 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_enum_pattern_completions(
         &self,
-        module: ModuleId,
+        source: nocter_source::SourceId,
     ) -> Option<
         Result<Box<[crate::EnumPatternCompletionCandidate]>, crate::EnumPatternCompletionError>,
     > {
@@ -219,7 +220,7 @@ impl BodyAnalysisRecovery {
         else {
             return None;
         };
-        Some(self.prepared.enum_pattern_completions(*definition, module))
+        Some(self.prepared.enum_pattern_completions(*definition, source))
     }
 
     /// Validates associated-type identities fixed before a type-position failure.

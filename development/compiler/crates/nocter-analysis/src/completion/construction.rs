@@ -51,7 +51,7 @@ pub(super) fn checked_completions(
         return Ok(None);
     };
     let owner = program.construction_completion_owner(target)?;
-    let candidates = program.construction_completions(owner, module)?;
+    let candidates = program.construction_completions(owner, source)?;
     let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_checked_completions(
         program,

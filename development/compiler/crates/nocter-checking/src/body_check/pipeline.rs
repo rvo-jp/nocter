@@ -220,6 +220,7 @@ fn finish_checked_program(
         body_sources: _,
         body_names: _,
         source_namespaces: _,
+        source_access,
         source_index,
     } = prepared;
     let source_index = extend_source_index(source_index, projections)
@@ -244,6 +245,7 @@ fn finish_checked_program(
                 closures,
                 opaque_witnesses,
                 associated_type_completion_contexts,
+                source_access,
             },
             bodies.finish(),
         ),

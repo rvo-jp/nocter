@@ -262,7 +262,12 @@ impl BodyChecker<'_, '_> {
         let variant_name = self.segment_symbol(*variant_token)?;
         let Some(variant) = self
             .construction_surfaces
-            .variant(nominal, variant_name)
+            .variant(
+                self.graph,
+                nominal,
+                variant_name,
+                self.source_access_context(),
+            )
             .map_err(BodyCheckInternalError::from)?
         else {
             return Err(self.token_rule(BodyRule::InvalidPatternOperation, *variant_token)?);

@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{FieldId, ModuleId, NominalTypeId, Symbol};
+use nocter_model::{FieldId, NominalTypeId, Symbol};
+use nocter_source::SourceId;
 
 use crate::{
     CheckedProgram, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
@@ -89,14 +90,16 @@ impl CheckedProgram {
     pub fn structural_field_completions(
         &self,
         definition: NominalTypeId,
-        module: ModuleId,
+        source: SourceId,
         initialized: &[FieldId],
     ) -> Result<Box<[StructuralFieldCompletionCandidate]>, StructuralFieldCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_structural_field_completions(
             self.graph(),
             self.construction_surfaces(),
             definition,
-            module,
+            access,
             initialized,
         )
     }
@@ -112,14 +115,16 @@ impl PreparedSemanticProgram {
     pub fn structural_field_completions(
         &self,
         definition: NominalTypeId,
-        module: ModuleId,
+        source: SourceId,
         initialized: &[FieldId],
     ) -> Result<Box<[StructuralFieldCompletionCandidate]>, StructuralFieldCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_structural_field_completions(
             self.graph(),
             self.construction_surfaces(),
             definition,
-            module,
+            access,
             initialized,
         )
     }
@@ -129,10 +134,10 @@ fn select_structural_field_completions(
     graph: &DeclarationGraph,
     surfaces: &ConstructionSurfaceTable,
     definition: NominalTypeId,
-    module: ModuleId,
+    access: crate::SourceAccessContext<'_>,
     initialized: &[FieldId],
 ) -> Result<Box<[StructuralFieldCompletionCandidate]>, StructuralFieldCompletionError> {
-    let surface = surfaces.accessible_surface(graph, definition, module)?;
+    let surface = surfaces.accessible_surface(graph, definition, access)?;
     if !surface
         .entries()
         .contains(&SelectedConstructionEntry::Structural)
@@ -140,7 +145,7 @@ fn select_structural_field_completions(
         return Ok(Box::new([]));
     }
     let declared = surfaces
-        .structural_fields(graph, definition, module)?
+        .structural_fields(graph, definition, access)?
         .ok_or(StructuralFieldCompletionError::MissingStructuralEntry(
             definition,
         ))?;
@@ -228,9 +233,15 @@ mod tests {
         else {
             panic!("Record is not nominal");
         };
+        let child_source = frontend_bindings.module_sources(child).unwrap()[0];
+        let child_access =
+            crate::SourceAccessContext::for_source(prepared.source_access(), child_source).unwrap();
+        let root_source = frontend_bindings.module_sources(root).unwrap()[0];
+        let root_access =
+            crate::SourceAccessContext::for_source(prepared.source_access(), root_source).unwrap();
         let fields = prepared
             .construction_surfaces()
-            .structural_fields(graph, record, child)
+            .structural_fields(graph, record, child_access)
             .unwrap()
             .unwrap();
 
@@ -238,7 +249,7 @@ mod tests {
             graph,
             prepared.construction_surfaces(),
             record,
-            child,
+            child_access,
             &fields[1..2],
         )
         .unwrap();
@@ -254,7 +265,7 @@ mod tests {
                 graph,
                 prepared.construction_surfaces(),
                 record,
-                root,
+                root_access,
                 &[],
             )
             .unwrap()

@@ -574,7 +574,8 @@ Rules:
 - scoped visibility is interpreted from the declaring directory module
 - names, dependency aliases, and arbitrary module paths are not valid inside `pub(...)`
 - a re-export may narrow a boundary but cannot widen it
-- enum variants follow their enum's visibility
+- variants declared inline in `index.nct` follow their enum's visibility; variants supplied by a
+  private representation definition remain private to their authored source and direct includers
 - `instance` and `conform` declarations are not themselves marked public
 - there is no `private` keyword, friend namespace, or named visibility scope
 

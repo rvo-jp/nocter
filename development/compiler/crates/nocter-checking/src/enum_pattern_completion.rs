@@ -1,7 +1,8 @@
 use std::fmt;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{ModuleId, NominalTypeId, Symbol, VariantId};
+use nocter_model::{NominalTypeId, Symbol, VariantId};
+use nocter_source::SourceId;
 
 use crate::{
     CheckedProgram, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
@@ -74,13 +75,15 @@ impl CheckedProgram {
     pub fn enum_pattern_completions(
         &self,
         definition: NominalTypeId,
-        module: ModuleId,
+        source: SourceId,
     ) -> Result<Box<[EnumPatternCompletionCandidate]>, EnumPatternCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_enum_pattern_completions(
             self.graph(),
             self.construction_surfaces(),
             definition,
-            module,
+            access,
         )
     }
 }
@@ -94,13 +97,15 @@ impl PreparedSemanticProgram {
     pub fn enum_pattern_completions(
         &self,
         definition: NominalTypeId,
-        module: ModuleId,
+        source: SourceId,
     ) -> Result<Box<[EnumPatternCompletionCandidate]>, EnumPatternCompletionError> {
+        let access = crate::SourceAccessContext::for_source(self.source_access(), source)
+            .map_err(ConstructionSurfaceSelectionError::SourceAccess)?;
         select_enum_pattern_completions(
             self.graph(),
             self.construction_surfaces(),
             definition,
-            module,
+            access,
         )
     }
 }
@@ -109,10 +114,10 @@ fn select_enum_pattern_completions(
     graph: &DeclarationGraph,
     surfaces: &ConstructionSurfaceTable,
     definition: NominalTypeId,
-    module: ModuleId,
+    access: crate::SourceAccessContext<'_>,
 ) -> Result<Box<[EnumPatternCompletionCandidate]>, EnumPatternCompletionError> {
     surfaces
-        .accessible_surface(graph, definition, module)?
+        .accessible_surface(graph, definition, access)?
         .entries()
         .iter()
         .filter_map(|entry| match entry {

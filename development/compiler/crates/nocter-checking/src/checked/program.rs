@@ -1,4 +1,5 @@
 use nocter_declarations::DeclarationGraph;
+use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -27,6 +28,7 @@ pub struct CheckedProgram {
     opaque_witnesses: OpaqueWitnessTable,
     bodies: Arena<BodyId, CheckedBody>,
     associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
+    source_access: SourceAccessTable,
 }
 
 pub(crate) struct CheckedProgramAuthorities {
@@ -41,6 +43,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) closures: ClosureTable,
     pub(crate) opaque_witnesses: OpaqueWitnessTable,
     pub(crate) associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
+    pub(crate) source_access: SourceAccessTable,
 }
 
 impl CheckedProgram {
@@ -65,6 +68,7 @@ impl CheckedProgram {
             opaque_witnesses: authorities.opaque_witnesses,
             bodies,
             associated_type_completion_contexts: authorities.associated_type_completion_contexts,
+            source_access: authorities.source_access,
         }
     }
 
@@ -121,6 +125,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn closures(&self) -> &ClosureTable {
         &self.closures
+    }
+
+    #[must_use]
+    pub const fn source_access(&self) -> &SourceAccessTable {
+        &self.source_access
     }
 
     #[must_use]

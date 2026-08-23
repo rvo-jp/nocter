@@ -20,6 +20,7 @@ pub enum HeaderError {
     Namespace(NamespaceViolation),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
+    MissingDeclaration(SurfaceDeclarationId),
     MissingSource(SurfaceSourceId),
     MissingName(SurfaceDeclarationId),
     InconsistentName(SurfaceDeclarationId),
@@ -38,6 +39,9 @@ impl fmt::Display for HeaderError {
             ),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
+            Self::MissingDeclaration(declaration) => {
+                write!(formatter, "surface declaration {declaration:?} is missing")
+            }
             Self::MissingSource(source) => {
                 write!(formatter, "surface source {source:?} is missing")
             }
@@ -167,6 +171,13 @@ fn resolve_visibility(
             if declaration.visibility().is_some() {
                 return Err(HeaderError::InvalidVisibility(id));
             }
+            let source = reserved
+                .sources
+                .get(declaration.source().index())
+                .ok_or(HeaderError::MissingSource(declaration.source()))?;
+            if source.kind() == crate::ModuleSourceKind::Implementation {
+                return Ok(Visibility::Private);
+            }
             declaration
                 .owner()
                 .and_then(|owner| resolved.get(owner.index()))
@@ -223,6 +234,17 @@ fn project_site(
     declaration: SurfaceDeclarationId,
     site: DeclarationSiteId,
 ) -> Result<(), HeaderError> {
+    let source = reserved
+        .sources
+        .get(reserved.declarations[declaration.index()].source().index())
+        .ok_or(HeaderError::MissingSource(
+            reserved.declarations[declaration.index()].source(),
+        ))?
+        .syntax()
+        .source();
+    reserved
+        .source_index
+        .define_declaration_site_source(site, source);
     let origin = declaration_site_origin(reserved, declaration)?;
     reserved.source_index.insert(
         SemanticEntity::DeclarationSite(site),
@@ -238,6 +260,18 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
         let Some(entity) = reserved.entities[index] else {
             continue;
         };
+        if let crate::ReservedEntity::NominalType(nominal) = entity
+            && reserved.contracts.representative(id) == id
+        {
+            let private_representation = reserved.contracts.representation(id);
+            let representation = private_representation.unwrap_or(id);
+            let source = declaration_source(reserved, representation)?;
+            reserved.source_index.define_nominal_representation_source(
+                nominal,
+                source,
+                private_representation.is_some(),
+            );
+        }
         let role = if reserved.contracts.is_implementation(id) {
             SourceRole::Implementation
         } else {
@@ -272,6 +306,22 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
         }
     }
     Ok(())
+}
+
+fn declaration_source(
+    reserved: &ReservedDeclarations<'_>,
+    declaration: SurfaceDeclarationId,
+) -> Result<SourceId, HeaderError> {
+    let source = reserved
+        .declarations
+        .get(declaration.index())
+        .ok_or(HeaderError::MissingDeclaration(declaration))?
+        .source();
+    reserved
+        .sources
+        .get(source.index())
+        .map(|source| source.syntax().source())
+        .ok_or(HeaderError::MissingSource(source))
 }
 
 fn declaration_site_origin(

@@ -216,7 +216,12 @@ impl BodyChecker<'_, '_> {
         };
         let Some(constructor) = self
             .construction_surfaces
-            .literal(self.graph, construction, shape, self.source.module())
+            .literal(
+                self.graph,
+                construction,
+                shape,
+                self.source_access_context(),
+            )
             .map_err(BodyCheckInternalError::from)?
         else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);

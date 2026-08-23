@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
-use nocter_model::{BorrowCapability, CallableCapability, ModuleId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BorrowCapability, CallableCapability, TypeId, TypeKind, TypeStore};
 
 use super::InstanceOperationTable;
 use crate::conformance::normalize_requirements;
@@ -86,6 +86,7 @@ pub enum InstanceSelectionError {
     MissingParameter(nocter_model::ParameterId),
     MissingSite(nocter_model::DeclarationSiteId),
     MissingVariant(nocter_model::VariantId),
+    SourceAccess(nocter_frontend_bindings::SourceAccessError),
     UnknownType(TypeId),
     InvalidIndexSignature(nocter_model::CallableId),
     InvalidCoercionSignature(nocter_model::CallableId),
@@ -117,6 +118,7 @@ impl fmt::Display for InstanceSelectionError {
             }
             Self::MissingSite(site) => write!(formatter, "missing declaration site {site:?}"),
             Self::MissingVariant(variant) => write!(formatter, "missing enum variant {variant:?}"),
+            Self::SourceAccess(error) => error.fmt(formatter),
             Self::UnknownType(ty) => write!(formatter, "missing type {ty:?}"),
             Self::InvalidIndexSignature(callable) => {
                 write!(formatter, "invalid index operation signature {callable:?}")
@@ -167,8 +169,8 @@ impl From<SubstitutionError> for InstanceSelectionError {
 
 /// Stateful authority for one body's instance-operation selection and recursive requirement proof.
 #[derive(Clone, Copy)]
-enum CandidateVisibility {
-    Lexical(ModuleId),
+enum CandidateVisibility<'program> {
+    Lexical(crate::SourceAccessContext<'program>),
     CheckedEvidence,
 }
 
@@ -179,7 +181,7 @@ pub(crate) struct InstanceSelectionContext<'program> {
     table: &'program InstanceOperationTable,
     assumptions: &'program [CheckedRequirement],
     intrinsic_facts: &'program [CheckedPredicate],
-    visibility: CandidateVisibility,
+    visibility: CandidateVisibility<'program>,
 }
 
 impl<'program> InstanceSelectionContext<'program> {
@@ -189,7 +191,7 @@ impl<'program> InstanceSelectionContext<'program> {
         table: &'program InstanceOperationTable,
         assumptions: &'program [CheckedRequirement],
         intrinsic_facts: &'program [CheckedPredicate],
-        from: ModuleId,
+        from: crate::SourceAccessContext<'program>,
     ) -> Self {
         Self {
             graph,
@@ -228,7 +230,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
     pub(super) intrinsic_facts: &'program [CheckedPredicate],
-    visibility: CandidateVisibility,
+    visibility: CandidateVisibility<'program>,
     pub(super) active: HashSet<CheckedPredicate>,
 }
 
@@ -691,13 +693,16 @@ fn callable_capability(capability: BorrowCapability) -> CallableCapability {
 
 pub(super) fn visible_callable(
     graph: &DeclarationGraph,
-    from: ModuleId,
+    from: crate::SourceAccessContext<'_>,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<bool, InstanceSelectionError> {
-    let site = graph
-        .declaration_sites()
-        .get(site)
-        .copied()
-        .ok_or(InstanceSelectionError::MissingSite(site))?;
-    Ok(graph.is_visible_from(site.visibility(), from, site.module()))
+    match crate::source_visibility::site_is_visible(graph, site, from) {
+        Ok(visible) => Ok(visible),
+        Err(crate::source_visibility::SourceVisibilityError::MissingSite(site)) => {
+            Err(InstanceSelectionError::MissingSite(site))
+        }
+        Err(crate::source_visibility::SourceVisibilityError::Access(error)) => {
+            Err(InstanceSelectionError::SourceAccess(error))
+        }
+    }
 }

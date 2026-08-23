@@ -90,8 +90,11 @@ be introduced to make an unresolved syntax choice.
   reservation pass then
   allocates every recursively referenceable typed ID—including associated types—in canonical
   surface order. Header preparation resolves exact declaration names and normalized visibility,
-  creates declaration sites, rejects deterministic namespace collisions, and only then projects
-  named entities from their exact name tokens rather than whole declaration ranges. Generic
+  creates declaration sites, rejects deterministic namespace collisions, and freezes direct-source
+  access for every private site and nominal representation. Semantic member and construction
+  selection consume that authority instead of treating all sources in one module as mutually
+  private. Only then does lowering project named entities from their exact name tokens rather than
+  whole declaration ranges. Generic
   preparation allocates binder identities from their already-reserved owners, carries immutable
   lexical scopes into members, reuses repeated declaration-pattern binders, rejects explicit
   duplicates and nested shadowing, and projects every authored binder occurrence. Joined contract

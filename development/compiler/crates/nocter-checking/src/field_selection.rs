@@ -1,8 +1,8 @@
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{
-    BorrowCapability, BuiltinField, BuiltinType, FieldId, FieldIdentity, ModuleId, NominalTypeId,
-    TypeId, TypeKind, TypeStore,
+    BorrowCapability, BuiltinField, BuiltinType, FieldId, FieldIdentity, NominalTypeId, TypeId,
+    TypeKind, TypeStore,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,7 +46,7 @@ impl SelectedField {
 pub(crate) fn select_field(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    from: ModuleId,
+    from: crate::SourceAccessContext<'_>,
     base: TypeId,
     name: &str,
 ) -> Result<SelectedField, FieldSelectionError> {
@@ -89,11 +89,16 @@ pub(crate) fn select_field(
         .fields()
         .get(field)
         .ok_or(FieldSelectionError::UnknownField(field))?;
-    let site = graph
-        .declaration_sites()
-        .get(declaration.site())
-        .ok_or(FieldSelectionError::UnknownFieldSite(field))?;
-    if !graph.is_visible_from(site.visibility(), from, site.module()) {
+    let visible = match crate::source_visibility::site_is_visible(graph, declaration.site(), from) {
+        Ok(visible) => visible,
+        Err(crate::source_visibility::SourceVisibilityError::MissingSite(_)) => {
+            return Err(FieldSelectionError::UnknownFieldSite(field));
+        }
+        Err(crate::source_visibility::SourceVisibilityError::Access(error)) => {
+            return Err(FieldSelectionError::SourceAccess(error));
+        }
+    };
+    if !visible {
         return Err(FieldSelectionError::InaccessibleField(field));
     }
     if nominal.generic_parameters().len() != arguments.len() {
@@ -148,7 +153,7 @@ fn select_builtin_error_field(
 /// after all source-order field evidence has been collected.
 pub(crate) fn select_structural_field(
     graph: &DeclarationGraph,
-    from: ModuleId,
+    from: crate::SourceAccessContext<'_>,
     owner: NominalTypeId,
     field: FieldId,
 ) -> Result<SelectedStructuralField, FieldSelectionError> {
@@ -160,11 +165,16 @@ pub(crate) fn select_structural_field(
     if declaration.owner() != owner {
         return Err(FieldSelectionError::UnknownField(field));
     }
-    let site = graph
-        .declaration_sites()
-        .get(declaration.site())
-        .ok_or(FieldSelectionError::UnknownFieldSite(field))?;
-    if !graph.is_visible_from(site.visibility(), from, site.module()) {
+    let visible = match crate::source_visibility::site_is_visible(graph, declaration.site(), from) {
+        Ok(visible) => visible,
+        Err(crate::source_visibility::SourceVisibilityError::MissingSite(_)) => {
+            return Err(FieldSelectionError::UnknownFieldSite(field));
+        }
+        Err(crate::source_visibility::SourceVisibilityError::Access(error)) => {
+            return Err(FieldSelectionError::SourceAccess(error));
+        }
+    };
+    if !visible {
         return Err(FieldSelectionError::InaccessibleField(field));
     }
     Ok(SelectedStructuralField {
@@ -186,4 +196,5 @@ pub(crate) enum FieldSelectionError {
     GenericArity(NominalTypeId),
     Substitution(SubstitutionError),
     UnknownBorrowType(nocter_model::UnknownTypeId),
+    SourceAccess(nocter_frontend_bindings::SourceAccessError),
 }

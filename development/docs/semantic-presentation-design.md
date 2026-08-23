@@ -62,12 +62,14 @@ because a qualified path is not valid `DeclarationTypePattern` syntax.
 Nominal hover additionally consumes `ConstructionSurfaceTable::public_surface` with the module that
 owns the hovered source occurrence. The table retains one canonical ordered surface and derives a
 separate `accessible_surface` for use-site tools. The latter follows ordinary language visibility,
-including module-private access, while the public presentation view removes raw private
-construction. Both views preserve the same structural, variant, member, source-order, and default
-identities. Presentation does not scan nominal or construct declarations to decide membership. It
-renders the selected structural or variant subset in the nominal declaration and selected authored
-members in a bodyless, unqualified `construct Type { ... }` block. Exact construction-target
-occurrences become `Self` recursively in member results.
+including direct-source private access, while the public presentation view removes raw private
+construction. A contract-sealed empty representation remains absent from both external use-site
+and public-presentation views; presentation never infers exposure from an empty field list. Both
+views preserve the same structural, variant, member, source-order, and default identities.
+Presentation does not scan nominal or construct declarations to decide membership. It renders the
+selected structural or variant subset in the nominal declaration and selected authored members in
+a bodyless, unqualified `construct Type { ... }` block. Exact construction-target occurrences
+become `Self` recursively in member results.
 
 Semantic presentation distinguishes absence from failure. No binding at the requested coordinate
 returns no result. A source-context conflict, construction-table disagreement, or invalid checked

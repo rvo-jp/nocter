@@ -371,9 +371,9 @@ package identity. No command or compiler stage may inspect installation JSON ind
 
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
 lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
-once, distinguishes
-same-module source edges from directory-module edges, rejects ambiguous physical candidates and
-nested-package or cross-module escapes, and retains one edge for every active authored `use`.
+once, distinguishes exact same-module `include` edges from directory-module `use` edges, rejects
+ambiguous physical candidates and nested-package or cross-module escapes, and retains one edge for
+every active authored `include` and `use`.
 Lexically or syntactically invalid sources remain in the snapshot for diagnostic projection, but
 the snapshot cannot be borrowed as a semantic input until those errors are absent. Discovery uses
 the shared `nocter-target-selection` inventory, so an inactive gated import never probes the
@@ -383,8 +383,8 @@ The discovery request is an explicit sum of declared-package and single-file lay
 requires one `.nct` path, derives its opaque package identity from the canonical source identity,
 adds only the selected standard package as a dependency, and rejects package-local imports that
 would silently turn the file into a directory graph. It then emits the same package, module,
-source, import-edge, and toolchain snapshot consumed by declaration lowering. There is no
-single-file semantic pipeline.
+source, include-edge, import-edge, and toolchain snapshot consumed by declaration lowering. There
+is no single-file semantic pipeline.
 
 Declared discovery owns package-target module edges for the roots selected by its caller. It maps
 the package snapshot's normalized module segments to the package's exact `ModuleIdentity` and
@@ -696,6 +696,15 @@ body type paths. Those consumers cannot reconstruct private visibility from modu
 same resolved namespace is independently projected into `SourceIndex` for editor spelling only;
 semantic consumers cannot read that projection. The compiler-managed prelude remains a distinct
 fallback layer, preserving authored shadowing without turning collisions into priority rules.
+
+Declaration lowering separately freezes a `SourceAccessTable`. It maps every source to itself and
+its exact direct include targets, every declaration site to its authored source, and every nominal
+representation to the source that owns its fields or variants. It also records whether a bodyless
+public nominal contract seals that representation. Name lookup consumes `SourceNamespaceTable`;
+private field, method, operator, coercion, variant, and raw structural-construction selection consume
+`SourceAccessTable`. Neither authority is reconstructed from module membership, and neither reads
+`SourceIndex`. The explicit representation entry is required for empty opaque structs, where no
+field declaration exists from which a consumer could infer the private source boundary.
 
 Import preparation retains the exact module-path node for every semantic module import. Prelude
 composition consumes that retained origin instead of reading the syntax tree again. An authored

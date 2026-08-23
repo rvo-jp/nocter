@@ -133,8 +133,10 @@ is not externally accessible and the construct declaration exposes members, one 
 marked `default`.
 
 With an explicit default member, named-field `Type { ... }` construction is restricted to the
-target's defining module, even when every field is public. This restriction hides raw
-initialization, not field access after a value exists.
+source that owns the representation and sources that include it directly, even when every field is
+public. This restriction hides raw initialization, not field access after a value exists. A
+bodyless public nominal contract also seals an empty private representation; the absence of fields
+does not make `Type {}` public.
 
 An empty construct declaration explicitly states that the type has no direct public construction
 entry:
@@ -159,10 +161,11 @@ reconstruct a list independently. Entries shown at a use site must respect type 
 visibility and must use the visible type spelling rather than an internal canonical module path.
 
 The canonical surface has two derived views. The use-site view contains every entry ordinary source
-may access from the requesting module, including private structural construction and private enum
-variants inside their defining module. The public-presentation view used by type hover removes raw
-private construction and private entries even when the hover occurs in their defining module. Both
-views preserve the same semantic entry and default identities; they are not separate indexes.
+may access from the requesting source and module. Private structural construction and private enum
+variants appear only in their authored source and sources that include it directly. The
+public-presentation view used by type hover removes raw private construction and private entries
+even when the requesting source can access them. Both views preserve the same semantic entry and
+default identities; they are not separate indexes.
 
 Declaration-shaped hover keeps the nominal declaration head's authored name because that head
 describes the declaration identity rather than a use-site alias. A bodyless `construct` head uses a

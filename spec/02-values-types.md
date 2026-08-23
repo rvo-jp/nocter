@@ -841,12 +841,14 @@ Rules:
 - Field initializer expressions are evaluated left to right in the order written in the literal.
 - Field initializer expressions follow normal ownership, move, copy, borrow, and postfix `?` rules.
 - If a later field initializer fails through postfix `?`, already initialized owned field values are dropped in reverse initialization order before the failure propagates.
-- Private fields may be initialized only inside the module that defines the struct.
+- Private fields may be initialized only in their authored source and sources that include it
+  directly.
 - Public fields may be initialized from other modules.
 - Construction entries cannot be overloaded.
 - Field default values, struct update syntax, positional structs, and tuple structs are not supported.
-- A `construct` declaration groups public construction functions and typed literals and may make
-  structural construction module-private. See [Construction Surfaces](19-construction-surfaces.md).
+- A `construct` declaration groups type-owned construction functions and typed literals. Each
+  member has its own visibility, and the declaration may make structural construction
+  source-private. See [Construction Surfaces](19-construction-surfaces.md).
 - Names such as `new`, `init`, and `create` are ordinary construction-function names when declared
   inside `construct`. The compiler does not special-case them.
 
@@ -864,7 +866,8 @@ construct User {
 }
 ```
 
-Outside the defining module, a struct with private fields can be created only through public APIs exposed by that module.
+Outside the private field's direct source-access boundary, a struct with private fields can be
+created only through public APIs exposed by its module.
 
 ```nct
 let user = User.create(1, String.copy("alice"))

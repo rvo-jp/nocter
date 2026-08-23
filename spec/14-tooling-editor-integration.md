@@ -148,7 +148,8 @@ Ordinary unconditional keyword lists and snippets are lexical editor convenience
 completion results. This avoids presenting `break`, `continue`, visibility, or declaration forms in
 grammar contexts where they cannot be used.
 Construction completion uses the use-site construction view, not hover's public-presentation view,
-so private construction available inside the defining module remains available to its source.
+so private construction remains available in its authored source and direct includers without
+leaking to unrelated sources in the same module.
 After a construction owner followed by `.`, completion offers only named entries expressible in
 that position: accessible enum variants and construction functions. Structural construction and
 typed literals use their own delimiters and are not invented as dot members. Explicit generic

@@ -10,12 +10,136 @@ use crate::{
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
+    check_fixture(&fixture)
+}
+
+fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared)
+}
+
+#[test]
+fn private_methods_require_direct_source_access() {
+    let root = concat!(
+        "include ./value.nct\n",
+        "include ./consumer.nct\n",
+        "\n",
+        "pub struct Value\n",
+    );
+    let value = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "struct Value { value: i32 }\n",
+        "instance Value {\n",
+        "    method &self.hidden(): i32 { self.value }\n",
+        "}\n",
+    );
+    let indirect_consumer = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "func probe(value: &Value): i32 { value.hidden() }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", indirect_consumer)],
+    );
+    let error = check_fixture(&fixture).unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidCall));
+
+    let direct_consumer = concat!(
+        "include ./index.nct\n",
+        "include ./value.nct\n",
+        "\n",
+        "func probe(value: &Value): i32 { value.hidden() }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", direct_consumer)],
+    );
+    check_fixture(&fixture).unwrap();
+}
+
+#[test]
+fn private_fields_require_direct_source_access() {
+    let root = concat!(
+        "include ./value.nct\n",
+        "include ./consumer.nct\n",
+        "\n",
+        "pub struct Value\n",
+    );
+    let value = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "struct Value { hidden: i32 }\n",
+    );
+    let indirect_consumer = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "func probe(value: &Value): i32 { value.hidden }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", indirect_consumer)],
+    );
+    let error = check_fixture(&fixture).unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InaccessibleField));
+
+    let direct_consumer = concat!(
+        "include ./index.nct\n",
+        "include ./value.nct\n",
+        "\n",
+        "func probe(value: &Value): i32 { value.hidden }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", direct_consumer)],
+    );
+    check_fixture(&fixture).unwrap();
+}
+
+#[test]
+fn private_construction_members_require_direct_source_access() {
+    let root = concat!(
+        "include ./value.nct\n",
+        "include ./consumer.nct\n",
+        "\n",
+        "pub struct Value\n",
+    );
+    let value = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "struct Value {}\n",
+        "construct Value {\n",
+        "    func hidden(): Self { Value {} }\n",
+        "}\n",
+    );
+    let indirect_consumer = concat!(
+        "include ./index.nct\n",
+        "\n",
+        "func probe(): Value { Value.hidden() }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", indirect_consumer)],
+    );
+    let error = check_fixture(&fixture).unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidCall));
+
+    let direct_consumer = concat!(
+        "include ./index.nct\n",
+        "include ./value.nct\n",
+        "\n",
+        "func probe(): Value { Value.hidden() }\n",
+    );
+    let fixture = Fixture::with_implementation_sources(
+        root,
+        &[("value.nct", value), ("consumer.nct", direct_consumer)],
+    );
+    check_fixture(&fixture).unwrap();
 }
 
 fn receiver_dispatches(output: &crate::CheckedProgramOutput) -> Vec<(StaticDispatch, usize)> {

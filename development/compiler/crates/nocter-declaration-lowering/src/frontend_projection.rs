@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_frontend_bindings::{FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration};
-use nocter_model::{BodyId, ModuleId, ParameterId};
+use nocter_model::{BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId};
 use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex,
@@ -90,6 +90,24 @@ impl FrontendProjectionBuilder {
         self.source_index.insert(entity, role, origin)
     }
 
+    pub(crate) fn define_declaration_site_source(
+        &mut self,
+        site: DeclarationSiteId,
+        source: SourceId,
+    ) {
+        self.bindings.define_declaration_site_source(site, source);
+    }
+
+    pub(crate) fn define_nominal_representation_source(
+        &mut self,
+        nominal: NominalTypeId,
+        source: SourceId,
+        contract_private: bool,
+    ) {
+        self.bindings
+            .define_nominal_representation_source(nominal, source, contract_private);
+    }
+
     pub(crate) fn insert_documentation(
         &mut self,
         entity: SemanticEntity,
@@ -128,6 +146,15 @@ impl FrontendProjectionBuilder {
                 .chain(fallback)
                 .map(|(name, entity)| (name, source_entity(entity))),
         );
+    }
+
+    pub(crate) fn define_source_access(
+        &mut self,
+        source: SourceId,
+        directly_included: impl IntoIterator<Item = SourceId>,
+    ) {
+        self.bindings
+            .define_source_access(source, directly_included);
     }
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {

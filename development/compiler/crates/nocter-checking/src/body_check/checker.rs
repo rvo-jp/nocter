@@ -137,6 +137,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     instance_operations: &'input crate::InstanceOperationTable,
     standard_semantics: &'input crate::StandardSemanticTable,
     source_namespaces: &'input SourceNamespaceTable,
+    source_access: crate::SourceAccessContext<'input>,
     source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
@@ -162,6 +163,10 @@ pub(super) struct BodyChecker<'input, 'syntax> {
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
+    fn source_access_context(&self) -> crate::SourceAccessContext<'input> {
+        self.source_access
+    }
+
     fn instance_selector(&mut self) -> InstanceOperationSelector<'_> {
         InstanceOperationSelector::new(
             InstanceSelectionContext::new(
@@ -170,7 +175,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.instance_operations,
                 &self.assumptions,
                 &self.intrinsic_facts,
-                self.source.module(),
+                self.source_access,
             ),
             self.types,
             self.copyabilities,
@@ -197,6 +202,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let instance_operations = facts.instance_operations();
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
+        let source_access =
+            crate::SourceAccessContext::for_source(facts.source_access(), source.syntax().source())
+                .map_err(BodyCheckInternalError::SourceAccess)?;
+        if source_access.module() != source.module() {
+            return Err(BodyCheckInternalError::SourceModuleMismatch(source.body()).into());
+        }
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
@@ -258,6 +269,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             instance_operations,
             standard_semantics,
             source_namespaces,
+            source_access,
             source_index,
             source,
             names,
