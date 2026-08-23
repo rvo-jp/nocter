@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, ParameterRole, StructuralCapability};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
-    InterfaceId, ModuleId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
+    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
 use crate::conformance::normalize_requirements;
@@ -187,7 +187,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         &mut self,
         selection: &StaticSelection,
         enclosing: &TypeSubstitution,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let arguments = self.specialize_arguments(selection.generic_arguments(), enclosing)?;
         match selection.dispatch() {
@@ -201,9 +200,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
             StaticDispatch::InterfaceMethod {
                 requirement,
                 method,
-            } => self.resolve_interface_method(requirement, method, &arguments, enclosing, from),
+            } => self.resolve_interface_method(requirement, method, &arguments, enclosing),
             StaticDispatch::InterfaceSelfMethod { interface, method } => {
-                self.resolve_interface_self_method(interface, method, &arguments, enclosing, from)
+                self.resolve_interface_self_method(interface, method, &arguments, enclosing)
             }
             StaticDispatch::InterfaceDefault {
                 interface,
@@ -226,10 +225,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 ))
             }
             StaticDispatch::OpaqueMethod { opaque, method } => {
-                self.resolve_opaque_method(opaque, method, &arguments, enclosing, from)
+                self.resolve_opaque_method(opaque, method, &arguments, enclosing)
             }
             StaticDispatch::StructuralRequirement(requirement) => {
-                self.resolve_structural(requirement, enclosing, from)
+                self.resolve_structural(requirement, enclosing)
             }
         }
     }
@@ -282,7 +281,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         surface: CallableId,
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
         let CheckedPredicate::Capability {
@@ -312,7 +310,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
             &application,
             surface,
             specialized_arguments,
-            from,
             Some(requirement),
         )
     }
@@ -323,7 +320,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         surface: CallableId,
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let symbolic = self
             .types
@@ -369,7 +365,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
             &application,
             surface,
             specialized_arguments,
-            from,
             None,
         )
     }
@@ -380,11 +375,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
         application: &nocter_declarations::InterfaceApplication,
         surface: CallableId,
         specialized_arguments: &GenericArguments,
-        from: ModuleId,
         requirement: Option<RequirementId>,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = self
-            .evidence(from)
+            .evidence()
             .interface_method(subject, application, surface)?;
         let candidate = if let Some(requirement) = requirement {
             exactly_one(candidates, requirement)?
@@ -464,11 +458,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
         surface: CallableId,
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let specialized = self.specialize_opaque_witness(opaque, enclosing)?;
         let definition = specialized.definition;
-        let candidates = self.evidence(from).interface_method(
+        let candidates = self.evidence().interface_method(
             specialized.witness,
             &specialized.application,
             surface,
@@ -613,7 +606,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         &mut self,
         requirement: RequirementId,
         enclosing: &TypeSubstitution,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
         match predicate {
@@ -624,25 +616,25 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 ResolvedDispatchStep::CallableValue { subject, contract },
             )),
             CheckedPredicate::Equality(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Equal, from)
+                self.resolve_comparison(requirement, ty, ComparisonOperation::Equal)
             }
             CheckedPredicate::Ordering(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Less, from)
+                self.resolve_comparison(requirement, ty, ComparisonOperation::Less)
             }
             CheckedPredicate::Index {
                 capability,
                 container,
                 index,
                 result,
-            } => self.resolve_index(requirement, capability, container, index, result, from),
+            } => self.resolve_index(requirement, capability, container, index, result),
             CheckedPredicate::Coercion { source, target } => {
-                self.resolve_coercion(requirement, source, target, from)
+                self.resolve_coercion(requirement, source, target)
             }
             CheckedPredicate::Expansion {
                 capability,
                 source,
                 result,
-            } => self.resolve_expansion(requirement, capability, source, result, from),
+            } => self.resolve_expansion(requirement, capability, source, result),
             CheckedPredicate::Capability {
                 capability: StructuralCapability::Interface(_),
                 ..
@@ -659,9 +651,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
         requirement: RequirementId,
         ty: TypeId,
         operation: ComparisonOperation,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let candidates = self.evidence(from).comparison(ty, ty, operation)?;
+        let candidates = self.evidence().comparison(ty, ty, operation)?;
         let candidate = exactly_one(candidates, requirement)?;
         let left_coercion = candidate
             .receiver_coercion()
@@ -707,7 +698,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         container: TypeId,
         index: TypeId,
         result: TypeId,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((result_capability, referent)) = borrow_result(&self.types, result) else {
             return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
@@ -738,7 +728,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
             });
         }
         let candidates = self
-            .evidence(from)
+            .evidence()
             .index(container, capability, index, referent)?;
         let candidate = exactly_one(candidates, requirement)?;
         let receiver_coercion = candidate
@@ -774,7 +764,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         requirement: RequirementId,
         source: TypeId,
         target: TypeId,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((source_capability, source_owner)) = borrow_result(&self.types, source) else {
             return Err(ConcreteDispatchError::InvalidCoercion(requirement));
@@ -793,7 +782,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 }),
             ));
         }
-        let candidates = self.evidence(from).coercion(
+        let candidates = self.evidence().coercion(
             source_owner,
             source_capability,
             target_capability,
@@ -811,17 +800,16 @@ impl<'program> ConcreteDispatchResolver<'program> {
         capability: ExpansionCapability,
         source: TypeId,
         result: TypeId,
-        from: ModuleId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let candidates = self.evidence(from).expansion(source, capability, result)?;
+        let candidates = self.evidence().expansion(source, capability, result)?;
         let candidate = exactly_one(candidates, requirement)?;
         Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
             candidate.selection(),
         )?))
     }
 
-    fn evidence(&mut self, from: ModuleId) -> ConcreteEvidenceAuthority<'_> {
-        ConcreteEvidenceAuthority::new(self.program, from, &mut self.types, &mut self.copyabilities)
+    fn evidence(&mut self) -> ConcreteEvidenceAuthority<'_> {
+        ConcreteEvidenceAuthority::new(self.program, &mut self.types, &mut self.copyabilities)
     }
 
     fn direct_step(

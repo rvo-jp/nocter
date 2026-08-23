@@ -609,7 +609,6 @@ pub enum ExecutableProgramError {
     UnknownBody(BodyId),
     UnknownItem(ExecutableItemKey),
     BodylessCallable(nocter_model::CallableId),
-    MissingDeclarationSite(BodyId),
     MissingTestName(TestId),
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
@@ -651,7 +650,6 @@ impl std::error::Error for ExecutableProgramError {
             | Self::UnknownBody(_)
             | Self::UnknownItem(_)
             | Self::BodylessCallable(_)
-            | Self::MissingDeclarationSite(_)
             | Self::MissingTestName(_)
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)

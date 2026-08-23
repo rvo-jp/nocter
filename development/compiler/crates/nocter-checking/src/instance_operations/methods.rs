@@ -6,7 +6,7 @@ use nocter_declarations::{
 use nocter_model::{BorrowCapability, CallableCapability, CallableId, Symbol, TypeId, TypeKind};
 
 use super::selection::{
-    InstanceOperationSelector, InstanceSelectionError, selected_generic_arguments, visible_callable,
+    InstanceOperationSelector, InstanceSelectionError, selected_generic_arguments,
 };
 use crate::conformance::{MethodSelection, select_conformance};
 use crate::type_relations::{TypeSubstitution, is_concrete_type, match_type_pattern};
@@ -157,7 +157,7 @@ impl InstanceOperationSelector<'_> {
             .ok_or(InstanceSelectionError::MissingCallable(surface))?;
         if !interface.methods().contains(&surface)
             || callable.kind() != CallableKind::Method
-            || !visible_callable(self.graph, self.from, callable.site())?
+            || !self.callable_is_admissible(callable.site())?
         {
             return Ok(Vec::new());
         }
@@ -259,9 +259,7 @@ impl InstanceOperationSelector<'_> {
                 .callables()
                 .get(*method)
                 .ok_or(InstanceSelectionError::MissingCallable(*method))?;
-            if callable.name() != Some(name)
-                || !visible_callable(self.graph, self.from, callable.site())?
-            {
+            if callable.name() != Some(name) || !self.callable_is_admissible(callable.site())? {
                 continue;
             }
             selected.push(MethodCandidate {
@@ -362,7 +360,7 @@ impl InstanceOperationSelector<'_> {
                     .ok_or(InstanceSelectionError::MissingCallable(member))?;
                 if callable.kind() != CallableKind::Method
                     || callable.name() != Some(name)
-                    || !visible_callable(self.graph, self.from, callable.site())?
+                    || !self.callable_is_admissible(callable.site())?
                 {
                     continue;
                 }
@@ -418,9 +416,7 @@ impl InstanceOperationSelector<'_> {
                     .callables()
                     .get(*method)
                     .ok_or(InstanceSelectionError::MissingCallable(*method))?;
-                if callable.name() != Some(name)
-                    || !visible_callable(self.graph, self.from, callable.site())?
-                {
+                if callable.name() != Some(name) || !self.callable_is_admissible(callable.site())? {
                     continue;
                 }
                 let capability =
@@ -510,7 +506,7 @@ impl InstanceOperationSelector<'_> {
                 .callables()
                 .get(surface)
                 .ok_or(InstanceSelectionError::MissingCallable(surface))?;
-            if !visible_callable(self.graph, self.from, surface_declaration.site())? {
+            if !self.callable_is_admissible(surface_declaration.site())? {
                 continue;
             }
             selected.extend(self.select_conformance_method(target, interface_id, surface)?);

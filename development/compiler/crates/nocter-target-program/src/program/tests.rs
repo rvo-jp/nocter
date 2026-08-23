@@ -286,10 +286,9 @@ fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
             )
         })
         .unwrap();
-    let module = callable_module(&target, equal);
     let mut resolver = ConcreteDispatchResolver::new(target.checked());
     let plan = resolver
-        .resolve(structural, &equal_key.substitution(), module)
+        .resolve(structural, &equal_key.substitution())
         .unwrap();
 
     let ResolvedDispatchPlan::Comparison {
@@ -350,10 +349,9 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
         .iter()
         .find(|selection| matches!(selection.dispatch(), StaticDispatch::InterfaceMethod { .. }))
         .unwrap();
-    let module = callable_module(&target, generic);
     let mut dispatch_resolver = ConcreteDispatchResolver::new(target.checked());
     let plan = dispatch_resolver
-        .resolve(interface_selection, &generic_key.substitution(), module)
+        .resolve(interface_selection, &generic_key.substitution())
         .unwrap();
     let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method_dispatch)) = plan
     else {
@@ -394,11 +392,7 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
         .unwrap();
     let mut resolver = ConcreteDispatchResolver::new(target.checked());
     let plan = resolver
-        .resolve(
-            selection,
-            &nocter_checking::TypeSubstitution::default(),
-            callable_module(&target, main),
-        )
+        .resolve(selection, &nocter_checking::TypeSubstitution::default())
         .unwrap();
     let ResolvedDispatchPlan::OpaqueInvocation {
         receiver,
@@ -572,24 +566,6 @@ fn callable_dependencies(
         target.checked().bodies().get(body).unwrap().root(),
     )
     .unwrap()
-}
-
-fn callable_module(
-    target: &TargetProgram,
-    callable: nocter_model::CallableId,
-) -> nocter_model::ModuleId {
-    let CallableOwner::Module(module) = target
-        .checked()
-        .graph()
-        .declarations()
-        .callables()
-        .get(callable)
-        .unwrap()
-        .owner()
-    else {
-        panic!("fixture callable must be module-owned")
-    };
-    module
 }
 
 fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {

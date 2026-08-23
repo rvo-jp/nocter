@@ -6,10 +6,8 @@ use nocter_checking::{
     GenericArgument, GenericArguments, ResolvedDispatchPlan, ResolvedDispatchStep, StaticSelection,
     TypeSubstitution,
 };
-use nocter_declarations::BodyOwner;
 use nocter_model::{
-    ArenaBuilder, BodyId, BodyNodeId, CallableCapability, ExecutableItemId, ModuleId, TypeId,
-    TypeKind,
+    ArenaBuilder, BodyId, BodyNodeId, CallableCapability, ExecutableItemId, TypeId, TypeKind,
 };
 
 use super::signature::{build_signature, callable_signature};
@@ -177,9 +175,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         let mut drops = BTreeMap::new();
         let mut dispatches = Vec::new();
         for selection in dependencies.selections() {
-            let plan = self
-                .resolver
-                .resolve(selection, &substitution, context.module)?;
+            let plan = self.resolver.resolve(selection, &substitution)?;
             dispatches.push(DraftDispatchEdge {
                 source: selection.clone(),
                 plan: self.convert_dispatch(&plan, &mut drops)?,
@@ -580,7 +576,6 @@ impl<'program> ExecutableClosureBuilder<'program> {
 struct ItemContext {
     body: BodyId,
     root: BodyNodeId,
-    module: ModuleId,
 }
 
 fn item_context(
@@ -647,36 +642,7 @@ fn item_context(
             )
         }
     };
-    let owner = graph
-        .declarations()
-        .bodies()
-        .get(body)
-        .ok_or(ExecutableProgramError::UnknownBody(body))?
-        .owner();
-    let site = match owner {
-        BodyOwner::Callable(callable) => graph
-            .declarations()
-            .callables()
-            .get(callable)
-            .map(nocter_declarations::CallableDeclaration::site),
-        BodyOwner::Drop(drop) => graph
-            .declarations()
-            .drops()
-            .get(drop)
-            .map(nocter_declarations::DropDeclaration::site),
-        BodyOwner::Test(test) => graph
-            .declarations()
-            .tests()
-            .get(test)
-            .map(|declaration| declaration.site()),
-    }
-    .ok_or(ExecutableProgramError::MissingDeclarationSite(body))?;
-    let module = graph
-        .declaration_sites()
-        .get(site)
-        .map(|site| site.module())
-        .ok_or(ExecutableProgramError::MissingDeclarationSite(body))?;
-    Ok(ItemContext { body, root, module })
+    Ok(ItemContext { body, root })
 }
 
 fn item_generic_arguments(key: &ExecutableItemKey) -> GenericArguments {

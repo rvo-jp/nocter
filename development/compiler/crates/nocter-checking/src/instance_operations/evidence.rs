@@ -1,5 +1,5 @@
 use nocter_declarations::{ExpansionCapability, InterfaceApplication};
-use nocter_model::{BorrowCapability, CallableId, ModuleId, TypeId, TypeStore};
+use nocter_model::{BorrowCapability, CallableId, TypeId, TypeStore};
 
 use super::comparison::ComparisonOperationCandidate;
 use super::expansion::ExpansionCandidate;
@@ -20,19 +20,15 @@ pub(crate) struct ConcreteEvidenceAuthority<'authority> {
 impl<'authority> ConcreteEvidenceAuthority<'authority> {
     pub(crate) fn new(
         program: &'authority CheckedProgram,
-        from: ModuleId,
         types: &'authority mut TypeStore,
         copyabilities: &'authority mut CopyabilityTable,
     ) -> Self {
         Self {
             selector: InstanceOperationSelector::new(
-                InstanceSelectionContext::new(
+                InstanceSelectionContext::for_concrete_evidence(
                     program.graph(),
                     program.conformances(),
                     program.instance_operations(),
-                    &[],
-                    &[],
-                    from,
                 ),
                 types,
                 copyabilities,

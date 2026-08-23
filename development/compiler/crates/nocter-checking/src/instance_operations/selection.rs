@@ -167,13 +167,19 @@ impl From<SubstitutionError> for InstanceSelectionError {
 
 /// Stateful authority for one body's instance-operation selection and recursive requirement proof.
 #[derive(Clone, Copy)]
+enum CandidateVisibility {
+    Lexical(ModuleId),
+    CheckedEvidence,
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct InstanceSelectionContext<'program> {
     graph: &'program DeclarationGraph,
     conformances: &'program ConformanceTable,
     table: &'program InstanceOperationTable,
     assumptions: &'program [CheckedRequirement],
     intrinsic_facts: &'program [CheckedPredicate],
-    from: ModuleId,
+    visibility: CandidateVisibility,
 }
 
 impl<'program> InstanceSelectionContext<'program> {
@@ -191,7 +197,25 @@ impl<'program> InstanceSelectionContext<'program> {
             table,
             assumptions,
             intrinsic_facts,
-            from,
+            visibility: CandidateVisibility::Lexical(from),
+        }
+    }
+
+    /// Builds the closed specialization context for evidence already admitted by checking.
+    ///
+    /// Concrete specialization has no lexical module and cannot repeat source visibility.
+    pub(crate) const fn for_concrete_evidence(
+        graph: &'program DeclarationGraph,
+        conformances: &'program ConformanceTable,
+        table: &'program InstanceOperationTable,
+    ) -> Self {
+        Self {
+            graph,
+            conformances,
+            table,
+            assumptions: &[],
+            intrinsic_facts: &[],
+            visibility: CandidateVisibility::CheckedEvidence,
         }
     }
 }
@@ -204,7 +228,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
     pub(super) intrinsic_facts: &'program [CheckedPredicate],
-    pub(super) from: ModuleId,
+    visibility: CandidateVisibility,
     pub(super) active: HashSet<CheckedPredicate>,
 }
 
@@ -222,8 +246,18 @@ impl<'program> InstanceOperationSelector<'program> {
             table: context.table,
             assumptions: context.assumptions,
             intrinsic_facts: context.intrinsic_facts,
-            from: context.from,
+            visibility: context.visibility,
             active: HashSet::new(),
+        }
+    }
+
+    pub(super) fn callable_is_admissible(
+        &self,
+        site: nocter_model::DeclarationSiteId,
+    ) -> Result<bool, InstanceSelectionError> {
+        match self.visibility {
+            CandidateVisibility::Lexical(from) => visible_callable(self.graph, from, site),
+            CandidateVisibility::CheckedEvidence => Ok(true),
         }
     }
 
@@ -303,7 +337,7 @@ impl<'program> InstanceOperationSelector<'program> {
                     .get(member)
                     .ok_or(InstanceSelectionError::MissingCallable(member))?;
                 if callable.kind() != CallableKind::Index
-                    || !visible_callable(self.graph, self.from, callable.site())?
+                    || !self.callable_is_admissible(callable.site())?
                 {
                     continue;
                 }
@@ -406,7 +440,7 @@ impl<'program> InstanceOperationSelector<'program> {
                     .get(member)
                     .ok_or(InstanceSelectionError::MissingCallable(member))?;
                 if callable.kind() != CallableKind::Coercion
-                    || !visible_callable(self.graph, self.from, callable.site())?
+                    || !self.callable_is_admissible(callable.site())?
                 {
                     continue;
                 }

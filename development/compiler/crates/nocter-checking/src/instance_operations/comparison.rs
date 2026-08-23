@@ -1,9 +1,7 @@
 use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
 use nocter_model::{BorrowCapability, BuiltinType, CallableCapability, TypeId, TypeKind};
 
-use super::selection::{
-    InstanceOperationSelector, InstanceSelectionError, borrow_result, visible_callable,
-};
+use super::selection::{InstanceOperationSelector, InstanceSelectionError, borrow_result};
 use crate::conformance::normalize_requirements;
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -138,7 +136,7 @@ impl InstanceOperationSelector<'_> {
                     .get(member)
                     .ok_or(InstanceSelectionError::MissingCallable(member))?;
                 if callable.kind() != callable_kind
-                    || !visible_callable(self.graph, self.from, callable.site())?
+                    || !self.callable_is_admissible(callable.site())?
                 {
                     continue;
                 }

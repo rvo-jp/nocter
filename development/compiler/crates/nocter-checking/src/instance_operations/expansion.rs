@@ -1,7 +1,7 @@
 use nocter_declarations::{CallableKind, ExpansionCapability, ParameterRole};
 use nocter_model::{CallableCapability, TypeId};
 
-use super::selection::{InstanceOperationSelector, InstanceSelectionError, visible_callable};
+use super::selection::{InstanceOperationSelector, InstanceSelectionError};
 use crate::conformance::normalize_requirements;
 use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, GenericArguments, StaticDispatch, StaticSelection};
@@ -88,7 +88,7 @@ impl InstanceOperationSelector<'_> {
                     .get(member)
                     .ok_or(InstanceSelectionError::MissingCallable(member))?;
                 if callable.kind() != CallableKind::Expansion
-                    || !visible_callable(self.graph, self.from, callable.site())?
+                    || !self.callable_is_admissible(callable.site())?
                 {
                     continue;
                 }
