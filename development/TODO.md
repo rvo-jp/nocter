@@ -2,14 +2,16 @@
 
 ## Current Task
 
-The v0.14.0 release candidate is fully prepared and qualified without publication. The normative
-`init` and `graph` omission found by the release audit is repaired. Release-content commit
+Nocter v0.14.0 is published and externally audited. The normative `init` and `graph` omission found
+by the release audit is repaired. Release-content commit
 `a59d4e387eff45c4975b38c771597688417ae4d6` passed incremental and clean source gates, deterministic
-double packaging, and the complete fresh-install smoke matrix. Candidate evidence is recorded in
-`development/milestones/v0.14.0-release-preparation.md`.
+double packaging, and the complete fresh-install smoke matrix. Annotated tag `v0.14.0` resolves to
+publication commit `b59c174a3e510f4ebc6279b7013bc269ccae0678`, and the public asset matches the
+qualified archive byte for byte. Complete evidence is recorded in
+`development/releases/v0.14.0.md`.
 
-The qualified archive is frozen. Tagging, pushing, uploading, public latest-release updates, and
-publication remain outside the current operation and require explicit user authorization.
+The v0.14.0 tag and release asset are frozen. No release-preparation or publication operation
+remains active.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

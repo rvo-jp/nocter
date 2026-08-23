@@ -14,6 +14,7 @@ The release preparation and publication evidence is linked from the current-work
 - [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
 - [v0.14.0 final design review](reviews/v0.14.0-final-design.md)
 - [v0.14.0 release preparation](milestones/v0.14.0-release-preparation.md)
+- [v0.14.0 publication and audit](releases/v0.14.0.md)
 - [New compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
