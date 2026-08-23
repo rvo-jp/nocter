@@ -1,4 +1,5 @@
-use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
+use nocter_model::TypeId;
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -18,7 +19,7 @@ pub(crate) fn generate_destruction_function(
     linkage: MachineLinkageId,
     plan: &MachineDestructionPlan,
     abi: &MachineCallableAbi,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
 ) -> Result<MachineFunction, crate::MachineProgramError> {
     let mut builder = DestructionBuilder::new(linkage, abi, types, layouts)?;
@@ -45,7 +46,7 @@ struct OutcomeEmission<'a> {
 
 struct DestructionBuilder<'a> {
     owner: MachineLinkageId,
-    types: &'a TypeStore,
+    types: &'a RuntimeTypeTable,
     layouts: &'a MachineLayoutStore,
     parameters: Vec<MachineStackId>,
     stack: Vec<MachineStackObject>,
@@ -62,7 +63,7 @@ impl<'a> DestructionBuilder<'a> {
     fn new(
         owner: MachineLinkageId,
         abi: &MachineCallableAbi,
-        types: &'a TypeStore,
+        types: &'a RuntimeTypeTable,
         layouts: &'a MachineLayoutStore,
     ) -> Result<Self, crate::MachineProgramError> {
         if abi.arguments().len() != 2 || abi.result() != MachineResultAbi::Completion {
@@ -95,8 +96,8 @@ impl<'a> DestructionBuilder<'a> {
                 terminator: None,
             }],
             current: MachineBlockId::new(0),
-            usize_: types.builtin(BuiltinType::Usize),
-            bool_: types.builtin(BuiltinType::Bool),
+            usize_: runtime_primitive(types, RuntimePrimitive::Usize)?,
+            bool_: runtime_primitive(types, RuntimePrimitive::Bool)?,
         })
     }
 
@@ -467,10 +468,10 @@ impl<'a> DestructionBuilder<'a> {
         ty: TypeId,
     ) -> Result<MachineValueRepresentation, crate::MachineProgramError> {
         match self.types.get(ty) {
-            Some(TypeKind::Builtin(BuiltinType::Void)) => {
+            Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {
                 Ok(MachineValueRepresentation::Completion)
             }
-            Some(TypeKind::Builtin(BuiltinType::Never)) => {
+            Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => {
                 Ok(MachineValueRepresentation::Diverging)
             }
             Some(_) => self
@@ -531,4 +532,15 @@ fn with_offset(steps: &[MachineAddressStep], offset: u64) -> Vec<MachineAddressS
         result.push(MachineAddressStep::Offset(offset));
     }
     result
+}
+
+fn runtime_primitive(
+    types: &RuntimeTypeTable,
+    primitive: RuntimePrimitive,
+) -> Result<TypeId, crate::MachineProgramError> {
+    types
+        .primitive(primitive)
+        .ok_or(crate::MachineProgramError::MissingRuntimePrimitive(
+            primitive,
+        ))
 }

@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{
-    BuiltinType, CaptureId, FieldId, ParameterId, TypeId, TypeKind, TypeStore, VariantId,
+use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, VariantId};
+use nocter_runtime_contract::{
+    RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation, RuntimeTypeTable,
 };
-use nocter_runtime_contract::RuntimeTypeRepresentation;
 
 use crate::MachineTarget;
 
@@ -219,14 +219,14 @@ impl MachineLayoutStore {
         // Machine-generated CFGs use these canonical control and offset carriers independently of
         // whether source MIR happens to mention them.
         roots.extend([
-            program.types().builtin(BuiltinType::Bool),
-            program.types().builtin(BuiltinType::Usize),
+            primitive(program.types(), RuntimePrimitive::Bool)?,
+            primitive(program.types(), RuntimePrimitive::Usize)?,
         ]);
-        let byte = program.types().builtin(BuiltinType::U8);
+        let byte = primitive(program.types(), RuntimePrimitive::Unsigned(8))?;
         if let Some(pointer) = program
             .types()
             .iter()
-            .find_map(|(ty, kind)| (kind == &TypeKind::Pointer(byte)).then_some(ty))
+            .find_map(|(ty, kind)| (kind == &RuntimeType::Pointer(byte)).then_some(ty))
         {
             roots.insert(pointer);
         }
@@ -302,12 +302,12 @@ impl LayoutBuilder<'_> {
     fn compute(
         &mut self,
         ty: TypeId,
-        kind: &TypeKind,
+        kind: &RuntimeType,
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
-            TypeKind::Builtin(builtin) => self.builtin(ty, *builtin),
-            TypeKind::Pointer(_) => Ok(self.pointer()),
-            TypeKind::Borrow { referent, .. } => {
+            RuntimeType::Primitive(primitive) => self.primitive(ty, *primitive),
+            RuntimeType::Pointer(_) => Ok(self.pointer()),
+            RuntimeType::Borrow { referent, .. } => {
                 let referent = self
                     .program
                     .types()
@@ -315,7 +315,7 @@ impl LayoutBuilder<'_> {
                     .ok_or(MachineLayoutError::UnknownType(*referent))?;
                 if matches!(
                     referent,
-                    TypeKind::Builtin(BuiltinType::Str) | TypeKind::Slice(_)
+                    RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_)
                 ) {
                     Ok(MachineLayout {
                         size: self.target.word_size() * 2,
@@ -329,7 +329,7 @@ impl LayoutBuilder<'_> {
                     Ok(self.pointer())
                 }
             }
-            TypeKind::FixedArray { element, length } => {
+            RuntimeType::FixedArray { element, length } => {
                 let element_layout = self.layout(*element)?.clone();
                 let stride = align_up(element_layout.size, element_layout.alignment, ty)?;
                 let size = stride
@@ -345,9 +345,9 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
-            TypeKind::Nominal { .. } => self.nominal(ty),
-            TypeKind::Closure { .. } => self.closure(ty),
-            TypeKind::Optional(payload) => {
+            RuntimeType::Aggregate => self.nominal(ty),
+            RuntimeType::Closure => self.closure(ty),
+            RuntimeType::Optional(payload) => {
                 let payload_layout = self.layout(*payload)?.clone();
                 Self::outcome(
                     ty,
@@ -356,13 +356,13 @@ impl LayoutBuilder<'_> {
                     None,
                 )
             }
-            TypeKind::Fallible(payload) => {
+            RuntimeType::Fallible(payload) => {
                 let primary = if is_void(self.program.types(), *payload) {
                     None
                 } else {
                     Some((self.layout(*payload)?.clone(), *payload))
                 };
-                let error = self.program.types().builtin(BuiltinType::Error);
+                let error = primitive(self.program.types(), RuntimePrimitive::Error)?;
                 let alternate = self.layout(error)?.clone();
                 Self::outcome(
                     ty,
@@ -371,17 +371,12 @@ impl LayoutBuilder<'_> {
                     Some((alternate, error)),
                 )
             }
-            TypeKind::Opaque { definition, .. } => {
-                let Some(RuntimeTypeRepresentation::Opaque {
-                    definition: actual,
-                    witness,
-                }) = self.program.type_representations().get(ty)
+            RuntimeType::Opaque => {
+                let Some(RuntimeTypeRepresentation::Opaque { witness, .. }) =
+                    self.program.type_representations().get(ty)
                 else {
                     return Err(MachineLayoutError::MissingRepresentation(ty));
                 };
-                if actual != definition {
-                    return Err(MachineLayoutError::InvalidRepresentation(ty));
-                }
                 let witness = *witness;
                 let layout = self.layout(witness)?.clone();
                 Ok(MachineLayout {
@@ -390,30 +385,24 @@ impl LayoutBuilder<'_> {
                     kind: MachineLayoutKind::Opaque { witness },
                 })
             }
-            TypeKind::GenericParameter(_)
-            | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Slice(_)
-            | TypeKind::Callable(_) => Err(MachineLayoutError::UnsizedOrSymbolicType(ty)),
+            RuntimeType::Slice(_) | RuntimeType::Callable => {
+                Err(MachineLayoutError::UnsizedOrSymbolicType(ty))
+            }
         }
     }
 
-    fn builtin(
+    fn primitive(
         &self,
         ty: TypeId,
-        builtin: BuiltinType,
+        primitive: RuntimePrimitive,
     ) -> Result<MachineLayout, MachineLayoutError> {
-        let (size, alignment, kind) = match builtin {
-            BuiltinType::Bool => (1, 1, MachineLayoutKind::Scalar(MachineScalar::Bool)),
-            BuiltinType::I8 => integer(8, true),
-            BuiltinType::I16 => integer(16, true),
-            BuiltinType::I32 => integer(32, true),
-            BuiltinType::I64 | BuiltinType::Isize => integer(64, true),
-            BuiltinType::U8 => integer(8, false),
-            BuiltinType::U16 => integer(16, false),
-            BuiltinType::U32 => integer(32, false),
-            BuiltinType::U64 | BuiltinType::Usize => integer(64, false),
-            BuiltinType::Error => (
+        let (size, alignment, kind) = match primitive {
+            RuntimePrimitive::Bool => (1, 1, MachineLayoutKind::Scalar(MachineScalar::Bool)),
+            RuntimePrimitive::Signed(bits) => integer(bits, true)?,
+            RuntimePrimitive::Unsigned(bits) => integer(bits, false)?,
+            RuntimePrimitive::Isize => integer(64, true)?,
+            RuntimePrimitive::Usize => integer(64, false)?,
+            RuntimePrimitive::Error => (
                 self.target.word_size() * 4,
                 self.target.word_size(),
                 MachineLayoutKind::Error {
@@ -421,7 +410,7 @@ impl LayoutBuilder<'_> {
                     message_offset: self.target.word_size() * 2,
                 },
             ),
-            BuiltinType::Str | BuiltinType::Void | BuiltinType::Never => {
+            RuntimePrimitive::Text | RuntimePrimitive::Void | RuntimePrimitive::Never => {
                 return Err(MachineLayoutError::UnsizedOrSymbolicType(ty));
             }
         };
@@ -625,7 +614,7 @@ impl LayoutBuilder<'_> {
     }
 }
 
-fn collect_body_types(body: &MirBody, store: &TypeStore, types: &mut BTreeSet<TypeId>) {
+fn collect_body_types(body: &MirBody, store: &RuntimeTypeTable, types: &mut BTreeSet<TypeId>) {
     if let Some(pack) = body.pack() {
         types.extend([pack.element(), pack.next()]);
     }
@@ -633,7 +622,7 @@ fn collect_body_types(body: &MirBody, store: &TypeStore, types: &mut BTreeSet<Ty
     types.extend(body.places().iter().filter_map(|(_, place)| {
         (!matches!(
             store.get(place.ty()),
-            Some(TypeKind::Builtin(BuiltinType::Str) | TypeKind::Slice(_))
+            Some(RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_))
         ))
         .then_some(place.ty())
     }));
@@ -647,24 +636,39 @@ fn collect_body_types(body: &MirBody, store: &TypeStore, types: &mut BTreeSet<Ty
     }
 }
 
-fn is_completion_type(types: &TypeStore, ty: TypeId) -> bool {
+fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
     matches!(
         types.get(ty),
-        Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
+        Some(RuntimeType::Primitive(
+            RuntimePrimitive::Void | RuntimePrimitive::Never
+        ))
     )
 }
 
-fn is_void(types: &TypeStore, ty: TypeId) -> bool {
-    matches!(types.get(ty), Some(TypeKind::Builtin(BuiltinType::Void)))
+fn is_void(types: &RuntimeTypeTable, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(RuntimeType::Primitive(RuntimePrimitive::Void))
+    )
 }
 
-fn integer(bits: u8, signed: bool) -> (u64, u64, MachineLayoutKind) {
+fn integer(bits: u16, signed: bool) -> Result<(u64, u64, MachineLayoutKind), MachineLayoutError> {
+    let bits = u8::try_from(bits).map_err(|_| MachineLayoutError::InvalidIntegerWidth(bits))?;
     let bytes = u64::from(bits / 8);
-    (
+    Ok((
         bytes,
         bytes,
         MachineLayoutKind::Scalar(MachineScalar::Integer { bits, signed }),
-    )
+    ))
+}
+
+fn primitive(
+    types: &RuntimeTypeTable,
+    primitive: RuntimePrimitive,
+) -> Result<TypeId, MachineLayoutError> {
+    types
+        .primitive(primitive)
+        .ok_or(MachineLayoutError::MissingPrimitive(primitive))
 }
 
 fn align_up(value: u64, alignment: u64, ty: TypeId) -> Result<u64, MachineLayoutError> {
@@ -683,6 +687,8 @@ fn align_up(value: u64, alignment: u64, ty: TypeId) -> Result<u64, MachineLayout
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineLayoutError {
     UnknownType(TypeId),
+    MissingPrimitive(RuntimePrimitive),
+    InvalidIntegerWidth(u16),
     UnsizedOrSymbolicType(TypeId),
     MissingRepresentation(TypeId),
     InvalidRepresentation(TypeId),

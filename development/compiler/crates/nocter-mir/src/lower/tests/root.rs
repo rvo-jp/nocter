@@ -1,4 +1,4 @@
-use nocter_model::{BuiltinType, TypeId};
+use nocter_model::TypeId;
 use nocter_target_program::ProcessSuccessType;
 use nocter_test_support::CompilerFixture;
 
@@ -162,10 +162,10 @@ fn expected_status_type(
     program: &crate::MirProgram,
     success: ProcessSuccessType,
 ) -> Option<TypeId> {
-    let builtin = match success {
+    let primitive = match success {
         ProcessSuccessType::Void => return None,
-        ProcessSuccessType::I32 => BuiltinType::I32,
-        ProcessSuccessType::Usize => BuiltinType::Usize,
+        ProcessSuccessType::I32 => nocter_runtime_contract::RuntimePrimitive::Signed(32),
+        ProcessSuccessType::Usize => nocter_runtime_contract::RuntimePrimitive::Usize,
     };
-    Some(program.types().builtin(builtin))
+    program.types().primitive(primitive)
 }

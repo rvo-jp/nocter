@@ -1,9 +1,8 @@
 use std::fmt;
 
 use nocter_mir::{MirFunction, MirProgram};
-use nocter_model::{
-    Arena, ArenaBuilder, BuiltinType, ExecutableItemId, TypeId, TypeKind, TypeStore,
-};
+use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, TypeId};
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use crate::{MachineLayout, MachineLayoutStore, MachineTarget};
 
@@ -264,7 +263,7 @@ impl MachineAbiPlan {
 
 fn plan_function(
     function: &MirFunction,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
     let parameters = function
@@ -305,7 +304,7 @@ fn plan_function(
 }
 
 pub(crate) fn plan_signature(
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     parameters: &[TypeId],
     result: TypeId,
@@ -371,13 +370,13 @@ pub(crate) fn plan_signature(
 }
 
 pub(crate) fn plan_result(
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ty: TypeId,
 ) -> Result<MachineResultAbi, MachineAbiError> {
     match types.get(ty) {
-        Some(TypeKind::Builtin(BuiltinType::Void)) => Ok(MachineResultAbi::Completion),
-        Some(TypeKind::Builtin(BuiltinType::Never)) => Ok(MachineResultAbi::Diverging),
+        Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => Ok(MachineResultAbi::Completion),
+        Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => Ok(MachineResultAbi::Diverging),
         Some(_) => {
             let target = layouts.target();
             let class = MachineValueClass::for_layout(require_layout(types, layouts, ty)?, target);
@@ -420,7 +419,7 @@ fn stack_transport(
 }
 
 fn require_layout<'layout>(
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &'layout MachineLayoutStore,
     ty: TypeId,
 ) -> Result<&'layout MachineLayout, MachineAbiError> {
@@ -430,10 +429,12 @@ fn require_layout<'layout>(
     layouts.get(ty).ok_or(MachineAbiError::MissingLayout(ty))
 }
 
-fn is_completion_type(types: &TypeStore, ty: TypeId) -> bool {
+fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
     matches!(
         types.get(ty),
-        Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
+        Some(RuntimeType::Primitive(
+            RuntimePrimitive::Void | RuntimePrimitive::Never
+        ))
     )
 }
 

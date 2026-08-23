@@ -1,7 +1,6 @@
 use nocter_mir::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind};
-use nocter_model::{
-    BuiltinField, BuiltinType, FieldIdentity, MirPlaceId, TypeId, TypeKind, TypeStore,
-};
+use nocter_model::{BuiltinField, FieldIdentity, MirPlaceId, TypeId};
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::body::BodyIdentities;
 use super::{MachineAddressError, MachineProgramError};
@@ -12,7 +11,7 @@ use crate::{
 
 pub(super) fn lower_addresses(
     body: &MirBody,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineAddress>, MachineProgramError> {
@@ -26,7 +25,7 @@ fn lower_address(
     place: MirPlaceId,
     value: &MirPlace,
     body: &MirBody,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<MachineAddress, MachineProgramError> {
@@ -58,7 +57,7 @@ fn lower_address(
     if current_view {
         if !matches!(
             types.get(value.ty()),
-            Some(TypeKind::Builtin(BuiltinType::Str) | TypeKind::Slice(_))
+            Some(RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_))
         ) {
             return Err(address_error(
                 ids,
@@ -84,7 +83,7 @@ fn lower_root(
     place: MirPlaceId,
     root: MirPlaceRoot,
     body: &MirBody,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<(MachineAddressRoot, TypeId, bool), MachineProgramError> {
@@ -108,7 +107,7 @@ fn lower_root(
                 .get(value)
                 .copied()
                 .ok_or_else(|| address_error(ids, place, MachineAddressError::InvalidRoot))?;
-            let Some(TypeKind::Borrow { referent, .. }) = types.get(source.ty()) else {
+            let Some(RuntimeType::Borrow { referent, .. }) = types.get(source.ty()) else {
                 return Err(address_error(ids, place, MachineAddressError::InvalidRoot));
             };
             let layout = layouts
@@ -143,7 +142,7 @@ fn lower_root(
 #[derive(Clone, Copy)]
 struct ProjectionContext<'a> {
     place: MirPlaceId,
-    types: &'a TypeStore,
+    types: &'a RuntimeTypeTable,
     layouts: &'a MachineLayoutStore,
     ids: &'a BodyIdentities,
 }
@@ -312,7 +311,7 @@ fn lower_index(
     index: MachineIndex,
 ) -> Result<(), MachineProgramError> {
     let (stride, bound) = match context.types.get(source) {
-        Some(TypeKind::FixedArray { .. }) => {
+        Some(RuntimeType::FixedArray { .. }) => {
             let MachineLayoutKind::FixedArray { length, stride, .. } =
                 layout_kind(context.layouts, source)?
             else {
@@ -320,15 +319,20 @@ fn lower_index(
             };
             (*stride, MachineIndexBound::Fixed(*length))
         }
-        Some(TypeKind::Slice(element)) if state.current_view => {
+        Some(RuntimeType::Slice(element)) if state.current_view => {
             let layout = context
                 .layouts
                 .get(*element)
                 .ok_or(MachineProgramError::MissingStoredLayout(*element))?;
             (layout.size(), MachineIndexBound::CurrentView)
         }
-        Some(TypeKind::Builtin(BuiltinType::Str)) if state.current_view => {
-            let byte = context.types.builtin(BuiltinType::U8);
+        Some(RuntimeType::Primitive(RuntimePrimitive::Text)) if state.current_view => {
+            let byte = context
+                .types
+                .primitive(RuntimePrimitive::Unsigned(8))
+                .ok_or(MachineProgramError::MissingRuntimePrimitive(
+                    RuntimePrimitive::Unsigned(8),
+                ))?;
             let layout = context
                 .layouts
                 .get(byte)

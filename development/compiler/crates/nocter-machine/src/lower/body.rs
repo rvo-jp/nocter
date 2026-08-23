@@ -2,10 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_mir::{MirBody, MirLocalKind, MirValueDefinition};
-use nocter_model::{
-    BuiltinType, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId,
-    TypeKind, TypeStore,
-};
+use nocter_model::{MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId};
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::MachineProgramError;
 use super::address::lower_addresses;
@@ -87,7 +85,7 @@ fn lower_stack(
 
 fn lower_values(
     body: &MirBody,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineValue>, MachineProgramError> {
@@ -95,10 +93,10 @@ fn lower_values(
         .iter()
         .map(|(_, value)| {
             let representation = match types.get(value.ty()) {
-                Some(TypeKind::Builtin(BuiltinType::Void)) => {
+                Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {
                     MachineValueRepresentation::Completion
                 }
-                Some(TypeKind::Builtin(BuiltinType::Never)) => {
+                Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => {
                     MachineValueRepresentation::Diverging
                 }
                 Some(_) => {

@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use nocter_mir::{
     MirBody, MirCallTarget, MirOperationKind, MirPackSegment, MirPrimitiveDependency, MirProgram,
 };
-use nocter_model::{BuiltinType, ExecutableItemId, MirOperationId, TypeKind};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_model::{ExecutableItemId, MirOperationId};
+use nocter_runtime_contract::{PrimitiveRole, RuntimePrimitive, RuntimeType};
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -239,19 +239,21 @@ fn destruction_abi(
     // accepts one byte-address lane plus a byte offset, so pointer primitives and heterogeneous
     // pack state can share the same ordinary call boundary.
     let types = program.types();
-    let byte = types.builtin(BuiltinType::U8);
+    let byte = types.primitive(RuntimePrimitive::Unsigned(8)).ok_or(
+        MachineProgramError::MissingRuntimePrimitive(RuntimePrimitive::Unsigned(8)),
+    )?;
     let pointer = types
         .iter()
-        .find_map(|(ty, kind)| (kind == &TypeKind::Pointer(byte)).then_some(ty))
+        .find_map(|(ty, kind)| (kind == &RuntimeType::Pointer(byte)).then_some(ty))
         .ok_or(MachineProgramError::MissingBytePointerType)?;
-    crate::transport::plan_signature(
-        types,
-        layouts,
-        &[pointer, types.builtin(BuiltinType::Usize)],
-        types.builtin(BuiltinType::Void),
-        None,
-    )
-    .map_err(MachineProgramError::from)
+    let usize_ = types.primitive(RuntimePrimitive::Usize).ok_or(
+        MachineProgramError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
+    )?;
+    let void = types.primitive(RuntimePrimitive::Void).ok_or(
+        MachineProgramError::MissingRuntimePrimitive(RuntimePrimitive::Void),
+    )?;
+    crate::transport::plan_signature(types, layouts, &[pointer, usize_], void, None)
+        .map_err(MachineProgramError::from)
 }
 
 fn close_edges<K: Copy + Ord>(

@@ -1,6 +1,4 @@
-use nocter_model::TypeStore;
-
-use crate::{RuntimeAbiIdentity, RuntimeTypeRepresentationTable};
+use crate::{RuntimeAbiIdentity, RuntimeTypeRepresentationTable, RuntimeTypeTable};
 
 /// The complete source-independent environment required after MIR lowering.
 ///
@@ -8,7 +6,7 @@ use crate::{RuntimeAbiIdentity, RuntimeTypeRepresentationTable};
 /// machine lowering cannot recover semantic or source authority through it.
 #[derive(Clone, Debug)]
 pub struct RuntimeEnvironment {
-    types: TypeStore,
+    types: RuntimeTypeTable,
     type_representations: RuntimeTypeRepresentationTable,
     abi: RuntimeAbiIdentity,
 }
@@ -16,7 +14,7 @@ pub struct RuntimeEnvironment {
 impl RuntimeEnvironment {
     #[must_use]
     pub fn new(
-        types: TypeStore,
+        types: RuntimeTypeTable,
         type_representations: RuntimeTypeRepresentationTable,
         abi: RuntimeAbiIdentity,
     ) -> Self {
@@ -28,7 +26,7 @@ impl RuntimeEnvironment {
     }
 
     #[must_use]
-    pub const fn types(&self) -> &TypeStore {
+    pub const fn types(&self) -> &RuntimeTypeTable {
         &self.types
     }
 

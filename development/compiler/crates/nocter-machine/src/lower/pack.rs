@@ -1,7 +1,8 @@
 use nocter_mir::{
     MirCallTarget, MirOperationKind, MirPackContribution, MirPackSegment, MirValueDefinition,
 };
-use nocter_model::{BorrowCapability, MirOperationId, TypeKind};
+use nocter_model::{BorrowCapability, MirOperationId};
+use nocter_runtime_contract::RuntimeType;
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
@@ -138,7 +139,7 @@ fn receiver_offset(
     else {
         return Err(invalid());
     };
-    let Some(TypeKind::Borrow {
+    let Some(RuntimeType::Borrow {
         capability: BorrowCapability::ReadWrite,
         referent,
     }) = context.types.get(receiver.ty())

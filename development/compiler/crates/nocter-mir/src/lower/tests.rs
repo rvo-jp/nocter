@@ -1,4 +1,4 @@
-use nocter_checking::{check_prepared_program, is_concrete_type, prepare_program_checking};
+use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::CompilationTarget;
@@ -166,10 +166,11 @@ fn lowers_static_string_values_as_readonly_str_borrows() {
         text.as_ref() == "hello"
             && matches!(
                 ty.and_then(|ty| program.types().get(ty)),
-                Some(nocter_model::TypeKind::Borrow {
+                Some(nocter_runtime_contract::RuntimeType::Borrow {
                     capability: nocter_model::BorrowCapability::Readonly,
                     referent,
-                }) if *referent == program.types().builtin(nocter_model::BuiltinType::Str)
+                }) if program.types().primitive(nocter_runtime_contract::RuntimePrimitive::Text)
+                    == Some(*referent)
             )
     }));
 }
@@ -481,7 +482,7 @@ fn sequence_using_retains_the_same_call_scoped_allocation_lane() {
                         program.type_representations().get(place.ty()),
                     ),
                     (
-                        Some(nocter_model::TypeKind::Nominal { .. }),
+                        Some(nocter_runtime_contract::RuntimeType::Aggregate),
                         Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct { fields }),
                     ) if fields.len() == 2
                 )
@@ -586,9 +587,9 @@ fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
                             program.type_representations().get(place.ty()),
                         ),
                         (
-                            Some(nocter_model::TypeKind::Nominal { arguments, .. }),
+                            Some(nocter_runtime_contract::RuntimeType::Aggregate),
                             Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct { fields }),
-                        ) if arguments.is_empty() && fields.len() == 2
+                        ) if fields.len() == 2
                     )
                 })
         })
@@ -924,7 +925,10 @@ fn lowers_void_fallible_success_without_fictional_payload_storage() {
          func main(): void! { pass() }\n",
     )
     .unwrap();
-    let void = program.types().builtin(nocter_model::BuiltinType::Void);
+    let void = program
+        .types()
+        .primitive(nocter_runtime_contract::RuntimePrimitive::Void)
+        .unwrap();
 
     assert!(program.functions().iter().all(|(_, function)| {
         function
@@ -1712,12 +1716,12 @@ fn specializes_generic_closure_environment_before_mir_lowering() {
         .collect::<Vec<_>>();
 
     assert_eq!(layouts.len(), 1);
-    assert!(is_concrete_type(program.types(), layouts[0].0).unwrap());
+    assert!(program.types().get(layouts[0].0).is_some());
     assert!(
         layouts[0]
             .1
             .iter()
-            .all(|capture| is_concrete_type(program.types(), capture.ty()).unwrap())
+            .all(|capture| program.types().get(capture.ty()).is_some())
     );
 }
 

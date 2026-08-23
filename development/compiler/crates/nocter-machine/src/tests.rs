@@ -2,8 +2,11 @@ use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_mir::lower_executable;
-use nocter_model::{BorrowCapability, BuiltinType, CompilationTarget, TypeId, TypeKind};
-use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
+use nocter_model::{BorrowCapability, CompilationTarget, TypeId};
+use nocter_runtime_contract::{
+    PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimePrimitive, RuntimeType,
+    RuntimeTypeTable,
+};
 use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
@@ -118,8 +121,8 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
         .find_map(|(ty, kind)| {
             matches!(
                 kind,
-                TypeKind::FixedArray { element, length }
-                    if *element == types.builtin(BuiltinType::U16) && *length == 3
+                RuntimeType::FixedArray { element, length }
+                    if *element == runtime_primitive(types, RuntimePrimitive::Unsigned(16)) && *length == 3
             )
             .then_some(ty)
         })
@@ -136,7 +139,7 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
         .find_map(|(ty, kind)| {
             matches!(
                 kind,
-                TypeKind::FixedArray { element, length }
+                RuntimeType::FixedArray { element, length }
                     if *element == empty && *length == 3
             )
             .then_some(ty)
@@ -158,8 +161,8 @@ fn assert_scalar_view_and_outcome_layouts(
     layouts: &MachineLayoutStore,
 ) {
     let types = program.types();
-    let str_borrow = borrow_type(types, BuiltinType::Str);
-    let i32_borrow = borrow_type(types, BuiltinType::I32);
+    let str_borrow = borrow_type(types, RuntimePrimitive::Text);
+    let i32_borrow = borrow_type(types, RuntimePrimitive::Signed(32));
     assert!(matches!(
         layouts.get(str_borrow).unwrap().kind(),
         MachineLayoutKind::View {
@@ -177,7 +180,7 @@ fn assert_scalar_view_and_outcome_layouts(
     let fallible_i32 = types
         .iter()
         .find_map(|(ty, kind)| {
-            matches!(kind, TypeKind::Fallible(payload) if *payload == types.builtin(BuiltinType::I32))
+            matches!(kind, RuntimeType::Fallible(payload) if *payload == runtime_primitive(types, RuntimePrimitive::Signed(32)))
                 .then_some(ty)
         })
         .unwrap();
@@ -191,10 +194,12 @@ fn assert_scalar_view_and_outcome_layouts(
             payload_offset: 8,
             primary: Some(primary),
             alternate: Some(alternate),
-        } if *primary == types.builtin(BuiltinType::I32)
-            && *alternate == types.builtin(BuiltinType::Error)
+        } if *primary == runtime_primitive(types, RuntimePrimitive::Signed(32))
+            && *alternate == runtime_primitive(types, RuntimePrimitive::Error)
     ));
-    let error = layouts.get(types.builtin(BuiltinType::Error)).unwrap();
+    let error = layouts
+        .get(runtime_primitive(types, RuntimePrimitive::Error))
+        .unwrap();
     assert_eq!((error.size(), error.alignment()), (32, 8));
     assert!(matches!(
         error.kind(),
@@ -204,7 +209,10 @@ fn assert_scalar_view_and_outcome_layouts(
         }
     ));
     assert!(matches!(
-        layouts.get(types.builtin(BuiltinType::I32)).unwrap().kind(),
+        layouts
+            .get(runtime_primitive(types, RuntimePrimitive::Signed(32)))
+            .unwrap()
+            .kind(),
         MachineLayoutKind::Scalar(MachineScalar::Integer {
             bits: 32,
             signed: true,
@@ -214,7 +222,7 @@ fn assert_scalar_view_and_outcome_layouts(
     let fallible_void = types
         .iter()
         .find_map(|(ty, kind)| {
-            matches!(kind, TypeKind::Fallible(payload) if *payload == types.builtin(BuiltinType::Void))
+            matches!(kind, RuntimeType::Fallible(payload) if *payload == runtime_primitive(types, RuntimePrimitive::Void))
                 .then_some(ty)
         })
         .unwrap();
@@ -228,7 +236,7 @@ fn assert_scalar_view_and_outcome_layouts(
             payload_offset: 8,
             primary: None,
             alternate: Some(alternate),
-        } if *alternate == types.builtin(BuiltinType::Error)
+        } if *alternate == runtime_primitive(types, RuntimePrimitive::Error)
     ));
 }
 
@@ -249,7 +257,7 @@ fn closure_layout_uses_the_executable_capture_order_and_concrete_types() {
     let closure = program
         .types()
         .iter()
-        .find_map(|(ty, kind)| matches!(kind, TypeKind::Closure { .. }).then_some(ty))
+        .find_map(|(ty, kind)| matches!(kind, RuntimeType::Closure).then_some(ty))
         .unwrap();
     let layout = layouts.get(closure).unwrap();
 
@@ -296,7 +304,7 @@ fn payloadless_enum_and_optional_keep_their_distinct_tagged_layouts() {
     let optional = types
         .iter()
         .find_map(|(ty, kind)| {
-            matches!(kind, TypeKind::Optional(payload) if *payload == types.builtin(BuiltinType::U16))
+            matches!(kind, RuntimeType::Optional(payload) if *payload == runtime_primitive(types, RuntimePrimitive::Unsigned(16)))
                 .then_some(ty)
         })
         .unwrap();
@@ -313,7 +321,7 @@ fn payloadless_enum_and_optional_keep_their_distinct_tagged_layouts() {
             payload_offset: 2,
             primary: Some(primary),
             alternate: None,
-        } if *primary == types.builtin(BuiltinType::U16)
+        } if *primary == runtime_primitive(types, RuntimePrimitive::Unsigned(16))
     ));
 }
 
@@ -337,7 +345,7 @@ fn opaque_layout_is_exactly_its_specialized_witness_layout() {
     let types = program.types();
     let opaque = types
         .iter()
-        .find_map(|(ty, kind)| matches!(kind, TypeKind::Opaque { .. }).then_some(ty))
+        .find_map(|(ty, kind)| matches!(kind, RuntimeType::Opaque).then_some(ty))
         .unwrap();
     let layout = layouts.get(opaque).unwrap();
     let MachineLayoutKind::Opaque { witness } = layout.kind() else {
@@ -1556,23 +1564,23 @@ fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
 }
 
 fn fixture_representation_matches(
-    types: &nocter_model::TypeStore,
+    types: &RuntimeTypeTable,
     representation: &nocter_runtime_contract::RuntimeTypeRepresentation,
     expected: &str,
 ) -> bool {
     use nocter_runtime_contract::RuntimeTypeRepresentation::{Enum, Struct};
 
-    let builtin = |builtin| types.builtin(builtin);
+    let builtin = |primitive| runtime_primitive(types, primitive);
     match (expected, representation) {
         ("Empty", Struct { fields }) => fields.is_empty(),
-        ("Pair", Struct { fields }) => fields
-            .iter()
-            .map(|field| field.ty())
-            .eq([builtin(BuiltinType::U8), builtin(BuiltinType::U64)]),
+        ("Pair", Struct { fields }) => fields.iter().map(|field| field.ty()).eq([
+            builtin(RuntimePrimitive::Unsigned(8)),
+            builtin(RuntimePrimitive::Unsigned(64)),
+        ]),
         ("Large", Struct { fields }) => fields
             .iter()
             .map(|field| field.ty())
-            .eq([builtin(BuiltinType::U64); 3]),
+            .eq([builtin(RuntimePrimitive::Unsigned(64)); 3]),
         ("Choice", Enum { variants }) => {
             variants.len() == 3
                 && variants[0].payload().is_empty()
@@ -1580,12 +1588,15 @@ fn fixture_representation_matches(
                     .payload()
                     .iter()
                     .map(|payload| payload.ty())
-                    .eq([builtin(BuiltinType::U32)])
+                    .eq([builtin(RuntimePrimitive::Unsigned(32))])
                 && variants[2]
                     .payload()
                     .iter()
                     .map(|payload| payload.ty())
-                    .eq([builtin(BuiltinType::U8), builtin(BuiltinType::U64)])
+                    .eq([
+                        builtin(RuntimePrimitive::Unsigned(8)),
+                        builtin(RuntimePrimitive::Unsigned(64)),
+                    ])
         }
         ("Flag", Enum { variants }) => {
             variants.len() == 2 && variants.iter().all(|variant| variant.payload().is_empty())
@@ -1594,14 +1605,14 @@ fn fixture_representation_matches(
     }
 }
 
-fn borrow_type(types: &nocter_model::TypeStore, referent: BuiltinType) -> TypeId {
-    let referent = types.builtin(referent);
+fn borrow_type(types: &RuntimeTypeTable, referent: RuntimePrimitive) -> TypeId {
+    let referent = runtime_primitive(types, referent);
     types
         .iter()
         .find_map(|(ty, kind)| {
             matches!(
                 kind,
-                TypeKind::Borrow {
+                RuntimeType::Borrow {
                     capability: BorrowCapability::Readonly,
                     referent: actual,
                 } if *actual == referent
@@ -1609,6 +1620,12 @@ fn borrow_type(types: &nocter_model::TypeStore, referent: BuiltinType) -> TypeId
             .then_some(ty)
         })
         .unwrap()
+}
+
+fn runtime_primitive(types: &RuntimeTypeTable, primitive: RuntimePrimitive) -> TypeId {
+    types
+        .primitive(primitive)
+        .unwrap_or_else(|| panic!("missing runtime primitive {primitive:?}"))
 }
 
 fn lower_fixture(source: &str) -> nocter_mir::MirProgram {

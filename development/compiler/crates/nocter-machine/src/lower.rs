@@ -270,6 +270,7 @@ pub enum MachineProgramError {
     MissingLinkageKey(MachineLinkageKey),
     MissingDestruction(crate::MachineDestructionId),
     MissingBytePointerType,
+    MissingRuntimePrimitive(nocter_runtime_contract::RuntimePrimitive),
     MissingPackDestruction {
         owner: MachineLinkageId,
         operation: MirOperationId,
@@ -349,6 +350,7 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingLinkageKey(_)
             | Self::MissingDestruction(_)
             | Self::MissingBytePointerType
+            | Self::MissingRuntimePrimitive(_)
             | Self::MissingPackDestruction { .. }
             | Self::InvalidDestructionAbi(_)
             | Self::InvalidGeneratedDestruction(_, _)

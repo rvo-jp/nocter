@@ -537,8 +537,61 @@ impl ExecutableProgram {
     #[must_use]
     pub fn into_runtime_environment(self) -> RuntimeEnvironment {
         let abi = self.target.toolchain().abi();
-        RuntimeEnvironment::new(self.types, self.type_representations, abi)
+        let runtime_types = runtime_type_table(&self.types);
+        RuntimeEnvironment::new(runtime_types, self.type_representations, abi)
     }
+}
+
+fn runtime_type_table(types: &TypeStore) -> nocter_runtime_contract::RuntimeTypeTable {
+    use nocter_model::{BuiltinType, TypeKind};
+    use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTableBuilder};
+
+    let mut table = RuntimeTypeTableBuilder::new();
+    for (ty, kind) in types.iter() {
+        let runtime = match kind {
+            TypeKind::Builtin(builtin) => RuntimeType::Primitive(match builtin {
+                BuiltinType::Bool => RuntimePrimitive::Bool,
+                BuiltinType::I8 => RuntimePrimitive::Signed(8),
+                BuiltinType::I16 => RuntimePrimitive::Signed(16),
+                BuiltinType::I32 => RuntimePrimitive::Signed(32),
+                BuiltinType::I64 => RuntimePrimitive::Signed(64),
+                BuiltinType::U8 => RuntimePrimitive::Unsigned(8),
+                BuiltinType::U16 => RuntimePrimitive::Unsigned(16),
+                BuiltinType::U32 => RuntimePrimitive::Unsigned(32),
+                BuiltinType::U64 => RuntimePrimitive::Unsigned(64),
+                BuiltinType::Isize => RuntimePrimitive::Isize,
+                BuiltinType::Usize => RuntimePrimitive::Usize,
+                BuiltinType::Error => RuntimePrimitive::Error,
+                BuiltinType::Str => RuntimePrimitive::Text,
+                BuiltinType::Void => RuntimePrimitive::Void,
+                BuiltinType::Never => RuntimePrimitive::Never,
+            }),
+            TypeKind::Pointer(pointee) => RuntimeType::Pointer(*pointee),
+            TypeKind::Borrow {
+                capability,
+                referent,
+            } => RuntimeType::Borrow {
+                capability: *capability,
+                referent: *referent,
+            },
+            TypeKind::Slice(element) => RuntimeType::Slice(*element),
+            TypeKind::FixedArray { element, length } => RuntimeType::FixedArray {
+                element: *element,
+                length: *length,
+            },
+            TypeKind::Nominal { .. } => RuntimeType::Aggregate,
+            TypeKind::Closure { .. } => RuntimeType::Closure,
+            TypeKind::Callable(_) => RuntimeType::Callable,
+            TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
+            TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
+            TypeKind::Opaque { .. } => RuntimeType::Opaque,
+            TypeKind::GenericParameter(_)
+            | TypeKind::InterfaceSelf(_)
+            | TypeKind::AssociatedProjection { .. } => continue,
+        };
+        table.insert(ty, runtime);
+    }
+    table.finish()
 }
 
 /// Failure to construct one closed executable program.

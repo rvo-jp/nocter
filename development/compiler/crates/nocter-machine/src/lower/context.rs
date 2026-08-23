@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{ExecutableItemId, TypeStore};
+use nocter_model::ExecutableItemId;
+use nocter_runtime_contract::RuntimeTypeTable;
 
 use crate::{
     MachineAbiPlan, MachineDataTable, MachineDestructionId, MachineDestructionTable,
@@ -10,7 +11,7 @@ use crate::{
 /// Immutable whole-program authorities shared by every source-body lowering operation.
 #[derive(Clone, Copy)]
 pub(super) struct ProgramLoweringContext<'a> {
-    pub(super) types: &'a TypeStore,
+    pub(super) types: &'a RuntimeTypeTable,
     pub(super) layouts: &'a MachineLayoutStore,
     pub(super) abi: &'a MachineAbiPlan,
     pub(super) data: &'a MachineDataTable,

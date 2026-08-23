@@ -1,5 +1,6 @@
 use nocter_mir::MirStructuralCall;
-use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BorrowCapability, MirOperationId, TypeId};
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
@@ -13,7 +14,7 @@ pub(super) fn lower_structural(
     operation: MirOperationId,
     target: &MirStructuralCall,
     arguments: &[nocter_model::MirValueId],
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
     ids: &BodyIdentities,
 ) -> Result<MachineOperationKind, MachineProgramError> {
@@ -62,7 +63,7 @@ pub(super) fn lower_structural(
 #[derive(Clone, Copy)]
 struct StructuralContext<'a> {
     operation: MirOperationId,
-    types: &'a TypeStore,
+    types: &'a RuntimeTypeTable,
     layouts: &'a MachineLayoutStore,
     ids: &'a BodyIdentities,
 }
@@ -89,7 +90,7 @@ fn lower_comparison(
     };
     if !matches!(
         context.types.get(operand),
-        Some(TypeKind::Borrow {
+        Some(RuntimeType::Borrow {
             capability: BorrowCapability::Readonly,
             referent,
         }) if *referent == subject
@@ -141,10 +142,10 @@ fn lower_index(
     let [receiver_value, index_value] = arguments else {
         return Err(context.error(MachineStructuralError::InvalidSignature));
     };
-    let valid_signature = index == context.types.builtin(BuiltinType::Usize)
+    let valid_signature = context.types.primitive(RuntimePrimitive::Usize) == Some(index)
         && matches!(
             context.types.get(receiver),
-            Some(TypeKind::Borrow {
+            Some(RuntimeType::Borrow {
                 capability: actual,
                 referent,
             }) if *actual == capability && *referent == container
@@ -161,7 +162,7 @@ fn lower_index(
         .ok_or_else(|| context.error(MachineStructuralError::InvalidRepresentation))?;
     if !matches!(
         context.types.get(result),
-        Some(TypeKind::Borrow {
+        Some(RuntimeType::Borrow {
             capability: actual,
             referent,
         }) if *actual == capability && *referent == element
@@ -178,11 +179,11 @@ fn lower_index(
 fn index_domain(
     container: TypeId,
     receiver: TypeId,
-    types: &TypeStore,
+    types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
 ) -> Option<(TypeId, MachineIndexDomain)> {
     match types.get(container)? {
-        TypeKind::FixedArray { element, .. } => {
+        RuntimeType::FixedArray { element, .. } => {
             if !matches!(layouts.get(receiver)?.kind(), MachineLayoutKind::Pointer) {
                 return None;
             }
@@ -199,10 +200,12 @@ fn index_domain(
                 },
             ))
         }
-        TypeKind::Slice(element) => view_index_domain(*element, receiver, layouts),
-        TypeKind::Builtin(BuiltinType::Str) => {
-            view_index_domain(types.builtin(BuiltinType::U8), receiver, layouts)
-        }
+        RuntimeType::Slice(element) => view_index_domain(*element, receiver, layouts),
+        RuntimeType::Primitive(RuntimePrimitive::Text) => view_index_domain(
+            types.primitive(RuntimePrimitive::Unsigned(8))?,
+            receiver,
+            layouts,
+        ),
         _ => None,
     }
 }
@@ -242,11 +245,11 @@ fn lower_borrow_weakening(
     let valid_types = matches!(
         (context.types.get(source), context.types.get(target)),
         (
-            Some(TypeKind::Borrow {
+            Some(RuntimeType::Borrow {
                 capability: BorrowCapability::ReadWrite,
                 referent: source_referent,
             }),
-            Some(TypeKind::Borrow {
+            Some(RuntimeType::Borrow {
                 capability: BorrowCapability::Readonly,
                 referent: target_referent,
             }),

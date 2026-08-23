@@ -1,8 +1,8 @@
 use std::fmt;
 
-use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId, TypeStore};
+use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId};
 use nocter_runtime_contract::{
-    RuntimeAbiIdentity, RuntimeEnvironment, RuntimeTypeRepresentationTable,
+    RuntimeAbiIdentity, RuntimeEnvironment, RuntimeTypeRepresentationTable, RuntimeTypeTable,
 };
 use nocter_target_program::{ExecutableProgram, ExecutableRoot};
 
@@ -20,7 +20,7 @@ pub struct MirProgram {
 
 impl MirProgram {
     #[must_use]
-    pub const fn types(&self) -> &TypeStore {
+    pub const fn types(&self) -> &RuntimeTypeTable {
         self.runtime.types()
     }
 
