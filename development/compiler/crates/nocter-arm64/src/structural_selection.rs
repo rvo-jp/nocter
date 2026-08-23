@@ -75,7 +75,7 @@ fn select_direct_copy(
     let sources = crate::selection::direct_value(values, source)?;
     let destinations = crate::selection::direct_value(values, result)?;
     if sources.len() != destinations.len()
-        || sources.len() > usize::from(Arm64NocterAbi::DIRECT_VALUE_WORD_LIMIT)
+        || sources.len() > usize::from(Arm64NocterAbi::direct_value_word_limit())
     {
         return Err(Arm64SelectionError::DirectCopy(operation));
     }

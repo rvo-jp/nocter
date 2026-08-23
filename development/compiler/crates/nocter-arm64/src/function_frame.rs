@@ -256,7 +256,7 @@ fn place_body_objects(
     let packs = place_packs(body, builder)?;
     let mut spills = Vec::with_capacity(values.registers().spill_count());
     for _ in 0..values.registers().spill_count() {
-        spills.push(builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?);
+        spills.push(builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())?);
     }
     Ok(PlacedBodyObjects {
         stack_objects: stack_objects.into_boxed_slice(),
@@ -402,11 +402,11 @@ fn place_hidden_objects(
                     if matches!(result.location(), MachineResultLocation::CallerStorage { .. })
             )
         })
-        .then(|| builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE))
+        .then(|| builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
         .transpose()?;
     let pack_input_pointer = callable
         .is_some_and(|abi| abi.pack().is_some())
-        .then(|| builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE))
+        .then(|| builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
         .transpose()?;
     let allocation_context = match program
         .contexts()
@@ -416,10 +416,10 @@ fn place_hidden_objects(
     {
         MachineContextRequirement::None => Arm64AllocationContextFrame::None,
         MachineContextRequirement::ProgramRoot => Arm64AllocationContextFrame::ProgramRoot(
-            builder.add_object(2 * Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
+            builder.add_object(2 * Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())?,
         ),
         MachineContextRequirement::Incoming => Arm64AllocationContextFrame::IncomingPointer(
-            builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
+            builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())?,
         ),
     };
     let process_context = match program
@@ -436,7 +436,7 @@ fn place_hidden_objects(
             )?)
         }
         MachineContextRequirement::Incoming => Arm64ProcessContextFrame::IncomingPointer(
-            builder.add_object(Arm64NocterAbi::WORD_SIZE, Arm64NocterAbi::WORD_SIZE)?,
+            builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())?,
         ),
     };
     let error_report_buffer = program

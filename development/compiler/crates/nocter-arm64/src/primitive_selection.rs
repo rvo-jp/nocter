@@ -133,7 +133,7 @@ fn select_context_reader(
     let offset = if target.role() == PrimitiveRole::CurrentAllocatorState {
         0
     } else {
-        Arm64NocterAbi::WORD_SIZE
+        Arm64NocterAbi::word_size()
     };
     selected.push(Arm64SelectedInstruction::LoadMemory {
         bytes: word_bytes(),
@@ -287,5 +287,6 @@ pub(super) fn fixed_register(index: u8) -> Result<Arm64SelectedRegister, Arm64Se
 }
 
 fn word_bytes() -> u8 {
-    u8::try_from(Arm64NocterAbi::WORD_SIZE).expect("the target word size fits selected byte width")
+    u8::try_from(Arm64NocterAbi::word_size())
+        .expect("the target word size fits selected byte width")
 }

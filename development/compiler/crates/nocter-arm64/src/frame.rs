@@ -3,8 +3,8 @@ use std::fmt;
 
 use crate::{Arm64NocterAbi, Arm64Register};
 
-const STACK_ALIGNMENT: u64 = Arm64NocterAbi::STACK_ALIGNMENT;
-const REGISTER_SIZE: u64 = Arm64NocterAbi::WORD_SIZE;
+const STACK_ALIGNMENT: u64 = Arm64NocterAbi::stack_alignment();
+const REGISTER_SIZE: u64 = Arm64NocterAbi::word_size();
 const FRAME_RECORD_SIZE: u64 = 2 * REGISTER_SIZE;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

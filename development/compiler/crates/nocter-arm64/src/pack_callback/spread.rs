@@ -508,7 +508,7 @@ fn prepare_result_storage(
                 })
                 && registers.first() == 0
                 && u64::from(registers.words())
-                    == layout.size().div_ceil(Arm64NocterAbi::WORD_SIZE) =>
+                    == layout.size().div_ceil(Arm64NocterAbi::word_size()) =>
         {
             Ok(())
         }
@@ -547,13 +547,13 @@ fn capture_result(
     };
     for lane in 0..registers.words() {
         let lane_offset = u64::from(lane)
-            .checked_mul(Arm64NocterAbi::WORD_SIZE)
+            .checked_mul(Arm64NocterAbi::word_size())
             .ok_or(Arm64MaterializationError::OffsetOverflow)?;
         let width = u8::try_from(
             layout
                 .size()
                 .saturating_sub(lane_offset)
-                .min(Arm64NocterAbi::WORD_SIZE),
+                .min(Arm64NocterAbi::word_size()),
         )
         .map_err(|_| Arm64MaterializationError::OffsetOverflow)?;
         let source = argument(registers.first() + lane);

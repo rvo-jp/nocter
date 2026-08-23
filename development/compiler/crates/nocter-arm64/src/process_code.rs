@@ -94,7 +94,7 @@ fn emit_count_null_terminated_vector(
     load_word(entry, cursor, 0, code);
     compare_immediate(entry, 0, Arm64DataSize::Bits64, code);
     code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    add_immediate(cursor, cursor, Arm64NocterAbi::WORD_SIZE, code);
+    add_immediate(cursor, cursor, Arm64NocterAbi::word_size(), code);
     add_immediate(count, count, 1, code);
     code.branch(loop_, false);
     code.bind(complete)?;

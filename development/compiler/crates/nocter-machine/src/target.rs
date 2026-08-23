@@ -1,91 +1,67 @@
-use nocter_runtime_contract::RuntimeAbiIdentity;
+use nocter_runtime_contract::{RuntimeAbiIdentity, RuntimeAbiSchema};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MachineEndianness {
-    Little,
-    Big,
-}
+pub use nocter_runtime_contract::RuntimeEndianness as MachineEndianness;
 
 /// Closed layout facts selected by the toolchain ABI identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineTarget {
-    word_size: u64,
-    pointer_size: u64,
-    pointer_alignment: u64,
-    stack_alignment: u64,
-    argument_register_count: u8,
-    direct_value_word_limit: u8,
-    direct_result_register_count: u8,
-    indirect_result_register: u8,
-    pack_pointer_register: u8,
-    endianness: MachineEndianness,
+    schema: RuntimeAbiSchema,
 }
 
 impl MachineTarget {
     pub(crate) const fn select(abi: RuntimeAbiIdentity) -> Self {
-        match abi {
-            RuntimeAbiIdentity::Arm64DarwinV1 => Self {
-                word_size: 8,
-                pointer_size: 8,
-                pointer_alignment: 8,
-                stack_alignment: 16,
-                argument_register_count: 8,
-                direct_value_word_limit: 2,
-                direct_result_register_count: 2,
-                indirect_result_register: 8,
-                pack_pointer_register: 0,
-                endianness: MachineEndianness::Little,
-            },
+        Self {
+            schema: abi.schema(),
         }
     }
 
     #[must_use]
     pub const fn word_size(self) -> u64 {
-        self.word_size
+        self.schema.word_size()
     }
 
     #[must_use]
     pub const fn pointer_size(self) -> u64 {
-        self.pointer_size
+        self.schema.pointer_size()
     }
 
     #[must_use]
     pub const fn pointer_alignment(self) -> u64 {
-        self.pointer_alignment
+        self.schema.pointer_alignment()
     }
 
     #[must_use]
     pub const fn stack_alignment(self) -> u64 {
-        self.stack_alignment
+        self.schema.stack_alignment()
     }
 
     #[must_use]
     pub const fn argument_register_count(self) -> u8 {
-        self.argument_register_count
+        self.schema.argument_register_count()
     }
 
     #[must_use]
     pub const fn direct_value_word_limit(self) -> u8 {
-        self.direct_value_word_limit
+        self.schema.direct_value_word_limit()
     }
 
     #[must_use]
     pub const fn direct_result_register_count(self) -> u8 {
-        self.direct_result_register_count
+        self.schema.direct_result_register_count()
     }
 
     #[must_use]
     pub const fn indirect_result_register(self) -> u8 {
-        self.indirect_result_register
+        self.schema.indirect_result_register()
     }
 
     #[must_use]
     pub const fn pack_pointer_register(self) -> u8 {
-        self.pack_pointer_register
+        self.schema.pack_pointer_register()
     }
 
     #[must_use]
     pub const fn endianness(self) -> MachineEndianness {
-        self.endianness
+        self.schema.endianness()
     }
 }

@@ -99,11 +99,11 @@ pub(crate) fn select_new_error(
     }
     for lane in 0_u8..4 {
         selected.push(Arm64SelectedInstruction::StoreMemory {
-            bytes: u8::try_from(Arm64NocterAbi::WORD_SIZE)
+            bytes: u8::try_from(Arm64NocterAbi::word_size())
                 .expect("the target word width fits an instruction byte count"),
             destination: Arm64SelectedMemoryAddress::Register {
                 base: Arm64SelectedRegister::Fixed(Arm64NocterAbi::indirect_result_register()),
-                offset: u64::from(lane) * Arm64NocterAbi::WORD_SIZE,
+                offset: u64::from(lane) * Arm64NocterAbi::word_size(),
             },
             source: Arm64SelectedRegister::Fixed(
                 Arm64NocterAbi::argument_register(lane)

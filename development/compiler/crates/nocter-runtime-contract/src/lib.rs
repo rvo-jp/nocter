@@ -17,4 +17,4 @@ pub use representation::{
 };
 pub use types::{RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuilder};
 mod types;
-pub use target::RuntimeAbiIdentity;
+pub use target::{RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeEndianness};

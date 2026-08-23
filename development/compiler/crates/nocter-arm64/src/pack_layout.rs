@@ -4,7 +4,7 @@ use nocter_machine::{MachineBody, MachinePack, MachinePackSegment, MachineValueR
 
 use crate::Arm64NocterAbi;
 
-const CURSOR_SIZE: u64 = Arm64NocterAbi::WORD_SIZE;
+const CURSOR_SIZE: u64 = Arm64NocterAbi::word_size();
 
 /// Caller-owned descriptor passed through the literal ABI lane.
 ///
@@ -15,11 +15,11 @@ pub struct Arm64PackDescriptorLayout;
 
 impl Arm64PackDescriptorLayout {
     pub const STATE_POINTER_OFFSET: u64 = 0;
-    pub const LENGTH_OFFSET: u64 = Arm64NocterAbi::WORD_SIZE;
-    pub const NEXT_CALLBACK_OFFSET: u64 = 2 * Arm64NocterAbi::WORD_SIZE;
-    pub const DESTROY_CALLBACK_OFFSET: u64 = 3 * Arm64NocterAbi::WORD_SIZE;
-    pub const SIZE: u64 = 4 * Arm64NocterAbi::WORD_SIZE;
-    pub const ALIGNMENT: u64 = Arm64NocterAbi::WORD_SIZE;
+    pub const LENGTH_OFFSET: u64 = Arm64NocterAbi::word_size();
+    pub const NEXT_CALLBACK_OFFSET: u64 = 2 * Arm64NocterAbi::word_size();
+    pub const DESTROY_CALLBACK_OFFSET: u64 = 3 * Arm64NocterAbi::word_size();
+    pub const SIZE: u64 = 4 * Arm64NocterAbi::word_size();
+    pub const ALIGNMENT: u64 = Arm64NocterAbi::word_size();
 }
 
 /// Bytes owned by one fixed or spread segment in a call-site pack state.
@@ -56,7 +56,7 @@ impl Arm64PackStateLayout {
     /// non-word remaining count, or offset overflow.
     pub fn build(body: &MachineBody, pack: &MachinePack) -> Result<Self, Arm64PackLayoutError> {
         let mut next = CURSOR_SIZE;
-        let mut state_alignment = Arm64NocterAbi::WORD_SIZE;
+        let mut state_alignment = Arm64NocterAbi::word_size();
         let mut segments = Vec::with_capacity(pack.segments().len());
         for segment in pack.segments() {
             let layout = match segment {
@@ -76,14 +76,14 @@ impl Arm64PackStateLayout {
                 MachinePackSegment::Spread(spread) => {
                     let (remaining_size, remaining_alignment) =
                         stored_value(body, spread.remaining())?;
-                    if remaining_size != Arm64NocterAbi::WORD_SIZE
-                        || remaining_alignment > Arm64NocterAbi::WORD_SIZE
+                    if remaining_size != Arm64NocterAbi::word_size()
+                        || remaining_alignment > Arm64NocterAbi::word_size()
                     {
                         return Err(Arm64PackLayoutError::InvalidRemaining(spread.remaining()));
                     }
-                    let remaining_offset = align_up(next, Arm64NocterAbi::WORD_SIZE)?;
+                    let remaining_offset = align_up(next, Arm64NocterAbi::word_size())?;
                     next = remaining_offset
-                        .checked_add(Arm64NocterAbi::WORD_SIZE)
+                        .checked_add(Arm64NocterAbi::word_size())
                         .ok_or(Arm64PackLayoutError::SizeOverflow)?;
                     let iterator = body
                         .address(spread.iterator())
@@ -160,7 +160,7 @@ fn stored_value(
 }
 
 fn validate_alignment(alignment: u64) -> Result<(), Arm64PackLayoutError> {
-    if !alignment.is_power_of_two() || alignment > Arm64NocterAbi::STACK_ALIGNMENT {
+    if !alignment.is_power_of_two() || alignment > Arm64NocterAbi::stack_alignment() {
         return Err(Arm64PackLayoutError::InvalidAlignment(alignment));
     }
     Ok(())

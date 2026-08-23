@@ -567,6 +567,21 @@ fn frame_code_materializes_large_sizes_and_distant_slots_through_scratch() {
 fn abi_register_roles_form_one_closed_partition() {
     use crate::Arm64AbiRegisterRole;
 
+    let schema = nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1.schema();
+    assert_eq!(crate::Arm64NocterAbi::word_size(), schema.word_size());
+    assert_eq!(
+        crate::Arm64NocterAbi::stack_alignment(),
+        schema.stack_alignment()
+    );
+    assert_eq!(
+        crate::Arm64NocterAbi::direct_value_word_limit(),
+        schema.direct_value_word_limit()
+    );
+    assert_eq!(
+        crate::Arm64NocterAbi::indirect_result_register().number(),
+        schema.indirect_result_register()
+    );
+
     let roles = (0..31)
         .map(|number| crate::Arm64NocterAbi::role(x(number)))
         .collect::<Vec<_>>();

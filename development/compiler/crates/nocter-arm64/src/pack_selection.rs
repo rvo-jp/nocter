@@ -111,7 +111,7 @@ fn select_segment(
                 spread.remaining(),
                 state,
                 remaining_offset,
-                crate::Arm64NocterAbi::WORD_SIZE,
+                crate::Arm64NocterAbi::word_size(),
                 selected,
             )?;
             if iterator_size != 0 {
@@ -157,17 +157,17 @@ fn copy_value_to_frame(
     {
         Arm64ValueStorage::Omitted if size == 0 => Ok(()),
         Arm64ValueStorage::Direct(registers) => {
-            let expected_words = size.div_ceil(crate::Arm64NocterAbi::WORD_SIZE);
+            let expected_words = size.div_ceil(crate::Arm64NocterAbi::word_size());
             if usize::try_from(expected_words).ok() != Some(registers.len()) {
                 return Err(Arm64SelectionError::CallPack(operation));
             }
             for (lane, register) in registers.iter().copied().enumerate() {
                 let lane_offset = u64::try_from(lane)
                     .ok()
-                    .and_then(|lane| lane.checked_mul(crate::Arm64NocterAbi::WORD_SIZE))
+                    .and_then(|lane| lane.checked_mul(crate::Arm64NocterAbi::word_size()))
                     .ok_or(Arm64SelectionError::AddressOverflow)?;
                 let width =
-                    u8::try_from((size - lane_offset).min(crate::Arm64NocterAbi::WORD_SIZE))
+                    u8::try_from((size - lane_offset).min(crate::Arm64NocterAbi::word_size()))
                         .map_err(|_| Arm64SelectionError::AddressOverflow)?;
                 selected.push(Arm64SelectedInstruction::StoreMemory {
                     bytes: width,
@@ -235,7 +235,7 @@ fn select_descriptor(
         pack.length(),
         frame.descriptor(),
         Arm64PackDescriptorLayout::LENGTH_OFFSET,
-        crate::Arm64NocterAbi::WORD_SIZE,
+        crate::Arm64NocterAbi::word_size(),
         selected,
     )?;
     for (kind, offset) in [
@@ -395,5 +395,5 @@ const fn frame_memory(
 }
 
 fn word_bytes() -> u8 {
-    u8::try_from(crate::Arm64NocterAbi::WORD_SIZE).expect("ARM64 word width fits u8")
+    u8::try_from(crate::Arm64NocterAbi::word_size()).expect("ARM64 word width fits u8")
 }

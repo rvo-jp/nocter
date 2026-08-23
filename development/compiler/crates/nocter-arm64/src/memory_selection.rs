@@ -333,10 +333,10 @@ fn stored_value_size(
 }
 
 pub(crate) fn direct_lane(offset: u64, lane_count: usize) -> Result<usize, Arm64SelectionError> {
-    if !offset.is_multiple_of(Arm64NocterAbi::WORD_SIZE) {
+    if !offset.is_multiple_of(Arm64NocterAbi::word_size()) {
         return Err(Arm64SelectionError::DirectLaneOffset(offset));
     }
-    let lane = usize::try_from(offset / Arm64NocterAbi::WORD_SIZE)
+    let lane = usize::try_from(offset / Arm64NocterAbi::word_size())
         .map_err(|_| Arm64SelectionError::DirectLaneOffset(offset))?;
     (lane < lane_count)
         .then_some(lane)
@@ -350,7 +350,7 @@ pub(crate) fn direct_lane_sizes(
     if size == 0 && lane_count == 0 {
         return Ok(Vec::new());
     }
-    let expected = size.div_ceil(Arm64NocterAbi::WORD_SIZE);
+    let expected = size.div_ceil(Arm64NocterAbi::word_size());
     if usize::try_from(expected).ok() != Some(lane_count) {
         return Err(Arm64SelectionError::DirectMemoryWidth(size));
     }
@@ -360,7 +360,7 @@ pub(crate) fn direct_lane_sizes(
             let remaining = size
                 .checked_sub(offset)
                 .ok_or(Arm64SelectionError::AddressOverflow)?;
-            u8::try_from(remaining.min(Arm64NocterAbi::WORD_SIZE))
+            u8::try_from(remaining.min(Arm64NocterAbi::word_size()))
                 .map_err(|_| Arm64SelectionError::DirectMemoryWidth(size))
         })
         .collect()
@@ -369,7 +369,7 @@ pub(crate) fn direct_lane_sizes(
 pub(crate) fn lane_offset(lane: usize) -> Result<u64, Arm64SelectionError> {
     u64::try_from(lane)
         .ok()
-        .and_then(|lane| lane.checked_mul(Arm64NocterAbi::WORD_SIZE))
+        .and_then(|lane| lane.checked_mul(Arm64NocterAbi::word_size()))
         .ok_or(Arm64SelectionError::AddressOverflow)
 }
 

@@ -19,14 +19,27 @@ pub enum Arm64AbiRegisterRole {
 pub struct Arm64NocterAbi;
 
 impl Arm64NocterAbi {
-    pub const WORD_SIZE: u64 = 8;
-    pub const STACK_ALIGNMENT: u64 = 16;
-    pub const ARGUMENT_REGISTER_COUNT: u8 = 8;
-    pub const DIRECT_VALUE_WORD_LIMIT: u8 = 2;
+    const SCHEMA: nocter_runtime_contract::RuntimeAbiSchema =
+        nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1.schema();
+
+    #[must_use]
+    pub const fn word_size() -> u64 {
+        Self::SCHEMA.word_size()
+    }
+
+    #[must_use]
+    pub const fn stack_alignment() -> u64 {
+        Self::SCHEMA.stack_alignment()
+    }
+
+    #[must_use]
+    pub const fn direct_value_word_limit() -> u8 {
+        Self::SCHEMA.direct_value_word_limit()
+    }
 
     #[must_use]
     pub const fn argument_register(index: u8) -> Option<Arm64Register> {
-        if index < Self::ARGUMENT_REGISTER_COUNT {
+        if index < Self::SCHEMA.argument_register_count() {
             Arm64Register::new(index)
         } else {
             None
@@ -35,7 +48,7 @@ impl Arm64NocterAbi {
 
     #[must_use]
     pub const fn indirect_result_register() -> Arm64Register {
-        match Arm64Register::new(8) {
+        match Arm64Register::new(Self::SCHEMA.indirect_result_register()) {
             Some(register) => register,
             None => unreachable!(),
         }
@@ -86,9 +99,14 @@ impl Arm64NocterAbi {
 
     #[must_use]
     pub const fn role(register: Arm64Register) -> Arm64AbiRegisterRole {
-        match register.number() {
-            0..=7 => Arm64AbiRegisterRole::ArgumentAndResult,
-            8 => Arm64AbiRegisterRole::IndirectResult,
+        let number = register.number();
+        if number < Self::SCHEMA.argument_register_count() {
+            return Arm64AbiRegisterRole::ArgumentAndResult;
+        }
+        if number == Self::SCHEMA.indirect_result_register() {
+            return Arm64AbiRegisterRole::IndirectResult;
+        }
+        match number {
             9 => Arm64AbiRegisterRole::AllocationContext,
             10 => Arm64AbiRegisterRole::ProcessContext,
             11..=15 => Arm64AbiRegisterRole::CallerSaved,

@@ -265,7 +265,7 @@ fn select_direct_stack_parameter(
 ) -> Result<(), Arm64SelectionError> {
     let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
     let transport_size = u64::from(words)
-        .checked_mul(Arm64NocterAbi::WORD_SIZE)
+        .checked_mul(Arm64NocterAbi::word_size())
         .ok_or(Arm64SelectionError::AddressOverflow)?;
     if slot.size() < transport_size {
         return Err(Arm64SelectionError::ParameterTransport(function.linkage()));
@@ -318,7 +318,7 @@ fn select_indirect_parameter(
             });
             pointer
         }
-        MachineArgumentLocation::Stack(slot) if slot.size() >= Arm64NocterAbi::WORD_SIZE => {
+        MachineArgumentLocation::Stack(slot) if slot.size() >= Arm64NocterAbi::word_size() => {
             let pointer = Arm64SelectedRegister::Fixed(scratch_boundary());
             selected.push(Arm64SelectedInstruction::LoadMemory {
                 bytes: word_bytes(),
@@ -411,7 +411,7 @@ fn select_direct_stack_argument(
 ) -> Result<(), Arm64SelectionError> {
     let sources = crate::selection::direct_value(values, value)?;
     let transport_size = u64::from(words)
-        .checked_mul(Arm64NocterAbi::WORD_SIZE)
+        .checked_mul(Arm64NocterAbi::word_size())
         .ok_or(Arm64SelectionError::AddressOverflow)?;
     if sources.len() != usize::from(words) || slot.size() < transport_size {
         return Err(Arm64SelectionError::CallArguments(operation));
@@ -458,7 +458,7 @@ fn select_indirect_argument(
                 source,
             });
         }
-        MachineArgumentLocation::Stack(slot) if slot.size() >= Arm64NocterAbi::WORD_SIZE => {
+        MachineArgumentLocation::Stack(slot) if slot.size() >= Arm64NocterAbi::word_size() => {
             let pointer = Arm64SelectedRegister::Fixed(scratch_boundary());
             selected.push(Arm64SelectedInstruction::MemoryAddress {
                 destination: pointer,
@@ -644,5 +644,6 @@ fn scratch_boundary() -> crate::Arm64Register {
 }
 
 fn word_bytes() -> u8 {
-    u8::try_from(Arm64NocterAbi::WORD_SIZE).expect("the target word size fits selected byte width")
+    u8::try_from(Arm64NocterAbi::word_size())
+        .expect("the target word size fits selected byte width")
 }

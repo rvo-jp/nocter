@@ -165,9 +165,10 @@ pub(crate) fn select_current(
 }
 
 const fn context_size() -> u64 {
-    2 * Arm64NocterAbi::WORD_SIZE
+    2 * Arm64NocterAbi::word_size()
 }
 
 fn word_bytes() -> u8 {
-    u8::try_from(Arm64NocterAbi::WORD_SIZE).expect("the target word size fits selected byte width")
+    u8::try_from(Arm64NocterAbi::word_size())
+        .expect("the target word size fits selected byte width")
 }

@@ -37,7 +37,8 @@ pub(crate) fn select_value(
     fallback: &MachineBranchTarget,
 ) -> Result<Arm64SelectedTerminator, Arm64SelectionError> {
     let subject = crate::selection::direct_value(context.values, subject)?;
-    if subject.is_empty() || subject.len() > usize::from(Arm64NocterAbi::DIRECT_VALUE_WORD_LIMIT) {
+    if subject.is_empty() || subject.len() > usize::from(Arm64NocterAbi::direct_value_word_limit())
+    {
         return Err(Arm64SelectionError::SwitchSubject);
     }
     build_switch(

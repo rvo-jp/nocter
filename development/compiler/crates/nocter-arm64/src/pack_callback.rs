@@ -360,7 +360,7 @@ impl NextDestination {
                     })
                     && registers.first() == 0
                     && u64::from(registers.words())
-                        == layout.size().div_ceil(Arm64NocterAbi::WORD_SIZE) =>
+                        == layout.size().div_ceil(Arm64NocterAbi::word_size()) =>
             {
                 Ok(Self::Direct {
                     size: layout.size(),
@@ -514,10 +514,10 @@ impl ClosedNextDestination {
         };
         for lane in 0..registers.words() {
             let lane_offset = u64::from(lane)
-                .checked_mul(Arm64NocterAbi::WORD_SIZE)
+                .checked_mul(Arm64NocterAbi::word_size())
                 .ok_or(Arm64MaterializationError::OffsetOverflow)?;
             let remaining = size.saturating_sub(lane_offset);
-            let width = u8::try_from(remaining.min(Arm64NocterAbi::WORD_SIZE))
+            let width = u8::try_from(remaining.min(Arm64NocterAbi::word_size()))
                 .map_err(|_| Arm64MaterializationError::OffsetOverflow)?;
             let destination = argument(registers.first() + lane);
             if matches!(width, 1 | 2 | 4 | 8) {

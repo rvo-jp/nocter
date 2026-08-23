@@ -41,7 +41,7 @@ fn emit_create(
         value,
         checked_add(offset, Arm64RegionLayout::PARENT_STATE_OFFSET)?,
     );
-    load_word(code, value, parent, Arm64NocterAbi::WORD_SIZE);
+    load_word(code, value, parent, Arm64NocterAbi::word_size());
     crate::frame_access::store_at_stack_offset(
         code,
         Arm64LoadStoreSize::Double,
@@ -96,7 +96,7 @@ fn emit_release(offset: u64, code: &mut Arm64CodeBuilder) -> Result<(), Arm64Mat
 
     load_word(code, temporary, mapping, 0);
     crate::frame_access::store_at_stack_offset(code, Arm64LoadStoreSize::Double, temporary, head);
-    load_word(code, size, mapping, Arm64NocterAbi::WORD_SIZE);
+    load_word(code, size, mapping, Arm64NocterAbi::word_size());
     crate::frame_access::load_immediate(code, temporary, DARWIN_MUNMAP, Arm64DataSize::Bits64);
     code.append(Arm64Instruction::SupervisorCall {
         immediate: DARWIN_SUPERVISOR_CALL,

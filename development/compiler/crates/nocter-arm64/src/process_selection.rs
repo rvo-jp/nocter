@@ -194,5 +194,6 @@ fn validate_abi(
 }
 
 fn word_bytes() -> u8 {
-    u8::try_from(Arm64NocterAbi::WORD_SIZE).expect("the ARM64 word width fits selected byte width")
+    u8::try_from(Arm64NocterAbi::word_size())
+        .expect("the ARM64 word width fits selected byte width")
 }

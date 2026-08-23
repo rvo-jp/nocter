@@ -11,7 +11,7 @@ use crate::{
 };
 
 const DIRECT_VALUE_LIMIT: u64 =
-    Arm64NocterAbi::DIRECT_VALUE_WORD_LIMIT as u64 * Arm64NocterAbi::WORD_SIZE;
+    Arm64NocterAbi::direct_value_word_limit() as u64 * Arm64NocterAbi::word_size();
 
 /// Storage selected for one target-independent machine value before frame placement.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,7 +71,7 @@ impl Arm64ValuePlan {
                     if size <= DIRECT_VALUE_LIMIT =>
                 {
                     let definition = schedule.definition_position(value.definition())?;
-                    let words = size.div_ceil(Arm64NocterAbi::WORD_SIZE);
+                    let words = size.div_ceil(Arm64NocterAbi::word_size());
                     let registers = (0..words)
                         .map(|_| register_builder.define(definition))
                         .collect::<Vec<_>>();
