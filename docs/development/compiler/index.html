@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-22">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="New Nocter Compiler - Nocter">
     <meta name="twitter:description" content="This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"New Nocter Compiler - Nocter","description":"This directory is the implementation root for the specification-first Nocter compiler rewrite. The lexical and syntactic grammar gate is closed. The comple","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -186,12 +186,12 @@
   lexical scopes into members, reuses repeated declaration-pattern binders, rejects explicit
   duplicates and nested shadowing, and projects every authored binder occurrence. Joined contract
   and implementation sources share one generic identity sequence.
-  Authored import preparation builds one visibility-bearing namespace per module. Direct
-  declarations, private imports, scoped/public re-exports, selected aliases, and module namespaces
-  use the same table and collision rule. Dependency modules are completed before importers;
-  selected names must be accessible, re-exports cannot widen their targets, and source imports add
-  no semantic import identity. Exact module paths and selected-name tokens project back to their
-  resolved semantic entities. The compiler-selected standard prelude is a separate fallback table:
+  Authored import preparation resolves module <code>use</code> declarations from module-only resolution
+  inputs. Physical-source <code>include</code> edges have a separate input and surface representation and add
+  no semantic import identity. Dependency modules are completed before importers; selected names
+  must be accessible, and re-exports cannot widen their targets. Exact module paths and
+  selected-name tokens project back to their resolved semantic entities. The compiler-selected
+  standard prelude is a separate fallback table:
   authored names shadow it, it never becomes an implicit re-export, standard-package modules do
   not receive it, and source code cannot import the compiler-managed prelude explicitly.
   Header type binding then converts every type occurrence into a flat syntax-independent arena.

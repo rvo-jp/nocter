@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-12">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/iter/mutable.nct - Nocter">
@@ -144,7 +144,9 @@
                 <span class="markdown-path-text">/development/std/iter/mutable.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>mutable.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Allocation-free mutable iteration over contiguous views.</span>
+                <h1>mutable.nct</h1><pre><code class="language-nocter"><span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+<span class="token-comment">//! Allocation-free mutable iteration over contiguous views.</span>
 
 <span class="token-keyword">func</span> mutable_from_view<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>view<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -171,8 +173,7 @@
         self<span class="token-operator">.</span>next_index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
         <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>view<span class="token-operator">[</span>index<span class="token-operator">]</span>
     <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-</code></pre>
+<span class="token-operator">}</span></code></pre>
             </div>
         </main>
     </div>

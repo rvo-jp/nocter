@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Allocation-free borrowed UTF-8 ranges and text iterators.
 //!
 //! Public operations validate byte ranges before crossing the restricted

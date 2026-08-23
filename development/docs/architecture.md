@@ -404,20 +404,22 @@ repeated resolved identity even when the display names differ. Dense `PackageId`
 internal relation keys, while commands, caches, and diagnostics can recover the exact resolver
 identity without correlating arena order or reparsing source metadata.
 
-Package discovery also supplies one resolved edge for every top-level or block `use` node. The
-edge identifies either an exact physical implementation source or an exact module identity;
-lowering never derives that distinction from path text or filesystem layout. Validation requires
-all implementation sources to be reachable from their module root through private bare relative
-source imports. Those edges may cycle and remain idempotent. Module edges must target a module in
-the compile unit and form an acyclic graph. The canonical surface retains the normalized edge, so
-later import lookup has no path-probing fallback.
+Package discovery supplies disjoint resolved inputs for source composition and module imports. An
+`IncludeResolutionInput` identifies one exact physical source for a top-level `include`; a
+`UseResolutionInput` can identify only a directory module for a top-level or block `use`. Neither
+type can encode the other's target, so lowering never derives the distinction from path text or
+filesystem layout. Validation requires every implementation source to be reachable from its
+module root through same-module include edges. Include edges may cycle and remain idempotent.
+Module-use edges must target a module in the compile unit and form an acyclic graph. The canonical
+surface retains includes and imports in separate collections, so later namespace preparation has
+no path-probing fallback or source-or-module union.
 
 Module edges also retain the exact authored `use` node selected by discovery. Acyclic validation
 first removes the deterministic acyclic prefix, then derives one canonical complete cycle from the
 residual graph. The cycle is rotated by canonical module identity, so compile-unit input ordering
 cannot change its primary edge or ordered notes. Missing, duplicate, stale, and unreachable
-discovery inputs remain internal boundary failures; only authored source-import shape and module-
-cycle rules receive source diagnostic codes.
+discovery inputs remain internal boundary failures; only authored source-include boundaries and
+module-cycle rules receive source diagnostic codes.
 
 The authored standard library now crosses this production boundary as one declaration unit. This
 qualification exposed and removed stale `destruct` syntax, same-line statement sequences, the

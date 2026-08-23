@@ -297,7 +297,7 @@ mod tests {
     use nocter_source_index::SemanticEntity;
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-    use crate::test_support::{module_use, package_target, source_use};
+    use crate::test_support::{module_use, package_target, source_include};
     use crate::{
         CallableContractRule, CompileUnitInput, DeclarationLoweringError, DefinitionRule,
         GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
@@ -491,7 +491,7 @@ mod tests {
     fn production_pipeline_projects_surface_diagnostics() {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let root_id = add_source(&mut sources, "/app/index.nct", "use ./private\n");
+        let root_id = add_source(&mut sources, "/app/index.nct", "include ./private.nct\n");
         let implementation_id = add_source(
             &mut sources,
             "/app/private.nct",
@@ -520,8 +520,9 @@ mod tests {
                     ),
                 ],
             )],
-            vec![source_use(&root, 0, "/app/private.nct")],
-        );
+            Vec::new(),
+        )
+        .with_include_resolutions(vec![source_include(&root, 0, "/app/private.nct")]);
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
 

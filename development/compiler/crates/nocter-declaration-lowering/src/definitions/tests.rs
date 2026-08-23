@@ -5,7 +5,7 @@ use nocter_declarations::{
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use crate::test_support::source_use;
+use crate::test_support::source_include;
 
 const FULL_HEADER_SOURCE: &str = r#"
 #target: "arm64-darwin"
@@ -110,16 +110,18 @@ fn lower<'syntax>(
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
+    includes: Vec<crate::IncludeResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> crate::LoweredDeclarations {
-    try_lower(sources, packages, modules, uses, prelude).unwrap()
+    try_lower(sources, packages, modules, includes, uses, prelude).unwrap()
 }
 
 fn try_lower<'syntax>(
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput<'syntax>>,
     modules: Vec<ModuleInput<'syntax>>,
+    includes: Vec<crate::IncludeResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
@@ -129,7 +131,8 @@ fn try_lower<'syntax>(
         packages,
         modules,
         uses,
-    );
+    )
+    .with_include_resolutions(includes);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -228,6 +231,7 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
                 &prelude_tree,
             ),
         ],
+        vec![],
         vec![],
         &prelude,
     );
@@ -356,7 +360,7 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./implementation\n\npub func select<T>(value: &T): &T from value\n",
+        "include ./implementation.nct\n\npub func select<T>(value: &T): &T from value\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -397,7 +401,8 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
                 &prelude_tree,
             ),
         ],
-        vec![source_use(&root, 0, "/app/implementation.nct")],
+        vec![source_include(&root, 0, "/app/implementation.nct")],
+        vec![],
         &prelude,
     );
     let declarations = lowered.program().declarations();
@@ -604,7 +609,7 @@ fn complete_header_identity_is_independent_of_input_order() {
             packages.reverse();
             modules.reverse();
         }
-        lower(&sources, packages, modules, vec![], &prelude)
+        lower(&sources, packages, modules, vec![], vec![], &prelude)
     };
     let first = build(false);
     let second = build(true);
@@ -665,7 +670,7 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
             packages.reverse();
             modules.reverse();
         }
-        let error = try_lower(&sources, packages, modules, vec![], &prelude).unwrap_err();
+        let error = try_lower(&sources, packages, modules, vec![], vec![], &prelude).unwrap_err();
         let super::HeaderDefinitionError::Declaration(diagnostic) = error else {
             panic!("empty enum did not produce a declaration diagnostic");
         };

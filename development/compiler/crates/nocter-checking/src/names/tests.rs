@@ -1,7 +1,6 @@
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
-    UseTargetInput,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_model::PackageIdentity;
@@ -219,10 +218,7 @@ fn block_import_resolves_to_export_without_creating_local_storage() {
     );
     let use_node = find_nodes(&fixture.app, NodeKind::BlockUseDeclaration)[0];
     let target = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["lib"]);
-    let resolutions = vec![UseResolutionInput::new(
-        use_node,
-        UseTargetInput::Module(target),
-    )];
+    let resolutions = vec![UseResolutionInput::new(use_node, target)];
     let input = fixture.input_with_library(false, resolutions);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
@@ -260,10 +256,7 @@ fn missing_selected_block_import_has_its_own_rule() {
     );
     let use_node = find_nodes(&fixture.app, NodeKind::BlockUseDeclaration)[0];
     let target = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["lib"]);
-    let resolutions = vec![UseResolutionInput::new(
-        use_node,
-        UseTargetInput::Module(target),
-    )];
+    let resolutions = vec![UseResolutionInput::new(use_node, target)];
     let input = fixture.input_with_library(false, resolutions);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);

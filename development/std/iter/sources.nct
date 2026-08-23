@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Zero- and one-element owning iterators.
 
 use std/ptr.{from_ref_mut, store_value_to_ptr, take_value_at_ptr}

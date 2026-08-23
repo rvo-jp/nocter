@@ -3,8 +3,9 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
-    PrimitiveRoleInput, StandardRoleInput, ToolchainInput, UseResolutionInput, UseTargetInput,
+    IncludeResolutionInput, ModuleIdentity, ModuleSourceKind, PackageMode,
+    PackageTargetResolutionInput, PrimitiveRoleInput, StandardRoleInput, ToolchainInput,
+    UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
@@ -12,7 +13,8 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;
 
-use crate::error::{ImportFailure, ToolchainDiscoveryError};
+use crate::error::{IncludeFailure, ToolchainDiscoveryError, UseFailure};
+use crate::include::include_paths;
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
@@ -66,6 +68,7 @@ struct Builder {
     modules: BTreeMap<ModuleIdentity, Vec<DiscoveredSource>>,
     module_dependencies: Vec<DiscoveredModuleDependency>,
     source_owners: BTreeMap<PathBuf, ModuleIdentity>,
+    include_resolutions: Vec<IncludeResolutionInput>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pending: BTreeSet<Work>,
@@ -74,13 +77,13 @@ struct Builder {
 
 #[derive(Debug)]
 enum ResolveError {
-    Import(ImportFailure),
+    Use(UseFailure),
     Discovery(DiscoveryError),
 }
 
-impl From<ImportFailure> for ResolveError {
-    fn from(error: ImportFailure) -> Self {
-        Self::Import(error)
+impl From<UseFailure> for ResolveError {
+    fn from(error: UseFailure) -> Self {
+        Self::Use(error)
     }
 }
 
@@ -150,6 +153,7 @@ impl Builder {
             modules: BTreeMap::new(),
             module_dependencies: Vec::new(),
             source_owners: BTreeMap::new(),
+            include_resolutions: Vec::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
             pending,
@@ -222,6 +226,10 @@ impl Builder {
                 DiscoveredModule::new(identity, sources)
             })
             .collect();
+        self.include_resolutions.sort_unstable_by_key(|resolution| {
+            let node = resolution.declaration();
+            (node.source(), node.index())
+        });
         self.use_resolutions.sort_unstable_by_key(|resolution| {
             let node = resolution.declaration();
             (node.source(), node.index())
@@ -237,6 +245,7 @@ impl Builder {
             root_packages: self.root_packages,
             modules,
             module_dependencies: self.module_dependencies,
+            include_resolutions: self.include_resolutions,
             use_resolutions: self.use_resolutions,
             package_target_resolutions: self.package_target_resolutions,
             toolchain,
@@ -452,28 +461,67 @@ impl Builder {
                 nocter_target_selection::TargetSelectionError::MissingSource(tree.source()),
             )
         })?;
+        for (declaration, authored_path) in include_paths(source, tree)? {
+            let target = self.resolve_include(&module, &path, declaration, &authored_path)?;
+            self.pending.insert(Work::Source {
+                module: module.clone(),
+                path: PathBuf::from(target.as_ref()),
+            });
+            self.include_resolutions
+                .push(IncludeResolutionInput::new(declaration, target));
+        }
         for (declaration, authored_path) in active_use_paths(source, tree, &selection)? {
             let target = self.resolve_use(&module, &path, declaration, &authored_path)?;
-            match &target {
-                UseTargetInput::Source(path) => {
-                    self.pending.insert(Work::Source {
-                        module: module.clone(),
-                        path: PathBuf::from(path.as_ref()),
-                    });
-                }
-                UseTargetInput::Module(target_module) => {
-                    self.module_dependencies
-                        .push(DiscoveredModuleDependency::new(
-                            module.clone(),
-                            target_module.clone(),
-                        ));
-                    self.pending.insert(Work::Module(target_module.clone()));
-                }
-            }
+            self.module_dependencies
+                .push(DiscoveredModuleDependency::new(
+                    module.clone(),
+                    target.clone(),
+                ));
+            self.pending.insert(Work::Module(target.clone()));
             self.use_resolutions
                 .push(UseResolutionInput::new(declaration, target));
         }
         Ok(())
+    }
+
+    fn resolve_include(
+        &self,
+        importer: &ModuleIdentity,
+        source: &Path,
+        declaration: nocter_syntax::NodeId,
+        authored: &str,
+    ) -> Result<Box<str>, DiscoveryError> {
+        let package = self.package(importer.package())?;
+        let relative = authored
+            .strip_prefix("./")
+            .ok_or_else(|| include_error(declaration, authored, IncludeFailure::OutsidePackage))?;
+        let source_directory = source
+            .parent()
+            .ok_or_else(|| include_error(declaration, authored, IncludeFailure::OutsidePackage))?;
+        let candidate = source_directory.join(relative);
+        if !regular_file(&self.source_overlay, &candidate)? {
+            return Err(include_error(
+                declaration,
+                authored,
+                IncludeFailure::NotFound,
+            ));
+        }
+        let candidate = canonicalize_dependency(&self.source_overlay, &candidate)?;
+        self.validate_package_boundary(importer.package(), &candidate)
+            .map_err(|error| include_boundary_error(declaration, authored, error))?;
+        if package.mode == PackageMode::Declared {
+            let owner = self
+                .nearest_module(importer.package(), &candidate)
+                .map_err(|error| include_boundary_error(declaration, authored, error))?;
+            if &owner != importer {
+                return Err(include_error(
+                    declaration,
+                    authored,
+                    IncludeFailure::CrossesModule { module: owner },
+                ));
+            }
+        }
+        canonical_text(&candidate)
     }
 
     fn resolve_use(
@@ -482,17 +530,17 @@ impl Builder {
         source: &Path,
         declaration: nocter_syntax::NodeId,
         authored: &str,
-    ) -> Result<UseTargetInput, DiscoveryError> {
+    ) -> Result<ModuleIdentity, DiscoveryError> {
         let package = self.package(importer.package())?;
         if package.mode == PackageMode::SingleFile
             && (authored.starts_with("./")
                 || authored.starts_with("../")
                 || authored.starts_with('/'))
         {
-            return Err(import_error(
+            return Err(use_error(
                 declaration,
                 authored,
-                ImportFailure::SingleFileLocalImport,
+                UseFailure::SingleFileLocalUse,
             ));
         }
         let segments: Vec<_> = authored.split('/').collect();
@@ -503,10 +551,10 @@ impl Builder {
         } else {
             let alias = segments[0];
             let Some(target_package) = package.dependencies.get(alias) else {
-                return Err(import_error(
+                return Err(use_error(
                     declaration,
                     authored,
-                    ImportFailure::UnknownDependency {
+                    UseFailure::UnknownDependency {
                         alias: alias.into(),
                     },
                 ));
@@ -514,7 +562,7 @@ impl Builder {
             self.resolve_module_candidate(target_package, &segments[1..])
         };
         result.map_err(|error| match error {
-            ResolveError::Import(failure) => import_error(declaration, authored, failure),
+            ResolveError::Use(failure) => use_error(declaration, authored, failure),
             ResolveError::Discovery(error) => error,
         })
     }
@@ -524,21 +572,21 @@ impl Builder {
         importer: &ModuleIdentity,
         source: &Path,
         authored: &str,
-    ) -> Result<UseTargetInput, ResolveError> {
+    ) -> Result<ModuleIdentity, ResolveError> {
         let package = self
             .packages
             .get(importer.package())
-            .ok_or(ImportFailure::OutsidePackage)?;
-        let source_directory = source.parent().ok_or(ImportFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?;
+        let source_directory = source.parent().ok_or(UseFailure::OutsidePackage)?;
         let relative = source_directory
             .strip_prefix(&package.canonical_root)
-            .map_err(|_| ImportFailure::OutsidePackage)?;
+            .map_err(|_| UseFailure::OutsidePackage)?;
         let mut components = normalized_components(relative)?;
         for component in authored.split('/') {
             match component {
                 "." => {}
                 ".." => {
-                    components.pop().ok_or(ImportFailure::OutsidePackage)?;
+                    components.pop().ok_or(UseFailure::OutsidePackage)?;
                 }
                 segment => components.push(segment.into()),
             }
@@ -548,41 +596,22 @@ impl Builder {
             .fold(package.canonical_root.clone(), |path, segment| {
                 path.join(Path::new(segment.as_ref()))
             });
-        let mut source_candidate = base.clone();
-        source_candidate.set_extension("nct");
         let module_candidate = base.join("index.nct");
-        let has_source = regular_file(&self.source_overlay, &source_candidate)?;
-        let has_module = regular_file(&self.source_overlay, &module_candidate)?;
-        match (has_source, has_module) {
-            (true, true) => Err(ImportFailure::Ambiguous {
-                source: source_candidate,
-                module: module_candidate,
-            }
-            .into()),
-            (false, false) => Err(ImportFailure::NotFound.into()),
-            (false, true) => self.resolve_existing_module(importer.package(), &module_candidate),
-            (true, false) => {
-                let source_candidate =
-                    canonicalize_import(&self.source_overlay, &source_candidate)?;
-                self.validate_import_path(importer.package(), &source_candidate)?;
-                let owner = self.nearest_module(importer.package(), &source_candidate)?;
-                if &owner != importer {
-                    return Err(ImportFailure::CrossesModule { module: owner }.into());
-                }
-                Ok(UseTargetInput::Source(canonical_text(&source_candidate)?))
-            }
+        if !regular_file(&self.source_overlay, &module_candidate)? {
+            return Err(UseFailure::NotFound.into());
         }
+        self.resolve_existing_module(importer.package(), &module_candidate)
     }
 
     fn resolve_module_candidate(
         &self,
         package: &PackageIdentity,
         segments: &[&str],
-    ) -> Result<UseTargetInput, ResolveError> {
+    ) -> Result<ModuleIdentity, ResolveError> {
         let state = self
             .packages
             .get(package)
-            .ok_or(ImportFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?;
         let root = segments
             .iter()
             .fold(state.canonical_root.clone(), |path, segment| {
@@ -590,7 +619,7 @@ impl Builder {
             })
             .join("index.nct");
         if !regular_file(&self.source_overlay, &root)? {
-            return Err(ImportFailure::NotFound.into());
+            return Err(UseFailure::NotFound.into());
         }
         self.resolve_existing_module(package, &root)
     }
@@ -599,22 +628,22 @@ impl Builder {
         &self,
         package: &PackageIdentity,
         root: &Path,
-    ) -> Result<UseTargetInput, ResolveError> {
-        let root = canonicalize_import(&self.source_overlay, root)?;
-        self.validate_import_path(package, &root)?;
+    ) -> Result<ModuleIdentity, ResolveError> {
+        let root = canonicalize_dependency(&self.source_overlay, root)?;
+        self.validate_package_boundary(package, &root)?;
         let state = self
             .packages
             .get(package)
-            .ok_or(ImportFailure::OutsidePackage)?;
-        let directory = root.parent().ok_or(ImportFailure::InvalidModuleDirectory)?;
+            .ok_or(UseFailure::OutsidePackage)?;
+        let directory = root.parent().ok_or(UseFailure::InvalidModuleDirectory)?;
         let relative = directory
             .strip_prefix(&state.canonical_root)
-            .map_err(|_| ImportFailure::OutsidePackage)?;
+            .map_err(|_| UseFailure::OutsidePackage)?;
         let path = normalized_components(relative)?;
-        Ok(UseTargetInput::Module(ModuleIdentity::new(
+        Ok(ModuleIdentity::new(
             package.clone(),
             path.iter().map(AsRef::as_ref),
-        )))
+        ))
     }
 
     fn nearest_module(
@@ -625,13 +654,13 @@ impl Builder {
         let state = self
             .packages
             .get(package)
-            .ok_or(ImportFailure::OutsidePackage)?;
-        let mut directory = source.parent().ok_or(ImportFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?;
+        let mut directory = source.parent().ok_or(UseFailure::OutsidePackage)?;
         loop {
             if regular_file(&self.source_overlay, &directory.join("index.nct"))? {
                 let relative = directory
                     .strip_prefix(&state.canonical_root)
-                    .map_err(|_| ImportFailure::OutsidePackage)?;
+                    .map_err(|_| UseFailure::OutsidePackage)?;
                 let path = normalized_components(relative)?;
                 return Ok(ModuleIdentity::new(
                     package.clone(),
@@ -639,9 +668,9 @@ impl Builder {
                 ));
             }
             if directory == state.canonical_root {
-                return Err(ImportFailure::InvalidModuleDirectory.into());
+                return Err(UseFailure::InvalidModuleDirectory.into());
             }
-            directory = directory.parent().ok_or(ImportFailure::OutsidePackage)?;
+            directory = directory.parent().ok_or(UseFailure::OutsidePackage)?;
         }
     }
 
@@ -665,9 +694,9 @@ impl Builder {
             });
         }
         if let Some(module) = expected_module {
-            if let Err(error) = self.validate_import_path(package, path) {
+            if let Err(error) = self.validate_package_boundary(package, path) {
                 return Err(match error {
-                    ResolveError::Import(failure) => DiscoveryError::InvalidModulePath {
+                    ResolveError::Use(failure) => DiscoveryError::InvalidModulePath {
                         module: module.clone(),
                         path: path.into(),
                         failure,
@@ -699,7 +728,7 @@ impl Builder {
         Ok(())
     }
 
-    fn validate_import_path(
+    fn validate_package_boundary(
         &self,
         package: &PackageIdentity,
         path: &Path,
@@ -707,20 +736,20 @@ impl Builder {
         let state = self
             .packages
             .get(package)
-            .ok_or(ImportFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?;
         if !path.starts_with(&state.canonical_root) {
-            return Err(ImportFailure::OutsidePackage.into());
+            return Err(UseFailure::OutsidePackage.into());
         }
-        let mut directory = path.parent().ok_or(ImportFailure::OutsidePackage)?;
+        let mut directory = path.parent().ok_or(UseFailure::OutsidePackage)?;
         while directory != state.canonical_root {
             let nested = directory.join("nocter.nct");
             if regular_file(&self.source_overlay, &nested)? {
-                return Err(ImportFailure::CrossesPackage {
+                return Err(UseFailure::CrossesPackage {
                     root: directory.into(),
                 }
                 .into());
             }
-            directory = directory.parent().ok_or(ImportFailure::OutsidePackage)?;
+            directory = directory.parent().ok_or(UseFailure::OutsidePackage)?;
         }
         Ok(())
     }
@@ -992,16 +1021,16 @@ fn validate_toolchain_module(
     }
 }
 
-fn normalized_components(path: &Path) -> Result<Vec<Box<str>>, ImportFailure> {
+fn normalized_components(path: &Path) -> Result<Vec<Box<str>>, UseFailure> {
     path.components()
         .map(|component| match component {
             Component::Normal(segment) => segment
                 .to_str()
                 .map(Box::<str>::from)
-                .ok_or(ImportFailure::InvalidModuleDirectory),
+                .ok_or(UseFailure::InvalidModuleDirectory),
             Component::CurDir => Ok(Box::<str>::from(".")),
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                Err(ImportFailure::InvalidModuleDirectory)
+                Err(UseFailure::InvalidModuleDirectory)
             }
         })
         .collect()
@@ -1032,11 +1061,15 @@ fn canonicalize(
         })
 }
 
-fn canonicalize_import(
+fn canonicalize_dependency(
     source_overlay: &SourceOverlay,
     path: &Path,
 ) -> Result<PathBuf, DiscoveryError> {
-    canonicalize(source_overlay, "canonicalize import target", path)
+    canonicalize(
+        source_overlay,
+        "canonicalize source dependency target",
+        path,
+    )
 }
 
 fn canonical_text(path: &Path) -> Result<Box<str>, DiscoveryError> {
@@ -1045,14 +1078,48 @@ fn canonical_text(path: &Path) -> Result<Box<str>, DiscoveryError> {
         .ok_or_else(|| DiscoveryError::NonUnicodeCanonicalPath(path.into()))
 }
 
-fn import_error(
+fn use_error(
     declaration: nocter_syntax::NodeId,
     path: &str,
-    failure: ImportFailure,
+    failure: UseFailure,
 ) -> DiscoveryError {
-    DiscoveryError::Import {
+    DiscoveryError::Use {
         declaration,
         path: path.into(),
         failure,
+    }
+}
+
+fn include_error(
+    declaration: nocter_syntax::NodeId,
+    path: &str,
+    failure: IncludeFailure,
+) -> DiscoveryError {
+    DiscoveryError::Include {
+        declaration,
+        path: path.into(),
+        failure,
+    }
+}
+
+fn include_boundary_error(
+    declaration: nocter_syntax::NodeId,
+    path: &str,
+    error: ResolveError,
+) -> DiscoveryError {
+    match error {
+        ResolveError::Discovery(error) => error,
+        ResolveError::Use(UseFailure::CrossesPackage { root }) => {
+            include_error(declaration, path, IncludeFailure::CrossesPackage { root })
+        }
+        ResolveError::Use(
+            UseFailure::OutsidePackage
+            | UseFailure::InvalidModuleDirectory
+            | UseFailure::SingleFileLocalUse
+            | UseFailure::UnknownDependency { .. },
+        ) => include_error(declaration, path, IncludeFailure::OutsidePackage),
+        ResolveError::Use(UseFailure::NotFound) => {
+            include_error(declaration, path, IncludeFailure::NotFound)
+        }
     }
 }

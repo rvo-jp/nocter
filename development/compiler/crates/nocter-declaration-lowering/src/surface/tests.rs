@@ -2,7 +2,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{SurfaceDeclarationKind, SurfaceError, collect_declaration_surface};
-use crate::test_support::{module_use, source_use};
+use crate::test_support::{module_use, source_include};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -154,7 +154,7 @@ fn canonical_source_order_is_independent_of_discovery_order() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./a\nuse ./z\n\nfunc root(): void {}\n",
+        "include ./a.nct\ninclude ./z.nct\n\nfunc root(): void {}\n",
     );
     let a_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let z_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
@@ -168,23 +168,25 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &a),
     ];
     let resolutions = vec![
-        source_use(&root, 0, "/app/a.nct"),
-        source_use(&root, 1, "/app/z.nct"),
+        source_include(&root, 0, "/app/a.nct"),
+        source_include(&root, 1, "/app/z.nct"),
     ];
     let forward = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.clone())],
-        resolutions.clone(),
-    );
+        Vec::new(),
+    )
+    .with_include_resolutions(resolutions.clone());
     let reverse = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package(&manifest)],
         vec![root_module(module_sources.into_iter().rev().collect())],
-        resolutions,
-    );
+        Vec::new(),
+    )
+    .with_include_resolutions(resolutions);
 
     let forward = collect_declaration_surface(&forward).unwrap();
     let reverse = collect_declaration_surface(&reverse).unwrap();
@@ -207,7 +209,7 @@ fn implementation_sources_cannot_expand_the_module_surface() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./implementation\n\nfunc root(): void {}\n",
+        "include ./implementation.nct\n\nfunc root(): void {}\n",
     );
     let public_id = add_source(
         &mut sources,
@@ -237,8 +239,13 @@ fn implementation_sources_cannot_expand_the_module_surface() {
                     implementation,
                 ),
             ])],
-            vec![source_use(&root, 0, "/app/implementation.nct")],
-        );
+            Vec::new(),
+        )
+        .with_include_resolutions(vec![source_include(
+            &root,
+            0,
+            "/app/implementation.nct",
+        )]);
 
         let error = collect_declaration_surface(&input).unwrap_err();
         assert!(matches!(

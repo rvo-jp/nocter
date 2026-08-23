@@ -8,10 +8,10 @@ use nocter_syntax::{
     NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, declaration_name_token,
 };
 
-use crate::topology::{PreparedCompileUnit, UseResolutionKey, prepare_compile_unit};
-use crate::{
-    CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput, UseTargetInput,
+use crate::topology::{
+    IncludeResolutionKey, PreparedCompileUnit, UseResolutionKey, prepare_compile_unit,
 };
+use crate::{CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput};
 use nocter_target_selection::TargetSelection;
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
@@ -101,17 +101,35 @@ impl<'syntax> SurfaceSource<'syntax> {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SurfaceImportTarget {
-    Source(SurfaceSourceId),
-    Module(ModuleIdentity),
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SurfaceInclude {
+    source: SurfaceSourceId,
+    node: NodeId,
+    target: SurfaceSourceId,
+}
+
+impl SurfaceInclude {
+    #[must_use]
+    pub const fn source(self) -> SurfaceSourceId {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn node(self) -> NodeId {
+        self.node
+    }
+
+    #[must_use]
+    pub const fn target(self) -> SurfaceSourceId {
+        self.target
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SurfaceImport {
     source: SurfaceSourceId,
     node: NodeId,
-    target: SurfaceImportTarget,
+    target: ModuleIdentity,
 }
 
 impl SurfaceImport {
@@ -126,7 +144,7 @@ impl SurfaceImport {
     }
 
     #[must_use]
-    pub const fn target(&self) -> &SurfaceImportTarget {
+    pub const fn target(&self) -> &ModuleIdentity {
         &self.target
     }
 }
@@ -199,6 +217,7 @@ pub struct DeclarationSurface<'syntax> {
     root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
     sources: Box<[SurfaceSource<'syntax>]>,
+    includes: Box<[SurfaceInclude]>,
     imports: Box<[SurfaceImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
@@ -236,6 +255,11 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
+    pub const fn includes(&self) -> &[SurfaceInclude] {
+        &self.includes
+    }
+
+    #[must_use]
     pub const fn imports(&self) -> &[SurfaceImport] {
         &self.imports
     }
@@ -254,6 +278,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             root_packages: self.root_packages,
             modules: self.modules,
             sources: self.sources,
+            includes: self.includes,
             imports: self.imports,
             package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
@@ -269,6 +294,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
+    pub(crate) includes: Box<[SurfaceInclude]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
@@ -372,11 +398,13 @@ fn collect_declaration_surface_with<'syntax>(
         symbols,
         packages,
         modules,
+        include_resolutions,
         use_resolutions,
         package_target_resolutions,
         target_selection,
     } = prepared;
     let mut sources = Vec::new();
+    let mut includes = Vec::new();
     let mut imports = Vec::new();
     let mut declarations = Vec::new();
 
@@ -406,9 +434,11 @@ fn collect_declaration_surface_with<'syntax>(
         collect_source(
             SurfaceSourceId(index),
             source,
+            &include_resolutions,
             &use_resolutions,
             &target_selection,
             &source_by_path,
+            &mut includes,
             &mut imports,
             &mut declarations,
         )?;
@@ -430,6 +460,7 @@ fn collect_declaration_surface_with<'syntax>(
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         sources: sources.into_boxed_slice(),
+        includes: includes.into_boxed_slice(),
         imports: imports.into_boxed_slice(),
         package_target_resolutions: package_target_resolutions
             .into_iter()
@@ -450,9 +481,11 @@ const fn source_kind_rank(kind: ModuleSourceKind) -> u8 {
 fn collect_source(
     source_id: SurfaceSourceId,
     source: &SurfaceSource<'_>,
+    include_resolutions: &BTreeMap<IncludeResolutionKey, &crate::IncludeResolutionInput>,
     use_resolutions: &BTreeMap<UseResolutionKey, &crate::UseResolutionInput>,
     target_selection: &TargetSelection,
     source_by_path: &BTreeMap<&str, SurfaceSourceId>,
+    includes: &mut Vec<SurfaceInclude>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
@@ -462,6 +495,19 @@ fn collect_source(
     }
     for child in child_nodes(tree, tree.root_id()) {
         match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
+            Some(NodeKind::IncludeDeclaration) => {
+                let resolution = include_resolutions
+                    .get(&(child.source(), child.index()))
+                    .ok_or(SurfaceError::InconsistentUseResolution(child))?;
+                let target = *source_by_path
+                    .get(resolution.target_source())
+                    .ok_or(SurfaceError::InconsistentUseResolution(child))?;
+                includes.push(SurfaceInclude {
+                    source: source_id,
+                    node: child,
+                    target,
+                });
+            }
             Some(NodeKind::UseDeclaration) => {
                 if source.kind() == ModuleSourceKind::Implementation
                     && let Some(visibility) = direct_child(tree, child, NodeKind::Visibility)
@@ -471,18 +517,10 @@ fn collect_source(
                 let resolution = use_resolutions
                     .get(&(child.source(), child.index()))
                     .ok_or(SurfaceError::InconsistentUseResolution(child))?;
-                let target = match resolution.target() {
-                    UseTargetInput::Source(path) => SurfaceImportTarget::Source(
-                        *source_by_path
-                            .get(path.as_ref())
-                            .ok_or(SurfaceError::InconsistentUseResolution(child))?,
-                    ),
-                    UseTargetInput::Module(module) => SurfaceImportTarget::Module(module.clone()),
-                };
                 imports.push(SurfaceImport {
                     source: source_id,
                     node: child,
-                    target,
+                    target: resolution.target_module().clone(),
                 });
             }
             Some(NodeKind::Item) => {

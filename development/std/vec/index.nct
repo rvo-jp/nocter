@@ -19,7 +19,7 @@ use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
-use ./into_iter
+include ./into_iter.nct
 
 /// A forward iterator that owns a Vec allocation and its remaining elements.
 pub struct VecIntoIter<T> {

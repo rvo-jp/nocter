@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Owning iteration for Vec storage.
 //!
 //! VecIntoIter holds the original allocation and the still-initialized range.

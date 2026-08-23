@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageInput, PackageMode, PackageTargetResolutionInput,
-    ToolchainInput, UseResolutionInput,
+    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
+    PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, PackageIdentity};
@@ -110,6 +110,7 @@ pub struct DiscoveredUnit {
     pub(crate) root_packages: Vec<PackageIdentity>,
     pub(crate) modules: Vec<DiscoveredModule>,
     pub(crate) module_dependencies: Vec<DiscoveredModuleDependency>,
+    pub(crate) include_resolutions: Vec<IncludeResolutionInput>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pub(crate) toolchain: Option<ToolchainInput>,
@@ -283,6 +284,7 @@ impl DiscoveredUnit {
             modules,
             self.use_resolutions.clone(),
         )
+        .with_include_resolutions(self.include_resolutions.clone())
         .with_root_packages(self.root_packages.clone())
         .with_package_target_resolutions(self.package_target_resolutions.clone())
         .with_toolchain(toolchain))

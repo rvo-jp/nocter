@@ -2,7 +2,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{LoweringError, lower_compile_unit_topology};
-use crate::test_support::{module_use, source_use};
+use crate::test_support::{module_use, source_include};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -64,7 +64,7 @@ fn input_order_does_not_change_semantic_topology() {
     let app_root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./support\n\npub func run(): void { return }\n",
+        "include ./support.nct\n\npub func run(): void { return }\n",
     );
     let app_impl_id = add_source(
         &mut sources,
@@ -109,17 +109,18 @@ fn input_order_does_not_change_semantic_topology() {
             ],
         ),
     ];
-    let resolutions = vec![source_use(&app_root, 0, "/app/support.nct")];
+    let resolutions = vec![source_include(&app_root, 0, "/app/support.nct")];
 
-    let forward = lower_compile_unit_topology(&CompileUnitInput::new(
+    let forward_input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.clone(),
         modules.clone(),
-        resolutions.clone(),
-    ))
-    .unwrap();
-    let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
+        Vec::new(),
+    )
+    .with_include_resolutions(resolutions.clone());
+    let forward = lower_compile_unit_topology(&forward_input).unwrap();
+    let reverse_input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.into_iter().rev().collect(),
@@ -132,9 +133,10 @@ fn input_order_does_not_change_semantic_topology() {
                 ModuleInput::new(module.identity().clone(), source_order)
             })
             .collect(),
-        resolutions,
-    ))
-    .unwrap();
+        Vec::new(),
+    )
+    .with_include_resolutions(resolutions);
+    let reverse = lower_compile_unit_topology(&reverse_input).unwrap();
 
     assert_eq!(forward.program().symbols(), reverse.program().symbols());
     assert_eq!(
@@ -288,36 +290,54 @@ fn every_authored_use_requires_one_discovery_owned_resolution() {
 }
 
 #[test]
-fn source_imports_must_be_private_bare_edges_within_one_module() {
+fn source_includes_cannot_cross_a_directory_module_boundary() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "use ./search.find\n");
-    let search_id = add_source(&mut sources, "/app/search.nct", "func find(): void {}\n");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./search/index.nct\n",
+    );
+    let search_id = add_source(
+        &mut sources,
+        "/app/search/index.nct",
+        "func find(): void {}\n",
+    );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let search = parse_source(&sources, search_id, ParseGoal::SourceFile);
     let package = declared_package("workspace:app", "app", "/app/nocter.nct", &manifest);
-    let module = root_module(
+    let root_module = root_module(
         "workspace:app",
-        vec![
-            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
-            ModuleSourceInput::new("/app/search.nct", ModuleSourceKind::Implementation, &search),
-        ],
+        vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )],
+    );
+    let search_module = ModuleInput::new(
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["search"]),
+        vec![ModuleSourceInput::new(
+            "/app/search/index.nct",
+            ModuleSourceKind::Root,
+            &search,
+        )],
     );
 
-    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+    let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
-        vec![module],
-        vec![source_use(&root, 0, "/app/search.nct")],
-    ))
-    .unwrap_err();
+        vec![root_module, search_module],
+        Vec::new(),
+    )
+    .with_include_resolutions(vec![source_include(&root, 0, "/app/search/index.nct")]);
+    let error = lower_compile_unit_topology(&input).unwrap_err();
 
     assert!(matches!(
         error,
         LoweringError::Rule(violation)
-            if violation.rule() == crate::TopologyRule::InvalidSourceImport
+            if violation.rule() == crate::TopologyRule::InvalidSourceInclude
     ));
 }
 
@@ -325,9 +345,9 @@ fn source_imports_must_be_private_bare_edges_within_one_module() {
 fn source_cycles_are_valid_but_every_implementation_must_be_root_reachable() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "use ./a\n");
-    let a_id = add_source(&mut sources, "/app/a.nct", "use ./b\n");
-    let b_id = add_source(&mut sources, "/app/b.nct", "use ./a\n");
+    let root_id = add_source(&mut sources, "/app/index.nct", "include ./a.nct\n");
+    let a_id = add_source(&mut sources, "/app/a.nct", "include ./b.nct\n");
+    let b_id = add_source(&mut sources, "/app/b.nct", "include ./a.nct\n");
     let orphan_id = add_source(&mut sources, "/app/orphan.nct", "func orphan(): void {}\n");
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -345,19 +365,20 @@ fn source_cycles_are_valid_but_every_implementation_must_be_root_reachable() {
         ],
     );
     let resolutions = vec![
-        source_use(&root, 0, "/app/a.nct"),
-        source_use(&a, 0, "/app/b.nct"),
-        source_use(&b, 0, "/app/a.nct"),
+        source_include(&root, 0, "/app/a.nct"),
+        source_include(&a, 0, "/app/b.nct"),
+        source_include(&b, 0, "/app/a.nct"),
     ];
 
-    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+    let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
         vec![module],
-        resolutions,
-    ))
-    .unwrap_err();
+        Vec::new(),
+    )
+    .with_include_resolutions(resolutions);
+    let error = lower_compile_unit_topology(&input).unwrap_err();
 
     assert_eq!(
         error,

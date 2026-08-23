@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Shared allocation-free byte search for UTF-8 string modules.
 //!
 //! Matching operates on bytes, but every successful match of a non-empty,

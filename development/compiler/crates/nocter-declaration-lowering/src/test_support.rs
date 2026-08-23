@@ -1,16 +1,15 @@
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
-use crate::{ModuleIdentity, PackageTargetResolutionInput, UseResolutionInput, UseTargetInput};
+use crate::{
+    IncludeResolutionInput, ModuleIdentity, PackageTargetResolutionInput, UseResolutionInput,
+};
 
-pub(crate) fn source_use(
+pub(crate) fn source_include(
     tree: &SyntaxTree,
     position: usize,
     canonical_target: &str,
-) -> UseResolutionInput {
-    UseResolutionInput::new(
-        use_declarations(tree)[position],
-        UseTargetInput::Source(canonical_target.into()),
-    )
+) -> IncludeResolutionInput {
+    IncludeResolutionInput::new(include_declarations(tree)[position], canonical_target)
 }
 
 pub(crate) fn module_use(
@@ -18,10 +17,23 @@ pub(crate) fn module_use(
     position: usize,
     target: ModuleIdentity,
 ) -> UseResolutionInput {
-    UseResolutionInput::new(
-        use_declarations(tree)[position],
-        UseTargetInput::Module(target),
-    )
+    UseResolutionInput::new(use_declarations(tree)[position], target)
+}
+
+fn include_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
+    tree.children(tree.root_id())
+        .iter()
+        .filter_map(|element| match element {
+            SyntaxElement::Node(node)
+                if tree
+                    .node(*node)
+                    .is_some_and(|node| node.kind() == NodeKind::IncludeDeclaration) =>
+            {
+                Some(*node)
+            }
+            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+        })
+        .collect()
 }
 
 pub(crate) fn package_target(

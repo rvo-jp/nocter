@@ -3,9 +3,9 @@
 //! ViewIter retains the source view itself so element borrows preserve the
 //! view's storage origin. Iterator names are ordinary standard-library APIs.
 
-use ./core
-use ./mutable
-use ./sources
+include ./core.nct
+include ./mutable.nct
+include ./sources.nct
 
 /// Lazily transforms items from an owning source iterator.
 pub struct MapIter<U, I, F> {

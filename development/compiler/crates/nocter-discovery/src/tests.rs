@@ -2,9 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{
-    BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageMode, UseTargetInput,
-};
+use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageMode};
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
@@ -13,8 +11,8 @@ use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 use crate::{
-    DiscoveryError, DiscoveryRequest, ImportFailure, PrimitiveRoleLocator, StandardRoleLocator,
-    ToolchainRequest, discover,
+    DiscoveryError, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
+    UseFailure, discover,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -175,10 +173,10 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
     assert!(module.identity().path().is_empty());
     assert_eq!(module.sources().len(), 1);
     assert_eq!(module.sources()[0].kind(), ModuleSourceKind::SingleFile);
-    assert!(matches!(
-        input.use_resolutions()[0].target(),
-        UseTargetInput::Module(module) if module.path() == [Box::<str>::from("value")]
-    ));
+    assert_eq!(
+        input.use_resolutions()[0].target_module().path(),
+        [Box::<str>::from("value")]
+    );
 
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
     assert_eq!(lowered.program().root_packages().len(), 1);
@@ -206,8 +204,8 @@ fn single_file_cannot_open_a_parallel_local_source_graph() {
     .unwrap_err();
     assert!(matches!(
         error.error(),
-        DiscoveryError::Import {
-            failure: ImportFailure::SingleFileLocalImport,
+        DiscoveryError::Use {
+            failure: UseFailure::SingleFileLocalUse,
             ..
         }
     ));
@@ -231,7 +229,7 @@ fn closes_source_folder_module_and_dependency_edges_once() {
     );
     tree.source(
         "app/index.nct",
-        "use ./internal/search\nuse ./parser\nuse dep/value.Value\n\nfunc root(): void { return }\n",
+        "include ./internal/search.nct\nuse ./parser\nuse dep/value.Value\n\nfunc root(): void { return }\n",
     );
     tree.source(
         "app/internal/search.nct",
@@ -289,11 +287,13 @@ fn closes_source_folder_module_and_dependency_edges_once() {
         input.root_packages(),
         &[PackageIdentity::new("workspace:app")]
     );
-    assert_eq!(input.use_resolutions().len(), 3);
-    assert!(matches!(
-        input.use_resolutions()[0].target(),
-        UseTargetInput::Source(path) if path.ends_with("/app/internal/search.nct")
-    ));
+    assert_eq!(input.include_resolutions().len(), 1);
+    assert!(
+        input.include_resolutions()[0]
+            .target_source()
+            .ends_with("/app/internal/search.nct")
+    );
+    assert_eq!(input.use_resolutions().len(), 2);
     nocter_declaration_lowering::lower_compile_unit_topology(&input).unwrap();
 }
 
@@ -329,7 +329,7 @@ fn selected_declared_roots_retain_exact_package_target_directives() {
 }
 
 #[test]
-fn rejects_a_relative_path_with_both_source_and_module_candidates() {
+fn use_selects_a_directory_module_even_when_a_same_named_source_exists() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "");
     tree.source("app/index.nct", "use ./search\n");
@@ -339,7 +339,7 @@ fn rejects_a_relative_path_with_both_source_and_module_candidates() {
         "pub func search(): void { return }\n",
     );
 
-    let error = discover(DiscoveryRequest::declared(
+    let unit = discover(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         package_graph(vec![package(
             "workspace:app",
@@ -349,20 +349,14 @@ fn rejects_a_relative_path_with_both_source_and_module_candidates() {
         Vec::new(),
         minimal_toolchain("workspace:app"),
     ))
-    .unwrap_err();
+    .unwrap();
 
-    assert!(matches!(
-        error.error(),
-        DiscoveryError::Import {
-            failure: ImportFailure::Ambiguous { .. },
-            ..
-        }
-    ));
-    assert_eq!(error.diagnostics()[0].code(), "E0263");
-    assert!(
-        error.diagnostics()[0]
-            .message()
-            .contains("both a source file")
+    let input = unit.compile_input().unwrap();
+    assert!(input.include_resolutions().is_empty());
+    assert_eq!(input.use_resolutions().len(), 1);
+    assert_eq!(
+        input.use_resolutions()[0].target_module(),
+        &module("workspace:app", &["search"])
     );
 }
 

@@ -137,7 +137,7 @@ mod tests {
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
     use super::{SurfaceDiagnostic, SurfaceRule};
-    use crate::test_support::source_use;
+    use crate::test_support::source_include;
     use crate::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -244,7 +244,11 @@ mod tests {
     ) -> (SurfaceDiagnostic, nocter_source::SourceId) {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let root_id = add_source(&mut sources, "/app/index.nct", "use ./implementation\n");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "include ./implementation.nct\n",
+        );
         let implementation_id = add_source(&mut sources, "/app/implementation.nct", text);
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -260,7 +264,7 @@ mod tests {
                     &implementation,
                 ),
             ],
-            vec![source_use(&root, 0, "/app/implementation.nct")],
+            vec![source_include(&root, 0, "/app/implementation.nct")],
         );
 
         let error = collect_declaration_surface(&input).unwrap_err();
@@ -289,7 +293,7 @@ mod tests {
         sources: &'syntax SourceMap,
         manifest: &'syntax SyntaxTree,
         module_sources: Vec<ModuleSourceInput<'syntax>>,
-        resolutions: Vec<crate::UseResolutionInput>,
+        resolutions: Vec<crate::IncludeResolutionInput>,
     ) -> CompileUnitInput<'syntax> {
         CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -304,7 +308,8 @@ mod tests {
                 ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
                 module_sources,
             )],
-            resolutions,
+            Vec::new(),
         )
+        .with_include_resolutions(resolutions)
     }
 }

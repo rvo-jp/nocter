@@ -4,7 +4,6 @@ use nocter_compile_input::{
     BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
     PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
-    UseTargetInput,
 };
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_model::{CompilationTarget, PackageIdentity};
@@ -638,10 +637,7 @@ impl CompilerFixture {
             .map(|(declaration, path)| {
                 UseResolutionInput::new(
                     declaration,
-                    UseTargetInput::Module(ModuleIdentity::new(
-                        standard.clone(),
-                        path.iter().map(AsRef::as_ref),
-                    )),
+                    ModuleIdentity::new(standard.clone(), path.iter().map(AsRef::as_ref)),
                 )
             })
             .collect()

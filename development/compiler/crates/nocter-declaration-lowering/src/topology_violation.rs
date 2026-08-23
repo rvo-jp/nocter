@@ -4,7 +4,7 @@ use nocter_syntax::NodeId;
 /// Stable source-level rule for authored source composition and module import topology.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TopologyRule {
-    InvalidSourceImport,
+    InvalidSourceInclude,
     ModuleImportCycle,
 }
 
@@ -12,7 +12,7 @@ impl TopologyRule {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
-            Self::InvalidSourceImport => "E0270",
+            Self::InvalidSourceInclude => "E0270",
             Self::ModuleImportCycle => "E0271",
         }
     }
@@ -20,9 +20,7 @@ impl TopologyRule {
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
-            Self::InvalidSourceImport => {
-                "source import violates same-module private composition rules"
-            }
+            Self::InvalidSourceInclude => "source include crosses a directory-module boundary",
             Self::ModuleImportCycle => "module imports form a dependency cycle",
         }
     }
@@ -30,8 +28,8 @@ impl TopologyRule {
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
-            Self::InvalidSourceImport => {
-                "use a private top-level bare relative path to an implementation source in the same module"
+            Self::InvalidSourceInclude => {
+                "include a source in the same directory module, or use the target directory module"
             }
             Self::ModuleImportCycle => "remove at least one module import in this cycle",
         }
@@ -40,7 +38,7 @@ impl TopologyRule {
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::InvalidSourceImport => None,
+            Self::InvalidSourceInclude => None,
             Self::ModuleImportCycle => Some("another import in this cycle is here"),
         }
     }
@@ -56,9 +54,9 @@ pub struct TopologyViolation {
 
 impl TopologyViolation {
     #[must_use]
-    pub fn invalid_source_import(declaration: NodeId) -> Self {
+    pub fn invalid_source_include(declaration: NodeId) -> Self {
         Self {
-            rule: TopologyRule::InvalidSourceImport,
+            rule: TopologyRule::InvalidSourceInclude,
             primary: SyntaxOrigin::Node(declaration),
             related: Box::new([]),
         }

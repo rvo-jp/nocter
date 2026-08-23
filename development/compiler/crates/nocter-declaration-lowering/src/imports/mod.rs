@@ -17,8 +17,7 @@ use nocter_syntax::{NodeId, SyntaxToken};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
-    NamespaceViolation, PreparedGenerics, ReservedEntity, SurfaceDeclarationId,
-    SurfaceImportTarget, SurfaceSourceId,
+    NamespaceViolation, PreparedGenerics, ReservedEntity, SurfaceDeclarationId, SurfaceSourceId,
 };
 use access::{module_index_by_id, module_index_by_identity, visibility_is_within, visible_from};
 use projection::project_import;
@@ -168,8 +167,8 @@ impl PreparedImports<'_> {
 
 /// Resolves authored module imports and re-exports after declaration and generic identities exist.
 ///
-/// Same-module source imports do not enter the semantic import arena. Synthetic prelude fallback
-/// is a later input-owned layer and is intentionally absent from this authored namespace pass.
+/// Source includes do not enter the semantic import arena. Synthetic prelude fallback is a later
+/// input-owned layer and is intentionally absent from this authored namespace pass.
 ///
 /// # Errors
 ///
@@ -192,9 +191,7 @@ pub fn prepare_authored_imports(
     for module_index in order {
         for import_index in &groups.by_module[module_index] {
             let import = generics.headers.reserved.imports[*import_index].clone();
-            let SurfaceImportTarget::Module(target_identity) = import.target() else {
-                continue;
-            };
+            let target_identity = import.target();
             let target_index =
                 module_index_by_identity(&generics.headers.reserved, target_identity)
                     .ok_or(ImportError::UnknownModule(import.node()))?;
@@ -407,11 +404,9 @@ fn group_imports(generics: &PreparedGenerics<'_>) -> Result<ImportGroups, Import
         let module_index = module_index_by_id(reserved, module)
             .ok_or(ImportError::MissingSource(import.source()))?;
         grouped[module_index].push(index);
-        if let SurfaceImportTarget::Module(target) = import.target() {
-            let target_index = module_index_by_identity(reserved, target)
-                .ok_or(ImportError::UnknownModule(import.node()))?;
-            dependencies[module_index].insert(target_index);
-        }
+        let target_index = module_index_by_identity(reserved, import.target())
+            .ok_or(ImportError::UnknownModule(import.node()))?;
+        dependencies[module_index].insert(target_index);
     }
     Ok(ImportGroups {
         by_module: grouped,

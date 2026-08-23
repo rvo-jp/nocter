@@ -18,7 +18,8 @@ use crate::surface::SurfaceParts;
 use crate::{
     CallableContractError, CallableContracts, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
     PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration, SurfaceDeclarationId,
-    SurfaceDeclarationKind, SurfaceImport, SurfaceSource, analyze_callable_contracts,
+    SurfaceDeclarationKind, SurfaceImport, SurfaceInclude, SurfaceSource,
+    analyze_callable_contracts,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -163,6 +164,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) module_ids: Box<[ModuleId]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_modules: Box<[ModuleId]>,
+    pub(crate) includes: Box<[SurfaceInclude]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
     pub(crate) contracts: CallableContracts,
@@ -208,6 +210,11 @@ impl ReservedDeclarations<'_> {
     #[must_use]
     pub const fn imports(&self) -> &[SurfaceImport] {
         &self.imports
+    }
+
+    #[must_use]
+    pub const fn includes(&self) -> &[SurfaceInclude] {
+        &self.includes
     }
 
     #[must_use]
@@ -270,6 +277,7 @@ pub(crate) fn reserve_with_contracts(
         root_packages,
         modules,
         sources,
+        includes,
         imports,
         package_target_resolutions,
         declarations,
@@ -342,6 +350,7 @@ pub(crate) fn reserve_with_contracts(
         module_ids: semantic_modules.into_boxed_slice(),
         sources,
         source_modules: source_modules.into_boxed_slice(),
+        includes,
         imports,
         declarations,
         contracts,

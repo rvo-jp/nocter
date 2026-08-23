@@ -196,7 +196,7 @@ mod tests {
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
     use super::{CallableContractDiagnostic, CallableContractRule};
-    use crate::test_support::source_use;
+    use crate::test_support::source_include;
     use crate::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
@@ -219,7 +219,7 @@ mod tests {
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
-            "use ./parse\n\npub func parse(text: &str): usize\n",
+            "include ./parse.nct\n\npub func parse(text: &str): usize\n",
         );
         let implementation_id = add_source(
             &mut sources,
@@ -251,8 +251,9 @@ mod tests {
             &sources,
             vec![package],
             vec![module],
-            vec![source_use(&root, 0, "/app/parse.nct")],
-        );
+            Vec::new(),
+        )
+        .with_include_resolutions(vec![source_include(&root, 0, "/app/parse.nct")]);
         let surface = collect_declaration_surface(&input).unwrap();
 
         let error = analyze_callable_contracts(&surface).unwrap_err();
@@ -276,7 +277,7 @@ mod tests {
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
-            "use ./build\n\nstruct Value {}\n",
+            "include ./build.nct\n\nstruct Value {}\n",
         );
         let implementation_id = add_source(
             &mut sources,
@@ -306,8 +307,9 @@ mod tests {
                     ),
                 ],
             )],
-            vec![source_use(&root, 0, "/app/build.nct")],
-        );
+            Vec::new(),
+        )
+        .with_include_resolutions(vec![source_include(&root, 0, "/app/build.nct")]);
         let surface = collect_declaration_surface(&input).unwrap();
         let error = analyze_callable_contracts(&surface).unwrap_err();
         let diagnostic = CallableContractDiagnostic::project(error, &surface).unwrap();

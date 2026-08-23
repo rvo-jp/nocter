@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-11">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string/views.nct - Nocter">
@@ -144,7 +144,9 @@
                 <span class="markdown-path-text">/development/std/string/views.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>views.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Allocation-free borrowed UTF-8 ranges and text iterators.</span>
+                <h1>views.nct</h1><pre><code class="language-nocter"><span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+<span class="token-comment">//! Allocation-free borrowed UTF-8 ranges and text iterators.</span>
 <span class="token-comment">//!</span>
 <span class="token-comment">//! Public operations validate byte ranges before crossing the restricted</span>
 <span class="token-comment">//! projection boundary. Returned views retain their source text storage.</span>
@@ -294,8 +296,7 @@
         <span class="token-string">"std.string.empty_separator"</span><span class="token-operator">,</span>
         <span class="token-string">"string separator must not be empty"</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-<span class="token-operator">}</span>
-</code></pre>
+<span class="token-operator">}</span></code></pre>
             </div>
         </main>
     </div>

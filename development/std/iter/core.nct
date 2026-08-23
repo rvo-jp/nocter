@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Iterator adapter implementations.
 
 conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {

@@ -5,9 +5,9 @@
 //! projects them back to source without exposing syntax to later semantic stages.
 
 use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageInput, PackageMode, PackageTargetResolutionInput,
-    ToolchainInput, UseResolutionInput, UseTargetInput,
+    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
+    PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::PackageIdentity;
@@ -71,7 +71,7 @@ pub use reservation::{
 };
 pub use surface::{
     DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
-    SurfaceError, SurfaceImport, SurfaceImportTarget, SurfaceSource, SurfaceSourceId,
+    SurfaceError, SurfaceImport, SurfaceInclude, SurfaceSource, SurfaceSourceId,
     collect_declaration_surface,
 };
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};

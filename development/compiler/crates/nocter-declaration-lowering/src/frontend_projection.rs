@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use nocter_compile_input::{CompileUnitInput, UseTargetInput};
+use nocter_compile_input::CompileUnitInput;
 use nocter_frontend_bindings::{FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration};
 use nocter_model::{BodyId, ModuleId, ParameterId};
 use nocter_source::SourceId;
@@ -139,9 +139,7 @@ pub(crate) fn add_block_imports(
                         == Some(NodeKind::BlockUseDeclaration)
             })
         });
-        let UseTargetInput::Module(identity) = resolution.target() else {
-            return None;
-        };
+        let identity = resolution.target_module();
         is_block
             .then(|| {
                 modules_by_identity

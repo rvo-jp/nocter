@@ -94,12 +94,12 @@ be introduced to make an unresolved syntax choice.
   lexical scopes into members, reuses repeated declaration-pattern binders, rejects explicit
   duplicates and nested shadowing, and projects every authored binder occurrence. Joined contract
   and implementation sources share one generic identity sequence.
-  Authored import preparation builds one visibility-bearing namespace per module. Direct
-  declarations, private imports, scoped/public re-exports, selected aliases, and module namespaces
-  use the same table and collision rule. Dependency modules are completed before importers;
-  selected names must be accessible, re-exports cannot widen their targets, and source imports add
-  no semantic import identity. Exact module paths and selected-name tokens project back to their
-  resolved semantic entities. The compiler-selected standard prelude is a separate fallback table:
+  Authored import preparation resolves module `use` declarations from module-only resolution
+  inputs. Physical-source `include` edges have a separate input and surface representation and add
+  no semantic import identity. Dependency modules are completed before importers; selected names
+  must be accessible, and re-exports cannot widen their targets. Exact module paths and
+  selected-name tokens project back to their resolved semantic entities. The compiler-selected
+  standard prelude is a separate fallback table:
   authored names shadow it, it never becomes an implicit re-export, standard-package modules do
   not receive it, and source code cannot import the compiler-managed prelude explicitly.
   Header type binding then converts every type occurrence into a flat syntax-independent arena.

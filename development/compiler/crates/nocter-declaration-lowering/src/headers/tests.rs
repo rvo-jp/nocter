@@ -3,7 +3,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{HeaderError, prepare_declaration_headers};
-use crate::test_support::source_use;
+use crate::test_support::source_include;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
@@ -89,7 +89,7 @@ fn duplicate_module_names_are_order_independent() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./other\n\nfunc duplicate(): void {}\n",
+        "include ./other.nct\n\nfunc duplicate(): void {}\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -114,8 +114,9 @@ fn duplicate_module_names_are_order_independent() {
                 ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
             ],
         )],
-        vec![source_use(&root, 0, "/app/other.nct")],
-    );
+        Vec::new(),
+    )
+    .with_include_resolutions(vec![source_include(&root, 0, "/app/other.nct")]);
     let reserved =
         reserve_declaration_identities(collect_declaration_surface(&input).unwrap()).unwrap();
 

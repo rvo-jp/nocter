@@ -206,8 +206,8 @@
 <span class="token-operator">}</span>
 </code></pre><p>Here <code>search.nct</code> does not introduce a <code>search</code> namespace. <code>index.nct</code> may use <code>find</code> exactly as if it were a private declaration written in <code>index.nct</code>, but this visibility does not spread to any third source.</p><p>An include has the following closed form and behavior:</p><ul><li>it is a private top-level declaration and cannot use <code>pub</code>, a selection, an alias, or block scope;</li><li>its path begins with <code>./</code>, is relative to the including source's directory, and ends with the
   complete <code>.nct</code> filename;</li><li><code>../</code>, package-absolute paths, dependency aliases, module paths, directories, and omitted
-  extensions are invalid;</li><li>the exact target must be an ordinary module source inside the same package and must not cross a
-  nested package boundary;</li><li>including a file exposes only declarations authored in that target source;</li><li>declarations that the target sees through its own <code>include</code>, <code>use</code>, lexical scopes, or synthetic
+  extensions are invalid;</li><li>the exact target must belong to the same directory module as the including source; it must not
+  cross into a child module, another package, or a nested package boundary;</li><li>including a file exposes only declarations authored in that target source;</li><li>declarations that the target sees through its own <code>include</code>, <code>use</code>, lexical scopes, or synthetic
   prelude are not re-exposed to the including source;</li><li>visibility is directional: if <code>a.nct</code> includes <code>b.nct</code>, <code>b.nct</code> does not see declarations from
   <code>a.nct</code> unless it includes <code>a.nct</code> explicitly;</li><li>include cycles are valid and idempotent because sources are loaded once and declarations are
   collected before bodies are resolved;</li><li>a source that is not reached from a selected module root or single-file source through <code>include</code>

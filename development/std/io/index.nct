@@ -4,7 +4,7 @@
 //! and fail with the compiler built-in `error` payload. Target-specific syscall
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
-use ./core
+include ./core.nct
 use std/mem.alloc_pages
 use std/mem.free_pages
 use std/internal/os.{OSError, OSErrorKind, SyscallResult, darwin_create_mode}

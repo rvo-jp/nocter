@@ -6,7 +6,7 @@
 use std/mem.allocation_abort_raw
 use std/ptr.{from_ref, slice_from_raw_parts_value}
 use std/string.{String, try_push_str}
-use ./conformances
+include ./conformances.nct
 
 /// Appends the ordinary textual representation of a value.
 pub interface Format {

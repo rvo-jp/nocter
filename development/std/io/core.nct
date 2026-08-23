@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Portable byte-stream implementation bodies.
 
 func collect_bytes<R>(reader: &+R): Vec<u8>! where R: Reader {

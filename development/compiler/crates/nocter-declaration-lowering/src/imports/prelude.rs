@@ -2,9 +2,7 @@ use std::fmt;
 
 use super::access::{module_index_by_id, module_index_by_identity, visible_from};
 use super::{ModuleNamespace, PreparedImports, lookup};
-use crate::{
-    ImportViolation, ModuleIdentity, PackageIdentity, SurfaceImportTarget, ToolchainInput,
-};
+use crate::{ImportViolation, ModuleIdentity, PackageIdentity, ToolchainInput};
 use nocter_declarations::{
     BuiltinAttachment, ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace,
     NamespaceEntry, ProgramBuildError,
@@ -161,10 +159,7 @@ pub fn apply_toolchain_profile<'syntax>(
         let prelude_index = module_index_by_identity(reserved, toolchain.prelude())
             .ok_or_else(|| ToolchainError::UnknownModule(toolchain.prelude().clone()))?;
         for (index, import) in reserved.imports.iter().enumerate() {
-            if matches!(
-                import.target(),
-                SurfaceImportTarget::Module(target) if target == toolchain.prelude()
-            ) {
+            if import.target() == toolchain.prelude() {
                 let path = imports
                     .import_path(index)
                     .ok_or(ToolchainError::InconsistentImport(import.node()))?;

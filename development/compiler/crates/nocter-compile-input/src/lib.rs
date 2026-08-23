@@ -10,8 +10,10 @@ use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 
+mod dependency;
 mod identity;
 
+pub use dependency::{IncludeResolutionInput, UseResolutionInput};
 pub use identity::{ModuleIdentity, is_valid_module_segment};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -97,39 +99,6 @@ pub enum ModuleSourceKind {
     Root,
     Implementation,
     SingleFile,
-}
-
-/// The exact graph edge selected by package/source discovery for one authored `use`.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum UseTargetInput {
-    Source(Box<str>),
-    Module(ModuleIdentity),
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct UseResolutionInput {
-    declaration: NodeId,
-    target: UseTargetInput,
-}
-
-impl UseResolutionInput {
-    #[must_use]
-    pub const fn new(declaration: NodeId, target: UseTargetInput) -> Self {
-        Self {
-            declaration,
-            target,
-        }
-    }
-
-    #[must_use]
-    pub const fn declaration(&self) -> NodeId {
-        self.declaration
-    }
-
-    #[must_use]
-    pub const fn target(&self) -> &UseTargetInput {
-        &self.target
-    }
 }
 
 /// One package target directive paired with the directory module selected by discovery.
@@ -401,6 +370,7 @@ pub struct CompileUnitInput<'syntax> {
     packages: Vec<PackageInput<'syntax>>,
     root_packages: Vec<PackageIdentity>,
     modules: Vec<ModuleInput<'syntax>>,
+    include_resolutions: Vec<IncludeResolutionInput>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     toolchain: Option<ToolchainInput>,
@@ -421,10 +391,18 @@ impl<'syntax> CompileUnitInput<'syntax> {
             packages,
             root_packages: Vec::new(),
             modules,
+            include_resolutions: Vec::new(),
             use_resolutions,
             package_target_resolutions: Vec::new(),
             toolchain: None,
         }
+    }
+
+    /// Adds exact physical-source edges selected from authored `include` declarations.
+    #[must_use]
+    pub fn with_include_resolutions(mut self, resolutions: Vec<IncludeResolutionInput>) -> Self {
+        self.include_resolutions = resolutions;
+        self
     }
 
     #[must_use]
@@ -483,6 +461,11 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn use_resolutions(&self) -> &[UseResolutionInput] {
         &self.use_resolutions
+    }
+
+    #[must_use]
+    pub fn include_resolutions(&self) -> &[IncludeResolutionInput] {
+        &self.include_resolutions
     }
 
     #[must_use]

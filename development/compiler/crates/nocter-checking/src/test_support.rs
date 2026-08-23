@@ -1,7 +1,7 @@
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageInput, PackageMode, StandardRoleInput, ToolchainInput,
-    UseResolutionInput, UseTargetInput,
+    UseResolutionInput,
 };
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
@@ -116,10 +116,7 @@ impl Fixture {
         let resolutions = self.child.as_ref().map_or_else(Vec::new, |_| {
             vec![UseResolutionInput::new(
                 use_declaration(&self.app),
-                UseTargetInput::Module(ModuleIdentity::new(
-                    PackageIdentity::new("workspace:app"),
-                    ["child"],
-                )),
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["child"]),
             )]
         });
         CompileUnitInput::new(

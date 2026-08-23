@@ -136,8 +136,8 @@ An include has the following closed form and behavior:
   complete `.nct` filename;
 - `../`, package-absolute paths, dependency aliases, module paths, directories, and omitted
   extensions are invalid;
-- the exact target must be an ordinary module source inside the same package and must not cross a
-  nested package boundary;
+- the exact target must belong to the same directory module as the including source; it must not
+  cross into a child module, another package, or a nested package boundary;
 - including a file exposes only declarations authored in that target source;
 - declarations that the target sees through its own `include`, `use`, lexical scopes, or synthetic
   prelude are not re-exposed to the including source;

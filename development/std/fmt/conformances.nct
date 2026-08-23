@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Standard formatting conformances for compiler built-in and owning text types.
 
 conform Format for str {

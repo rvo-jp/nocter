@@ -1,3 +1,5 @@
+include ./index.nct
+
 //! Allocation-free mutable iteration over contiguous views.
 
 func mutable_from_view<T>(view: &+[T]): MutableViewIter<T> {

@@ -3,11 +3,11 @@ use nocter_source_index::SemanticEntity;
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{ReservedEntity, reserve_declaration_identities};
-use crate::test_support::source_use;
+use crate::test_support::source_include;
 use crate::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    UseResolutionInput, collect_declaration_surface,
+    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    SurfaceDeclarationId, collect_declaration_surface,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -28,7 +28,7 @@ fn reserve<'syntax>(
     sources: &'syntax SourceMap,
     manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
-    use_resolutions: Vec<UseResolutionInput>,
+    include_resolutions: Vec<IncludeResolutionInput>,
 ) -> super::ReservedDeclarations<'syntax> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
@@ -40,13 +40,16 @@ fn reserve<'syntax>(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
         module_sources,
     );
-    let surface = collect_declaration_surface(&CompileUnitInput::new(
-        nocter_model::CompilationTarget::Arm64Darwin,
-        sources,
-        vec![package],
-        vec![module],
-        use_resolutions,
-    ))
+    let surface = collect_declaration_surface(
+        &CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            sources,
+            vec![package],
+            vec![module],
+            Vec::new(),
+        )
+        .with_include_resolutions(include_resolutions),
+    )
     .unwrap();
     reserve_declaration_identities(surface).unwrap()
 }
@@ -104,7 +107,7 @@ fn contract_and_implementation_receive_one_callable_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./parse\n\npub func parse(text: &str): usize\n",
+        "include ./parse.nct\n\npub func parse(text: &str): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -126,7 +129,7 @@ fn contract_and_implementation_receive_one_callable_identity() {
                 &implementation,
             ),
         ],
-        vec![source_use(&root, 0, "/app/parse.nct")],
+        vec![source_include(&root, 0, "/app/parse.nct")],
     );
 
     assert_eq!(reserved.entities()[0], reserved.entities()[1]);
@@ -147,7 +150,7 @@ fn public_file_documentation_has_one_semantic_owner() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "//! Public module documentation.\n\nuse ./detail\n",
+        "//! Public module documentation.\n\ninclude ./detail.nct\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -169,7 +172,7 @@ fn public_file_documentation_has_one_semantic_owner() {
                 &implementation,
             ),
         ],
-        vec![source_use(&root, 0, "/app/detail.nct")],
+        vec![source_include(&root, 0, "/app/detail.nct")],
     );
     let package = reserved.package_ids()[0];
     let module = reserved.module_ids()[0];
@@ -197,7 +200,7 @@ fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./a\nuse ./z\n\nfunc root(): void {}\n",
+        "include ./a.nct\ninclude ./z.nct\n\nfunc root(): void {}\n",
     );
     let first_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let second_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
@@ -212,8 +215,8 @@ fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     ];
 
     let resolutions = vec![
-        source_use(&root, 0, "/app/a.nct"),
-        source_use(&root, 1, "/app/z.nct"),
+        source_include(&root, 0, "/app/a.nct"),
+        source_include(&root, 1, "/app/z.nct"),
     ];
     let forward = reserve(
         &sources,

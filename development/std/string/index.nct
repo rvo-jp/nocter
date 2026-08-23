@@ -19,8 +19,8 @@ use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
 use std/vec.Vec
-use ./search
-use ./views
+include ./search.nct
+include ./views.nct
 
 pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 

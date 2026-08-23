@@ -5,7 +5,7 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 use super::{
     ImportError, PreparedImports, ToolchainError, apply_toolchain_profile, prepare_authored_imports,
 };
-use crate::test_support::{module_use, source_use};
+use crate::test_support::{module_use, source_include};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
     PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
@@ -75,6 +75,27 @@ fn prepare<'syntax>(
         modules,
         uses,
     );
+    let surface = collect_declaration_surface(&input).unwrap();
+    let reserved = reserve_declaration_identities(surface).unwrap();
+    let headers = prepare_declaration_headers(reserved).unwrap();
+    let generics = prepare_generic_binders(headers).unwrap();
+    prepare_authored_imports(generics)
+}
+
+fn prepare_with_includes<'syntax>(
+    sources: &'syntax SourceMap,
+    packages: Vec<PackageInput<'syntax>>,
+    modules: Vec<ModuleInput<'syntax>>,
+    includes: Vec<crate::IncludeResolutionInput>,
+) -> Result<PreparedImports<'syntax>, ImportError> {
+    let input = CompileUnitInput::new(
+        nocter_model::CompilationTarget::Arm64Darwin,
+        sources,
+        packages,
+        modules,
+        Vec::new(),
+    )
+    .with_include_resolutions(includes);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -442,7 +463,11 @@ fn selected_reexports_resolve_in_dependency_order() {
 fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "use ./implementation\n");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./implementation.nct\n",
+    );
     let implementation_id = add_source(
         &mut sources,
         "/app/implementation.nct",
@@ -453,7 +478,7 @@ fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
 
-    let imports = prepare(
+    let imports = prepare_with_includes(
         &sources,
         vec![package(
             "workspace:app",
@@ -473,7 +498,7 @@ fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
                 ),
             ],
         )],
-        vec![source_use(&root, 0, "/app/implementation.nct")],
+        vec![source_include(&root, 0, "/app/implementation.nct")],
     )
     .unwrap();
     let module = module_id(&imports, &identity);

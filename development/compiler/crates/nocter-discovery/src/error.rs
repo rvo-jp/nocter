@@ -13,15 +13,21 @@ mod toolchain;
 pub use toolchain::ToolchainDiscoveryError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ImportFailure {
+pub enum UseFailure {
     UnknownDependency { alias: Box<str> },
     OutsidePackage,
     NotFound,
-    Ambiguous { source: PathBuf, module: PathBuf },
+    CrossesPackage { root: PathBuf },
+    InvalidModuleDirectory,
+    SingleFileLocalUse,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IncludeFailure {
+    OutsidePackage,
+    NotFound,
     CrossesPackage { root: PathBuf },
     CrossesModule { module: ModuleIdentity },
-    InvalidModuleDirectory,
-    SingleFileLocalImport,
 }
 
 #[derive(Debug)]
@@ -41,12 +47,17 @@ pub enum DiscoveryError {
     InvalidModulePath {
         module: ModuleIdentity,
         path: PathBuf,
-        failure: ImportFailure,
+        failure: UseFailure,
     },
-    Import {
+    Use {
         declaration: NodeId,
         path: Box<str>,
-        failure: ImportFailure,
+        failure: UseFailure,
+    },
+    Include {
+        declaration: NodeId,
+        path: Box<str>,
+        failure: IncludeFailure,
     },
     ConflictingSourceOwner {
         path: PathBuf,
@@ -104,13 +115,21 @@ impl fmt::Display for DiscoveryError {
                 "module {module:?} has invalid root {}: {failure:?}",
                 path.display()
             ),
-            Self::Import {
+            Self::Use {
                 declaration,
                 path,
                 failure,
             } => write!(
                 formatter,
                 "use {declaration:?} cannot resolve {path}: {failure:?}"
+            ),
+            Self::Include {
+                declaration,
+                path,
+                failure,
+            } => write!(
+                formatter,
+                "include {declaration:?} cannot resolve {path}: {failure:?}"
             ),
             Self::ConflictingSourceOwner {
                 path,
@@ -157,7 +176,8 @@ impl std::error::Error for DiscoveryError {
             | Self::InvalidSingleFileExtension(_)
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }
-            | Self::Import { .. }
+            | Self::Use { .. }
+            | Self::Include { .. }
             | Self::ConflictingSourceOwner { .. }
             | Self::NonUnicodeCanonicalPath(_)
             | Self::Source { .. }

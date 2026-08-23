@@ -2,11 +2,11 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{GenericError, PreparedGenerics, prepare_generic_binders};
-use crate::test_support::source_use;
+use crate::test_support::source_include;
 use crate::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    UseResolutionInput, collect_declaration_surface, prepare_declaration_headers,
+    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    SurfaceDeclarationId, collect_declaration_surface, prepare_declaration_headers,
     reserve_declaration_identities,
 };
 
@@ -30,7 +30,7 @@ fn prepare<'syntax>(
     sources: &'syntax SourceMap,
     manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
-    use_resolutions: Vec<UseResolutionInput>,
+    include_resolutions: Vec<IncludeResolutionInput>,
 ) -> Result<PreparedGenerics<'syntax>, GenericError> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
@@ -47,8 +47,9 @@ fn prepare<'syntax>(
         sources,
         vec![package],
         vec![module],
-        use_resolutions,
-    );
+        Vec::new(),
+    )
+    .with_include_resolutions(include_resolutions);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -168,7 +169,7 @@ fn joined_callable_sources_share_generic_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./identity\n\npub func identity<T>(value: T): T\n",
+        "include ./identity.nct\n\npub func identity<T>(value: T): T\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -190,7 +191,7 @@ fn joined_callable_sources_share_generic_identity() {
                 &implementation,
             ),
         ],
-        vec![source_use(&root, 0, "/app/identity.nct")],
+        vec![source_include(&root, 0, "/app/identity.nct")],
     )
     .unwrap();
     let contract = SurfaceDeclarationId::from_index(0);
@@ -207,7 +208,7 @@ fn joined_construction_patterns_reuse_contract_binder_identities() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use ./make\n\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\nconstruct Pair<L, R> {\n    pub func make(left: L, right: R): Self\n}\n",
+        "include ./make.nct\n\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\nconstruct Pair<L, R> {\n    pub func make(left: L, right: R): Self\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
@@ -229,7 +230,7 @@ fn joined_construction_patterns_reuse_contract_binder_identities() {
                 &implementation,
             ),
         ],
-        vec![source_use(&root, 0, "/app/make.nct")],
+        vec![source_include(&root, 0, "/app/make.nct")],
     )
     .unwrap();
     let contract = SurfaceDeclarationId::from_index(3);
