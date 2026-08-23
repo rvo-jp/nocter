@@ -1,7 +1,7 @@
 # Construction Surfaces
 
 This document owns the compiler design for the adopted v0.3.0 `construct` declaration. Public
-semantics are defined by [Construction Surfaces](../../spec/19-construction-surfaces.md).
+semantics are defined by [Construction Surfaces](../../../spec/19-construction-surfaces.md).
 
 ## Compiler-Owned Model
 

@@ -2,7 +2,7 @@
 
 This document defines the stable buffer, ownership, and recursive-drop invariants established by
 v0.2.0 and retained by v0.3.0. Public syntax and type rules follow the
-[specification](../../spec/README.md). Storage-origin inference, allocation contexts, and lexical
+[specification](../../../spec/README.md). Storage-origin inference, allocation contexts, and lexical
 regions are owned by [Region, Provenance, and Allocation Context](region-provenance.md).
 
 ## Separation of Responsibilities

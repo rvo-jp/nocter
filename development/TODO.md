@@ -12,7 +12,7 @@ roots. Phase 3 generalized the compiler-owned sequence pack into typed callable 
 preserving one ownership, provenance, cleanup, and hidden-ABI pipeline. The exact scope and
 completion records are in `development/milestones/v0.15.0.md`.
 
-The active compiler is the specification-first rewrite under `development/compiler/`. The previous
+The active specification-first compiler is under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
 the archived implementation, its tests, released binaries, or historical output as implementation
 input.
@@ -35,9 +35,10 @@ input.
   stderr checks. The public `file-summary` package executes with a real file argument.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
-- The latest full-workspace Phase 1 run passed 1,157 tests with one intentional public-HTTPS
-  integration test ignored. The v0.14.0 release qualification's clean-build record remains in its
-  qualification document.
+- Every completed v0.15.0 phase passed its focused tests and complete workspace, Clippy, formatting,
+  generated-documentation, and repository-integrity gates. Exact completion evidence belongs to
+  `development/milestones/v0.15.0.md`; the v0.14.0 clean-build record remains in its qualification
+  document.
 - Warnings-denied workspace Clippy, Rust formatting, documentation regeneration, and repository
   whitespace checks passed. The clean build used a temporary external target directory that was
   removed afterward.

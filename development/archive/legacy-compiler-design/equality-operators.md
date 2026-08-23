@@ -1,8 +1,8 @@
 # Equality Operator Architecture
 
 Public syntax and semantics are specified in
-[Values and Types](../../spec/02-values-types.md) and
-[Generics, Interfaces, and Methods](../../spec/08-generics-interfaces-embedding-methods.md). This
+[Values and Types](../../../spec/02-values-types.md) and
+[Generics, Interfaces, and Methods](../../../spec/08-generics-interfaces-embedding-methods.md). This
 document records the compiler boundaries for v0.12.0 Phase 1.
 
 ## Authored and Resolved Models

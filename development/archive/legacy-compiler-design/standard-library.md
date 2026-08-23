@@ -3,8 +3,8 @@
 This document owns implementation architecture and runtime invariants for the source tracked under
 `development/std/` and packaged as `.nocter/std`. Public modules, signatures, and behavior are
 defined by the responsibility-specific chapters indexed by
-[Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md) and by
-[Practical Standard Library](../../spec/21-practical-standard-library.md).
+[Standard Library, Primitives, and OS](../../../spec/11-stdlib-primitives-os.md) and by
+[Practical Standard Library](../../../spec/21-practical-standard-library.md).
 
 ## Responsibility Boundaries
 

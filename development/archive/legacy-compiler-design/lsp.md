@@ -2,7 +2,7 @@
 
 This document owns the compiler/LSP implementation boundary. Public capabilities and protocol
 behavior are defined only by [Tooling and Editor
-Integration](../../spec/14-tooling-editor-integration.md). Snapshot lifetime and invalidation are
+Integration](../../../spec/14-tooling-editor-integration.md). Snapshot lifetime and invalidation are
 defined by [Immutable LSP Snapshots](lsp-snapshots.md).
 
 ## Architecture

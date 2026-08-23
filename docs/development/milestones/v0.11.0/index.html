@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-10">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.11.0 Milestone - Nocter">
     <meta name="twitter:description" content="Status: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.11.0 Milestone - Nocter","description":"Status: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete.","url":"https://nocter.dev/development/milestones/v0.11.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.11.0/","dateModified":"2026-08-10","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.11.0","item":"https://nocter.dev/development/milestones/v0.11.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.11.0 Milestone - Nocter","description":"Status: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete.","url":"https://nocter.dev/development/milestones/v0.11.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.11.0/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.11.0","item":"https://nocter.dev/development/milestones/v0.11.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -124,6 +124,7 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
+                <li><a href="../v0.15.0/index.html#content">v0.15.0 milestone</a></li>
                 <li><a href="../v0.14.0/index.html#content">v0.14.0 milestone</a></li>
                 <li><a href="../v0.14.0-qualification/index.html#content">implementation qualification</a></li>
                 <li><a href="../../reviews/v0.14.0-final-design/index.html#content">final design review</a></li>
@@ -476,7 +477,7 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   remain local to lowering and are not treated as a join result</li><li>condition moves are recorded by expression lowering at their evaluation point, including within
   short-circuit expressions; a condition-wide postlude may not clear a value that was not evaluated</li><li>loops use the same state transitions on each executed edge; ownership analysis, not lowering,
   decides whether a later iteration may legally read the value</li><li>copy aggregates and aggregates without destruction do not acquire cleanup flags merely because
-  they occur in control flow</li></ul><p>The design and lowering responsibilities are owned by <a href="../docs/control-flow-drop-state.md">Path-Sensitive Aggregate Cleanup</a>.</p><h3 id="implementation-order-8">Implementation Order</h3><ol><li>1. Extend aggregate-local and pending-drop state with an optional runtime live location, plus one
+  they occur in control flow</li></ul><p>The design and lowering responsibilities are owned by <a href="https://github.com/rvo-jp/nocter/blob/main/development/archive/legacy-compiler-design/control-flow-drop-state.md">Path-Sensitive Aggregate Cleanup</a>.</p><h3 id="implementation-order-8">Implementation Order</h3><ol><li>1. Extend aggregate-local and pending-drop state with an optional runtime live location, plus one
    promotion operation that reserves and initializes the flag.</li><li>Guard complete and partial aggregate cleanup through the pending-drop boundary so function
    returns, branch exits, loop exits, error paths, and normal scope exits cannot diverge.</li><li>Centralize move/drop/initialization state transitions beside the IR operations that complete
    them; make call-argument and short-circuit lowering preserve exact evaluation order.</li><li>Promote affected outer locals before lowering non-terminal <code>if</code>, <code>match</code>, <code>while</code>, <code>loop</code>, and
@@ -515,7 +516,7 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   independent result-storage contract</li><li>every reachable value return and body result must normalize to the same concrete witness; aliases
   do not create distinct witnesses and different branch result types are rejected</li><li>the witness must satisfy the advertised interface and every named associated binding</li><li>callers may use only the advertised interface surface. Two opaque declarations remain distinct
   even when they select the same witness and advertise the same interface</li><li>opaque results are conservatively move-only at the public contract boundary in Phase 8; hidden
-  copyability is not an observable capability</li></ul><p>The compiler architecture is owned by <a href="../docs/opaque-result-types.md">Static Opaque Result Types</a>.</p><h3 id="compiler-contract-2">Compiler Contract</h3><ul><li>one <code>OpaqueResultIdentity</code> is derived from callable declaration identity and survives imports,
+  copyability is not an observable capability</li></ul><p>The compiler architecture is owned by <a href="https://github.com/rvo-jp/nocter/blob/main/development/archive/legacy-compiler-design/opaque-result-types.md">Static Opaque Result Types</a>.</p><h3 id="compiler-contract-2">Compiler Contract</h3><ul><li>one <code>OpaqueResultIdentity</code> is derived from callable declaration identity and survives imports,
   re-exports, same-module implementation sources, aliases, and generic specialization</li><li>source AST retains the authored interface contract; an elaboration fact attaches the inferred
   concrete witness without replacing the public type</li><li>associated projection normalisation selects advertised bindings from the opaque contract and
   never discovers them by rendering a type or inspecting a witness name</li><li>type checking exposes only the interface contract, while sizing, ABI classification, cleanup,

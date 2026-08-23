@@ -1,7 +1,7 @@
 # Nocter Development Documents
 
-This directory contains the active implementation policy for the specification-first compiler
-rewrite. Public language and standard-library behavior belongs exclusively in
+This directory contains the active implementation design for the Nocter compiler. Public language
+and standard-library behavior belongs exclusively in
 [`spec/`](../../spec/README.md).
 
 ## Active Documents
@@ -11,31 +11,40 @@ rewrite. Public language and standard-library behavior belongs exclusively in
 - [Target and Executable Program Design](target-program-design.md)
 - [Machine Program and Native Target Design](machine-program-design.md)
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
+- [Semantic Presentation Design](semantic-presentation-design.md)
 - [Standard Library Source Design](standard-library-source-design.md)
-- [Grammar Closure Audit](grammar-audit.md)
 - [Grammar Conformance Plan](grammar-conformance.md)
 - [Maintenance](maintenance.md)
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
-- [v0.14.0 Rewrite Milestone](../milestones/v0.14.0.md)
+- [v0.15.0 Practical Application Foundation](../milestones/v0.15.0.md)
 
-Historical implementation design was removed from the active tree when the compiler rewrite
-started. Git history and published release records preserve it for archival purposes, but it must
-not be consulted to determine new compiler structure or unspecified language behavior.
+## Completed Foundation Records
+
+- [Grammar Closure Audit](grammar-audit.md)
+- [v0.14.0 Rewrite Milestone](../milestones/v0.14.0.md)
+- [v0.14.0 Implementation Qualification](../milestones/v0.14.0-qualification.md)
+
+Superseded implementation design is retained under `development/archive/` and excluded from the
+generated website. It must not be consulted to determine current compiler structure or unspecified
+language behavior. Git history and published release records preserve chronology.
 
 ## Information Ownership
 
 | Information | Sole owner |
 |---|---|
 | Public language and standard-library behavior | `spec/` |
-| New compiler dependency and authority boundaries | `architecture.md` |
-| Phase 3 checked-program responsibilities and construction order | `checked-program-design.md` |
-| Phase 4 target validation, instantiation, and MIR ownership | `target-program-design.md` |
-| Phase 5 machine layout, machine program, ARM64, and Mach-O ownership | `machine-program-design.md` |
+| Compiler dependency direction and cross-stage authority boundaries | `architecture.md` |
+| Checked-program responsibilities and construction order | `checked-program-design.md` |
+| Target validation, executable specialization, and MIR ownership | `target-program-design.md` |
+| Machine layout, machine program, ARM64, and Mach-O ownership | `machine-program-design.md` |
 | Declaration-lowering failure classification | `declaration-diagnostic-boundary.md` |
+| Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
+| Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |
-| Rewrite scope and completion gates | `../milestones/v0.14.0.md` |
+| Active v0.15.0 scope and completion records | `../milestones/v0.15.0.md` |
+| Completed v0.14.0 rewrite scope and qualification | `../milestones/v0.14.0.md` and `../milestones/v0.14.0-qualification.md` |
 | Next concrete work and blockers | `../TODO.md` |
 | Published qualification evidence | `../releases/` |
 | Documentation generation | `site-generation.md` |

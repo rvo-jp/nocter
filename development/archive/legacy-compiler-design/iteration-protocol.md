@@ -2,7 +2,7 @@
 
 This document owns the compiler architecture for source-defined expansion, collection `for`, and
 typed-sequence spread. Public semantics belong to the
-[Expansion Operators specification](../../spec/23-expansion-operators.md).
+[Expansion Operators specification](../../../spec/23-expansion-operators.md).
 
 ## Boundary
 

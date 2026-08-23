@@ -1,7 +1,7 @@
 # Destruction Declaration Architecture
 
 Public syntax and semantics are specified in
-[Ownership, Borrowing, and Drop](../../spec/05-ownership-borrowing-drop.md). This document owns the
+[Ownership, Borrowing, and Drop](../../../spec/05-ownership-borrowing-drop.md). This document owns the
 compiler boundary introduced in v0.11.0 Phase 6.
 
 ## Declaration Boundary

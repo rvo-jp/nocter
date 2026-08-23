@@ -3,7 +3,7 @@
 ## Purpose
 
 This document defines the compiler boundary for explicit interface conformances. Public source semantics belong in the
-[language specification](../../spec/08-generics-interfaces-embedding-methods.md).
+[language specification](../../../spec/08-generics-interfaces-embedding-methods.md).
 
 One `ConformanceDecl` owns each conformance method from parsing through native lowering and editor
 presentation. `InstanceDecl` owns inherent methods, while `DestructDecl` independently owns

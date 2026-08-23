@@ -1,7 +1,7 @@
 # Catch Recovery Lowering
 
 The public behavior of `catch` belongs to
-[Errors and Optional Values](../../spec/04-errors-optionals.md). This document owns the compiler
+[Errors and Optional Values](../../../spec/04-errors-optionals.md). This document owns the compiler
 boundary that joins a fallible success payload with a reachable fallback result.
 
 ## Semantic Boundary

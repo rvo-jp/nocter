@@ -3,7 +3,7 @@
 This document owns the compiler implementation boundary between source-visible `from` contracts
 and internal result-storage inference. Public language semantics belong in the specification. The
 frozen v0.7.0 implementation evidence belongs to the
-[v0.7.0 release record](../releases/v0.7.0.md).
+[v0.7.0 release record](../../releases/v0.7.0.md).
 
 ## Design Boundary
 

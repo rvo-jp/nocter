@@ -1,7 +1,7 @@
 # Associated Type Identity and Projection Normalization
 
 This document defines the compiler responsibility boundary for the associated type behavior in the
-[language specification](../../spec/08-generics-interfaces-embedding-methods.md#associated-types).
+[language specification](../../../spec/08-generics-interfaces-embedding-methods.md#associated-types).
 The specification owns source semantics. This document owns the representation, normalization, and
 consumer invariants that keep those semantics consistent.
 

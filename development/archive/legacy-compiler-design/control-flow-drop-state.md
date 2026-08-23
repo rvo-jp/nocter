@@ -2,7 +2,7 @@
 
 This document owns the compiler architecture for runtime aggregate cleanup state introduced by
 v0.11.0 Phase 7. Public move, drop, and assignment rules remain in the
-[ownership specification](../../spec/05-ownership-borrowing-drop.md); this document defines how accepted programs
+[ownership specification](../../../spec/05-ownership-borrowing-drop.md); this document defines how accepted programs
 reach native IR without duplicating ownership analysis.
 
 ## Completion Status

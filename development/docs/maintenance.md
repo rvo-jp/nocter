@@ -3,8 +3,9 @@
 ## Authority
 
 `spec/` is the sole source for public behavior. Development documents describe implementation
-boundaries and work order without restating language rules. Historical compiler source,
-implementation documents, tests, binaries, and observed behavior are not rewrite inputs.
+boundaries and work order without restating language rules. Historical compiler source, superseded
+implementation documents, tests, binaries, and observed behavior are not inputs for current
+language or compiler decisions.
 
 ## Resolving Specification Gaps
 
@@ -41,15 +42,16 @@ Do not preserve unresolved alternatives as compiler modes or fallback behavior.
 - Run an adversarial audit for duplicate producers, reverse lookup, order dependence, and hidden
   compatibility before marking a phase complete.
 
-## Verification During Specification Closure
+## Verification
 
 ```sh
 node docs/build-docs.js
 git diff --check
 ```
 
-The compiler workspace will define focused and complete verification commands after the grammar
-gate permits implementation. Active commands belong in `development/compiler/README.md`.
+Active compiler commands belong in `development/compiler/README.md`. Specification-only changes
+still run the documentation and repository checks above; implementation changes also run the
+narrowest authoritative compiler test and the complete workspace gate before a phase closes.
 
 ## Documentation
 

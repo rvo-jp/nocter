@@ -1,12 +1,13 @@
 # Machine Program and Native Target Design
 
-This document assigns implementation responsibility for v0.14.0 Phase 5. It does not define
-language behavior. Stored layout, argument and result transport, primitive behavior, and executable
-image requirements remain owned by the public specification.
+This document defines machine-layout, machine-program, ARM64, and Mach-O implementation
+responsibilities. It does not define language behavior. Stored layout, argument and result
+transport, primitive behavior, and executable image requirements remain owned by the public
+specification.
 
 ## Boundaries
 
-Phase 5 extends the one-way compiler pipeline with four distinct authorities:
+The machine pipeline has four distinct authorities:
 
 ```text
 MirProgram
@@ -17,10 +18,10 @@ MirProgram
 ```
 
 `MachineLayoutStore` computes immutable stored representations from concrete MIR types and the ABI
-identity already selected by `ToolchainSnapshot`. `MachineProgram` will own ABI-classified values,
+identity already selected by `ToolchainSnapshot`. `MachineProgram` owns ABI-classified values,
 stack objects, calls, control flow, and deterministic linkage without assigning physical ARM64
-registers. `Arm64Program` will own instruction selection, physical registers, frame layout, branch
-fixups, and encoded sections. `MachOImage` will own file-format tables and bytes.
+registers. `Arm64Program` owns instruction selection, physical registers, frame layout, branch
+fixups, and encoded sections. `MachOImage` owns file-format tables and bytes.
 
 No boundary may inspect syntax, source paths, source names, generic requirements, conformance
 tables, or archived compiler behavior. A later boundary consumes the decision made by the prior
@@ -70,14 +71,14 @@ storage to agree without encoding call-site policy in type layout.
 
 ## Machine Program Authority
 
-`MachineProgram` will consume `MirProgram` together with its completed `MachineLayoutStore`. Its
+`MachineProgram` consumes `MirProgram` together with its completed `MachineLayoutStore`. Its
 schema must use distinct dense identities for functions, blocks, values, stack objects, constants,
-and linkage entries. Typed operations will make loads, stores, copies, address projections,
+and linkage entries. Typed operations make loads, stores, copies, address projections,
 integer operations, tags, direct calls, primitive calls, and exits explicit. Aggregate movement and
 destruction must use the stored-layout authority and MIR's active-payload control flow rather than
 introducing a second semantic aggregate model.
 
-ABI lowering belongs at this boundary. Each callable input and result will receive one immutable
+ABI lowering belongs at this boundary. Each callable input and result receives one immutable
 transport plan naming direct words, stack slots, or indirect storage. Callers and callees must
 share the same plan object or derive identical plans through one planner. Compiler-owned process
 and test roots use the same call boundary as ordinary direct calls; they remain roots rather than

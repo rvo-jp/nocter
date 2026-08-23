@@ -335,7 +335,7 @@ package and a separately selected path package are not implicit mutation targets
 removes its private transaction tree, and individually published exact packages remain valid cache
 entries even if a later source commit fails.
 
-`nocter-package-acquisition` is the concrete v0.14.0 transport authority. It embeds public HTTPS,
+`nocter-package-acquisition` is the concrete transport authority. It embeds public HTTPS,
 Git smart protocol, SHA-256 verification, gzip decoding, and tar interpretation; it never invokes
 `git`, `curl`, a credential helper, or a checkout filter. The crate validates URL and redirect
 policy before transport, resolves branch/tag selections to exact commits, and materializes Git
@@ -743,13 +743,13 @@ contract without making a rendered name part of type equality. Static and fresh 
 caller-managed place and normalize to an empty external-origin set.
 
 The compile-unit type store interns structural types. Its keys contain typed semantic IDs and
-normalized constants, never rendered names, source text, or byte positions. Phase 2 freezes a
-`DeclarationProgram` containing the immutable declaration graph and the header-type prefix. Phase
-3 consumes that value exactly once into `DeclarationGraph` plus the owned `TypeStore`, then interns
-body, closure, inference, and specialization types after the existing IDs. The checked program
-freezes the extended store. It never copies a header store, translates a `TypeId`, or creates an
-overlay lookup authority. `TypeExpr` belongs to syntax lowering and presentation; it does not
-cross into checked semantics.
+normalized constants, never rendered names, source text, or byte positions. Declaration lowering
+freezes a `DeclarationProgram` containing the immutable declaration graph and the header-type
+prefix. Checking consumes that value exactly once into `DeclarationGraph` plus the owned
+`TypeStore`, then interns body, closure, inference, and specialization types after the existing
+IDs. The checked program freezes the extended store. It never copies a header store, translates a
+`TypeId`, or creates an overlay lookup authority. `TypeExpr` belongs to syntax lowering and
+presentation; it does not cross into checked semantics.
 
 Header definition consumes the normalized roots and the temporary surface inventory exactly once.
 It allocates fields, parameters, receivers, requirements, and bodies in canonical order, then
@@ -1218,8 +1218,8 @@ stderr, entry-wrapper failure, or cleanup edges.
 
 ## Dependency Enforcement
 
-The new workspace will encode the dependency direction in crate boundaries. Architecture tests
-will additionally reject:
+The workspace encodes the dependency direction in crate boundaries. Architecture tests
+additionally reject:
 
 - source or syntax types in semantic identity
 - rendered-name type equality
@@ -1231,8 +1231,8 @@ will additionally reject:
 - multiple executable-program registries
 - compatibility imports from archived compiler code
 
-Crates are introduced only after their required specification gate closes. Empty crate scaffolding
-is not evidence that a responsibility has been designed.
+New responsibilities receive crates only after their required specification gate closes. Empty
+crate scaffolding is not evidence that a responsibility has been designed.
 
 ## Error-Tolerant Tooling
 
@@ -1252,7 +1252,7 @@ state.
 
 Syntax-owned completion is a separate analysis input from semantic namespace completion. It reads
 the immutable CST and source at the requested byte position and emits only grammar-fixed contextual
-keywords. In v0.14.0 those are top-level `test` and intrinsic requirement `copy`; declaration
+keywords. Those are currently top-level `test` and intrinsic requirement `copy`; declaration
 identities and automatic imports remain in the semantic completion path. This allows header-syntax
 failures such as a partial `where co` to return a valid keyword without constructing a fake semantic
 program. The LSP adapter maps the compiler's closed `Keyword` category and never supplies snippets

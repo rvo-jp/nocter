@@ -3,8 +3,8 @@
 This document owns the compiler boundary that attaches source construction, instances, and
 interface conformances to compiler-built-in types. Public construction, method, and formatting
 behavior belongs in the
-[string and view specification](../../spec/07-strings-arrays-views-pointers.md), and receiver
-selection belongs in the [borrow-coercion specification](../../spec/22-borrow-coercions.md).
+[string and view specification](../../../spec/07-strings-arrays-views-pointers.md), and receiver
+selection belongs in the [borrow-coercion specification](../../../spec/22-borrow-coercions.md).
 
 ## Ownership Model
 

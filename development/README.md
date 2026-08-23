@@ -5,29 +5,32 @@ v0.13.0 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
-The release preparation and publication evidence is linked from the current-work records below.
 
 ## Current Work
 
 - [Current handoff](TODO.md)
 - [v0.15.0 practical application foundation](milestones/v0.15.0.md)
-- [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
-- [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
-- [v0.14.0 final design review](reviews/v0.14.0-final-design.md)
-- [v0.14.0 release preparation](milestones/v0.14.0-release-preparation.md)
-- [v0.14.0 publication and audit](releases/v0.14.0.md)
-- [New compiler architecture](docs/architecture.md)
+- [Compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
+- [Machine program and native target design](docs/machine-program-design.md)
 - [Declaration diagnostic boundary](docs/declaration-diagnostic-boundary.md)
 - [Semantic presentation design](docs/semantic-presentation-design.md)
 - [Grammar conformance plan](docs/grammar-conformance.md)
-- [Rewrite maintenance policy](docs/maintenance.md)
-- [New compiler boundary](compiler/README.md)
+- [Maintenance policy](docs/maintenance.md)
+- [Compiler workspace](compiler/README.md)
 
-The new source/syntax workspace is under `development/compiler/`. The previous compiler is
-preserved by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or
-implementation reference.
+The active compiler workspace is under `development/compiler/`. The previous compiler is preserved
+by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
+reference.
+
+## v0.14.0 Rewrite Record
+
+- [Rewrite milestone](milestones/v0.14.0.md)
+- [Implementation qualification](milestones/v0.14.0-qualification.md)
+- [Final design review](reviews/v0.14.0-final-design.md)
+- [Release preparation](milestones/v0.14.0-release-preparation.md)
+- [Publication and audit](releases/v0.14.0.md)
 
 ## Specification Workflow
 
@@ -54,12 +57,12 @@ development/
 ├── README.md
 ├── TODO.md
 ├── compiler/          # specification-first compiler workspace
-├── docs/              # rewrite architecture and maintenance policy
+├── docs/              # active compiler architecture and maintenance policy
 ├── milestones/        # active and historical milestone records
 ├── packaging/         # release identity, deterministic assembly, and artifact qualification
 ├── reviews/           # cross-cutting design criteria, findings, and remediation evidence
 ├── releases/          # immutable published qualification records
-└── std/               # existing source, not a bootstrap oracle for the new compiler
+└── std/               # standard-library contracts and implementation sources
 ```
 
 Rust, Cargo, and Node.js are development requirements for the workspace and release qualification.

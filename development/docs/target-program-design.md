@@ -1,12 +1,13 @@
 # Target, Executable, and MIR Program Design
 
-This document assigns implementation responsibility for v0.14.0 Phase 4. It does not define
-language behavior. Target names and gates, package targets, entry contracts, CLI acceptance,
-generic requirements, ABI rules, and primitive contracts remain owned by the public specification.
+This document defines target validation, executable specialization, and MIR implementation
+responsibilities. It does not define language behavior. Target names and gates, package targets,
+entry contracts, CLI acceptance, generic requirements, ABI rules, and primitive contracts remain
+owned by the public specification.
 
 ## Boundaries
 
-Phase 4 has three consuming program boundaries:
+The pipeline has three consuming program boundaries:
 
 ```text
 CheckedProgram + ToolchainSnapshot

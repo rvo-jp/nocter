@@ -2,9 +2,9 @@
 
 This document owns the compiler and distributed-standard-library design for extensible string
 interpolation. Public behavior belongs to
-[Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md) and
-[Practical Standard Library](../../spec/21-practical-standard-library.md). The v0.12.0 Phase 0
-acceptance record belongs to [the active milestone](../milestones/v0.12.0.md).
+[Strings, Arrays, Views, and Pointers](../../../spec/07-strings-arrays-views-pointers.md) and
+[Practical Standard Library](../../../spec/21-practical-standard-library.md). The v0.12.0 Phase 0
+acceptance record belongs to [the historical milestone](../../milestones/v0.12.0.md).
 
 ## Boundary
 

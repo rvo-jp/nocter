@@ -1,7 +1,7 @@
 # Generic Requirement Architecture
 
 Public syntax and semantics are specified in
-[Generics, Interfaces, and Methods](../../spec/08-generics-interfaces-embedding-methods.md). This
+[Generics, Interfaces, and Methods](../../../spec/08-generics-interfaces-embedding-methods.md). This
 document records the compiler boundary completed through v0.11.0 Phase 3.
 
 ## Representations

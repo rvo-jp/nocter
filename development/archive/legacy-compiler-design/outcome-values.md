@@ -2,7 +2,7 @@
 
 This document owns the compiler design for v0.3.0 Phase 6 stored optional and fallible values.
 Public value, ownership, and control-flow semantics belong to the specification. The completed
-milestone gate belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
+milestone gate belongs to the [v0.3.0 Release Record](../../releases/v0.3.0.md).
 
 ## Completion Record
 

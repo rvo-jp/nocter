@@ -2,8 +2,8 @@
 
 This document owns the implementation design for the v0.3.0 region and allocation-context
 foundation. Public
-semantics belong to [Memory, Regions, and Allocators](../../spec/06-memory-region-allocator.md), and
-the completed gate belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
+semantics belong to [Memory, Regions, and Allocators](../../../spec/06-memory-region-allocator.md), and
+the completed gate belongs to the [v0.3.0 Release Record](../../releases/v0.3.0.md).
 
 ## Separate Concepts
 

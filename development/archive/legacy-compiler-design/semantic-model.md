@@ -1,9 +1,9 @@
 # Semantic Identity and Typed Model
 
 This document owns the v0.14.0 compiler identity and semantic-data boundaries. Public Nocter
-syntax and behavior remain owned by the [language specification](../../spec/README.md). The active
+syntax and behavior remain owned by the [language specification](../../../spec/README.md). The
 work order and acceptance gates live in the
-[v0.14.0 milestone](../milestones/v0.14.0.md).
+[v0.14.0 milestone](../../milestones/v0.14.0.md).
 
 ## Migration Context
 

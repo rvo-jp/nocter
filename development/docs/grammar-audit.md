@@ -1,13 +1,13 @@
 # Grammar Closure Audit
 
-This document tracks the v0.14.0 grammar gate without defining language behavior. Normative tokens,
-accepted source forms, and semantics remain under [`spec/`](../../spec/README.md). The completed
-gate will give syntactic recognition one normative owner so the new parser never has to infer a
-grammar from examples spread across topical chapters.
+This document records the completed v0.14.0 grammar gate without defining language behavior.
+Normative tokens, accepted source forms, and semantics remain under
+[`spec/`](../../spec/README.md). The gate gives syntactic recognition one normative owner so the
+parser never infers grammar from examples spread across topical chapters.
 
 ## Authority Boundary
 
-The final public grammar chapter will own only these questions:
+The public grammar chapter owns only these questions:
 
 - which token sequences form a source file
 - which declarations and members are legal in each syntactic container
@@ -16,7 +16,7 @@ The final public grammar chapter will own only these questions:
 - where newline and comma-list rules enter the grammar
 
 Topical chapters continue to own resolution, visibility, typing, ownership, evaluation, ABI,
-runtime behavior, diagnostics, and tooling presentation. They will link to grammar productions
+runtime behavior, diagnostics, and tooling presentation. They link to grammar productions
 instead of maintaining competing recognition rules.
 
 ## Inventory

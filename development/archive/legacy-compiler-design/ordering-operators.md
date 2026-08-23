@@ -1,7 +1,7 @@
 # Strict Ordering Operator Architecture
 
 Public behavior is specified in
-[Strict Ordering Operators](../../spec/24-ordering-operators.md). This document owns compiler and
+[Strict Ordering Operators](../../../spec/24-ordering-operators.md). This document owns compiler and
 distributed-standard-library responsibility boundaries.
 
 ## Common Comparison Model

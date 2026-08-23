@@ -103,6 +103,7 @@ const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PR
 
 validateNocterLexicon();
 validateOutputPaths(sourceFiles);
+validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
 cleanGeneratedHtml();
 
 for (const file of sourceFiles) {
@@ -169,6 +170,106 @@ function validateOutputPaths(files) {
 
         ownersByOutput.set(output, owner);
     }
+}
+
+function validateSourceLinks(files) {
+    const headingIdsBySource = new Map();
+
+    for (const file of files.filter(file => file.endsWith(".md"))) {
+        const markdown = fs.readFileSync(file, "utf8");
+        const searchable = markdown
+            .replace(/```[\s\S]*?```/g, fenced => "\n".repeat((fenced.match(/\n/g) || []).length))
+            .replace(/`[^`\n]*`/g, "");
+
+        for (const match of searchable.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+            const href = match[1].trim();
+
+            if (!href || /^[a-z]+:/i.test(href) || href.startsWith("#")) {
+                continue;
+            }
+
+            const [encodedPath, encodedHash = ""] = href.split("#");
+            let rawPath;
+            let hash;
+
+            try {
+                rawPath = decodeURIComponent(encodedPath);
+                hash = decodeURIComponent(encodedHash);
+            } catch {
+                throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an invalid encoded link: ${href}`);
+            }
+
+            let target = path.resolve(path.dirname(file), rawPath);
+
+            if (!target.startsWith(`${PROJECT_ROOT}${path.sep}`) && target !== PROJECT_ROOT) {
+                throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} links outside the repository: ${href}`);
+            }
+
+            if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+                target = path.join(target, "README.md");
+            }
+
+            if (!fs.existsSync(target)) {
+                throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an unresolved local link: ${href}`);
+            }
+
+            if (hash && target.endsWith(".md")) {
+                let headingIds = headingIdsBySource.get(target);
+
+                if (!headingIds) {
+                    headingIds = markdownHeadingIds(fs.readFileSync(target, "utf8"));
+                    headingIdsBySource.set(target, headingIds);
+                }
+
+                if (!headingIds.has(hash)) {
+                    throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an unresolved heading link: ${href}`);
+                }
+            }
+        }
+    }
+}
+
+function markdownHeadingIds(markdown) {
+    const counts = new Map();
+    const ids = new Set();
+    const withoutFences = markdown.replace(/```[\s\S]*?```/g, "");
+
+    for (const match of withoutFences.matchAll(/^#{1,6}\s+(.+)$/gm)) {
+        ids.add(uniqueHeadingId(match[1].trim(), counts));
+    }
+
+    return ids;
+}
+
+function collectDocumentationLinkSources(directory) {
+    const files = [];
+
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (entry.name.startsWith(".")) {
+            continue;
+        }
+
+        const fullPath = path.join(directory, entry.name);
+        const relative = normalizePath(path.relative(PROJECT_ROOT, fullPath));
+
+        if (entry.isDirectory()) {
+            if (
+                !SKIP_DIRS.has(entry.name)
+                && relative !== "docs"
+                && !SKIP_SOURCE_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
+            ) {
+                files.push(...collectDocumentationLinkSources(fullPath));
+            }
+
+            continue;
+        }
+
+        if (entry.isFile() && entry.name.endsWith(".md")) {
+            files.push(fullPath);
+        }
+    }
+
+    return files.sort((a, b) => normalizePath(path.relative(PROJECT_ROOT, a)).localeCompare(normalizePath(path.relative(PROJECT_ROOT, b))));
 }
 
 function collectSourceFiles(directory) {

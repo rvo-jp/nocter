@@ -1,15 +1,15 @@
 # Checked Program Design
 
-This document assigns implementation responsibility for v0.14.0 Phase 3. It derives work from the
-public specification and does not define language behavior. The specification remains authoritative
-when this plan and a normative rule disagree.
+This document defines the current checked-program implementation boundary. It derives its contract
+from the public specification and does not define language behavior. The specification remains
+authoritative when this document and a normative rule disagree.
 
 ## Boundary
 
 `CheckedProgram` is the first complete, syntax-independent executable-semantics graph. It consumes
-the immutable `DeclarationProgram` from Phase 2 exactly once and owns its `DeclarationGraph` plus
+the immutable `DeclarationProgram` exactly once and owns its `DeclarationGraph` plus
 the same `TypeStore` extended with checked-body types. A body, type, callable, or module ID therefore
-cannot be paired with declarations from another compile unit, and Phase 3 cannot create a parallel
+cannot be paired with declarations from another compile unit, and checking cannot create a parallel
 type interner. Every body owns one typed node arena. Nodes contain the exact declaration, local
 binding, field, variant, requirement, conversion, dispatch, ownership, loan, provenance, region,
 and cleanup decisions selected while checking them.
@@ -36,9 +36,9 @@ authored/internal failure. No public partial checked program exists.
 | Packages, modules, declaration identity, header requirements, authored module imports, and prelude fallback | `DeclarationGraph` frozen through `DeclarationProgram` | checker, target validation, instantiation, presentation |
 | Header, body, closure, inferred, and specialized structural type identity | the single inherited and extended `TypeStore` | every semantic stage |
 | Block imports, lexical scopes, parameters, locals, pattern payloads, catch bindings, loop bindings, and closure captures | body checker | checked nodes and source projection |
-| Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide Phase 3 conformance checker | body dispatch and instantiation |
+| Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide conformance checker | body dispatch and instantiation |
 | Instance target normalization, retained requirements, operation members, and overlap | program-wide instance-operation table | body operation selection and instantiation |
-| Data-position type well-formedness after normalization | Phase 3 type-validity checker | every checked destination and generic constraint |
+| Data-position type well-formedness after normalization | checked-program type-validity authority | every checked destination and generic constraint |
 | Expected types, inference constraints, outcome injection, direct/abstract calls, members, operators, coercions, construction, literals, iteration, and interpolation | typed body node construction | instantiation and MIR |
 | Opaque witness selection, interface and associated-binding proof, and public-surface dispatch | checked opaque-witness authority | instantiation and MIR |
 | Reachability, initialization, moves, copies, loans, provenance, regions, destruction, and generated semantic operations | checked control-flow and ownership analysis | target validation and MIR |
@@ -52,9 +52,9 @@ Conversely, MIR never receives a method name or requirement set from which it co
 
 ## Grammar Conformance Ownership
 
-The remaining grammar semantic boundaries enter Phase 3 as follows:
+Grammar semantic boundaries enter checking as follows:
 
-| Rows | Phase 3 responsibility |
+| Rows | Checked-program responsibility |
 |---|---|
 | G011 | normalized conformance signature compatibility and overlap |
 | G014 | `void`, `never`, unsized, optional, and fallible data-position validity |
@@ -135,7 +135,10 @@ context and validates that no region-derived component crosses the body boundary
 An error before step 5 destroys the builder. A later stage therefore cannot observe a body where
 name resolution succeeded but ownership or provenance checking did not.
 
-## Phase 3 Increments
+## v0.14.0 Implementation Record
+
+The following completed increments explain how the boundary was established. They are historical
+implementation evidence, not the owner of current milestone status or public behavior.
 
 1. Retain canonical module/prelude namespaces in `DeclarationProgram` and move block-import
    ownership out of declaration imports.

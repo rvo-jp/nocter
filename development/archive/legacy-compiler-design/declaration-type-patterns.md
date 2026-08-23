@@ -1,7 +1,7 @@
 # Declaration Type Pattern Architecture
 
 Public syntax and semantics are specified in
-[Generics, Interfaces, and Methods](../../spec/08-generics-interfaces-embedding-methods.md). This
+[Generics, Interfaces, and Methods](../../../spec/08-generics-interfaces-embedding-methods.md). This
 document owns the compiler architecture for v0.11.0 Phase 5.
 
 ## Boundary

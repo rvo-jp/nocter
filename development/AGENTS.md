@@ -1,10 +1,10 @@
 # Nocter Development Agent Rules
 
-These rules apply to work under `development/` during the specification-first compiler rewrite.
+These rules apply to work under `development/` on the active specification-first compiler.
 
 ## Session Start
 
-Before rewrite work, read:
+Before compiler work, read:
 
 - `../README.md`
 - `../spec/README.md`
@@ -12,17 +12,18 @@ Before rewrite work, read:
 - `TODO.md`
 - `compiler/README.md`
 - `milestones/README.md`
-- `milestones/v0.14.0.md`
+- `milestones/v0.15.0.md`
+- `docs/README.md`
 - `docs/architecture.md`
 - `docs/maintenance.md`
 
 Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
 rewrite them.
 
-## Specification-First Isolation
+## Historical Isolation
 
-The compiler preserved by commit `f6c08da3` is historical evidence, not a design input. During the
-rewrite:
+The compiler preserved by commit `f6c08da3` is historical evidence, not a design input. In current
+development:
 
 - do not read, restore, copy, port, execute, or depend on the archived compiler source
 - do not use archived compiler tests, diagnostics, generated structures, or runtime behavior as a
@@ -55,9 +56,9 @@ When a genuine observable ambiguity remains:
 Internal choices that cannot affect accepted programs, diagnostics required by the specification,
 observable execution, ABI, CLI behavior, or editor contracts do not require a language decision.
 
-## New Compiler Boundaries
+## Compiler Boundaries
 
-The new compiler is built as an acyclic sequence of authorities:
+The compiler is built as an acyclic sequence of authorities:
 
 ```text
 source -> syntax -> declarations and types -> checked program
@@ -75,8 +76,9 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
-- `development/milestones/v0.14.0.md`: rewrite scope and completion gates
-- `development/docs/architecture.md`: new compiler dependency and authority boundaries
+- `development/milestones/v0.15.0.md`: active scope and completion records
+- `development/milestones/v0.14.0.md`: completed rewrite history only
+- `development/docs/architecture.md`: compiler dependency and authority boundaries
 - `development/TODO.md`: short-lived handoff and unresolved work
 - `development/releases/`: immutable published release evidence only
 
@@ -85,15 +87,15 @@ Write public documentation in English. Edit source Markdown and regenerate the w
 
 ## Verification
 
-Until the new Cargo workspace exists, documentation checkpoints must run:
+Documentation checkpoints must run:
 
 ```sh
 node docs/build-docs.js
 git diff --check
 ```
 
-Once a compiler verification entry point is introduced, document it in `compiler/README.md` and
-run the narrowest authoritative test before the complete gate.
+Compiler verification commands live in `compiler/README.md`. Run the narrowest authoritative test
+before the complete gate.
 
 ## Commit Checkpoints
 
