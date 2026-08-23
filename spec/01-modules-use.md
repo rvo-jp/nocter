@@ -1,4 +1,4 @@
-# Modules and Use Declarations
+# Modules, Use Declarations, and Source Includes
 
 This file is part of the Nocter language specification. The specification entry point is
 [README.md](README.md).
@@ -20,9 +20,10 @@ project/
         scanner.nct        source folder; not a module
 ```
 
-`index.nct` is the module root source file. It defines the module's public surface. Other `.nct`
-files may contribute private declarations when reached through source imports. Their basenames do
-not create namespaces. A directory without `index.nct` is a source folder.
+`index.nct` is the module root source file and the sole source of that module's public surface.
+Other `.nct` files are ordinary physical sources. Their basenames do not create modules or
+namespaces, and their declarations do not participate merely because the files share a directory.
+A directory without `index.nct` is a source folder rather than a module.
 
 Import paths use `/` and omit `.nct`:
 
@@ -89,28 +90,28 @@ func greet(debug: bool): void {
 A block import is a compile-time dependency even when its block is not executed. It cannot use
 `pub`. Imports cannot shadow or collide with another visible name; aliases resolve collisions.
 
-Unsupported forms include wildcard imports, dotted module paths, explicit `.nct` suffixes,
-namespace alias re-exports, and textual inclusion:
+Unsupported forms include wildcard imports, dotted module paths, explicit `.nct` suffixes, and
+namespace alias re-exports:
 
 ```nct
 use std/io.*
 use std.io.File
 use ./config.nct.Config
 pub use std/io as console
-include ./search
 ```
 
-Paths are valid only in `use`. An expression cannot call `std/io.print()` or
-`./parser.parse()` directly.
+Module paths are valid only in `use`. An expression cannot call `std/io.print()` or
+`./parser.parse()` directly. `use` always resolves a directory module; it never probes for or
+selects an ordinary `.nct` source.
 
-## Same-Module Source Imports
+## Source Includes
 
-A private top-level bare relative import may compose another physical source file into the current
-module:
+`include` makes declarations authored in one physical source directly visible from another
+physical source:
 
 ```nct
 // index.nct
-use ./search
+include ./search.nct
 
 pub func contains(text: &str, needle: &str): bool {
     return find(text, needle)
@@ -124,32 +125,61 @@ func find(text: &str, needle: &str): bool {
 }
 ```
 
-Here `search.nct` does not introduce `search`, and `find` is visible throughout the composed
-module. Source import rules are deliberately narrower than module imports:
+Here `search.nct` does not introduce a `search` namespace. `index.nct` may use `find` exactly as if
+it were a private declaration written in `index.nct`, but this visibility does not spread to any
+third source.
 
-- the path must resolve a `.nct` file whose nearest enclosing module root is the same `index.nct`
-- the declaration must be exactly a private top-level `use ./path` or `use ../path`
-- selected names, aliases, block scope, and `pub use` are invalid for source imports
-- imported sources may import other sources in the same module
-- source cycles are allowed and idempotent; declarations are collected before bodies are resolved
-- a source file not reachable from the module root source is not compiled
-- a source file and child directory module cannot occupy the same logical path
+An include has the following closed form and behavior:
 
-For example, if both `search.nct` and `search/index.nct` exist, `use ./search` is ambiguous. Rename
-one side; the compiler does not choose by precedence.
+- it is a private top-level declaration and cannot use `pub`, a selection, an alias, or block scope;
+- its path begins with `./`, is relative to the including source's directory, and ends with the
+  complete `.nct` filename;
+- `../`, package-absolute paths, dependency aliases, module paths, directories, and omitted
+  extensions are invalid;
+- the exact target must be an ordinary module source inside the same package and must not cross a
+  nested package boundary;
+- including a file exposes only declarations authored in that target source;
+- declarations that the target sees through its own `include`, `use`, lexical scopes, or synthetic
+  prelude are not re-exposed to the including source;
+- visibility is directional: if `a.nct` includes `b.nct`, `b.nct` does not see declarations from
+  `a.nct` unless it includes `a.nct` explicitly;
+- include cycles are valid and idempotent because sources are loaded once and declarations are
+  collected before bodies are resolved;
+- a source that is not reached from a selected module root or single-file source through `include`
+  is not part of the compile unit.
 
-Only a module root source may contain non-private declarations, fields, interface members,
-construction or coercion entries, or re-exports. Implementation sources are private parts of the
-module. This keeps every module boundary readable in `index.nct`.
+For example, direct-only visibility requires `a.nct` to name every source whose authored
+declarations it uses:
 
-## Public Callable Contracts and Bodies
+```nct
+// a.nct
+include ./b.nct
 
-A public callable in `index.nct` may omit its body when one explicitly imported source of the same
-module supplies the body:
+func a(): i32 {
+    return b() + c() // error: c is not visible
+}
+```
+
+```nct
+// b.nct
+include ./c.nct
+
+func b(): i32 {
+    return c()
+}
+```
+
+The fix is `include ./c.nct` in `a.nct`. The compiler does not compute a transitive source
+namespace.
+
+## Public Contracts and Private Definitions
+
+`index.nct` is a readable module contract. A public callable may omit its body when one directly
+included source supplies its private definition:
 
 ```nct
 // index.nct
-use ./parse
+include ./parse.nct
 
 pub func parse(text: &str): Value!
 
@@ -160,6 +190,8 @@ instance Value {
 
 ```nct
 // parse.nct
+include ./index.nct
+
 func parse(text: &str): Value! {
     ...
 }
@@ -171,14 +203,19 @@ instance Value {
 }
 ```
 
-The body declaration is private and does not define a second callable. The compiler joins it to
-the public contract by directory-module identity, callable kind, owner, name, generic parameters
-and bounds, receiver, parameter names and types, result type, and authored `from` clause. These
-parts must have identical canonical source notation. Missing, mismatched, and duplicate bodies are
-errors independent of source traversal order.
+The private declaration completes the visible public declaration; it does not define a second
+callable. The contract source must directly include the definition source, and the definition
+source must directly include that `index.nct`; one-way or transitive reachability cannot form a
+contract/definition pair.
+The compiler joins the pair by module identity, declaration kind, owner, name, generic parameters
+and bounds, receiver, parameter names and types, result type, authored `from` clause, and every
+kind-specific contract modifier. These parts must have identical canonical source notation.
+Visibility is written only on the public contract. Missing, mismatched, and duplicate definitions
+are errors independent of source traversal order.
 
 This rule applies to top-level functions, inherent methods, construction functions, typed literals,
-and coercion entries. A construction implementation does not repeat `default`.
+coercion entries, and source-defined operators. A construction definition repeats `default` when
+the public contract carries it; `default` is part of the contract even though visibility is not.
 Interface requirements and conformance methods keep their conformance model;
 interface default methods remain inline, and `drop` always has an inline body.
 
@@ -186,6 +223,76 @@ Calls, imports, hover, completion, signature help, definition, and public diagno
 contract in `index.nct`. Body checking and body diagnostics retain the implementation source.
 Definition navigation selects the contract; implementation navigation selects the body. References
 and rename treat both declarations and all uses as one semantic callable.
+
+### Opaque Nominal Contracts
+
+A public struct may omit its representation in `index.nct`:
+
+```nct
+// index.nct
+include ./string.nct
+
+pub struct String
+
+construct String {
+    /// Copies a static string view into owned storage.
+    pub default literal ""(text: &str): Self
+    pub func empty(): Self
+}
+
+instance String {
+    /// Exposes the initialized UTF-8 prefix without transferring ownership.
+    pub coerce &self as &str
+}
+```
+
+One directly included source completes the representation and callable bodies:
+
+```nct
+// string.nct
+include ./index.nct
+
+struct String {
+    storage: RawBuffer
+    len: usize
+}
+
+construct String {
+    default literal ""(text: &str): Self {
+        return String.copy(text)
+    }
+
+    func empty(): Self {
+        return String {
+            storage: empty_page_buffer(1),
+            len: 0,
+        }
+    }
+}
+
+instance String {
+    coerce &self as &str {
+        return view(self)
+    }
+}
+```
+
+`pub struct String` is an opaque public nominal contract, not a fieldless struct. `struct String
+{ ... }` completes that same nominal identity and owns its private representation. It cannot carry
+visibility. A bodyless public nominal contract must have exactly one complete private definition;
+an inline braced declaration already owns its representation and cannot be completed again.
+
+An opaque contract exposes no fields or enum variants. A type that intentionally exposes fields or
+variants writes its complete braced declaration in `index.nct`. A private nominal type may be
+declared and defined in any reached source without a separate contract. `copy` is an observable
+ownership contract: a separated copyable struct repeats `copy` on both its public contract and its
+private definition, and the definition must satisfy the ordinary structural copy rules.
+
+Only declarations authored in `index.nct` can define the module's exported namespace. An included
+source cannot add a public name, member, construction entry, coercion, operator, or conformance to
+that namespace. It may define private helpers and may complete declarations already contracted in
+`index.nct`. Thus documentation, hover, completion, signature help, and ordinary source review can
+derive the complete public use surface without reading implementation sources.
 
 ## Re-exports
 
@@ -215,7 +322,7 @@ visible source-level import.
 Rules:
 
 - the prelude is applied to every user directory module
-- all physical sources in one module share the same module namespace and prelude surface
+- every reached source in that module receives the same prelude fallback independently
 - files inside the active Nocter home do not receive the synthetic prelude
 - `std/prelude` itself does not receive the prelude
 - a project path cannot shadow the compiler-selected prelude
@@ -324,12 +431,13 @@ Package `build`, `run`, and `check` begin with resolved target modules. Explicit
 available for isolated scripts and diagnostics as specified by
 [Command Line Interface](15-command-line-interface.md).
 
-A compile unit contains each selected module and every module or source reached recursively through
-imports and the synthetic prelude. Physical sources are loaded by canonical path at most once.
+A compile unit contains each selected module, every source reached recursively through `include`,
+and every module reached recursively through `use` or the synthetic prelude. Physical sources are
+loaded by canonical path at most once.
 
 Rules:
 
-- source-import cycles within one module are valid
+- include cycles are valid
 - module import and re-export cycles are errors
 - executable entry lookup selects top-level `main` in the selected directory module, not an
   imported module
@@ -362,11 +470,14 @@ display:      std/io/index.nct
 absolute:     /Users/me/.nocter/std/io/index.nct
 ```
 
-## Import Path Resolution
+## Path Resolution
 
-Relative imports begin with `./` or `../` and resolve from the importing source's directory.
-Relative resolution considers both a same-module source (`path.nct`) and a child module
-(`path/index.nct`); finding both is an ambiguity error.
+An include path begins with `./`, resolves from the including source's directory, and names exactly
+one existing `.nct` file. It does not probe an extensionless alternative or a directory module.
+
+Relative module imports begin with `./` or `../`, resolve from the importing source's directory,
+and select only a directory containing `index.nct`. A module path omits both `index.nct` and the
+`.nct` extension.
 
 Package-absolute paths begin with `/` and resolve directory modules from the owning package root:
 
@@ -388,31 +499,34 @@ use std/io.print
 
 Rules:
 
-- relative paths cannot leave their package or enter another module's implementation source
+- relative module paths cannot leave their package or select an ordinary source file
 - a leading `/` is package-absolute, never filesystem-absolute
 - `use config.Config` requires a dependency alias named `config`; it does not search project files
 - `std` is a reserved implicit dependency bound to the active toolchain standard-library package
 - packages must not declare or lock a dependency named `std`
-- `.nct` is omitted from imports
+- `.nct` is required in `include` and omitted from `use`
 - `index.nct` is the only directory-module root convention
 - Nocter home comes from `NOCTER_HOME` when set, otherwise from the real running compiler path
 
 ## Name Resolution
 
-Unqualified lookup uses the shared module namespace plus lexical scopes:
+Every physical source has its own authored source namespace. Unqualified lookup from that source
+uses:
 
 1. current and enclosing lexical bindings
 2. function parameters
-3. declarations in any composed source of the current module
-4. explicit imported names and synthetic prelude names
-5. built-in types and syntax forms
+3. declarations authored in the current source
+4. declarations authored in sources named by a direct `include`
+5. explicit module imports authored in the current source and synthetic prelude names
+6. built-in types and syntax forms
 
 Shadowing authored names is not supported. Parameters, locals, block imports, module declarations,
 authored imports, built-in type names, and the contextual `Self` type form must not introduce the
 same visible name. The synthetic prelude is the sole exception: it is a fallback layer, so any
-authored module name or valid lexical name with the same spelling takes precedence. Duplicate
-top-level declarations are diagnosed across every source in the module, independent of source
-traversal order.
+authored source name or valid lexical name with the same spelling takes precedence. Two private
+declarations with the same spelling may exist in different sources when no one source sees both.
+If one source sees both through its direct include set, lookup reports an authored-name collision;
+source traversal order never selects one.
 
 ## Visibility
 
@@ -447,14 +561,15 @@ Rules:
 - top-level types, aliases, interfaces, functions, primitives, fields, methods, interface members,
   construction entries, coercion entries, and re-exports follow this
   rule
-- private declarations in every composed source are visible throughout their module
+- an implementation definition that completes an `index.nct` contract omits visibility
+- private declarations are visible only in their authored source and in sources that include it
+  directly
 - `pub(./)` exposes the declaring module and all descendant modules
 - each `../` in `pub(../)`, `pub(../../)`, and deeper forms moves the boundary to one ancestor
   module; the boundary cannot move above the package root
 - `pub(/)` exposes every module in the declaring package
 - bare `pub` exposes every package
-- scoped visibility is interpreted from the declaring directory module, so all implementation
-  sources in that module share one boundary
+- scoped visibility is interpreted from the declaring directory module
 - names, dependency aliases, and arbitrary module paths are not valid inside `pub(...)`
 - a re-export may narrow a boundary but cannot widen it
 - enum variants follow their enum's visibility

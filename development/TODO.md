@@ -4,9 +4,11 @@
 
 Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 is complete. It removed semantic authority
 from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the backend-visible
-semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one owner. Phase 1 is
-the next planned source-design phase; its module-import behavior must be specified before
-implementation. The exact scope and completion record are in `development/milestones/v0.15.0.md`.
+semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one owner. Phase 1's
+source/module specification is now adopted and implementation is active: direct-only `include`
+owns physical-source visibility, `use` owns module imports, and `index.nct` owns public contracts
+completed by private definitions. The exact scope and completion record are in
+`development/milestones/v0.15.0.md`.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

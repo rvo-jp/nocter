@@ -54,27 +54,29 @@ metadata and attach according to their lexical kind; removing them leaves the sa
 
 ## Source Files
 
-Nocter recognizes package files separately from module source files:
+Nocter recognizes package declarations separately from ordinary source files:
 
 ```text
 PackageFile = LineSequence(PackageDirective) eof
 
-ModuleSource = newline*
-               (UseSequence (newline+ ItemSequence)? | ItemSequence)?
-               newline* eof
+SourceFile = newline*
+             (DependencySequence (newline+ ItemSequence)? | ItemSequence)?
+             newline* eof
 
-UseSequence = UseDeclaration (newline+ UseDeclaration)*
+DependencySequence = DependencyDeclaration (newline+ DependencyDeclaration)*
+DependencyDeclaration = IncludeDeclaration | UseDeclaration
 ItemSequence = Item (newline+ Item)*
 ```
 
 Only `nocter.nct` is a `PackageFile`. It accepts package documentation and package directives, but
-not imports or declarations. Every other selected `.nct` file is a `ModuleSource`. A module source
-places every top-level `use` before its first item. Whether a module source is an `index.nct` module
-root or a same-module implementation source does not change its grammar; the module rules reject
-visibility and member forms that an implementation source is not allowed to contribute.
+not includes, imports, or declarations. Every other selected `.nct` file is a `SourceFile`. A
+source file places every top-level `include` and `use` before its first item. The same grammar
+applies to single-file programs, an `index.nct` module contract, and a private implementation
+source; source and module rules validate their different semantic roles.
 
-The grammar deliberately does not accept an arbitrary mixture of imports and items. A later
-top-level `use` is a syntax error even when name resolution would otherwise succeed.
+The grammar deliberately does not accept an arbitrary mixture of dependency declarations and
+items. A later top-level `include` or `use` is a syntax error even when resolution would otherwise
+succeed.
 
 ## Package Directives
 
@@ -128,9 +130,14 @@ The spellings inside `pub(...)` are closed. A name, package alias, or arbitrary 
 a `VisibilityScope`. The visibility chapter determines whether a recognized boundary can be used
 from the declaring module and whether an item kind permits visibility at all.
 
-## Use Declarations
+## Includes and Use Declarations
 
 ```text
+IncludeDeclaration = "include" IncludePath
+
+IncludePath = "." "/" SourcePathSegment ("/" SourcePathSegment)* "." "nct"
+SourcePathSegment = ModuleSegment
+
 UseDeclaration = Visibility? "use" UseTree
 
 UseTree = ModulePath
@@ -149,14 +156,13 @@ PackageAbsoluteModulePath = "/" ModuleSegment ("/" ModuleSegment)*
 RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
 ```
 
-`ModuleSegment` is the snake-case module segment defined by the lexical grammar. Resolution
-decides whether a private bare relative path is a same-module source import or whether a path is a
-directory-module import. The parser does not choose between those meanings.
+`ModuleSegment` is the snake-case module segment defined by the lexical grammar. `IncludePath`
+contains the exact source filename and admits neither `../` nor a missing `.nct` suffix. A
+`ModulePath` never contains `.nct`; every `use` is a directory-module import.
 
 A block-scope import uses the private `BlockUseDeclaration` form. Its enclosing block owns the
-newline separator. Visibility is recognized only
-on a top-level use declaration; the module rules further reject visibility on a same-module source
-import and reject namespace alias re-exports.
+newline separator. Visibility is recognized only on a top-level use declaration. `include` has no
+block-scope or visibility-bearing form. Module rules further reject namespace alias re-exports.
 
 ## Items
 
@@ -227,21 +233,26 @@ bodyless contract; module composition and visibility rules decide whether the la
 
 ```text
 StructDeclaration = Visibility? "copy"? "struct" Name GenericParameters? WhereClause?
-                    "{" LineSequence(StructField) "}"
+                    StructBody?
+
+StructBody = "{" LineSequence(StructField) "}"
 
 StructField = Visibility? Name ":" Type
 
 EnumDeclaration = Visibility? "enum" Name GenericParameters? WhereClause?
-                  "{" LineSequence(EnumVariant) "}"
+                  EnumBody?
+
+EnumBody = "{" LineSequence(EnumVariant) "}"
 
 EnumVariant = Name EnumPayload?
 EnumPayload = "(" List(Parameter) ")"
 ```
 
 Struct fields and enum variants are newline-separated declarations. They are not comma-delimited
-items. Enum payload parameters are comma-delimited. The grammar recognizes an empty enum body so
-the enum validity rule can emit its dedicated “at least one variant” diagnostic; a valid enum has
-one through 256 variants.
+items. Enum payload parameters are comma-delimited. A bodyless nominal is recognized for a public
+opaque contract; module rules require that form in `index.nct` and require one private complete
+definition. The grammar recognizes an empty enum body so the enum validity rule can emit its
+dedicated “at least one variant” diagnostic; a complete valid enum has one through 256 variants.
 
 `copy` is contextual only immediately before `struct`. It is not a general type modifier and does
 not occur on an enum or alias.
@@ -289,9 +300,10 @@ LiteralParameters = "(" "..." Name ":" Type ")"
 decoded contents are both empty (`""`). In this position it denotes a literal shape, not a
 decoded runtime string value. Semantic validation pairs the sequence shape with its one element
 pack and the string shape with its one ordinary parameter. The parser retains optional
-`Visibility`; module-source semantics require it on a root-source construction contract and
-require its omission on a private implementation body. `default` is contextual only between that
-optional visibility and `func` or `literal`.
+`Visibility`; module-source semantics require it on a public `index.nct` construction contract and
+require its omission on the matching private definition. `default` is contextual only between
+that optional visibility and `func` or `literal`, and a separated definition repeats the
+contract's `default` marker.
 
 An empty construction body is syntactically valid and explicitly declares no direct construction
 entry.
@@ -320,17 +332,17 @@ BorrowReceiver = "&" "self" | "&+" "self"
 CoercionProvenance = "from" "self"
 
 EqualityOperator = Visibility? "operator" "(" "&" "self" "==" Name ":" "&" "Self" ")"
-                   ":" "bool" WhereClause? Block
+                   ":" "bool" WhereClause? CallableBody
 
 OrderingOperator = Visibility? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
-                   ":" "bool" WhereClause? Block
+                   ":" "bool" WhereClause? CallableBody
 
 IndexOperator = Visibility? "operator" "(" IndexReceiver "[" Parameter "]" ")"
-                ":" BorrowType ProvenanceClause? WhereClause? Block
+                ":" BorrowType ProvenanceClause? WhereClause? CallableBody
 IndexReceiver = "&" "self" | "&+" "self"
 
 ExpansionOperator = Visibility? "operator" "(" "..." ExpansionReceiver ")"
-                    ":" Type ProvenanceClause? WhereClause? Block
+                    ":" Type ProvenanceClause? WhereClause? CallableBody
 ExpansionReceiver = "&" "self" | "&+" "self" | "self"
 ```
 
@@ -412,7 +424,8 @@ enum Empty {}
 construct ExternalType {}
 ```
 
-The first is invalid unless it is an eligible public contract with one matching same-module body;
+The first is invalid unless it is an eligible public contract with one matching private definition
+connected through reciprocal direct includes;
 the second violates the enum variant-count rule; the third violates construction ownership unless
 the resolved target belongs to the declaring module or to the authorized standard-library
 surface. Keeping those checks outside parsing gives every accepted token sequence one stable

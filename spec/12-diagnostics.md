@@ -90,7 +90,7 @@ Source-backed lexical diagnostics:
 Source-backed syntactic diagnostics:
 
 - `E0120`: required syntax is missing at the parser's committed position.
-- `E0121`: a module `use` declaration appears after the first item.
+- `E0121`: a top-level `include` or `use` declaration appears after the first item.
 - `E0122`: source nesting exceeds the compiler's supported nesting limit.
 
 Lexer and parser errors enter the same source-diagnostic envelope as later language-rule errors.
@@ -99,11 +99,10 @@ tokens or source text to reconstruct it.
 
 Source-backed module-surface diagnostics:
 
-- `E0230`: an implementation source declares non-private visibility.
-- `E0231`: an implementation source declares a stored field or interface requirement owned
-  exclusively by the module root source.
-- `E0232`: a construction contract member in a module root source omits its required explicit
-  non-private visibility.
+- `E0230`: a source other than `index.nct` declares non-private visibility.
+- `E0231`: a bodyless nominal is used outside an eligible public contract in `index.nct`.
+- `E0232`: a public construction contract member in `index.nct` omits its required explicit
+  non-private visibility, or its matching private definition incorrectly repeats visibility.
 - `E0233`: a `#target` gate names a target not recognized by this compiler release. The primary
   span is the gate's string literal.
 
@@ -120,15 +119,15 @@ Source-backed import diagnostics:
 - `E0261`: a re-export visibility boundary is wider than the selected name's visibility boundary.
 - `E0262`: source code explicitly imports the compiler-managed standard prelude. The primary span
   is the authored module path; ordinary source modules receive that prelude implicitly.
-- `E0263`: an authored module path cannot resolve to exactly one source or directory module within
-  its package and dependency boundaries.
+- `E0263`: an authored `use` path cannot resolve to exactly one directory module within its package
+  and dependency boundaries.
 - `E0412`: a selected import name is outside its declared visibility boundary from the importing
   module.
 
 Source-backed module-topology diagnostics:
 
-- `E0270`: a resolved source import is not a private top-level bare relative import of an
-  implementation source in the same directory module.
+- `E0270`: an authored `include` does not name exactly one permitted `.nct` source through its
+  required direct `./` path, or a discovery edge does not match that exact source.
 - `E0271`: authored module imports form a dependency cycle. The primary span and related notes
   identify one deterministic complete cycle of `use` declarations.
 
@@ -331,8 +330,13 @@ Source-backed callable contract diagnostics:
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
-- `E0254`: a private construction, literal, or coercion implementation entry has no matching public
-  contract in `index.nct`.
+- `E0254`: a private definition that is presented as a public-contract completion has no matching
+  public contract in the reciprocally included `index.nct` source.
+- `E0255`: a bodyless public nominal contract has no complete private representation definition.
+- `E0256`: a private nominal representation does not exactly match its public contract's kind,
+  name, generic parameters, requirements, or `copy` contract.
+- `E0257`: more than one private representation completes the same public nominal contract.
+- `E0258`: a represented nominal declaration is completed again.
 
 Source-backed declaration-header diagnostics:
 

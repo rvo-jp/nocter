@@ -6,7 +6,7 @@ use std/path.Utf8Path
 
 use std/process.arg
 
-use ./summary
+include ./summary.nct
 
 func main(): i32! {
     let requested: &str = arg(1)? otherwise {

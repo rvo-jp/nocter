@@ -470,7 +470,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/file-summary/index/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -512,7 +512,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -614,7 +614,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/00-design-principles/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -626,7 +626,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/01-modules-use/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -692,13 +692,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/12-diagnostics/</loc>
-    <lastmod>2026-08-21</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/13-lexical-grammar/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -734,7 +734,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/19-construction-surfaces/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -770,7 +770,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/25-syntactic-grammar/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

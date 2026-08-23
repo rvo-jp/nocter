@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-22">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Construction Surfaces - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Construction Surfaces - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/19-construction-surfaces/","mainEntityOfPage":"https://nocter.dev/spec/19-construction-surfaces/","dateModified":"2026-08-22","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"19 Construction Surfaces","item":"https://nocter.dev/spec/19-construction-surfaces/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Construction Surfaces - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/19-construction-surfaces/","mainEntityOfPage":"https://nocter.dev/spec/19-construction-surfaces/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"19 Construction Surfaces","item":"https://nocter.dev/spec/19-construction-surfaces/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -124,7 +124,7 @@
             <ul class="directory-toc-list">
                 <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
                 <li><a href="../00-overview/index.html#content">Overview</a></li>
-                <li><a href="../01-modules-use/index.html#content">Modules and Use Declarations</a></li>
+                <li><a href="../01-modules-use/index.html#content">Modules, Use Declarations, and Source Includes</a></li>
                 <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
                 <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
                 <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
@@ -177,10 +177,12 @@
 <span class="token-keyword">let</span> reserved <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span><span class="token-number">16</span><span class="token-operator">)</span>
 </code></pre><p>Rules:</p><ul><li>In an ordinary package, the target must be a nominal struct or enum declared in the same module.</li><li>The exact active standard-library package may additionally declare compiler-authorized
   construction surfaces for built-in types such as integer types. This authority follows package
-  identity, not path spelling or visibility.</li><li>The target arguments must bind every generic parameter in declaration order.</li><li>A nominal type may have at most one <code>construct</code> declaration.</li><li>Every construction contract member in a module root source must carry an explicit non-private
-  visibility: <code>pub(./)</code>, an ancestor scope, <code>pub(/)</code>, or bare <code>pub</code>. A private implementation body
-  in another source omits visibility and joins that contract under the module body-matching rule;
-  it does not define another construction entry.</li><li>A construction function must produce <code>Self</code> as its direct result or as the success/present payload
+  identity, not path spelling or visibility.</li><li>The target arguments must bind every generic parameter in declaration order.</li><li>A nominal type may have at most one <code>construct</code> declaration.</li><li>Every public construction contract member in <code>index.nct</code> must carry an explicit non-private
+  visibility: <code>pub(./)</code>, an ancestor scope, <code>pub(/)</code>, or bare <code>pub</code>. A matching private definition
+  in a directly included source omits visibility, repeats the contract's <code>default</code> marker when
+  present, and joins that contract under the source body-matching rule; it does not define another
+  construction entry. A private construction surface that is defined entirely within one source
+  does not require <code>pub</code>.</li><li>A construction function must produce <code>Self</code> as its direct result or as the success/present payload
   of a supported outcome type.</li><li>A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules
   from <a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a>.</li><li><code>Self</code> denotes the specialized construct target throughout member signatures and bodies.</li><li><code>construct</code> declarations cannot be imported separately. Their accessible members travel with the
   target type.</li></ul><p>Functions that do not directly produce the target are ordinary module functions and cannot use a qualified type owner. Receiver methods remain in <code>instance</code>; destruction uses an independent <code>drop Type(&amp;+self)</code> declaration; interface conformance members remain in <code>conform Interface for Type</code>.</p><h2 id="generic-owner-arguments">Generic Owner Arguments</h2><p>Every generic construction entry uses one owner-argument rule. This includes construction functions, typed literals, named-field struct literals, and enum variants.</p><p>The caller may omit all owner type arguments when one unique substitution follows from construction arguments, field initializers, literal elements, or the expected type of the complete construction expression:</p><pre><code class="language-nct"><span class="token-keyword">let</span> empty<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
