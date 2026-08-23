@@ -5,7 +5,8 @@ use nocter_source_index::{SemanticEntity, SourceRole};
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CallTarget, CheckedOperation, CheckedOutcome, StaticDispatch, prepare_program_checking,
+    ArgumentPackSegment, CallTarget, CheckedOperation, CheckedOutcome, StaticDispatch,
+    prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -46,6 +47,113 @@ fn direct_static_call_freezes_dispatch_and_argument_order() {
     assert!(matches!(selection.dispatch(), StaticDispatch::Direct(_)));
     assert!(selection.generic_arguments().as_slice().is_empty());
     assert_eq!(calls[0].arguments().len(), 1);
+}
+
+#[test]
+fn declared_calls_keep_fixed_arguments_and_the_final_pack_separate() {
+    let output = check(
+        "func discard<T>(marker: bool, ...items: T): void {\n    for item in items { drop item }\n    return\n}\nfunc apply(): void {\n    discard(true, 1, 2, 3)\n    return\n}\n",
+    )
+    .unwrap();
+    let call = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("argument-pack call");
+
+    assert_eq!(call.arguments().len(), 1);
+    assert!(matches!(
+        call.pack().map(crate::CheckedArgumentPack::segments),
+        Some([
+            ArgumentPackSegment::Value(_),
+            ArgumentPackSegment::Value(_),
+            ArgumentPackSegment::Value(_),
+        ])
+    ));
+    let CallTarget::Static(selection) = call.target() else {
+        panic!("declared function call must have static dispatch")
+    };
+    assert_eq!(selection.generic_arguments().as_slice().len(), 1);
+}
+
+#[test]
+fn an_incoming_argument_pack_can_be_tail_forwarded_without_becoming_a_value() {
+    let output = check(
+        "func count<T>(...items: T): usize { return items.len() }\nfunc forward<T>(...items: T): usize {\n    return count(...items)\n}\n",
+    )
+    .unwrap();
+    let forwarded = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => call.pack(),
+            _ => None,
+        })
+        .find(|pack| pack.forwarded_parameter().is_some())
+        .expect("tail-forwarded pack");
+
+    assert!(forwarded.segments().is_empty());
+}
+
+#[test]
+fn forwarding_cannot_be_mixed_with_new_pack_contributions() {
+    let error = check(
+        "func count<T>(...items: T): usize { return items.len() }\nfunc invalid(...items: i32): usize { return count(1, ...items) }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0409");
+}
+
+#[test]
+fn forwarding_requires_an_uniterated_pack_and_one_forwarding_occurrence() {
+    for source in [
+        "func count(...items: i32): usize { return items.len() }\nfunc invalid(...items: i32): usize {\n    for item in items { let _ = item }\n    return count(...items)\n}\n",
+        "func count(...items: i32): usize { return items.len() }\nfunc invalid(...items: i32): usize {\n    let first = count(...items)\n    return first + count(...items)\n}\n",
+        "func count(...items: i32): usize { return items.len() }\nfunc invalid(...items: i32): usize {\n    let length = count(...items)\n    for item in items { let _ = item }\n    return length\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0409");
+    }
+}
+
+#[test]
+fn argument_pack_provenance_flows_from_elements_through_the_call_result() {
+    check(
+        "func first(...items: &i32): &i32 from items {\n    for item in items { return item }\n    loop {}\n}\nfunc forward(input: &i32): &i32 { first(input) }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn argument_pack_values_share_one_call_loan_boundary() {
+    check(
+        "func touch(...items: &+i32): void { return }\nfunc valid(): void {\n    var first = 1\n    var second = 2\n    touch(&+first, &+second)\n}\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "func touch(...items: &+i32): void { return }\nfunc invalid(): void {\n    var value = 1\n    touch(&+value, &+value)\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0396");
+}
+
+#[test]
+fn ordinary_call_rejects_spread_without_an_argument_pack() {
+    let error = check(
+        "func consume(value: i32): void { return }\nfunc invalid(): void { consume(...1) }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0390");
 }
 
 #[test]

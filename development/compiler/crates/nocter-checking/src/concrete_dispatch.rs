@@ -521,7 +521,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
             })
             .and_then(|receiver| match receiver.role() {
                 ParameterRole::Receiver(capability) => Some(capability),
-                ParameterRole::Ordinary { .. } => None,
+                ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => None,
             })
             .ok_or(ConcreteDispatchError::InvalidOpaqueType(opaque))?;
         let source = opaque_receiver_type(&mut self.types, receiver, opaque)

@@ -370,8 +370,16 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let mut parameters = Vec::new();
         let mut names = Vec::new();
-        for parameter in direct_children(self.tree(), parameters_node, NodeKind::CallableParameter)
-        {
+        let parameter_nodes =
+            direct_children(self.tree(), parameters_node, NodeKind::CallableParameter);
+        let mut has_argument_pack = false;
+        for (position, parameter) in parameter_nodes.iter().copied().enumerate() {
+            let pack =
+                direct_child(self.tree(), parameter, NodeKind::ArgumentPackModifier).is_some();
+            if pack && (has_argument_pack || position + 1 != parameter_nodes.len()) {
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, parameter)?);
+            }
+            has_argument_pack |= pack;
             let ty = direct_child(self.tree(), parameter, NodeKind::Type)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(parameter))?;
             parameters.push(self.resolve_type_use(ty)?);
@@ -412,7 +420,12 @@ impl BodyChecker<'_, '_> {
         } else {
             CallableCapability::Owned
         };
-        let contract = CallableContract::new(capability, parameters, result, provenance)
+        let pack = if has_argument_pack {
+            parameters.pop()
+        } else {
+            None
+        };
+        let contract = CallableContract::new(capability, parameters, pack, result, provenance)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         self.types
             .intern(TypeKind::Callable(contract))

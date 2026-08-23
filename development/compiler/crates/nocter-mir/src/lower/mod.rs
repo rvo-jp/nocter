@@ -8,6 +8,7 @@ use nocter_target_program::ExecutableProgram;
 use crate::{MirBodyBuildError, MirProgram, MirProgramBuildError, MirProgramBuilder};
 
 mod allocation;
+mod argument_pack;
 mod assignment;
 mod borrow_conversion;
 mod call;
@@ -24,7 +25,6 @@ mod function;
 mod index_place;
 mod interpolation;
 mod iteration;
-mod literal_pack;
 mod loop_control;
 mod opaque;
 mod operand;

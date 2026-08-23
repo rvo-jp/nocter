@@ -1,3 +1,4 @@
+mod argument_pack;
 mod body;
 mod builder;
 mod cleanup;
@@ -10,6 +11,7 @@ mod program;
 mod provenance;
 mod selection;
 
+pub use argument_pack::{ArgumentPackSegment, CheckedArgumentPack, SpreadMode};
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;
@@ -34,7 +36,7 @@ pub use node::{
     ConstantValue, InterpolationPart, IterationAcquisition, LogicalOperation, LoopKind,
     PatternBindingMode, PatternRemainder, PatternSubjectPreparation, PrimitiveBinary,
     PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
-    SequenceElement, SpreadMode, TypedIteration,
+    TypedIteration,
 };
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};

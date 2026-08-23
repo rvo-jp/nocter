@@ -2,12 +2,12 @@ use std::collections::HashSet;
 use std::fmt;
 
 use nocter_checking::{
-    AggregateConstruction, AllocationSelection, BorrowConversionImplementation, CallTarget,
-    CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedPlace,
-    CheckedReadonlyOperand, CheckedReceiver, CleanupTarget, ComparisonImplementation,
-    DropSelection, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
-    PrimitiveOperation, ReadonlyOperandPreparation, ReceiverPreparation, SequenceElement,
-    StaticSelection, TypedIteration,
+    AggregateConstruction, AllocationSelection, ArgumentPackSegment,
+    BorrowConversionImplementation, CallTarget, CheckedArgumentPack, CheckedBody, CheckedControl,
+    CheckedOperation, CheckedOutcome, CheckedPlace, CheckedReadonlyOperand, CheckedReceiver,
+    CleanupTarget, ComparisonImplementation, DropSelection, InterpolationPart,
+    IterationAcquisition, LoopKind, PlaceProjection, PrimitiveOperation,
+    ReadonlyOperandPreparation, ReceiverPreparation, StaticSelection, TypedIteration,
 };
 use nocter_model::{
     BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
@@ -253,7 +253,7 @@ impl<'program> DependencyCollector<'program> {
         match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::LiteralPackLength(_) => {}
+            | CheckedOperation::ArgumentPackLength(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
@@ -277,6 +277,9 @@ impl<'program> DependencyCollector<'program> {
                 }
                 for argument in call.arguments() {
                     self.visit_node(*argument)?;
+                }
+                if let Some(pack) = call.pack() {
+                    self.visit_argument_pack(pack)?;
                 }
             }
             CheckedOperation::BorrowConversion(conversion) => {
@@ -351,19 +354,7 @@ impl<'program> DependencyCollector<'program> {
             }
             CheckedOperation::Sequence(sequence) => {
                 self.record_selection(sequence.constructor());
-                for element in sequence.elements() {
-                    match element {
-                        SequenceElement::Value(value) => self.visit_node(*value)?,
-                        SequenceElement::Spread {
-                            iteration,
-                            exact_size,
-                            ..
-                        } => {
-                            self.visit_iteration(iteration)?;
-                            self.record_selection(exact_size);
-                        }
-                    }
-                }
+                self.visit_argument_pack(sequence.pack())?;
                 self.visit_allocation(sequence.allocation())?;
             }
             CheckedOperation::StringLiteral {
@@ -445,6 +436,26 @@ impl<'program> DependencyCollector<'program> {
         self.visit_node(iteration.iterator())?;
         self.record_selection(iteration.next());
         self.record_type(iteration.item())
+    }
+
+    fn visit_argument_pack(
+        &mut self,
+        pack: &CheckedArgumentPack,
+    ) -> Result<(), BodyDependencyError> {
+        for segment in pack.segments() {
+            match segment {
+                ArgumentPackSegment::Value(value) => self.visit_node(*value)?,
+                ArgumentPackSegment::Spread {
+                    iteration,
+                    exact_size,
+                    ..
+                } => {
+                    self.visit_iteration(iteration)?;
+                    self.record_selection(exact_size);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn visit_allocation(
@@ -598,7 +609,7 @@ impl<'program> DependencyCollector<'program> {
             LoopKind::Infinite => {}
             LoopKind::While { condition } => self.visit_node(*condition)?,
             LoopKind::For { iteration, .. } => self.visit_iteration(iteration)?,
-            LoopKind::LiteralPack { item, .. } => self.record_type(*item)?,
+            LoopKind::ArgumentPack { item, .. } => self.record_type(*item)?,
             LoopKind::Range { start, end, .. } => {
                 self.visit_node(*start)?;
                 self.visit_node(*end)?;

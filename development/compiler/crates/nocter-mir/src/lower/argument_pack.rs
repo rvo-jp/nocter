@@ -22,7 +22,7 @@ impl FunctionLowerer<'_> {
         self.append_value(ty, MirOperationKind::PackLength)
     }
 
-    pub(super) fn lower_literal_pack_loop(
+    pub(super) fn lower_argument_pack_loop(
         &mut self,
         node: BodyNodeId,
         loop_: LoopId,

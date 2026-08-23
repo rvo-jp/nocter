@@ -65,29 +65,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 ProvenanceOrigin::Receiver | ProvenanceOrigin::Parameter(_) => {}
             }
         }
-        let variadic_count = callable
-            .parameters()
-            .iter()
-            .filter(|parameter| {
-                matches!(
-                    declarations
-                        .parameters()
-                        .get(**parameter)
-                        .copied()
-                        .map(crate::Parameter::role),
-                    Some(ParameterRole::Ordinary { variadic: true, .. })
-                )
-            })
-            .count();
-        let valid_variadic = match callable.kind() {
-            CallableKind::Literal(crate::LiteralShape::Sequence) => {
-                callable.parameters().len() == 1 && variadic_count == 1
-            }
-            _ => variadic_count == 0,
-        };
-        if !valid_variadic {
-            return Err(ProgramIntegrityError::InvalidCallableShape);
-        }
+        validate_argument_pack_shape(program, callable)?;
         if let Some(body) = callable.body() {
             let body = require(
                 declarations.bodies().get(body),
@@ -102,6 +80,48 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
         }
     }
     Ok(())
+}
+
+fn validate_argument_pack_shape(
+    program: &DeclarationProgram,
+    callable: &crate::CallableDeclaration,
+) -> Result<(), ProgramIntegrityError> {
+    let pack_positions = callable
+        .parameters()
+        .iter()
+        .enumerate()
+        .filter_map(|(position, parameter)| {
+            matches!(
+                program
+                    .declarations()
+                    .parameters()
+                    .get(*parameter)
+                    .copied()
+                    .map(crate::Parameter::role),
+                Some(ParameterRole::ArgumentPack { .. })
+            )
+            .then_some(position)
+        })
+        .collect::<Vec<_>>();
+    let valid = match callable.kind() {
+        CallableKind::Literal(crate::LiteralShape::Sequence) => {
+            callable.parameters().len() == 1 && pack_positions.as_slice() == [0]
+        }
+        CallableKind::Function | CallableKind::Method | CallableKind::ConstructionFunction => {
+            pack_positions.is_empty()
+                || pack_positions.as_slice() == [callable.parameters().len() - 1]
+        }
+        CallableKind::Primitive
+        | CallableKind::Literal(crate::LiteralShape::String)
+        | CallableKind::Coercion
+        | CallableKind::Equality
+        | CallableKind::Ordering
+        | CallableKind::Index
+        | CallableKind::Expansion => pack_positions.is_empty(),
+    };
+    valid
+        .then_some(())
+        .ok_or(ProgramIntegrityError::InvalidCallableShape)
 }
 
 fn validate_shape(callable: &crate::CallableDeclaration) -> Result<(), ProgramIntegrityError> {

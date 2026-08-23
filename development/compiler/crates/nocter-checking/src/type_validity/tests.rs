@@ -31,6 +31,7 @@ fn invalid_type_positions_have_distinct_rules() {
         ("func bad(value: never): void {}\n", "E0363"),
         ("struct Bad { value: void }\n", "E0364"),
         ("func bad(value: str): void {}\n", "E0365"),
+        ("struct Bad { value: func(...str): void }\n", "E0365"),
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);

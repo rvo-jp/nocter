@@ -514,7 +514,7 @@ fn abi_fixture() -> nocter_mir::MirProgram {
 }
 
 #[test]
-fn literal_pack_uses_one_compiler_owned_pointer_lane_outside_ordinary_arguments() {
+fn sequence_argument_pack_uses_one_compiler_owned_pointer_lane_outside_ordinary_arguments() {
     let program = lower_fixture(
         "struct Vec<T> {}\n\
          construct Vec<T> {\n\
@@ -542,6 +542,70 @@ fn literal_pack_uses_one_compiler_owned_pointer_lane_outside_ordinary_arguments(
     assert_eq!(pack.pointer().first(), 0);
     assert_eq!(pack.pointer().words(), 1);
     assert_eq!(literal.stack_argument_size(), 0);
+}
+
+#[test]
+fn argument_pack_reserves_its_lane_before_ordinary_argument_registers() {
+    let program = lower_fixture(
+        "func total(seed: i32, ...items: i32): i32 {\n\
+             let _ = items.len()\n\
+             return seed\n\
+         }\n\
+         func main(): i32 { return total(40, 2) }\n",
+    );
+    let layouts = MachineLayoutStore::build(&program).unwrap();
+    let abi = MachineAbiPlan::build(&program, &layouts).unwrap();
+    let callable = abi
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| callable.pack().is_some() && !callable.arguments().is_empty())
+        .expect("fixed-plus-pack callable ABI");
+    let pack = callable.pack().unwrap();
+    let Some(MachineArgumentLocation::Registers(argument)) = callable.arguments()[0].location()
+    else {
+        panic!("fixed scalar argument must use a register")
+    };
+
+    assert_eq!(pack.pointer().first(), 0);
+    assert_eq!(argument.first(), 1);
+}
+
+#[test]
+fn forwarded_argument_pack_has_no_body_local_descriptor_identity() {
+    let mir = lower_fixture(
+        "func total(seed: i32, ...items: i32): i32 {\n\
+             let _ = items.len()\n\
+             return seed\n\
+         }\n\
+         func forward(seed: i32, ...items: i32): i32 {\n\
+             return total(seed, ...items)\n\
+         }\n\
+         func main(): i32 { return forward(40, 2) }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let (function, call) = program
+        .functions()
+        .find_map(|(_, function)| {
+            function
+                .body()
+                .operations()
+                .find_map(|(_, operation)| match operation.kind() {
+                    MachineOperationKind::Call(call)
+                        if call.pack() == Some(crate::MachineCallPack::Forwarded) =>
+                    {
+                        Some((function, call))
+                    }
+                    _ => None,
+                })
+        })
+        .expect("forwarded machine pack call");
+
+    assert_eq!(call.arguments().len(), 1);
+    assert_eq!(function.body().packs().len(), 0);
+    assert!(matches!(
+        function.kind(),
+        crate::MachineFunctionKind::Callable(abi) if abi.pack().is_some()
+    ));
 }
 
 #[test]
@@ -1083,7 +1147,7 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
 }
 
 #[test]
-fn literal_pack_is_a_dense_body_domain_and_uses_explicit_consumer_operations() {
+fn sequence_argument_pack_is_a_dense_body_domain_and_uses_explicit_consumer_operations() {
     let mir = lower_fixture(
         "struct Vec<T> {}\n\
          construct Vec<T> {\n\
@@ -1108,9 +1172,10 @@ fn literal_pack_is_a_dense_body_domain_and_uses_explicit_consumer_operations() {
                 .body()
                 .operations()
                 .find_map(|(_, operation)| match operation.kind() {
-                    MachineOperationKind::Call(call) => {
-                        call.pack().map(|pack| (function.body(), pack))
-                    }
+                    MachineOperationKind::Call(call) => call.pack().and_then(|pack| match pack {
+                        crate::MachineCallPack::Prepared(pack) => Some((function.body(), pack)),
+                        crate::MachineCallPack::Forwarded => None,
+                    }),
                     _ => None,
                 })
         })
@@ -1529,7 +1594,11 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
         .body()
         .operations()
         .find_map(|(_, operation)| match operation.kind() {
-            MachineOperationKind::Call(call) if call.pack().is_some() => Some(call),
+            MachineOperationKind::Call(call)
+                if matches!(call.pack(), Some(crate::MachineCallPack::Prepared(_))) =>
+            {
+                Some(call)
+            }
             _ => None,
         })
         .expect("fixture must contain a literal call");
@@ -1644,8 +1713,10 @@ fn literal_spread(
             let MachineOperationKind::Call(call) = operation.kind() else {
                 continue;
             };
-            let (Some(pack), crate::MachineCallTarget::Direct(literal)) =
-                (call.pack(), call.target())
+            let (
+                Some(crate::MachineCallPack::Prepared(pack)),
+                crate::MachineCallTarget::Direct(literal),
+            ) = (call.pack(), call.target())
             else {
                 continue;
             };

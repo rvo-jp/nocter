@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_checking::{
-    ConcreteDestructionPlan, DropSelection, SequenceElement, StaticSelection, TypeSubstitution,
+    ArgumentPackSegment, ConcreteDestructionPlan, DropSelection, StaticSelection, TypeSubstitution,
 };
 use nocter_model::{BodyId, BodyNodeId, ExecutableItemId, TypeId};
 
@@ -9,10 +9,10 @@ use super::{
     DraftDispatchEdge, DraftDispatchPlan, DraftDispatchStep, ExecutableClosureBuilder,
     collect_drops, item_id,
 };
-use crate::executable::ExecutableSequenceIteration;
+use crate::executable::ExecutablePackIteration;
 use crate::{
-    CallableInstanceKey, ExecutableItemKey, ExecutablePackInput, ExecutableProgramError,
-    ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
+    CallableInstanceKey, ExecutableArgumentPackPlan, ExecutableItemKey, ExecutablePackInput,
+    ExecutablePackSegment, ExecutablePackSpread, ExecutableProgramError, ExecutableSequencePlan,
 };
 
 pub(super) struct DraftSequencePlan {
@@ -20,16 +20,27 @@ pub(super) struct DraftSequencePlan {
     constructor: ExecutableItemKey,
     input: ExecutablePackInput,
     result: TypeId,
-    segments: Vec<ExecutableSequenceSegment>,
+    segments: Vec<ExecutablePackSegment>,
     allocation: nocter_checking::AllocationSelection,
 }
 
 struct SegmentSpecialization<'a> {
     owner: BodyNodeId,
+    sequence: bool,
     input: ExecutablePackInput,
     substitution: &'a TypeSubstitution,
     dispatches: &'a [DraftDispatchEdge],
     node_types: &'a BTreeMap<BodyNodeId, TypeId>,
+}
+
+impl SegmentSpecialization<'_> {
+    fn invalid(&self) -> ExecutableProgramError {
+        if self.sequence {
+            ExecutableProgramError::InvalidSequencePlan(self.owner)
+        } else {
+            ExecutableProgramError::InvalidArgumentPackPlan(self.owner)
+        }
+    }
 }
 
 impl DraftSequencePlan {
@@ -109,17 +120,19 @@ impl ExecutableClosureBuilder<'_> {
                 return Err(ExecutableProgramError::InvalidSequencePlan(source));
             }
             let segments = sequence
-                .elements()
+                .pack()
+                .segments()
                 .iter()
                 .map(|element| {
                     let context = SegmentSpecialization {
                         owner: source,
+                        sequence: true,
                         input,
                         substitution,
                         dispatches,
                         node_types: &node_types,
                     };
-                    self.specialize_sequence_segment(element, &context, drops)
+                    self.specialize_pack_segment(element, &context, drops)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             plans.push(DraftSequencePlan {
@@ -134,36 +147,126 @@ impl ExecutableClosureBuilder<'_> {
         Ok(plans)
     }
 
-    fn specialize_sequence_segment(
+    pub(super) fn specialize_call_argument_packs(
         &mut self,
-        element: &SequenceElement,
+        body: BodyId,
+        dependencies: &crate::CheckedBodyDependencies,
+        substitution: &TypeSubstitution,
+        dispatches: &[DraftDispatchEdge],
+        incoming_pack: Option<ExecutablePackInput>,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<Vec<ExecutableArgumentPackPlan>, ExecutableProgramError> {
+        let checked = self
+            .target
+            .checked()
+            .bodies()
+            .get(body)
+            .ok_or(ExecutableProgramError::UnknownBody(body))?;
+        let node_types = dependencies
+            .nodes()
+            .iter()
+            .copied()
+            .map(|node| {
+                checked
+                    .nodes()
+                    .get(node)
+                    .map(|checked| (node, checked.ty()))
+                    .ok_or(ExecutableProgramError::MissingRoot(node))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let mut plans = Vec::new();
+        for source in dependencies.nodes().iter().copied() {
+            let Some(node) = checked.nodes().get(source) else {
+                return Err(ExecutableProgramError::MissingRoot(source));
+            };
+            let nocter_checking::CheckedOperation::Call(call) = node.operation() else {
+                continue;
+            };
+            let Some(pack) = call.pack() else {
+                continue;
+            };
+            let nocter_checking::CallTarget::Static(selection) = call.target() else {
+                return Err(ExecutableProgramError::InvalidArgumentPackPlan(source));
+            };
+            let key = direct_callable_key(dispatches, selection)
+                .ok_or(ExecutableProgramError::InvalidArgumentPackPlan(source))?;
+            let signature = super::callable_signature(
+                self.target,
+                &mut self.resolver,
+                &key,
+                &key.substitution(),
+            )?;
+            let input = signature
+                .pack()
+                .ok_or(ExecutableProgramError::InvalidArgumentPackPlan(source))?;
+            let ordinary_count = call.arguments().len() + usize::from(call.receiver().is_some());
+            if signature.inputs().len() != ordinary_count
+                || signature.result() != self.resolver.specialize_type(node.ty(), substitution)?
+            {
+                return Err(ExecutableProgramError::InvalidArgumentPackPlan(source));
+            }
+            if let Some(forwarded) = pack.forwarded_parameter() {
+                let Some(incoming) = incoming_pack else {
+                    return Err(ExecutableProgramError::InvalidArgumentPackPlan(source));
+                };
+                if incoming.source() != forwarded
+                    || incoming.element() != input.element()
+                    || incoming.next() != input.next()
+                    || !pack.segments().is_empty()
+                {
+                    return Err(ExecutableProgramError::InvalidArgumentPackPlan(source));
+                }
+                plans.push(ExecutableArgumentPackPlan::forwarded(source, input));
+                continue;
+            }
+            let context = SegmentSpecialization {
+                owner: source,
+                sequence: false,
+                input,
+                substitution,
+                dispatches,
+                node_types: &node_types,
+            };
+            let segments = pack
+                .segments()
+                .iter()
+                .map(|segment| self.specialize_pack_segment(segment, &context, drops))
+                .collect::<Result<Vec<_>, _>>()?;
+            plans.push(ExecutableArgumentPackPlan::new(source, input, segments));
+        }
+        Ok(plans)
+    }
+
+    fn specialize_pack_segment(
+        &mut self,
+        element: &ArgumentPackSegment,
         context: &SegmentSpecialization<'_>,
         drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
-    ) -> Result<ExecutableSequenceSegment, ExecutableProgramError> {
+    ) -> Result<ExecutablePackSegment, ExecutableProgramError> {
         match element {
-            SequenceElement::Value(source) => {
+            ArgumentPackSegment::Value(source) => {
                 let source_type = context
                     .node_types
                     .get(source)
                     .copied()
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                    .ok_or_else(|| context.invalid())?;
                 let ty = self
                     .resolver
                     .specialize_type(source_type, context.substitution)?;
                 if ty != context.input.element() {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
+                    return Err(context.invalid());
                 }
                 let destruction = self
                     .resolver
                     .resolve_destruction(source_type, context.substitution)?;
                 self.record_sequence_destruction(destruction.as_ref(), drops)?;
-                Ok(ExecutableSequenceSegment::Value {
+                Ok(ExecutablePackSegment::Value {
                     source: *source,
                     ty,
                     destruction,
                 })
             }
-            SequenceElement::Spread {
+            ArgumentPackSegment::Spread {
                 mode,
                 iteration,
                 exact_size,
@@ -171,13 +274,13 @@ impl ExecutableClosureBuilder<'_> {
                 if !is_invocation_dispatch(context.dispatches, iteration.next())
                     || !is_invocation_dispatch(context.dispatches, exact_size)
                 {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
+                    return Err(context.invalid());
                 }
                 let iterator_type = context
                     .node_types
                     .get(&iteration.iterator())
                     .copied()
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                    .ok_or_else(|| context.invalid())?;
                 let destruction = self
                     .resolver
                     .resolve_destruction(iterator_type, context.substitution)?;
@@ -189,28 +292,26 @@ impl ExecutableClosureBuilder<'_> {
                     .specialize_type(iteration.item(), context.substitution)?;
                 let contribution = mode
                     .contribution_type(self.target.checked().types(), iteration.item())
-                    .ok_or(ExecutableProgramError::InvalidSequencePlan(context.owner))?;
+                    .ok_or_else(|| context.invalid())?;
                 let contribution = self
                     .resolver
                     .specialize_type(contribution, context.substitution)?;
                 if contribution != context.input.element() {
-                    return Err(ExecutableProgramError::InvalidSequencePlan(context.owner));
+                    return Err(context.invalid());
                 }
                 self.record_sequence_destruction(destruction.as_ref(), drops)?;
-                Ok(ExecutableSequenceSegment::Spread(
-                    ExecutableSequenceSpread::new(
-                        *mode,
-                        ExecutableSequenceIteration::new(
-                            iteration.iterator(),
-                            iterator_type,
-                            item,
-                            iteration.next().clone(),
-                            exact_size.clone(),
-                        ),
-                        contribution,
-                        destruction,
+                Ok(ExecutablePackSegment::Spread(ExecutablePackSpread::new(
+                    *mode,
+                    ExecutablePackIteration::new(
+                        iteration.iterator(),
+                        iterator_type,
+                        item,
+                        iteration.next().clone(),
+                        exact_size.clone(),
                     ),
-                ))
+                    contribution,
+                    destruction,
+                )))
             }
         }
     }

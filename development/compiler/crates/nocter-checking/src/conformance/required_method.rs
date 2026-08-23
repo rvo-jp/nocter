@@ -13,7 +13,7 @@ use crate::type_relations::TypeSubstitution;
 pub struct RequiredConformanceParameter {
     declaration: ParameterId,
     ty: TypeId,
-    variadic: bool,
+    argument_pack: bool,
 }
 
 impl RequiredConformanceParameter {
@@ -28,8 +28,8 @@ impl RequiredConformanceParameter {
     }
 
     #[must_use]
-    pub const fn variadic(self) -> bool {
-        self.variadic
+    pub const fn is_argument_pack(self) -> bool {
+        self.argument_pack
     }
 }
 
@@ -66,7 +66,7 @@ impl RequiredConformanceMethod {
             .get(receiver_id)
             .and_then(|parameter| match parameter.role() {
                 ParameterRole::Receiver(capability) => Some(capability),
-                ParameterRole::Ordinary { .. } => None,
+                ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => None,
             })
             .ok_or(ConformanceInternalError::MissingParameter(receiver_id))?;
 
@@ -86,13 +86,17 @@ impl RequiredConformanceMethod {
                     .parameters()
                     .get(*id)
                     .ok_or(ConformanceInternalError::MissingParameter(*id))?;
-                let ParameterRole::Ordinary { variadic, .. } = parameter.role() else {
-                    return Err(ConformanceInternalError::MissingParameter(*id));
+                let argument_pack = match parameter.role() {
+                    ParameterRole::Ordinary { .. } => false,
+                    ParameterRole::ArgumentPack { .. } => true,
+                    ParameterRole::Receiver(_) => {
+                        return Err(ConformanceInternalError::MissingParameter(*id));
+                    }
                 };
                 Ok(RequiredConformanceParameter {
                     declaration: *id,
                     ty: substitution.apply_type(types, parameter.ty())?,
-                    variadic,
+                    argument_pack,
                 })
             })
             .collect::<Result<Vec<_>, ConformanceInternalError>>()?;

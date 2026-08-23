@@ -5,18 +5,53 @@ use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::BodyChecker;
-use super::value_planning::{CallResultContext, PositionalValueContext};
+use super::iterations::CheckedSpreadDraft;
+use super::value_planning::{CallResultContext, PositionalValueContext, ValueDraft};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::conformance::normalize_requirements;
 use crate::syntax::direct_nodes;
 use crate::type_relations::TypeSubstitution;
-use crate::{CheckedPredicate, GenericArgument, GenericArguments, NameTarget};
+use crate::{
+    ArgumentPackSegment, CallableInference, CheckedArgumentPack, CheckedPredicate,
+    CheckedRequirement, GenericArgument, GenericArguments, NameTarget,
+};
 
 pub(super) struct DeclaredCallPlan {
     pub(super) arguments: Vec<BodyNodeId>,
+    pub(super) pack: Option<CheckedArgumentPack>,
     pub(super) generic_arguments: GenericArguments,
     pub(super) result: TypeId,
+}
+
+struct DeclaredParameterShape {
+    fixed: Vec<TypeId>,
+    pack: Option<TypeId>,
+}
+
+enum PackSegmentDraft {
+    Value(usize),
+    Spread(CheckedSpreadDraft),
+}
+
+enum ArgumentPackDraft {
+    Prepared(Vec<PackSegmentDraft>),
+    Forwarded(nocter_model::ParameterId),
+}
+
+#[derive(Clone, Copy)]
+struct CallValuePatterns<'a> {
+    fixed: &'a [TypeId],
+    pack: Option<TypeId>,
+    inference_parameters: &'a [GenericParameterId],
+    requirements: &'a [CheckedRequirement],
+}
+
+struct DraftedCallValues {
+    values: Vec<ValueDraft>,
+    destinations: Vec<TypeId>,
+    pack: Option<ArgumentPackDraft>,
+    inference: CallableInference,
 }
 
 #[derive(Clone, Copy)]
@@ -74,15 +109,34 @@ impl BodyChecker<'_, '_> {
         for argument in generics.fixed_arguments {
             substitution.bind_generic(argument.parameter(), argument.ty());
         }
-        let parameter_types = self
-            .declared_parameter_types(callable_id, callable, suffix, argument_syntax.len())?
-            .into_iter()
+        let parameters = self.declared_parameter_shape(callable_id, callable)?;
+        if argument_syntax.len() < parameters.fixed.len()
+            || parameters.pack.is_none() && argument_syntax.len() != parameters.fixed.len()
+            || argument_syntax
+                .iter()
+                .take(parameters.fixed.len())
+                .any(|argument| self.kind(*argument).ok() == Some(NodeKind::SpreadExpression))
+        {
+            return Err(self.rule(BodyRule::InvalidCall, suffix)?);
+        }
+        let fixed_patterns = parameters
+            .fixed
+            .iter()
+            .copied()
             .map(|parameter| {
                 substitution
                     .apply_type(self.types, parameter)
                     .map_err(BodyCheckInternalError::CallSubstitution)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let pack_pattern = parameters
+            .pack
+            .map(|parameter| {
+                substitution
+                    .apply_type(self.types, parameter)
+                    .map_err(BodyCheckInternalError::CallSubstitution)
+            })
+            .transpose()?;
         let result = substitution
             .apply_type(self.types, callable.result())
             .map_err(BodyCheckInternalError::CallSubstitution)?;
@@ -93,18 +147,31 @@ impl BodyChecker<'_, '_> {
             callable.requirements(),
         )
         .map_err(BodyCheckInternalError::CallSubstitution)?;
-        let (arguments, inferred_arguments) = self.infer_positional_values(
-            argument_syntax,
-            PositionalValueContext {
-                owner: node,
-                result,
+        let DraftedCallValues {
+            mut values,
+            destinations,
+            pack,
+            inference,
+        } = self.draft_declared_call_values(
+            &argument_syntax,
+            CallValuePatterns {
+                fixed: &fixed_patterns,
+                pack: pack_pattern,
                 inference_parameters: generics.inference_parameters,
-                destination_types: &parameter_types,
                 requirements: &requirements,
-                result_context,
-                failure_rule: BodyRule::InvalidCall,
             },
         )?;
+        let context = PositionalValueContext {
+            owner: node,
+            result,
+            inference_parameters: generics.inference_parameters,
+            destination_types: &destinations,
+            requirements: &requirements,
+            result_context,
+            failure_rule: BodyRule::InvalidCall,
+        };
+        let inferred_arguments =
+            self.finish_positional_inference(&mut values, &context, inference)?;
         for argument in inferred_arguments.as_slice() {
             substitution.bind_generic(argument.parameter(), argument.ty());
         }
@@ -119,58 +186,129 @@ impl BodyChecker<'_, '_> {
         if !self.requirements_hold(callable.requirements(), &substitution)? {
             return Err(self.rule(BodyRule::InvalidCall, node)?);
         }
-        let arguments =
-            self.materialize_positional_values(arguments, parameter_types, &substitution)?;
+        let values = self.materialize_positional_values(values, destinations, &substitution)?;
+        let arguments = values[..fixed_patterns.len()].to_vec();
+        if parameters.pack.is_some() != pack.is_some() {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
+        let pack = pack
+            .map(|pack| materialize_argument_pack(node, pack, &values))
+            .transpose()?;
         let result = substitution
             .apply_type(self.types, result)
             .map_err(BodyCheckInternalError::CallSubstitution)?;
         Ok(DeclaredCallPlan {
             arguments,
+            pack,
             generic_arguments,
             result,
         })
     }
 
-    fn declared_parameter_types(
+    fn draft_declared_call_values(
+        &mut self,
+        arguments: &[NodeId],
+        patterns: CallValuePatterns<'_>,
+    ) -> Result<DraftedCallValues, BodyCheckError> {
+        let mut inference = CallableInference::new(patterns.inference_parameters);
+        let mut values = Vec::new();
+        let mut destinations = Vec::new();
+        for (syntax, destination) in arguments
+            .iter()
+            .take(patterns.fixed.len())
+            .copied()
+            .zip(patterns.fixed.iter().copied())
+        {
+            values.push(self.draft_positional_value(
+                syntax,
+                destination,
+                patterns.inference_parameters,
+                patterns.requirements,
+                &mut inference,
+                BodyRule::InvalidCall,
+            )?);
+            destinations.push(destination);
+        }
+        let pack = if let Some(element) = patterns.pack {
+            let mut segments = Vec::new();
+            let pack_syntax = &arguments[patterns.fixed.len()..];
+            for (position, syntax) in pack_syntax.iter().copied().enumerate() {
+                if self.kind(syntax)? == NodeKind::SpreadExpression {
+                    let source = self.required_child(syntax, NodeKind::Expression)?;
+                    if let Some((parameter, contribution)) = self.argument_pack_parameter(source)? {
+                        if position != 0 || pack_syntax.len() != 1 {
+                            return Err(self.rule(BodyRule::InvalidArgumentPackUse, syntax)?);
+                        }
+                        self.register_argument_pack_forwarding(parameter, syntax)?;
+                        inference.constrain_exact(element, contribution);
+                        return Ok(DraftedCallValues {
+                            values,
+                            destinations,
+                            pack: Some(ArgumentPackDraft::Forwarded(parameter)),
+                            inference,
+                        });
+                    }
+                    let spread = self.check_argument_spread(syntax, syntax)?;
+                    inference.constrain_exact(element, spread.contribution);
+                    segments.push(PackSegmentDraft::Spread(spread));
+                    continue;
+                }
+                let position = values.len();
+                values.push(self.draft_positional_value(
+                    syntax,
+                    element,
+                    patterns.inference_parameters,
+                    patterns.requirements,
+                    &mut inference,
+                    BodyRule::InvalidCall,
+                )?);
+                destinations.push(element);
+                segments.push(PackSegmentDraft::Value(position));
+            }
+            Some(ArgumentPackDraft::Prepared(segments))
+        } else {
+            None
+        };
+        Ok(DraftedCallValues {
+            values,
+            destinations,
+            pack,
+            inference,
+        })
+    }
+
+    fn declared_parameter_shape(
         &self,
         callable_id: nocter_model::CallableId,
         callable: &CallableDeclaration,
-        suffix: NodeId,
-        argument_count: usize,
-    ) -> Result<Vec<TypeId>, BodyCheckError> {
-        if argument_count != callable.parameters().len() {
-            return Err(self.rule(BodyRule::InvalidCall, suffix)?);
-        }
-        callable
-            .parameters()
-            .iter()
-            .copied()
-            .map(|parameter| {
-                let parameter = self
-                    .graph
-                    .declarations()
-                    .parameters()
-                    .get(parameter)
-                    .copied()
-                    .ok_or(BodyCheckInternalError::MissingParameterType(
-                        NameTarget::Exported(ExportedEntity::Callable(callable_id)),
-                    ))?;
-                if !matches!(
-                    parameter.role(),
-                    ParameterRole::Ordinary {
-                        variadic: false,
-                        ..
-                    }
-                ) {
-                    return Err(BodyCheckInternalError::UnsupportedSyntax(
-                        suffix,
-                        NodeKind::CallSuffix,
-                    ));
+    ) -> Result<DeclaredParameterShape, BodyCheckError> {
+        let mut fixed = Vec::new();
+        let mut pack = None;
+        for parameter in callable.parameters().iter().copied() {
+            let parameter = self
+                .graph
+                .declarations()
+                .parameters()
+                .get(parameter)
+                .copied()
+                .ok_or(BodyCheckInternalError::MissingParameterType(
+                    NameTarget::Exported(ExportedEntity::Callable(callable_id)),
+                ))?;
+            match parameter.role() {
+                ParameterRole::Ordinary { .. } if pack.is_none() => {
+                    fixed.push(parameter.ty());
                 }
-                Ok(parameter.ty())
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
+                ParameterRole::ArgumentPack { .. } if pack.is_none() => {
+                    pack = Some(parameter.ty());
+                }
+                ParameterRole::Ordinary { .. }
+                | ParameterRole::ArgumentPack { .. }
+                | ParameterRole::Receiver(_) => {
+                    return Err(BodyCheckInternalError::InvalidSyntax(self.source.block()).into());
+                }
+            }
+        }
+        Ok(DeclaredParameterShape { fixed, pack })
     }
 
     pub(super) fn requirements_hold(
@@ -219,4 +357,33 @@ impl BodyChecker<'_, '_> {
             .map_err(BodyCheckInternalError::from)
             .map_err(Into::into)
     }
+}
+
+fn materialize_argument_pack(
+    owner: NodeId,
+    pack: ArgumentPackDraft,
+    values: &[BodyNodeId],
+) -> Result<CheckedArgumentPack, BodyCheckError> {
+    let segments = match pack {
+        ArgumentPackDraft::Forwarded(parameter) => {
+            return Ok(CheckedArgumentPack::forwarded(parameter));
+        }
+        ArgumentPackDraft::Prepared(segments) => segments,
+    };
+    let segments = segments
+        .into_iter()
+        .map(|segment| match segment {
+            PackSegmentDraft::Value(position) => values
+                .get(position)
+                .copied()
+                .map(ArgumentPackSegment::Value)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(owner).into()),
+            PackSegmentDraft::Spread(spread) => Ok(ArgumentPackSegment::Spread {
+                mode: spread.mode,
+                iteration: spread.iteration,
+                exact_size: spread.exact_size,
+            }),
+        })
+        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    Ok(CheckedArgumentPack::new(segments))
 }

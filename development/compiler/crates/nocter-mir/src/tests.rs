@@ -391,7 +391,8 @@ fn build_pack_call(
         );
         MirCall::with_pack(
             MirCallTarget::Direct(literal),
-            pack,
+            [],
+            crate::MirCallPack::Prepared(pack),
             MirCallAllocation::Inherit,
         )
     } else {

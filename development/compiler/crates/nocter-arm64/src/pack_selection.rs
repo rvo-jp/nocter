@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineCall, MachineCallableAbi, MachineOperationId, MachinePackId, MachinePackSegment,
-    MachineValueId, MachineValueRepresentation,
+    MachineCall, MachineCallPack, MachineCallableAbi, MachineFunctionKind, MachineOperationId,
+    MachinePackId, MachinePackSegment, MachineValueId, MachineValueRepresentation,
 };
 
 use crate::{
@@ -18,12 +18,12 @@ pub(crate) fn select_call_pack(
 ) -> Result<(), Arm64SelectionError> {
     let (pack_id, pack_abi) = match (call.pack(), abi.pack()) {
         (None, None) => return Ok(()),
-        (Some(pack), Some(abi)) => (pack, abi),
+        (Some(MachineCallPack::Forwarded), Some(pack_abi)) => {
+            return select_forwarded_pack(context, operation, pack_abi, selected);
+        }
+        (Some(MachineCallPack::Prepared(pack)), Some(abi)) => (pack, abi),
         _ => return Err(Arm64SelectionError::CallPack(operation)),
     };
-    if !call.arguments().is_empty() {
-        return Err(Arm64SelectionError::CallPack(operation));
-    }
     let body = context
         .program()
         .function(context.owner())
@@ -71,6 +71,43 @@ pub(crate) fn select_call_pack(
         pack_abi.pointer().first(),
         selected,
     )
+}
+
+fn select_forwarded_pack(
+    context: crate::Arm64SelectionContext<'_>,
+    operation: MachineOperationId,
+    target: nocter_machine::MachinePackAbi,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let function = context
+        .program()
+        .function(context.owner())
+        .ok_or(Arm64SelectionError::UnknownFunction(context.owner()))?;
+    let MachineFunctionKind::Callable(abi) = function.kind() else {
+        return Err(Arm64SelectionError::CallPack(operation));
+    };
+    let incoming = abi.pack().ok_or(Arm64SelectionError::CallPack(operation))?;
+    if incoming.element() != target.element()
+        || incoming.next() != target.next()
+        || incoming.next_result() != target.next_result()
+        || incoming.pointer().words() != 1
+        || target.pointer().words() != 1
+    {
+        return Err(Arm64SelectionError::CallPack(operation));
+    }
+    let pointer = context
+        .frame()
+        .pack_input_pointer()
+        .ok_or(Arm64SelectionError::CallPack(operation))?;
+    let destination = crate::Arm64NocterAbi::argument_register(target.pointer().first())
+        .ok_or(Arm64SelectionError::CallPack(operation))?;
+    selected.push(Arm64SelectedInstruction::LoadMemory {
+        bytes: word_bytes(),
+        extension: Arm64SelectedLoadExtension::Zero,
+        destination: Arm64SelectedRegister::Fixed(destination),
+        source: frame_memory(pointer, 0),
+    });
+    Ok(())
 }
 
 fn select_segment(

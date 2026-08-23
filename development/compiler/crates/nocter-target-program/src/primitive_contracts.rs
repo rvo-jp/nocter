@@ -254,11 +254,7 @@ fn validate_parameters(
             .get(*parameter)
             .ok_or(PrimitiveContractRule::ParameterShape)?;
         if actual.owner() != ParameterOwner::Callable(callable)
-            || actual.role()
-                != (ParameterRole::Ordinary {
-                    position,
-                    variadic: false,
-                })
+            || actual.role() != (ParameterRole::Ordinary { position })
             || !type_matches(
                 graph,
                 types,

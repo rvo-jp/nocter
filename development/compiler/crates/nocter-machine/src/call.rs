@@ -66,14 +66,21 @@ pub enum MachineCallAllocation {
     Explicit(MachineAddressId),
 }
 
-/// One call instruction. A literal pack occupies its dedicated hidden ABI lane rather than the
+/// The hidden pack lane either owns a prepared descriptor or forwards the incoming descriptor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineCallPack {
+    Prepared(MachinePackId),
+    Forwarded,
+}
+
+/// One call instruction. An argument pack occupies its dedicated hidden ABI lane rather than the
 /// ordinary argument list.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineCall {
     target: MachineCallTarget,
     arguments: Box<[MachineValueId]>,
     allocation: MachineCallAllocation,
-    pack: Option<MachinePackId>,
+    pack: Option<MachineCallPack>,
 }
 
 impl MachineCall {
@@ -81,7 +88,7 @@ impl MachineCall {
         target: MachineCallTarget,
         arguments: impl Into<Box<[MachineValueId]>>,
         allocation: MachineCallAllocation,
-        pack: Option<MachinePackId>,
+        pack: Option<MachineCallPack>,
     ) -> Self {
         Self {
             target,
@@ -107,7 +114,7 @@ impl MachineCall {
     }
 
     #[must_use]
-    pub const fn pack(&self) -> Option<MachinePackId> {
+    pub const fn pack(&self) -> Option<MachineCallPack> {
         self.pack
     }
 }

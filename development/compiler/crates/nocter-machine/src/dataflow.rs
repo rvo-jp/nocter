@@ -390,7 +390,7 @@ fn add_call_inputs(
     if let MachineCallAllocation::Explicit(address) = call.allocation() {
         add_address_inputs(body, address, inputs)?;
     }
-    if let Some(pack) = call.pack() {
+    if let Some(crate::MachineCallPack::Prepared(pack)) = call.pack() {
         add_pack_inputs(body, pack, inputs)?;
     }
     Ok(())

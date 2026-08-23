@@ -1,19 +1,19 @@
-use nocter_checking::{AllocationSelection, ConcreteDestructionPlan, SpreadMode, StaticSelection};
-use nocter_model::{BodyNodeId, ExecutableItemId, TypeId};
+use nocter_checking::{ConcreteDestructionPlan, SpreadMode, StaticSelection};
+use nocter_model::{BodyNodeId, TypeId};
 
 use super::ExecutablePackInput;
 
-/// One concrete spread segment retained by a sequence-literal call site.
+/// One concrete spread segment retained by an argument-pack call site.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutableSequenceSpread {
+pub struct ExecutablePackSpread {
     mode: SpreadMode,
-    iteration: ExecutableSequenceIteration,
+    iteration: ExecutablePackIteration,
     contribution: TypeId,
     destruction: Option<ConcreteDestructionPlan>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ExecutableSequenceIteration {
+pub(crate) struct ExecutablePackIteration {
     iterator: BodyNodeId,
     iterator_type: TypeId,
     item: TypeId,
@@ -21,7 +21,7 @@ pub(crate) struct ExecutableSequenceIteration {
     exact_size: StaticSelection,
 }
 
-impl ExecutableSequenceIteration {
+impl ExecutablePackIteration {
     pub(crate) const fn new(
         iterator: BodyNodeId,
         iterator_type: TypeId,
@@ -39,10 +39,10 @@ impl ExecutableSequenceIteration {
     }
 }
 
-impl ExecutableSequenceSpread {
+impl ExecutablePackSpread {
     pub(crate) fn new(
         mode: SpreadMode,
-        iteration: ExecutableSequenceIteration,
+        iteration: ExecutablePackIteration,
         contribution: TypeId,
         destruction: Option<ConcreteDestructionPlan>,
     ) -> Self {
@@ -95,44 +95,49 @@ impl ExecutableSequenceSpread {
     }
 }
 
-/// One source-ordered producer in a concrete sequence-literal pack.
+/// One source-ordered producer in a concrete argument pack.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ExecutableSequenceSegment {
+pub enum ExecutablePackSegment {
     Value {
         source: BodyNodeId,
         ty: TypeId,
         destruction: Option<ConcreteDestructionPlan>,
     },
-    Spread(ExecutableSequenceSpread),
+    Spread(ExecutablePackSpread),
 }
 
-/// One complete call-site plan for a compiler-owned sequence-literal pack.
+/// One fully specialized caller-owned argument pack.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutableSequencePlan {
+pub struct ExecutableArgumentPackPlan {
     source: BodyNodeId,
-    constructor: ExecutableItemId,
     input: ExecutablePackInput,
-    result: TypeId,
-    segments: Box<[ExecutableSequenceSegment]>,
-    allocation: AllocationSelection,
+    transport: ExecutableArgumentPackTransport,
 }
 
-impl ExecutableSequencePlan {
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum ExecutableArgumentPackTransport {
+    Prepared(Box<[ExecutablePackSegment]>),
+    Forwarded,
+}
+
+impl ExecutableArgumentPackPlan {
     pub(crate) fn new(
         source: BodyNodeId,
-        constructor: ExecutableItemId,
         input: ExecutablePackInput,
-        result: TypeId,
-        segments: impl Into<Box<[ExecutableSequenceSegment]>>,
-        allocation: AllocationSelection,
+        segments: impl Into<Box<[ExecutablePackSegment]>>,
     ) -> Self {
         Self {
             source,
-            constructor,
             input,
-            result,
-            segments: segments.into(),
-            allocation,
+            transport: ExecutableArgumentPackTransport::Prepared(segments.into()),
+        }
+    }
+
+    pub(crate) fn forwarded(source: BodyNodeId, input: ExecutablePackInput) -> Self {
+        Self {
+            source,
+            input,
+            transport: ExecutableArgumentPackTransport::Forwarded,
         }
     }
 
@@ -142,27 +147,21 @@ impl ExecutableSequencePlan {
     }
 
     #[must_use]
-    pub const fn constructor(&self) -> ExecutableItemId {
-        self.constructor
-    }
-
-    #[must_use]
     pub const fn input(&self) -> ExecutablePackInput {
         self.input
     }
 
     #[must_use]
-    pub const fn result(&self) -> TypeId {
-        self.result
+    pub const fn segments(&self) -> &[ExecutablePackSegment] {
+        match &self.transport {
+            ExecutableArgumentPackTransport::Prepared(segments) => segments,
+            ExecutableArgumentPackTransport::Forwarded => &[],
+        }
     }
 
+    /// Returns whether the caller's incoming descriptor is passed through without adaptation.
     #[must_use]
-    pub const fn segments(&self) -> &[ExecutableSequenceSegment] {
-        &self.segments
-    }
-
-    #[must_use]
-    pub const fn allocation(&self) -> AllocationSelection {
-        self.allocation
+    pub const fn is_forwarded(&self) -> bool {
+        matches!(&self.transport, ExecutableArgumentPackTransport::Forwarded)
     }
 }

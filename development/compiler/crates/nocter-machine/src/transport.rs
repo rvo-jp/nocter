@@ -108,7 +108,7 @@ impl MachineArgumentAbi {
     }
 }
 
-/// The compiler-owned pointer lane used only by a sequence-literal body.
+/// The compiler-owned pointer lane used by an argument-pack body.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachinePackAbi {
     element: TypeId,
@@ -225,7 +225,7 @@ impl MachineAbiPlan {
     /// # Errors
     ///
     /// Rejects a missing parameter local, an invalid completion argument, a missing stored layout,
-    /// a malformed literal-pack signature, or overflowing stack placement.
+    /// a malformed argument-pack signature, or overflowing stack placement.
     pub fn build(
         program: &MirProgram,
         layouts: &MachineLayoutStore,
@@ -280,9 +280,6 @@ fn plan_function(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let pack = function.pack();
-    if pack.is_some() && !parameters.is_empty() {
-        return Err(MachineAbiError::PackWithOrdinaryArguments(function.item()));
-    }
     if let Some(pack) = pack {
         require_layout(types, layouts, pack.element())?;
         require_layout(types, layouts, pack.next())?;
@@ -455,7 +452,6 @@ pub enum MachineAbiError {
     MissingLayout(TypeId),
     MissingParameterLocal(nocter_model::MirLocalId),
     CompletionArgument(TypeId),
-    PackWithOrdinaryArguments(ExecutableItemId),
     MismatchedFunctionIdentity {
         expected: ExecutableItemId,
         actual: ExecutableItemId,

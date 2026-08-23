@@ -365,11 +365,7 @@ fn validate_format_method(
         || !is_public(graph, interface_declaration.site())
         || !is_public(graph, callable.site())
         || receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
-        || output.role()
-            != (ParameterRole::Ordinary {
-                position: 0,
-                variadic: false,
-            })
+        || output.role() != (ParameterRole::Ordinary { position: 0 })
         || callable.result() != types.builtin(BuiltinType::Void)
     {
         return Err(StandardSemanticError::InvalidFormatContract);

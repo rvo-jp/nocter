@@ -61,7 +61,8 @@ Rules:
 
 - Top-level function, construction function, method, and primitive calls use positional arguments.
 - Argument expressions are matched to parameters by position.
-- Argument count must match parameter count exactly.
+- Fixed arguments must satisfy every ordinary parameter. A final argument-pack parameter accepts
+  zero or more remaining values and spreads.
 - Each argument must type-check against the corresponding parameter type under the normal contextual typing, ownership, move, copy, and borrow rules.
 - A callable's own generic type arguments are always inferred from its receiver, arguments,
   contextual closures, and expected result type. They are not written at the call site.
@@ -69,7 +70,7 @@ Rules:
 - Method receiver expressions are evaluated before method arguments.
 - Method arguments are then evaluated left to right in the order written.
 - Parameter names are not part of call syntax.
-- Named arguments, default parameters, and variadic functions are not supported.
+- Named arguments and default parameters are not supported.
 - Top-level functions, construction functions, and methods cannot be overloaded by type, arity, or
   return type.
 - A duplicate callable name in the same namespace is a compile error.
@@ -112,7 +113,8 @@ func open(path: &str, mode: OpenMode): File! {
 ```
 
 Use a configuration struct when an API has many boolean or optional choices.
-Variadic capture is not function-parameter syntax. Literal definitions use their own `...items` capture form.
+Typed argument packs and call-site spread are specified in
+[Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md).
 
 ```nct
 pub struct OpenOptions {

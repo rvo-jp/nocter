@@ -302,11 +302,7 @@ impl BodyChecker<'_, '_> {
                     .copied()
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                 if parameter.owner() != ParameterOwner::Variant(variant)
-                    || parameter.role()
-                        != (ParameterRole::Ordinary {
-                            position,
-                            variadic: false,
-                        })
+                    || parameter.role() != (ParameterRole::Ordinary { position })
                 {
                     return Err(BodyCheckInternalError::InvalidSyntax(node));
                 }
@@ -453,6 +449,7 @@ impl BodyChecker<'_, '_> {
                 )),
                 None,
                 plan.arguments,
+                plan.pack,
             )),
         )?;
         result_context

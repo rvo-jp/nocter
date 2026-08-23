@@ -448,7 +448,7 @@ impl Evaluator<'_> {
                 length,
             },
             BoundTypeKind::Callable(callable) => {
-                let parameters = self.results(&key, callable.parameters())?;
+                let mut parameters = self.results(&key, callable.parameters())?.into_vec();
                 let result = self.result(&key, callable.result())?;
                 let provenance = match callable.explicit_origins() {
                     Some(origins) => ResultProvenance::from_origins(origins.iter().copied())
@@ -460,9 +460,20 @@ impl Evaluator<'_> {
                         result,
                     )?,
                 };
+                let pack = if callable.has_argument_pack() {
+                    parameters.pop()
+                } else {
+                    None
+                };
                 TypeKind::Callable(
-                    CallableContract::new(callable.capability(), parameters, result, provenance)
-                        .map_err(|_| TypeNormalizationError::InvalidBoundType(key.ty))?,
+                    CallableContract::new(
+                        callable.capability(),
+                        parameters,
+                        pack,
+                        result,
+                        provenance,
+                    )
+                    .map_err(|_| TypeNormalizationError::InvalidBoundType(key.ty))?,
                 )
             }
             BoundTypeKind::Optional(payload) => TypeKind::Optional(self.result(&key, payload)?),

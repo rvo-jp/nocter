@@ -35,6 +35,7 @@ use crate::{
 
 mod aggregates;
 mod allocation;
+mod argument_pack;
 mod arithmetic;
 mod assignment;
 mod call_planning;
@@ -48,7 +49,6 @@ mod conversions;
 mod expected;
 mod interpolation;
 mod iterations;
-mod literal_pack;
 mod loops;
 mod methods;
 mod opaque_witness;
@@ -144,6 +144,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     builder: CheckedBodyBuilder,
     uses: HashMap<SyntaxOrigin, NameTarget>,
     consumed_uses: HashSet<SyntaxOrigin>,
+    argument_pack_uses: HashMap<nocter_model::ParameterId, argument_pack::ArgumentPackUse>,
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
     capture_declarations: HashMap<SyntaxOrigin, CaptureId>,
     result_type: TypeId,
@@ -271,6 +272,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             builder: CheckedBodyBuilder::new(names),
             uses,
             consumed_uses: HashSet::new(),
+            argument_pack_uses: HashMap::new(),
             local_declarations,
             capture_declarations,
             result_type,

@@ -9,16 +9,18 @@ pub enum DefinitionRule {
     AmbiguousBodylessResultProvenance,
     UnknownAssociatedTypeBinding,
     DuplicateAssociatedTypeBinding,
+    InvalidArgumentPackParameter,
 }
 
 impl DefinitionRule {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::DuplicateConstructionDefault,
         Self::UnknownResultProvenanceOrigin,
         Self::DuplicateResultProvenanceOrigin,
         Self::AmbiguousBodylessResultProvenance,
         Self::UnknownAssociatedTypeBinding,
         Self::DuplicateAssociatedTypeBinding,
+        Self::InvalidArgumentPackParameter,
     ];
 
     #[must_use]
@@ -30,6 +32,7 @@ impl DefinitionRule {
             Self::AmbiguousBodylessResultProvenance => "E0317",
             Self::UnknownAssociatedTypeBinding => "E0318",
             Self::DuplicateAssociatedTypeBinding => "E0319",
+            Self::InvalidArgumentPackParameter => "E0320",
         }
     }
 
@@ -52,6 +55,9 @@ impl DefinitionRule {
             Self::DuplicateAssociatedTypeBinding => {
                 "conformance repeats an associated type binding"
             }
+            Self::InvalidArgumentPackParameter => {
+                "an argument pack must be the one final parameter of a supported callable"
+            }
         }
     }
 
@@ -72,6 +78,9 @@ impl DefinitionRule {
                 "bind an associated type declared by the conformed interface"
             }
             Self::DuplicateAssociatedTypeBinding => "remove the repeated associated type binding",
+            Self::InvalidArgumentPackParameter => {
+                "keep at most one ... parameter in final position; sequence literals require exactly one"
+            }
         }
     }
 
@@ -85,7 +94,8 @@ impl DefinitionRule {
             }
             Self::UnknownResultProvenanceOrigin
             | Self::AmbiguousBodylessResultProvenance
-            | Self::UnknownAssociatedTypeBinding => None,
+            | Self::UnknownAssociatedTypeBinding
+            | Self::InvalidArgumentPackParameter => None,
         }
     }
 }

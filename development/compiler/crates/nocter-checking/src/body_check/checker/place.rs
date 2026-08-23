@@ -560,11 +560,9 @@ impl BodyChecker<'_, '_> {
                             declaration.ty()
                         }
                     }
-                    nocter_declarations::ParameterRole::Ordinary {
-                        variadic: false, ..
-                    } => declaration.ty(),
-                    nocter_declarations::ParameterRole::Ordinary { variadic: true, .. } => {
-                        return Err(self.rule(BodyRule::InvalidLiteralPackUse, node)?);
+                    nocter_declarations::ParameterRole::Ordinary { .. } => declaration.ty(),
+                    nocter_declarations::ParameterRole::ArgumentPack { .. } => {
+                        return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
                     }
                 };
                 (PlaceRoot::Parameter(parameter), ty)

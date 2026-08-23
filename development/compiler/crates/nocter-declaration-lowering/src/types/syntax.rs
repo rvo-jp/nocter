@@ -300,10 +300,17 @@ fn bind_callable(
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let mut parameters = Vec::new();
     let mut named_parameters = Vec::new();
+    let mut has_argument_pack = false;
     let mut names = BTreeMap::new();
-    for parameter in direct_nodes(tree, parameters_node, NodeKind::CallableParameter) {
+    let parameter_nodes = direct_nodes(tree, parameters_node, NodeKind::CallableParameter);
+    for (position, parameter) in parameter_nodes.iter().copied().enumerate() {
         let ty = descendant_value(tree, parameter, values)
             .ok_or(TypeBindingError::InvalidSyntax(parameter))?;
+        let pack = direct_node(tree, parameter, NodeKind::ArgumentPackModifier).is_some();
+        if pack && (has_argument_pack || position + 1 != parameter_nodes.len()) {
+            return Err(TypeBindingError::InvalidSyntax(parameter));
+        }
+        has_argument_pack |= pack;
         let position = parameters.len();
         parameters.push(ty);
         let parameter_name = callable_parameter_name(namespaces, tree, parameter)?;
@@ -330,6 +337,7 @@ fn bind_callable(
         BoundTypeKind::Callable(BoundCallableType {
             capability,
             parameters: parameters.into_boxed_slice(),
+            has_argument_pack,
             result,
             named_parameters: named_parameters.into_boxed_slice(),
             explicit_origins,

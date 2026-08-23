@@ -86,7 +86,7 @@ impl MirBodyBuilder {
         local
     }
 
-    /// Installs the one non-ABI sequence pack input accepted by a literal body.
+    /// Installs the one hidden argument-pack input accepted by a callable body.
     ///
     /// # Errors
     ///

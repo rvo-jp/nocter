@@ -5,8 +5,8 @@ use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, PlaceId};
 use crate::body_check::error::BodyCheckInternalError;
 use crate::checked::CheckedBodyBuilder;
 use crate::{
-    AggregateConstruction, AllocationSelection, CallTarget, CheckedControl, CheckedOperation,
-    CheckedOutcome, LoopKind, PlaceRoot, PrimitiveOperation, ReceiverPreparation, SequenceElement,
+    AggregateConstruction, AllocationSelection, ArgumentPackSegment, CallTarget, CheckedControl,
+    CheckedOperation, CheckedOutcome, LoopKind, PlaceRoot, PrimitiveOperation, ReceiverPreparation,
 };
 
 /// Derives invocation authority from environment access in one closure execution root.
@@ -96,7 +96,7 @@ pub(super) fn infer(
             | CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::Closure(_)
-            | CheckedOperation::LiteralPackLength(_)
+            | CheckedOperation::ArgumentPackLength(_)
             | CheckedOperation::IteratorAcquisition(_)
             | CheckedOperation::Sequence(_)
             | CheckedOperation::StringLiteral { .. }
@@ -172,7 +172,7 @@ fn append_operands(
         | CheckedOperation::Copy(_)
         | CheckedOperation::Move(_)
         | CheckedOperation::Borrow { .. }
-        | CheckedOperation::LiteralPackLength(_)
+        | CheckedOperation::ArgumentPackLength(_)
         | CheckedOperation::Outcome(CheckedOutcome::Absent) => {}
         CheckedOperation::BorrowConversion(conversion) => pending.push(conversion.value()),
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
@@ -189,6 +189,12 @@ fn append_operands(
             pending.extend([comparison.right().value(), comparison.left().value()]);
         }
         CheckedOperation::Call(call) => {
+            if let Some(pack) = call.pack() {
+                pending.extend(pack.segments().iter().rev().map(|segment| match segment {
+                    ArgumentPackSegment::Value(value) => *value,
+                    ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
+                }));
+            }
             pending.extend(call.arguments().iter().rev().copied());
             if let Some(receiver) = call.receiver() {
                 pending.push(receiver.value());
@@ -230,10 +236,10 @@ fn append_operands(
             pending.push(acquisition.source().value());
         }
         CheckedOperation::Sequence(sequence) => {
-            for element in sequence.elements().iter().rev() {
+            for element in sequence.pack().segments().iter().rev() {
                 match element {
-                    SequenceElement::Value(value) => pending.push(*value),
-                    SequenceElement::Spread { iteration, .. } => {
+                    ArgumentPackSegment::Value(value) => pending.push(*value),
+                    ArgumentPackSegment::Spread { iteration, .. } => {
                         pending.push(iteration.iterator());
                     }
                 }
@@ -324,7 +330,7 @@ fn append_control_operands(
                 .ok_or(BodyCheckInternalError::UnknownLoop(*loop_))?;
             pending.push(loop_.body());
             match loop_.kind() {
-                LoopKind::Infinite | LoopKind::LiteralPack { .. } => {}
+                LoopKind::Infinite | LoopKind::ArgumentPack { .. } => {}
                 LoopKind::While { condition } => pending.push(*condition),
                 LoopKind::For { iteration, .. } => pending.push(iteration.iterator()),
                 LoopKind::Range { start, end, .. } => pending.extend([*end, *start]),

@@ -4,12 +4,13 @@ use nocter_declarations::{ProvenanceOrigin, RequirementKind, StructuralCapabilit
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
+use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::provenance::{invocation_place_can_reach_result, type_can_carry_loan};
 use crate::{
     BodyCheckError, BodyCheckInternalError, CallTarget, CheckedCall, CheckedOperation, LoanId,
-    ReceiverPreparation, StaticDispatch,
+    PlaceRoot, ReceiverPreparation, StaticDispatch,
 };
 
 pub(super) struct InvocationLoan {
@@ -274,6 +275,62 @@ impl Analyzer<'_, '_> {
             };
             argument.extend_active(&mut invocation_active);
             arguments.push(argument);
+        }
+        if let Some(pack) = call.pack() {
+            let mut elements =
+                pack.forwarded_parameter()
+                    .map_or_else(LoanValue::independent, |parameter| {
+                        state.value(&LiveSlot::Place(LivePlace::from_parts(
+                            PlaceRoot::Parameter(parameter),
+                            Box::new([]),
+                        )))
+                    });
+            if pack.forwarded_parameter().is_none() {
+                for segment in pack.segments() {
+                    match segment {
+                        crate::ArgumentPackSegment::Value(value) => {
+                            let (carried, reaches) =
+                                self.evaluate(*value, state, &invocation_active)?;
+                            if !reaches {
+                                return Ok(None);
+                            }
+                            let checked = self
+                                .input
+                                .body
+                                .nodes()
+                                .get(*value)
+                                .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                            let argument = match checked.operation() {
+                                CheckedOperation::Borrow { place, .. } => InvocationLoan {
+                                    carried: self.read_place(*place, state)?,
+                                    place: Some(carried),
+                                },
+                                _ => InvocationLoan::carried(carried),
+                            };
+                            elements.union_with(argument.retained(true));
+                            argument.extend_active(&mut invocation_active);
+                        }
+                        crate::ArgumentPackSegment::Spread {
+                            mode, iteration, ..
+                        } => {
+                            let (iterator, reaches) =
+                                self.evaluate(iteration.iterator(), state, &invocation_active)?;
+                            if !reaches {
+                                return Ok(None);
+                            }
+                            let contribution = mode
+                                .contribution_type(self.types, iteration.item())
+                                .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                            if type_can_carry_loan(self.graph, self.types, contribution) {
+                                let item = self.iteration_item_loans(iteration, &iterator)?;
+                                invocation_active.extend(item.all_loans());
+                                elements.union_with(&item);
+                            }
+                        }
+                    }
+                }
+            }
+            arguments.push(InvocationLoan::carried(elements));
         }
         Ok(Some(arguments))
     }

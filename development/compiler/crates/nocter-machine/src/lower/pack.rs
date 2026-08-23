@@ -26,6 +26,7 @@ pub(super) fn lower_packs(
                 return None;
             };
             call.pack()
+                .and_then(nocter_mir::MirCallPack::prepared)
                 .map(|pack| lower_pack(operation, pack, body, addresses, context, ids))
         })
         .collect()

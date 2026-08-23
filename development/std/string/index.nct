@@ -94,6 +94,9 @@ construct String {
 
     pub func copy(value: &str): Self
 
+    /// Concatenates borrowed UTF-8 parts into one owned string.
+    pub func concat(...parts: &str): Self
+
     pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator
 
     pub func from_utf8(candidate: &[u8]): Self!

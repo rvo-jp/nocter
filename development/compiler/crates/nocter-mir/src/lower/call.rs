@@ -8,7 +8,7 @@ use nocter_target_program::{
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirOperationKind, MirPackArgument,
+    MirCall, MirCallAllocation, MirCallPack, MirCallSignature, MirCallTarget, MirOperationKind,
     MirStructuralCall, MirTerminator,
 };
 
@@ -106,6 +106,20 @@ impl FunctionLowerer<'_> {
         if arguments.len() != signature.parameters().len() {
             return Err(MirLoweringError::InvalidDispatch(node));
         }
+        if call.pack().is_some() {
+            let pack = self.lower_call_pack(node)?;
+            let target = self.step_target(node, &step)?;
+            return self.emit_pack_call(
+                ty,
+                target,
+                arguments,
+                pack,
+                self.current_call_allocation(),
+            );
+        }
+        if self.item.body().argument_pack(node).is_some() {
+            return Err(MirLoweringError::InvalidDispatch(node));
+        }
         self.emit_dispatch_step(node, ty, &step, arguments)
     }
 
@@ -156,12 +170,13 @@ impl FunctionLowerer<'_> {
         &mut self,
         ty: TypeId,
         target: MirCallTarget,
-        pack: MirPackArgument,
+        arguments: impl Into<Box<[MirValueId]>>,
+        pack: MirCallPack,
         allocation: MirCallAllocation,
     ) -> Result<MirValueId, MirLoweringError> {
         let value = self.append_value(
             ty,
-            MirOperationKind::Call(MirCall::with_pack(target, pack, allocation)),
+            MirOperationKind::Call(MirCall::with_pack(target, arguments, pack, allocation)),
         )?;
         self.finish_call(ty, value)
     }

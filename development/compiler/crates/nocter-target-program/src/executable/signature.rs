@@ -23,11 +23,11 @@ pub struct ExecutableInput {
     ty: TypeId,
 }
 
-/// One compiler-owned sequence-literal pack input.
+/// One compiler-owned argument-pack input.
 ///
 /// This is deliberately separate from [`ExecutableInput`]: a pack is neither one element value
 /// nor an ordinary variadic ABI parameter. Its concrete call-site representation is selected by
-/// MIR lowering from the frozen sequence plan.
+/// MIR lowering from a frozen prepared or forwarding plan.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutablePackInput {
     source: ParameterId,
@@ -131,13 +131,11 @@ pub(super) fn callable_signature(
             .get(parameter)
             .copied()
             .ok_or(ExecutableProgramError::MissingParameter(parameter))?;
-        if matches!(
-            declaration.role(),
-            ParameterRole::Ordinary { variadic: true, .. }
-        ) {
+        if matches!(declaration.role(), ParameterRole::ArgumentPack { .. }) {
             let element = resolver.specialize_type(declaration.ty(), substitution)?;
             let next = resolver.intern_concrete(TypeKind::Optional(element))?;
-            if callable.kind() != CallableKind::Literal(LiteralShape::Sequence)
+            if callable.kind() == CallableKind::Primitive
+                || callable.kind() == CallableKind::Literal(LiteralShape::String)
                 || pack
                     .replace(ExecutablePackInput {
                         source: parameter,
@@ -146,7 +144,7 @@ pub(super) fn callable_signature(
                     })
                     .is_some()
             {
-                return Err(ExecutableProgramError::InvalidLiteralPackSignature(
+                return Err(ExecutableProgramError::InvalidArgumentPackSignature(
                     key.callable(),
                 ));
             }
@@ -254,7 +252,9 @@ fn runtime_parameter_type(
 ) -> Result<TypeId, ExecutableProgramError> {
     let owner = resolver.specialize_type(parameter.ty(), substitution)?;
     let capability = match parameter.role() {
-        ParameterRole::Ordinary { .. } | ParameterRole::Receiver(CallableCapability::Owned) => {
+        ParameterRole::Ordinary { .. }
+        | ParameterRole::ArgumentPack { .. }
+        | ParameterRole::Receiver(CallableCapability::Owned) => {
             return Ok(owner);
         }
         ParameterRole::Receiver(CallableCapability::Readonly) => BorrowCapability::Readonly,

@@ -279,7 +279,9 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<Option<CallableContract>, BodyCheckInternalError> {
         match expected.map(|expected| self.types.get(expected)) {
-            Some(Some(TypeKind::Callable(contract))) => Ok(Some(contract.clone())),
+            Some(Some(TypeKind::Callable(contract))) if contract.pack().is_none() => {
+                Ok(Some(contract.clone()))
+            }
             Some(None) => Err(BodyCheckInternalError::UnknownType(expected.unwrap())),
             Some(Some(_)) | None => Ok(None),
         }
@@ -477,6 +479,7 @@ pub(super) fn concrete_closure_satisfies(
     actual: &ClosureSignature,
 ) -> bool {
     expected.capability().permits(actual.capability())
+        && expected.pack().is_none()
         && actual.parameters() == expected.parameters()
         && actual.result() == expected.result()
 }

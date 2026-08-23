@@ -2,14 +2,15 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0, Phase 1, and Phase 2 are complete. Phase 0 removed
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 3 are complete. Phase 0 removed
 semantic authority from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the
 backend-visible semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one
 owner. Phase 1 separated direct-only physical-source `include` from directory-module `use`, made
 `index.nct` the sole public contract, and centralized exact-source private access. Phase 2 added
 explicit, separable interface defaults and migrated the standard library to contract-first module
-roots. Typed argument packs are the next planned Phase 3. The exact scope and completion records are in
-`development/milestones/v0.15.0.md`.
+roots. Phase 3 generalized the compiler-owned sequence pack into typed callable argument packs,
+preserving one ownership, provenance, cleanup, and hidden-ABI pipeline. The exact scope and
+completion records are in `development/milestones/v0.15.0.md`.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

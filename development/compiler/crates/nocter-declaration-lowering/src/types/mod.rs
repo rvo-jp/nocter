@@ -43,6 +43,7 @@ impl BoundTypeId {
 pub struct BoundCallableType {
     capability: CallableCapability,
     parameters: Box<[BoundTypeId]>,
+    has_argument_pack: bool,
     result: BoundTypeId,
     named_parameters: Box<[bool]>,
     explicit_origins: Option<Box<[ParameterOrigin]>>,
@@ -57,6 +58,11 @@ impl BoundCallableType {
     #[must_use]
     pub const fn parameters(&self) -> &[BoundTypeId] {
         &self.parameters
+    }
+
+    #[must_use]
+    pub const fn has_argument_pack(&self) -> bool {
+        self.has_argument_pack
     }
 
     #[must_use]

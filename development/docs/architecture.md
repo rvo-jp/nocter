@@ -1114,7 +1114,7 @@ semantics. In particular, built-in `error` values use ordinary value and call pa
 
 The machine program closes compiler-propagated ambient capabilities before target selection. One
 fixed-point algorithm produces separate allocation and process tables across primitives, ordinary
-calls, user drop, and hidden literal-pack callbacks or destructors. Explicit `using` selections
+calls, user drop, and hidden argument-pack callbacks or destructors. Explicit `using` selections
 satisfy an allocation-dependent callee without propagating that allocation requirement; process
 state remains ambient. ARM64 lowering consumes both tables and cannot rediscover context
 requirements from operation shapes.

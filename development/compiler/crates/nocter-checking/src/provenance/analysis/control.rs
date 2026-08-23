@@ -346,7 +346,7 @@ impl Analyzer<'_, '_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::LiteralPack { .. } => true,
+                | LoopKind::ArgumentPack { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
@@ -354,7 +354,7 @@ impl Analyzer<'_, '_> {
                     LoopKind::While { .. }
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
-                        | LoopKind::LiteralPack { .. }
+                        | LoopKind::ArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
@@ -376,7 +376,7 @@ impl Analyzer<'_, '_> {
                 iteration.set_value(PlaceRoot::Local(*binding), value);
             }
             if condition_reaches
-                && let LoopKind::LiteralPack {
+                && let LoopKind::ArgumentPack {
                     binding, parameter, ..
                 } = definition.kind()
             {

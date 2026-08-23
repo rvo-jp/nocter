@@ -3,14 +3,15 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, MirPlaceId, MirValueId, TypeId, TypeKind,
 };
 use nocter_target_program::{
-    ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
+    ExecutableArgumentPackPlan, ExecutablePackInput, ExecutablePackSegment, ExecutablePackSpread,
 };
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
-    MirBinaryOperation, MirCallTarget, MirConstant, MirDestructionPlan, MirOperationKind,
-    MirPackArgument, MirPackContribution, MirPackNext, MirPackSegment, MirPackSpread,
+    MirBinaryOperation, MirCallPack, MirCallTarget, MirConstant, MirDestructionPlan,
+    MirOperationKind, MirPackArgument, MirPackContribution, MirPackInput, MirPackNext,
+    MirPackSegment, MirPackSpread,
 };
 
 #[derive(Clone, Copy)]
@@ -27,7 +28,7 @@ enum PreparedSegment {
     },
     Spread {
         iterator: PreparedIterator,
-        plan: Box<ExecutableSequenceSpread>,
+        plan: Box<ExecutablePackSpread>,
         destruction: Option<MirDestructionPlan>,
     },
 }
@@ -48,39 +49,85 @@ impl FunctionLowerer<'_> {
             return Err(MirLoweringError::InvalidDispatch(node));
         }
         let allocation = self.lower_call_allocation(plan.allocation())?;
-        let prepared = self.prepare_sequence_segments(node, &plan)?;
-        let (length, remaining) = self.compute_pack_length(node, &prepared)?;
-        let segments = self.finish_sequence_segments(node, prepared, remaining)?;
-        let pack = MirPackArgument::new(
-            plan.input().element(),
-            plan.input().next(),
-            length,
-            segments,
-        );
+        let pack = self.lower_pack_argument(node, plan.input(), plan.segments())?;
         self.emit_pack_call(
             ty,
             MirCallTarget::Direct(plan.constructor()),
-            pack,
+            [],
+            MirCallPack::Prepared(pack),
             allocation,
         )
+    }
+
+    pub(super) fn lower_call_pack(
+        &mut self,
+        node: BodyNodeId,
+    ) -> Result<MirCallPack, MirLoweringError> {
+        let plan = self
+            .item
+            .body()
+            .argument_pack(node)
+            .cloned()
+            .ok_or(MirLoweringError::InvalidDispatch(node))?;
+        self.lower_executable_argument_pack(node, &plan)
+    }
+
+    fn lower_executable_argument_pack(
+        &mut self,
+        node: BodyNodeId,
+        plan: &ExecutableArgumentPackPlan,
+    ) -> Result<MirCallPack, MirLoweringError> {
+        if plan.is_forwarded() {
+            let input = self
+                .item
+                .signature()
+                .pack()
+                .ok_or(MirLoweringError::InvalidDispatch(node))?;
+            if input.element() != plan.input().element() || input.next() != plan.input().next() {
+                return Err(MirLoweringError::InvalidDispatch(node));
+            }
+            return Ok(MirCallPack::Forwarded(MirPackInput::new(
+                input.element(),
+                input.next(),
+            )));
+        }
+        self.lower_pack_argument(node, plan.input(), plan.segments())
+            .map(MirCallPack::Prepared)
+    }
+
+    fn lower_pack_argument(
+        &mut self,
+        node: BodyNodeId,
+        input: ExecutablePackInput,
+        segments: &[ExecutablePackSegment],
+    ) -> Result<MirPackArgument, MirLoweringError> {
+        let prepared = self.prepare_sequence_segments(node, input, segments)?;
+        let (length, remaining) = self.compute_pack_length(node, &prepared)?;
+        let segments = self.finish_sequence_segments(node, prepared, remaining)?;
+        Ok(MirPackArgument::new(
+            input.element(),
+            input.next(),
+            length,
+            segments,
+        ))
     }
 
     fn prepare_sequence_segments(
         &mut self,
         owner: BodyNodeId,
-        plan: &ExecutableSequencePlan,
+        input: ExecutablePackInput,
+        segments: &[ExecutablePackSegment],
     ) -> Result<Vec<PreparedSegment>, MirLoweringError> {
-        plan.segments()
+        segments
             .iter()
             .map(|segment| match segment {
-                ExecutableSequenceSegment::Value {
+                ExecutablePackSegment::Value {
                     source,
                     ty,
                     destruction,
                 } => {
                     let value = self.require_value(*source)?;
-                    if self.builder.value_type(value) != Some(*ty) || *ty != plan.input().element()
-                    {
+                    if self.builder.value_type(value) != Some(*ty) || *ty != input.element() {
                         return Err(MirLoweringError::InvalidDispatch(owner));
                     }
                     Ok(PreparedSegment::Value {
@@ -91,7 +138,7 @@ impl FunctionLowerer<'_> {
                             .transpose()?,
                     })
                 }
-                ExecutableSequenceSegment::Spread(spread) => {
+                ExecutablePackSegment::Spread(spread) => {
                     let source = spread.iterator();
                     let value = self.require_value(source)?;
                     if self.builder.value_type(value) != Some(spread.iterator_type()) {
@@ -197,7 +244,7 @@ impl FunctionLowerer<'_> {
         &mut self,
         owner: BodyNodeId,
         iterator: &PreparedIterator,
-        plan: &ExecutableSequenceSpread,
+        plan: &ExecutablePackSpread,
     ) -> Result<(MirValueId, MirCallTarget, TypeId), MirLoweringError> {
         let invocation = self.invocation_plan(owner, plan.next())?;
         let signature = self.step_signature(&invocation.step)?;
@@ -265,7 +312,7 @@ impl FunctionLowerer<'_> {
 
 fn contribution_mode(
     types: &nocter_model::TypeStore,
-    plan: &ExecutableSequenceSpread,
+    plan: &ExecutablePackSpread,
     owner: BodyNodeId,
 ) -> Result<MirPackContribution, MirLoweringError> {
     match plan.mode() {

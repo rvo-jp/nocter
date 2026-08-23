@@ -173,7 +173,9 @@ fn validate_value_positions(
     }
     for (id, parameter) in declarations.parameters().iter() {
         let position = match parameter.role() {
-            ParameterRole::Ordinary { .. } => TypePosition::Data,
+            ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => {
+                TypePosition::Data
+            }
             ParameterRole::Receiver(_) => TypePosition::TypeOperand,
         };
         validate_position(
@@ -210,6 +212,9 @@ fn validate_requirement(
             StructuralCapability::Callable(contract) => {
                 for parameter in contract.parameters() {
                     validate_position(types, source_index, *parameter, TypePosition::Data, entity)?;
+                }
+                if let Some(pack) = contract.pack() {
+                    validate_position(types, source_index, pack, TypePosition::Data, entity)?;
                 }
                 validate_position(
                     types,

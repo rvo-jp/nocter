@@ -954,6 +954,50 @@ mod tests {
     }
 
     #[test]
+    fn signature_help_renders_and_selects_the_final_argument_pack() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func total(seed: i32, ...items: i32): i32 {\n",
+            "    var result = seed\n",
+            "    for item in items { result += item }\n",
+            "    return result\n",
+            "}\n",
+            "func main(): void {\n",
+            "    let value = total(1, 2, 3)\n",
+            "    return\n",
+            "}\n"
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let help = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":6,\"character\":29}}}}}}"
+        ));
+        let response = help.response().unwrap();
+        assert!(response.contains("func total(seed: i32, ...items: i32): i32"));
+        assert!(response.contains("\"activeParameter\":1"));
+        assert!(help.issue().is_none(), "{:?}", help.issue());
+    }
+
+    #[test]
     fn semantic_presentations_share_source_local_type_aliases() {
         let temporary = TemporaryDirectory::new();
         let widgets = temporary.path().join("widgets");

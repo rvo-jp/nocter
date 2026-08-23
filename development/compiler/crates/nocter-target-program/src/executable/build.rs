@@ -219,6 +219,14 @@ impl<'program> ExecutableClosureBuilder<'program> {
             &dispatches,
             &mut drops,
         )?;
+        let argument_packs = self.specialize_call_argument_packs(
+            context.body,
+            &dependencies,
+            &substitution,
+            &dispatches,
+            signature.pack(),
+            &mut drops,
+        )?;
         let closure = self.specialize_closure_layout(key, &substitution)?;
 
         let mut destructions = Vec::new();
@@ -258,6 +266,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             prepared_borrows,
             destructions,
             sequences,
+            argument_packs,
         })
     }
 
@@ -504,6 +513,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .capability()
             .permits(definition.signature().capability())
             || parameters != contract.parameters()
+            || contract.pack().is_some()
             || result != contract.result()
         {
             return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
@@ -704,6 +714,7 @@ struct DraftItem {
     prepared_borrows: Vec<ExecutableBorrowEdge>,
     destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
     sequences: Vec<sequence::DraftSequencePlan>,
+    argument_packs: Vec<super::ExecutableArgumentPackPlan>,
 }
 
 struct DraftDispatchEdge {
@@ -854,6 +865,7 @@ fn freeze_body(
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             sequences: sequences.into_boxed_slice(),
+            argument_packs: draft.argument_packs.into_boxed_slice(),
         },
     ))
 }

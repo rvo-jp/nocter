@@ -192,19 +192,9 @@ fn valid_literal_signature(
         return Ok(false);
     }
     Ok(match shape {
-        LiteralShape::Sequence => {
-            parameter.role()
-                == (ParameterRole::Ordinary {
-                    position: 0,
-                    variadic: true,
-                })
-        }
+        LiteralShape::Sequence => parameter.role() == ParameterRole::ArgumentPack { position: 0 },
         LiteralShape::String => {
-            parameter.role()
-                == (ParameterRole::Ordinary {
-                    position: 0,
-                    variadic: false,
-                })
+            parameter.role() == ParameterRole::Ordinary { position: 0 }
                 && matches!(
                     program.types().get(parameter.ty()),
                     Some(TypeKind::Borrow {

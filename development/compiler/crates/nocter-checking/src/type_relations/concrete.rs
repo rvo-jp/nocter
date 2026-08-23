@@ -40,6 +40,7 @@ pub fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, Substit
             TypeKind::Callable(contract) => {
                 pending.push(contract.result());
                 pending.extend(contract.parameters().iter().copied());
+                pending.extend(contract.pack());
             }
         }
     }

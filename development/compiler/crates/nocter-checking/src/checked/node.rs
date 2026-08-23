@@ -1,7 +1,9 @@
 use nocter_model::{
     BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, FieldId,
-    LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, TypeKind, VariantId,
+    LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
 };
+
+use super::{ArgumentPackSegment, CheckedArgumentPack};
 
 use crate::expected::OutcomeLayer;
 
@@ -52,7 +54,7 @@ pub enum CheckedOperation {
     Outcome(CheckedOutcome),
     OpaqueWitness(super::CheckedOpaqueWitness),
     Closure(CheckedClosure),
-    LiteralPackLength(ParameterId),
+    ArgumentPackLength(ParameterId),
     IteratorAcquisition(CheckedIteratorAcquisition),
     Sequence(CheckedSequence),
     StringLiteral {
@@ -236,6 +238,7 @@ pub struct CheckedCall {
     target: CallTarget,
     receiver: Option<CheckedReceiver>,
     arguments: Box<[BodyNodeId]>,
+    pack: Option<CheckedArgumentPack>,
 }
 
 impl CheckedCall {
@@ -243,11 +246,13 @@ impl CheckedCall {
         target: CallTarget,
         receiver: Option<CheckedReceiver>,
         arguments: impl Into<Box<[BodyNodeId]>>,
+        pack: Option<CheckedArgumentPack>,
     ) -> Self {
         Self {
             target,
             receiver,
             arguments: arguments.into(),
+            pack,
         }
     }
 
@@ -264,6 +269,11 @@ impl CheckedCall {
     #[must_use]
     pub const fn arguments(&self) -> &[BodyNodeId] {
         &self.arguments
+    }
+
+    #[must_use]
+    pub const fn pack(&self) -> Option<&CheckedArgumentPack> {
+        self.pack.as_ref()
     }
 }
 
@@ -588,72 +598,22 @@ pub enum IterationAcquisition {
     Expansion(StaticSelection),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum SpreadMode {
-    Copy,
-    Borrow,
-    Move,
-}
-
-impl SpreadMode {
-    /// Returns the value type contributed to the literal pack by one yielded iterator item.
-    ///
-    /// The checker establishes the readonly-borrow shape required by copy and borrow spreads;
-    /// downstream provenance and loan analyses use this same projection instead of rediscovering
-    /// spread semantics independently.
-    #[must_use]
-    pub fn contribution_type(
-        self,
-        types: &nocter_model::TypeStore,
-        item: TypeId,
-    ) -> Option<TypeId> {
-        match self {
-            Self::Copy => match types.get(item) {
-                Some(TypeKind::Borrow {
-                    capability: BorrowCapability::Readonly,
-                    referent,
-                }) => Some(*referent),
-                _ => None,
-            },
-            Self::Borrow => matches!(
-                types.get(item),
-                Some(TypeKind::Borrow {
-                    capability: BorrowCapability::Readonly,
-                    ..
-                })
-            )
-            .then_some(item),
-            Self::Move => Some(item),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SequenceElement {
-    Value(BodyNodeId),
-    Spread {
-        mode: SpreadMode,
-        iteration: TypedIteration,
-        exact_size: StaticSelection,
-    },
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedSequence {
     constructor: StaticSelection,
-    elements: Box<[SequenceElement]>,
+    pack: CheckedArgumentPack,
     allocation: AllocationSelection,
 }
 
 impl CheckedSequence {
     pub(crate) fn new(
         constructor: StaticSelection,
-        elements: impl Into<Box<[SequenceElement]>>,
+        segments: impl Into<Box<[ArgumentPackSegment]>>,
         allocation: AllocationSelection,
     ) -> Self {
         Self {
             constructor,
-            elements: elements.into(),
+            pack: CheckedArgumentPack::new(segments),
             allocation,
         }
     }
@@ -664,8 +624,8 @@ impl CheckedSequence {
     }
 
     #[must_use]
-    pub const fn elements(&self) -> &[SequenceElement] {
-        &self.elements
+    pub const fn pack(&self) -> &CheckedArgumentPack {
+        &self.pack
     }
 
     #[must_use]
@@ -950,7 +910,7 @@ pub enum LoopKind {
         binding: LocalBindingId,
         iteration: TypedIteration,
     },
-    LiteralPack {
+    ArgumentPack {
         binding: LocalBindingId,
         parameter: ParameterId,
         item: TypeId,

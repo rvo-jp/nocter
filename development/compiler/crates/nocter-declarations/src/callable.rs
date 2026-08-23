@@ -278,7 +278,8 @@ pub enum ParameterOwner {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParameterRole {
-    Ordinary { position: usize, variadic: bool },
+    Ordinary { position: usize },
+    ArgumentPack { position: usize },
     Receiver(CallableCapability),
 }
 

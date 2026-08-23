@@ -200,6 +200,14 @@
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
     <span class="token-operator">}</span>
 
+    <span class="token-keyword">func</span> <span class="token-function">concat</span><span class="token-operator">(</span><span class="token-operator">...</span>parts<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">for</span> part <span class="token-keyword">in</span> parts <span class="token-operator">{</span>
+            result<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span>part<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
+    <span class="token-operator">}</span>
+
     <span class="token-keyword">func</span> <span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
         <span class="token-keyword">let</span> value_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> value_len<span class="token-operator">)</span><span class="token-operator">?</span>

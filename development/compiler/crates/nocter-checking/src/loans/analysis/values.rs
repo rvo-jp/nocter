@@ -217,16 +217,16 @@ impl Analyzer<'_, '_> {
     ) -> Result<(LoanValue, bool), BodyCheckError> {
         self.evaluate_allocation(sequence.allocation(), state, extra)?;
         let mut elements = LoanValue::independent();
-        for element in sequence.elements() {
+        for element in sequence.pack().segments() {
             match element {
-                crate::SequenceElement::Value(value) => {
+                crate::ArgumentPackSegment::Value(value) => {
                     let (value, reaches) = self.evaluate(*value, state, extra)?;
                     if !reaches {
                         return Ok((LoanValue::independent(), false));
                     }
                     elements.union_with(&value);
                 }
-                crate::SequenceElement::Spread {
+                crate::ArgumentPackSegment::Spread {
                     mode, iteration, ..
                 } => {
                     let (iterator, reaches) = self.evaluate(iteration.iterator(), state, extra)?;

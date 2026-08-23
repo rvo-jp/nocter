@@ -197,7 +197,7 @@ The following productions are reused by declarations and member containers:
 GenericParameters = "<" NonEmptyList(Name) ">"
 
 Parameters = "(" List(Parameter) ")"
-Parameter  = Name ":" Type
+Parameter  = "..."? Name ":" Type
 
 CallableTail = ":" CallableResult ProvenanceClause? WhereClause?
 ProvenanceClause = "from" ProvenanceOrigin ("|" ProvenanceOrigin)*
@@ -212,6 +212,10 @@ it only for a source form that owns an external contract/body split or is intrin
 At the start of `CallableResult`, the identifier spelling `some` commits to `OpaqueResult`; it is
 not reconsidered as a `NamedType` if the opaque form is incomplete. This contextual boundary does
 not affect value expressions named `some`.
+
+Semantic declaration validation permits at most one `...` parameter in final position on a
+supported callable. Sequence-literal definitions require exactly one such parameter and no fixed
+parameter. Other declaration forms reject the modifier.
 
 ## Functions, Primitives, and Aliases
 
@@ -481,7 +485,7 @@ GroupedType = "(" Type ")"
 CallableType = CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 CallableCapability = ("&" | "&+")?
-CallableParameter = Type | Name ":" Type
+CallableParameter = "..."? (Type | Name ":" Type)
 
 BorrowType = "&" NonCallablePrefix | "&+" NonCallablePrefix
 
@@ -503,7 +507,8 @@ values outside indirection, and opaque results outside their allowed callable-re
 `CallableCapability` distinguishes a repeatedly callable readonly value (`&func`), a repeatedly
 callable readwrite value (`&+func`), and a once-callable owned value (`func`). Callable parameters
 may omit names or use `name: Type`; names exist for provenance clauses but do not change the
-structural callable type.
+structural callable type. One final callable parameter may carry `...`; its pack marker and element
+type are part of structural callable identity.
 
 Because `&func` and `&+func` begin callable types, they are not parsed as an ordinary borrow prefix
 followed by a separate `func` type. Borrowing a callable type as data requires explicit grouping,
@@ -732,7 +737,8 @@ ExpressionOutcomeSuffix = "?" | "!"
 
 PostfixExpression = PrimaryExpression PostfixSuffix*
 PostfixSuffix = CallSuffix | MemberSuffix | IndexSuffix
-CallSuffix = "(" List(Expression) ")"
+CallSuffix = "(" List(CallArgument) ")"
+CallArgument = Expression | "..." SpreadExpression
 MemberSuffix = "." Name
 IndexSuffix = "[" Expression "]"
 ```
@@ -896,11 +902,16 @@ The formatter writes one space. This makes `Vec [1]` construction and `values[1]
 without consulting name resolution. A newline ends the preceding statement because `[` and a
 string opener are not continuation leaders.
 
-A fixed array contains only ordinary expressions. Spread is recognized only in a typed sequence.
+A fixed array contains only ordinary expressions. Spread is recognized in a typed sequence or a
+call argument list whose selected callable has a final argument pack.
 `SpreadExpression` has one additional recognition restriction: its first token cannot be `&+`.
 When its first token is `move`, it must form the ordinary place-only `MoveExpression`. The accepted
 ownership-leading forms are therefore `...&source`, `...move place`, and a bare
 `...expression`; mutable `...&+source` has no production.
+
+When a bare `...expression` resolves directly to the current callable's argument-pack parameter,
+it is tail forwarding rather than sequence spread. Semantic checking requires it to be the sole
+contribution to the selected destination pack; the grammar does not inspect that identity.
 
 `AllocationOverride` belongs only to a typed literal and uses the shared `AllocatorPlace` grammar.
 Semantic validation requires that place to carry an established aborting allocator or allocation

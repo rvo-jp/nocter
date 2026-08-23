@@ -533,18 +533,22 @@ spread gives a direct iterator fixed priority and consults owned expansion only 
 Iterator evidence exists. Direct selection never falls back because exact-size evidence is absent.
 `TypedIteration` freezes the acquisition node, specialized `next`, yielded item type, and exact-size
 selection. Fixed elements and spreads contribute constraints to one construction inference session
-in source order. Ownership transfers each acquired iterator into the literal pack and schedules it
+in source order. Ownership transfers each acquired iterator into the argument pack and schedules it
 on partial propagation, while provenance and loans derive contributed element storage through the
 selected `next` contract. The common `SpreadMode::contribution_type` projection prevents those
 analyses from retaining a source loan for a copied scalar or losing it for a retained borrow.
 
-The sequence literal body's variadic parameter is not an ordinary value of its element type and
-does not enter ordinary parameter ownership or cleanup. Checked HIR represents its two legal
-operations directly: `LiteralPackLength(ParameterId)` and a consuming `LiteralPack` loop whose
-binding has the element type. Any other value use projects `E0409`. Provenance and loan flow map
-the per-iteration binding from the pack parameter origin, while the pack itself cannot escape,
-move, borrow, or acquire an ordinary callable ABI. This boundary lets executable construction
-choose a concrete heterogeneous-source pack representation without changing source semantics.
+An argument-pack parameter is not an ordinary value of its element type and does not enter
+ordinary parameter ownership or cleanup. Checked HIR represents length as
+`ArgumentPackLength(ParameterId)`, consumption as an `ArgumentPack` loop whose binding has the
+element type, and sole tail forwarding as a `CheckedArgumentPack` edge to its source `ParameterId`.
+The declaration model records this distinction as `ParameterRole::ArgumentPack`, not as a flag on
+an ordinary parameter, so every downstream consumer must handle the separate contract explicitly.
+Any other value use or mixed forwarding projects `E0409`. Provenance and loan flow map both
+per-iteration values and forwarded result origins from the pack parameter, while the pack itself
+cannot escape, move, borrow, or acquire an ordinary ABI position. This boundary lets executable
+construction choose a concrete heterogeneous-source pack representation without changing source
+semantics.
 
 Collection `for` consumes the same acquisition and `TypedIteration` facts without reopening
 selection or requiring exact-size evidence. Explicit readonly/readwrite modes select only their

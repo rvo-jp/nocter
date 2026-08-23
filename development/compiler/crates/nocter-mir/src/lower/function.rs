@@ -189,7 +189,7 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::OpaqueWitness(witness) => {
                 self.lower_opaque_witness(node, ty, *witness).map(Some)
             }
-            CheckedOperation::LiteralPackLength(parameter) => {
+            CheckedOperation::ArgumentPackLength(parameter) => {
                 self.lower_pack_length(node, ty, *parameter).map(Some)
             }
             CheckedOperation::Comparison(comparison) => self.lower_comparison(node, comparison),

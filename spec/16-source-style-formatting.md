@@ -160,6 +160,8 @@ Rules:
 - A multi-line comma-delimited list puts one item per line and retains a trailing comma.
 - The same canonical trailing-comma rule applies to arguments, parameters, generic parameters and
   arguments, literals, import selections, directive data, enum payloads, and closure segments.
+- An argument-pack marker stays attached to its parameter name (`...items: T`) or spread operand
+  (`...source`); the formatter inserts no space after `...`.
 - Struct declaration fields and enum declaration variants are newline-separated declarations, not
   comma-delimited list items, and never end in commas. Named-field construction initializers remain
   comma-delimited list items.

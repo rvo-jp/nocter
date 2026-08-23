@@ -84,6 +84,7 @@ const fn callable_capability_rank(capability: CallableCapability) -> u8 {
 pub struct CallableContract {
     capability: CallableCapability,
     parameters: Box<[TypeId]>,
+    pack: Option<TypeId>,
     result: TypeId,
     provenance: ResultProvenance,
 }
@@ -98,6 +99,7 @@ impl CallableContract {
     pub fn new(
         capability: CallableCapability,
         parameters: impl Into<Box<[TypeId]>>,
+        pack: Option<TypeId>,
         result: TypeId,
         provenance: ResultProvenance,
     ) -> Result<Self, InvalidParameterOrigin> {
@@ -106,16 +108,17 @@ impl CallableContract {
             .origins()
             .iter()
             .copied()
-            .find(|origin| origin.position() >= parameters.len())
+            .find(|origin| origin.position() >= parameters.len() + usize::from(pack.is_some()))
         {
             return Err(InvalidParameterOrigin {
                 origin,
-                parameter_count: parameters.len(),
+                parameter_count: parameters.len() + usize::from(pack.is_some()),
             });
         }
         Ok(Self {
             capability,
             parameters,
+            pack,
             result,
             provenance,
         })
@@ -129,6 +132,12 @@ impl CallableContract {
     #[must_use]
     pub const fn parameters(&self) -> &[TypeId] {
         &self.parameters
+    }
+
+    /// Returns the element type of the final compiler-owned argument pack, when present.
+    #[must_use]
+    pub const fn pack(&self) -> Option<TypeId> {
+        self.pack
     }
 
     #[must_use]
@@ -201,6 +210,7 @@ impl TypeKind {
             | Self::Fallible(base) => visit(*base),
             Self::Callable(contract) => {
                 contract.parameters().iter().copied().for_each(&mut *visit);
+                contract.pack().into_iter().for_each(&mut *visit);
                 visit(contract.result());
             }
         }
@@ -452,6 +462,7 @@ mod tests {
         let contract = CallableContract::new(
             CallableCapability::Readonly,
             [borrowed],
+            None,
             borrowed,
             provenance,
         )
@@ -460,6 +471,50 @@ mod tests {
         let second = types.intern(TypeKind::Callable(contract)).unwrap();
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn callable_identity_distinguishes_a_final_pack_from_an_ordinary_parameter() {
+        let mut types = TypeStore::new();
+        let value = types.builtin(BuiltinType::I32);
+        let ordinary = CallableContract::new(
+            CallableCapability::Owned,
+            [value],
+            None,
+            value,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
+        let packed = CallableContract::new(
+            CallableCapability::Owned,
+            [],
+            Some(value),
+            value,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
+
+        assert_ne!(
+            types.intern(TypeKind::Callable(ordinary)).unwrap(),
+            types.intern(TypeKind::Callable(packed)).unwrap()
+        );
+    }
+
+    #[test]
+    fn callable_pack_occupies_the_final_provenance_parameter_position() {
+        let types = TypeStore::new();
+        let value = types.builtin(BuiltinType::I32);
+        let origin = ParameterOrigin::new(1);
+        let provenance = ResultProvenance::from_origins([origin]).unwrap();
+
+        CallableContract::new(
+            CallableCapability::Owned,
+            [value],
+            Some(value),
+            value,
+            provenance,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -480,8 +535,14 @@ mod tests {
         let result = types.builtin(BuiltinType::I32);
         let origin = ParameterOrigin::new(1);
         let provenance = ResultProvenance::from_origins([origin]).unwrap();
-        let error = CallableContract::new(CallableCapability::Owned, [result], result, provenance)
-            .unwrap_err();
+        let error = CallableContract::new(
+            CallableCapability::Owned,
+            [result],
+            None,
+            result,
+            provenance,
+        )
+        .unwrap_err();
 
         assert_eq!(error.origin(), origin);
         assert_eq!(error.parameter_count(), 1);

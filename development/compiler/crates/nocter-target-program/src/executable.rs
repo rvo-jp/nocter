@@ -19,22 +19,22 @@ use crate::{
     TargetProgram, TestSelectionError,
 };
 
+mod argument_pack;
 mod build;
 mod callable_invocation;
 mod closure_layout;
 mod primitive_dependency;
 mod semantic_environment;
-mod sequence_pack;
+mod sequence;
 mod signature;
 mod type_representation;
 
+pub(crate) use argument_pack::ExecutablePackIteration;
+pub use argument_pack::{ExecutableArgumentPackPlan, ExecutablePackSegment, ExecutablePackSpread};
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
 pub use primitive_dependency::ExecutablePrimitiveDependency;
-pub(crate) use sequence_pack::ExecutableSequenceIteration;
-pub use sequence_pack::{
-    ExecutableSequencePlan, ExecutableSequenceSegment, ExecutableSequenceSpread,
-};
+pub use sequence::ExecutableSequencePlan;
 pub use signature::{
     ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
 };
@@ -251,6 +251,7 @@ pub struct ExecutableBody {
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
     destructions: Box<[ExecutableDestructionEdge]>,
     sequences: Box<[ExecutableSequencePlan]>,
+    argument_packs: Box<[ExecutableArgumentPackPlan]>,
 }
 
 impl ExecutableBody {
@@ -358,6 +359,13 @@ impl ExecutableBody {
     #[must_use]
     pub fn sequence(&self, source: BodyNodeId) -> Option<&ExecutableSequencePlan> {
         self.sequences.iter().find(|plan| plan.source() == source)
+    }
+
+    #[must_use]
+    pub fn argument_pack(&self, source: BodyNodeId) -> Option<&ExecutableArgumentPackPlan> {
+        self.argument_packs
+            .iter()
+            .find(|plan| plan.source() == source)
     }
 }
 
@@ -613,7 +621,8 @@ pub enum ExecutableProgramError {
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
     InvalidClosureSignature(ClosureId),
-    InvalidLiteralPackSignature(nocter_model::CallableId),
+    InvalidArgumentPackSignature(nocter_model::CallableId),
+    InvalidArgumentPackPlan(BodyNodeId),
     InvalidSequencePlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
     InvalidPrimitiveDependency(PrimitiveRole),
@@ -654,7 +663,8 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
             | Self::InvalidClosureSignature(_)
-            | Self::InvalidLiteralPackSignature(_)
+            | Self::InvalidArgumentPackSignature(_)
+            | Self::InvalidArgumentPackPlan(_)
             | Self::InvalidSequencePlan(_)
             | Self::InvalidCallableInvocation(_)
             | Self::InvalidPrimitiveDependency(_)

@@ -91,9 +91,9 @@ would fit an abandoned register. The planner records final call-boundary stack p
 from each slot. Results distinguish completion, divergence, omitted zero-sized values, direct
 result registers, and caller-owned indirect storage.
 
-Sequence-literal bodies remain outside the ordinary argument list. Because executable validation
-already forbids ordinary parameters on those bodies, their machine signature reserves one
-compiler-owned pack-descriptor pointer lane without inventing a source type or variadic ABI. The
+Argument packs remain outside the ordinary argument list. A machine signature may combine normal
+fixed parameters with one compiler-owned pack-descriptor pointer lane without inventing a source
+type or platform variadic ABI. The
 machine program assigns every caller-owned descriptor a body-local `MachinePackId`. Each descriptor
 retains its exact element and optional-next types, total-length value, and ordered fixed or spread
 segments. A spread contains only a machine address, remaining-count value, direct function
@@ -102,7 +102,7 @@ generated cleanup-function target. The referenced function remains the single ca
 authority. Machine lowering proves the receiver is a
 static subaddress of the iterator and removes the caller-side borrow SSA value; target callbacks
 never retain a pointer into the caller's former iterator storage. Fixed segments use the same
-cleanup-function domain. The literal body exposes only explicit length, consuming-next, and destroy
+cleanup-function domain. The callable body exposes only explicit length, consuming-next, and destroy
 operations over its hidden pointer.
 
 Concrete destruction plans are interned once across pointer primitives and pack segments. Their
@@ -123,7 +123,7 @@ in byte order, so function traversal and first-use order cannot alter data ident
 layout.
 
 `MachineProgram` now owns a separate dense function domain and body-local stack-object, drop-flag,
-address, SSA-value, operation, literal-pack, and basic-block domains. MIR identities are translated
+address, SSA-value, operation, argument-pack, and basic-block domains. MIR identities are translated
 once while the program is built and are absent from the immutable result. Every address starts from
 an abstract stack object, pointer value, or two-word view and then uses only byte offsets,
 dereferences, and checked index steps. Fixed arrays retain their declared bound and layout-owned
@@ -133,14 +133,16 @@ constructed.
 
 Function entries carry the single callable ABI object owned by `MachineAbiPlan`. One
 `MachineCallTarget` domain distinguishes direct machine functions from compiler-known primitives;
-arguments, allocation context, and the optional hidden pack identity use one call representation.
+arguments, allocation context, and the optional hidden pack transport use one call representation.
 Direct targets therefore cannot invent a second call contract, and new target kinds cannot create
 a parallel argument-transport path.
 
 `MachineContextPlans` is the single whole-program authority for compiler-propagated ambient
 capabilities. Its shared fixed-point engine builds independent allocation and process plans over
 ordinary calls, user-drop calls, spread iterator callbacks, and generated residual-destruction
-functions. Roots establish the program-lifetime allocation default. An explicit `using` selection
+functions. A forwarding edge propagates callback context requirements from its incoming-pack
+callable to the next consumer during the same fixed point. Roots establish the program-lifetime
+allocation default. An explicit `using` selection
 supplies an allocation-dependent callee without making its caller allocation-dependent; it does
 not interrupt process-state propagation. Process roots and independently launched test roots own a
 process context only when their reachable graph queries entry state. The plans are complete before
@@ -169,7 +171,7 @@ arguments, exact concrete signature, and an explicit specialized semantic depend
 primitives carry no dependency. Pointer destruction carries its concrete subject plus an optional
 `MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
 not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
-item once. Plans with work from either pointer calls or literal-pack segments enter a
+item once. Plans with work from either pointer calls or argument-pack segments enter a
 content-ordered `MachineDestructionTable`, receive generated linkage only after the source-function
 domain, and use the common compiler-owned `(byte_pointer, byte_offset)` ABI. Pointer calls become
 ordinary direct calls; pack segments retain only that generated function identity. The generated
@@ -189,7 +191,7 @@ structural dispatch target nor a reason to reopen type selection.
 
 Every `MachineFunction` owns one `MachineFunctionDataflow` derived while its body is closed.
 Operation inputs include dependencies nested inside checked addresses, dynamic indexes, explicit
-allocation addresses, and fixed or spread literal-pack segments; target lowering never needs a
+allocation addresses, and fixed or spread argument-pack segments; target lowering never needs a
 second operation-shape walker to recover them. The same authority validates that operation results
 and block parameters point back to their exact definition sites, that every operation has one
 block owner, and that branch arguments match destination parameters in arity and type.
@@ -240,7 +242,7 @@ words, hidden indirect-result and pack-input pointers, and allocation-context st
 adding preserved registers and the frame record. Root context storage is two words; an incoming
 context or hidden ABI pointer receives its own saved pointer word.
 
-Every literal call site owns a four-word descriptor containing its state pointer, immutable total
+Every prepared pack call site owns a four-word descriptor containing its state pointer, immutable total
 length, next callback, and residual-destruction callback. Its separate state object starts with a
 segment cursor and stores fixed values or spread remaining-count/iterator pairs in source order
 under their checked machine size and alignment. The target declares two stable functions for every
@@ -252,7 +254,9 @@ function through its unique callable ABI. They stage direct or caller-owned `Opt
 results, copy readonly referents when required, decrement the exact remaining count, skip exhausted
 segments, and destroy iterator state before advancing. A contradictory early `none` reaches the
 compiler-owned exact-size trap. A literal body therefore consumes one stable descriptor ABI
-without erasing the ownership layout of each caller's pack.
+without erasing the ownership layout of each caller's pack. `MachineCallPack::Forwarded` has no
+body-local `MachinePackId`: ARM64 validates the caller and callee pack ABI contracts, loads the
+saved incoming descriptor pointer, and places that exact pointer in the callee's hidden lane.
 
 The fixed-frame planner reserves the maximum outgoing stack-argument area at the post-prologue
 stack pointer, places selector and allocator objects in stable insertion order, preserves requested
@@ -452,11 +456,11 @@ MachineProgram ownership spine are implemented. Conformance tests cover speciali
 and enum members, scalar and pointer sizes, view and built-in error offsets, enum and recursive
 outcome layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque
 witness representation, register-window closure, aligned stack placement, direct and indirect
-results, the compiler-owned literal-pack lane, ordered test roots, static-text deduplication, dense
+results, the compiler-owned argument-pack lane, ordered test roots, static-text deduplication, dense
 scalar/control/direct-call lowering, checked fixed-array indexing, layout-shared field access,
 outcome tag control, explicit completion values, user destruction, region lifetime operations, and
 process error reporting. Standard primitive calls also carry ordinary ABI plans and closed roles.
-Literal packs now have dense identities, closed fixed/spread segments, explicit consumer
+Argument packs now have dense identities, closed fixed/spread segments, explicit consumer
 operations, and generated residual-cleanup function targets.
 The completed allocation-context fixed point marks roots, context-independent callables, and
 incoming-context callables in a dense function table. It follows inherited calls and hidden pack
@@ -491,7 +495,7 @@ conditional drop flags, value and stored-tag switches, and cycle-safe direct/mem
 transport are complete. Concrete destruction now interns exact pointer and pack plans as ordinary
 generated machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty
 pointer plans, and hidden allocation-context propagation execute natively through pointer calls.
-Fixed literal packs now initialize and transfer their four-word descriptors, execute consuming-next
+Fixed argument packs now initialize and transfer their four-word descriptors, execute consuming-next
 through the exact result ABI, and destroy unconsumed elements through those generated functions.
 Spread packs execute the same native descriptor ABI for direct and copied-borrow contributions,
 including direct and indirect optional transport, empty-segment advancement, inherited allocation

@@ -32,6 +32,12 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let selected = self.callable_contract(place.ty, node)?;
+        if matches!(
+            &selected,
+            CallableValueContract::Structural(_, contract) if contract.pack().is_some()
+        ) {
+            return Err(self.rule(BodyRule::InvalidCall, suffix)?);
+        }
         let (capability, parameters, result) = match &selected {
             CallableValueContract::Closure(_, signature) => (
                 signature.capability(),
@@ -79,7 +85,7 @@ impl BodyChecker<'_, '_> {
         let call = self.add_node(
             node,
             result,
-            CheckedOperation::Call(CheckedCall::new(target, None, arguments)),
+            CheckedOperation::Call(CheckedCall::new(target, None, arguments, None)),
         )?;
         expected.map_or(Ok(call), |expected| {
             self.apply_expected(node, call, expected)

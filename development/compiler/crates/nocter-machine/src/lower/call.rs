@@ -6,7 +6,7 @@ use super::body::BodyIdentities;
 use super::context::ProgramLoweringContext;
 use super::structural::lower_structural;
 use crate::{
-    MachineCall, MachineCallAllocation, MachineCallTarget, MachineOperationKind,
+    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachineOperationKind,
     MachinePrimitiveDependency, MachinePrimitiveTarget,
 };
 
@@ -37,7 +37,15 @@ pub(super) fn lower_call(
         MirCallAllocation::Region(region) => MachineCallAllocation::Lexical(ids.stack(region)?),
         MirCallAllocation::Explicit(place) => MachineCallAllocation::Explicit(ids.address(place)?),
     };
-    let pack = call.pack().map(|_| ids.pack(operation)).transpose()?;
+    let pack = call
+        .pack()
+        .map(|pack| match pack {
+            nocter_mir::MirCallPack::Prepared(_) => {
+                ids.pack(operation).map(MachineCallPack::Prepared)
+            }
+            nocter_mir::MirCallPack::Forwarded(_) => Ok(MachineCallPack::Forwarded),
+        })
+        .transpose()?;
     Ok(MachineOperationKind::Call(MachineCall::new(
         target, arguments, allocation, pack,
     )))

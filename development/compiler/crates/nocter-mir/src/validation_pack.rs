@@ -3,8 +3,8 @@ use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, TypeKind};
 use crate::validation_call::validate_call;
 use crate::validation_destruction::validate_destruction_plan;
 use crate::{
-    MirBody, MirCall, MirCallTarget, MirPackArgument, MirPackContribution, MirPackSegment,
-    MirValidationEnvironment, MirValidationError,
+    MirBody, MirCall, MirCallPack, MirCallTarget, MirPackArgument, MirPackContribution,
+    MirPackSegment, MirValidationEnvironment, MirValidationError,
 };
 
 pub(crate) fn validate_call_pack(
@@ -19,9 +19,11 @@ pub(crate) fn validate_call_pack(
     };
     match (expected, call.pack()) {
         (None, None) => Ok(()),
-        (Some(expected), Some(pack)) if expected == (pack.element(), pack.next()) => {
-            validate_pack(environment, function, operation, call, pack)
-        }
+        (Some(expected), Some(pack)) if expected == (pack.element(), pack.next()) => match pack {
+            MirCallPack::Prepared(pack) => validate_pack(environment, function, operation, pack),
+            MirCallPack::Forwarded(input) if function.pack() == Some(*input) => Ok(()),
+            MirCallPack::Forwarded(_) => Err(MirValidationError::OperationType(operation)),
+        },
         _ => Err(MirValidationError::OperationType(operation)),
     }
 }
@@ -30,18 +32,16 @@ fn validate_pack(
     environment: &(impl MirValidationEnvironment + ?Sized),
     function: &MirBody,
     operation: MirOperationId,
-    call: &MirCall,
     pack: &MirPackArgument,
 ) -> Result<(), MirValidationError> {
     let invalid = || MirValidationError::OperationType(operation);
     let types = environment.types();
-    if !call.arguments().is_empty()
-        || function
-            .values()
-            .get(pack.length())
-            .copied()
-            .map(crate::MirValue::ty)
-            != Some(types.builtin(BuiltinType::Usize))
+    if function
+        .values()
+        .get(pack.length())
+        .copied()
+        .map(crate::MirValue::ty)
+        != Some(types.builtin(BuiltinType::Usize))
         || !matches!(types.get(pack.next()), Some(TypeKind::Optional(payload)) if *payload == pack.element())
     {
         return Err(invalid());

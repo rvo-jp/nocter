@@ -39,11 +39,11 @@ impl FunctionLowerer<'_> {
             LoopKind::For { binding, iteration } => {
                 self.lower_collection_loop(node, loop_, *binding, iteration, definition.body())
             }
-            LoopKind::LiteralPack {
+            LoopKind::ArgumentPack {
                 binding,
                 parameter,
                 item,
-            } => self.lower_literal_pack_loop(
+            } => self.lower_argument_pack_loop(
                 node,
                 loop_,
                 *binding,

@@ -16,8 +16,8 @@ use crate::conformance::normalize_requirements;
 use crate::syntax::{direct_child, direct_children};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    AllocationSelection, CallableInference, CheckedOperation, CheckedSequence, GenericArgument,
-    GenericArguments, SequenceElement, StaticDispatch, StaticSelection,
+    AllocationSelection, ArgumentPackSegment, CallableInference, CheckedOperation, CheckedSequence,
+    GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
 };
 
 struct LiteralPlan {
@@ -46,12 +46,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::Sequence)?;
         let parameter = self.literal_parameter(node, &plan)?;
-        if parameter.role()
-            != (ParameterRole::Ordinary {
-                position: 0,
-                variadic: true,
-            })
-        {
+        if parameter.role() != (ParameterRole::ArgumentPack { position: 0 }) {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
         let body = direct_child(self.tree(), node, NodeKind::SequenceBody)
@@ -79,7 +74,7 @@ impl BodyChecker<'_, '_> {
         let mut elements = Vec::new();
         for element in direct_children(self.tree(), body, NodeKind::SequenceElement) {
             if let Some(spread) = direct_child(self.tree(), element, NodeKind::SpreadExpression) {
-                let spread = self.check_sequence_spread(element, spread)?;
+                let spread = self.check_argument_spread(element, spread)?;
                 inference.constrain_exact(element_pattern, spread.contribution);
                 elements.push(SequenceElementDraft::Spread(spread));
                 continue;
@@ -115,8 +110,10 @@ impl BodyChecker<'_, '_> {
         let elements = elements
             .into_iter()
             .map(|element| match element {
-                SequenceElementDraft::Value(position) => SequenceElement::Value(values[position]),
-                SequenceElementDraft::Spread(spread) => SequenceElement::Spread {
+                SequenceElementDraft::Value(position) => {
+                    ArgumentPackSegment::Value(values[position])
+                }
+                SequenceElementDraft::Spread(spread) => ArgumentPackSegment::Spread {
                     mode: spread.mode,
                     iteration: spread.iteration,
                     exact_size: spread.exact_size,
@@ -146,11 +143,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::String)?;
         let parameter = self.literal_parameter(node, &plan)?;
-        if parameter.role()
-            != (ParameterRole::Ordinary {
-                position: 0,
-                variadic: false,
-            })
+        if parameter.role() != (ParameterRole::Ordinary { position: 0 })
             || !self.is_readonly_str(parameter.ty())
         {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());

@@ -217,7 +217,7 @@ fn lowers_typed_string_literals_to_the_declared_constructor() {
 }
 
 #[test]
-fn lowers_literal_pack_body_through_its_dedicated_input_lane() {
+fn lowers_sequence_argument_pack_body_through_its_dedicated_input_lane() {
     let executable = executable_fixture(&CompilerFixture::with_app(
         "struct Vec<T> {}\n\
          construct Vec<T> {\n\
@@ -312,7 +312,7 @@ fn lowers_sequence_calls_through_the_hidden_pack_lane() {
                 };
                 matches!(call.target(), crate::MirCallTarget::Direct(item) if *item == constructor)
                     .then_some(())
-                    .and_then(|()| call.pack().map(|pack| (function, pack)))
+                    .and_then(|()| call.pack()?.prepared().map(|pack| (function, pack)))
             })
         })
         .unwrap();
@@ -349,6 +349,95 @@ fn lowers_sequence_calls_through_the_hidden_pack_lane() {
                 )
             })
     );
+}
+
+#[test]
+fn lowers_ordinary_fixed_and_pack_arguments_through_separate_abi_lanes() {
+    let program = lower_fixture(
+        "func first(seed: i32, ...items: i32): i32 {\n\
+             let _ = items.len()\n\
+             return seed\n\
+         }\n\
+         func main(): i32 {\n\
+             first(1, 2, 3)\n\
+         }\n",
+    )
+    .unwrap();
+    let (callee, input) = program
+        .functions()
+        .iter()
+        .find_map(|(item, function)| function.pack().map(|input| (item, input)))
+        .expect("ordinary pack callee");
+    let call = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.operations().iter())
+        .find_map(|(_, operation)| match operation.kind() {
+            MirOperationKind::Call(call)
+                if matches!(call.target(), crate::MirCallTarget::Direct(item) if *item == callee) =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("ordinary pack call");
+    let pack = call
+        .pack()
+        .and_then(crate::MirCallPack::prepared)
+        .expect("hidden pack argument");
+
+    assert_eq!(call.arguments().len(), 1);
+    assert_eq!(pack.segments().len(), 2);
+    assert_eq!(
+        (pack.element(), pack.next()),
+        (input.element(), input.next())
+    );
+}
+
+#[test]
+fn lowers_tail_forwarding_as_an_explicit_pack_transport_without_repacking() {
+    let program = lower_fixture(
+        "func total(seed: i32, ...items: i32): i32 {\n\
+             let _ = items.len()\n\
+             return seed\n\
+         }\n\
+         func forward(seed: i32, ...items: i32): i32 {\n\
+             return total(seed, ...items)\n\
+         }\n\
+         func main(): i32 { return forward(40, 2) }\n",
+    )
+    .unwrap();
+    let (function, call, input) = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            let input = function.pack()?;
+            function
+                .operations()
+                .iter()
+                .find_map(|(_, operation)| match operation.kind() {
+                    MirOperationKind::Call(call)
+                        if matches!(call.pack(), Some(crate::MirCallPack::Forwarded(_))) =>
+                    {
+                        Some((function, call, input))
+                    }
+                    _ => None,
+                })
+        })
+        .expect("forwarded pack call");
+
+    assert_eq!(call.arguments().len(), 1);
+    assert!(matches!(
+        call.pack(),
+        Some(crate::MirCallPack::Forwarded(forwarded)) if *forwarded == input
+    ));
+    assert!(function.operations().iter().all(|(_, operation)| {
+        !matches!(
+            operation.kind(),
+            MirOperationKind::Call(call)
+                if matches!(call.pack(), Some(crate::MirCallPack::Prepared(_)))
+        )
+    }));
 }
 
 #[test]
@@ -392,7 +481,9 @@ fn lowers_exact_size_spreads_with_deferred_residual_destruction() {
                 let MirOperationKind::Call(call) = operation.kind() else {
                     return None;
                 };
-                call.pack().map(|pack| (function, pack))
+                call.pack()
+                    .and_then(crate::MirCallPack::prepared)
+                    .map(|pack| (function, pack))
             })
         })
         .unwrap();

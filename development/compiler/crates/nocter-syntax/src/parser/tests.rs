@@ -454,8 +454,19 @@ fn parses_construction_functions_and_both_literal_shapes() {
     );
 
     assert!(has_node_kind(&tree, NodeKind::LiteralShape));
-    assert!(has_node_kind(&tree, NodeKind::LiteralParameters));
+    assert!(has_node_kind(&tree, NodeKind::ArgumentPackModifier));
     assert!(has_node_kind(&tree, NodeKind::ConstructionFunction));
+}
+
+#[test]
+fn callable_argument_packs_and_call_spreads_share_the_general_expression_grammar() {
+    let tree = assert_syntax_ok(
+        "func collect<T>(first: T, ...rest: T): void { collect(first, ...rest) }\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::ArgumentPackModifier));
+    assert!(has_node_kind(&tree, NodeKind::SpreadExpression));
 }
 
 #[test]

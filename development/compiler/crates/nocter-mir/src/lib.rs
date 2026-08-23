@@ -39,7 +39,8 @@ pub use operation::{
     MirUnaryOperation,
 };
 pub use pack::{
-    MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment, MirPackSpread,
+    MirCallPack, MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment,
+    MirPackSpread,
 };
 pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
 pub use primitive_dependency::MirPrimitiveDependency;

@@ -52,6 +52,10 @@ fn conformance_method_failures_have_distinct_rules() {
             "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\nconform Readable for Value { method &self.read(): u32 { return 0 } }\n",
             "E0352",
         ),
+        (
+            "pub interface Readable { pub method &self.read(...values: i32): i32 }\nstruct Value {}\nconform Readable for Value { method &self.read(value: i32): i32 { return value } }\n",
+            "E0352",
+        ),
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);

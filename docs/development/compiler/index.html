@@ -427,10 +427,11 @@
   converts bodyless standard calls to typed primitive roles with concrete signatures, opens
   checked destruction plans, and assigns dense item IDs only after closure in semantic-key order.
   Each body retains its exact reachable node domain, source-to-concrete type edges, prepared borrow
-  types, cleanup-specific glue, and one call-site plan for every sequence literal. A sequence plan
-  binds the dense literal item and specialized pack signature to its fixed/spread producer order,
+  types, cleanup-specific glue, and one call-site plan for every ordinary or literal argument pack.
+  A shared pack plan binds its specialized signature to the fixed/spread producer order,
   concrete iterator/item/contribution types, already selected iteration operations, and allocation
-  selection without creating ordinary variadic inputs. Fixed values and spread iterators retain
+  selection without creating ordinary variadic inputs. Sequence plans additionally bind their
+  dense literal item, result, and allocation selection. Fixed values and spread iterators retain
   concrete residual destruction plans that close every required user drop body before MIR. Closure
   items also retain one concrete ordered environment
   layout, including binding identities and stored capture types. Composite comparison and index
@@ -554,13 +555,13 @@
   recursive by-value storage, invalid alignment, and arithmetic overflow are typed integrity
   failures. One immutable <code>MachineAbiPlan</code> classifies zero/direct/indirect values and freezes every
   dense function's argument registers, ordered stack slots, final stack padding, direct or
-  caller-owned result transport, and separate literal-pack pointer lane. A spill closes the
+  caller-owned result transport, and separate argument-pack pointer lane. A spill closes the
   argument-register window, so later smaller values cannot reuse an abandoned register. Machine
   linkage is separately keyed by exact executable item, process target, or test declaration; no
   display name participates. Test roots retain declaration order outside that key table. Static
   text receives content-sorted, deduplicated <code>MachineDataId</code> values rather than first-use IDs.
   <code>MachineProgram</code> now owns distinct dense function, generated-destruction, stack-object, drop-flag,
-  address, SSA-value, operation, literal-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
+  address, SSA-value, operation, argument-pack, block, linkage, and data identities. Layout-owned byte offsets, checked
   fixed/view indexing, loads, address formation, stores, aggregate writes, stored-tag control, scalar control,
   explicit allocation contexts, and direct calls lower without retaining MIR fallback nodes.
   Stored, completion, and diverging SSA representations are distinct. User-drop calls, process
@@ -577,11 +578,11 @@
   roots, context-independent functions, and incoming-context functions across inherited calls,
   user drops, and hidden pack callbacks or destruction. Explicit <code>using</code> selections satisfy their
   target without making the caller context-dependent. Every completed machine function also owns
-  one immutable dataflow table. It expands values hidden inside addresses and literal packs once,
+  one immutable dataflow table. It expands values hidden inside addresses and argument packs once,
   validates bidirectional value definitions and typed CFG edges, computes deterministic block
   <code>live_in</code>/<code>live_out</code> sets, and records exact inputs and <code>live_after</code> values for every operation.
   ARM64 selection consumes those facts instead of rebuilding machine semantics.
-  A content-ordered <code>MachineDestructionTable</code> now interns every nonempty pointer and literal-pack
+  A content-ordered <code>MachineDestructionTable</code> now interns every nonempty pointer and argument-pack
   residual-destruction plan. Generated linkage is appended after the stable source domain, and
   each plan becomes an ordinary machine function with the compiler-owned
   <code>(byte_pointer, byte_offset)</code> ABI. Pointer calls and pack cleanup identities share that function

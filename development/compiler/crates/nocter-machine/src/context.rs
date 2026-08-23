@@ -146,20 +146,30 @@ fn propagate_pack_callbacks(
             let MachineOperationKind::Call(call) = operation.kind() else {
                 continue;
             };
-            let (Some(pack), MachineCallTarget::Direct(target)) = (call.pack(), call.target())
-            else {
+            let MachineCallTarget::Direct(target) = call.target() else {
                 continue;
             };
-            let pack = function
-                .body()
-                .pack(pack)
-                .ok_or(MachineContextError::UnknownPack {
-                    kind,
-                    function: function_id,
-                    pack,
-                })?;
-            if pack_requires_context(kind, pack, previous)? {
-                mark_requirement(functions, requirements, *target, kind)?;
+            match call.pack() {
+                Some(crate::MachineCallPack::Prepared(pack)) => {
+                    let pack =
+                        function
+                            .body()
+                            .pack(pack)
+                            .ok_or(MachineContextError::UnknownPack {
+                                kind,
+                                function: function_id,
+                                pack,
+                            })?;
+                    if pack_requires_context(kind, pack, previous)? {
+                        mark_requirement(functions, requirements, *target, kind)?;
+                    }
+                }
+                Some(crate::MachineCallPack::Forwarded)
+                    if function_requires_context(kind, previous, function_id)? =>
+                {
+                    mark_requirement(functions, requirements, *target, kind)?;
+                }
+                Some(crate::MachineCallPack::Forwarded) | None => {}
             }
         }
     }

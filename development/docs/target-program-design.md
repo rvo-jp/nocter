@@ -227,10 +227,10 @@ place must resolve to the compiler-selected aborting allocator or allocation-con
 keeps allocation context out of ordinary source ABI parameters and makes restoration a call-boundary
 obligation rather than an inferred backend convention.
 
-Sequence literal packs use a dedicated executable and MIR input schema. The checked variadic
+Typed argument packs use a dedicated executable and MIR input schema. The checked pack
 parameter cannot become one ordinary element-typed input, a slice, a `Vec`, or an erased variadic
-ABI. Executable construction must freeze the element type and the source-ordered fixed/spread
-producers as one compiler-owned pack plan. MIR must then materialize checked total length,
+ABI. Executable construction must freeze the element type and either the source-ordered
+fixed/spread producers or one exact incoming-pack forwarding edge. MIR must then materialize checked total length,
 single-acquisition spread state, per-element transfer, remaining-element cleanup, and the pack
 body's length and consuming-loop operations explicitly. This entire lane is now represented
 without lowering to a misleading ordinary call.
@@ -238,15 +238,20 @@ without lowering to a misleading ordinary call.
 `ExecutableSignature` now separates its ordinary input list from one optional
 `ExecutablePackInput`. That pack input freezes the source `ParameterId`, specialized element type,
 and exact `Optional<T>` type returned by consuming iteration; it never receives an ordinary
-parameter position. Non-sequence callables cannot acquire this
-schema. Every reachable sequence expression now has one `ExecutableSequencePlan` that freezes its
-dense constructor item, exact pack input, specialized result, source-ordered fixed values and
-spread producers, concrete iterator/item/contribution types, retained `next` and exact-size
-selections, allocation selection, and the concrete destruction plan for every fixed value and
-spread iterator. Those plans enqueue their reachable user drop bodies during executable closure,
+parameter position. Functions, methods, construction functions, interface methods, and sequence
+literals may acquire this schema. Every ordinary packed call has one
+`ExecutableArgumentPackPlan`; every reachable sequence expression has one
+`ExecutableSequencePlan`. A prepared plan freezes the exact pack input, source-ordered fixed values
+and spread producers, concrete iterator/item/contribution types, retained `next` and exact-size
+selections, and the concrete destruction plan for every fixed value and spread iterator. A
+forwarding plan instead proves that the caller's incoming pack has the same specialized
+element/next contract and retains no producers or cleanup recipes. A sequence plan also
+freezes its dense constructor item, specialized result, and allocation selection. Those plans
+enqueue their reachable user drop bodies during executable closure,
 so MIR never rematches a segment type to clean an unconsumed suffix. Construction rejects a plan
-whose value or contribution type differs from the literal pack element, whose constructor has
-ordinary inputs, or whose iterator operations do not resolve to invocations.
+whose value or contribution type differs from the pack element, whose sequence constructor has
+ordinary inputs, or whose iterator operations do not resolve to invocations. The shared
+`ExecutablePackSegment` contract is independent of the sequence-construction plan.
 
 Literal bodies lower the executable schema to one `MirPackInput`. `PackLength` reads its exact
 length and `PackNext` consumes one element as the frozen `Optional<T>`; neither operation accepts a
@@ -256,14 +261,15 @@ optional payload, rejects pack operations in ordinary functions, and rejects any
 body that does not destroy its remaining state exactly once. Fallthrough, explicit return, and
 outcome propagation all use the same exit operation.
 
-Caller lowering instantiates each `ExecutableSequencePlan` as one `MirPackArgument`. It first
+Caller lowering instantiates each prepared plan as one `MirPackArgument`. It first
 resolves the call-scoped allocation place, then evaluates and acquires fixed and spread segments in
 source order. Only after every segment is prepared does it invoke each frozen readonly exact-size
 operation and combine the fixed count and dynamic counts with ordinary checked `usize` addition.
 Each spread then retains one readwrite receiver and exact `next` target; direct items and copied
 readonly items are separate contribution modes. The literal call has no ordinary pack arguments.
 It transfers the total, the source-ordered segment owners, and their consuming operations through
-the hidden pack lane.
+the hidden pack lane. A forwarding plan emits the distinct `MirCallPack::Forwarded` contract and
+passes the incoming descriptor without constructing or aliasing another owner.
 
 Cleanup which must run inside that transferred state uses `MirDestructionPlan`. This recursive
 schema replaces every user drop selection with its dense executable item before MIR and retains

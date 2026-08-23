@@ -303,11 +303,15 @@ fn decompose_callable(
 ) -> bool {
     if left.capability() != right.capability()
         || left.provenance() != right.provenance()
+        || left.pack().is_some() != right.pack().is_some()
         || left.parameters().len() != right.parameters().len()
     {
         return false;
     }
     append_paired(left.parameters(), right.parameters(), pending);
+    if let (Some(left), Some(right)) = (left.pack(), right.pack()) {
+        pending.push((left, right));
+    }
     pending.push((left.result(), right.result()));
     true
 }
@@ -333,6 +337,7 @@ fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
         | TypeKind::Fallible(base) => output.push(*base),
         TypeKind::Callable(contract) => {
             output.extend(contract.parameters().iter().copied());
+            output.extend(contract.pack());
             output.push(contract.result());
         }
     }

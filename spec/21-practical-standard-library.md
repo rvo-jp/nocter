@@ -14,6 +14,8 @@ byte-oriented search and borrowed projection:
 - `split` rejects an empty separator and returns independently owned `String` values;
 - `get_range`, `strip_prefix`, and `strip_suffix` return validated borrowed views;
 - `split_views` and `lines` return allocation-free borrowed iterators;
+- `String.concat(...parts: &str)` joins zero or more borrowed views into owned storage through the
+  language argument-pack contract;
 - `String.from_utf8` validates a byte slice before copying it into owned storage.
 
 Search and range indices are UTF-8 byte offsets. `get_range` rejects endpoints that divide an

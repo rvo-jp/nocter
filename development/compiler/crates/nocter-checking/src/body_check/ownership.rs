@@ -199,7 +199,7 @@ impl OwnershipAnalyzer<'_> {
         match checked.operation() {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::LiteralPackLength(_)
+            | CheckedOperation::ArgumentPackLength(_)
             | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {
                 self.visit_place_use(node, *place, state)
@@ -739,7 +739,7 @@ impl OwnershipAnalyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::LiteralPack { .. } => true,
+                | LoopKind::ArgumentPack { .. } => true,
             };
             if condition_reaches && let LoopKind::While { condition } = definition.kind() {
                 let actions =
@@ -753,13 +753,13 @@ impl OwnershipAnalyzer<'_> {
                     LoopKind::While { .. }
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
-                        | LoopKind::LiteralPack { .. }
+                        | LoopKind::ArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches
                 && let LoopKind::Range { binding, .. }
                 | LoopKind::For { binding, .. }
-                | LoopKind::LiteralPack { binding, .. } = definition.kind()
+                | LoopKind::ArgumentPack { binding, .. } = definition.kind()
             {
                 iteration
                     .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))

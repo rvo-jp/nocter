@@ -2,7 +2,7 @@ use nocter_model::{MirPlaceId, MirValueId, TypeId};
 
 use crate::{MirCallTarget, MirDestructionPlan};
 
-/// The sole compiler-owned element pack accepted by a sequence-literal body.
+/// The sole compiler-owned argument pack accepted by a callable body.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MirPackInput {
     element: TypeId,
@@ -26,13 +26,46 @@ impl MirPackInput {
     }
 }
 
-/// One complete caller-owned pack transferred through the hidden sequence-literal call lane.
+/// One complete caller-owned pack transferred through the hidden call lane.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirPackArgument {
     element: TypeId,
     next: TypeId,
     length: MirValueId,
     segments: Box<[MirPackSegment]>,
+}
+
+/// The hidden pack lane of one call: either a newly prepared descriptor or the current input.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MirCallPack {
+    Prepared(MirPackArgument),
+    Forwarded(MirPackInput),
+}
+
+impl MirCallPack {
+    #[must_use]
+    pub const fn element(&self) -> TypeId {
+        match self {
+            Self::Prepared(pack) => pack.element(),
+            Self::Forwarded(pack) => pack.element(),
+        }
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> TypeId {
+        match self {
+            Self::Prepared(pack) => pack.next(),
+            Self::Forwarded(pack) => pack.next(),
+        }
+    }
+
+    #[must_use]
+    pub const fn prepared(&self) -> Option<&MirPackArgument> {
+        match self {
+            Self::Prepared(pack) => Some(pack),
+            Self::Forwarded(_) => None,
+        }
+    }
 }
 
 impl MirPackArgument {
@@ -72,7 +105,7 @@ impl MirPackArgument {
     }
 }
 
-/// One source-ordered owner inside a transferred literal pack.
+/// One source-ordered owner inside a transferred argument pack.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirPackSegment {
     Value {

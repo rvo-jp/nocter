@@ -89,10 +89,20 @@ pub(super) fn capability(parser: &mut Parser<'_>) {
 
 pub(super) fn parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    argument_pack_modifier(parser);
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
     parser.complete(marker, NodeKind::Parameter);
+}
+
+fn argument_pack_modifier(parser: &mut Parser<'_>) {
+    if !parser.at_punctuation(Punctuation::Expansion) {
+        return;
+    }
+    let marker = parser.start();
+    parser.bump();
+    parser.complete(marker, NodeKind::ArgumentPackModifier);
 }
 
 fn prefix_type(parser: &mut Parser<'_>) {
@@ -192,6 +202,7 @@ fn callable_type(parser: &mut Parser<'_>) {
 
 fn callable_parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    argument_pack_modifier(parser);
     if parser.at(TokenKind::Identifier)
         && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Colon)
     {

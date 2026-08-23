@@ -19,10 +19,7 @@ pub(crate) fn initialized_body_roots(
                     .chain(declaration.parameters().iter().copied())
                     .filter(|parameter| {
                         !parameters.get(*parameter).is_some_and(|parameter| {
-                            matches!(
-                                parameter.role(),
-                                ParameterRole::Ordinary { variadic: true, .. }
-                            )
+                            matches!(parameter.role(), ParameterRole::ArgumentPack { .. })
                         })
                     })
                     .map(PlaceRoot::Parameter)
@@ -60,10 +57,7 @@ pub(crate) fn owned_body_roots(
                         .parameters()
                         .get(*parameter)
                         .is_some_and(|parameter| {
-                            matches!(
-                                parameter.role(),
-                                ParameterRole::Ordinary { variadic: true, .. }
-                            )
+                            matches!(parameter.role(), ParameterRole::ArgumentPack { .. })
                         })
                 })
                 .map(PlaceRoot::Parameter)

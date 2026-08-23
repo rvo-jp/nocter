@@ -118,7 +118,7 @@ impl Analyzer<'_> {
         live = match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::LiteralPackLength(_) => live,
+            | CheckedOperation::ArgumentPackLength(_) => live,
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
@@ -132,19 +132,7 @@ impl Analyzer<'_> {
                 [comparison.left().value(), comparison.right().value()],
                 live,
             )?,
-            CheckedOperation::Call(call) => {
-                let mut operands = Vec::new();
-                match call.target() {
-                    crate::CallTarget::CallableValue { value, .. }
-                    | crate::CallTarget::ClosureValue { value, .. } => operands.push(*value),
-                    crate::CallTarget::Static(_) => {}
-                }
-                if let Some(receiver) = call.receiver() {
-                    operands.push(receiver.value());
-                }
-                operands.extend_from_slice(call.arguments());
-                self.operands(operands, live)?
-            }
+            CheckedOperation::Call(call) => self.call(&call, live)?,
             CheckedOperation::Aggregate(aggregate) => {
                 let operands = match aggregate {
                     AggregateConstruction::Struct { fields, .. } => {
@@ -167,10 +155,10 @@ impl Analyzer<'_> {
             }
             CheckedOperation::Sequence(sequence) => {
                 let mut operands = Vec::new();
-                for element in sequence.elements() {
+                for element in sequence.pack().segments() {
                     match element {
-                        crate::SequenceElement::Value(value) => operands.push(*value),
-                        crate::SequenceElement::Spread { iteration, .. } => {
+                        crate::ArgumentPackSegment::Value(value) => operands.push(*value),
+                        crate::ArgumentPackSegment::Spread { iteration, .. } => {
                             operands.push(iteration.iterator());
                         }
                     }
@@ -205,6 +193,30 @@ impl Analyzer<'_> {
         };
         self.before.entry(node).or_default().extend(live.clone());
         Ok(live)
+    }
+
+    fn call(
+        &mut self,
+        call: &crate::CheckedCall,
+        live: LiveSet,
+    ) -> Result<LiveSet, crate::BodyCheckInternalError> {
+        let mut operands = Vec::new();
+        match call.target() {
+            crate::CallTarget::CallableValue { value, .. }
+            | crate::CallTarget::ClosureValue { value, .. } => operands.push(*value),
+            crate::CallTarget::Static(_) => {}
+        }
+        if let Some(receiver) = call.receiver() {
+            operands.push(receiver.value());
+        }
+        operands.extend_from_slice(call.arguments());
+        if let Some(pack) = call.pack() {
+            operands.extend(pack.segments().iter().map(|segment| match segment {
+                crate::ArgumentPackSegment::Value(value) => *value,
+                crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
+            }));
+        }
+        self.operands(operands, live)
     }
 
     fn operand(
@@ -485,7 +497,7 @@ impl Analyzer<'_> {
             let mut body_live = self.transfer(definition.body(), body_after)?;
             if let LoopKind::Range { binding, .. }
             | LoopKind::For { binding, .. }
-            | LoopKind::LiteralPack { binding, .. } = definition.kind()
+            | LoopKind::ArgumentPack { binding, .. } = definition.kind()
             {
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
             }
@@ -497,7 +509,7 @@ impl Analyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::LiteralPack { .. } => body_live,
+                | LoopKind::ArgumentPack { .. } => body_live,
             };
             let frame = self
                 .loops

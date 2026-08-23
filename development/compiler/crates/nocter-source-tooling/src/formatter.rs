@@ -410,7 +410,6 @@ const fn is_attached_left_parenthesis(parent: Option<NodeKind>) -> bool {
             NodeKind::Parameters
                 | NodeKind::Visibility
                 | NodeKind::CallableParameters
-                | NodeKind::LiteralParameters
                 | NodeKind::EnumPayload
                 | NodeKind::EnumPatternPayload
                 | NodeKind::CallSuffix

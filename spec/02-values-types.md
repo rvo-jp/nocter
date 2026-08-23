@@ -520,7 +520,7 @@ none
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
 User-defined typed literal construction, such as `Vec [1, 2, 3]` or `Path "README.md"`, is specified
-in [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md). It does
+in [Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md). It does
 not change the meaning of built-in literals.
 
 Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.

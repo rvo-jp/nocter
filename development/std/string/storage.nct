@@ -54,6 +54,14 @@ construct String {
         return move result
     }
 
+    func concat(...parts: &str): Self {
+        var result = String.empty()
+        for part in parts {
+            result.push_str(part)
+        }
+        return move result
+    }
+
     func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
         let value_len: usize = bytes_from_str(value).len()
         var result = String.try_with_capacity(allocator, value_len)?

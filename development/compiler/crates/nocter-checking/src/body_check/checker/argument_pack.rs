@@ -9,10 +9,42 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
 use crate::{CheckedOperation, NameTarget};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ArgumentPackUse {
+    Iterated,
+    Forwarded,
+}
+
 impl BodyChecker<'_, '_> {
-    /// Recognizes and consumes a direct reference to the current literal body's variadic pack.
+    pub(super) fn register_argument_pack_iteration(
+        &mut self,
+        parameter: ParameterId,
+        syntax: NodeId,
+    ) -> Result<(), BodyCheckError> {
+        if self.argument_pack_uses.get(&parameter) == Some(&ArgumentPackUse::Forwarded) {
+            return Err(self.rule(BodyRule::InvalidArgumentPackUse, syntax)?);
+        }
+        self.argument_pack_uses
+            .insert(parameter, ArgumentPackUse::Iterated);
+        Ok(())
+    }
+
+    pub(super) fn register_argument_pack_forwarding(
+        &mut self,
+        parameter: ParameterId,
+        syntax: NodeId,
+    ) -> Result<(), BodyCheckError> {
+        if self.argument_pack_uses.contains_key(&parameter) {
+            return Err(self.rule(BodyRule::InvalidArgumentPackUse, syntax)?);
+        }
+        self.argument_pack_uses
+            .insert(parameter, ArgumentPackUse::Forwarded);
+        Ok(())
+    }
+
+    /// Recognizes and consumes a direct reference to the current callable's argument pack.
     /// Ordinary parameters are left untouched for the normal expression path.
-    pub(super) fn literal_pack_parameter(
+    pub(super) fn argument_pack_parameter(
         &mut self,
         mut syntax: NodeId,
     ) -> Result<Option<(ParameterId, TypeId)>, BodyCheckError> {
@@ -42,19 +74,14 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::MissingParameterType(
                 NameTarget::Parameter(parameter),
             ))?;
-        if declaration.role()
-            != (ParameterRole::Ordinary {
-                position: 0,
-                variadic: true,
-            })
-        {
+        if !matches!(declaration.role(), ParameterRole::ArgumentPack { .. }) {
             return Ok(None);
         }
         self.consumed_uses.insert(origin);
         Ok(Some((parameter, declaration.ty())))
     }
 
-    pub(super) fn check_literal_pack_method(
+    pub(super) fn check_argument_pack_method(
         &mut self,
         node: NodeId,
         parameter: ParameterId,
@@ -65,10 +92,10 @@ impl BodyChecker<'_, '_> {
         let member = direct_identifier(self.tree(), member)
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
         if self.token_text(member)? != "len" || !direct_nodes(self.tree(), suffix).is_empty() {
-            return Err(self.rule(BodyRule::InvalidLiteralPackUse, node)?);
+            return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
         }
         let ty = self.types.builtin(nocter_model::BuiltinType::Usize);
-        let value = self.add_node(node, ty, CheckedOperation::LiteralPackLength(parameter))?;
+        let value = self.add_node(node, ty, CheckedOperation::ArgumentPackLength(parameter))?;
         expected.map_or(Ok(value), |expected| {
             self.apply_expected(node, value, expected)
         })

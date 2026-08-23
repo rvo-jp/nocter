@@ -193,7 +193,7 @@ fn validate_pack_dependencies(
     functions: &Arena<ExecutableItemId, MirFunction>,
     executable: &ExecutableProgram,
 ) -> Result<(), MirProgramBuildError> {
-    let Some(pack) = call.pack() else {
+    let Some(pack) = call.pack().and_then(crate::MirCallPack::prepared) else {
         return Ok(());
     };
     for segment in pack.segments() {

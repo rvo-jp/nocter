@@ -56,7 +56,7 @@ fn scalar_call_and_arithmetic_cross_the_complete_native_pipeline() {
 }
 
 #[test]
-fn fixed_literal_pack_callbacks_cross_the_complete_native_pipeline() {
+fn fixed_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "struct Sum { value: i32 }\n\
          construct Sum {\n\
@@ -78,7 +78,138 @@ fn fixed_literal_pack_callbacks_cross_the_complete_native_pipeline() {
 }
 
 #[test]
-fn fixed_literal_pack_residual_cleanup_uses_generated_destruction() {
+fn ordinary_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func total(seed: i32, ...items: i32): i32 {\n\
+             var result = seed\n\
+             for item in items { result += item }\n\
+             return result\n\
+         }\n\
+         func main(): i32 {\n\
+             return total(10, 20, 12)\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn method_receiver_fixed_input_and_argument_pack_share_the_native_call_boundary() {
+    let machine = lower_machine(
+        "struct Counter {}\n\
+         instance Counter {\n\
+             pub method &self.total(seed: i32, ...items: i32): i32 {\n\
+                 var result = seed\n\
+                 for item in items { result += item }\n\
+                 return result\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let counter = Counter {}\n\
+             return counter.total(10, 20, 12)\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn tail_forwarded_argument_pack_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func total(seed: i32, ...items: i32): i32 {\n\
+             var result = seed\n\
+             for item in items { result += item }\n\
+             return result\n\
+         }\n\
+         func forward(seed: i32, ...items: i32): i32 {\n\
+             let result = total(seed, ...items)\n\
+             if items.len() == 2 { return result }\n\
+             return 1\n\
+         }\n\
+         func main(): i32 {\n\
+             return forward(10, 20, 12)\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn tail_forwarded_pack_destroys_each_unconsumed_value_exactly_once() {
+    let machine = lower_machine(
+        "struct Counter { value: i32 }\n\
+         struct Counted { counter: &+Counter }\n\
+         drop Counted(&+self) { self.counter.value += 1 }\n\
+         func discard(...items: Counted): void { return }\n\
+         func forward(...items: Counted): void {\n\
+             discard(...items)\n\
+             return\n\
+         }\n\
+         func main(): i32 {\n\
+             var counter = Counter { value: 0 }\n\
+             forward(Counted { counter: &+counter })\n\
+             return counter.value\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 1);
+}
+
+#[test]
+fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
+    let fixture = CompilerFixture::with_app_iteration_standard_uses(
+        "use std.Iterator\n\
+         use std.ExactSizeIterator\n\
+         use std/mem.allocation_context_state_for_test\n\
+         struct Iter {\n\
+             next_value: i32\n\
+             remaining: usize\n\
+         }\n\
+         conform Iterator for Iter {\n\
+             type Item = i32\n\
+             method &+self.next(): i32? {\n\
+                 let _ = allocation_context_state_for_test()\n\
+                 if self.remaining == 0 { return none }\n\
+                 let value = self.next_value\n\
+                 self.next_value += 1\n\
+                 self.remaining -= 1\n\
+                 return value\n\
+             }\n\
+         }\n\
+         conform ExactSizeIterator for Iter {\n\
+             method &self.remaining_len(): usize { return self.remaining }\n\
+         }\n\
+         func total(seed: i32, ...items: i32): i32 {\n\
+             var result = seed\n\
+             for item in items { result += item }\n\
+             return result\n\
+         }\n\
+         func forward(seed: i32, ...items: i32): i32 {\n\
+             return total(seed, ...items)\n\
+         }\n\
+         func main(): i32 {\n\
+             let iterator = Iter { next_value: 4, remaining: 3 }\n\
+             return forward(10, ...move iterator, 20)\n\
+         }\n",
+        &[&[], &[], &["mem"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 45);
+}
+
+#[test]
+fn fixed_sequence_argument_pack_residual_cleanup_uses_generated_destruction() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
          struct ExitOnDrop { status: i32 }\n\
@@ -102,7 +233,7 @@ fn fixed_literal_pack_residual_cleanup_uses_generated_destruction() {
 }
 
 #[test]
-fn spread_literal_pack_callbacks_cross_the_complete_native_pipeline() {
+fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
@@ -149,7 +280,7 @@ fn spread_literal_pack_callbacks_cross_the_complete_native_pipeline() {
 }
 
 #[test]
-fn spread_literal_pack_residual_cleanup_destroys_the_iterator() {
+fn spread_sequence_argument_pack_residual_cleanup_destroys_the_iterator() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
@@ -183,7 +314,7 @@ fn spread_literal_pack_residual_cleanup_destroys_the_iterator() {
 }
 
 #[test]
-fn spread_literal_pack_transports_indirect_optional_values() {
+fn spread_sequence_argument_pack_transports_indirect_optional_values() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
@@ -231,7 +362,7 @@ fn spread_literal_pack_transports_indirect_optional_values() {
 }
 
 #[test]
-fn spread_literal_pack_copies_borrowed_iterator_items() {
+fn spread_sequence_argument_pack_copies_borrowed_iterator_items() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\

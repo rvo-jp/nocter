@@ -190,7 +190,7 @@ Rules:
 Owned growable memory is represented by standard-library types such as `Vec<T>`. `Vec<T>` is not a
 compiler builtin. Declaration-driven typed literals provide forms such as `Vec [1, 2, 3]`, while
 bare `[1, 2, 3]` remains a fixed-size array literal. See
-[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
+[Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md).
 
 ```nct
 var bytes = Vec<u8>.with_capacity(4096)

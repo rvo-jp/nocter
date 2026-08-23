@@ -9,7 +9,7 @@ use crate::{
 
 mod spread;
 
-/// One of the two callbacks stored in every literal-pack descriptor.
+/// One of the two callbacks stored in every argument-pack descriptor.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Arm64PackCallbackKind {
     Next,

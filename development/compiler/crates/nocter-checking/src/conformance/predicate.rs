@@ -275,6 +275,10 @@ fn substitute_callable(
             .iter()
             .map(|parameter| substitution.apply_type(types, *parameter))
             .collect::<Result<Vec<_>, _>>()?,
+        contract
+            .pack()
+            .map(|pack| substitution.apply_type(types, pack))
+            .transpose()?,
         substitution.apply_type(types, contract.result())?,
         contract.provenance().clone(),
     )

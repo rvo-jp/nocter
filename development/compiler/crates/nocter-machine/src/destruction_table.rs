@@ -33,7 +33,7 @@ impl MachineDestruction {
 }
 
 /// Deterministic identity and ABI authority for every concrete destruction plan reached by a
-/// pointer primitive or literal-pack owner. Discovery order never becomes generated identity.
+/// pointer primitive or argument-pack owner. Discovery order never becomes generated identity.
 #[derive(Debug)]
 pub struct MachineDestructionTable {
     entries: MachineTable<MachineDestructionId, MachineDestruction>,
@@ -194,7 +194,7 @@ fn collect_body(
             }
             plans.insert(plan);
         }
-        if let Some(pack) = call.pack() {
+        if let Some(nocter_mir::MirCallPack::Prepared(pack)) = call.pack() {
             for (segment, source) in pack.segments().iter().enumerate() {
                 let destruction = match source {
                     MirPackSegment::Value { destruction, .. } => destruction.as_ref(),

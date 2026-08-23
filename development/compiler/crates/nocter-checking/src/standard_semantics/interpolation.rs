@@ -122,11 +122,7 @@ fn validate_appender(
         || !is_public(graph, callable.site())
         || receiver.role() != ParameterRole::Receiver(CallableCapability::ReadWrite)
         || receiver.ty() != instance.target()
-        || text.role()
-            != (ParameterRole::Ordinary {
-                position: 0,
-                variadic: false,
-            })
+        || text.role() != (ParameterRole::Ordinary { position: 0 })
         || !matches!(
             types.get(text.ty()),
             Some(TypeKind::Borrow {

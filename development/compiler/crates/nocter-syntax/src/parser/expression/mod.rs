@@ -322,13 +322,27 @@ fn call_suffix(parser: &mut Parser<'_>) {
         Punctuation::RightParen,
         true,
         ExpectedSyntax::Expression,
-        |parser| {
-            expression(parser, ExpressionMode::Delimited);
-        },
+        call_argument,
     );
     parser.expect_punctuation(Punctuation::RightParen);
     parser.leave_nesting();
     parser.complete(marker, NodeKind::CallSuffix);
+}
+
+fn call_argument(parser: &mut Parser<'_>) {
+    if !parser.at_punctuation(Punctuation::Expansion) {
+        expression(parser, ExpressionMode::Delimited);
+        return;
+    }
+    let marker = parser.start();
+    parser.bump();
+    newline::after_incomplete(parser, newline::Boundary::Delimited);
+    if parser.at_punctuation(Punctuation::ReadWrite) {
+        parser.error_token(ExpectedSyntax::Expression);
+    } else {
+        expression(parser, ExpressionMode::Delimited);
+    }
+    parser.complete(marker, NodeKind::SpreadExpression);
 }
 
 fn index_suffix(parser: &mut Parser<'_>) {

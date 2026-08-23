@@ -54,7 +54,7 @@ Rules:
 - A construction function must produce `Self` as its direct result or as the success/present payload
   of a supported outcome type.
 - A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules
-  from [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
+  from [Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md).
 - `Self` denotes the specialized construct target throughout member signatures and bodies.
 - `construct` declarations cannot be imported separately. Their accessible members travel with the
   target type.

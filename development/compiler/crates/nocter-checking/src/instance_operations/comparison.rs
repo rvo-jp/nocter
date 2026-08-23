@@ -161,12 +161,7 @@ impl InstanceOperationSelector<'_> {
                     .parameters()
                     .get(parameter_id)
                     .ok_or(InstanceSelectionError::MissingParameter(parameter_id))?;
-                if parameter.role()
-                    != (ParameterRole::Ordinary {
-                        position: 0,
-                        variadic: false,
-                    })
-                {
+                if parameter.role() != (ParameterRole::Ordinary { position: 0 }) {
                     return Err(InstanceSelectionError::InvalidComparisonSignature(member));
                 }
                 let parameter_ty = applicable

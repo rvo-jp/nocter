@@ -504,7 +504,7 @@ impl<'a> Renderer<'a> {
             if index != 0 {
                 self.output.push_str(", ");
             }
-            if parameter.variadic() {
+            if parameter.is_argument_pack() {
                 self.output.push_str("...");
             }
             let declaration = declarations.parameters().get(parameter.declaration())?;
@@ -829,7 +829,7 @@ impl<'a> Renderer<'a> {
 
     fn parameter(&mut self, id: nocter_model::ParameterId) -> Option<()> {
         let parameter = self.graph.declarations().parameters().get(id)?;
-        if let ParameterRole::Ordinary { variadic: true, .. } = parameter.role() {
+        if let ParameterRole::ArgumentPack { .. } = parameter.role() {
             self.output.push_str("...");
         }
         self.output.push_str(self.symbol(parameter.name())?);
@@ -1183,6 +1183,18 @@ impl<'a> Renderer<'a> {
                 write!(self.output, "p{index}: ").ok()?;
             }
             self.ty(parameter)?;
+            self.record_parameter(start);
+        }
+        if let Some(pack) = contract.pack() {
+            if !contract.parameters().is_empty() {
+                self.output.push_str(", ");
+            }
+            let start = self.output.len();
+            self.output.push_str("...");
+            if named {
+                write!(self.output, "p{}: ", contract.parameters().len()).ok()?;
+            }
+            self.ty(pack)?;
             self.record_parameter(start);
         }
         self.output.push_str("): ");

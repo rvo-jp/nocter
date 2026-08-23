@@ -129,7 +129,7 @@ fn classify(
         SemanticEntity::Parameter(id) => {
             let parameter = declarations.parameters().get(id)?;
             let readonly = match parameter.role() {
-                ParameterRole::Ordinary { .. } => true,
+                ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => true,
                 ParameterRole::Receiver(capability) => capability == CallableCapability::Readonly,
             };
             return Some((SemanticHighlightKind::Parameter, readonly));

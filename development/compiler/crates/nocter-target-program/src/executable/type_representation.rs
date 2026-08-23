@@ -223,6 +223,7 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
         }
         TypeKind::Callable(contract) => {
             pending.extend(contract.parameters().iter().copied());
+            pending.extend(contract.pack());
             pending.insert(contract.result());
         }
         TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}

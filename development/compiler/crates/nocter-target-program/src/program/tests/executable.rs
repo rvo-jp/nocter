@@ -6,7 +6,7 @@ use nocter_runtime_contract::{PrimitiveRole, RuntimeTypeRepresentation};
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
     ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
-    ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot, ExecutableSequenceSegment,
+    ExecutablePackSegment, ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot,
     ExecutableTestCase,
 };
 
@@ -307,7 +307,7 @@ fn executable_signature_specializes_even_unused_parameters() {
 }
 
 #[test]
-fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
+fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
     let target = build_target_program(&Fixture::with_app(
         "struct Vec<T> {}\n\
          construct Vec<T> {\n\
@@ -373,8 +373,8 @@ fn sequence_literal_pack_is_not_an_ordinary_executable_input() {
     assert!(matches!(
         plan.segments(),
         [
-            ExecutableSequenceSegment::Value { ty: left, .. },
-            ExecutableSequenceSegment::Value { ty: right, .. },
+            ExecutablePackSegment::Value { ty: left, .. },
+            ExecutablePackSegment::Value { ty: right, .. },
         ] if *left == pack.element() && *right == pack.element()
     ));
 }
@@ -425,13 +425,13 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
         panic!("expected one sequence plan")
     };
     let [
-        ExecutableSequenceSegment::Value {
+        ExecutablePackSegment::Value {
             ty: first,
             destruction: first_destruction,
             ..
         },
-        ExecutableSequenceSegment::Spread(spread),
-        ExecutableSequenceSegment::Value {
+        ExecutablePackSegment::Spread(spread),
+        ExecutablePackSegment::Value {
             ty: last,
             destruction: last_destruction,
             ..

@@ -124,6 +124,9 @@ pub fn validate_type(
             }
             TypeKind::Callable(contract) => {
                 pending.push((contract.result(), TypePosition::CallableResult));
+                if let Some(pack) = contract.pack() {
+                    pending.push((pack, TypePosition::Data));
+                }
                 pending.extend(
                     contract
                         .parameters()

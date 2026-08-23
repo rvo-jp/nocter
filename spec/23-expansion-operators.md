@@ -121,7 +121,7 @@ let owned = Vec [...move source]
 - `...&source` contributes the yielded readonly references themselves.
 - `...&+source` is rejected.
 
-Mutable spread is intentionally unsupported. A literal pack may retain every resulting element at
+Mutable spread is intentionally unsupported. An argument pack may retain every resulting element at
 once, which requires a stronger disjointness proof than the one-at-a-time mutable loan used by a
 collection loop.
 

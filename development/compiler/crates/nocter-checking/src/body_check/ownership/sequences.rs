@@ -18,10 +18,14 @@ impl OwnershipAnalyzer<'_> {
             return Ok(false);
         }
         self.visit_value_sequence(
-            sequence.elements().iter().map(|element| match element {
-                crate::SequenceElement::Value(value) => *value,
-                crate::SequenceElement::Spread { iteration, .. } => iteration.iterator(),
-            }),
+            sequence
+                .pack()
+                .segments()
+                .iter()
+                .map(|element| match element {
+                    crate::ArgumentPackSegment::Value(value) => *value,
+                    crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
+                }),
             state,
         )
     }
@@ -114,6 +118,20 @@ impl OwnershipAnalyzer<'_> {
             }
             if self.activate_expression_temporary(*argument, state)? {
                 staged.push(*argument);
+            }
+        }
+        if let Some(pack) = call.pack() {
+            for segment in pack.segments() {
+                let value = match segment {
+                    crate::ArgumentPackSegment::Value(value) => *value,
+                    crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
+                };
+                if !self.visit(value, state)? {
+                    return Ok(false);
+                }
+                if self.activate_expression_temporary(value, state)? {
+                    staged.push(value);
+                }
             }
         }
         for temporary in staged {

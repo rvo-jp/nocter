@@ -556,10 +556,11 @@ fn compatible_signature(
         return Ok(false);
     }
     for (expected, actual) in expected.parameters().iter().zip(actual.parameters()) {
-        let expected = parameter_type(graph, *expected)?;
-        let actual = parameter_type(graph, *actual)?;
-        if substitution.apply_type(types, expected)?
-            != actual_substitution.apply_type(types, actual)?
+        let (expected_type, expected_pack) = parameter_contract(graph, *expected)?;
+        let (actual_type, actual_pack) = parameter_contract(graph, *actual)?;
+        if expected_pack != actual_pack
+            || substitution.apply_type(types, expected_type)?
+                != actual_substitution.apply_type(types, actual_type)?
         {
             return Ok(false);
         }
@@ -678,7 +679,8 @@ fn receiver_capability(
                 .ok_or(ConformanceInternalError::MissingParameter(receiver))?;
             match parameter.role() {
                 nocter_declarations::ParameterRole::Receiver(capability) => Ok(capability),
-                nocter_declarations::ParameterRole::Ordinary { .. } => {
+                nocter_declarations::ParameterRole::Ordinary { .. }
+                | nocter_declarations::ParameterRole::ArgumentPack { .. } => {
                     Err(ConformanceInternalError::MissingParameter(receiver))
                 }
             }
@@ -686,15 +688,19 @@ fn receiver_capability(
         .transpose()
 }
 
-fn parameter_type(
+fn parameter_contract(
     graph: &DeclarationGraph,
     parameter: ParameterId,
-) -> Result<nocter_model::TypeId, ConformanceInternalError> {
+) -> Result<(nocter_model::TypeId, bool), ConformanceInternalError> {
     graph
         .declarations()
         .parameters()
         .get(parameter)
-        .map(|parameter| parameter.ty())
+        .and_then(|parameter| match parameter.role() {
+            nocter_declarations::ParameterRole::Ordinary { .. } => Some((parameter.ty(), false)),
+            nocter_declarations::ParameterRole::ArgumentPack { .. } => Some((parameter.ty(), true)),
+            nocter_declarations::ParameterRole::Receiver(_) => None,
+        })
         .ok_or(ConformanceInternalError::MissingParameter(parameter))
 }
 

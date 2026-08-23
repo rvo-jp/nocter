@@ -49,7 +49,7 @@ fn construction_function(parser: &mut Parser<'_>) {
 fn literal_declaration(parser: &mut Parser<'_>) {
     parser.bump();
     literal_shape(parser);
-    literal_parameters(parser);
+    types::parameters(parser);
     callable_tail(parser);
     block::optional(parser);
 }
@@ -68,29 +68,4 @@ fn literal_shape(parser: &mut Parser<'_>) {
         parser.error_token(ExpectedSyntax::LiteralShape);
     }
     parser.complete(marker, NodeKind::LiteralShape);
-}
-
-fn literal_parameters(parser: &mut Parser<'_>) {
-    let marker = parser.start();
-    if !parser.expect_punctuation(Punctuation::LeftParen) {
-        parser.complete(marker, NodeKind::LiteralParameters);
-        return;
-    }
-    if !parser.enter_nesting() {
-        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
-        parser.complete(marker, NodeKind::LiteralParameters);
-        return;
-    }
-    parser.eat_newlines();
-    if parser.eat_punctuation(Punctuation::Expansion) {
-        parser.expect_name();
-        parser.expect_punctuation(Punctuation::Colon);
-        types::type_(parser);
-    } else {
-        types::parameter(parser);
-    }
-    parser.eat_newlines();
-    parser.expect_punctuation(Punctuation::RightParen);
-    parser.leave_nesting();
-    parser.complete(marker, NodeKind::LiteralParameters);
 }

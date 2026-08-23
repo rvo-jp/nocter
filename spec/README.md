@@ -34,7 +34,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Tooling and Editor Integration](14-tooling-editor-integration.md)
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
-- [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
+- [Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md)
 - [Callable Values and Interface Default Methods](18-callables-default-methods.md)
 - [Construction Surfaces](19-construction-surfaces.md)
 - [Native Testing](20-native-testing.md)
@@ -50,9 +50,9 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.14.0 language. The
-[release index](../releases/README.md) owns current publication and download status, and repository
-tags preserve the exact specification for every published release.
+This working tree specifies the active v0.15.0 development language. The
+[release index](../releases/README.md) owns publication and download status; the v0.14.0 tag
+preserves the latest published specification until v0.15.0 is released.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

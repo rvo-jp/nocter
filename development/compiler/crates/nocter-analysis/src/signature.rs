@@ -1,4 +1,4 @@
-use nocter_checking::{CallTarget, CheckedOperation};
+use nocter_checking::{ArgumentPackSegment, CallTarget, CheckedOperation};
 use nocter_model::{BodyId, BodyNodeId};
 use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
@@ -114,14 +114,19 @@ impl AnalysisSnapshot {
             .map(|(start, end)| SemanticParameterLabel { start, end })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let active_parameter = active_parameter(
-            self,
-            source,
-            body_id,
-            call.arguments(),
-            offset,
-            parameters.len(),
-        );
+        let arguments = call
+            .arguments()
+            .iter()
+            .copied()
+            .chain(call.pack().into_iter().flat_map(|pack| {
+                pack.segments().iter().map(|segment| match segment {
+                    ArgumentPackSegment::Value(value) => *value,
+                    ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
+                })
+            }))
+            .collect::<Vec<_>>();
+        let active_parameter =
+            active_parameter(self, source, body_id, &arguments, offset, parameters.len());
         Ok(Some(SemanticSignatureHelp {
             presentation: rendered.presentation,
             parameters,

@@ -328,7 +328,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         let mut result = match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::LiteralPackLength(_) => (LoanValue::independent(), true),
+            | CheckedOperation::ArgumentPackLength(_) => (LoanValue::independent(), true),
             CheckedOperation::Place(place) => {
                 self.evaluate_place_indices(place, state, extra_active)?;
                 (self.read_place(place, state)?, true)

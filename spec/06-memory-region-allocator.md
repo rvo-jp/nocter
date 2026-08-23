@@ -72,7 +72,7 @@ func copy_with(allocator: &+Allocator, text: &str): String from allocator
 
 `from X` reports a receiver, parameter, allocator capability, or `static` origin retained by a
 storage-bearing successful result projection. The clause is normally omitted. When exactly one
-receiver, parameter, allocator capability, or literal pack can supply the result storage, that
+receiver, parameter, allocator capability, or argument pack can supply the result storage, that
 origin is inferred. Fresh storage and static storage require no caller-managed source place and
 therefore require no clause.
 
@@ -303,10 +303,10 @@ pub method &self.get(key: &K): &V? from self
 func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 ```
 
-An identifier after `from` names a receiver, parameter, or typed-sequence-literal element pack
+An identifier after `from` names a receiver, ordinary parameter, or typed argument pack
 whose semantic value can carry storage provenance. This includes borrows, owning values, generic
 values, and allocator capabilities. A pack origin represents the storage carried by its elements;
-the ephemeral pack container itself still cannot escape the literal body.
+the ephemeral pack container itself still cannot escape the callable body.
 `static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
 result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
 are checked against the explicit or elided origin set; bodyless interface methods use the same
@@ -342,11 +342,11 @@ region temp using arena {
 - Bare `"hello"` remains a static `&str` and performs no allocation.
 
 The full literal and sequence rules live in
-[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
+[Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md).
 
 ## Current Non-goals
 
-- variadic ordinary function parameters, aggregate spread, or embedding
+- aggregate spread or embedding
 - ambient recoverable allocation contexts
 - fallible `region` statements
 - source-level lifetime parameters

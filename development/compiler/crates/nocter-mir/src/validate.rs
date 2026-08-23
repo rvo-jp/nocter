@@ -1048,7 +1048,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 if let crate::MirCallAllocation::Explicit(place) = call.allocation() {
                     values.extend(place_values(self.require_place(place)?));
                 }
-                if let Some(pack) = call.pack() {
+                if let Some(pack) = call.pack().and_then(crate::MirCallPack::prepared) {
                     values.push(pack.length());
                     for segment in pack.segments() {
                         match segment {

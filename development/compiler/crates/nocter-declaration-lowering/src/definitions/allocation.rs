@@ -6,7 +6,7 @@ use nocter_model::{
     BodyId, BorrowCapability, CallableCapability, CallableId, FieldId, ParameterId, RequirementId,
     TypeId, TypeKind, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxToken, TokenKind};
 
 use crate::{
@@ -346,32 +346,6 @@ fn ordinary_parameter_syntax(
 ) -> Result<Vec<ParameterSyntax>, HeaderDefinitionError> {
     let tree = projection::tree(types, declaration)?;
     let root = surface_node(types, declaration)?;
-    if kind == SurfaceDeclarationKind::Literal {
-        let parameters = syntax::descendant(tree, root, NodeKind::LiteralParameters)
-            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
-        if let Some(parameter) = syntax::direct_node(tree, parameters, NodeKind::Parameter) {
-            return Ok(vec![ordinary_parameter(
-                types,
-                declaration,
-                tree,
-                parameter,
-                0,
-                false,
-            )?]);
-        }
-        let name = syntax::direct_identifier(tree, parameters)
-            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
-        let ty_node = syntax::direct_node(tree, parameters, NodeKind::Type)
-            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
-        return Ok(vec![ParameterSyntax {
-            name,
-            ty: normalized_type(types, ty_node)?,
-            role: ParameterRole::Ordinary {
-                position: 0,
-                variadic: true,
-            },
-        }]);
-    }
     if matches!(
         kind,
         SurfaceDeclarationKind::Equality | SurfaceDeclarationKind::Ordering
@@ -395,10 +369,7 @@ fn ordinary_parameter_syntax(
         return Ok(vec![ParameterSyntax {
             name,
             ty,
-            role: ParameterRole::Ordinary {
-                position: 0,
-                variadic: false,
-            },
+            role: ParameterRole::Ordinary { position: 0 },
         }]);
     }
     if kind == SurfaceDeclarationKind::Index {
@@ -410,19 +381,68 @@ fn ordinary_parameter_syntax(
             tree,
             parameter,
             0,
-            false,
         )?]);
     }
     let Some(parameters) = syntax::descendant(tree, root, NodeKind::Parameters) else {
         return Ok(Vec::new());
     };
-    syntax::direct_nodes(tree, parameters, NodeKind::Parameter)
+    let parameter_nodes = syntax::direct_nodes(tree, parameters, NodeKind::Parameter);
+    validate_argument_pack_shape(tree, root, parameters, kind, &parameter_nodes)?;
+    parameter_nodes
         .into_iter()
         .enumerate()
         .map(|(position, parameter)| {
-            ordinary_parameter(types, declaration, tree, parameter, position, false)
+            ordinary_parameter(types, declaration, tree, parameter, position)
         })
         .collect()
+}
+
+fn validate_argument_pack_shape(
+    tree: &nocter_syntax::SyntaxTree,
+    root: NodeId,
+    parameters: NodeId,
+    kind: SurfaceDeclarationKind,
+    parameter_nodes: &[NodeId],
+) -> Result<(), HeaderDefinitionError> {
+    let packs = parameter_nodes
+        .iter()
+        .copied()
+        .filter_map(|parameter| {
+            syntax::direct_node(tree, parameter, NodeKind::ArgumentPackModifier)
+        })
+        .collect::<Vec<_>>();
+    let one_final = packs.len() == 1
+        && parameter_nodes.last().is_some_and(|parameter| {
+            syntax::direct_node(tree, *parameter, NodeKind::ArgumentPackModifier)
+                == packs.first().copied()
+        });
+    let valid = match kind {
+        SurfaceDeclarationKind::Literal => {
+            let sequence =
+                syntax::descendant(tree, root, NodeKind::LiteralShape).is_some_and(|shape| {
+                    syntax::has_punctuation(tree, shape, Punctuation::LeftBracket)
+                });
+            if sequence {
+                one_final && parameter_nodes.len() == 1
+            } else {
+                packs.is_empty()
+            }
+        }
+        SurfaceDeclarationKind::Function
+        | SurfaceDeclarationKind::ConstructionFunction
+        | SurfaceDeclarationKind::InterfaceMethod
+        | SurfaceDeclarationKind::InherentMethod
+        | SurfaceDeclarationKind::ConformanceMethod => packs.is_empty() || one_final,
+        _ => packs.is_empty(),
+    };
+    if valid {
+        return Ok(());
+    }
+    Err(super::DefinitionViolation::new(
+        super::DefinitionRule::InvalidArgumentPackParameter,
+        SyntaxOrigin::Node(packs.first().copied().unwrap_or(parameters)),
+    )
+    .into())
 }
 
 fn ordinary_parameter(
@@ -431,7 +451,6 @@ fn ordinary_parameter(
     tree: &nocter_syntax::SyntaxTree,
     node: NodeId,
     position: usize,
-    variadic: bool,
 ) -> Result<ParameterSyntax, HeaderDefinitionError> {
     let name = syntax::direct_identifier(tree, node)
         .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
@@ -440,7 +459,11 @@ fn ordinary_parameter(
     Ok(ParameterSyntax {
         name,
         ty: normalized_type(types, ty_node)?,
-        role: ParameterRole::Ordinary { position, variadic },
+        role: if syntax::direct_node(tree, node, NodeKind::ArgumentPackModifier).is_some() {
+            ParameterRole::ArgumentPack { position }
+        } else {
+            ParameterRole::Ordinary { position }
+        },
     })
 }
 

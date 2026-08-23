@@ -357,12 +357,15 @@ fn validate_parameters(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                     DeclarationDomain::Callable,
                 )?;
                 match parameter.role() {
-                    ParameterRole::Ordinary { position, .. }
+                    ParameterRole::Ordinary { position }
+                    | ParameterRole::ArgumentPack { position }
                         if callable.parameters().get(position) == Some(&id) => {}
                     ParameterRole::Receiver(capability)
                         if callable.receiver() == Some(id)
                             && valid_receiver_capability(callable.kind(), capability) => {}
-                    ParameterRole::Ordinary { .. } | ParameterRole::Receiver(_) => {
+                    ParameterRole::Ordinary { .. }
+                    | ParameterRole::ArgumentPack { .. }
+                    | ParameterRole::Receiver(_) => {
                         return Err(ProgramIntegrityError::InvalidPosition(
                             DeclarationDomain::Parameter,
                         ));
@@ -375,11 +378,7 @@ fn validate_parameters(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                     DeclarationDomain::Parameter,
                     DeclarationDomain::Variant,
                 )?;
-                let ParameterRole::Ordinary {
-                    position,
-                    variadic: false,
-                } = parameter.role()
-                else {
+                let ParameterRole::Ordinary { position } = parameter.role() else {
                     return Err(ProgramIntegrityError::OwnerMismatch(
                         DeclarationDomain::Parameter,
                     ));

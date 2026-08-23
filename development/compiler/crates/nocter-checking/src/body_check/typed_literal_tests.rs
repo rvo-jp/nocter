@@ -7,9 +7,9 @@ use nocter_syntax::NodeKind;
 use super::check_prepared_program;
 use crate::test_support::{Fixture, with_standard_roles};
 use crate::{
-    AllocationSelection, BodyRule, CheckedOperation, CheckedOutcome, CleanupTarget, CleanupTiming,
-    IterationAcquisition, LoopKind, PlaceRoot, SequenceElement, SpreadMode, StaticDispatch,
-    prepare_program_checking,
+    AllocationSelection, ArgumentPackSegment, BodyRule, CheckedOperation, CheckedOutcome,
+    CleanupTarget, CleanupTiming, IterationAcquisition, LoopKind, PlaceRoot, SpreadMode,
+    StaticDispatch, prepare_program_checking,
 };
 
 fn checked(source: &str) -> crate::CheckedProgramOutput {
@@ -123,13 +123,14 @@ func rendered(): Text { Text "line\nvalue" }
         })
         .collect::<Vec<_>>();
     assert_eq!(sequences.len(), 2);
-    assert_eq!(sequences[0].1.elements().len(), 3);
+    assert_eq!(sequences[0].1.pack().segments().len(), 3);
     assert!(
         sequences[0]
             .1
-            .elements()
+            .pack()
+            .segments()
             .iter()
-            .all(|element| matches!(element, SequenceElement::Value(_)))
+            .all(|element| matches!(element, ArgumentPackSegment::Value(_)))
     );
     for (ty, sequence) in &sequences {
         assert_eq!(
@@ -200,23 +201,20 @@ func values(): Vec<i32> { Vec [1, 2, 3] }
             .get(parameter)
             .unwrap()
             .role(),
-        ParameterRole::Ordinary {
-            position: 0,
-            variadic: true
-        }
+        ParameterRole::ArgumentPack { position: 0 }
     ));
     let body = program.bodies().get(constructor.body().unwrap()).unwrap();
     assert!(body.nodes().iter().any(|(_, node)| {
         matches!(
             node.operation(),
-            CheckedOperation::LiteralPackLength(found) if *found == parameter
+            CheckedOperation::ArgumentPackLength(found) if *found == parameter
         )
     }));
     let literal_loop = body
         .loops()
         .iter()
         .find_map(|(_, loop_)| match loop_.kind() {
-            LoopKind::LiteralPack {
+            LoopKind::ArgumentPack {
                 binding,
                 parameter: found,
                 item,
@@ -242,7 +240,7 @@ func values(): Vec<i32> { Vec [1, 2, 3] }
 }
 
 #[test]
-fn sequence_literal_pack_rejects_ordinary_value_use() {
+fn sequence_argument_pack_rejects_ordinary_value_use() {
     let fixture = Fixture::new(
         r"
 struct Vec<T> {}
@@ -261,7 +259,7 @@ construct Vec<T> {
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
 
-    assert_eq!(error.rule(), Some(BodyRule::InvalidLiteralPackUse));
+    assert_eq!(error.rule(), Some(BodyRule::InvalidArgumentPackUse));
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0409");
 }
 
@@ -312,39 +310,40 @@ func move_spread(source: Source): Vec<i32> { Vec [...move source] }
         .collect::<Vec<_>>();
     assert_eq!(sequences.len(), 3);
     assert!(matches!(
-        sequences[0].1.elements(),
+        sequences[0].1.pack().segments(),
         [
-            SequenceElement::Value(_),
-            SequenceElement::Spread {
+            ArgumentPackSegment::Value(_),
+            ArgumentPackSegment::Spread {
                 mode: SpreadMode::Copy,
                 ..
             },
-            SequenceElement::Value(_)
+            ArgumentPackSegment::Value(_)
         ]
     ));
     assert!(matches!(
-        sequences[1].1.elements(),
-        [SequenceElement::Spread {
+        sequences[1].1.pack().segments(),
+        [ArgumentPackSegment::Spread {
             mode: SpreadMode::Borrow,
             ..
         }]
     ));
     assert!(matches!(
-        sequences[2].1.elements(),
-        [SequenceElement::Spread {
+        sequences[2].1.pack().segments(),
+        [ArgumentPackSegment::Spread {
             mode: SpreadMode::Move,
             ..
         }]
     ));
     for (body, sequence) in sequences {
-        let SequenceElement::Spread {
+        let ArgumentPackSegment::Spread {
             iteration,
             exact_size,
             ..
         } = sequence
-            .elements()
+            .pack()
+            .segments()
             .iter()
-            .find(|element| matches!(element, SequenceElement::Spread { .. }))
+            .find(|element| matches!(element, ArgumentPackSegment::Spread { .. }))
             .unwrap()
         else {
             unreachable!()
@@ -361,6 +360,57 @@ func move_spread(source: Source): Vec<i32> { Vec [...move source] }
         ));
         assert!(matches!(exact_size.dispatch(), StaticDispatch::Direct(_)));
     }
+}
+
+#[test]
+fn callable_argument_pack_uses_the_same_spread_plan_as_sequence_literals() {
+    let output = checked_with_iteration_standard(&iteration_standard(
+        r"
+struct Source {}
+struct RefIter {}
+instance Source {
+    pub operator (...&self): RefIter { return RefIter {} }
+}
+conform Iterator for RefIter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+conform ExactSizeIterator for RefIter {
+    method &self.remaining_len(): usize { 0 }
+}
+func discard(...items: i32): void {
+    for item in items { let _ = item }
+    return
+}
+func apply(source: Source): void {
+    discard(0, ...source, 4)
+    return
+}
+",
+    ))
+    .unwrap();
+    let pack = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => call.pack(),
+            _ => None,
+        })
+        .expect("call argument pack");
+
+    assert!(matches!(
+        pack.segments(),
+        [
+            ArgumentPackSegment::Value(_),
+            ArgumentPackSegment::Spread {
+                mode: SpreadMode::Copy,
+                ..
+            },
+            ArgumentPackSegment::Value(_),
+        ]
+    ));
 }
 
 #[test]
@@ -387,12 +437,12 @@ func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I: Iterator, I: Exac
         })
         .unwrap();
     let [
-        SequenceElement::Spread {
+        ArgumentPackSegment::Spread {
             mode: SpreadMode::Copy,
             iteration,
             exact_size,
         },
-    ] = sequence.elements()
+    ] = sequence.pack().segments()
     else {
         panic!("generic sequence must retain its one spread")
     };

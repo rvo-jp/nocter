@@ -710,7 +710,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         let result = match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
-            | CheckedOperation::LiteralPackLength(_) => (ValueProvenance::independent(), true),
+            | CheckedOperation::ArgumentPackLength(_) => (ValueProvenance::independent(), true),
             CheckedOperation::Place(place) | CheckedOperation::Copy(place) => {
                 self.evaluate_place_indices(place, state)?;
                 (self.read_place(place, state)?, true)

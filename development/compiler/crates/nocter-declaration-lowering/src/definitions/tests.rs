@@ -448,6 +448,22 @@ fn rejects_ambiguous_bodyless_result_provenance() {
 }
 
 #[test]
+fn rejects_argument_packs_outside_the_single_final_callable_position() {
+    for source in [
+        "func invalid(...items: i32, tail: i32): void { return }\n",
+        "func invalid(...first: i32, ...second: i32): void { return }\n",
+        "primitive invalid(...items: i32): void\n",
+        "enum Invalid { value(...items: i32) }\n",
+    ] {
+        assert!(matches!(
+            definition_error(source),
+            super::HeaderDefinitionError::Rule(violation)
+                if violation.rule() == DefinitionRule::InvalidArgumentPackParameter
+        ));
+    }
+}
+
+#[test]
 fn definition_rules_retain_exact_authored_subjects() {
     let cases = [
         (

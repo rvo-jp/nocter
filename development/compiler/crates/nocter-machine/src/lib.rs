@@ -23,7 +23,9 @@ mod structural;
 mod target;
 mod transport;
 
-pub use call::{MachineCall, MachineCallAllocation, MachineCallTarget, MachinePrimitiveTarget};
+pub use call::{
+    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachinePrimitiveTarget,
+};
 pub use context::{
     MachineContextError, MachineContextKind, MachineContextPlan, MachineContextPlans,
     MachineContextRequirement,

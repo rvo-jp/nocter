@@ -59,12 +59,12 @@ const COLLECTION_RULES: IterationRules = IterationRules {
 };
 
 impl BodyChecker<'_, '_> {
-    /// Checks the acquisition and exact iteration contract for one sequence spread.
+    /// Checks the acquisition and exact iteration contract for one argument-pack spread.
     ///
     /// Acquisition has its own checked node because it owns the iterator temporary independently
     /// of the source expression. Direct owned iteration is selected before owned expansion and is
     /// never allowed to fall back when the direct iterator lacks exact-size support.
-    pub(super) fn check_sequence_spread(
+    pub(super) fn check_argument_spread(
         &mut self,
         element: NodeId,
         spread: NodeId,

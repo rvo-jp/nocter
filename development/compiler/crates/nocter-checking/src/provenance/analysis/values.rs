@@ -5,11 +5,11 @@ use super::Analyzer;
 use crate::provenance::invocation_place_can_reach_result;
 use crate::provenance::state::ProvenanceState;
 use crate::{
-    AggregateConstruction, AllocationSelection, AmbientStorageDependence, BodyCheckError,
-    BodyCheckInternalError, CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation,
-    CheckedOutcome, CheckedReceiver, CheckedSequence, IterationAcquisition, PlaceRoot,
-    ProvenanceProjection, ProvenanceSource, ReceiverPreparation, SequenceElement, StaticDispatch,
-    ValueProvenance,
+    AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
+    BodyCheckError, BodyCheckInternalError, CallTarget, CheckedArgumentPack, CheckedCall,
+    CheckedIteratorAcquisition, CheckedOperation, CheckedOutcome, CheckedReceiver, CheckedSequence,
+    IterationAcquisition, PlaceRoot, ProvenanceProjection, ProvenanceSource, ReceiverPreparation,
+    StaticDispatch, ValueProvenance,
 };
 
 struct CallableValueProvenance {
@@ -363,11 +363,72 @@ impl Analyzer<'_, '_> {
             };
             arguments.push(argument);
         }
+        if let Some(pack) = call.pack() {
+            let Some(argument) = self.evaluate_argument_pack(pack, state)? else {
+                return Ok(None);
+            };
+            arguments.push(argument);
+        }
         Ok(Some(EvaluatedCall {
             callable,
             receiver,
             arguments,
         }))
+    }
+
+    fn evaluate_argument_pack(
+        &mut self,
+        pack: &CheckedArgumentPack,
+        state: &mut ProvenanceState,
+    ) -> Result<Option<ArgumentProvenance>, BodyCheckError> {
+        if let Some(parameter) = pack.forwarded_parameter() {
+            return Ok(Some(ArgumentProvenance::carried(
+                state.value(PlaceRoot::Parameter(parameter)),
+            )));
+        }
+        let mut elements = ValueProvenance::independent();
+        for segment in pack.segments() {
+            match segment {
+                ArgumentPackSegment::Value(value) => {
+                    let (provenance, reaches) = self.evaluate(*value, state)?;
+                    if !reaches {
+                        return Ok(None);
+                    }
+                    let checked = self
+                        .body
+                        .nodes()
+                        .get(*value)
+                        .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                    let argument = match checked.operation() {
+                        CheckedOperation::Borrow { place, .. } => ArgumentProvenance {
+                            carried: self.read_place(*place, state)?,
+                            place: Some(provenance),
+                        },
+                        _ => ArgumentProvenance::carried(provenance),
+                    };
+                    elements.union_with(&argument.retained(true).flattened());
+                }
+                ArgumentPackSegment::Spread {
+                    mode, iteration, ..
+                } => {
+                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
+                    if !reaches {
+                        return Ok(None);
+                    }
+                    let contribution = mode
+                        .contribution_type(self.types, iteration.item())
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    if self.types.may_carry_storage(contribution) {
+                        elements.union_with(&self.iteration_item_provenance(
+                            iteration,
+                            &iterator,
+                            state.current_allocation(),
+                        )?);
+                    }
+                }
+            }
+        }
+        Ok(Some(ArgumentProvenance::carried(elements)))
     }
 
     fn map_call_result(
@@ -580,16 +641,16 @@ impl Analyzer<'_, '_> {
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
         let mut result = self.allocation_provenance(sequence.allocation(), state)?;
         let mut elements = ValueProvenance::independent();
-        for element in sequence.elements() {
+        for element in sequence.pack().segments() {
             match element {
-                SequenceElement::Value(value) => {
+                ArgumentPackSegment::Value(value) => {
                     let (value, reaches) = self.evaluate(*value, state)?;
                     if !reaches {
                         return Ok((ValueProvenance::independent(), false));
                     }
                     elements.union_with(&value);
                 }
-                SequenceElement::Spread {
+                ArgumentPackSegment::Spread {
                     mode, iteration, ..
                 } => {
                     let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;

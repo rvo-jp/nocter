@@ -208,6 +208,15 @@ fn rebuild(
                     .iter()
                     .map(|parameter| mapped(*parameter))
                     .collect::<Result<Vec<_>, _>>()?,
+                contract
+                    .pack()
+                    .map(|pack| {
+                        finished
+                            .get(&pack)
+                            .copied()
+                            .ok_or(SubstitutionError::InvalidStore)
+                    })
+                    .transpose()?,
                 mapped(contract.result())?,
                 contract.provenance().clone(),
             )
@@ -240,6 +249,7 @@ impl TypeReferences for TypeKind {
             | Self::Fallible(base) => visit(*base),
             Self::Callable(contract) => {
                 contract.parameters().iter().copied().for_each(&mut visit);
+                contract.pack().into_iter().for_each(&mut visit);
                 visit(contract.result());
             }
         }

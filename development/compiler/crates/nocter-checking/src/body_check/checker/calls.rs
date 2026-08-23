@@ -118,6 +118,7 @@ impl BodyChecker<'_, '_> {
                 )),
                 None,
                 plan.arguments,
+                plan.pack,
             )),
         )?;
         result_context
@@ -136,8 +137,8 @@ impl BodyChecker<'_, '_> {
         suffix: NodeId,
         result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        if let Some((parameter, _)) = self.literal_pack_parameter(owner)? {
-            return self.check_literal_pack_method(
+        if let Some((parameter, _)) = self.argument_pack_parameter(owner)? {
+            return self.check_argument_pack_method(
                 node,
                 parameter,
                 member,

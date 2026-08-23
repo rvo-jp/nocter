@@ -4,8 +4,8 @@ use nocter_source_index::{SemanticEntity, SourceRole};
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CallTarget, CheckedOperation, CoercedReceiverPreparation, ReceiverPreparation, StaticDispatch,
-    prepare_program_checking,
+    ArgumentPackSegment, CallTarget, CheckedOperation, CoercedReceiverPreparation,
+    ReceiverPreparation, StaticDispatch, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -61,6 +61,53 @@ fn private_methods_require_direct_source_access() {
         &[("value.nct", value), ("consumer.nct", direct_consumer)],
     );
     check_fixture(&fixture).unwrap();
+}
+
+#[test]
+fn methods_accept_fixed_parameters_before_their_final_argument_pack() {
+    let output = check(
+        "struct Counter {}\ninstance Counter {\n    pub method &self.count(seed: usize, ...items: i32): usize { seed + items.len() }\n}\nfunc apply(counter: &Counter): usize { counter.count(10, 1, 2) }\n",
+    )
+    .unwrap();
+    let call = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("method call");
+
+    assert!(call.receiver().is_some());
+    assert_eq!(call.arguments().len(), 1);
+    assert!(matches!(
+        call.pack().map(crate::CheckedArgumentPack::segments),
+        Some([ArgumentPackSegment::Value(_), ArgumentPackSegment::Value(_),])
+    ));
+}
+
+#[test]
+fn interface_methods_preserve_the_argument_pack_contract_through_conformance() {
+    let output = check(
+        "pub interface Counter {\n    pub method &self.count(seed: usize, ...items: i32): usize\n}\nstruct Value {}\nconform Counter for Value {\n    method &self.count(seed: usize, ...items: i32): usize { seed + items.len() }\n}\nfunc apply(value: &Value): usize { value.count(10, 1, 2) }\n",
+    )
+    .unwrap();
+    let call = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) if call.pack().is_some() => Some(call),
+            _ => None,
+        })
+        .expect("interface method pack call");
+
+    assert!(call.receiver().is_some());
+    assert_eq!(call.arguments().len(), 1);
+    assert_eq!(call.pack().unwrap().segments().len(), 2);
 }
 
 #[test]

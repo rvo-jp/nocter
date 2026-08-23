@@ -78,6 +78,34 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 }
 
 #[test]
+fn standard_string_concat_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        concat!(
+            "func main(): i32 {\n",
+            "    let text = String.concat(\"No\", \"cter\")\n",
+            "    if (&text as &str) == \"Nocter\" { return 42 }\n",
+            "    return 1\n",
+            "}\n",
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    assert!(!image.image().bytes().is_empty());
+}
+
+#[test]
 fn body_failure_retains_preparation_and_exact_typed_interruption() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

@@ -150,7 +150,7 @@ impl BodyIdentities {
             ),
             packs: assign_ids::<MirOperationId, MachinePackId, _>(
                 body.operations().iter().filter(|(_, operation)| {
-                    matches!(operation.kind(), nocter_mir::MirOperationKind::Call(call) if call.pack().is_some())
+                    matches!(operation.kind(), nocter_mir::MirOperationKind::Call(call) if call.pack().is_some_and(|pack| pack.prepared().is_some()))
                 }),
             ),
             blocks: assign_ids::<MirBlockId, MachineBlockId, _>(body.blocks().iter()),
