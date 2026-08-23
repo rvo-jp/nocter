@@ -969,8 +969,9 @@ fn project_module_sources(
             ModuleSourceKind::Root | ModuleSourceKind::SingleFile => SourceRole::Declaration,
             ModuleSourceKind::Implementation => SourceRole::Implementation,
         };
-        index.insert(
-            SemanticEntity::Module(module),
+        index.insert_module_source(
+            module,
+            source.syntax().source(),
             role,
             SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                 .map_err(|_| LoweringError::InconsistentSyntax(source.syntax().source()))?,

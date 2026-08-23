@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use nocter_compile_input::{CompileUnitInput, UseTargetInput};
 use nocter_frontend_bindings::{FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration};
+use nocter_model::{BodyId, ModuleId, ParameterId};
+use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex,
-    SourceIndexBuilder, SourceOrigin, SourceRole, SyntaxOrigin,
+    SourceIndexBuilder, SourceOrigin, SourceRole,
 };
-use nocter_syntax::NodeKind;
+use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
 /// One lowering-owned write path that independently emits semantic checking bindings and the
 /// presentation index. Neither completed product is reconstructed from the other.
@@ -31,7 +33,60 @@ impl FrontendProjectionBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) -> Result<(), DuplicateSourceBinding> {
-        self.record_binding(entity, role, origin);
+        self.source_index.insert(entity, role, origin)
+    }
+
+    pub(crate) fn insert_module_source(
+        &mut self,
+        module: ModuleId,
+        source: SourceId,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.bindings.add_module_source(module, source);
+        self.source_index
+            .insert(SemanticEntity::Module(module), role, origin)
+    }
+
+    pub(crate) fn insert_body(
+        &mut self,
+        body: BodyId,
+        block: NodeId,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.bindings.add_body_block(body, block);
+        self.source_index
+            .insert(SemanticEntity::Body(body), role, origin)
+    }
+
+    pub(crate) fn insert_parameter(
+        &mut self,
+        parameter: ParameterId,
+        declaration: SyntaxToken,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.bindings
+            .add_parameter_declaration(parameter, declaration);
+        self.source_index
+            .insert(SemanticEntity::Parameter(parameter), role, origin)
+    }
+
+    pub(crate) fn insert_declaration(
+        &mut self,
+        declaration: FrontendDeclaration,
+        token: SyntaxToken,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.bindings.add_declaration(token, declaration);
+        let entity = match declaration {
+            FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(id),
+            FrontendDeclaration::Interface(id) => SemanticEntity::Interface(id),
+            FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(id),
+            FrontendDeclaration::Callable(id) => SemanticEntity::Callable(id),
+        };
         self.source_index.insert(entity, role, origin)
     }
 
@@ -55,46 +110,6 @@ impl FrontendProjectionBuilder {
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {
         (self.source_index.finish(), self.bindings.finish())
-    }
-
-    fn record_binding(&mut self, entity: SemanticEntity, role: SourceRole, origin: SourceOrigin) {
-        if !matches!(role, SourceRole::Declaration | SourceRole::Implementation) {
-            return;
-        }
-        match entity {
-            SemanticEntity::Module(module) => {
-                self.bindings.add_module_source(module, origin.source());
-            }
-            SemanticEntity::Body(body) => {
-                if let Some(block) = origin.node() {
-                    self.bindings.add_body_block(body, block);
-                }
-            }
-            SemanticEntity::Parameter(parameter) => {
-                if let SyntaxOrigin::Token(token) = origin.syntax() {
-                    self.bindings.add_parameter_declaration(parameter, token);
-                }
-            }
-            SemanticEntity::NominalType(id) => {
-                self.record_declaration(origin, FrontendDeclaration::NominalType(id));
-            }
-            SemanticEntity::Interface(id) => {
-                self.record_declaration(origin, FrontendDeclaration::Interface(id));
-            }
-            SemanticEntity::AssociatedType(id) => {
-                self.record_declaration(origin, FrontendDeclaration::AssociatedType(id));
-            }
-            SemanticEntity::Callable(id) => {
-                self.record_declaration(origin, FrontendDeclaration::Callable(id));
-            }
-            _ => {}
-        }
-    }
-
-    fn record_declaration(&mut self, origin: SourceOrigin, declaration: FrontendDeclaration) {
-        if let SyntaxOrigin::Token(token) = origin.syntax() {
-            self.bindings.add_declaration(token, declaration);
-        }
     }
 }
 

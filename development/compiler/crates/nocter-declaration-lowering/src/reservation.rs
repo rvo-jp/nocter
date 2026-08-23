@@ -428,8 +428,9 @@ fn project_sources(
             {
                 source_index.insert_documentation(SemanticEntity::Module(module), markdown)?;
             }
-            source_index.insert(
-                SemanticEntity::Module(module),
+            source_index.insert_module_source(
+                module,
+                source.syntax().source(),
                 role,
                 SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                     .map_err(|_| ReservationError::InconsistentSource(source.syntax().source()))?,

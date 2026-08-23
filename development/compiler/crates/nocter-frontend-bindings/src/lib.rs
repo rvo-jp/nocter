@@ -83,7 +83,6 @@ pub struct FrontendBindingsBuilder {
     body_blocks: BTreeMap<BodyId, Vec<NodeId>>,
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
-    block_imports: HashMap<NodeId, ModuleId>,
 }
 
 impl FrontendBindingsBuilder {
@@ -112,10 +111,6 @@ impl FrontendBindingsBuilder {
             .entry(token)
             .or_default()
             .push(declaration);
-    }
-
-    pub fn set_block_import(&mut self, declaration: NodeId, module: ModuleId) -> Option<ModuleId> {
-        self.block_imports.insert(declaration, module)
     }
 
     #[must_use]
@@ -151,7 +146,7 @@ impl FrontendBindingsBuilder {
                 .into_iter()
                 .map(|(token, declarations)| (token, declarations.into_boxed_slice()))
                 .collect(),
-            block_imports: self.block_imports,
+            block_imports: HashMap::new(),
         }
     }
 }

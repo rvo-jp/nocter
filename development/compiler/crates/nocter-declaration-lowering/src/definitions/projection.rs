@@ -62,6 +62,26 @@ pub(super) fn node(
     Ok(())
 }
 
+pub(super) fn body(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    body: nocter_model::BodyId,
+    role: SourceRole,
+    block: NodeId,
+) -> Result<(), HeaderDefinitionError> {
+    let origin = SourceOrigin::from_node(tree(types, declaration)?, block)
+        .map_err(|_| HeaderDefinitionError::InconsistentSource(block.source()))?;
+    types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_index
+        .insert_body(body, block, role, origin)?;
+    Ok(())
+}
+
 pub(super) fn token(
     types: &mut PreparedTypes<'_>,
     declaration: SurfaceDeclarationId,
@@ -79,6 +99,26 @@ pub(super) fn token(
         .reserved
         .source_index
         .insert(entity, role, origin)?;
+    Ok(())
+}
+
+pub(super) fn parameter(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    parameter: nocter_model::ParameterId,
+    role: SourceRole,
+    token: SyntaxToken,
+) -> Result<(), HeaderDefinitionError> {
+    let origin = SourceOrigin::from_token(tree(types, declaration)?, token)
+        .map_err(|_| HeaderDefinitionError::InconsistentSource(token.source()))?;
+    types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_index
+        .insert_parameter(parameter, token, role, origin)?;
     Ok(())
 }
 

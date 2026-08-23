@@ -84,13 +84,7 @@ pub(super) fn allocate(
                         target,
                         ParameterRole::Receiver(CallableCapability::ReadWrite),
                     ));
-                projection::token(
-                    types,
-                    declaration,
-                    SemanticEntity::Parameter(receiver),
-                    SourceRole::Declaration,
-                    name,
-                )?;
+                projection::parameter(types, declaration, receiver, SourceRole::Declaration, name)?;
                 receivers[index] = Some(receiver);
                 bodies[index] = allocate_body(types, declaration, BodyOwner::Drop(drop))?;
             }
@@ -336,10 +330,10 @@ fn project_parameter(
     parameter: ParameterId,
     token: SyntaxToken,
 ) -> Result<(), HeaderDefinitionError> {
-    projection::token(
+    projection::parameter(
         types,
         declaration,
-        SemanticEntity::Parameter(parameter),
+        parameter,
         projection::role(types, declaration),
         token,
     )
@@ -551,10 +545,10 @@ fn allocate_callable_body(
             .program
             .declarations_mut()
             .add_body(Body::new(BodyOwner::Callable(callable)));
-        projection::node(
+        projection::body(
             types,
             occurrence,
-            SemanticEntity::Body(body),
+            body,
             projection::role(types, occurrence),
             block,
         )?;
@@ -581,13 +575,7 @@ fn allocate_body(
         .program
         .declarations_mut()
         .add_body(Body::new(owner));
-    projection::node(
-        types,
-        declaration,
-        SemanticEntity::Body(body),
-        SourceRole::Declaration,
-        block,
-    )?;
+    projection::body(types, declaration, body, SourceRole::Declaration, block)?;
     Ok(Some(body))
 }
 

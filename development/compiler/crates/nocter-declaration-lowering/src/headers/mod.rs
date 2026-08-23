@@ -244,9 +244,32 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
             SourceRole::Declaration
         };
         let origin = entity_origin(reserved, id)?;
-        reserved
-            .source_index
-            .insert(entity.semantic_entity(), role, origin)?;
+        let declaration = match entity {
+            crate::ReservedEntity::NominalType(id) => Some(
+                nocter_frontend_bindings::FrontendDeclaration::NominalType(id),
+            ),
+            crate::ReservedEntity::Interface(id) => {
+                Some(nocter_frontend_bindings::FrontendDeclaration::Interface(id))
+            }
+            crate::ReservedEntity::AssociatedType(id) => {
+                Some(nocter_frontend_bindings::FrontendDeclaration::AssociatedType(id))
+            }
+            crate::ReservedEntity::Callable(id) => {
+                Some(nocter_frontend_bindings::FrontendDeclaration::Callable(id))
+            }
+            _ => None,
+        };
+        if let (Some(declaration), nocter_source_index::SyntaxOrigin::Token(token)) =
+            (declaration, origin.syntax())
+        {
+            reserved
+                .source_index
+                .insert_declaration(declaration, token, role, origin)?;
+        } else {
+            reserved
+                .source_index
+                .insert(entity.semantic_entity(), role, origin)?;
+        }
     }
     Ok(())
 }
