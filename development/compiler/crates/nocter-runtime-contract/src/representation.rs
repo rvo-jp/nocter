@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{CaptureId, FieldId, OpaqueTypeId, ParameterId, TypeId, VariantId};
+use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, VariantId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeCaptureRepresentation {
@@ -109,7 +109,6 @@ pub enum RuntimeTypeRepresentation {
         variants: Box<[RuntimeVariantRepresentation]>,
     },
     Opaque {
-        definition: OpaqueTypeId,
         witness: TypeId,
     },
     Closure {

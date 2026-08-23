@@ -189,10 +189,7 @@ fn close_opaque(
     )?;
     let witness = resolver.specialize_type(witness, &substitution)?;
     pending.insert(witness);
-    Ok(RuntimeTypeRepresentation::Opaque {
-        definition,
-        witness,
-    })
+    Ok(RuntimeTypeRepresentation::Opaque { witness })
 }
 
 fn owner_substitution(
