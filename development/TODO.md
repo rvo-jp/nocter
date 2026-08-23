@@ -2,12 +2,12 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 is complete. It removed semantic authority
-from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the backend-visible
-semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one owner. Phase 1's
-source/module specification is now adopted and implementation is active: direct-only `include`
-owns physical-source visibility, `use` owns module imports, and `index.nct` owns public contracts
-completed by private definitions. The exact scope and completion record are in
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 and Phase 1 are complete. Phase 0 removed
+semantic authority from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the
+backend-visible semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one
+owner. Phase 1 separated direct-only physical-source `include` from directory-module `use`, made
+`index.nct` the sole public contract, and centralized exact-source private access. Phase 2 typed
+argument packs have not started. The exact scope and completion records are in
 `development/milestones/v0.15.0.md`.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
@@ -20,6 +20,9 @@ input.
 - The source, syntax, declaration, checked-program, MIR, machine, ARM64, Mach-O, package, command,
   formatter, standard-library, and editor phases are implemented through the production boundaries
   described in `development/milestones/v0.14.0.md`.
+- Source discovery, declaration namespaces, private semantic access, and editor recovery now keep
+  exact-source includes separate from module imports. Public contracts and private definitions join
+  under reciprocal direct includes without widening implementation visibility.
 - Editor queries consume one immutable generation. Hover and semantic tokens share one deterministic
   source-binding authority; semantic ranges, cursor containment, containment, and overlap belong to
   `nocter-source`.
@@ -30,8 +33,9 @@ input.
   stderr checks. The public `file-summary` package executes with a real file argument.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
-- Incremental and clean full-workspace test runs each passed 1,129 tests with one intentional
-  public-HTTPS integration test ignored. That network test also passed when run explicitly.
+- The latest full-workspace Phase 1 run passed 1,157 tests with one intentional public-HTTPS
+  integration test ignored. The v0.14.0 release qualification's clean-build record remains in its
+  qualification document.
 - Warnings-denied workspace Clippy, Rust formatting, documentation regeneration, and repository
   whitespace checks passed. The clean build used a temporary external target directory that was
   removed afterward.

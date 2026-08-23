@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/checked-program-design/</loc>
-    <lastmod>2026-08-17</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -26,7 +26,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/grammar-audit/</loc>
-    <lastmod>2026-08-16</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -56,7 +56,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/semantic-presentation-design/</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -632,7 +632,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/02-values-types/</loc>
-    <lastmod>2026-08-17</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

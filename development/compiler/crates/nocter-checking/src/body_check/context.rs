@@ -52,6 +52,19 @@ pub(super) fn body_generic_domain(
         .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))
 }
 
+pub(super) fn body_source_access<'program>(
+    facts: BodyProgramFacts<'program>,
+    source: BodySource<'_>,
+) -> Result<crate::SourceAccessContext<'program>, BodyCheckInternalError> {
+    let access =
+        crate::SourceAccessContext::for_source(facts.source_access(), source.syntax().source())
+            .map_err(BodyCheckInternalError::SourceAccess)?;
+    if access.module() != source.module() {
+        return Err(BodyCheckInternalError::SourceModuleMismatch(source.body()));
+    }
+    Ok(access)
+}
+
 impl<'program> BodyProgramFacts<'program> {
     pub(super) const fn from_prepared(
         prepared: &'program crate::preparation::PreparedCheckingParts<'_>,

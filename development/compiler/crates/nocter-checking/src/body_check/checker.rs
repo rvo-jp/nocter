@@ -16,7 +16,7 @@ use nocter_syntax::{
 };
 
 use super::assumptions::body_assumptions;
-use super::context::{BodyProgramFacts, body_generic_domain, body_result_type};
+use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::literal::{fits_integer, integer_type, parse_integer};
@@ -202,12 +202,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let instance_operations = facts.instance_operations();
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
-        let source_access =
-            crate::SourceAccessContext::for_source(facts.source_access(), source.syntax().source())
-                .map_err(BodyCheckInternalError::SourceAccess)?;
-        if source_access.module() != source.module() {
-            return Err(BodyCheckInternalError::SourceModuleMismatch(source.body()).into());
-        }
+        let source_access = body_source_access(facts, source)?;
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {

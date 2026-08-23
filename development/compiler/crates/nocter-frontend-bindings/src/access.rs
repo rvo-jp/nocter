@@ -87,6 +87,10 @@ impl SourceAccessTable {
     ///
     /// A contract-private representation is not an external structural construction entry even
     /// when it is empty and therefore has no private field site from which to infer that fact.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when lowering did not publish the nominal representation relation.
     pub fn representation_is_contract_private(
         &self,
         nominal: NominalTypeId,
