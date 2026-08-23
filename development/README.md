@@ -10,6 +10,7 @@ The release preparation and publication evidence is linked from the current-work
 ## Current Work
 
 - [Current handoff](TODO.md)
+- [v0.15.0 practical application foundation](milestones/v0.15.0.md)
 - [v0.14.0 rewrite milestone](milestones/v0.14.0.md)
 - [v0.14.0 implementation qualification](milestones/v0.14.0-qualification.md)
 - [v0.14.0 final design review](reviews/v0.14.0-final-design.md)

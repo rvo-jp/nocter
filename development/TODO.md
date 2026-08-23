@@ -2,16 +2,11 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and externally audited. The normative `init` and `graph` omission found
-by the release audit is repaired. Release-content commit
-`a59d4e387eff45c4975b38c771597688417ae4d6` passed incremental and clean source gates, deterministic
-double packaging, and the complete fresh-install smoke matrix. Annotated tag `v0.14.0` resolves to
-publication commit `b59c174a3e510f4ebc6279b7013bc269ccae0678`, and the public asset matches the
-qualified archive byte for byte. Complete evidence is recorded in
-`development/releases/v0.14.0.md`.
-
-The v0.14.0 tag and release asset are frozen. No release-preparation or publication operation
-remains active.
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 is active and closes compiler boundaries
+before practical application APIs are expanded. The phase removes semantic authority from
+`SourceIndex`, narrows concrete dispatch to checked evidence, replaces the backend-visible semantic
+`TypeStore` with a runtime type contract, and gives shared ABI facts one owner. The exact scope and
+completion gate are recorded in `development/milestones/v0.15.0.md`.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
@@ -51,6 +46,10 @@ input.
 5. Convenience re-exports no longer obscure contract ownership.
 6. The adversarial second review found no remaining boundary violation, and incremental plus clean
    external-target qualification passed.
+
+The post-release v0.15.0 audit found that items 2 and 3 were weaker than their wording: checking
+still used `SourceIndex` as input authority, and the MIR environment still exposed semantic
+`TypeStore`. Phase 0 replaces those boundaries rather than preserving the inaccurate claim.
 
 ## Guardrails
 
