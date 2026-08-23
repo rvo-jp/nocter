@@ -34,6 +34,10 @@ impl SurfaceDeclarationId {
 pub struct SurfaceSourceId(usize);
 
 impl SurfaceSourceId {
+    pub(crate) const fn from_index(index: usize) -> Self {
+        Self(index)
+    }
+
     #[must_use]
     pub const fn index(self) -> usize {
         self.0
@@ -307,7 +311,7 @@ pub enum SurfaceError {
     InvalidRootShape(SourceId),
     InvalidItemShape(NodeId),
     ImplementationVisibility(NodeId),
-    ImplementationMember(NodeId),
+    InvalidNominalContract(NodeId),
     MissingConstructionVisibility(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
@@ -333,13 +337,13 @@ impl fmt::Display for SurfaceError {
                 formatter,
                 "implementation-source declaration {node:?} carries non-private visibility"
             ),
-            Self::ImplementationMember(node) => write!(
+            Self::InvalidNominalContract(node) => write!(
                 formatter,
-                "declaration member {node:?} may be authored only in a module root source"
+                "bodyless nominal declaration {node:?} is not an eligible public index contract"
             ),
             Self::MissingConstructionVisibility(node) => write!(
                 formatter,
-                "module-root construction member {node:?} requires explicit visibility"
+                "bodyless public construction contract member {node:?} requires explicit visibility"
             ),
             Self::InconsistentUseResolution(node) => {
                 write!(
@@ -429,15 +433,18 @@ fn collect_declaration_surface_with<'syntax>(
         .enumerate()
         .map(|(index, source)| (source.canonical_path(), SurfaceSourceId(index)))
         .collect();
+    let source_collection = SourceCollectionInput {
+        include_resolutions: &include_resolutions,
+        use_resolutions: &use_resolutions,
+        target_selection: &target_selection,
+        source_by_path: &source_by_path,
+    };
     for (index, source) in sources.iter().enumerate() {
         validate_source_syntax(source.syntax(), syntax_acceptance)?;
         collect_source(
             SurfaceSourceId(index),
             source,
-            &include_resolutions,
-            &use_resolutions,
-            &target_selection,
-            &source_by_path,
+            &source_collection,
             &mut includes,
             &mut imports,
             &mut declarations,
@@ -471,6 +478,14 @@ fn collect_declaration_surface_with<'syntax>(
     })
 }
 
+struct SourceCollectionInput<'input> {
+    include_resolutions:
+        &'input BTreeMap<IncludeResolutionKey, &'input crate::IncludeResolutionInput>,
+    use_resolutions: &'input BTreeMap<UseResolutionKey, &'input crate::UseResolutionInput>,
+    target_selection: &'input TargetSelection,
+    source_by_path: &'input BTreeMap<&'input str, SurfaceSourceId>,
+}
+
 const fn source_kind_rank(kind: ModuleSourceKind) -> u8 {
     match kind {
         ModuleSourceKind::Root | ModuleSourceKind::SingleFile => 0,
@@ -481,10 +496,7 @@ const fn source_kind_rank(kind: ModuleSourceKind) -> u8 {
 fn collect_source(
     source_id: SurfaceSourceId,
     source: &SurfaceSource<'_>,
-    include_resolutions: &BTreeMap<IncludeResolutionKey, &crate::IncludeResolutionInput>,
-    use_resolutions: &BTreeMap<UseResolutionKey, &crate::UseResolutionInput>,
-    target_selection: &TargetSelection,
-    source_by_path: &BTreeMap<&str, SurfaceSourceId>,
+    input: &SourceCollectionInput<'_>,
     includes: &mut Vec<SurfaceInclude>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
@@ -496,10 +508,12 @@ fn collect_source(
     for child in child_nodes(tree, tree.root_id()) {
         match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::IncludeDeclaration) => {
-                let resolution = include_resolutions
+                let resolution = input
+                    .include_resolutions
                     .get(&(child.source(), child.index()))
                     .ok_or(SurfaceError::InconsistentUseResolution(child))?;
-                let target = *source_by_path
+                let target = *input
+                    .source_by_path
                     .get(resolution.target_source())
                     .ok_or(SurfaceError::InconsistentUseResolution(child))?;
                 includes.push(SurfaceInclude {
@@ -514,7 +528,8 @@ fn collect_source(
                 {
                     return Err(SurfaceError::ImplementationVisibility(visibility));
                 }
-                let resolution = use_resolutions
+                let resolution = input
+                    .use_resolutions
                     .get(&(child.source(), child.index()))
                     .ok_or(SurfaceError::InconsistentUseResolution(child))?;
                 imports.push(SurfaceImport {
@@ -524,7 +539,7 @@ fn collect_source(
                 });
             }
             Some(NodeKind::Item) => {
-                if target_selection.item_is_active(child) {
+                if input.target_selection.item_is_active(child) {
                     collect_item(source_id, source.kind(), tree, child, declarations)?;
                 }
             }
@@ -666,20 +681,23 @@ fn validate_implementation_item(
         if kind == NodeKind::Visibility {
             return Err(SurfaceError::ImplementationVisibility(node));
         }
-        if matches!(
-            kind,
-            NodeKind::StructField | NodeKind::AssociatedTypeDeclaration | NodeKind::InterfaceMethod
-        ) {
-            return Err(SurfaceError::ImplementationMember(node));
-        }
         if kind != NodeKind::Block {
             pending.extend(child_nodes(tree, node));
         }
+    }
+    if is_bodyless_nominal(tree, declaration) {
+        return Err(SurfaceError::InvalidNominalContract(declaration));
     }
     Ok(())
 }
 
 fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), SurfaceError> {
+    if is_bodyless_nominal(tree, declaration) {
+        if direct_child(tree, declaration, NodeKind::Visibility).is_none() {
+            return Err(SurfaceError::InvalidNominalContract(declaration));
+        }
+        return Ok(());
+    }
     if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind)
         != Some(NodeKind::ConstructDeclaration)
     {
@@ -689,12 +707,41 @@ fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), Surf
         if matches!(
             tree.node(member).map(nocter_syntax::SyntaxNode::kind),
             Some(NodeKind::ConstructionFunction | NodeKind::LiteralDeclaration)
-        ) && direct_child(tree, member, NodeKind::Visibility).is_none()
+        ) && !contains_child_kind(tree, member, NodeKind::Block)
+            && direct_child(tree, member, NodeKind::Visibility).is_none()
         {
             return Err(SurfaceError::MissingConstructionVisibility(member));
         }
     }
     Ok(())
+}
+
+fn is_bodyless_nominal(tree: &SyntaxTree, declaration: NodeId) -> bool {
+    matches!(
+        tree.node(declaration).map(nocter_syntax::SyntaxNode::kind),
+        Some(NodeKind::StructDeclaration | NodeKind::EnumDeclaration)
+    ) && !tree.children(declaration).iter().any(|element| {
+        matches!(
+            element,
+            SyntaxElement::Token(token)
+                if token.kind() == nocter_syntax::TokenKind::Punctuation(
+                    nocter_syntax::Punctuation::LeftBrace
+                )
+        )
+    })
+}
+
+fn contains_child_kind(tree: &SyntaxTree, root: NodeId, expected: NodeKind) -> bool {
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        for child in child_nodes(tree, node) {
+            if tree.node(child).map(nocter_syntax::SyntaxNode::kind) == Some(expected) {
+                return true;
+            }
+            pending.push(child);
+        }
+    }
+    false
 }
 
 fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl DoubleEndedIterator<Item = NodeId> + '_ {

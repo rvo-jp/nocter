@@ -9,7 +9,7 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
-use super::context::{declaration_module, require_arity, token_symbol};
+use super::context::{declaration_source, require_arity, token_symbol};
 use super::{
     BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, TypeBindingRule,
     binding_arena::BindingArena, projection, push,
@@ -46,10 +46,10 @@ pub(super) fn bind(
         .copied()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let name = token_symbol(namespaces, tree, interface_token)?;
-    let module = declaration_module(namespaces, declaration)?;
+    let source = declaration_source(namespaces, declaration)?;
     let ExportedEntity::Interface(interface) =
         namespaces
-            .lookup_local(module, name)
+            .lookup_local(source, name)
             .ok_or(TypeBindingError::rule(
                 TypeBindingRule::UnknownTypeContextName,
                 SyntaxOrigin::Token(interface_token),

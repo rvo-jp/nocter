@@ -111,6 +111,7 @@ Nocter does not use a `module` declaration. A file's module identity comes from 
 ```nct
 use std/io.print
 use ./config.Config
+include ./helpers.nct
 ```
 
 Rules:
@@ -121,10 +122,16 @@ Rules:
 - `use path` imports a module namespace using the path's default name.
 - `use path.Name` imports selected public names.
 - `use path as name` imports a namespace alias.
-- Paths starting with `./` or `../` are resolved relative to the current file.
+- `use` resolves directory modules and never physical source files. Relative module paths may use
+  `./` or `../` and omit both `index.nct` and `.nct`.
 - Non-relative paths name a declared dependency or `std`; `std/io` resolves only through the
   active Nocter home.
-- Do not invent wildcard imports, textual includes, explicit `.nct` import suffixes, or `module` declarations.
+- `include ./file.nct` makes that exact same-module physical source's declarations directly visible
+  in the current source. It requires `./`, the complete `.nct` filename, and forbids `../`.
+- Include visibility is direct-only and directional. An included source does not inherit the
+  including source's declarations unless it writes its own reciprocal include.
+- Do not invent wildcard imports, source-file `use`, extensionless `include`, or `module`
+  declarations.
 
 ## Errors And Optionals
 

@@ -360,11 +360,14 @@ ConformDeclaration = "conform" DeclarationTypePattern "for" DeclarationTypePatte
 ConformMember = AssociatedTypeBinding | ConformMethod
 
 AssociatedTypeBinding = "type" Name "=" Type
-ConformMethod = MethodSignature Block
+ConformMethod = MethodSignature CallableBody
 ```
 
 Conformance members never write visibility. They contain only associated type bindings and
-body-bearing method implementations. Construction entries, fields, operators, coercions, drop
+method signatures. A bodyless method is valid only in an `index.nct` conformance contract with one
+matching private definition connected through reciprocal direct includes. The contract owns
+associated type bindings; the private definition repeats the conformance head and supplies method
+bodies without repeating those bindings. Construction entries, fields, operators, coercions, drop
 declarations, tests, and extra functions have no conformance-member production.
 
 ## Declaration Type Patterns

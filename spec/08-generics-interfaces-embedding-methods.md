@@ -378,7 +378,7 @@ of this feature.
 
 ## Explicit Conformance
 
-Conformance is declared with a mandatory body-bearing `conform` declaration:
+An inline conformance is declared with body-bearing members:
 
 ```nct
 conform Printable for User {
@@ -391,6 +391,12 @@ conform Printable for User {
 The conformance body owns every required member implementation. Members omit `pub` because the
 interface declaration owns visibility. A default may be omitted or overridden by a same-name
 member. An inherent method never establishes or overrides interface conformance.
+
+In a directory module, `index.nct` may instead expose a conformance contract. It writes associated
+type bindings and bodyless method signatures. One reciprocally included private source repeats the
+conformance head and supplies the matching method bodies; it does not repeat associated type
+bindings. Both occurrences form one semantic conformance, and only the `index.nct` occurrence
+defines the public surface.
 
 Conformance rules are:
 

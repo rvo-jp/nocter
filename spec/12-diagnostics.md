@@ -323,15 +323,13 @@ the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover b
 ambiguity where their operation admits candidates; none reports a declaration selected only by
 source order.
 
-Source-backed callable contract diagnostics:
+Source-backed declaration contract diagnostics:
 
 - `E0250`: a bodyless public callable contract has no implementation body.
 - `E0251`: the selected private implementation body does not exactly match its public contract.
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
-- `E0254`: a private definition that is presented as a public-contract completion has no matching
-  public contract in the reciprocally included `index.nct` source.
 - `E0255`: a bodyless public nominal contract has no complete private representation definition.
 - `E0256`: a private nominal representation does not exactly match its public contract's kind,
   name, generic parameters, requirements, or `copy` contract.

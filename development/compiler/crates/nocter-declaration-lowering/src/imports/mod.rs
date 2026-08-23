@@ -121,6 +121,7 @@ pub(super) type ModuleNamespace = Box<[(Symbol, NamespaceBinding)]>;
 pub struct PreparedImports<'syntax> {
     pub(crate) generics: PreparedGenerics<'syntax>,
     pub(super) namespaces: Box<[ModuleNamespace]>,
+    pub(super) source_namespaces: Box<[ModuleNamespace]>,
     import_ids: Box<[Option<ImportId>]>,
     import_paths: Box<[Option<SyntaxOrigin>]>,
 }
@@ -132,9 +133,8 @@ impl PreparedImports<'_> {
     }
 
     #[must_use]
-    pub fn lookup_local(&self, module: ModuleId, name: Symbol) -> Option<ExportedEntity> {
-        let index = module_index_by_id(&self.generics.headers.reserved, module)?;
-        lookup(&self.namespaces[index], name).map(|binding| binding.entity)
+    pub fn lookup_local(&self, source: SurfaceSourceId, name: Symbol) -> Option<ExportedEntity> {
+        lookup(self.source_namespaces.get(source.index())?, name).map(|binding| binding.entity)
     }
 
     #[must_use]
@@ -180,20 +180,52 @@ pub fn prepare_authored_imports(
 ) -> Result<PreparedImports<'_>, ImportError> {
     let module_count = generics.headers.reserved.modules.len();
     let mut namespaces = vec![BTreeMap::new(); module_count];
-    collect_direct_declarations(&generics, &mut namespaces)?;
+    let mut source_namespaces = vec![BTreeMap::new(); generics.headers.reserved.sources.len()];
+    collect_direct_declarations(&generics, &mut namespaces, &mut source_namespaces)?;
+    apply_direct_includes(&generics, &mut source_namespaces)?;
 
-    let groups = group_imports(&generics)?;
-    let order = dependency_order(&generics, &groups.dependencies)?;
     let import_count = generics.headers.reserved.imports.len();
     let mut import_ids = vec![None; import_count];
     let mut import_paths = vec![None; import_count];
+    resolve_authored_imports(
+        &mut generics,
+        &mut namespaces,
+        &mut source_namespaces,
+        &mut import_ids,
+        &mut import_paths,
+    )?;
 
+    Ok(PreparedImports {
+        generics,
+        namespaces: namespaces
+            .into_iter()
+            .map(|namespace| namespace.into_iter().collect::<Vec<_>>().into_boxed_slice())
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+        source_namespaces: source_namespaces
+            .into_iter()
+            .map(|namespace| namespace.into_iter().collect::<Vec<_>>().into_boxed_slice())
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+        import_ids: import_ids.into_boxed_slice(),
+        import_paths: import_paths.into_boxed_slice(),
+    })
+}
+
+fn resolve_authored_imports(
+    generics: &mut PreparedGenerics<'_>,
+    namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
+    source_namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
+    import_ids: &mut [Option<ImportId>],
+    import_paths: &mut [Option<SyntaxOrigin>],
+) -> Result<(), ImportError> {
+    let groups = group_imports(generics)?;
+    let order = dependency_order(generics, &groups.dependencies)?;
     for module_index in order {
         for import_index in &groups.by_module[module_index] {
             let import = generics.headers.reserved.imports[*import_index].clone();
-            let target_identity = import.target();
             let target_index =
-                module_index_by_identity(&generics.headers.reserved, target_identity)
+                module_index_by_identity(&generics.headers.reserved, import.target())
                     .ok_or(ImportError::UnknownModule(import.node()))?;
             let target_module = generics.headers.reserved.module_ids[target_index];
             let source = generics
@@ -202,6 +234,7 @@ pub fn prepare_authored_imports(
                 .sources
                 .get(import.source().index())
                 .ok_or(ImportError::MissingSource(import.source()))?;
+            let source_kind = source.kind();
             let tree = source.syntax();
             let authored = syntax::read(tree, import.node())?;
             import_paths[*import_index] = Some(SyntaxOrigin::Node(authored.path));
@@ -212,10 +245,10 @@ pub fn prepare_authored_imports(
             )
             .map_err(|error| import_visibility_error(import.node(), error))?;
             let importing_module = generics.headers.reserved.module_ids[module_index];
-
+            let source_index = import.source().index();
             let resolved = if let Some(selected) = authored.selected {
                 resolve_selected(
-                    &generics,
+                    generics,
                     &namespaces[target_index],
                     import.node(),
                     ImportAccess {
@@ -228,16 +261,15 @@ pub fn prepare_authored_imports(
                 )?
             } else {
                 let token = syntax::final_path_name(tree, import.node(), authored.path)?;
-                let name = symbol(&generics, import.node(), token)?;
-                validate_local_name(&generics, import.node(), name, token)?;
+                let name = symbol(generics, import.node(), token)?;
+                validate_local_name(generics, import.node(), name, token)?;
                 ResolvedImport::Namespace {
                     local_name: name,
                     local_token: token,
                     target: ExportedEntity::Module(target_module),
                 }
             };
-            validate_collisions(&namespaces[module_index], resolved.bindings())?;
-
+            validate_collisions(&source_namespaces[source_index], resolved.bindings())?;
             let declaration = ImportDeclaration::new(
                 importing_module,
                 visibility,
@@ -246,36 +278,60 @@ pub fn prepare_authored_imports(
             let id = generics.headers.reserved.program.add_import(declaration);
             import_ids[*import_index] = Some(id);
             project_import(
-                &mut generics,
+                generics,
                 import.node(),
                 authored.path,
                 id,
                 target_module,
                 &resolved,
             )?;
-            for (name, entity, origin) in resolved.bindings() {
-                namespaces[module_index].insert(
-                    name,
-                    NamespaceBinding {
-                        entity,
-                        visibility,
-                        origin: SyntaxOrigin::Token(origin),
-                    },
-                );
-            }
+            insert_resolved_bindings(
+                &resolved,
+                visibility,
+                authored.visibility,
+                &mut BindingDestination {
+                    source_kind,
+                    module_index,
+                    source_index,
+                    modules: namespaces,
+                    sources: source_namespaces,
+                },
+            );
         }
     }
+    Ok(())
+}
 
-    Ok(PreparedImports {
-        generics,
-        namespaces: namespaces
-            .into_iter()
-            .map(|namespace| namespace.into_iter().collect::<Vec<_>>().into_boxed_slice())
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
-        import_ids: import_ids.into_boxed_slice(),
-        import_paths: import_paths.into_boxed_slice(),
-    })
+struct BindingDestination<'namespace> {
+    source_kind: crate::ModuleSourceKind,
+    module_index: usize,
+    source_index: usize,
+    modules: &'namespace mut [BTreeMap<Symbol, NamespaceBinding>],
+    sources: &'namespace mut [BTreeMap<Symbol, NamespaceBinding>],
+}
+
+fn insert_resolved_bindings(
+    resolved: &ResolvedImport,
+    visibility: Visibility,
+    authored_visibility: Option<NodeId>,
+    destination: &mut BindingDestination<'_>,
+) {
+    for (name, entity, origin) in resolved.bindings() {
+        let binding = NamespaceBinding {
+            entity,
+            visibility,
+            origin: SyntaxOrigin::Token(origin),
+        };
+        destination.sources[destination.source_index].insert(name, binding);
+        if authored_visibility.is_some()
+            && matches!(
+                destination.source_kind,
+                crate::ModuleSourceKind::Root | crate::ModuleSourceKind::SingleFile
+            )
+        {
+            destination.modules[destination.module_index].insert(name, binding);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -341,17 +397,19 @@ impl ResolvedImport {
 fn collect_direct_declarations(
     generics: &PreparedGenerics<'_>,
     namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
+    source_namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
 ) -> Result<(), ImportError> {
     let reserved = &generics.headers.reserved;
     for (index, declaration) in reserved.declarations.iter().copied().enumerate() {
         let id = SurfaceDeclarationId::from_index(index);
-        if declaration.owner().is_some() || reserved.contracts.representative(id) != id {
+        if declaration.owner().is_some() {
             continue;
         }
         let Some(name) = generics.headers.name(id) else {
             continue;
         };
-        let Some(entity) = reserved.entity(id).and_then(exported_entity) else {
+        let representative = reserved.contracts.representative(id);
+        let Some(entity) = reserved.entity(representative).and_then(exported_entity) else {
             continue;
         };
         let module = reserved
@@ -363,18 +421,33 @@ fn collect_direct_declarations(
             .headers
             .visibility(id)
             .ok_or(ImportError::InvalidSyntax(declaration.node()))?;
-        if let Some(first) = namespaces[module_index].insert(
+        let binding = NamespaceBinding {
+            entity,
+            visibility,
+            origin: SyntaxOrigin::Token(
+                declaration
+                    .name()
+                    .ok_or(ImportError::InvalidSyntax(declaration.node()))?,
+            ),
+        };
+        insert_binding(
+            &mut source_namespaces[declaration.source().index()],
             name,
-            NamespaceBinding {
-                entity,
-                visibility,
-                origin: SyntaxOrigin::Token(
-                    declaration
-                        .name()
-                        .ok_or(ImportError::InvalidSyntax(declaration.node()))?,
-                ),
-            },
-        ) {
+            binding,
+        )?;
+        let source = reserved
+            .sources
+            .get(declaration.source().index())
+            .ok_or(ImportError::MissingSource(declaration.source()))?;
+        if representative != id
+            || !matches!(
+                source.kind(),
+                crate::ModuleSourceKind::Root | crate::ModuleSourceKind::SingleFile
+            )
+        {
+            continue;
+        }
+        if let Some(first) = namespaces[module_index].insert(name, binding) {
             let second = declaration
                 .name()
                 .ok_or(ImportError::InvalidSyntax(declaration.node()))?;
@@ -385,6 +458,40 @@ fn collect_direct_declarations(
             .into());
         }
     }
+    Ok(())
+}
+
+fn apply_direct_includes(
+    generics: &PreparedGenerics<'_>,
+    namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
+) -> Result<(), ImportError> {
+    let direct = namespaces.to_vec();
+    for include in generics.headers.reserved.includes.iter().copied() {
+        let target = direct
+            .get(include.target().index())
+            .ok_or(ImportError::MissingSource(include.target()))?;
+        let destination = namespaces
+            .get_mut(include.source().index())
+            .ok_or(ImportError::MissingSource(include.source()))?;
+        for (name, binding) in target {
+            insert_binding(destination, *name, *binding)?;
+        }
+    }
+    Ok(())
+}
+
+fn insert_binding(
+    namespace: &mut BTreeMap<Symbol, NamespaceBinding>,
+    name: Symbol,
+    binding: NamespaceBinding,
+) -> Result<(), ImportError> {
+    if let Some(first) = namespace.get(&name).copied() {
+        if first.entity == binding.entity {
+            return Ok(());
+        }
+        return Err(NamespaceViolation::name_collision(first.origin, binding.origin).into());
+    }
+    namespace.insert(name, binding);
     Ok(())
 }
 

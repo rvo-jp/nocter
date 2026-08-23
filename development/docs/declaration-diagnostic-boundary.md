@@ -37,15 +37,16 @@ one row have the same classification and boundary reason.
 | Surface error | Class | Reason |
 |---|---|---|
 | `Topology(Rule)` | authored rule | Delegates to the topology rule domain. |
-| `ImplementationVisibility`, `ImplementationMember`, `MissingConstructionVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
+| `ImplementationVisibility`, `InvalidNominalContract`, `MissingConstructionVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
 | `SyntaxErrors` | upstream rejection | The syntax tree already contains its authoritative lexer/parser diagnostics. |
 | `Topology` with a non-rule error | discovery contract or compiler integrity | Preserves the topology classification above. |
 | `InvalidRootShape`, `InvalidItemShape`, `InconsistentUseResolution` | compiler integrity | A valid parse goal and prepared topology guarantee these shapes and retained resolutions. |
 
 | Contract/reservation error | Class | Reason |
 |---|---|---|
-| `CallableContractError::MissingBody`, `MismatchedBody`, `DuplicateBody`, `InvalidBodyOmission`, `UnmatchedImplementationEntry` | authored rule | `E0250`-`E0254` distinguish every public-contract/private-body relationship, including the absence of any contract. |
-| `CallableContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
+| `DeclarationContractError::MissingBody`, `MismatchedBody`, `DuplicateBody`, `InvalidBodyOmission` | authored rule | `E0250`-`E0253` distinguish public callable contracts from their private definitions. Private implementation-only members need no public contract. |
+| `DeclarationContractError::MissingRepresentation`, `MismatchedRepresentation`, `DuplicateRepresentation`, `RepresentationCompletedAgain` | authored rule | `E0255`-`E0258` distinguish public nominal contracts from their one private representation definition. |
+| `DeclarationContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
 | every `ReservationError` variant: `Contract`, `Program`, `DuplicateSourceBinding`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, valid owners, and unused builder/source-index slots. |
 
 | Header/generic error | Class | Reason |

@@ -7,7 +7,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, To
 
 use crate::{PreparedNamespaces, SurfaceDeclarationId};
 
-use super::context::{declaration_module, token_symbol};
+use super::context::{declaration_module, declaration_source, token_symbol};
 use super::{BoundTypeId, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) struct NameSegment {
@@ -96,13 +96,14 @@ pub(super) fn resolve_exported(
     segments: Vec<NameSegment>,
 ) -> Result<ResolvedEntityPath, TypeBindingError> {
     let from = declaration_module(namespaces, declaration)?;
+    let source = declaration_source(namespaces, declaration)?;
     let mut segments = segments.into_iter();
     let first = segments
         .next()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let name = token_symbol(namespaces, tree, first.token)?;
     let mut entity = namespaces
-        .lookup_local(from, name)
+        .lookup_local(source, name)
         .ok_or(TypeBindingError::rule(
             TypeBindingRule::UnknownTypeContextName,
             SyntaxOrigin::Token(first.token),

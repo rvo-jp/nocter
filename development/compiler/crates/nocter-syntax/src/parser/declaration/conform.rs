@@ -34,6 +34,6 @@ fn associated_type_binding(parser: &mut Parser<'_>) {
 fn conform_method(parser: &mut Parser<'_>) {
     let marker = parser.start();
     method_signature(parser);
-    block::required(parser);
+    block::optional(parser);
     parser.complete(marker, NodeKind::ConformMethod);
 }

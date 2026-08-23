@@ -6,7 +6,7 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
-use super::context::{builtin_type, declaration_module, require_arity, token_symbol};
+use super::context::{builtin_type, declaration_source, require_arity, token_symbol};
 use super::{BoundDeclarationPattern, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) fn bind_all(
@@ -49,9 +49,9 @@ fn bind(
 
     let head = direct_identifier(tree, pattern).ok_or(TypeBindingError::InvalidSyntax(pattern))?;
     let name = token_symbol(namespaces, tree, head)?;
-    let module = declaration_module(namespaces, declaration)?;
+    let source = declaration_source(namespaces, declaration)?;
     let entity = namespaces
-        .lookup_local(module, name)
+        .lookup_local(source, name)
         .ok_or(TypeBindingError::rule(
             TypeBindingRule::UnknownTypeContextName,
             SyntaxOrigin::Token(head),

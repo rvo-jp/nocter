@@ -365,7 +365,7 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/implementation.nct",
-        "func select<T>(value: &T): &T from value { return }\n",
+        "include ./index.nct\n\nfunc select<T>(value: &T): &T from value { return }\n",
     );
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
@@ -401,7 +401,10 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
                 &prelude_tree,
             ),
         ],
-        vec![source_include(&root, 0, "/app/implementation.nct")],
+        vec![
+            source_include(&root, 0, "/app/implementation.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
         vec![],
         &prelude,
     );
@@ -678,4 +681,101 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
     };
 
     assert_eq!(build(false), build(true));
+}
+
+#[test]
+fn public_index_contract_is_completed_by_one_private_representation_and_body() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let contract_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        concat!(
+            "include ./record.nct\n",
+            "pub struct Box<T>\n",
+            "construct Box<T> {\n",
+            "    pub func new(value: T): Self\n",
+            "}\n",
+            "instance Box<T> {\n",
+            "    pub operator (&self == other: &Self): bool\n",
+            "}\n",
+            "pub interface View<T> {\n",
+            "    pub method &self.get(): &T from self\n",
+            "}\n",
+            "conform View<T> for Box<T> {\n",
+            "    method &self.get(): &T from self\n",
+            "}\n",
+        ),
+    );
+    let definition_id = add_source(
+        &mut sources,
+        "/app/record.nct",
+        concat!(
+            "include ./index.nct\n",
+            "struct Box<T> { value: T }\n",
+            "construct Box<T> {\n",
+            "    func new(value: T): Self { return Box<T> { value: value } }\n",
+            "    func hidden(value: T): Self { return Box<T> { value: value } }\n",
+            "}\n",
+            "instance Box<T> {\n",
+            "    operator (&self == other: &Self): bool { return true }\n",
+            "}\n",
+            "conform View<T> for Box<T> {\n",
+            "    method &self.get(): &T from self { return &self.value }\n",
+            "}\n",
+        ),
+    );
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let contract = parse_source(&sources, contract_id, ParseGoal::SourceFile);
+    let definition = parse_source(&sources, definition_id, ParseGoal::SourceFile);
+    let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+    let lowered = lower(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+        ],
+        vec![
+            ModuleInput::new(
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &contract),
+                    ModuleSourceInput::new(
+                        "/app/record.nct",
+                        ModuleSourceKind::Implementation,
+                        &definition,
+                    ),
+                ],
+            ),
+            module("toolchain:std", &[], "/std/index.nct", &std_root),
+            module(
+                "toolchain:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude_tree,
+            ),
+        ],
+        vec![
+            source_include(&contract, 0, "/app/record.nct"),
+            source_include(&definition, 0, "/app/index.nct"),
+        ],
+        vec![],
+        &prelude,
+    );
+    let declarations = lowered.program().declarations();
+
+    assert_eq!(declarations.nominal_types().len(), 1);
+    assert_eq!(declarations.fields().len(), 1);
+    assert_eq!(declarations.constructions().len(), 1);
+    assert_eq!(declarations.instances().len(), 1);
+    assert_eq!(declarations.interfaces().len(), 1);
+    assert_eq!(declarations.conformances().len(), 1);
+    assert_eq!(declarations.callables().len(), 5);
+    assert_eq!(declarations.bodies().len(), 4);
 }

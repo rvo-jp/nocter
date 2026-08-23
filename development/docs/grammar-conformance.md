@@ -36,14 +36,14 @@ those results.
 | ID | Production coverage | Parse case | Syntax rejection | Semantic-boundary case |
 | --- | --- | --- | --- | --- |
 | G001 | `PackageFile`, `PackageDirective`, directive records and fields | `#name: "p"` | `#name: true` | duplicate `#name` directives |
-| G002 | `ModuleSource`, use/item sequencing | `use ./helper` before `func run(): void {}` | a `use` after the function | a public item in an implementation source |
+| G002 | `ModuleSource`, include/use/item sequencing | `include ./helper.nct` before `func run(): void {}` | an `include` after the function | a public item in an implementation source |
 | G003 | visibility scopes | `pub(../../) func run(): void {}` | `pub(parser) func run(): void {}` | visibility wider than the declaration can expose |
 | G004 | module paths, selections, aliases, and re-exports | `use /parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
 | G005 | target attachment and targetable items | `#target: "arm64-darwin"` followed by a function | `#target: "arm64-darwin"` before `test smoke {}` | an unsupported target name |
 | G006 | functions, primitives, aliases, parameters, callable tails, provenance | `func choose<T>(left: &T, right: &T): &T from left | right` | a function without `: Result` | an ineligible bodyless private function |
 | G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) missing }` with newline-separated variants | comma-separated struct fields | an empty enum body |
 | G008 | interfaces and associated declarations | `interface Source { pub type Item pub method &+self.next(): Self.Item? }` with member newlines | a non-public interface member | a duplicate associated name |
-| G009 | construction declarations, functions, and literals | `construct Vec<T> { pub default func new(): Self { ... } }` | a construction member without visibility | two default members |
+| G009 | construction declarations, functions, and literals | `construct Vec<T> { default func new(): Self { ... } }` | a bodyless public contract member without visibility | two default members |
 | G010 | instances, methods, coercions, and the four operator families | an instance containing a method, coercion, equality, ordering, index, and expansion member | `operator (&self != other: &Self): bool { ... }` | an instance for a type outside its ownership boundary |
 | G011 | conformances and associated bindings | `conform Source for Input { type Item = u8 method &+self.next(): Self.Item? { ... } }` | `pub method` inside a conformance | a method signature that disagrees with the interface |
 | G012 | drop and native test declarations | `drop Buffer(&+self) {}` and `test empty {}` as separate items | visibility on either declaration | drop for a non-owning or foreign type |

@@ -216,7 +216,9 @@ are errors independent of source traversal order.
 This rule applies to top-level functions, inherent methods, construction functions, typed literals,
 coercion entries, and source-defined operators. A construction definition repeats `default` when
 the public contract carries it; `default` is part of the contract even though visibility is not.
-Interface requirements and conformance methods keep their conformance model;
+Conformance methods may use the same split even though they omit visibility: the root conformance
+contract owns associated type bindings and bodyless method signatures, while its matching private
+conformance definition owns the bodies. Interface requirements remain intrinsically bodyless,
 interface default methods remain inline, and `drop` always has an inline body.
 
 Calls, imports, hover, completion, signature help, definition, and public diagnostics use the

@@ -552,7 +552,10 @@ impl BodyChecker<'_, '_> {
 
         let first = segments.remove(0);
         let first_name = self.segment_symbol(first.token)?;
-        let Some(mut entity) = self.graph.lookup_local(self.source.module(), first_name) else {
+        let Some(mut entity) = self
+            .source_namespaces
+            .lookup(self.tree().source(), first_name)
+        else {
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         self.project_exported(first.token, entity)?;
@@ -685,7 +688,10 @@ impl BodyChecker<'_, '_> {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
         let first_name = self.segment_symbol(first.token)?;
-        let Some(mut entity) = self.graph.lookup_local(self.source.module(), first_name) else {
+        let Some(mut entity) = self
+            .source_namespaces
+            .lookup(self.tree().source(), first_name)
+        else {
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         self.project_exported(first.token, entity)?;

@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_frontend_bindings::FrontendBindings;
+use nocter_frontend_bindings::{FrontendBindings, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -34,6 +34,7 @@ pub struct PreparedChecking<'syntax> {
     standard_semantics: StandardSemanticTable,
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
+    source_namespaces: SourceNamespaceTable,
     source_index: SourceIndex,
 }
 
@@ -176,6 +177,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             standard_semantics: self.standard_semantics,
             body_sources: self.body_sources,
             body_names: self.body_names,
+            source_namespaces: self.source_namespaces,
             source_index: self.source_index,
         }
     }
@@ -192,6 +194,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
+    pub(crate) source_namespaces: SourceNamespaceTable,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -488,6 +491,7 @@ fn prepare_program_checking_internal<'syntax>(
         standard_semantics,
         body_sources,
         body_names,
+        source_namespaces: bindings.source_namespaces().clone(),
         source_index,
     })
 }

@@ -7,10 +7,59 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_model::{
-    AssociatedTypeId, BodyId, CallableId, InterfaceId, ModuleId, NominalTypeId, ParameterId,
+    AssociatedTypeId, BodyId, CallableId, InterfaceId, ModuleId, NominalTypeId, ParameterId, Symbol,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, SyntaxToken};
+
+/// Closed source-local name authority selected by declaration lowering.
+///
+/// A source sees its own declarations, declarations from sources it directly includes, and its
+/// own authored imports. Consumers must not reconstruct this table from module membership.
+#[derive(Clone, Debug, Default)]
+pub struct SourceNamespaceTable {
+    namespaces: HashMap<SourceId, SourceNamespace>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct SourceNamespace {
+    authored: Box<[(Symbol, nocter_declarations::ExportedEntity)]>,
+    fallback: Box<[(Symbol, nocter_declarations::ExportedEntity)]>,
+}
+
+impl SourceNamespaceTable {
+    /// Resolves one exact source-local name.
+    #[must_use]
+    pub fn lookup(
+        &self,
+        source: SourceId,
+        name: Symbol,
+    ) -> Option<nocter_declarations::ExportedEntity> {
+        let namespace = self.namespaces.get(&source)?;
+        lookup_namespace(&namespace.authored, name)
+            .or_else(|| lookup_namespace(&namespace.fallback, name))
+    }
+
+    /// Resolves only a declaration, direct include, or import authored for this source.
+    #[must_use]
+    pub fn lookup_authored(
+        &self,
+        source: SourceId,
+        name: Symbol,
+    ) -> Option<nocter_declarations::ExportedEntity> {
+        lookup_namespace(&self.namespaces.get(&source)?.authored, name)
+    }
+}
+
+fn lookup_namespace(
+    namespace: &[(Symbol, nocter_declarations::ExportedEntity)],
+    name: Symbol,
+) -> Option<nocter_declarations::ExportedEntity> {
+    namespace
+        .binary_search_by_key(&name, |(candidate, _)| *candidate)
+        .ok()
+        .map(|index| namespace[index].1)
+}
 
 /// A declaration kind that toolchain discovery may assign a standard semantic role.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,6 +78,7 @@ pub struct FrontendBindings {
     parameter_declarations: BTreeMap<ParameterId, Box<[SyntaxToken]>>,
     declarations: HashMap<SyntaxToken, Box<[FrontendDeclaration]>>,
     block_imports: HashMap<NodeId, ModuleId>,
+    source_namespaces: SourceNamespaceTable,
 }
 
 impl FrontendBindings {
@@ -66,6 +116,22 @@ impl FrontendBindings {
         self.block_imports.get(&declaration).copied()
     }
 
+    /// Resolves one exact source-local name selected by declaration lowering.
+    #[must_use]
+    pub fn source_name(
+        &self,
+        source: SourceId,
+        name: Symbol,
+    ) -> Option<nocter_declarations::ExportedEntity> {
+        self.source_namespaces.lookup(source, name)
+    }
+
+    /// Returns the closed source-local name authority for semantic consumers.
+    #[must_use]
+    pub const fn source_namespaces(&self) -> &SourceNamespaceTable {
+        &self.source_namespaces
+    }
+
     #[must_use]
     pub fn with_block_imports(
         mut self,
@@ -83,6 +149,13 @@ pub struct FrontendBindingsBuilder {
     body_blocks: BTreeMap<BodyId, Vec<NodeId>>,
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
+    source_namespaces: HashMap<SourceId, SourceNamespaceBuilder>,
+}
+
+#[derive(Debug, Default)]
+struct SourceNamespaceBuilder {
+    authored: Vec<(Symbol, nocter_declarations::ExportedEntity)>,
+    fallback: Vec<(Symbol, nocter_declarations::ExportedEntity)>,
 }
 
 impl FrontendBindingsBuilder {
@@ -111,6 +184,21 @@ impl FrontendBindingsBuilder {
             .entry(token)
             .or_default()
             .push(declaration);
+    }
+
+    pub fn define_source_namespace(
+        &mut self,
+        source: SourceId,
+        authored: impl IntoIterator<Item = (Symbol, nocter_declarations::ExportedEntity)>,
+        fallback: impl IntoIterator<Item = (Symbol, nocter_declarations::ExportedEntity)>,
+    ) {
+        self.source_namespaces.insert(
+            source,
+            SourceNamespaceBuilder {
+                authored: authored.into_iter().collect(),
+                fallback: fallback.into_iter().collect(),
+            },
+        );
     }
 
     #[must_use]
@@ -146,6 +234,25 @@ impl FrontendBindingsBuilder {
                 .into_iter()
                 .map(|(token, declarations)| (token, declarations.into_boxed_slice()))
                 .collect(),
+            source_namespaces: SourceNamespaceTable {
+                namespaces: self
+                    .source_namespaces
+                    .into_iter()
+                    .map(|(source, mut entries)| {
+                        entries.authored.sort_unstable_by_key(|(name, _)| *name);
+                        entries.authored.dedup_by_key(|(name, _)| *name);
+                        entries.fallback.sort_unstable_by_key(|(name, _)| *name);
+                        entries.fallback.dedup_by_key(|(name, _)| *name);
+                        (
+                            source,
+                            SourceNamespace {
+                                authored: entries.authored.into_boxed_slice(),
+                                fallback: entries.fallback.into_boxed_slice(),
+                            },
+                        )
+                    })
+                    .collect(),
+            },
             block_imports: HashMap::new(),
         }
     }

@@ -20,6 +20,21 @@ pub(super) fn declaration_module(
         .ok_or(TypeBindingError::MissingSource(declaration))
 }
 
+pub(super) fn declaration_source(
+    namespaces: &PreparedNamespaces<'_>,
+    declaration: SurfaceDeclarationId,
+) -> Result<crate::SurfaceSourceId, TypeBindingError> {
+    namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .declarations
+        .get(declaration.index())
+        .map(|surface| surface.source())
+        .ok_or(TypeBindingError::MissingSource(declaration))
+}
+
 pub(super) fn require_arity(
     namespaces: &PreparedNamespaces<'_>,
     origin: SyntaxOrigin,

@@ -18,7 +18,9 @@ conversion from an untyped literal to an arbitrary nominal type.
 
 ## Definitions
 
-Literal definitions are public members of the target's same-module `construct` declaration:
+Literal entries exposed to users are public members of the target's `index.nct` construction
+contract. A private inline construction surface may omit visibility, and a private implementation
+of a public bodyless contract member must omit it:
 
 ```nct
 construct Vec<T> {

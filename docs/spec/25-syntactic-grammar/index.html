@@ -337,8 +337,8 @@ ExpansionReceiver = "&amp;" "self" | "&amp;+" "self" | "self"
 ConformMember = AssociatedTypeBinding | ConformMethod
 
 AssociatedTypeBinding = "type" Name "=" Type
-ConformMethod = MethodSignature Block
-</code></pre><p>Conformance members never write visibility. They contain only associated type bindings and body-bearing method implementations. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
+ConformMethod = MethodSignature CallableBody
+</code></pre><p>Conformance members never write visibility. They contain only associated type bindings and method signatures. A bodyless method is valid only in an <code>index.nct</code> conformance contract with one matching private definition connected through reciprocal direct includes. The contract owns associated type bindings; the private definition repeats the conformance head and supplies method bodies without repeating those bindings. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
                        | BuiltinTypePattern
                        | "[" Name "]"
 

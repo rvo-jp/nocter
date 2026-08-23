@@ -16,10 +16,10 @@ use nocter_syntax::NodeId;
 use crate::package_targets::{reserve_package_targets, reserve_single_file_targets};
 use crate::surface::SurfaceParts;
 use crate::{
-    CallableContractError, CallableContracts, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
-    PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration, SurfaceDeclarationId,
-    SurfaceDeclarationKind, SurfaceImport, SurfaceInclude, SurfaceSource,
-    analyze_callable_contracts,
+    DeclarationContractError, DeclarationContracts, DeclarationSurface, ModuleIdentity,
+    ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration,
+    SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceInclude, SurfaceSource,
+    analyze_declaration_contracts,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -60,7 +60,7 @@ impl ReservedEntity {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReservationError {
-    Contract(CallableContractError),
+    Contract(DeclarationContractError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
     DuplicateDocumentation(DuplicateDocumentation),
@@ -125,8 +125,8 @@ impl fmt::Display for ReservationError {
 
 impl std::error::Error for ReservationError {}
 
-impl From<CallableContractError> for ReservationError {
-    fn from(error: CallableContractError) -> Self {
+impl From<DeclarationContractError> for ReservationError {
+    fn from(error: DeclarationContractError) -> Self {
         Self::Contract(error)
     }
 }
@@ -167,7 +167,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) includes: Box<[SurfaceInclude]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
-    pub(crate) contracts: CallableContracts,
+    pub(crate) contracts: DeclarationContracts,
     pub(crate) entities: Box<[Option<ReservedEntity>]>,
 }
 
@@ -218,7 +218,7 @@ impl ReservedDeclarations<'_> {
     }
 
     #[must_use]
-    pub const fn contracts(&self) -> &CallableContracts {
+    pub const fn contracts(&self) -> &DeclarationContracts {
         &self.contracts
     }
 
@@ -261,13 +261,13 @@ impl ReservedDeclarations<'_> {
 pub fn reserve_declaration_identities(
     surface: DeclarationSurface<'_>,
 ) -> Result<ReservedDeclarations<'_>, ReservationError> {
-    let contracts = analyze_callable_contracts(&surface)?;
+    let contracts = analyze_declaration_contracts(&surface)?;
     reserve_with_contracts(surface, contracts)
 }
 
 pub(crate) fn reserve_with_contracts(
     surface: DeclarationSurface<'_>,
-    contracts: CallableContracts,
+    contracts: DeclarationContracts,
 ) -> Result<ReservedDeclarations<'_>, ReservationError> {
     let SurfaceParts {
         target,
@@ -452,7 +452,7 @@ fn project_sources(
 fn project_declaration_documentation(
     sources: &[SurfaceSource<'_>],
     declarations: &[SurfaceDeclaration],
-    contracts: &CallableContracts,
+    contracts: &DeclarationContracts,
     entities: &[Option<ReservedEntity>],
     source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<(), ReservationError> {
@@ -488,7 +488,7 @@ fn project_declaration_documentation(
 
 fn reserve_surface_entities(
     declarations: &[SurfaceDeclaration],
-    contracts: &CallableContracts,
+    contracts: &DeclarationContracts,
     program: &mut DeclarationProgramBuilder,
 ) -> Result<Vec<Option<ReservedEntity>>, ReservationError> {
     let mut entities = vec![None; declarations.len()];

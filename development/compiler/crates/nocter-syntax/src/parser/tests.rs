@@ -504,13 +504,18 @@ fn parses_conformance_bindings_and_body_bearing_methods() {
 }
 
 #[test]
-fn conformance_members_reject_visibility_and_missing_bodies() {
-    for source in [
-        "conform Source for Input { pub method &self.read(): void {} }\n",
+fn conformance_members_reject_visibility_but_allow_contract_body_omission() {
+    assert!(
+        parse_text(
+            "conform Source for Input { pub method &self.read(): void {} }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+    assert_syntax_ok(
         "conform Source for Input { method &self.read(): void }\n",
-    ] {
-        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
-    }
+        ParseGoal::SourceFile,
+    );
 }
 
 #[test]

@@ -113,6 +113,18 @@ fn module_id(imports: &PreparedImports<'_>, identity: &ModuleIdentity) -> nocter
     reserved.module_ids()[index]
 }
 
+fn source_id(imports: &PreparedImports<'_>, path: &str) -> crate::SurfaceSourceId {
+    imports
+        .generics()
+        .headers()
+        .reserved()
+        .sources()
+        .iter()
+        .position(|source| source.canonical_path() == path)
+        .map(crate::SurfaceSourceId::from_index)
+        .unwrap()
+}
+
 #[test]
 fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_names() {
     let mut sources = SourceMap::new();
@@ -170,15 +182,16 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
     )
     .unwrap();
     let app_module = module_id(&imports, &app_identity);
+    let app_source = source_id(&imports, "/app/index.nct");
     let dep_module = module_id(&imports, &dep_identity);
     let symbols = imports.generics().headers().reserved().symbols();
 
     assert!(matches!(
-        imports.lookup_local(app_module, symbols.get("Item").unwrap()),
+        imports.lookup_local(app_source, symbols.get("Item").unwrap()),
         Some(ExportedEntity::NominalType(_))
     ));
     assert_eq!(
-        imports.lookup_local(app_module, symbols.get("dep").unwrap()),
+        imports.lookup_local(app_source, symbols.get("dep").unwrap()),
         Some(ExportedEntity::Module(dep_module))
     );
     assert!(matches!(
@@ -397,8 +410,6 @@ fn selected_reexports_resolve_in_dependency_order() {
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let facade = parse_source(&sources, facade_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
-    let app_identity =
-        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
     let facade_identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["facade"]);
     let dep_identity =
         ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
@@ -444,7 +455,7 @@ fn selected_reexports_resolve_in_dependency_order() {
         ],
     )
     .unwrap();
-    let root_module = module_id(&imports, &app_identity);
+    let root_source = source_id(&imports, "/app/index.nct");
     let item = imports
         .generics()
         .headers()
@@ -454,13 +465,13 @@ fn selected_reexports_resolve_in_dependency_order() {
         .unwrap();
 
     assert!(matches!(
-        imports.lookup_local(root_module, item),
+        imports.lookup_local(root_source, item),
         Some(ExportedEntity::NominalType(_))
     ));
 }
 
 #[test]
-fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
+fn direct_source_includes_add_no_import_and_do_not_publish_implementation_names() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
     let root_id = add_source(
@@ -502,6 +513,7 @@ fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
     )
     .unwrap();
     let module = module_id(&imports, &identity);
+    let root_source = source_id(&imports, "/app/index.nct");
     let helper = imports
         .generics()
         .headers()
@@ -511,10 +523,61 @@ fn source_imports_add_no_semantic_import_but_share_the_module_namespace() {
         .unwrap();
 
     assert!(matches!(
-        imports.lookup_local(module, helper),
+        imports.lookup_local(root_source, helper),
         Some(ExportedEntity::Callable(_))
     ));
+    assert_eq!(imports.lookup_export(module, module, helper), None);
     assert_eq!(imports.import_id(0), None);
+}
+
+#[test]
+fn source_includes_expose_only_the_direct_target_namespace() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "include ./a.nct\n");
+    let a_id = add_source(
+        &mut sources,
+        "/app/a.nct",
+        "include ./b.nct\nfunc from_a(): void {}\n",
+    );
+    let b_id = add_source(&mut sources, "/app/b.nct", "func from_b(): void {}\n");
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
+    let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
+
+    let imports = prepare_with_includes(
+        &sources,
+        vec![package(
+            "workspace:app",
+            "app",
+            "/app/nocter.nct",
+            &manifest,
+        )],
+        vec![module(
+            "workspace:app",
+            &[],
+            vec![
+                root_source("/app/index.nct", &root),
+                ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &a),
+                ModuleSourceInput::new("/app/b.nct", ModuleSourceKind::Implementation, &b),
+            ],
+        )],
+        vec![
+            source_include(&root, 0, "/app/a.nct"),
+            source_include(&a, 0, "/app/b.nct"),
+        ],
+    )
+    .unwrap();
+    let root_source = source_id(&imports, "/app/index.nct");
+    let a_source = source_id(&imports, "/app/a.nct");
+    let symbols = imports.generics().headers().reserved().symbols();
+    let from_a = symbols.get("from_a").unwrap();
+    let from_b = symbols.get("from_b").unwrap();
+
+    assert!(imports.lookup_local(root_source, from_a).is_some());
+    assert_eq!(imports.lookup_local(root_source, from_b), None);
+    assert!(imports.lookup_local(a_source, from_b).is_some());
 }
 
 #[test]
@@ -546,7 +609,6 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let std_package = PackageIdentity::new("builtin:std");
     let app_root_identity = ModuleIdentity::new(app_package.clone(), Vec::<&str>::new());
     let app_child_identity = ModuleIdentity::new(app_package, ["child"]);
-    let std_root_identity = ModuleIdentity::new(std_package.clone(), Vec::<&str>::new());
     let std_string_identity = ModuleIdentity::new(std_package.clone(), ["string"]);
     let std_prelude_identity = ModuleIdentity::new(std_package, ["prelude"]);
 
@@ -588,8 +650,10 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     .unwrap();
     let app_root_module = module_id(&imports, &app_root_identity);
     let app_child_module = module_id(&imports, &app_child_identity);
-    let std_root_module = module_id(&imports, &std_root_identity);
-    let std_string_module = module_id(&imports, &std_string_identity);
+    let app_root_source = source_id(&imports, "/app/index.nct");
+    let app_child_source = source_id(&imports, "/app/child/index.nct");
+    let std_root_source = source_id(&imports, "/std/index.nct");
+    let std_string_source = source_id(&imports, "/std/string/index.nct");
     let string = imports
         .generics()
         .headers()
@@ -597,20 +661,20 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
         .symbols()
         .get("String")
         .unwrap();
-    let app_string = imports.lookup_local(app_root_module, string).unwrap();
-    let standard_string = imports.lookup_local(std_string_module, string).unwrap();
+    let app_string = imports.lookup_local(app_root_source, string).unwrap();
+    let standard_string = imports.lookup_local(std_string_source, string).unwrap();
 
     let namespaces = apply_toolchain_profile(imports, &toolchain(std_prelude_identity)).unwrap();
 
     assert_eq!(
-        namespaces.lookup_local(app_root_module, string),
+        namespaces.lookup_local(app_root_source, string),
         Some(app_string)
     );
     assert_eq!(
-        namespaces.lookup_local(app_child_module, string),
+        namespaces.lookup_local(app_child_source, string),
         Some(standard_string)
     );
-    assert_eq!(namespaces.lookup_local(std_root_module, string), None);
+    assert_eq!(namespaces.lookup_local(std_root_source, string), None);
     assert_eq!(
         namespaces.lookup_export(app_root_module, app_child_module, string),
         None

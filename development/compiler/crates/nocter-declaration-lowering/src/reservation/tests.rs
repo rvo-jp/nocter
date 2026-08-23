@@ -112,7 +112,7 @@ fn contract_and_implementation_receive_one_callable_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "func parse(text: &str): usize { 0 }\n",
+        "include ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -129,7 +129,10 @@ fn contract_and_implementation_receive_one_callable_identity() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/parse.nct")],
+        vec![
+            source_include(&root, 0, "/app/parse.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     );
 
     assert_eq!(reserved.entities()[0], reserved.entities()[1]);

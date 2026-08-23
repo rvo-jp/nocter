@@ -108,6 +108,16 @@ impl FrontendProjectionBuilder {
             .insert_occurrence_documentation(entity, origin, markdown)
     }
 
+    pub(crate) fn define_source_namespace(
+        &mut self,
+        source: SourceId,
+        authored: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
+        fallback: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
+    ) {
+        self.bindings
+            .define_source_namespace(source, authored, fallback);
+    }
+
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {
         (self.source_index.finish(), self.bindings.finish())
     }

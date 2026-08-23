@@ -84,8 +84,18 @@ impl PreparedNamespaces<'_> {
     }
 
     #[must_use]
-    pub fn lookup_local(&self, module: ModuleId, name: Symbol) -> Option<ExportedEntity> {
-        self.imports.lookup_local(module, name).or_else(|| {
+    pub fn lookup_local(
+        &self,
+        source: crate::SurfaceSourceId,
+        name: Symbol,
+    ) -> Option<ExportedEntity> {
+        self.imports.lookup_local(source, name).or_else(|| {
+            let module = self
+                .imports
+                .generics
+                .headers
+                .reserved
+                .module_for_source(source)?;
             let index = module_index_by_id(&self.imports.generics.headers.reserved, module)?;
             lookup(&self.prelude[index], name).map(|binding| binding.entity)
         })
@@ -104,6 +114,43 @@ impl PreparedNamespaces<'_> {
     /// Freezes the already-selected authored and prelude namespace layers into the declaration
     /// program. Later semantic stages consume that authority instead of rebuilding lookup tables.
     pub(crate) fn define_program_namespaces(&mut self) -> Result<(), ProgramBuildError> {
+        for (index, namespace) in self.imports.source_namespaces.iter().enumerate() {
+            let source = self
+                .imports
+                .generics
+                .headers
+                .reserved
+                .sources
+                .get(index)
+                .ok_or(ProgramBuildError::UnknownModule)?;
+            let module = self
+                .imports
+                .generics
+                .headers
+                .reserved
+                .module_for_source(crate::SurfaceSourceId::from_index(index))
+                .ok_or(ProgramBuildError::UnknownModule)?;
+            let module_index = module_index_by_id(&self.imports.generics.headers.reserved, module)
+                .ok_or(ProgramBuildError::UnknownModule)?;
+            let authored = namespace
+                .iter()
+                .map(|(name, binding)| (*name, binding.entity))
+                .collect::<Vec<_>>();
+            let fallback = self.prelude[module_index]
+                .iter()
+                .filter(|(name, _)| {
+                    namespace
+                        .binary_search_by_key(name, |(candidate, _)| *candidate)
+                        .is_err()
+                })
+                .map(|(name, binding)| (*name, binding.entity));
+            self.imports
+                .generics
+                .headers
+                .reserved
+                .source_index
+                .define_source_namespace(source.syntax().source(), authored, fallback);
+        }
         let namespaces = self
             .imports
             .namespaces

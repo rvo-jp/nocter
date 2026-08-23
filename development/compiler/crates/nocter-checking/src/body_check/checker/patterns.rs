@@ -246,7 +246,10 @@ impl BodyChecker<'_, '_> {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
         let owner_name = self.segment_symbol(*owner_token)?;
-        let Some(owner) = self.graph.lookup_local(self.source.module(), owner_name) else {
+        let Some(owner) = self
+            .source_namespaces
+            .lookup(self.tree().source(), owner_name)
+        else {
             return Err(self.token_rule(BodyRule::InvalidPatternOperation, *owner_token)?);
         };
         let ExportedEntity::NominalType(nominal) = owner else {

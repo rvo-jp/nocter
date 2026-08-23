@@ -711,10 +711,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             return Err(diagnostic.into());
         }
         if self
-            .graph
-            .module_namespaces()
-            .get(self.source.module())
-            .is_some_and(|namespace| namespace.lookup_authored(name).is_some())
+            .bindings
+            .source_namespaces()
+            .lookup_authored(self.tree().source(), name)
+            .is_some()
             || self.builtin(name)?.is_some()
             || self.spelling(name)? == "Self"
         {
@@ -751,7 +751,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             self.record_use(token, binding.target)?;
             return Ok(());
         }
-        if let Some(target) = self.graph.lookup_local(self.source.module(), name) {
+        if let Some(target) = self.bindings.source_name(self.tree().source(), name) {
             self.record_use(token, NameTarget::Exported(target))?;
             return Ok(());
         }

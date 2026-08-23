@@ -203,7 +203,7 @@ fn canonical_source_order_is_independent_of_discovery_order() {
 }
 
 #[test]
-fn implementation_sources_cannot_expand_the_module_surface() {
+fn implementation_sources_are_private_but_may_define_nominal_representation() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
     let root_id = add_source(
@@ -226,7 +226,7 @@ fn implementation_sources_cannot_expand_the_module_surface() {
     let public = parse_source(&sources, public_id, ParseGoal::SourceFile);
     let field = parse_source(&sources, field_id, ParseGoal::SourceFile);
 
-    for implementation in [&public, &field] {
+    for (implementation, should_fail) in [(&public, true), (&field, false)] {
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
@@ -247,11 +247,11 @@ fn implementation_sources_cannot_expand_the_module_surface() {
             "/app/implementation.nct",
         )]);
 
-        let error = collect_declaration_surface(&input).unwrap_err();
-        assert!(matches!(
-            error,
-            SurfaceError::ImplementationVisibility(_) | SurfaceError::ImplementationMember(_)
-        ));
+        let result = collect_declaration_surface(&input);
+        assert_eq!(result.is_err(), should_fail);
+        if let Err(error) = result {
+            assert!(matches!(error, SurfaceError::ImplementationVisibility(_)));
+        }
     }
 }
 

@@ -135,6 +135,9 @@ pub enum LoweringError {
 
 impl fmt::Display for LoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(result) = format_resolution_error(self, formatter) {
+            return result;
+        }
         match self {
             Self::PackageTargetResolution(error) => error.fmt(formatter),
             Self::Rule(violation) => write!(
@@ -201,43 +204,17 @@ impl fmt::Display for LoweringError {
                 "single-file package {} does not contain exactly one single-file module",
                 package.as_str()
             ),
-            Self::MissingIncludeResolution(declaration) => write!(
-                formatter,
-                "include declaration {declaration:?} has no resolved source"
-            ),
-            Self::DuplicateIncludeResolution(declaration) => write!(
-                formatter,
-                "include declaration {declaration:?} has more than one resolved source"
-            ),
-            Self::InvalidIncludeResolution(declaration) => write!(
-                formatter,
-                "resolved include {declaration:?} does not identify an authored include declaration"
-            ),
-            Self::UnknownIncludeTarget(declaration) => write!(
-                formatter,
-                "resolved include {declaration:?} names a source outside the compile unit"
-            ),
-            Self::MissingUseResolution(declaration) => {
-                write!(
-                    formatter,
-                    "use declaration {declaration:?} has no resolved target"
-                )
-            }
+            Self::MissingIncludeResolution(_)
+            | Self::DuplicateIncludeResolution(_)
+            | Self::InvalidIncludeResolution(_)
+            | Self::UnknownIncludeTarget(_)
+            | Self::MissingUseResolution(_)
+            | Self::DuplicateUseResolution(_)
+            | Self::InvalidUseResolution(_)
+            | Self::UnknownUseTarget(_) => unreachable!("resolution errors returned above"),
             Self::UnknownTargetGate(literal) => {
                 write!(formatter, "unknown compilation target in {literal:?}")
             }
-            Self::DuplicateUseResolution(declaration) => write!(
-                formatter,
-                "use declaration {declaration:?} has more than one resolved target"
-            ),
-            Self::InvalidUseResolution(declaration) => write!(
-                formatter,
-                "resolved use {declaration:?} does not identify an authored use declaration"
-            ),
-            Self::UnknownUseTarget(declaration) => write!(
-                formatter,
-                "resolved use {declaration:?} names a target outside the compile unit"
-            ),
             Self::UnreachableImplementationSource(path) => {
                 write!(
                     formatter,
@@ -248,6 +225,53 @@ impl fmt::Display for LoweringError {
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
         }
     }
+}
+
+fn format_resolution_error(
+    error: &LoweringError,
+    formatter: &mut fmt::Formatter<'_>,
+) -> Option<fmt::Result> {
+    let (declaration, message) = match error {
+        LoweringError::MissingIncludeResolution(node) => {
+            (*node, "include declaration has no resolved source")
+        }
+        LoweringError::DuplicateIncludeResolution(node) => (
+            *node,
+            "include declaration has more than one resolved source",
+        ),
+        LoweringError::InvalidIncludeResolution(node) => (
+            *node,
+            "resolved include does not identify an authored include declaration",
+        ),
+        LoweringError::UnknownIncludeTarget(node) => (
+            *node,
+            "resolved include names a source outside the compile unit",
+        ),
+        LoweringError::MissingUseResolution(node) => {
+            (*node, "use declaration has no resolved target")
+        }
+        LoweringError::DuplicateUseResolution(node) => {
+            (*node, "use declaration has more than one resolved target")
+        }
+        LoweringError::InvalidUseResolution(node) => (
+            *node,
+            "resolved use does not identify an authored use declaration",
+        ),
+        LoweringError::UnknownUseTarget(node) => (
+            *node,
+            "resolved use names a target outside the compile unit",
+        ),
+        _ => return None,
+    };
+    Some(resolution_message(formatter, declaration, message))
+}
+
+fn resolution_message(
+    formatter: &mut fmt::Formatter<'_>,
+    declaration: NodeId,
+    message: &str,
+) -> fmt::Result {
+    write!(formatter, "{message}: {declaration:?}")
 }
 
 impl std::error::Error for LoweringError {}

@@ -2,15 +2,16 @@ use std::fmt;
 
 use crate::surface::collect_incomplete_body_declaration_surface;
 use crate::{
-    CallableContractDiagnostic, CallableContractError, CompileUnitInput, DeclarationDiagnostic,
-    DefinitionDiagnostic, GenericDiagnostic, GenericError, HeaderDefinitionError, HeaderError,
-    ImportDiagnostic, ImportError, LoweredDeclarations, NamespaceDiagnostic, PreparedImports,
-    PreparedNamespaces, PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic,
-    SurfaceDiagnostic, SurfaceError, ToolchainError, TopologyDiagnostic, TypeBindingDiagnostic,
-    TypeBindingError, TypeNormalizationDiagnostic, TypeNormalizationError,
-    analyze_callable_contracts, apply_toolchain_profile, bind_header_type_syntax,
-    collect_declaration_surface, define_declaration_headers, normalize_header_types,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
+    DeclarationDiagnostic, DefinitionDiagnostic, GenericDiagnostic, GenericError,
+    HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
+    NamespaceDiagnostic, PreparedImports, PreparedNamespaces, PreparedTypeBindings, PreparedTypes,
+    ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError, ToolchainError,
+    TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
+    TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
+    bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
+    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
+    prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -18,8 +19,8 @@ pub enum DeclarationLoweringError {
     Topology(TopologyDiagnostic),
     Surface(SurfaceDiagnostic),
     InternalSurface(SurfaceError),
-    CallableContract(CallableContractDiagnostic),
-    InternalContract(CallableContractError),
+    DeclarationContract(DeclarationContractDiagnostic),
+    InternalContract(DeclarationContractError),
     Reservation(ReservationError),
     Namespace(NamespaceDiagnostic),
     InternalHeader(HeaderError),
@@ -47,7 +48,7 @@ impl DeclarationLoweringError {
         match self {
             Self::Topology(diagnostic) => Some(diagnostic.source()),
             Self::Surface(diagnostic) => Some(diagnostic.source()),
-            Self::CallableContract(diagnostic) => Some(diagnostic.source()),
+            Self::DeclarationContract(diagnostic) => Some(diagnostic.source()),
             Self::Namespace(diagnostic) => Some(diagnostic.source()),
             Self::Generic(diagnostic) => Some(diagnostic.source()),
             Self::Import(diagnostic) => Some(diagnostic.source()),
@@ -75,7 +76,7 @@ impl fmt::Display for DeclarationLoweringError {
             Self::Topology(error) => error.fmt(formatter),
             Self::Surface(error) => error.fmt(formatter),
             Self::InternalSurface(error) => error.fmt(formatter),
-            Self::CallableContract(error) => error.fmt(formatter),
+            Self::DeclarationContract(error) => error.fmt(formatter),
             Self::InternalContract(error) => error.fmt(formatter),
             Self::Reservation(error) => error.fmt(formatter),
             Self::Namespace(error) => error.fmt(formatter),
@@ -105,7 +106,7 @@ impl std::error::Error for DeclarationLoweringError {}
 ///
 /// # Errors
 ///
-/// Returns the exact failing stage. Source-backed module-surface, callable-contract, namespace,
+/// Returns the exact failing stage. Source-backed module-surface, declaration-contract, namespace,
 /// and freeze-time declaration rules are already projected to common diagnostics;
 /// remaining stage errors stay typed until their diagnostic mappings are completed.
 pub fn lower_compile_unit_declarations(
@@ -149,11 +150,11 @@ fn lower_compile_unit_declarations_from<'syntax>(
             };
         }
     };
-    let contracts = match analyze_callable_contracts(&surface) {
+    let contracts = match analyze_declaration_contracts(&surface) {
         Ok(contracts) => contracts,
         Err(error) => {
-            return match CallableContractDiagnostic::project(error, &surface) {
-                Ok(diagnostic) => Err(DeclarationLoweringError::CallableContract(diagnostic)),
+            return match DeclarationContractDiagnostic::project(error, &surface) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::DeclarationContract(diagnostic)),
                 Err(internal) => Err(DeclarationLoweringError::InternalContract(internal)),
             };
         }
@@ -299,7 +300,7 @@ mod tests {
 
     use crate::test_support::{module_use, package_target, source_include};
     use crate::{
-        CallableContractRule, CompileUnitInput, DeclarationLoweringError, DefinitionRule,
+        CompileUnitInput, DeclarationContractRule, DeclarationLoweringError, DefinitionRule,
         GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         NamespaceRule, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
         ToolchainInput, TopologyRule, TypeBindingRule, TypeNormalizationRule,
@@ -1053,10 +1054,10 @@ mod tests {
             error.source_diagnostic().map(crate::SourceDiagnostic::code),
             Some("E0250")
         );
-        let DeclarationLoweringError::CallableContract(diagnostic) = error else {
+        let DeclarationLoweringError::DeclarationContract(diagnostic) = error else {
             panic!("missing body did not produce a callable contract diagnostic");
         };
-        assert_eq!(diagnostic.rule(), CallableContractRule::MissingBody);
+        assert_eq!(diagnostic.rule(), DeclarationContractRule::MissingBody);
         assert_eq!(diagnostic.source().code(), "E0250");
         assert_eq!(diagnostic.source().primary().source(), app_id);
         assert!(diagnostic.source().primary().node().is_some());
@@ -1467,7 +1468,7 @@ mod tests {
             (
                 "G006",
                 "func missing_body(): i32\n",
-                "callable-contract",
+                "declaration-contract",
                 "E0253",
             ),
             ("G007", "enum Empty {}\n", "declaration", "E0200"),
@@ -1559,7 +1560,7 @@ mod tests {
         let family = match &error {
             DeclarationLoweringError::Topology(_) => "topology",
             DeclarationLoweringError::Surface(_) => "surface",
-            DeclarationLoweringError::CallableContract(_) => "callable-contract",
+            DeclarationLoweringError::DeclarationContract(_) => "declaration-contract",
             DeclarationLoweringError::Namespace(_) => "namespace",
             DeclarationLoweringError::Generic(_) => "generic",
             DeclarationLoweringError::Import(_) => "import",

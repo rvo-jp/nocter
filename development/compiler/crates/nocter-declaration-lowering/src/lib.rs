@@ -28,6 +28,7 @@ mod namespace_diagnostic;
 mod package_targets;
 mod pipeline;
 mod primitive_bindings;
+mod representation_contract;
 mod reservation;
 mod surface;
 mod surface_diagnostic;
@@ -43,8 +44,8 @@ mod visibility;
 #[cfg(test)]
 mod test_support;
 
-pub use contract::{CallableContractError, CallableContracts, analyze_callable_contracts};
-pub use contract_diagnostic::{CallableContractDiagnostic, CallableContractRule};
+pub use contract::{DeclarationContractError, DeclarationContracts, analyze_declaration_contracts};
+pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContractRule};
 pub use definition_diagnostic::DefinitionDiagnostic;
 pub use definitions::{
     DeclarationDiagnostic, DefinitionRule, DefinitionViolation, HeaderDefinitionError,

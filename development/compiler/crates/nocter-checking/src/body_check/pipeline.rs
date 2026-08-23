@@ -54,15 +54,6 @@ fn check_prepared_program_internal<'syntax>(
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let mut prepared = prepared.into_parts();
     let mut closures = ClosureTableBuilder::new();
-    let facts = BodyProgramFacts::new(
-        &prepared.graph,
-        &prepared.drops,
-        &prepared.conformances,
-        &prepared.construction_surfaces,
-        &prepared.instance_operations,
-        &prepared.standard_semantics,
-        &prepared.source_index,
-    );
     let mut checked_types = if retain_prepared {
         prepared.types.clone()
     } else {
@@ -73,6 +64,7 @@ fn check_prepared_program_internal<'syntax>(
     } else {
         std::mem::take(&mut prepared.copyabilities)
     };
+    let facts = BodyProgramFacts::from_prepared(&prepared);
 
     let CheckedBodiesOutput {
         bodies: mut checked_bodies,
@@ -227,6 +219,7 @@ fn finish_checked_program(
         standard_semantics,
         body_sources: _,
         body_names: _,
+        source_namespaces: _,
         source_index,
     } = prepared;
     let source_index = extend_source_index(source_index, projections)

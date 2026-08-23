@@ -1,7 +1,7 @@
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use super::{CallableContractError, analyze_callable_contracts};
+use super::{DeclarationContractError, analyze_declaration_contracts};
 use crate::test_support::source_include;
 use crate::{
     CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
@@ -64,7 +64,7 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "func parse(text: &str): usize { 0 }\n\ninstance Text {\n    method &self.len(): usize { 0 }\n}\n",
+        "include ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n\ninstance Text {\n    method &self.len(): usize { 0 }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -80,10 +80,13 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/parse.nct")],
+        vec![
+            source_include(&root, 0, "/app/parse.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     );
 
-    let contracts = analyze_callable_contracts(&surface).unwrap();
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
 
     assert_eq!(
         contracts.representative(SurfaceDeclarationId::from_index(3)),
@@ -107,7 +110,7 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "func parse(text: usize): usize { text }\n",
+        "include ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -123,12 +126,15 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/parse.nct")],
+        vec![
+            source_include(&root, 0, "/app/parse.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     );
 
     assert!(matches!(
-        analyze_callable_contracts(&surface),
-        Err(CallableContractError::MismatchedBody { .. })
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::MismatchedBody { .. })
     ));
 }
 
@@ -144,12 +150,12 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
     let first_id = add_source(
         &mut sources,
         "/app/a.nct",
-        "func parse(text: &str): usize { 1 }\n",
+        "include ./index.nct\n\nfunc parse(text: &str): usize { 1 }\n",
     );
     let second_id = add_source(
         &mut sources,
         "/app/b.nct",
-        "func parse(text: &str): usize { 2 }\n",
+        "include ./index.nct\n\nfunc parse(text: &str): usize { 2 }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -166,12 +172,14 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
         vec![
             source_include(&root, 0, "/app/a.nct"),
             source_include(&root, 1, "/app/b.nct"),
+            source_include(&first, 0, "/app/index.nct"),
+            source_include(&second, 0, "/app/index.nct"),
         ],
     );
 
     assert!(matches!(
-        analyze_callable_contracts(&surface),
-        Err(CallableContractError::DuplicateBody { .. })
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::DuplicateBody { .. })
     ));
 }
 
@@ -194,8 +202,8 @@ fn body_omission_is_not_a_general_callable_form() {
     );
 
     assert!(matches!(
-        analyze_callable_contracts(&surface),
-        Err(CallableContractError::InvalidBodyOmission(_))
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::InvalidBodyOmission(_))
     ));
 }
 
@@ -211,7 +219,7 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
     let implementation_id = add_source(
         &mut sources,
         "/app/view.nct",
-        "instance Text {\n    coerce &self as &str { self }\n}\n",
+        "include ./index.nct\n\ninstance Text {\n    coerce &self as &str { self }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -227,10 +235,13 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/view.nct")],
+        vec![
+            source_include(&root, 0, "/app/view.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     );
 
-    let contracts = analyze_callable_contracts(&surface).unwrap();
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
 
     assert_eq!(
         contracts.representative(SurfaceDeclarationId::from_index(3)),
@@ -243,7 +254,7 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
 }
 
 #[test]
-fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
+fn construction_body_omits_visibility_but_repeats_default_and_keeps_one_identity() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
     let root_id = add_source(
@@ -254,7 +265,7 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/value.nct",
-        "construct Value {\n    func new(): Self { Value { value: 0 } }\n}\n",
+        "include ./index.nct\n\nconstruct Value {\n    default func new(): Self { Value { value: 0 } }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -271,10 +282,13 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/value.nct")],
+        vec![
+            source_include(&root, 0, "/app/value.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     );
 
-    let contracts = analyze_callable_contracts(&surface).unwrap();
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
 
     assert_eq!(
         contracts.representative(SurfaceDeclarationId::from_index(5)),
@@ -283,5 +297,46 @@ fn construction_body_omits_visibility_and_default_but_keeps_one_identity() {
     assert_eq!(
         contracts.representative(SurfaceDeclarationId::from_index(4)),
         SurfaceDeclarationId::from_index(2)
+    );
+}
+
+#[test]
+fn opaque_nominal_contract_and_private_representation_share_one_identity() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./string.nct\n\npub struct String\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/string.nct",
+        "include ./index.nct\n\nstruct String { len: usize }\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/string.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/string.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(1)),
+        SurfaceDeclarationId::from_index(0)
     );
 }

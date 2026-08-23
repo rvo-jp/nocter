@@ -1,4 +1,5 @@
 use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -17,6 +18,7 @@ pub(super) struct BodyProgramFacts<'program> {
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
     standard_semantics: &'program StandardSemanticTable,
+    source_namespaces: &'program SourceNamespaceTable,
     source_index: &'program SourceIndex,
 }
 
@@ -50,23 +52,18 @@ pub(super) fn body_generic_domain(
 }
 
 impl<'program> BodyProgramFacts<'program> {
-    pub(super) const fn new(
-        graph: &'program DeclarationGraph,
-        drops: &'program DropTable,
-        conformances: &'program ConformanceTable,
-        construction_surfaces: &'program ConstructionSurfaceTable,
-        instance_operations: &'program InstanceOperationTable,
-        standard_semantics: &'program StandardSemanticTable,
-        source_index: &'program SourceIndex,
+    pub(super) const fn from_prepared(
+        prepared: &'program crate::preparation::PreparedCheckingParts<'_>,
     ) -> Self {
         Self {
-            graph,
-            drops,
-            conformances,
-            construction_surfaces,
-            instance_operations,
-            standard_semantics,
-            source_index,
+            graph: &prepared.graph,
+            drops: &prepared.drops,
+            conformances: &prepared.conformances,
+            construction_surfaces: &prepared.construction_surfaces,
+            instance_operations: &prepared.instance_operations,
+            standard_semantics: &prepared.standard_semantics,
+            source_namespaces: &prepared.source_namespaces,
+            source_index: &prepared.source_index,
         }
     }
 
@@ -92,6 +89,10 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn standard_semantics(self) -> &'program StandardSemanticTable {
         self.standard_semantics
+    }
+
+    pub(super) const fn source_namespaces(self) -> &'program SourceNamespaceTable {
+        self.source_namespaces
     }
 
     pub(super) const fn source_index(self) -> &'program SourceIndex {

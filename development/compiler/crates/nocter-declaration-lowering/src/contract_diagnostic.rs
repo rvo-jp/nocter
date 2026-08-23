@@ -4,27 +4,33 @@ use nocter_source_index::SourceOrigin;
 use nocter_syntax::NodeId;
 
 use crate::{
-    CallableContractError, DeclarationSurface, DiagnosticNote, SourceDiagnostic,
+    DeclarationContractError, DeclarationSurface, DiagnosticNote, SourceDiagnostic,
     diagnostic::origin_from_trees,
 };
 
 /// Stable source-level rule for public contract and private body joining.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum CallableContractRule {
+pub enum DeclarationContractRule {
     MissingBody,
     MismatchedBody,
     DuplicateBody,
     InvalidBodyOmission,
-    UnmatchedImplementationEntry,
+    MissingRepresentation,
+    MismatchedRepresentation,
+    DuplicateRepresentation,
+    RepresentationCompletedAgain,
 }
 
-impl CallableContractRule {
-    pub const ALL: [Self; 5] = [
+impl DeclarationContractRule {
+    pub const ALL: [Self; 8] = [
         Self::MissingBody,
         Self::MismatchedBody,
         Self::DuplicateBody,
         Self::InvalidBodyOmission,
-        Self::UnmatchedImplementationEntry,
+        Self::MissingRepresentation,
+        Self::MismatchedRepresentation,
+        Self::DuplicateRepresentation,
+        Self::RepresentationCompletedAgain,
     ];
 
     #[must_use]
@@ -34,7 +40,10 @@ impl CallableContractRule {
             Self::MismatchedBody => "E0251",
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
-            Self::UnmatchedImplementationEntry => "E0254",
+            Self::MissingRepresentation => "E0255",
+            Self::MismatchedRepresentation => "E0256",
+            Self::DuplicateRepresentation => "E0257",
+            Self::RepresentationCompletedAgain => "E0258",
         }
     }
 
@@ -49,8 +58,17 @@ impl CallableContractRule {
             Self::InvalidBodyOmission => {
                 "callable omits its body outside an eligible public contract"
             }
-            Self::UnmatchedImplementationEntry => {
-                "private implementation entry has no matching public contract"
+            Self::MissingRepresentation => {
+                "public nominal contract has no private representation definition"
+            }
+            Self::MismatchedRepresentation => {
+                "private nominal representation does not match its public contract"
+            }
+            Self::DuplicateRepresentation => {
+                "public nominal contract has more than one private representation"
+            }
+            Self::RepresentationCompletedAgain => {
+                "a nominal representation is used to complete more than one contract"
             }
         }
     }
@@ -66,8 +84,15 @@ impl CallableContractRule {
             Self::InvalidBodyOmission => {
                 "write the body inline or declare an eligible public root contract"
             }
-            Self::UnmatchedImplementationEntry => {
-                "declare the matching construction or coercion contract in index.nct"
+            Self::MissingRepresentation => {
+                "add one reciprocal directly included private representation"
+            }
+            Self::MismatchedRepresentation => {
+                "make the representation kind, name, modifiers, and generic header match"
+            }
+            Self::DuplicateRepresentation => "keep exactly one matching private representation",
+            Self::RepresentationCompletedAgain => {
+                "give each public nominal contract one distinct representation"
             }
         }
     }
@@ -75,26 +100,28 @@ impl CallableContractRule {
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::MismatchedBody | Self::DuplicateBody => Some("public contract is declared here"),
-            Self::MissingBody | Self::InvalidBodyOmission | Self::UnmatchedImplementationEntry => {
-                None
-            }
+            Self::MismatchedBody
+            | Self::DuplicateBody
+            | Self::MismatchedRepresentation
+            | Self::DuplicateRepresentation
+            | Self::RepresentationCompletedAgain => Some("public contract is declared here"),
+            Self::MissingBody | Self::InvalidBodyOmission | Self::MissingRepresentation => None,
         }
     }
 }
 
 /// A callable-contract rule projected to exact source syntax.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CallableContractDiagnostic {
-    rule: CallableContractRule,
+pub struct DeclarationContractDiagnostic {
+    rule: DeclarationContractRule,
     source: Box<SourceDiagnostic>,
 }
 
-impl CallableContractDiagnostic {
+impl DeclarationContractDiagnostic {
     pub(crate) fn project(
-        error: CallableContractError,
+        error: DeclarationContractError,
         surface: &DeclarationSurface<'_>,
-    ) -> Result<Self, CallableContractError> {
+    ) -> Result<Self, DeclarationContractError> {
         let rule = rule(error).ok_or(error)?;
         let primary = origin(surface, primary_node(error)).ok_or(error)?;
         let notes = related_node(error)
@@ -121,7 +148,7 @@ impl CallableContractDiagnostic {
     }
 
     #[must_use]
-    pub const fn rule(&self) -> CallableContractRule {
+    pub const fn rule(&self) -> DeclarationContractRule {
         self.rule
     }
 
@@ -131,7 +158,7 @@ impl CallableContractDiagnostic {
     }
 }
 
-impl fmt::Display for CallableContractDiagnostic {
+impl fmt::Display for DeclarationContractDiagnostic {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -142,42 +169,61 @@ impl fmt::Display for CallableContractDiagnostic {
     }
 }
 
-impl std::error::Error for CallableContractDiagnostic {}
+impl std::error::Error for DeclarationContractDiagnostic {}
 
-const fn rule(error: CallableContractError) -> Option<CallableContractRule> {
+const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule> {
     match error {
-        CallableContractError::MissingBody(_) => Some(CallableContractRule::MissingBody),
-        CallableContractError::MismatchedBody { .. } => Some(CallableContractRule::MismatchedBody),
-        CallableContractError::DuplicateBody { .. } => Some(CallableContractRule::DuplicateBody),
-        CallableContractError::InvalidBodyOmission(_) => {
-            Some(CallableContractRule::InvalidBodyOmission)
+        DeclarationContractError::MissingBody(_) => Some(DeclarationContractRule::MissingBody),
+        DeclarationContractError::MismatchedBody { .. } => {
+            Some(DeclarationContractRule::MismatchedBody)
         }
-        CallableContractError::UnmatchedImplementationEntry(_) => {
-            Some(CallableContractRule::UnmatchedImplementationEntry)
+        DeclarationContractError::DuplicateBody { .. } => {
+            Some(DeclarationContractRule::DuplicateBody)
         }
-        CallableContractError::InconsistentSurface(_) => None,
+        DeclarationContractError::InvalidBodyOmission(_) => {
+            Some(DeclarationContractRule::InvalidBodyOmission)
+        }
+        DeclarationContractError::MissingRepresentation(_) => {
+            Some(DeclarationContractRule::MissingRepresentation)
+        }
+        DeclarationContractError::MismatchedRepresentation { .. } => {
+            Some(DeclarationContractRule::MismatchedRepresentation)
+        }
+        DeclarationContractError::DuplicateRepresentation { .. } => {
+            Some(DeclarationContractRule::DuplicateRepresentation)
+        }
+        DeclarationContractError::RepresentationCompletedAgain { .. } => {
+            Some(DeclarationContractRule::RepresentationCompletedAgain)
+        }
+        DeclarationContractError::InconsistentSurface(_) => None,
     }
 }
 
-const fn primary_node(error: CallableContractError) -> NodeId {
+const fn primary_node(error: DeclarationContractError) -> NodeId {
     match error {
-        CallableContractError::MissingBody(node)
-        | CallableContractError::InvalidBodyOmission(node)
-        | CallableContractError::UnmatchedImplementationEntry(node)
-        | CallableContractError::InconsistentSurface(node) => node,
-        CallableContractError::MismatchedBody { body, .. }
-        | CallableContractError::DuplicateBody { body, .. } => body,
+        DeclarationContractError::MissingBody(node)
+        | DeclarationContractError::InvalidBodyOmission(node)
+        | DeclarationContractError::MissingRepresentation(node)
+        | DeclarationContractError::InconsistentSurface(node) => node,
+        DeclarationContractError::MismatchedBody { body, .. }
+        | DeclarationContractError::DuplicateBody { body, .. } => body,
+        DeclarationContractError::MismatchedRepresentation { definition, .. }
+        | DeclarationContractError::DuplicateRepresentation { definition, .. }
+        | DeclarationContractError::RepresentationCompletedAgain { definition, .. } => definition,
     }
 }
 
-const fn related_node(error: CallableContractError) -> Option<NodeId> {
+const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
     match error {
-        CallableContractError::MismatchedBody { contract, .. }
-        | CallableContractError::DuplicateBody { contract, .. } => Some(contract),
-        CallableContractError::MissingBody(_)
-        | CallableContractError::InvalidBodyOmission(_)
-        | CallableContractError::UnmatchedImplementationEntry(_)
-        | CallableContractError::InconsistentSurface(_) => None,
+        DeclarationContractError::MismatchedBody { contract, .. }
+        | DeclarationContractError::DuplicateBody { contract, .. }
+        | DeclarationContractError::MismatchedRepresentation { contract, .. }
+        | DeclarationContractError::DuplicateRepresentation { contract, .. }
+        | DeclarationContractError::RepresentationCompletedAgain { contract, .. } => Some(contract),
+        DeclarationContractError::MissingBody(_)
+        | DeclarationContractError::InvalidBodyOmission(_)
+        | DeclarationContractError::MissingRepresentation(_)
+        | DeclarationContractError::InconsistentSurface(_) => None,
     }
 }
 
@@ -195,21 +241,21 @@ mod tests {
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-    use super::{CallableContractDiagnostic, CallableContractRule};
+    use super::{DeclarationContractDiagnostic, DeclarationContractRule};
     use crate::test_support::source_include;
     use crate::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
         PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-        analyze_callable_contracts, collect_declaration_surface,
+        analyze_declaration_contracts, collect_declaration_surface,
     };
 
     #[test]
-    fn callable_contract_rule_codes_are_closed_and_unique() {
-        let codes: BTreeSet<_> = CallableContractRule::ALL
+    fn declaration_contract_rule_codes_are_closed_and_unique() {
+        let codes: BTreeSet<_> = DeclarationContractRule::ALL
             .into_iter()
-            .map(CallableContractRule::code)
+            .map(DeclarationContractRule::code)
             .collect();
-        assert_eq!(codes.len(), CallableContractRule::ALL.len());
+        assert_eq!(codes.len(), DeclarationContractRule::ALL.len());
     }
 
     #[test]
@@ -224,7 +270,7 @@ mod tests {
         let implementation_id = add_source(
             &mut sources,
             "/app/parse.nct",
-            "func parse(text: usize): usize { text }\n",
+            "include ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -253,13 +299,16 @@ mod tests {
             vec![module],
             Vec::new(),
         )
-        .with_include_resolutions(vec![source_include(&root, 0, "/app/parse.nct")]);
+        .with_include_resolutions(vec![
+            source_include(&root, 0, "/app/parse.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ]);
         let surface = collect_declaration_surface(&input).unwrap();
 
-        let error = analyze_callable_contracts(&surface).unwrap_err();
-        let diagnostic = CallableContractDiagnostic::project(error, &surface).unwrap();
+        let error = analyze_declaration_contracts(&surface).unwrap_err();
+        let diagnostic = DeclarationContractDiagnostic::project(error, &surface).unwrap();
 
-        assert_eq!(diagnostic.rule(), CallableContractRule::MismatchedBody);
+        assert_eq!(diagnostic.rule(), DeclarationContractRule::MismatchedBody);
         assert_eq!(diagnostic.source().code(), "E0251");
         assert_eq!(diagnostic.source().primary().source(), implementation_id);
         assert_eq!(diagnostic.source().notes().len(), 1);
@@ -271,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn unmatched_implementation_entry_has_its_own_rule() {
+    fn private_implementation_entries_do_not_require_public_contracts() {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(
@@ -282,7 +331,7 @@ mod tests {
         let implementation_id = add_source(
             &mut sources,
             "/app/build.nct",
-            "construct Value {\n    func new(): Self {}\n}\n",
+            "include ./index.nct\n\nconstruct Value {\n    func new(): Self {}\n}\n",
         );
         let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -309,18 +358,12 @@ mod tests {
             )],
             Vec::new(),
         )
-        .with_include_resolutions(vec![source_include(&root, 0, "/app/build.nct")]);
+        .with_include_resolutions(vec![
+            source_include(&root, 0, "/app/build.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ]);
         let surface = collect_declaration_surface(&input).unwrap();
-        let error = analyze_callable_contracts(&surface).unwrap_err();
-        let diagnostic = CallableContractDiagnostic::project(error, &surface).unwrap();
-
-        assert_eq!(
-            diagnostic.rule(),
-            CallableContractRule::UnmatchedImplementationEntry
-        );
-        assert_eq!(diagnostic.source().code(), "E0254");
-        assert_eq!(diagnostic.source().primary().source(), implementation_id);
-        assert!(diagnostic.source().notes().is_empty());
+        analyze_declaration_contracts(&surface).unwrap();
     }
 
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {

@@ -11,7 +11,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SurfaceRule {
     ImplementationVisibility,
-    ImplementationMember,
+    InvalidNominalContract,
     MissingConstructionVisibility,
     UnknownTargetGate,
 }
@@ -21,7 +21,7 @@ impl SurfaceRule {
     pub const fn code(self) -> &'static str {
         match self {
             Self::ImplementationVisibility => "E0230",
-            Self::ImplementationMember => "E0231",
+            Self::InvalidNominalContract => "E0231",
             Self::MissingConstructionVisibility => "E0232",
             Self::UnknownTargetGate => "E0233",
         }
@@ -33,11 +33,11 @@ impl SurfaceRule {
             Self::ImplementationVisibility => {
                 "an implementation source cannot declare non-private visibility"
             }
-            Self::ImplementationMember => {
-                "this member may be declared only in the module root source"
+            Self::InvalidNominalContract => {
+                "a bodyless nominal must be a public contract in index.nct"
             }
             Self::MissingConstructionVisibility => {
-                "a root-source construction member requires explicit visibility"
+                "a bodyless public construction contract member requires explicit visibility"
             }
             Self::UnknownTargetGate => "target gate names an unrecognized compilation target",
         }
@@ -49,7 +49,9 @@ impl SurfaceRule {
             Self::ImplementationVisibility => {
                 "move the public contract to index.nct or remove the visibility"
             }
-            Self::ImplementationMember => "move the declaration to the module's index.nct",
+            Self::InvalidNominalContract => {
+                "add a representation body, or move a public contract to index.nct"
+            }
             Self::MissingConstructionVisibility => {
                 "add pub, pub(./), or another non-private visibility to the construction member"
             }
@@ -116,8 +118,8 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         SurfaceError::ImplementationVisibility(node) => {
             Some((SurfaceRule::ImplementationVisibility, *node))
         }
-        SurfaceError::ImplementationMember(node) => {
-            Some((SurfaceRule::ImplementationMember, *node))
+        SurfaceError::InvalidNominalContract(node) => {
+            Some((SurfaceRule::InvalidNominalContract, *node))
         }
         SurfaceError::MissingConstructionVisibility(node) => {
             Some((SurfaceRule::MissingConstructionVisibility, *node))
@@ -161,18 +163,16 @@ mod tests {
     }
 
     #[test]
-    fn implementation_members_have_a_source_backed_rule() {
-        let (diagnostic, implementation) = implementation_diagnostic(
-            "struct Hidden { value: usize }\n",
-            SurfaceRule::ImplementationMember,
-        );
+    fn bodyless_implementation_nominals_have_a_source_backed_rule() {
+        let (diagnostic, implementation) =
+            implementation_diagnostic("struct Hidden\n", SurfaceRule::InvalidNominalContract);
 
         assert_eq!(diagnostic.source().code(), "E0231");
         assert_eq!(diagnostic.source().primary().source(), implementation);
     }
 
     #[test]
-    fn root_construction_members_require_an_explicit_visibility() {
+    fn inline_private_root_construction_members_do_not_require_visibility() {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
         let root_id = add_source(
@@ -193,15 +193,7 @@ mod tests {
             Vec::new(),
         );
 
-        let error = collect_declaration_surface(&input).unwrap_err();
-        let diagnostic = SurfaceDiagnostic::project(error, &input).unwrap();
-
-        assert_eq!(
-            diagnostic.rule(),
-            SurfaceRule::MissingConstructionVisibility
-        );
-        assert_eq!(diagnostic.source().code(), "E0232");
-        assert_eq!(diagnostic.source().primary().source(), root_id);
+        collect_declaration_surface(&input).unwrap();
     }
 
     #[test]

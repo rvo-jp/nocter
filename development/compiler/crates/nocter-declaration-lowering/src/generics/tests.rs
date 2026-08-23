@@ -174,7 +174,7 @@ fn joined_callable_sources_share_generic_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/identity.nct",
-        "func identity<T>(value: T): T { value }\n",
+        "include ./index.nct\n\nfunc identity<T>(value: T): T { value }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -191,7 +191,10 @@ fn joined_callable_sources_share_generic_identity() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/identity.nct")],
+        vec![
+            source_include(&root, 0, "/app/identity.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     )
     .unwrap();
     let contract = SurfaceDeclarationId::from_index(0);
@@ -213,7 +216,7 @@ fn joined_construction_patterns_reuse_contract_binder_identities() {
     let implementation_id = add_source(
         &mut sources,
         "/app/make.nct",
-        "construct Pair<L, R> {\n    func make(left: L, right: R): Self {\n        return Pair<L, R> { left: move left, right: move right }\n    }\n}\n",
+        "include ./index.nct\n\nconstruct Pair<L, R> {\n    func make(left: L, right: R): Self {\n        return Pair<L, R> { left: move left, right: move right }\n    }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -230,7 +233,10 @@ fn joined_construction_patterns_reuse_contract_binder_identities() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/make.nct")],
+        vec![
+            source_include(&root, 0, "/app/make.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
     )
     .unwrap();
     let contract = SurfaceDeclarationId::from_index(3);

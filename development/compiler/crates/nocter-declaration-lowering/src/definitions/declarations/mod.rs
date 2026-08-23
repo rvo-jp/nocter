@@ -240,6 +240,15 @@ fn define_nominal(
     id: nocter_model::NominalTypeId,
 ) -> Result<(), HeaderDefinitionError> {
     let kind = surface_kind(types, declaration)?;
+    let representation = types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .contracts
+        .representation(declaration)
+        .unwrap_or(declaration);
     let shape = match kind {
         SurfaceDeclarationKind::Struct => {
             let tree = projection::tree(types, declaration)?;
@@ -261,11 +270,11 @@ fn define_nominal(
                 });
             NominalShape::Struct {
                 copy_declared,
-                fields: child_fields(types, allocated, declaration),
+                fields: child_fields(types, allocated, representation),
             }
         }
         SurfaceDeclarationKind::Enum => NominalShape::Enum {
-            variants: child_variants(types, declaration),
+            variants: child_variants(types, representation),
         },
         _ => return Err(HeaderDefinitionError::InvalidSurface(declaration)),
     };
@@ -571,6 +580,7 @@ fn child_surfaces(
     types: &PreparedTypes<'_>,
     owner: SurfaceDeclarationId,
 ) -> Vec<SurfaceDeclarationId> {
+    let owner = representative(types, owner);
     (0..surface_count(types))
         .map(SurfaceDeclarationId::from_index)
         .filter(|child| {
@@ -582,6 +592,7 @@ fn child_surfaces(
                 .reserved
                 .declarations[child.index()]
             .owner()
+            .map(|candidate| representative(types, candidate))
                 == Some(owner)
         })
         .collect()

@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct HeaderFingerprint(Box<[Box<str>]>);
+pub(super) struct HeaderFingerprint(pub(super) Box<[Box<str>]>);
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum CallableLabel {
@@ -17,6 +17,7 @@ enum CallableLabel {
     LiteralSequence,
     LiteralString,
     Coercion(HeaderFingerprint),
+    Operator,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -40,11 +41,12 @@ struct LooseCallableKey {
 /// A public bodyless callable and its private implementation body share the public contract's
 /// representative. All other declarations initially represent themselves.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CallableContracts {
+pub struct DeclarationContracts {
     representatives: Box<[SurfaceDeclarationId]>,
+    representations: Box<[Option<SurfaceDeclarationId>]>,
 }
 
-impl CallableContracts {
+impl DeclarationContracts {
     #[must_use]
     pub fn representative(&self, declaration: SurfaceDeclarationId) -> SurfaceDeclarationId {
         self.representatives[declaration.index()]
@@ -54,19 +56,46 @@ impl CallableContracts {
     pub fn is_implementation(&self, declaration: SurfaceDeclarationId) -> bool {
         self.representative(declaration) != declaration
     }
+
+    /// Returns the private representation occurrence completing a public nominal contract.
+    #[must_use]
+    pub fn representation(
+        &self,
+        declaration: SurfaceDeclarationId,
+    ) -> Option<SurfaceDeclarationId> {
+        self.representations[declaration.index()]
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CallableContractError {
+pub enum DeclarationContractError {
     MissingBody(NodeId),
-    MismatchedBody { contract: NodeId, body: NodeId },
-    DuplicateBody { contract: NodeId, body: NodeId },
+    MismatchedBody {
+        contract: NodeId,
+        body: NodeId,
+    },
+    DuplicateBody {
+        contract: NodeId,
+        body: NodeId,
+    },
     InvalidBodyOmission(NodeId),
-    UnmatchedImplementationEntry(NodeId),
+    MissingRepresentation(NodeId),
+    MismatchedRepresentation {
+        contract: NodeId,
+        definition: NodeId,
+    },
+    DuplicateRepresentation {
+        contract: NodeId,
+        definition: NodeId,
+    },
+    RepresentationCompletedAgain {
+        contract: NodeId,
+        definition: NodeId,
+    },
     InconsistentSurface(NodeId),
 }
 
-impl fmt::Display for CallableContractError {
+impl fmt::Display for DeclarationContractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingBody(contract) => {
@@ -87,9 +116,30 @@ impl fmt::Display for CallableContractError {
                 formatter,
                 "callable {node:?} omits its body outside an eligible public root contract"
             ),
-            Self::UnmatchedImplementationEntry(node) => write!(
+            Self::MissingRepresentation(contract) => write!(
                 formatter,
-                "root-surface-only implementation entry {node:?} has no public contract"
+                "public nominal contract {contract:?} has no representation definition"
+            ),
+            Self::MismatchedRepresentation {
+                contract,
+                definition,
+            } => write!(
+                formatter,
+                "nominal representation {definition:?} does not match contract {contract:?}"
+            ),
+            Self::DuplicateRepresentation {
+                contract,
+                definition,
+            } => write!(
+                formatter,
+                "nominal contract {contract:?} has duplicate representation {definition:?}"
+            ),
+            Self::RepresentationCompletedAgain {
+                contract,
+                definition,
+            } => write!(
+                formatter,
+                "represented nominal {contract:?} is completed again by {definition:?}"
             ),
             Self::InconsistentSurface(node) => {
                 write!(
@@ -101,34 +151,35 @@ impl fmt::Display for CallableContractError {
     }
 }
 
-impl std::error::Error for CallableContractError {}
+impl std::error::Error for DeclarationContractError {}
 
 /// Joins eligible public root contracts to exact private implementation bodies.
 ///
-/// Header equality uses canonical token spelling: newlines, visibility, bodies, and construction
-/// `default` are excluded, and all remaining authored header tokens are compared exactly. No name
-/// or type is resolved during this pass.
+/// Header equality uses canonical token spelling: newlines, visibility, and bodies are excluded;
+/// construction `default` remains part of the contract. No name or type is resolved during this
+/// pass.
 ///
 /// # Errors
 ///
-/// Returns [`CallableContractError`] for a missing, mismatched, duplicate, or ineligible body.
-pub fn analyze_callable_contracts(
+/// Returns [`DeclarationContractError`] for a missing, mismatched, duplicate, or ineligible body.
+pub fn analyze_declaration_contracts(
     surface: &DeclarationSurface<'_>,
-) -> Result<CallableContracts, CallableContractError> {
+) -> Result<DeclarationContracts, DeclarationContractError> {
     let count = surface.declarations().len();
     let mut representatives: Vec<_> = (0..count).map(SurfaceDeclarationId::from_index).collect();
+    let mut representations = vec![None; count];
+    crate::representation_contract::join_nominal_contracts(
+        surface,
+        &mut representatives,
+        &mut representations,
+    )?;
     let candidates = collect_body_candidates(surface)?;
     let joined = join_contracts(surface, &candidates, &mut representatives)?;
-    reject_unmatched_entries(surface, &joined.used)?;
-    join_implementation_containers(
-        surface,
-        &joined.used,
-        joined.container_targets,
-        &mut representatives,
-    )?;
+    join_implementation_containers(surface, joined.container_targets, &mut representatives)?;
 
-    Ok(CallableContracts {
+    Ok(DeclarationContracts {
         representatives: representatives.into_boxed_slice(),
+        representations: representations.into_boxed_slice(),
     })
 }
 
@@ -138,13 +189,12 @@ struct BodyCandidates {
 }
 
 struct JoinedBodies {
-    used: BTreeSet<SurfaceDeclarationId>,
     container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>>,
 }
 
 fn collect_body_candidates(
     surface: &DeclarationSurface<'_>,
-) -> Result<BodyCandidates, CallableContractError> {
+) -> Result<BodyCandidates, DeclarationContractError> {
     let mut exact_bodies: BTreeMap<CallableKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
     let mut loose_bodies: BTreeMap<LooseCallableKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
     for (index, declaration) in surface.declarations().iter().copied().enumerate() {
@@ -155,7 +205,7 @@ fn collect_body_candidates(
             continue;
         }
         if !has_body(surface, declaration)? {
-            return Err(CallableContractError::InvalidBodyOmission(
+            return Err(DeclarationContractError::InvalidBodyOmission(
                 declaration.node(),
             ));
         }
@@ -173,7 +223,7 @@ fn join_contracts(
     surface: &DeclarationSurface<'_>,
     candidates: &BodyCandidates,
     representatives: &mut [SurfaceDeclarationId],
-) -> Result<JoinedBodies, CallableContractError> {
+) -> Result<JoinedBodies, DeclarationContractError> {
     let mut used_bodies = BTreeSet::new();
     let mut container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>> =
         BTreeMap::new();
@@ -181,35 +231,49 @@ fn join_contracts(
         if !is_separable_callable(contract.kind()) || has_body(surface, contract)? {
             continue;
         }
-        if source_kind(surface, contract)? != ModuleSourceKind::Root
-            || contract.visibility().is_none()
-        {
-            return Err(CallableContractError::InvalidBodyOmission(contract.node()));
+        if !is_eligible_contract(surface, contract)? {
+            return Err(DeclarationContractError::InvalidBodyOmission(
+                contract.node(),
+            ));
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
         let (exact, loose) = callable_keys(surface, contract)?;
-        match candidates
+        let exact = candidates
             .exact
             .get(&exact)
             .map(Vec::as_slice)
             .unwrap_or_default()
-        {
+            .iter()
+            .copied()
+            .filter(|body| {
+                reciprocal_include(
+                    surface,
+                    contract.source(),
+                    surface.declarations()[body.index()].source(),
+                )
+            })
+            .collect::<Vec<_>>();
+        match exact.as_slice() {
             [] => {
-                if let Some(body) = candidates
-                    .loose
-                    .get(&loose)
-                    .and_then(|bodies| bodies.first())
-                {
-                    return Err(CallableContractError::MismatchedBody {
+                if let Some(body) = candidates.loose.get(&loose).and_then(|bodies| {
+                    bodies.iter().find(|body| {
+                        reciprocal_include(
+                            surface,
+                            contract.source(),
+                            surface.declarations()[body.index()].source(),
+                        )
+                    })
+                }) {
+                    return Err(DeclarationContractError::MismatchedBody {
                         contract: contract.node(),
                         body: surface.declarations()[body.index()].node(),
                     });
                 }
-                return Err(CallableContractError::MissingBody(contract.node()));
+                return Err(DeclarationContractError::MissingBody(contract.node()));
             }
             [body] => {
                 if !used_bodies.insert(*body) {
-                    return Err(CallableContractError::DuplicateBody {
+                    return Err(DeclarationContractError::DuplicateBody {
                         contract: contract.node(),
                         body: surface.declarations()[body.index()].node(),
                     });
@@ -226,67 +290,46 @@ fn join_contracts(
                 }
             }
             [_, second, ..] => {
-                return Err(CallableContractError::DuplicateBody {
+                return Err(DeclarationContractError::DuplicateBody {
                     contract: contract.node(),
                     body: surface.declarations()[second.index()].node(),
                 });
             }
         }
     }
-    Ok(JoinedBodies {
-        used: used_bodies,
-        container_targets,
-    })
+    Ok(JoinedBodies { container_targets })
 }
 
-fn reject_unmatched_entries(
+pub(super) fn reciprocal_include(
     surface: &DeclarationSurface<'_>,
-    used_bodies: &BTreeSet<SurfaceDeclarationId>,
-) -> Result<(), CallableContractError> {
-    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        let id = SurfaceDeclarationId::from_index(index);
-        if source_kind(surface, declaration)? == ModuleSourceKind::Implementation
-            && matches!(
-                declaration.kind(),
-                SurfaceDeclarationKind::ConstructionFunction
-                    | SurfaceDeclarationKind::Literal
-                    | SurfaceDeclarationKind::Coercion
-            )
-            && !used_bodies.contains(&id)
-        {
-            return Err(CallableContractError::UnmatchedImplementationEntry(
-                declaration.node(),
-            ));
-        }
-    }
-    Ok(())
+    contract: crate::SurfaceSourceId,
+    definition: crate::SurfaceSourceId,
+) -> bool {
+    surface
+        .includes()
+        .iter()
+        .any(|include| include.source() == contract && include.target() == definition)
+        && surface
+            .includes()
+            .iter()
+            .any(|include| include.source() == definition && include.target() == contract)
 }
 
 fn join_implementation_containers(
     surface: &DeclarationSurface<'_>,
-    used_bodies: &BTreeSet<SurfaceDeclarationId>,
     container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>>,
     representatives: &mut [SurfaceDeclarationId],
-) -> Result<(), CallableContractError> {
+) -> Result<(), DeclarationContractError> {
     for (implementation_owner, targets) in container_targets {
         if targets.len() != 1 {
             continue;
         }
-        let all_members_are_joined = surface
-            .declarations()
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(|(_, declaration)| declaration.owner() == Some(implementation_owner))
-            .all(|(index, _)| used_bodies.contains(&SurfaceDeclarationId::from_index(index)));
-        if all_members_are_joined {
-            representatives[implementation_owner.index()] =
-                *targets
-                    .first()
-                    .ok_or(CallableContractError::InconsistentSurface(
-                        surface.declarations()[implementation_owner.index()].node(),
-                    ))?;
-        }
+        representatives[implementation_owner.index()] =
+            *targets
+                .first()
+                .ok_or(DeclarationContractError::InconsistentSurface(
+                    surface.declarations()[implementation_owner.index()].node(),
+                ))?;
     }
     Ok(())
 }
@@ -294,22 +337,22 @@ fn join_implementation_containers(
 fn callable_keys(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<(CallableKey, LooseCallableKey), CallableContractError> {
+) -> Result<(CallableKey, LooseCallableKey), DeclarationContractError> {
     let source = surface.sources().get(declaration.source().index()).ok_or(
-        CallableContractError::InconsistentSurface(declaration.node()),
+        DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
     let header = fingerprint(surface, declaration)?;
     let owner = declaration
         .owner()
         .map(|owner| {
             let owner = surface.declarations().get(owner.index()).copied().ok_or(
-                CallableContractError::InconsistentSurface(declaration.node()),
+                DeclarationContractError::InconsistentSurface(declaration.node()),
             )?;
             fingerprint(surface, owner)
         })
         .transpose()?;
     let label = callable_label(declaration.kind(), &header).ok_or(
-        CallableContractError::InconsistentSurface(declaration.node()),
+        DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
     Ok((
         CallableKey {
@@ -330,16 +373,16 @@ fn callable_keys(
 fn fingerprint(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<HeaderFingerprint, CallableContractError> {
+) -> Result<HeaderFingerprint, DeclarationContractError> {
     let surface_source = surface.sources().get(declaration.source().index()).ok_or(
-        CallableContractError::InconsistentSurface(declaration.node()),
+        DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
     let tree = surface_source.syntax();
     let source = surface.source_map().get(tree.source()).ok_or(
-        CallableContractError::InconsistentSurface(declaration.node()),
+        DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
     tree.node(declaration.node())
-        .ok_or(CallableContractError::InconsistentSurface(
+        .ok_or(DeclarationContractError::InconsistentSurface(
             declaration.node(),
         ))?;
     let mut pending: Vec<_> = tree
@@ -354,7 +397,7 @@ fn fingerprint(
             SyntaxElement::Node(node) => {
                 let kind = tree
                     .node(node)
-                    .ok_or(CallableContractError::InconsistentSurface(
+                    .ok_or(DeclarationContractError::InconsistentSurface(
                         declaration.node(),
                     ))?
                     .kind();
@@ -376,22 +419,12 @@ fn fingerprint(
                     continue;
                 }
                 let spelling = source.text_at(token.range()).ok_or(
-                    CallableContractError::InconsistentSurface(declaration.node()),
+                    DeclarationContractError::InconsistentSurface(declaration.node()),
                 )?;
-                if depth == 0
-                    && matches!(
-                        declaration.kind(),
-                        SurfaceDeclarationKind::ConstructionFunction
-                            | SurfaceDeclarationKind::Literal
-                    )
-                    && spelling == "default"
-                {
-                    continue;
-                }
                 tokens.push(Box::<str>::from(spelling));
             }
             SyntaxElement::Missing(_) => {
-                return Err(CallableContractError::InconsistentSurface(
+                return Err(DeclarationContractError::InconsistentSurface(
                     declaration.node(),
                 ));
             }
@@ -412,12 +445,14 @@ fn callable_label(
             .and_then(|index| tokens.get(index + 1))
             .cloned()
             .map(CallableLabel::Named),
-        SurfaceDeclarationKind::InherentMethod => tokens
-            .iter()
-            .position(|token| token.as_ref() == ".")
-            .and_then(|index| tokens.get(index + 1))
-            .cloned()
-            .map(CallableLabel::Named),
+        SurfaceDeclarationKind::InherentMethod | SurfaceDeclarationKind::ConformanceMethod => {
+            tokens
+                .iter()
+                .position(|token| token.as_ref() == ".")
+                .and_then(|index| tokens.get(index + 1))
+                .cloned()
+                .map(CallableLabel::Named)
+        }
         SurfaceDeclarationKind::Literal => {
             if tokens.iter().any(|token| token.as_ref() == "[") {
                 Some(CallableLabel::LiteralSequence)
@@ -434,19 +469,23 @@ fn callable_label(
                 tokens[..end].into(),
             )))
         }
+        SurfaceDeclarationKind::Equality
+        | SurfaceDeclarationKind::Ordering
+        | SurfaceDeclarationKind::Index
+        | SurfaceDeclarationKind::Expansion => Some(CallableLabel::Operator),
         _ => None,
     }
 }
 
-fn source_kind(
+pub(super) fn source_kind(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<ModuleSourceKind, CallableContractError> {
+) -> Result<ModuleSourceKind, DeclarationContractError> {
     surface
         .sources()
         .get(declaration.source().index())
         .map(crate::SurfaceSource::kind)
-        .ok_or(CallableContractError::InconsistentSurface(
+        .ok_or(DeclarationContractError::InconsistentSurface(
             declaration.node(),
         ))
 }
@@ -454,11 +493,11 @@ fn source_kind(
 fn has_body(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<bool, CallableContractError> {
+) -> Result<bool, DeclarationContractError> {
     let tree = surface
         .sources()
         .get(declaration.source().index())
-        .ok_or(CallableContractError::InconsistentSurface(
+        .ok_or(DeclarationContractError::InconsistentSurface(
             declaration.node(),
         ))?
         .syntax();
@@ -468,7 +507,7 @@ fn has_body(
             if let SyntaxElement::Node(child) = child {
                 let kind = tree
                     .node(*child)
-                    .ok_or(CallableContractError::InconsistentSurface(
+                    .ok_or(DeclarationContractError::InconsistentSurface(
                         declaration.node(),
                     ))?
                     .kind();
@@ -492,7 +531,33 @@ const fn is_separable_callable(kind: SurfaceDeclarationKind) -> bool {
             | SurfaceDeclarationKind::ConstructionFunction
             | SurfaceDeclarationKind::Literal
             | SurfaceDeclarationKind::Coercion
+            | SurfaceDeclarationKind::Equality
+            | SurfaceDeclarationKind::Ordering
+            | SurfaceDeclarationKind::Index
+            | SurfaceDeclarationKind::Expansion
+            | SurfaceDeclarationKind::ConformanceMethod
     )
+}
+
+fn is_eligible_contract(
+    surface: &DeclarationSurface<'_>,
+    declaration: SurfaceDeclaration,
+) -> Result<bool, DeclarationContractError> {
+    if source_kind(surface, declaration)? != ModuleSourceKind::Root {
+        return Ok(false);
+    }
+    if declaration.visibility().is_some() {
+        return Ok(true);
+    }
+    if declaration.kind() != SurfaceDeclarationKind::ConformanceMethod {
+        return Ok(false);
+    }
+    Ok(declaration.owner().is_some_and(|owner| {
+        surface
+            .declarations()
+            .get(owner.index())
+            .is_some_and(|owner| owner.kind() == SurfaceDeclarationKind::Conformance)
+    }))
 }
 
 const fn is_member_declaration(kind: NodeKind) -> bool {

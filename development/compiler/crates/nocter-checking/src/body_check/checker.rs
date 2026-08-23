@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::DiagnosticNote;
+use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
     TypeId, TypeKind, TypeStore,
@@ -135,6 +136,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
     instance_operations: &'input crate::InstanceOperationTable,
     standard_semantics: &'input crate::StandardSemanticTable,
+    source_namespaces: &'input SourceNamespaceTable,
     source_index: &'input SourceIndex,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
@@ -194,6 +196,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
         let standard_semantics = facts.standard_semantics();
+        let source_namespaces = facts.source_namespaces();
         let source_index = facts.source_index();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
@@ -254,6 +257,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             construction_surfaces,
             instance_operations,
             standard_semantics,
+            source_namespaces,
             source_index,
             source,
             names,

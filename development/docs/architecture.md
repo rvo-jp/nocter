@@ -627,16 +627,18 @@ collection, and surface collection consume that same inventory. An inactive item
 contributes no block import, spelling, declaration, body, or semantic ID. Later semantic stages do
 not filter declarations or reinterpret target strings.
 
-Before allocating callable IDs, a contract-joining pass compares canonical header token sequences.
-It excludes visibility, bodies, newlines, and the `default` marker that construction
-implementations do not repeat, while retaining names, owner patterns, generic requirements,
-parameter names and types, results, and authored provenance. One eligible public bodyless root
-contract must match exactly one private implementation body. The implementation and any container
-used only to carry matched bodies map to the contract representative; missing, mismatched, and
-duplicate bodies fail before reservation. This prevents a later name resolver from trying to
-merge already-distinct semantic IDs.
+Before allocating declaration IDs, contract joining compares canonical header token sequences. It
+excludes visibility, bodies, and newlines while retaining names, owner patterns, generic
+requirements, parameter names and types, results, authored provenance, and construction `default`.
+One eligible public bodyless root callable must match exactly one private implementation body.
+Source-defined operators and conformance methods use the same callable rule. A separate nominal-
+representation pass matches each public opaque struct or enum contract to one private complete
+representation. The definition occurrence and its implementation container map to the public
+representative; private members in that container retain their own identities under the shared
+owner. Missing, mismatched, and duplicate definitions fail before reservation. Later stages never
+merge already-distinct semantic IDs or search for a representation by name.
 
-One production declaration-lowering facade owns the pass sequence: surface collection, callable-
+One production declaration-lowering facade owns the pass sequence: surface collection, declaration-
 contract joining, identity reservation, header preparation, generic preparation, authored imports,
 compiler-selected prelude composition, type binding, type normalization, and header definition.
 The facade performs no semantic work of its own. It prevents tools and later compiler stages from
@@ -670,14 +672,18 @@ duplicates, and nested shadowing project distinct `E0280`-`E0282` diagnostics fr
 subjects; the diagnostic adapter never searches syntax or reconstructs scope ancestry.
 
 Authored module imports are resolved after generic scopes but before type construction. Every
-module owns one symbol-sorted namespace whose entries pair an exported semantic entity with its
-effective visibility. Direct declarations and imported names occupy that same table, so selected
-aliases cannot collide with a declaration or another import. Dependency modules are completed
-before importers. Selection checks the target entry from the importing module, and a re-export's
-normalized visibility must denote a subset of the target boundary. Same-module source edges add no
-semantic import; declarations from their already-composed sources entered the module table during
-the direct pass. The compiler-managed prelude remains a separate fallback layer so it cannot turn
-two authored collisions into priority rules.
+source owns one symbol-sorted authored namespace containing its declarations, declarations copied
+from exact direct include targets, and only the imports written in that source. Include copying
+uses a snapshot of each target's authored declarations, so it cannot become transitive through the
+target's own includes or imports. Separately, every module owns the export table authored by its
+root `index.nct` or single-file root. Implementation declarations never enter that table, including
+when another source includes them. Dependency modules are completed before importers. Selection
+checks the target export from the importing module, and a re-export's normalized visibility must
+denote a subset of the target boundary. Declaration lowering freezes each source namespace into a
+dedicated frontend binding contract consumed by header binding, lexical name resolution, and typed
+body type paths. Those consumers cannot reconstruct private visibility from module membership. The
+compiler-managed prelude remains a distinct fallback layer, preserving authored shadowing without
+turning collisions into priority rules.
 
 Import preparation retains the exact module-path node for every semantic module import. Prelude
 composition consumes that retained origin instead of reading the syntax tree again. An authored

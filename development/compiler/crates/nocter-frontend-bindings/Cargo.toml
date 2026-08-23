@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
