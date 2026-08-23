@@ -11,6 +11,7 @@ use std::fmt;
 use nocter_compile_input::{CompileUnitInput, ModuleIdentity};
 use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::SourceDiagnostic;
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{
@@ -226,84 +227,86 @@ impl From<DuplicateDocumentation> for NameResolutionInternalError {
 pub fn resolve_body_names<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<NameResolution<'syntax>, NameResolutionError> {
-    let catalog = catalog_body_sources(input, graph, &source_index)
-        .map_err(NameResolutionInternalError::from)?;
-    resolve_cataloged_body_names(input, graph, source_index, catalog)
+    let catalog =
+        catalog_body_sources(input, graph, bindings).map_err(NameResolutionInternalError::from)?;
+    resolve_cataloged_body_names(input, graph, bindings, source_index, catalog)
 }
 
 pub(crate) fn resolve_cataloged_body_names<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
     catalog: BodySourceCatalog<'syntax>,
 ) -> Result<NameResolution<'syntax>, NameResolutionError> {
-    resolve_cataloged_body_names_recovering(input, graph, source_index, catalog)
+    resolve_cataloged_body_names_recovering(input, graph, bindings, source_index, catalog)
         .map_err(|failure| *failure.error)
 }
 
 pub(crate) fn resolve_cataloged_body_names_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
     catalog: BodySourceCatalog<'syntax>,
 ) -> Result<NameResolution<'syntax>, RecoveringNameResolutionError> {
-    resolve_cataloged_body_names_active(input, graph, source_index, catalog)
+    resolve_cataloged_body_names_active(input, graph, bindings, source_index, catalog)
 }
 
 fn resolve_cataloged_body_names_active<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
     catalog: BodySourceCatalog<'syntax>,
 ) -> Result<NameResolution<'syntax>, RecoveringNameResolutionError> {
-    let import_targets = block_import_targets(input, graph, &source_index).map_err(|error| {
-        RecoveringNameResolutionError {
+    let import_targets =
+        block_import_targets(input, bindings).map_err(|error| RecoveringNameResolutionError {
             error: Box::new(error.into()),
             recovery: None,
-        }
-    })?;
+        })?;
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
 
     for source in catalog.iter() {
         let expected = source.body();
-        let resolved =
-            match BodyNameResolver::new(input, graph, &source_index, &import_targets, source)
-                .resolve_recovering()
-            {
-                Ok(resolved) => resolved,
-                Err(failure) => {
-                    let recovery = if let Some(partial) = failure.partial {
-                        let actual = bodies.insert(partial.body);
-                        if actual != expected {
-                            return Err(RecoveringNameResolutionError {
-                                error: Box::new(
-                                    NameResolutionInternalError::InvalidBodyOwner(expected).into(),
-                                ),
-                                recovery: None,
-                            });
-                        }
-                        projections.extend(partial.projections);
-                        let source_index = extend_name_source_index(source_index, projections)
-                            .map_err(|error| RecoveringNameResolutionError {
-                                error: Box::new(error.into()),
-                                recovery: None,
-                            })?;
-                        Some(Box::new(PartialNameResolution {
-                            bodies: bodies.finish(),
-                            source_index,
-                        }))
-                    } else {
-                        None
-                    };
-                    return Err(RecoveringNameResolutionError {
-                        error: failure.error,
-                        recovery,
-                    });
-                }
-            };
+        let resolved = match BodyNameResolver::new(input, graph, bindings, &import_targets, source)
+            .resolve_recovering()
+        {
+            Ok(resolved) => resolved,
+            Err(failure) => {
+                let recovery = if let Some(partial) = failure.partial {
+                    let actual = bodies.insert(partial.body);
+                    if actual != expected {
+                        return Err(RecoveringNameResolutionError {
+                            error: Box::new(
+                                NameResolutionInternalError::InvalidBodyOwner(expected).into(),
+                            ),
+                            recovery: None,
+                        });
+                    }
+                    projections.extend(partial.projections);
+                    let source_index = extend_name_source_index(source_index, projections)
+                        .map_err(|error| RecoveringNameResolutionError {
+                            error: Box::new(error.into()),
+                            recovery: None,
+                        })?;
+                    Some(Box::new(PartialNameResolution {
+                        bodies: bodies.finish(),
+                        source_index,
+                    }))
+                } else {
+                    None
+                };
+                return Err(RecoveringNameResolutionError {
+                    error: failure.error,
+                    recovery,
+                });
+            }
+        };
         let actual = bodies.insert(resolved.body);
         if actual != expected {
             return Err(RecoveringNameResolutionError {

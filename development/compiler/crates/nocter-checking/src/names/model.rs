@@ -202,8 +202,15 @@ pub struct ResolvedBodyNames {
     scopes: Arena<BodyScopeId, BodyScope>,
     locals: Arena<LocalBindingId, LocalBinding>,
     captures: Arena<CaptureId, Capture>,
+    local_origins: Arena<LocalBindingId, SyntaxOrigin>,
+    capture_origins: Arena<CaptureId, SyntaxOrigin>,
     block_scopes: HashMap<NodeId, BodyScopeId>,
     uses: Box<[ResolvedNameUse]>,
+}
+
+pub(super) struct ResolvedBindingOrigins {
+    pub(super) locals: Arena<LocalBindingId, SyntaxOrigin>,
+    pub(super) captures: Arena<CaptureId, SyntaxOrigin>,
 }
 
 impl ResolvedBodyNames {
@@ -212,6 +219,7 @@ impl ResolvedBodyNames {
         scopes: Arena<BodyScopeId, BodyScope>,
         locals: Arena<LocalBindingId, LocalBinding>,
         captures: Arena<CaptureId, Capture>,
+        origins: ResolvedBindingOrigins,
         block_scopes: HashMap<NodeId, BodyScopeId>,
         uses: impl Into<Box<[ResolvedNameUse]>>,
     ) -> Self {
@@ -220,6 +228,8 @@ impl ResolvedBodyNames {
             scopes,
             locals,
             captures,
+            local_origins: origins.locals,
+            capture_origins: origins.captures,
             block_scopes,
             uses: uses.into(),
         }
@@ -243,6 +253,16 @@ impl ResolvedBodyNames {
     #[must_use]
     pub const fn captures(&self) -> &Arena<CaptureId, Capture> {
         &self.captures
+    }
+
+    #[must_use]
+    pub fn local_origin(&self, local: LocalBindingId) -> Option<SyntaxOrigin> {
+        self.local_origins.get(local).copied()
+    }
+
+    #[must_use]
+    pub fn capture_origin(&self, capture: CaptureId) -> Option<SyntaxOrigin> {
+        self.capture_origins.get(capture).copied()
     }
 
     #[must_use]

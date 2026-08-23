@@ -475,9 +475,14 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     assert!(syntax_errors.is_empty(), "{syntax_errors:#?}");
     let input = unit.compile_input().unwrap();
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared =
-        nocter_checking::prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared = nocter_checking::prepare_program_checking(
+        &input,
+        program,
+        &frontend_bindings,
+        source_index,
+    )
+    .unwrap();
     nocter_checking::check_prepared_program(&input, prepared).unwrap_or_else(|error| {
         let source = error
             .source_diagnostic()

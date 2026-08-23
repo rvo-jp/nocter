@@ -2041,8 +2041,9 @@ fn test_executable_fixture(fixture: &CompilerFixture) -> ExecutableProgram {
 fn target_fixture(fixture: &CompilerFixture) -> (TargetProgram, nocter_model::PackageTargetId) {
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (declarations, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, declarations, source_index).unwrap();
+    let (declarations, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, declarations, &frontend_bindings, source_index).unwrap();
     let checked = check_prepared_program(&input, prepared)
         .unwrap()
         .into_parts()

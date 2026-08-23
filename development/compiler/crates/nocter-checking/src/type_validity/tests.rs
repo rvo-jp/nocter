@@ -16,7 +16,7 @@ fn valid_special_roots_and_indirections_are_accepted() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, types) = program.into_parts();
 
     validate_declaration_types(&graph, &types, &source_index).unwrap();
@@ -35,7 +35,7 @@ fn invalid_type_positions_have_distinct_rules() {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
@@ -48,7 +48,7 @@ fn aliases_do_not_bypass_use_site_validity() {
     let fixture = Fixture::new("type Completion = void\nstruct Bad { value: Completion }\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, types) = program.into_parts();
     let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
@@ -64,7 +64,7 @@ fn associated_bindings_and_refinements_are_data_positions() {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
@@ -79,7 +79,7 @@ fn type_validity_diagnostic_is_input_order_independent() {
     for reverse in [false, true] {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types) = program.into_parts();
         diagnostics.push(
             validate_declaration_types(&graph, &types, &source_index)

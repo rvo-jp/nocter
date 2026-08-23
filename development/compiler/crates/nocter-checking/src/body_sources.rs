@@ -3,9 +3,9 @@ use std::fmt;
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 
 /// The exact syntax body selected for one declaration `BodyId`.
@@ -162,37 +162,25 @@ impl std::error::Error for BodySourceError {}
 pub fn catalog_body_sources<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
-    source_index: &SourceIndex,
+    bindings: &FrontendBindings,
 ) -> Result<BodySourceCatalog<'syntax>, BodySourceError> {
     let syntax = syntax_by_source(input)?;
-    let modules = module_by_source(graph, source_index)?;
+    let modules = module_by_source(graph, bindings)?;
     let mut bodies = Vec::with_capacity(graph.declarations().bodies().len());
 
     for (body, declaration) in graph.declarations().bodies().iter() {
-        let mut definitions = source_index
-            .bindings_for(SemanticEntity::Body(body))
-            .iter()
-            .filter(|binding| {
-                matches!(
-                    binding.role(),
-                    SourceRole::Declaration | SourceRole::Implementation
-                )
-            });
-        let binding = definitions
-            .next()
-            .ok_or(BodySourceError::MissingBodyProjection(body))?;
-        if definitions.next().is_some() {
+        let blocks = bindings.body_blocks(body);
+        let [block] = blocks else {
+            if blocks.is_empty() {
+                return Err(BodySourceError::MissingBodyProjection(body));
+            }
             return Err(BodySourceError::DuplicateBodyProjection(body));
-        }
-        let block = binding
-            .origin()
-            .node()
-            .ok_or(BodySourceError::InvalidBodyProjection(body))?;
+        };
         let tree = syntax
-            .get(&binding.origin().source())
+            .get(&block.source())
             .copied()
             .ok_or(BodySourceError::MissingSyntaxSource(body))?;
-        if tree.node(block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
+        if tree.node(*block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
             return Err(BodySourceError::InvalidBodyProjection(body));
         }
         let module = body_module(graph, body, declaration.owner())?;
@@ -204,7 +192,7 @@ pub fn catalog_body_sources<'syntax>(
             owner: declaration.owner(),
             module,
             syntax: tree,
-            block,
+            block: *block,
         });
     }
 
@@ -228,25 +216,15 @@ fn syntax_by_source<'syntax>(
 
 fn module_by_source(
     graph: &DeclarationGraph,
-    source_index: &SourceIndex,
+    bindings: &FrontendBindings,
 ) -> Result<HashMap<SourceId, ModuleId>, BodySourceError> {
     let mut result = HashMap::new();
     for (module, _) in graph.modules().iter() {
         let mut found = false;
-        for binding in source_index.bindings_for(SemanticEntity::Module(module)) {
-            if !matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            ) {
-                continue;
-            }
+        for source in bindings.module_sources(module).unwrap_or_default() {
             found = true;
-            if binding.origin().node().is_none() {
-                return Err(BodySourceError::InvalidModuleProjection(module));
-            }
-            let source = binding.origin().source();
-            if result.insert(source, module).is_some() {
-                return Err(BodySourceError::SourceOwnedByTwoModules(source));
+            if result.insert(*source, module).is_some() {
+                return Err(BodySourceError::SourceOwnedByTwoModules(*source));
             }
         }
         if !found {
@@ -293,7 +271,6 @@ mod tests {
     use nocter_declaration_lowering::lower_compile_unit_declarations;
     use nocter_model::PackageIdentity;
     use nocter_source::{SourceMap, SourceName};
-    use nocter_source_index::SourceIndex;
     use nocter_syntax::{NodeKind, ParseGoal, SyntaxTree, parse};
 
     use super::{BodySourceError, catalog_body_sources};
@@ -352,9 +329,8 @@ mod tests {
                 Vec::new(),
             ));
             let lowered = lower_compile_unit_declarations(&input).unwrap();
-            let catalog =
-                catalog_body_sources(&input, lowered.program().graph(), lowered.source_index())
-                    .unwrap();
+            let (program, bindings, _) = lowered.into_checking_parts(&input);
+            let catalog = catalog_body_sources(&input, program.graph(), &bindings).unwrap();
             assert_eq!(catalog.len(), 2);
             assert!(!catalog.is_empty());
             let entries: Vec<_> = catalog
@@ -428,9 +404,13 @@ mod tests {
             Vec::new(),
         ));
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let error =
-            catalog_body_sources(&input, lowered.program().graph(), &SourceIndex::default())
-                .unwrap_err();
+        let (program, _, _) = lowered.into_checking_parts(&input);
+        let error = catalog_body_sources(
+            &input,
+            program.graph(),
+            &nocter_frontend_bindings::FrontendBindings::default(),
+        )
+        .unwrap_err();
 
         assert!(matches!(error, BodySourceError::MissingModuleProjection(_)));
     }

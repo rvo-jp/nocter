@@ -76,8 +76,9 @@ pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<BodyAnalysisRe
     }
     let input = unit.analysis_input().ok()?;
     let lowered = lower_incomplete_body_declarations(&input).ok()?;
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).ok()?;
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).ok()?;
     match check_prepared_program_recovering(&input, prepared) {
         Err(failure) => failure.into_parts().1,
         Ok(_) => None,
@@ -110,14 +111,15 @@ fn analyze_target_internal(
         .map_err(CompileSessionError::from)
         .map_err(without_prepared)
         .map_err(Box::new)?;
-    let (program, source_index) = lowered.into_parts();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let prepared = if retain_prepared {
-        prepare_program_checking_recovering(&input, program, source_index).map_err(|failure| {
-            let (error, recovery) = failure.into_parts();
-            Box::new(CompileTargetFailure::new(error.into(), recovery))
-        })?
+        prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
+            .map_err(|failure| {
+                let (error, recovery) = failure.into_parts();
+                Box::new(CompileTargetFailure::new(error.into(), recovery))
+            })?
     } else {
-        prepare_program_checking(&input, program, source_index)
+        prepare_program_checking(&input, program, &frontend_bindings, source_index)
             .map_err(CompileSessionError::from)
             .map_err(without_prepared)
             .map_err(Box::new)?

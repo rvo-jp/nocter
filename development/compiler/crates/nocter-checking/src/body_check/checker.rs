@@ -203,26 +203,23 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
         let mut local_declarations = HashMap::new();
         for (local, _) in names.locals().iter() {
-            let entity = SemanticEntity::LocalBinding(source.body(), local);
-            let origin = source_index
-                .bindings_for(entity)
-                .iter()
-                .find(|binding| binding.role() == SourceRole::Declaration)
-                .map(|binding| binding.origin().syntax())
-                .ok_or(BodyCheckInternalError::MissingSource(entity))?;
+            let origin = names
+                .local_origin(local)
+                .ok_or(BodyCheckInternalError::MissingSource(
+                    SemanticEntity::LocalBinding(source.body(), local),
+                ))?;
             if local_declarations.insert(origin, local).is_some() {
                 return Err(BodyCheckInternalError::DuplicateLocalDeclaration(origin).into());
             }
         }
         let mut capture_declarations = HashMap::new();
         for (capture, _) in names.captures().iter() {
-            let entity = SemanticEntity::Capture(source.body(), capture);
-            let origin = source_index
-                .bindings_for(entity)
-                .iter()
-                .find(|binding| binding.role() == SourceRole::Declaration)
-                .map(|binding| binding.origin().syntax())
-                .ok_or(BodyCheckInternalError::MissingSource(entity))?;
+            let origin =
+                names
+                    .capture_origin(capture)
+                    .ok_or(BodyCheckInternalError::MissingSource(
+                        SemanticEntity::Capture(source.body(), capture),
+                    ))?;
             if capture_declarations.insert(origin, capture).is_some() {
                 return Err(BodyCheckInternalError::DuplicateCaptureDeclaration(origin).into());
             }

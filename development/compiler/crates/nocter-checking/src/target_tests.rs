@@ -14,10 +14,11 @@ fn inactive_target_bodies_never_enter_checked_program_construction() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     assert_eq!(program.target(), CompilationTarget::Arm64Darwin);
 
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let checked = check_prepared_program(&input, prepared).unwrap();
 
     assert_eq!(
@@ -32,12 +33,13 @@ fn checked_program_preparation_rejects_a_different_target_snapshot() {
     let fixture = Fixture::new("func platform(): i32 { 1 }\n");
     let declaration_input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&declaration_input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, frontend_bindings, source_index) =
+        lowered.into_checking_parts(&declaration_input);
     let checking_input = fixture.input(false);
     let checking_input = checking_input.with_target(CompilationTarget::X64Linux);
 
     assert!(matches!(
-        prepare_program_checking(&checking_input, program, source_index),
+        prepare_program_checking(&checking_input, program, &frontend_bindings, source_index),
         Err(PreparationError::TargetMismatch {
             input: CompilationTarget::X64Linux,
             program: CompilationTarget::Arm64Darwin,

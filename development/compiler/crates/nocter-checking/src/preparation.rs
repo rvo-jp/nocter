@@ -3,6 +3,7 @@ use std::fmt;
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -368,9 +369,10 @@ impl From<NameResolutionError> for PreparationError {
 pub fn prepare_program_checking<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: DeclarationProgram,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
-    prepare_program_checking_internal(input, program, source_index, false)
+    prepare_program_checking_internal(input, program, bindings, source_index, false)
         .map_err(|failure| failure.error)
 }
 
@@ -383,14 +385,16 @@ pub fn prepare_program_checking<'syntax>(
 pub fn prepare_program_checking_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: DeclarationProgram,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
-    prepare_program_checking_internal(input, program, source_index, true)
+    prepare_program_checking_internal(input, program, bindings, source_index, true)
 }
 
 fn prepare_program_checking_internal<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: DeclarationProgram,
+    bindings: &FrontendBindings,
     source_index: SourceIndex,
     retain_names: bool,
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
@@ -423,7 +427,7 @@ fn prepare_program_checking_internal<'syntax>(
     }
 
     let body_sources = declaration_stage!(
-        catalog_body_sources(input, &graph, &source_index)
+        catalog_body_sources(input, &graph, bindings)
             .map_err(NameResolutionInternalError::from)
             .map_err(NameResolutionError::from)
             .map_err(PreparationError::from)
@@ -444,30 +448,34 @@ fn prepare_program_checking_internal<'syntax>(
         toolchain.standard_roles(),
         &graph,
         &types,
-        &source_index,
+        bindings,
     ));
-    let resolution =
-        match resolve_cataloged_body_names_recovering(input, &graph, source_index, body_sources) {
-            Ok(resolution) => resolution,
-            Err(failure) => {
-                let recovery = retain_names
-                    .then_some(failure.recovery)
-                    .flatten()
-                    .map(|partial| {
-                        crate::NameAnalysisRecovery::new(
-                            graph,
-                            types,
-                            partial.bodies,
-                            partial.source_index,
-                        )
-                    });
-                return Err(PreparationFailure::new(
-                    PreparationError::NameResolution(*failure.error),
-                    recovery
-                        .map(|recovery| crate::SemanticAnalysisRecovery::Names(Box::new(recovery))),
-                ));
-            }
-        };
+    let resolution = match resolve_cataloged_body_names_recovering(
+        input,
+        &graph,
+        bindings,
+        source_index,
+        body_sources,
+    ) {
+        Ok(resolution) => resolution,
+        Err(failure) => {
+            let recovery = retain_names
+                .then_some(failure.recovery)
+                .flatten()
+                .map(|partial| {
+                    crate::NameAnalysisRecovery::new(
+                        graph,
+                        types,
+                        partial.bodies,
+                        partial.source_index,
+                    )
+                });
+            return Err(PreparationFailure::new(
+                PreparationError::NameResolution(*failure.error),
+                recovery.map(|recovery| crate::SemanticAnalysisRecovery::Names(Box::new(recovery))),
+            ));
+        }
+    };
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
         graph,
@@ -515,8 +523,9 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let index = prepared.source_index();
         let declarations = prepared.graph().declarations();
         let (nominal, _) = declarations.nominal_types().iter().next().unwrap();
@@ -562,8 +571,9 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
         assert_eq!(prepared.conformances().entries().len(), 1);
         assert_eq!(prepared.construction_surfaces().len(), 1);
@@ -581,8 +591,9 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let error = prepare_program_checking(&input, program, &frontend_bindings, source_index)
+            .unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
     }
@@ -595,8 +606,9 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let error = prepare_program_checking(&input, program, &frontend_bindings, source_index)
+            .unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0366");
     }
@@ -606,8 +618,9 @@ mod tests {
         let fixture = Fixture::new("copy struct Box<T> {\n    value: T\n}\n");
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let (family, declaration) = prepared
             .graph()
             .declarations()
@@ -629,5 +642,26 @@ mod tests {
             condition,
             &CopyCondition::Requires(declaration.generic_parameters().iter().copied().collect())
         );
+    }
+
+    #[test]
+    fn successful_semantics_do_not_depend_on_the_presentation_index() {
+        let fixture = Fixture::new(
+            "func identity(value: i32): i32 { value }\nfunc main(): i32 { identity(7) }\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, _) = lowered.into_checking_parts(&input);
+
+        let prepared = prepare_program_checking(
+            &input,
+            program,
+            &frontend_bindings,
+            nocter_source_index::SourceIndex::default(),
+        )
+        .unwrap();
+        let checked = crate::check_prepared_program(&input, prepared).unwrap();
+
+        assert_eq!(checked.program().bodies().len(), 2);
     }
 }

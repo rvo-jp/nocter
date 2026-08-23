@@ -12,8 +12,9 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
     let fixture = Fixture::new(source);
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared)
 }
 
@@ -183,8 +184,9 @@ fn propagation_failure_retains_the_typed_callable_contract_repair() {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, source_index) = lowered.into_parts();
-        let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
         let recovery = failure.recovery().expect("body recovery");
         let interruption = recovery.interruption().expect("typed interruption");
@@ -212,8 +214,9 @@ fn propagation_contract_recovery_selects_a_missing_inner_optional_layer() {
     let fixture = Fixture::new(source);
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
     let diagnostic = failure.error().source_diagnostic().unwrap();
     assert_eq!(diagnostic.code(), "E0392");
@@ -246,8 +249,9 @@ fn propagation_contract_recovery_types_a_generic_operand_by_its_payload() {
     let fixture = Fixture::new(source);
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
     assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0392");
     let interruption = failure

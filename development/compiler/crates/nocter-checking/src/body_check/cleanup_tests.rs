@@ -11,8 +11,9 @@ fn check(source: &str) -> crate::CheckedProgramOutput {
     let fixture = Fixture::new(source);
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap()
 }
 

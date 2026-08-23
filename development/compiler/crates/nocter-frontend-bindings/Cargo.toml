@@ -1,0 +1,15 @@
+[package]
+name = "nocter-frontend-bindings"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-model = { path = "../nocter-model" }
+nocter-source = { path = "../nocter-source" }
+nocter-syntax = { path = "../nocter-syntax" }
+
+[lints]
+workspace = true

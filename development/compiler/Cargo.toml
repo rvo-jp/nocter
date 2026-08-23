@@ -12,6 +12,7 @@ members = [
     "crates/nocter-discovery",
     "crates/nocter-diagnostics",
     "crates/nocter-filesystem",
+    "crates/nocter-frontend-bindings",
     "crates/nocter-hash",
     "crates/nocter-installation",
     "crates/nocter-json",

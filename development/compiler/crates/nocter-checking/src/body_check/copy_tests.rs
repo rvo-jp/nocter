@@ -12,8 +12,9 @@ fn copy_struct_specialization_uses_substituted_field_copyability() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
 
     assert!(
@@ -39,8 +40,9 @@ fn copy_struct_specialization_remains_move_only_for_move_only_argument() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
@@ -51,8 +53,9 @@ fn callable_copy_requirement_supplies_the_generic_body_proof() {
     let fixture = Fixture::new("func duplicate<T>(value: T): T where copy T {\n    value\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
     check_prepared_program(&input, prepared).unwrap();
 }
@@ -68,8 +71,9 @@ fn callable_copy_proof_does_not_leak_to_a_sibling_body() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
     check_prepared_program(&input, prepared).unwrap();
 }
@@ -79,8 +83,9 @@ fn unconstrained_generic_parameter_is_not_implicitly_copied() {
     let fixture = Fixture::new("func duplicate<T>(value: T): T {\n    value\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");
@@ -94,8 +99,9 @@ fn payloadless_enum_is_copyable_without_a_marker() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
     check_prepared_program(&input, prepared).unwrap();
 }
@@ -105,16 +111,18 @@ fn readonly_and_readwrite_borrows_have_distinct_copyability() {
     let readonly = Fixture::new("func duplicate(value: &i32): &i32 from value {\n    value\n}\n");
     let input = readonly.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap();
 
     let readwrite =
         Fixture::new("func duplicate(value: &+i32): &+i32 from value {\n    value\n}\n");
     let input = readwrite.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let prepared = prepare_program_checking(&input, program, source_index).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0371");

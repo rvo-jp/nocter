@@ -12,8 +12,9 @@ fn overlapping_instance_patterns_are_rejected_before_body_checking() {
         Fixture::new("struct Box<T> {}\ninstance Box<T> {}\ninstance Box<U> where U = i32 {}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let error =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0355");
 }
@@ -25,7 +26,7 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
     let definition = graph
@@ -64,7 +65,7 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
     let entry = table.entries().iter().next().unwrap().1;
@@ -92,8 +93,9 @@ fn duplicate_coercion_identity_is_rejected_before_body_selection() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, source_index) = lowered.into_parts();
-    let error = prepare_program_checking(&input, program, source_index).unwrap_err();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let error =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0356");
 }

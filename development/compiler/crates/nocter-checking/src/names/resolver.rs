@@ -2,18 +2,19 @@ use std::collections::{BTreeMap, HashMap};
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph, ExportedEntity};
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
 
 use super::diagnostic;
 use super::model::{
-    BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget, ResolvedBodyNames,
-    ResolvedNameUse, ScopeBinding,
+    BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameTarget,
+    ResolvedBindingOrigins, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,
 };
 use super::{NameResolutionError, NameResolutionInternalError, Projection};
 use crate::BodySource;
@@ -67,12 +68,14 @@ enum Action {
 pub(super) struct BodyNameResolver<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
-    source_index: &'input SourceIndex,
+    bindings: &'input FrontendBindings,
     import_targets: &'input HashMap<NodeId, ModuleId>,
     source: BodySource<'syntax>,
     scopes: ArenaBuilder<BodyScopeId, BodyScope>,
     locals: ArenaBuilder<LocalBindingId, LocalBinding>,
     captures: ArenaBuilder<CaptureId, Capture>,
+    local_origins: ArenaBuilder<LocalBindingId, SyntaxOrigin>,
+    capture_origins: ArenaBuilder<CaptureId, SyntaxOrigin>,
     block_scopes: HashMap<NodeId, BodyScopeId>,
     active: Vec<ActiveScope>,
     callable_boundaries: Vec<usize>,
@@ -84,19 +87,21 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     pub(super) fn new(
         input: &'input CompileUnitInput<'syntax>,
         graph: &'input DeclarationGraph,
-        source_index: &'input SourceIndex,
+        bindings: &'input FrontendBindings,
         import_targets: &'input HashMap<NodeId, ModuleId>,
         source: BodySource<'syntax>,
     ) -> Self {
         Self {
             input,
             graph,
-            source_index,
+            bindings,
             import_targets,
             source,
             scopes: ArenaBuilder::new(),
             locals: ArenaBuilder::new(),
             captures: ArenaBuilder::new(),
+            local_origins: ArenaBuilder::new(),
+            capture_origins: ArenaBuilder::new(),
             block_scopes: HashMap::new(),
             active: Vec::new(),
             callable_boundaries: Vec::new(),
@@ -143,6 +148,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 self.scopes.finish(),
                 self.locals.finish(),
                 self.captures.finish(),
+                ResolvedBindingOrigins {
+                    locals: self.local_origins.finish(),
+                    captures: self.capture_origins.finish(),
+                },
                 self.block_scopes,
                 self.uses,
             ),
@@ -435,6 +444,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             let id = self
                 .captures
                 .insert(Capture::new(name, scope, source, mode));
+            let origin_id = self.capture_origins.insert(origin.syntax());
+            if origin_id != id {
+                return Err(NameResolutionInternalError::InvalidSyntaxNode(block).into());
+            }
             self.current_names_mut()?.insert(
                 name,
                 ActiveBinding {
@@ -608,6 +621,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         let id = self
             .locals
             .insert(LocalBinding::new(name, scope, introduction.kind));
+        let origin_id = self.local_origins.insert(origin.syntax());
+        if origin_id != id {
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.block()).into());
+        }
         self.current_names_mut()?.insert(
             name,
             ActiveBinding {
@@ -876,19 +893,28 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         &self,
         parameter: ParameterId,
     ) -> Result<SourceOrigin, NameResolutionInternalError> {
-        self.source_index
-            .bindings_for(SemanticEntity::Parameter(parameter))
+        let declarations = self.bindings.parameter_declarations(parameter);
+        let token = declarations
             .iter()
-            .find(|binding| binding.origin().source() == self.tree().source())
-            .or_else(|| {
-                self.source_index
-                    .bindings_for(SemanticEntity::Parameter(parameter))
-                    .first()
-            })
-            .map(|binding| binding.origin())
+            .find(|token| token.source() == self.tree().source())
+            .or_else(|| declarations.first())
+            .copied()
             .ok_or(NameResolutionInternalError::MissingParameterProjection(
                 parameter,
-            ))
+            ))?;
+        let tree = self
+            .input
+            .modules()
+            .iter()
+            .flat_map(nocter_compile_input::ModuleInput::sources)
+            .map(nocter_compile_input::ModuleSourceInput::syntax)
+            .find(|tree| tree.source() == token.source())
+            .ok_or(NameResolutionInternalError::InvalidSyntaxOrigin(
+                SyntaxOrigin::Token(token),
+            ))?;
+        SourceOrigin::from_token(tree, token).map_err(|_| {
+            NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Token(token))
+        })
     }
 
     fn symbol(&self, token: SyntaxToken) -> Result<Symbol, NameResolutionInternalError> {

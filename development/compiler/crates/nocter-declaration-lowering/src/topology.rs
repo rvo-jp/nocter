@@ -4,6 +4,7 @@ use std::fmt;
 use nocter_declarations::{
     DeclarationProgram, DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError,
 };
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
 use nocter_source::SourceId;
 use nocter_source_index::{
@@ -81,6 +82,17 @@ impl LoweredDeclarations {
     #[must_use]
     pub fn into_parts(self) -> (DeclarationProgram, SourceIndex) {
         (self.program, self.source_index)
+    }
+
+    /// Separates semantic checking input from the independently retained presentation index.
+    #[must_use]
+    pub fn into_checking_parts(
+        self,
+        input: &CompileUnitInput<'_>,
+    ) -> (DeclarationProgram, FrontendBindings, SourceIndex) {
+        let bindings =
+            crate::frontend_bindings::build(input, self.program.graph(), &self.source_index);
+        (self.program, bindings, self.source_index)
     }
 }
 

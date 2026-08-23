@@ -1723,6 +1723,7 @@ dependencies = [
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
+ "nocter-frontend-bindings",
  "nocter-model",
  "nocter-source",
  "nocter-source-index",
@@ -1782,6 +1783,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-declarations",
  "nocter-diagnostics",
+ "nocter-frontend-bindings",
  "nocter-model",
  "nocter-package",
  "nocter-runtime-contract",
@@ -1832,6 +1834,15 @@ dependencies = [
 [[package]]
 name = "nocter-filesystem"
 version = "0.0.0"
+
+[[package]]
+name = "nocter-frontend-bindings"
+version = "0.0.0"
+dependencies = [
+ "nocter-model",
+ "nocter-source",
+ "nocter-syntax",
+]
 
 [[package]]
 name = "nocter-hash"

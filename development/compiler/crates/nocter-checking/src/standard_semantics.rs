@@ -6,11 +6,12 @@ use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
     StandardDeclarationRole, Visibility,
 };
+use nocter_frontend_bindings::{FrontendBindings, FrontendDeclaration};
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
     DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin};
+use nocter_source_index::SemanticEntity;
 
 mod interpolation;
 
@@ -31,7 +32,7 @@ impl StandardSemanticTable {
         inputs: &[StandardRoleInput],
         graph: &DeclarationGraph,
         types: &TypeStore,
-        source_index: &SourceIndex,
+        bindings: &FrontendBindings,
     ) -> Result<Self, StandardSemanticError> {
         let mut inputs = inputs.to_vec();
         inputs.sort_by_key(|input| input.role());
@@ -42,7 +43,7 @@ impl StandardSemanticTable {
         }
         let mut entries = BTreeMap::new();
         for input in inputs {
-            let entity = resolve_role_source(input, source_index)?;
+            let entity = resolve_role_source(input, bindings)?;
             validate_role_domain(input.role(), entity)?;
             validate_standard_owner(graph, input.role(), entity)?;
             entries.insert(input.role(), entity);
@@ -220,23 +221,22 @@ fn has_allocation_context_header(
 
 fn resolve_role_source(
     input: StandardRoleInput,
-    source_index: &SourceIndex,
+    bindings: &FrontendBindings,
 ) -> Result<SemanticEntity, StandardSemanticError> {
     let token = input.declaration();
-    let mut matches = source_index
-        .bindings_at(token.source(), token.range().start())
-        .filter(|binding| {
-            binding.role() == SourceRole::Declaration
-                && binding.origin().syntax() == SyntaxOrigin::Token(token)
-        })
-        .map(|binding| binding.entity());
-    let Some(entity) = matches.next() else {
+    let matches = bindings.declarations(token);
+    let [declaration] = matches else {
+        if !matches.is_empty() {
+            return Err(StandardSemanticError::AmbiguousDeclaration(input.role()));
+        }
         return Err(StandardSemanticError::MissingDeclaration(input.role()));
     };
-    if matches.next().is_some() {
-        return Err(StandardSemanticError::AmbiguousDeclaration(input.role()));
-    }
-    Ok(entity)
+    Ok(match declaration {
+        FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(*id),
+        FrontendDeclaration::Interface(id) => SemanticEntity::Interface(*id),
+        FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(*id),
+        FrontendDeclaration::Callable(id) => SemanticEntity::Callable(*id),
+    })
 }
 
 fn validate_role_domain(

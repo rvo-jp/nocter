@@ -10,6 +10,7 @@ publish = false
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
+nocter-frontend-bindings = { path = "../nocter-frontend-bindings" }
 nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }
 nocter-source-index = { path = "../nocter-source-index" }
