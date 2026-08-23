@@ -92,6 +92,7 @@ pub enum DeclarationContractError {
         contract: NodeId,
         definition: NodeId,
     },
+    UncontractedConformance(NodeId),
     InconsistentSurface(NodeId),
 }
 
@@ -141,6 +142,10 @@ impl fmt::Display for DeclarationContractError {
                 formatter,
                 "represented nominal {contract:?} is completed again by {definition:?}"
             ),
+            Self::UncontractedConformance(node) => write!(
+                formatter,
+                "implementation conformance {node:?} has no public index contract"
+            ),
             Self::InconsistentSurface(node) => {
                 write!(
                     formatter,
@@ -175,7 +180,12 @@ pub fn analyze_declaration_contracts(
     )?;
     let candidates = collect_body_candidates(surface)?;
     let joined = join_contracts(surface, &candidates, &mut representatives)?;
-    join_implementation_containers(surface, joined.container_targets, &mut representatives)?;
+    join_implementation_containers(
+        surface,
+        &joined.used,
+        joined.container_targets,
+        &mut representatives,
+    )?;
 
     Ok(DeclarationContracts {
         representatives: representatives.into_boxed_slice(),
@@ -189,6 +199,7 @@ struct BodyCandidates {
 }
 
 struct JoinedBodies {
+    used: BTreeSet<SurfaceDeclarationId>,
     container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>>,
 }
 
@@ -297,7 +308,10 @@ fn join_contracts(
             }
         }
     }
-    Ok(JoinedBodies { container_targets })
+    Ok(JoinedBodies {
+        used: used_bodies,
+        container_targets,
+    })
 }
 
 pub(super) fn reciprocal_include(
@@ -317,6 +331,7 @@ pub(super) fn reciprocal_include(
 
 fn join_implementation_containers(
     surface: &DeclarationSurface<'_>,
+    used_bodies: &BTreeSet<SurfaceDeclarationId>,
     container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>>,
     representatives: &mut [SurfaceDeclarationId],
 ) -> Result<(), DeclarationContractError> {
@@ -330,6 +345,44 @@ fn join_implementation_containers(
                 .ok_or(DeclarationContractError::InconsistentSurface(
                     surface.declarations()[implementation_owner.index()].node(),
                 ))?;
+    }
+    validate_implementation_conformances(surface, used_bodies, representatives)?;
+    Ok(())
+}
+
+fn validate_implementation_conformances(
+    surface: &DeclarationSurface<'_>,
+    used_bodies: &BTreeSet<SurfaceDeclarationId>,
+    representatives: &[SurfaceDeclarationId],
+) -> Result<(), DeclarationContractError> {
+    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
+        if declaration.kind() != SurfaceDeclarationKind::Conformance
+            || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
+        {
+            continue;
+        }
+        let id = SurfaceDeclarationId::from_index(index);
+        if representatives[id.index()] == id {
+            return Err(DeclarationContractError::UncontractedConformance(
+                declaration.node(),
+            ));
+        }
+        let uncontracted = surface
+            .declarations()
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|(child_index, child)| {
+                child.owner() == Some(id)
+                    && child.kind() == SurfaceDeclarationKind::ConformanceMethod
+                    && !used_bodies.contains(&SurfaceDeclarationId::from_index(*child_index))
+            })
+            .map(|(_, child)| child);
+        if let Some(child) = uncontracted {
+            return Err(DeclarationContractError::UncontractedConformance(
+                child.node(),
+            ));
+        }
     }
     Ok(())
 }
@@ -584,6 +637,7 @@ const fn is_member_declaration(kind: NodeKind) -> bool {
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
             | NodeKind::ConformDeclaration
+            | NodeKind::AssociatedTypeBinding
             | NodeKind::ConformMethod
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration

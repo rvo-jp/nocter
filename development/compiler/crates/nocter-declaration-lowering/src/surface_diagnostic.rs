@@ -12,7 +12,7 @@ use crate::{
 pub enum SurfaceRule {
     ImplementationVisibility,
     InvalidNominalContract,
-    MissingConstructionVisibility,
+    MissingConstructionContractVisibility,
     UnknownTargetGate,
 }
 
@@ -22,7 +22,7 @@ impl SurfaceRule {
         match self {
             Self::ImplementationVisibility => "E0230",
             Self::InvalidNominalContract => "E0231",
-            Self::MissingConstructionVisibility => "E0232",
+            Self::MissingConstructionContractVisibility => "E0232",
             Self::UnknownTargetGate => "E0233",
         }
     }
@@ -36,7 +36,7 @@ impl SurfaceRule {
             Self::InvalidNominalContract => {
                 "a bodyless nominal must be a public contract in index.nct"
             }
-            Self::MissingConstructionVisibility => {
+            Self::MissingConstructionContractVisibility => {
                 "a bodyless public construction contract member requires explicit visibility"
             }
             Self::UnknownTargetGate => "target gate names an unrecognized compilation target",
@@ -52,7 +52,7 @@ impl SurfaceRule {
             Self::InvalidNominalContract => {
                 "add a representation body, or move a public contract to index.nct"
             }
-            Self::MissingConstructionVisibility => {
+            Self::MissingConstructionContractVisibility => {
                 "add pub, pub(./), or another non-private visibility to the construction member"
             }
             Self::UnknownTargetGate => {
@@ -121,8 +121,8 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         SurfaceError::InvalidNominalContract(node) => {
             Some((SurfaceRule::InvalidNominalContract, *node))
         }
-        SurfaceError::MissingConstructionVisibility(node) => {
-            Some((SurfaceRule::MissingConstructionVisibility, *node))
+        SurfaceError::MissingConstructionContractVisibility(node) => {
+            Some((SurfaceRule::MissingConstructionContractVisibility, *node))
         }
         SurfaceError::UnknownTargetGate(node) => Some((SurfaceRule::UnknownTargetGate, *node)),
         SurfaceError::Topology(_)

@@ -227,15 +227,83 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 
+conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {
+    type Item = U
+    method &+self.next(): U?
+}
+
+conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(item: I.Item): U {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
+    type Item = I.Item
+    method &+self.next(): I.Item?
+}
+
+conform Iterator for TakeIter<I> where I: Iterator {
+    type Item = I.Item
+    method &+self.next(): I.Item?
+}
+
+conform ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for SkipIter<I> where I: Iterator {
+    type Item = I.Item
+    method &+self.next(): I.Item?
+}
+
+conform ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
+    type Item = L.Item
+    method &+self.next(): L.Item?
+}
+
+conform ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for EnumerateIter<I> where I: Iterator {
+    type Item = Indexed<I.Item>
+    method &+self.next(): Indexed<I.Item>?
+}
+
+conform ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {
+    method &self.remaining_len(): usize
+}
+
 /// An iterator that never yields an item.
 pub struct EmptyIter<T> {
     exhausted: bool
+}
+
+conform ExactSizeIterator for EmptyIter<T> {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for EmptyIter<T> {
+    type Item = T
+    method &+self.next(): T?
 }
 
 /// An iterator that owns at most one unconsumed item.
 pub struct OnceIter<T> {
     item: T?
     remaining: usize
+}
+
+conform ExactSizeIterator for OnceIter<T> {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for OnceIter<T> {
+    type Item = T
+    method &+self.next(): T?
 }
 
 pub func empty<T>(): EmptyIter<T>
@@ -252,6 +320,15 @@ pub struct ViewIter<T> {
 pub struct MutableViewIter<T> {
     view: &+[T]
     next_index: usize
+}
+
+conform ExactSizeIterator for MutableViewIter<T> {
+    method &self.remaining_len(): usize
+}
+
+conform Iterator for MutableViewIter<T> {
+    type Item = &+T
+    method &+self.next(): &+T?
 }
 
 construct MutableViewIter<T> {

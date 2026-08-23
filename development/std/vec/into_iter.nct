@@ -1,4 +1,7 @@
 include ./index.nct
+use std/iter.{ExactSizeIterator, Iterator}
+use std/mem.RawBuffer
+use std/ptr.{addr, drop_value_at_ptr, from_addr, pointee_size, take_value_at_ptr}
 
 //! Owning iteration for Vec storage.
 //!
@@ -65,7 +68,6 @@ conform ExactSizeIterator for VecIntoIter<T> {
 }
 
 conform Iterator for VecIntoIter<T> {
-    type Item = T
     /// Transfers the next element, or returns `none` at exhaustion.
     method &+self.next(): T? {
         return next(self)?

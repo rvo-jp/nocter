@@ -13,6 +13,58 @@ pub interface Format {
     pub method &self.format_into(output: &+String): void
 }
 
+conform Format for str {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for String {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for bool {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for i8 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for i16 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for i32 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for i64 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for isize {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for u8 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for u16 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for u32 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for u64 {
+    method &self.format_into(output: &+String): void
+}
+
+conform Format for usize {
+    method &self.format_into(output: &+String): void
+}
+
 pub func try_append_str(out: &+String, value: &str): void! {
     try_push_str(out, value)?
     return

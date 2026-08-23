@@ -285,7 +285,7 @@ fn source_inspection_bypasses_installation_and_package_selection() {
     assert_eq!(ast.exit_code(), 0);
     let ast = ast.render_standard_output().unwrap();
     assert!(ast.starts_with("{\"schema\":\"nocter.ast\",\"version\":1,\"ok\":true"));
-    assert!(ast.contains("\"kind\":\"module_source\""));
+    assert!(ast.contains("\"kind\":\"source_file\""));
 }
 
 #[test]
@@ -775,7 +775,7 @@ fn json_discovery_failure_uses_the_authored_module_path() {
     assert_eq!(error.exit_code(), 1);
     assert!(rendered.contains("\"code\":\"E0263\""));
     assert!(rendered.contains("\"start_byte\":4,\"end_byte\":12"));
-    assert!(rendered.contains("single-file mode cannot load a local source graph"));
+    assert!(rendered.contains("single-file mode cannot import a package-local directory module"));
 }
 
 #[test]

@@ -158,7 +158,7 @@
 <span class="token-comment">//! byte-slice view construction, and release are implemented in Nocter code</span>
 <span class="token-comment">//! through restricted runtime pointer primitives.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">ViewIter</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> <span class="token-type">TryAllocator</span><span class="token-operator">,</span> alloc<span class="token-operator">,</span> allocation_abort_raw<span class="token-operator">,</span> current_allocator<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>empty_page_buffer<span class="token-operator">,</span> try_alloc<span class="token-operator">,</span> try_grow_owned<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_str_to_ptr
@@ -224,6 +224,16 @@
 
 <span class="token-keyword">construct</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
+    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
+    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Creates an allocation-free iterator over borrowed lines.</span>

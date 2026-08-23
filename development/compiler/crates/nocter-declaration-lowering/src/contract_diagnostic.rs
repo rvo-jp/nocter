@@ -15,6 +15,7 @@ pub enum DeclarationContractRule {
     MismatchedBody,
     DuplicateBody,
     InvalidBodyOmission,
+    UncontractedConformance,
     MissingRepresentation,
     MismatchedRepresentation,
     DuplicateRepresentation,
@@ -22,11 +23,12 @@ pub enum DeclarationContractRule {
 }
 
 impl DeclarationContractRule {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::MissingBody,
         Self::MismatchedBody,
         Self::DuplicateBody,
         Self::InvalidBodyOmission,
+        Self::UncontractedConformance,
         Self::MissingRepresentation,
         Self::MismatchedRepresentation,
         Self::DuplicateRepresentation,
@@ -40,6 +42,7 @@ impl DeclarationContractRule {
             Self::MismatchedBody => "E0251",
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
+            Self::UncontractedConformance => "E0254",
             Self::MissingRepresentation => "E0255",
             Self::MismatchedRepresentation => "E0256",
             Self::DuplicateRepresentation => "E0257",
@@ -57,6 +60,9 @@ impl DeclarationContractRule {
             Self::DuplicateBody => "public callable contract has more than one implementation body",
             Self::InvalidBodyOmission => {
                 "callable omits its body outside an eligible public contract"
+            }
+            Self::UncontractedConformance => {
+                "implementation conformance has no public index contract"
             }
             Self::MissingRepresentation => {
                 "public nominal contract has no private representation definition"
@@ -84,6 +90,9 @@ impl DeclarationContractRule {
             Self::InvalidBodyOmission => {
                 "write the body inline or declare an eligible public root contract"
             }
+            Self::UncontractedConformance => {
+                "declare the conformance contract and every implemented method in index.nct"
+            }
             Self::MissingRepresentation => {
                 "add one reciprocal directly included private representation"
             }
@@ -105,7 +114,10 @@ impl DeclarationContractRule {
             | Self::MismatchedRepresentation
             | Self::DuplicateRepresentation
             | Self::RepresentationCompletedAgain => Some("public contract is declared here"),
-            Self::MissingBody | Self::InvalidBodyOmission | Self::MissingRepresentation => None,
+            Self::MissingBody
+            | Self::InvalidBodyOmission
+            | Self::UncontractedConformance
+            | Self::MissingRepresentation => None,
         }
     }
 }
@@ -183,6 +195,9 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
         DeclarationContractError::InvalidBodyOmission(_) => {
             Some(DeclarationContractRule::InvalidBodyOmission)
         }
+        DeclarationContractError::UncontractedConformance(_) => {
+            Some(DeclarationContractRule::UncontractedConformance)
+        }
         DeclarationContractError::MissingRepresentation(_) => {
             Some(DeclarationContractRule::MissingRepresentation)
         }
@@ -203,6 +218,7 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
     match error {
         DeclarationContractError::MissingBody(node)
         | DeclarationContractError::InvalidBodyOmission(node)
+        | DeclarationContractError::UncontractedConformance(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
         DeclarationContractError::MismatchedBody { body, .. }
@@ -222,6 +238,7 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
         | DeclarationContractError::RepresentationCompletedAgain { contract, .. } => Some(contract),
         DeclarationContractError::MissingBody(_)
         | DeclarationContractError::InvalidBodyOmission(_)
+        | DeclarationContractError::UncontractedConformance(_)
         | DeclarationContractError::MissingRepresentation(_)
         | DeclarationContractError::InconsistentSurface(_) => None,
     }
@@ -317,6 +334,70 @@ mod tests {
             diagnostic.source().notes()[0].message(),
             "public contract is declared here"
         );
+    }
+
+    #[test]
+    fn implementation_only_conformance_projects_its_authored_source() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            concat!(
+                "include ./value.nct\n",
+                "pub interface Read { pub method &self.read(): usize }\n",
+                "pub struct Value {}\n",
+            ),
+        );
+        let implementation_id = add_source(
+            &mut sources,
+            "/app/value.nct",
+            concat!(
+                "include ./index.nct\n",
+                "conform Read for Value {\n",
+                "    method &self.read(): usize { return 0 }\n",
+                "}\n",
+            ),
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+        let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![PackageInput::new(
+                PackageIdentity::new("workspace:app"),
+                "app",
+                PackageMode::Declared,
+                Some(PackageDeclarationInput::new("/app/nocter.nct", &manifest)),
+            )],
+            vec![ModuleInput::new(
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                    ModuleSourceInput::new(
+                        "/app/value.nct",
+                        ModuleSourceKind::Implementation,
+                        &implementation,
+                    ),
+                ],
+            )],
+            Vec::new(),
+        )
+        .with_include_resolutions(vec![
+            source_include(&root, 0, "/app/value.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ]);
+        let surface = collect_declaration_surface(&input).unwrap();
+        let error = analyze_declaration_contracts(&surface).unwrap_err();
+        let diagnostic = DeclarationContractDiagnostic::project(error, &surface).unwrap();
+
+        assert_eq!(
+            diagnostic.rule(),
+            DeclarationContractRule::UncontractedConformance
+        );
+        assert_eq!(diagnostic.source().code(), "E0254");
+        assert_eq!(diagnostic.source().primary().source(), implementation_id);
     }
 
     #[test]

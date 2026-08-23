@@ -76,16 +76,18 @@ be introduced to make an unresolved syntax choice.
 - `nocter-declaration-lowering` owns the one-way syntax-to-declaration boundary. Its input is an
   explicit package graph and module/source topology supplied by discovery; it never probes the
   filesystem. It validates declared-package and single-file layouts, canonicalizes package and
-  module order, and requires one discovery-owned source-or-module target for every authored `use`.
-  It validates that source composition stays private, same-module, and root-reachable, permits
-  idempotent source cycles, rejects module import cycles, and never reinterprets canonical paths to
+  module order, and consumes disjoint discovery-owned edges for exact-file `include` declarations
+  and directory-module `use` declarations. Every source receives its own authored namespace plus
+  only its direct include targets; cycles are idempotent, include visibility is not transitive, and
+  module imports retain their independent cycle rules. It never reinterprets canonical paths to
   recover a missing edge. It then constructs the compile-unit symbol table, inventories every
   declaration and member with its exact syntax owner, allocates stable topology identities, and
-  records their source projections. The temporary surface inventory also enforces the root-source-
-  only API boundary before semantic reservation. A canonical-header pass joins eligible public
-  bodyless contracts
-  to exactly one private implementation body without resolving names or types; both source forms
-  therefore enter reservation through one representative identity. The reservation pass then
+  records their source projections. The temporary surface inventory also enforces that only
+  `index.nct` can author non-private declarations. A canonical-header pass joins eligible public
+  bodyless callable and opaque nominal contracts to exactly one private implementation through
+  reciprocal direct includes, and rejects implementation-only program-wide conformances. Contract
+  and implementation forms therefore enter reservation through one representative identity. The
+  reservation pass then
   allocates every recursively referenceable typed ID—including associated types—in canonical
   surface order. Header preparation resolves exact declaration names and normalized visibility,
   creates declaration sites, rejects deterministic namespace collisions, and only then projects
@@ -158,7 +160,7 @@ be introduced to make an unresolved syntax choice.
   the temporary import state is consumed. Module dependency edges retain the authored `use` node.
   Cycle validation derives one deterministic complete edge witness rather than reporting a module
   selected from residual graph state; every edge becomes the primary span or an ordered related
-  note. Source-import shape violations likewise retain their exact `use` declaration. Generic
+  note. Include-shape violations retain their exact `include` declaration. Generic
   scopes retain each binder's declaration token together with its semantic identity. Reserved
   binders, same-list duplicates, and nested shadowing therefore project `E0280`-`E0282` directly;
   repeated names in declaration target patterns remain authored references rather than duplicate

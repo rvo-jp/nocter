@@ -312,7 +312,7 @@ pub enum SurfaceError {
     InvalidItemShape(NodeId),
     ImplementationVisibility(NodeId),
     InvalidNominalContract(NodeId),
-    MissingConstructionVisibility(NodeId),
+    MissingConstructionContractVisibility(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
 }
@@ -341,7 +341,7 @@ impl fmt::Display for SurfaceError {
                 formatter,
                 "bodyless nominal declaration {node:?} is not an eligible public index contract"
             ),
-            Self::MissingConstructionVisibility(node) => write!(
+            Self::MissingConstructionContractVisibility(node) => write!(
                 formatter,
                 "bodyless public construction contract member {node:?} requires explicit visibility"
             ),
@@ -710,7 +710,7 @@ fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), Surf
         ) && !contains_child_kind(tree, member, NodeKind::Block)
             && direct_child(tree, member, NodeKind::Visibility).is_none()
         {
-            return Err(SurfaceError::MissingConstructionVisibility(member));
+            return Err(SurfaceError::MissingConstructionContractVisibility(member));
         }
     }
     Ok(())

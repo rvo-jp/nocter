@@ -16,8 +16,6 @@ conform ExactSizeIterator for MutableViewIter<T> {
 }
 
 conform Iterator for MutableViewIter<T> {
-    type Item = &+T
-
     /// Advances and returns an exclusive element borrow, or `none` at exhaustion.
     method &+self.next(): &+T? {
         if self.next_index >= self.view.len() {

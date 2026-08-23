@@ -396,7 +396,9 @@ In a directory module, `index.nct` may instead expose a conformance contract. It
 type bindings and bodyless method signatures. One reciprocally included private source repeats the
 conformance head and supplies the matching method bodies; it does not repeat associated type
 bindings. Both occurrences form one semantic conformance, and only the `index.nct` occurrence
-defines the public surface.
+defines the public surface. Because a conformance changes program-wide dispatch and has no private
+visibility form, an implementation source cannot introduce one without this complete `index.nct`
+contract. An inline conformance that needs no separated body is therefore authored in `index.nct`.
 
 Conformance rules are:
 

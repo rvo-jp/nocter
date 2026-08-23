@@ -101,8 +101,8 @@ Source-backed module-surface diagnostics:
 
 - `E0230`: a source other than `index.nct` declares non-private visibility.
 - `E0231`: a bodyless nominal is used outside an eligible public contract in `index.nct`.
-- `E0232`: a public construction contract member in `index.nct` omits its required explicit
-  non-private visibility, or its matching private definition incorrectly repeats visibility.
+- `E0232`: a bodyless public construction contract member in `index.nct` omits its required explicit
+  non-private visibility. Private inline construction members do not require visibility.
 - `E0233`: a `#target` gate names a target not recognized by this compiler release. The primary
   span is the gate's string literal.
 
@@ -330,6 +330,8 @@ Source-backed declaration contract diagnostics:
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
+- `E0254`: an implementation source declares a conformance, or a conformance method, without a
+  matching public contract in the reciprocally included `index.nct` source.
 - `E0255`: a bodyless public nominal contract has no complete private representation definition.
 - `E0256`: a private nominal representation does not exactly match its public contract's kind,
   name, generic parameters, requirements, or `copy` contract.

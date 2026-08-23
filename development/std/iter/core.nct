@@ -3,8 +3,6 @@ include ./index.nct
 //! Iterator adapter implementations.
 
 conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {
-    type Item = U
-
     /// Advances the source once and transforms the yielded item once.
     method &+self.next(): U? {
         let item = self.source.next()?
@@ -20,8 +18,6 @@ conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIter
 }
 
 conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
-    type Item = I.Item
-
     /// Advances until the predicate accepts an item or the source is exhausted.
     method &+self.next(): I.Item? {
         while true {
@@ -35,8 +31,6 @@ conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): boo
 }
 
 conform Iterator for TakeIter<I> where I: Iterator {
-    type Item = I.Item
-
     method &+self.next(): I.Item? {
         if self.remaining == 0 {
             return none
@@ -61,8 +55,6 @@ conform ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator 
 }
 
 conform Iterator for SkipIter<I> where I: Iterator {
-    type Item = I.Item
-
     method &+self.next(): I.Item? {
         while self.remaining_to_skip != 0 {
             let skipped = self.source.next() otherwise {
@@ -86,8 +78,6 @@ conform ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator 
 }
 
 conform Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
-    type Item = L.Item
-
     method &+self.next(): L.Item? {
         while self.in_left {
             let item = self.left.next() otherwise {
@@ -107,8 +97,6 @@ conform ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeItera
 }
 
 conform Iterator for EnumerateIter<I> where I: Iterator {
-    type Item = Indexed<I.Item>
-
     method &+self.next(): Indexed<I.Item>? {
         let item = self.source.next()?
         let index: usize = self.next_index

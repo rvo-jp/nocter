@@ -145,6 +145,7 @@
             </div>
             <div class="markdown-body">
                 <h1>views.nct</h1><pre><code class="language-nocter"><span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>search<span class="token-operator">.</span>nct
 
 <span class="token-comment">//! Allocation-free borrowed UTF-8 ranges and text iterators.</span>
 <span class="token-comment">//!</span>
@@ -194,7 +195,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>
+    default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>
         text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
         separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from text | separator <span class="token-operator">{</span>
@@ -217,7 +218,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>finished <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
         <span class="token-keyword">let</span> part_start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>next_start
@@ -239,7 +239,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
             text<span class="token-operator">:</span> text<span class="token-operator">,</span>
             next_start<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
@@ -254,7 +254,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>finished <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
         <span class="token-keyword">let</span> line_start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>next_start
@@ -296,7 +295,8 @@
         <span class="token-string">"std.string.empty_separator"</span><span class="token-operator">,</span>
         <span class="token-string">"string separator must not be empty"</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-<span class="token-operator">}</span></code></pre>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>

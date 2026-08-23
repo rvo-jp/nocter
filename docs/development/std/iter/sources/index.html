@@ -163,8 +163,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
-
     <span class="token-comment">/// Returns `none` for every call.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-keyword">none</span>
@@ -187,7 +185,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
     <span class="token-comment">/// Transfers the owned item once, then returns `none`.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>remaining <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
@@ -201,7 +198,8 @@
         <span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> previous<span class="token-operator">?</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> item
     <span class="token-operator">}</span>
-<span class="token-operator">}</span></code></pre>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>

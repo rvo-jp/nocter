@@ -616,9 +616,12 @@ inventory. It visits module roots before implementation sources, sorts implement
 canonical physical identity, and records each declaration or member with its exact syntactic
 owner. Blocks are opaque to this pass; body syntax cannot create or alter a declaration header.
 The pass also enforces the module rule that implementation sources cannot add visibility,
-re-exports, fields, or interface members. A following contract pass rejects construction and
-coercion entries that do not supply a declared root contract. This inventory is consumed by
-declaration reservation and never becomes a second long-lived program model.
+re-exports, or bodyless nominal contracts. Private representations, helpers, construction entries,
+and inherent methods may remain implementation-only. A following contract pass joins every
+bodyless public callable and opaque nominal to one reciprocal direct-include definition. Because
+conformance has program-wide dispatch meaning and no private visibility form, every implementation
+conformance and each of its methods must complete a contract authored in `index.nct`. This inventory
+is consumed by declaration reservation and never becomes a second long-lived program model.
 
 The compile-unit input carries one closed `CompilationTarget`, and the frozen declaration graph
 retains that identity through checking. Before import-edge validation or symbol collection, one
@@ -635,7 +638,9 @@ Source-defined operators and conformance methods use the same callable rule. A s
 representation pass matches each public opaque struct or enum contract to one private complete
 representation. The definition occurrence and its implementation container map to the public
 representative; private members in that container retain their own identities under the shared
-owner. Missing, mismatched, and duplicate definitions fail before reservation. Later stages never
+owner. Header definition enumerates only canonical child representatives, so a modifier repeated
+by a matching implementation—such as construction `default`—cannot be counted as a second semantic
+member. Missing, mismatched, and duplicate definitions fail before reservation. Later stages never
 merge already-distinct semantic IDs or search for a representation by name.
 
 One production declaration-lowering facade owns the pass sequence: surface collection, declaration-

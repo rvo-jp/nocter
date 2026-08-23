@@ -584,6 +584,9 @@ fn child_surfaces(
     (0..surface_count(types))
         .map(SurfaceDeclarationId::from_index)
         .filter(|child| {
+            if representative(types, *child) != *child {
+                return false;
+            }
             types
                 .namespaces
                 .imports

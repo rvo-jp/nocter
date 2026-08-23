@@ -17,8 +17,6 @@ conform ExactSizeIterator for EmptyIter<T> {
 }
 
 conform Iterator for EmptyIter<T> {
-    type Item = T
-
     /// Returns `none` for every call.
     method &+self.next(): T? {
         return none
@@ -41,7 +39,6 @@ conform ExactSizeIterator for OnceIter<T> {
 }
 
 conform Iterator for OnceIter<T> {
-    type Item = T
     /// Transfers the owned item once, then returns `none`.
     method &+self.next(): T? {
         if self.remaining == 0 {

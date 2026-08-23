@@ -83,9 +83,9 @@ impl ImportTarget {
 
 /// One resolved top-level module import or re-export.
 ///
-/// Same-module source composition is absent: after source loading, its declarations belong to the
-/// shared module and its physical edge remains in source-side data rather than semantic lookup.
-/// Block imports belong to checked lexical scopes and do not enter this declaration arena.
+/// Physical-source inclusion is absent: each source-local namespace is prepared before semantic
+/// imports, and its directed include edges remain in the frontend binding input. Block imports
+/// belong to checked lexical scopes and do not enter this declaration arena.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportDeclaration {
     module: ModuleId,

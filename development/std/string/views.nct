@@ -1,4 +1,5 @@
 include ./index.nct
+include ./search.nct
 
 //! Allocation-free borrowed UTF-8 ranges and text iterators.
 //!
@@ -48,7 +49,7 @@ func strip_suffix(text: &str, suffix: &str): &str? from text {
 }
 
 construct SplitIter {
-    func new(
+    default func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator {
@@ -71,7 +72,6 @@ func split_views(
 }
 
 conform Iterator for SplitIter {
-    type Item = &str
     method &+self.next(): &str? {
         if self.finished { return none }
         let part_start: usize = self.next_start
@@ -93,7 +93,7 @@ conform Iterator for SplitIter {
 }
 
 construct LinesIter {
-    func new(text: &str): Self {
+    default func new(text: &str): Self {
         return LinesIter {
             text: text,
             next_start: 0,
@@ -108,7 +108,6 @@ func lines(text: &str): LinesIter {
 }
 
 conform Iterator for LinesIter {
-    type Item = &str
     method &+self.next(): &str? {
         if self.finished { return none }
         let line_start: usize = self.next_start

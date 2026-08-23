@@ -12,7 +12,7 @@
 //! byte-slice view construction, and release are implemented in Nocter code
 //! through restricted runtime pointer primitives.
 
-use std/iter.ViewIter
+use std/iter.{Iterator, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
@@ -78,6 +78,16 @@ pub(/) func split_views(
 
 construct LinesIter {
     pub default func new(text: &str): Self
+}
+
+conform Iterator for SplitIter {
+    type Item = &str
+    method &+self.next(): &str?
+}
+
+conform Iterator for LinesIter {
+    type Item = &str
+    method &+self.next(): &str?
 }
 
 /// Creates an allocation-free iterator over borrowed lines.

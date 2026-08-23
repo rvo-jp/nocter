@@ -340,3 +340,52 @@ fn opaque_nominal_contract_and_private_representation_share_one_identity() {
         SurfaceDeclarationId::from_index(0)
     );
 }
+
+#[test]
+fn implementation_source_cannot_add_program_wide_conformance() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        concat!(
+            "include ./value.nct\n",
+            "pub interface Read { pub method &self.read(): usize }\n",
+            "pub struct Value {}\n",
+        ),
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/value.nct",
+        concat!(
+            "include ./index.nct\n",
+            "conform Read for Value {\n",
+            "    method &self.read(): usize { return 0 }\n",
+            "}\n",
+        ),
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/value.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/value.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    assert!(matches!(
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::UncontractedConformance(_))
+    ));
+}

@@ -149,8 +149,6 @@
 <span class="token-comment">//! Iterator adapter implementations.</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">U</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">&gt;</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-keyword">func</span><span class="token-operator">(</span>item<span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">U</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">U</span>
-
     <span class="token-comment">/// Advances the source once and transforms the yielded item once.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">U</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> item <span class="token-operator">=</span> self<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
@@ -166,8 +164,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">FilterIter</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">&gt;</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-keyword">func</span><span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span>
-
     <span class="token-comment">/// Advances until the predicate accepts an item or the source is exhausted.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
@@ -181,8 +177,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">TakeIter</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span>
-
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>remaining <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-keyword">none</span>
@@ -207,8 +201,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">SkipIter</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span>
-
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">while</span> self<span class="token-operator">.</span>remaining_to_skip <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">let</span> skipped <span class="token-operator">=</span> self<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
@@ -232,8 +224,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">ChainIter</span><span class="token-operator">&lt;</span><span class="token-type">L</span><span class="token-operator">,</span> <span class="token-type">R</span><span class="token-operator">&gt;</span> where <span class="token-type">L</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">R</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">R</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">L</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">L</span><span class="token-operator">.</span><span class="token-type">Item</span>
-
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">L</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">while</span> self<span class="token-operator">.</span>in_left <span class="token-operator">{</span>
             <span class="token-keyword">let</span> item <span class="token-operator">=</span> self<span class="token-operator">.</span>left<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
@@ -253,8 +243,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">EnumerateIter</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span>
-    <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">Indexed</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">&gt;</span>
-
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Indexed</span><span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span><span class="token-operator">&gt;</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> item <span class="token-operator">=</span> self<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">let</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>next_index
@@ -270,7 +258,8 @@
     <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> self<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-<span class="token-operator">}</span></code></pre>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>

@@ -1,4 +1,6 @@
 include ./index.nct
+use std/string.bytes as string_bytes
+use std/vec.Vec
 
 //! Portable byte-stream implementation bodies.
 
