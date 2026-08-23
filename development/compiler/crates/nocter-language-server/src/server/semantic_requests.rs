@@ -625,6 +625,105 @@ mod tests {
     }
 
     #[test]
+    fn separated_interface_default_keeps_contract_and_body_navigation() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let contract = temporary.path().join("index.nct");
+        let implementation = temporary.path().join("defaults.nct");
+        let contract_text = concat!(
+            "include ./defaults.nct\n",
+            "\n",
+            "pub interface Answer {\n",
+            "    pub default method &self.answer(): i32\n",
+            "}\n",
+            "struct Value {}\n",
+            "conform Answer for Value {}\n",
+            "func main(): i32 {\n",
+            "    let value = Value {}\n",
+            "    return value.answer()\n",
+            "}\n",
+        );
+        std::fs::write(&contract, contract_text).unwrap();
+        std::fs::write(
+            &implementation,
+            concat!(
+                "include ./index.nct\n",
+                "\n",
+                "interface Answer {\n",
+                "    default method &self.answer(): i32 { return 1 }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let contract_uri = format!("file://{}", contract.display());
+        let canonical_contract_uri = format!(
+            "file://{}/index.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let canonical_implementation_uri = format!(
+            "file://{}/defaults.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let mut source_json = String::new();
+        nocter_json::write_string(&mut source_json, contract_text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "discovery={:?}, compilation={:?}, diagnostics={:?}",
+            snapshot.discovery_failure(),
+            snapshot.compilation_failure(),
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":3,\"character\":31}}}}}}"
+        ));
+        assert!(
+            hover.response().is_some_and(
+                |response| response.contains("pub default method &Answer.answer(): i32")
+            ),
+            "{:?}",
+            hover.response()
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":9,\"character\":18}}}}}}"
+        ));
+        assert_eq!(
+            definition.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":3,\"character\":29}},\"end\":{{\"line\":3,\"character\":35}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+
+        let body = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":9,\"character\":18}}}}}}"
+        ));
+        assert_eq!(
+            body.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[{{\"uri\":\"{canonical_implementation_uri}\",\"range\":{{\"start\":{{\"line\":3,\"character\":25}},\"end\":{{\"line\":3,\"character\":31}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+    }
+
+    #[test]
     fn rename_recompiles_the_candidate_and_returns_one_versioned_workspace_edit() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
@@ -1544,7 +1643,7 @@ mod tests {
                 "interface Source {\n",
                 "    pub type Item\n",
                 "    pub type Failure\n",
-                "    pub method &self.inspect(): void {\n",
+                "    pub default method &self.inspect(): void {\n",
                 "        let value: Self.$selection = 0\n",
                 "        return\n",
                 "    }\n",

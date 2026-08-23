@@ -12,7 +12,7 @@ use super::{MethodSelection, build_conformance_table};
 #[test]
 fn required_and_default_methods_receive_exact_dispatch_selections() {
     let fixture = Fixture::new(
-        "pub interface Readable {\n    pub method &self.read(): i32\n    pub method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(): i32 { return 0 }\n}\n",
+        "pub interface Readable {\n    pub method &self.read(): i32\n    pub default method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(): i32 { return 0 }\n}\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();

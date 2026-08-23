@@ -8,6 +8,19 @@ include ./search.nct
 
 use std/iter.Iterator
 
+struct SplitIter {
+    text: &str
+    separator: &str
+    next_start: usize
+    finished: bool
+}
+
+struct LinesIter {
+    text: &str
+    next_start: usize
+    finished: bool
+}
+
 /// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
 func is_char_boundary(text: &str, index: usize): bool {
     if index > text.len() { return false }

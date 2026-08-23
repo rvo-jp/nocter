@@ -1,0 +1,150 @@
+//! Reusable behavior derived only from the Iterator contract.
+
+include ./index.nct
+include ./adapters.nct
+
+func iterator_items_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
+    return left == right
+}
+
+interface Iterator {
+    default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
+        return MapIter<U, Self, F> {
+            source: move self,
+            transform: move transform,
+        }
+    }
+
+    default method self.filter<F>(predicate: F): FilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool {
+        return FilterIter<Self, F> {
+            source: move self,
+            predicate: move predicate,
+        }
+    }
+
+    default method self.take(limit: usize): TakeIter<Self> {
+        return TakeIter<Self> {
+            source: move self,
+            remaining: limit,
+        }
+    }
+
+    default method self.skip(amount: usize): SkipIter<Self> {
+        return SkipIter<Self> {
+            source: move self,
+            remaining_to_skip: amount,
+        }
+    }
+
+    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R: Iterator, R.Item = Self.Item {
+        return ChainIter<Self, R> {
+            left: move self,
+            right: move right,
+            in_left: true,
+        }
+    }
+
+    default method self.enumerate(): EnumerateIter<Self> {
+        return EnumerateIter<Self> {
+            source: move self,
+            next_index: 0,
+        }
+    }
+
+    default method self.count(): usize {
+        var source = move self
+        var total: usize = 0
+        while true {
+            let item = source.next() otherwise { return total }
+            total = total + 1
+        }
+        return 0
+    }
+
+    default method self.last(): Self.Item? from self {
+        var source = move self
+        var result: Self.Item? = none
+        while true {
+            let item = source.next() otherwise { break }
+            result = move item
+        }
+        return move result
+    }
+
+    default method self.find<F>(predicate: F): Self.Item? from self where F: &+func(&Self.Item): bool {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next()?
+            if predicate_fn(&item) {
+                return move item
+            }
+        }
+        return none
+    }
+
+    default method self.any<F>(predicate: F): bool where F: &+func(&Self.Item): bool {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next() otherwise { return false }
+            if predicate_fn(&item) {
+                return true
+            }
+        }
+        return false
+    }
+
+    default method self.all<F>(predicate: F): bool where F: &+func(&Self.Item): bool {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next() otherwise { return true }
+            if !predicate_fn(&item) {
+                return false
+            }
+        }
+        return true
+    }
+
+    default method self.contains<T>(expected: &T): bool where Self.Item = T, (&T == &T): bool {
+        var source = move self
+        while true {
+            let item = source.next() otherwise { return false }
+            if iterator_items_equal(&item, expected) {
+                return true
+            }
+        }
+        return false
+    }
+
+    default method self.position<T>(expected: &T): usize? where Self.Item = T, (&T == &T): bool {
+        var source = move self
+        var index: usize = 0
+        while true {
+            let item = source.next() otherwise { return none }
+            if iterator_items_equal(&item, expected) {
+                return index
+            }
+            index = index + 1
+        }
+        return none
+    }
+
+    default method self.fold<U, F>(
+        initial: U,
+        combine: F,
+    ): U from self | initial | combine where F: &+func(step: FoldStep<Self.Item, U>): U {
+        var source = move self
+        var callback = move combine
+        var accumulator = move initial
+        while true {
+            let item = source.next() otherwise { break }
+            accumulator = callback(FoldStep<Self.Item, U> {
+                accumulator: move accumulator,
+                item: move item,
+            })
+        }
+        return move accumulator
+    }
+}

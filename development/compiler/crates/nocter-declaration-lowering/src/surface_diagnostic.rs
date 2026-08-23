@@ -13,6 +13,7 @@ pub enum SurfaceRule {
     ImplementationVisibility,
     InvalidNominalContract,
     MissingConstructionContractVisibility,
+    MissingInterfaceContractVisibility,
     UnknownTargetGate,
 }
 
@@ -24,6 +25,7 @@ impl SurfaceRule {
             Self::InvalidNominalContract => "E0231",
             Self::MissingConstructionContractVisibility => "E0232",
             Self::UnknownTargetGate => "E0233",
+            Self::MissingInterfaceContractVisibility => "E0234",
         }
     }
 
@@ -38,6 +40,9 @@ impl SurfaceRule {
             }
             Self::MissingConstructionContractVisibility => {
                 "a bodyless public construction contract member requires explicit visibility"
+            }
+            Self::MissingInterfaceContractVisibility => {
+                "an interface contract method requires explicit public visibility"
             }
             Self::UnknownTargetGate => "target gate names an unrecognized compilation target",
         }
@@ -54,6 +59,9 @@ impl SurfaceRule {
             }
             Self::MissingConstructionContractVisibility => {
                 "add pub, pub(./), or another non-private visibility to the construction member"
+            }
+            Self::MissingInterfaceContractVisibility => {
+                "add bare pub to the interface contract method"
             }
             Self::UnknownTargetGate => {
                 "use one of the target names recognized by this compiler release"
@@ -123,6 +131,9 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         }
         SurfaceError::MissingConstructionContractVisibility(node) => {
             Some((SurfaceRule::MissingConstructionContractVisibility, *node))
+        }
+        SurfaceError::MissingInterfaceContractVisibility(node) => {
+            Some((SurfaceRule::MissingInterfaceContractVisibility, *node))
         }
         SurfaceError::UnknownTargetGate(node) => Some((SurfaceRule::UnknownTargetGate, *node)),
         SurfaceError::Topology(_)
@@ -195,6 +206,43 @@ mod tests {
         );
 
         collect_declaration_surface(&input).unwrap();
+    }
+
+    #[test]
+    fn root_interface_contract_methods_require_public_visibility() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "pub interface Source { default method self.count(): usize {} }\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let input = compile_unit(
+            &sources,
+            &manifest,
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            Vec::new(),
+        );
+
+        let error = collect_declaration_surface(&input).unwrap_err();
+        let diagnostic = SurfaceDiagnostic::project(error, &input).unwrap();
+
+        assert_eq!(
+            diagnostic.rule(),
+            SurfaceRule::MissingInterfaceContractVisibility
+        );
+        assert_eq!(diagnostic.source().code(), "E0234");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert_eq!(
+            diagnostic.source().primary().span().range().start().get(),
+            23
+        );
     }
 
     #[test]

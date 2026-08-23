@@ -12,37 +12,21 @@
 //! byte-slice view construction, and release are implemented in Nocter code
 //! through restricted runtime pointer primitives.
 
-use std/iter.{Iterator, ViewIter}
-use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
-use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
-use std/ptr.copy_str_to_ptr
-use std/ptr.str_from_raw_parts
-use std/ptr.store_u8_to_ptr
+use std/iter.Iterator
+use std/mem.TryAllocator
 use std/vec.Vec
-include ./search.nct
 include ./views.nct
+include ./storage.nct
 
 pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 
-pub struct String {
-    storage: RawBuffer
-    len: usize
-}
+pub struct String
 
 /// Allocation-free iterator over separator-delimited borrowed components.
-pub struct SplitIter {
-    text: &str
-    separator: &str
-    next_start: usize
-    finished: bool
-}
+pub struct SplitIter
 
 /// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
-pub struct LinesIter {
-    text: &str
-    next_start: usize
-    finished: bool
-}
+pub struct LinesIter
 
 /// Reconstructs a previously validated UTF-8 subview.
 pub(/) primitive str_subview_unchecked(
@@ -82,11 +66,13 @@ construct LinesIter {
 
 conform Iterator for SplitIter {
     type Item = &str
+
     method &+self.next(): &str?
 }
 
 conform Iterator for LinesIter {
     type Item = &str
+
     method &+self.next(): &str?
 }
 
@@ -95,283 +81,72 @@ pub(/) func lines(text: &str): LinesIter
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.
-    pub default literal ""(text: &str): Self {
-        return String.copy(text)
-    }
+    pub default literal ""(text: &str): Self
 
-    pub func empty(): Self {
-        return String {
-            storage: empty_page_buffer(1),
-            len: 0,
-        }
-    }
+    pub func empty(): Self
 
-    pub func with_capacity(requested_capacity: usize): Self {
-        var allocator = current_allocator()
-        return String {
-            storage: alloc(&+allocator, requested_capacity, 1),
-            len: 0,
-        }
-    }
+    pub func with_capacity(requested_capacity: usize): Self
 
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
-    ): Self! {
-        return String {
-            storage: try_alloc(allocator, requested_capacity, 1)?,
-            len: 0,
-        }
-    }
+    ): Self!
 
-    pub func copy(value: &str): Self {
-        let value_len: usize = bytes_from_str(value).len()
-        var result = String.with_capacity(value_len)
-        copy_str_to_ptr(result.storage.ptr, 0, value)
-        result.len = value_len
-        return move result
-    }
+    pub func copy(value: &str): Self
 
-    pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
-        let value_len: usize = bytes_from_str(value).len()
-        var result = String.try_with_capacity(allocator, value_len)?
-        copy_str_to_ptr(result.storage.ptr, 0, value)
-        result.len = value_len
-        return move result
-    }
+    pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator
 
-    pub func from_utf8(candidate: &[u8]): Self! {
-        if !is_valid_utf8(candidate) { return invalid_utf8() }
-        var result = String.with_capacity(candidate.len())
-        var offset: usize = 0
-        while offset < candidate.len() {
-            store_u8_to_ptr(result.storage.ptr, offset, candidate[offset])
-            offset = offset + 1
-        }
-        result.len = candidate.len()
-        return move result
-    }
+    pub func from_utf8(candidate: &[u8]): Self!
 
     pub func try_from_utf8(
         allocator: &+TryAllocator,
         candidate: &[u8],
-    ): Self! from allocator {
-        if !is_valid_utf8(candidate) { return invalid_utf8() }
-        var result = String.try_with_capacity(allocator, candidate.len())?
-        var offset: usize = 0
-        while offset < candidate.len() {
-            store_u8_to_ptr(result.storage.ptr, offset, candidate[offset])
-            offset = offset + 1
-        }
-        result.len = candidate.len()
-        return move result
-    }
+    ): Self! from allocator
 }
 
-func view(text: &String): &str {
-    return str_from_raw_parts(text.storage.ptr, text.len)
-}
-
-func capacity(text: &String): usize {
-    let text_capacity: usize = text.storage.len
-    return text_capacity
-}
-
-func try_reserve(text: &+String, additional: usize): void! {
-    let text_len: usize = text.len
-    if additional > 18446744073709551615 - text_len {
-        return capacity_overflow()
-    }
-
-    let required_capacity: usize = text_len + additional
-    if required_capacity <= text.storage.len {
-        return
-    }
-
-    try_grow_owned(&+text.storage, required_capacity)?
-    return
-}
-
-func reserve(text: &+String, additional: usize): void {
-    try_reserve(text, additional) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
-
-func clear(text: &+String): void {
-    text.len = 0
-    return
-}
-
-pub(/) func bytes(value: &str): &[u8] {
-    return bytes_from_str(value)
-}
+pub(/) func bytes(value: &str): &[u8]
 
 /// Returns whether `candidate` is a well-formed UTF-8 byte sequence.
-pub func is_valid_utf8(candidate: &[u8]): bool {
-    var offset: usize = 0
-    while offset < candidate.len() {
-        let leading: u8 = candidate[offset]
-        if leading < 128 {
-            offset = offset + 1
-        } else if leading >= 194 && leading <= 223 {
-            if offset + 1 >= candidate.len() || !is_continuation(candidate[offset + 1]) {
-                return false
-            }
-            offset = offset + 2
-        } else if leading >= 224 && leading <= 239 {
-            if offset + 2 >= candidate.len() {
-                return false
-            }
-            let second: u8 = candidate[offset + 1]
-            if !is_continuation(second) || !is_continuation(candidate[offset + 2]) {
-                return false
-            }
-            if leading == 224 && second < 160 { return false }
-            if leading == 237 && second >= 160 { return false }
-            offset = offset + 3
-        } else if leading >= 240 && leading <= 244 {
-            if offset + 3 >= candidate.len() {
-                return false
-            }
-            let second: u8 = candidate[offset + 1]
-            if !is_continuation(second) || !is_continuation(candidate[offset + 2]) || !is_continuation(candidate[offset + 3]) {
-                return false
-            }
-            if leading == 240 && second < 144 { return false }
-            if leading == 244 && second >= 144 { return false }
-            offset = offset + 4
-        } else {
-            return false
-        }
-    }
-    return true
-}
-
-func is_continuation(byte: u8): bool {
-    return byte >= 128 && byte <= 191
-}
+pub func is_valid_utf8(candidate: &[u8]): bool
 
 /// Returns the first byte offset of `needle` at or after `start`.
-pub(/) func find_from(value: &str, needle: &str, start: usize): usize? {
-    return find_from_bytes(value, needle, start)?
-}
+pub(/) func find_from(value: &str, needle: &str, start: usize): usize?
 
-pub(/) func find(value: &str, needle: &str): usize? {
-    return find_from(value, needle, 0)?
-}
+pub(/) func find(value: &str, needle: &str): usize?
 
-pub(/) func contains(value: &str, needle: &str): bool {
-    let offset: usize = find(value, needle) otherwise { return false }
-    return offset <= value.len()
-}
+pub(/) func contains(value: &str, needle: &str): bool
 
-pub(/) func starts_with(value: &str, prefix: &str): bool {
-    let offset: usize = find_from(value, prefix, 0) otherwise { return false }
-    return offset == 0
-}
+pub(/) func starts_with(value: &str, prefix: &str): bool
 
-pub(/) func ends_with(value: &str, suffix: &str): bool {
-    if suffix.len() > value.len() { return false }
-    let offset: usize = find_from(value, suffix, value.len() - suffix.len()) otherwise { return false }
-    return offset == value.len() - suffix.len()
-}
+pub(/) func ends_with(value: &str, suffix: &str): bool
 
 /// Splits UTF-8 text into independently owned strings.
 ///
 /// An empty separator is rejected because character-boundary splitting belongs
 /// to a future scalar-value iterator rather than byte-oriented search.
-pub(/) func split(value: &str, separator: &str): Vec<String>! {
-    if separator.len() == 0 {
-        return empty_separator()
-    }
-    var result: Vec<String> = Vec.empty()
-    var part_start: usize = 0
-    while part_start <= value.len() {
-        let separator_offset: usize = find_from(value, separator, part_start) otherwise {
-            result.push(copy_range(value, part_start, value.len()))
-            break
-        }
-        result.push(copy_range(value, part_start, separator_offset))
-        part_start = separator_offset + separator.len()
-    }
-    return move result
-}
+pub(/) func split(value: &str, separator: &str): Vec<String>!
 
-func copy_range(value: &str, start: usize, end: usize): String {
-    let source: &[u8] = bytes_from_str(value)
-    var result = String.with_capacity(end - start)
-    var offset: usize = start
-    while offset < end {
-        store_u8_to_ptr(result.storage.ptr, result.len, source[offset])
-        result.len = result.len + 1
-        offset = offset + 1
-    }
-    return move result
-}
+pub func invalid_utf8(): error
 
-pub func invalid_utf8(): error {
-    return error.new("std.string.invalid_utf8", "invalid UTF-8")
-}
+pub func empty_separator(): error
 
-pub func empty_separator(): error {
-    return error.new("std.string.empty_separator", "string separator must not be empty")
-}
+pub(/) func try_push_str(text: &+String, value: &str): void!
 
-pub(/) func try_push_str(text: &+String, value: &str): void! {
-    let value_len: usize = value.len()
-    let old_len: usize = text.len
-    try_reserve(text, value_len)?
-    copy_str_to_ptr(text.storage.ptr, old_len, value)
-    text.len = old_len + value_len
-    return
-}
-
-func push_str(text: &+String, value: &str): void {
-    try_push_str(text, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
-
-pub func capacity_overflow(): error {
-    return error.new("std.string.capacity_overflow", "string capacity overflow")
-}
+pub func capacity_overflow(): error
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub coerce &self as &str {
-        return view(self)
-    }
+    pub coerce &self as &str
 
-    pub method &self.capacity(): usize {
-        return capacity(self)
-    }
+    pub method &self.capacity(): usize
 
-    pub method &+self.reserve(additional: usize): void {
-        reserve(self, additional)
-        return
-    }
+    pub method &+self.reserve(additional: usize): void
 
-    pub method &+self.try_reserve(additional: usize): void! {
-        try_reserve(self, additional)?
-        return
-    }
+    pub method &+self.try_reserve(additional: usize): void!
 
-    pub method &+self.clear(): void {
-        clear(self)
-        return
-    }
+    pub method &+self.clear(): void
 
-    pub method &+self.push_str(value: &str): void {
-        push_str(self, value)
-        return
-    }
+    pub method &+self.push_str(value: &str): void
 
-    pub method &+self.try_push_str(value: &str): void! {
-        try_push_str(self, value)?
-        return
-    }
-
+    pub method &+self.try_push_str(value: &str): void!
 }

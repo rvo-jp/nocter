@@ -75,6 +75,52 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
 }
 
 #[test]
+fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
+    let tree = TempTree::new();
+    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source(
+        "std/index.nct",
+        "include ./defaults.nct\n\npub interface Iterator {\n    pub default method self.count(): usize\n}\n",
+    );
+    tree.source(
+        "std/defaults.nct",
+        "include ./index.nct\n\ninterface Iterator {\n    default method self.count(): usize { return 0 }\n}\n",
+    );
+    let identity = PackageIdentity::new("toolchain:std");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"))
+        .with_standard_dependency(identity.clone());
+    let role = StandardRoleLocator::new(
+        StandardDeclarationRole::IteratorInterface,
+        ModuleIdentity::new(identity.clone(), Vec::<&str>::new()),
+        NodeKind::InterfaceDeclaration,
+        "Iterator",
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![standard]),
+        vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+        ToolchainRequest::new(
+            identity.clone(),
+            ModuleIdentity::new(identity, Vec::<&str>::new()),
+            Vec::new(),
+            vec![role],
+        ),
+    ))
+    .unwrap();
+
+    assert_eq!(
+        unit.compile_input()
+            .unwrap()
+            .toolchain()
+            .unwrap()
+            .standard_roles()
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn one_open_document_overlay_flows_from_package_data_through_module_discovery() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "#name: \"disk-name\"\n");
@@ -467,6 +513,22 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         })
         .collect();
     assert!(syntax_errors.is_empty(), "{syntax_errors:#?}");
+    let rooted_bodies = unit
+        .modules()
+        .iter()
+        .flat_map(crate::DiscoveredModule::sources)
+        .filter(|source| source.kind() == ModuleSourceKind::Root)
+        .filter(|source| {
+            unit.syntax_trees()[source.syntax_index()]
+                .nodes()
+                .any(|(_, node)| node.kind() == NodeKind::Block)
+        })
+        .map(crate::DiscoveredSource::canonical_path)
+        .collect::<Vec<_>>();
+    assert!(
+        rooted_bodies.is_empty(),
+        "standard module roots must remain contract-only: {rooted_bodies:#?}"
+    );
     let input = unit.compile_input().unwrap();
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);

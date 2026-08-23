@@ -145,8 +145,9 @@
             </div>
             <div class="markdown-body">
                 <h1>into_iter.nct</h1><pre><code class="language-nocter"><span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> take_raw_buffer<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>addr<span class="token-operator">,</span> drop_value_at_ptr<span class="token-operator">,</span> from_addr<span class="token-operator">,</span> pointee_size<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
 
 <span class="token-comment">//! Owning iteration for Vec storage.</span>
@@ -161,22 +162,10 @@
     storage<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
     item_count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> owned_storage_address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> storage_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>len
-    <span class="token-keyword">let</span> storage_align<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>align
-    <span class="token-keyword">let</span> allocator_state<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>allocator_state
-    <span class="token-keyword">let</span> allocator_kind<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>allocator_kind
-    storage<span class="token-operator">.</span>ptr <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
-    storage<span class="token-operator">.</span>len <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">let</span> owned_storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">=</span> <span class="token-function">take_raw_buffer</span><span class="token-operator">(</span>storage<span class="token-operator">)</span>
     <span class="token-keyword">return</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-function">addr</span><span class="token-operator">(</span>pointer<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>owned_storage_address<span class="token-operator">)</span><span class="token-operator">,</span>
-            len<span class="token-operator">:</span> storage_len<span class="token-operator">,</span>
-            align<span class="token-operator">:</span> storage_align<span class="token-operator">,</span>
-            allocator_state<span class="token-operator">:</span> allocator_state<span class="token-operator">,</span>
-            allocator_kind<span class="token-operator">:</span> allocator_kind<span class="token-operator">,</span>
-        <span class="token-operator">}</span><span class="token-operator">,</span>
+        storage<span class="token-operator">:</span> <span class="token-keyword">move</span> owned_storage<span class="token-operator">,</span>
         next_index<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
         end_index<span class="token-operator">:</span> item_count<span class="token-operator">,</span>
     <span class="token-operator">}</span>

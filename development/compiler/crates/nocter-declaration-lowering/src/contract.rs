@@ -93,6 +93,7 @@ pub enum DeclarationContractError {
         definition: NodeId,
     },
     UncontractedConformance(NodeId),
+    UncontractedInterfaceDefault(NodeId),
     InconsistentSurface(NodeId),
 }
 
@@ -145,6 +146,10 @@ impl fmt::Display for DeclarationContractError {
             Self::UncontractedConformance(node) => write!(
                 formatter,
                 "implementation conformance {node:?} has no public index contract"
+            ),
+            Self::UncontractedInterfaceDefault(node) => write!(
+                formatter,
+                "interface default implementation {node:?} has no public index contract"
             ),
             Self::InconsistentSurface(node) => {
                 write!(
@@ -210,7 +215,7 @@ fn collect_body_candidates(
     let mut loose_bodies: BTreeMap<LooseCallableKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
     for (index, declaration) in surface.declarations().iter().copied().enumerate() {
         let id = SurfaceDeclarationId::from_index(index);
-        if !is_separable_callable(declaration.kind())
+        if !is_separable_callable(declaration)
             || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
         {
             continue;
@@ -239,7 +244,7 @@ fn join_contracts(
     let mut container_targets: BTreeMap<SurfaceDeclarationId, BTreeSet<SurfaceDeclarationId>> =
         BTreeMap::new();
     for (index, contract) in surface.declarations().iter().copied().enumerate() {
-        if !is_separable_callable(contract.kind()) || has_body(surface, contract)? {
+        if !is_separable_callable(contract) || has_body(surface, contract)? {
             continue;
         }
         if !is_eligible_contract(surface, contract)? {
@@ -290,6 +295,7 @@ fn join_contracts(
                     });
                 }
                 representatives[body.index()] = contract_id;
+                join_nested_contract_declarations(surface, contract_id, *body, representatives)?;
                 if let (Some(body_owner), Some(contract_owner)) = (
                     surface.declarations()[body.index()].owner(),
                     contract.owner(),
@@ -312,6 +318,49 @@ fn join_contracts(
         used: used_bodies,
         container_targets,
     })
+}
+
+fn join_nested_contract_declarations(
+    surface: &DeclarationSurface<'_>,
+    contract: SurfaceDeclarationId,
+    body: SurfaceDeclarationId,
+    representatives: &mut [SurfaceDeclarationId],
+) -> Result<(), DeclarationContractError> {
+    let contract_nested = nested_contract_declarations(surface, contract);
+    let body_nested = nested_contract_declarations(surface, body);
+    if contract_nested.len() != body_nested.len() {
+        return Err(DeclarationContractError::InconsistentSurface(
+            surface.declarations()[body.index()].node(),
+        ));
+    }
+    for (contract_nested, body_nested) in contract_nested.into_iter().zip(body_nested) {
+        let contract_declaration = surface.declarations()[contract_nested.index()];
+        let body_declaration = surface.declarations()[body_nested.index()];
+        if contract_declaration.kind() != body_declaration.kind()
+            || fingerprint(surface, contract_declaration)?
+                != fingerprint(surface, body_declaration)?
+        {
+            return Err(DeclarationContractError::InconsistentSurface(
+                body_declaration.node(),
+            ));
+        }
+        representatives[body_nested.index()] = contract_nested;
+        join_nested_contract_declarations(surface, contract_nested, body_nested, representatives)?;
+    }
+    Ok(())
+}
+
+fn nested_contract_declarations(
+    surface: &DeclarationSurface<'_>,
+    owner: SurfaceDeclarationId,
+) -> Vec<SurfaceDeclarationId> {
+    surface
+        .declarations()
+        .iter()
+        .enumerate()
+        .filter(|(_, declaration)| declaration.owner() == Some(owner))
+        .map(|(index, _)| SurfaceDeclarationId::from_index(index))
+        .collect()
 }
 
 pub(super) fn reciprocal_include(
@@ -347,6 +396,7 @@ fn join_implementation_containers(
                 ))?;
     }
     validate_implementation_conformances(surface, used_bodies, representatives)?;
+    validate_implementation_interface_defaults(surface, used_bodies, representatives)?;
     Ok(())
 }
 
@@ -380,6 +430,48 @@ fn validate_implementation_conformances(
             .map(|(_, child)| child);
         if let Some(child) = uncontracted {
             return Err(DeclarationContractError::UncontractedConformance(
+                child.node(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_implementation_interface_defaults(
+    surface: &DeclarationSurface<'_>,
+    used_bodies: &BTreeSet<SurfaceDeclarationId>,
+    representatives: &[SurfaceDeclarationId],
+) -> Result<(), DeclarationContractError> {
+    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
+        if declaration.kind() != SurfaceDeclarationKind::Interface
+            || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
+        {
+            continue;
+        }
+        let id = SurfaceDeclarationId::from_index(index);
+        let defaults = surface
+            .declarations()
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, child)| {
+                child.owner() == Some(id) && child.kind() == SurfaceDeclarationKind::InterfaceMethod
+            })
+            .map(|(child, declaration)| (SurfaceDeclarationId::from_index(child), declaration))
+            .collect::<Vec<_>>();
+        if defaults.is_empty() {
+            continue;
+        }
+        if representatives[id.index()] == id {
+            return Err(DeclarationContractError::UncontractedInterfaceDefault(
+                declaration.node(),
+            ));
+        }
+        if let Some((_, child)) = defaults
+            .into_iter()
+            .find(|(child, _)| !used_bodies.contains(child))
+        {
+            return Err(DeclarationContractError::UncontractedInterfaceDefault(
                 child.node(),
             ));
         }
@@ -498,14 +590,14 @@ fn callable_label(
             .and_then(|index| tokens.get(index + 1))
             .cloned()
             .map(CallableLabel::Named),
-        SurfaceDeclarationKind::InherentMethod | SurfaceDeclarationKind::ConformanceMethod => {
-            tokens
-                .iter()
-                .position(|token| token.as_ref() == ".")
-                .and_then(|index| tokens.get(index + 1))
-                .cloned()
-                .map(CallableLabel::Named)
-        }
+        SurfaceDeclarationKind::InterfaceMethod
+        | SurfaceDeclarationKind::InherentMethod
+        | SurfaceDeclarationKind::ConformanceMethod => tokens
+            .iter()
+            .position(|token| token.as_ref() == ".")
+            .and_then(|index| tokens.get(index + 1))
+            .cloned()
+            .map(CallableLabel::Named),
         SurfaceDeclarationKind::Literal => {
             if tokens.iter().any(|token| token.as_ref() == "[") {
                 Some(CallableLabel::LiteralSequence)
@@ -576,9 +668,9 @@ fn has_body(
     Ok(false)
 }
 
-const fn is_separable_callable(kind: SurfaceDeclarationKind) -> bool {
+fn is_separable_callable(declaration: SurfaceDeclaration) -> bool {
     matches!(
-        kind,
+        declaration.kind(),
         SurfaceDeclarationKind::Function
             | SurfaceDeclarationKind::InherentMethod
             | SurfaceDeclarationKind::ConstructionFunction
@@ -589,7 +681,8 @@ const fn is_separable_callable(kind: SurfaceDeclarationKind) -> bool {
             | SurfaceDeclarationKind::Index
             | SurfaceDeclarationKind::Expansion
             | SurfaceDeclarationKind::ConformanceMethod
-    )
+    ) || declaration.kind() == SurfaceDeclarationKind::InterfaceMethod
+        && declaration.is_interface_default()
 }
 
 fn is_eligible_contract(

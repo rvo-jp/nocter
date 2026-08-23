@@ -145,6 +145,7 @@
             </div>
             <div class="markdown-body">
                 <h1>mutable.nct</h1><pre><code class="language-nocter"><span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>adapters<span class="token-operator">.</span>nct
 
 <span class="token-comment">//! Allocation-free mutable iteration over contiguous views.</span>
 
@@ -152,6 +153,12 @@
     <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         view<span class="token-operator">:</span> view<span class="token-operator">,</span>
         next_index<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    default <span class="token-keyword">func</span> <span class="token-function">from_view</span><span class="token-operator">(</span>view<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">mutable_from_view</span><span class="token-operator">(</span>view<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 

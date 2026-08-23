@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-20">
+    <meta property="article:modified_time" content="2026-08-23">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/path/index.nct - Nocter">
@@ -149,62 +149,26 @@
 <span class="token-comment">//! Darwin permits non-UTF-8 path bytes. This type deliberately promises UTF-8</span>
 <span class="token-comment">//! instead of misrepresenting every platform path as text.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">String</span><span class="token-operator">,</span> bytes<span class="token-operator">}</span>
+<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>utf8_path<span class="token-operator">.</span>nct
 
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    text<span class="token-operator">:</span> <span class="token-type">String</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Utf8Path</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span> text<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span>value<span class="token-operator">)</span> <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the validated UTF-8 path text without transferring ownership.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">is_absolute</span><span class="token-operator">(</span>self<span class="token-operator">)</span> <span class="token-operator">}</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">join</span><span class="token-operator">(</span>child<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Utf8Path</span><span class="token-operator">!</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">join</span><span class="token-operator">(</span>self<span class="token-operator">,</span> child<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">join</span><span class="token-operator">(</span>child<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Utf8Path</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">is_absolute</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Utf8Path</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>path<span class="token-operator">.</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-    <span class="token-keyword">let</span> raw<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
-    <span class="token-keyword">return</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> raw<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
-<span class="token-keyword">func</span> <span class="token-function">join</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Utf8Path</span><span class="token-operator">,</span> child<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Utf8Path</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-function">validate</span><span class="token-operator">(</span>child<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> child_bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>child<span class="token-operator">)</span>
-    <span class="token-keyword">if</span> child<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> child_bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>child<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">.</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span>
-    <span class="token-keyword">if</span> result<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> <span class="token-operator">!</span>result<span class="token-operator">.</span><span class="token-function">ends_with</span><span class="token-operator">(</span><span class="token-string">"/"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        result<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">"/"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    result<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span>child<span class="token-operator">)</span>
-    <span class="token-keyword">return</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span> text<span class="token-operator">:</span> <span class="token-keyword">move</span> result <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
-    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> raw<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">invalid_path</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-        offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_path</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.path.invalid_path"</span><span class="token-operator">,</span> <span class="token-string">"UTF-8 path contains a NUL byte"</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_path</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 </code></pre>
             </div>
         </main>

@@ -163,6 +163,7 @@ pub struct SurfaceDeclaration {
     entity_origin: SyntaxOrigin,
     visibility: Option<NodeId>,
     target_gate: Option<NodeId>,
+    interface_default: bool,
 }
 
 impl SurfaceDeclaration {
@@ -205,6 +206,12 @@ impl SurfaceDeclaration {
     #[must_use]
     pub const fn target_gate(self) -> Option<NodeId> {
         self.target_gate
+    }
+
+    /// Returns whether an interface method explicitly declares reusable default behavior.
+    #[must_use]
+    pub const fn is_interface_default(self) -> bool {
+        self.interface_default
     }
 }
 
@@ -313,6 +320,7 @@ pub enum SurfaceError {
     ImplementationVisibility(NodeId),
     InvalidNominalContract(NodeId),
     MissingConstructionContractVisibility(NodeId),
+    MissingInterfaceContractVisibility(NodeId),
     InconsistentIncludeResolution(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
@@ -345,6 +353,10 @@ impl fmt::Display for SurfaceError {
             Self::MissingConstructionContractVisibility(node) => write!(
                 formatter,
                 "bodyless public construction contract member {node:?} requires explicit visibility"
+            ),
+            Self::MissingInterfaceContractVisibility(node) => write!(
+                formatter,
+                "interface contract member {node:?} requires explicit visibility"
             ),
             Self::InconsistentIncludeResolution(node) => {
                 write!(
@@ -647,6 +659,8 @@ fn append_declaration(
             entity_origin,
             visibility: direct_child(tree, node, NodeKind::Visibility),
             target_gate,
+            interface_default: kind == SurfaceDeclarationKind::InterfaceMethod
+                && direct_child(tree, node, NodeKind::InterfaceDefaultModifier).is_some(),
         });
         for nested in nested_declarations(tree, node)?.into_iter().rev() {
             pending.push((nested, Some(id), None));
@@ -705,20 +719,30 @@ fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), Surf
         }
         return Ok(());
     }
-    if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind)
-        != Some(NodeKind::ConstructDeclaration)
-    {
-        return Ok(());
-    }
-    for member in child_nodes(tree, declaration) {
-        if matches!(
-            tree.node(member).map(nocter_syntax::SyntaxNode::kind),
-            Some(NodeKind::ConstructionFunction | NodeKind::LiteralDeclaration)
-        ) && !contains_child_kind(tree, member, NodeKind::Block)
-            && direct_child(tree, member, NodeKind::Visibility).is_none()
-        {
-            return Err(SurfaceError::MissingConstructionContractVisibility(member));
+    match tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) {
+        Some(NodeKind::ConstructDeclaration) => {
+            for member in child_nodes(tree, declaration) {
+                if matches!(
+                    tree.node(member).map(nocter_syntax::SyntaxNode::kind),
+                    Some(NodeKind::ConstructionFunction | NodeKind::LiteralDeclaration)
+                ) && !contains_child_kind(tree, member, NodeKind::Block)
+                    && direct_child(tree, member, NodeKind::Visibility).is_none()
+                {
+                    return Err(SurfaceError::MissingConstructionContractVisibility(member));
+                }
+            }
         }
+        Some(NodeKind::InterfaceDeclaration) => {
+            for member in child_nodes(tree, declaration) {
+                if tree.node(member).map(nocter_syntax::SyntaxNode::kind)
+                    == Some(NodeKind::InterfaceMethod)
+                    && direct_child(tree, member, NodeKind::Visibility).is_none()
+                {
+                    return Err(SurfaceError::MissingInterfaceContractVisibility(member));
+                }
+            }
+        }
+        Some(_) | None => {}
     }
     Ok(())
 }

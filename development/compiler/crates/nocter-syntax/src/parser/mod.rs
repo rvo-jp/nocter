@@ -137,6 +137,16 @@ impl<'source> Parser<'source> {
         self.at(TokenKind::Identifier) && self.current_text() == text
     }
 
+    fn nth_identifier_text(&self, distance: usize, text: &str) -> bool {
+        if self.nth_kind(distance) != TokenKind::Identifier {
+            return false;
+        }
+        self.tokens
+            .get(self.cursor + distance)
+            .and_then(|token| self.source.text_at(token.span().range()))
+            == Some(text)
+    }
+
     fn nth_kind(&self, distance: usize) -> TokenKind {
         assert!(
             self.split.is_none(),

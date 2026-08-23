@@ -3,18 +3,9 @@
 //! These are ordinary fallible functions. Assertion failure therefore uses the same Error
 //! propagation, process cleanup, and reporting path as application failures.
 
+include ./assertions.nct
 
-pub func assert(condition: bool): void! {
-    if !condition {
-        return error.new("std.testing.assertion_failed", "assertion failed")
-    }
-    return
-}
+pub func assert(condition: bool): void!
 
 /// Fails unless two borrowed values satisfy their structural equality requirement.
-pub func assert_eq<T>(actual: &T, expected: &T): void! where (&T == &T): bool {
-    if actual != expected {
-        return error.new("std.testing.not_equal", "values are not equal")
-    }
-    return
-}
+pub func assert_eq<T>(actual: &T, expected: &T): void! where (&T == &T): bool

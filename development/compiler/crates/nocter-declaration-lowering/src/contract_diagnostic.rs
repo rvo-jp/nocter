@@ -16,6 +16,7 @@ pub enum DeclarationContractRule {
     DuplicateBody,
     InvalidBodyOmission,
     UncontractedConformance,
+    UncontractedInterfaceDefault,
     MissingRepresentation,
     MismatchedRepresentation,
     DuplicateRepresentation,
@@ -23,12 +24,13 @@ pub enum DeclarationContractRule {
 }
 
 impl DeclarationContractRule {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::MissingBody,
         Self::MismatchedBody,
         Self::DuplicateBody,
         Self::InvalidBodyOmission,
         Self::UncontractedConformance,
+        Self::UncontractedInterfaceDefault,
         Self::MissingRepresentation,
         Self::MismatchedRepresentation,
         Self::DuplicateRepresentation,
@@ -43,6 +45,7 @@ impl DeclarationContractRule {
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
             Self::UncontractedConformance => "E0254",
+            Self::UncontractedInterfaceDefault => "E0259",
             Self::MissingRepresentation => "E0255",
             Self::MismatchedRepresentation => "E0256",
             Self::DuplicateRepresentation => "E0257",
@@ -63,6 +66,9 @@ impl DeclarationContractRule {
             }
             Self::UncontractedConformance => {
                 "implementation conformance has no public index contract"
+            }
+            Self::UncontractedInterfaceDefault => {
+                "interface default implementation has no public index contract"
             }
             Self::MissingRepresentation => {
                 "public nominal contract has no private representation definition"
@@ -93,6 +99,9 @@ impl DeclarationContractRule {
             Self::UncontractedConformance => {
                 "declare the conformance contract and every implemented method in index.nct"
             }
+            Self::UncontractedInterfaceDefault => {
+                "declare the default method contract in the reciprocally included index.nct interface"
+            }
             Self::MissingRepresentation => {
                 "add one reciprocal directly included private representation"
             }
@@ -117,6 +126,7 @@ impl DeclarationContractRule {
             Self::MissingBody
             | Self::InvalidBodyOmission
             | Self::UncontractedConformance
+            | Self::UncontractedInterfaceDefault
             | Self::MissingRepresentation => None,
         }
     }
@@ -198,6 +208,9 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
         DeclarationContractError::UncontractedConformance(_) => {
             Some(DeclarationContractRule::UncontractedConformance)
         }
+        DeclarationContractError::UncontractedInterfaceDefault(_) => {
+            Some(DeclarationContractRule::UncontractedInterfaceDefault)
+        }
         DeclarationContractError::MissingRepresentation(_) => {
             Some(DeclarationContractRule::MissingRepresentation)
         }
@@ -219,6 +232,7 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
         DeclarationContractError::MissingBody(node)
         | DeclarationContractError::InvalidBodyOmission(node)
         | DeclarationContractError::UncontractedConformance(node)
+        | DeclarationContractError::UncontractedInterfaceDefault(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
         DeclarationContractError::MismatchedBody { body, .. }
@@ -239,6 +253,7 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
         DeclarationContractError::MissingBody(_)
         | DeclarationContractError::InvalidBodyOmission(_)
         | DeclarationContractError::UncontractedConformance(_)
+        | DeclarationContractError::UncontractedInterfaceDefault(_)
         | DeclarationContractError::MissingRepresentation(_)
         | DeclarationContractError::InconsistentSurface(_) => None,
     }

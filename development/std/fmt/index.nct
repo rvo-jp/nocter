@@ -3,10 +3,9 @@
 //! Normal operations abort on allocation failure. Explicit `try_*` operations
 //! return allocation errors. Both surfaces share the same formatting core.
 
-use std/mem.allocation_abort_raw
-use std/ptr.{from_ref, slice_from_raw_parts_value}
-use std/string.{String, try_push_str}
+use std/string.String
 include ./conformances.nct
+include ./formatting.nct
 
 /// Appends the ordinary textual representation of a value.
 pub interface Format {
@@ -65,273 +64,54 @@ conform Format for usize {
     method &self.format_into(output: &+String): void
 }
 
-pub func try_append_str(out: &+String, value: &str): void! {
-    try_push_str(out, value)?
-    return
-}
+pub func try_append_str(out: &+String, value: &str): void!
 
-pub(/) func append_str(out: &+String, value: &str): void {
-    try_append_str(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_str(out: &+String, value: &str): void
 
-pub func try_append_string(out: &+String, value: &String): void! {
-    try_append_str(out, value as &str)?
-    return
-}
+pub func try_append_string(out: &+String, value: &String): void!
 
-pub(/) func append_string(out: &+String, value: &String): void {
-    try_append_string(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_string(out: &+String, value: &String): void
 
-pub func try_append_i32(out: &+String, value: i32): void! {
-    try_append_i64(out, value as i64)?
-    return
-}
+pub func try_append_i32(out: &+String, value: i32): void!
 
-pub(/) func append_i32(out: &+String, value: i32): void {
-    try_append_i32(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_i32(out: &+String, value: i32): void
 
-pub func try_append_i8(out: &+String, value: i8): void! {
-    try_append_i64(out, value as i64)?
-    return
-}
+pub func try_append_i8(out: &+String, value: i8): void!
 
-pub(/) func append_i8(out: &+String, value: i8): void {
-    try_append_i8(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_i8(out: &+String, value: i8): void
 
-pub func try_append_i16(out: &+String, value: i16): void! {
-    try_append_i64(out, value as i64)?
-    return
-}
+pub func try_append_i16(out: &+String, value: i16): void!
 
-pub(/) func append_i16(out: &+String, value: i16): void {
-    try_append_i16(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_i16(out: &+String, value: i16): void
 
-pub func try_append_i64(out: &+String, value: i64): void! {
-    if value == -9223372036854775808 {
-        try_append_str(out, "-9223372036854775808")?
-        return
-    }
-    if value < 0 {
-        try_append_str(out, "-")?
-        try_append_i64_digits(out, 0 - value)?
-        return
-    }
-    try_append_i64_digits(out, value)?
-    return
-}
+pub func try_append_i64(out: &+String, value: i64): void!
 
-pub(/) func append_i64(out: &+String, value: i64): void {
-    try_append_i64(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_i64(out: &+String, value: i64): void
 
-pub func try_append_isize(out: &+String, value: isize): void! {
-    try_append_i64(out, value as i64)?
-    return
-}
+pub func try_append_isize(out: &+String, value: isize): void!
 
-pub(/) func append_isize(out: &+String, value: isize): void {
-    try_append_isize(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_isize(out: &+String, value: isize): void
 
-pub func try_append_u8(out: &+String, value: u8): void! {
-    try_append_u64_digits(out, value as u64)?
-    return
-}
+pub func try_append_u8(out: &+String, value: u8): void!
 
-pub(/) func append_u8(out: &+String, value: u8): void {
-    try_append_u8(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_u8(out: &+String, value: u8): void
 
-pub func try_append_u16(out: &+String, value: u16): void! {
-    try_append_u64_digits(out, value as u64)?
-    return
-}
+pub func try_append_u16(out: &+String, value: u16): void!
 
-pub(/) func append_u16(out: &+String, value: u16): void {
-    try_append_u16(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_u16(out: &+String, value: u16): void
 
-pub func try_append_u32(out: &+String, value: u32): void! {
-    try_append_u64_digits(out, value as u64)?
-    return
-}
+pub func try_append_u32(out: &+String, value: u32): void!
 
-pub(/) func append_u32(out: &+String, value: u32): void {
-    try_append_u32(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_u32(out: &+String, value: u32): void
 
-pub func try_append_u64(out: &+String, value: u64): void! {
-    try_append_u64_digits(out, value)?
-    return
-}
+pub func try_append_u64(out: &+String, value: u64): void!
 
-pub(/) func append_u64(out: &+String, value: u64): void {
-    try_append_u64(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_u64(out: &+String, value: u64): void
 
-pub func try_append_usize(out: &+String, value: usize): void! {
-    try_append_u64_digits(out, value as u64)?
-    return
-}
+pub func try_append_usize(out: &+String, value: usize): void!
 
-pub(/) func append_usize(out: &+String, value: usize): void {
-    try_append_usize(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
+pub(/) func append_usize(out: &+String, value: usize): void
 
-pub func try_append_bool(out: &+String, value: bool): void! {
-    if value {
-        try_append_str(out, "true")?
-        return
-    }
-    try_append_str(out, "false")?
-    return
-}
+pub func try_append_bool(out: &+String, value: bool): void!
 
-pub(/) func append_bool(out: &+String, value: bool): void {
-    try_append_bool(out, value) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
-
-func try_append_u64_digits(out: &+String, value: u64): void! {
-    if value >= 10 {
-        try_append_u64_digits(out, value / 10)?
-    }
-    try_append_u64_digit(out, value % 10)?
-    return
-}
-
-func try_append_i64_digits(out: &+String, value: i64): void! {
-    if value >= 10 {
-        try_append_i64_digits(out, value / 10)?
-    }
-    try_append_i64_digit(out, value % 10)?
-    return
-}
-
-func try_append_u64_digit(out: &+String, value: u64): void! {
-    if value == 0 {
-        try_append_str(out, "0")?
-        return
-    }
-    if value == 1 {
-        try_append_str(out, "1")?
-        return
-    }
-    if value == 2 {
-        try_append_str(out, "2")?
-        return
-    }
-    if value == 3 {
-        try_append_str(out, "3")?
-        return
-    }
-    if value == 4 {
-        try_append_str(out, "4")?
-        return
-    }
-    if value == 5 {
-        try_append_str(out, "5")?
-        return
-    }
-    if value == 6 {
-        try_append_str(out, "6")?
-        return
-    }
-    if value == 7 {
-        try_append_str(out, "7")?
-        return
-    }
-    if value == 8 {
-        try_append_str(out, "8")?
-        return
-    }
-    try_append_str(out, "9")?
-    return
-}
-
-func try_append_i64_digit(out: &+String, value: i64): void! {
-    if value == 0 {
-        try_append_str(out, "0")?
-        return
-    }
-    if value == 1 {
-        try_append_str(out, "1")?
-        return
-    }
-    if value == 2 {
-        try_append_str(out, "2")?
-        return
-    }
-    if value == 3 {
-        try_append_str(out, "3")?
-        return
-    }
-    if value == 4 {
-        try_append_str(out, "4")?
-        return
-    }
-    if value == 5 {
-        try_append_str(out, "5")?
-        return
-    }
-    if value == 6 {
-        try_append_str(out, "6")?
-        return
-    }
-    if value == 7 {
-        try_append_str(out, "7")?
-        return
-    }
-    if value == 8 {
-        try_append_str(out, "8")?
-        return
-    }
-    try_append_str(out, "9")?
-    return
-}
-
-func unsupported(): error {
-    return error.new("std.fmt.unsupported", "value cannot be formatted")
-}
+pub(/) func append_bool(out: &+String, value: bool): void

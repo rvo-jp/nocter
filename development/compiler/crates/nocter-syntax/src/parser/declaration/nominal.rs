@@ -68,15 +68,24 @@ fn enum_variant(parser: &mut Parser<'_>) {
 }
 
 fn interface_member(parser: &mut Parser<'_>) {
-    if !parser.at_keyword(Keyword::Pub) {
+    if parser.at_keyword(Keyword::Pub) {
+        match parser.nth_kind(1) {
+            TokenKind::Keyword(Keyword::Type) => associated_type(parser),
+            TokenKind::Keyword(Keyword::Method) => interface_method(parser, false),
+            TokenKind::Identifier
+                if parser.nth_identifier_text(1, "default")
+                    && parser.nth_kind(2) == TokenKind::Keyword(Keyword::Method) =>
+            {
+                interface_method(parser, true);
+            }
+            _ => parser.error_token(ExpectedSyntax::DeclarationMember),
+        }
+    } else if parser.at_identifier_text("default")
+        && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Method)
+    {
+        interface_method(parser, true);
+    } else {
         parser.error_token(ExpectedSyntax::DeclarationMember);
-        return;
-    }
-
-    match parser.nth_kind(1) {
-        TokenKind::Keyword(Keyword::Type) => associated_type(parser),
-        TokenKind::Keyword(Keyword::Method) => interface_method(parser),
-        _ => parser.error_token(ExpectedSyntax::DeclarationMember),
     }
 }
 
@@ -97,10 +106,20 @@ fn associated_type(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::AssociatedTypeDeclaration);
 }
 
-fn interface_method(parser: &mut Parser<'_>) {
+fn interface_method(parser: &mut Parser<'_>, is_default: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    if is_default {
+        let modifier = parser.start();
+        parser.expect_identifier_text("default");
+        parser.complete(modifier, NodeKind::InterfaceDefaultModifier);
+    }
     super::method_signature(parser);
-    block::optional(parser);
+    if is_default {
+        block::optional(parser);
+    } else if parser.at_punctuation(Punctuation::LeftBrace) {
+        parser.missing(ExpectedSyntax::Contextual("default"));
+        block::optional(parser);
+    }
     parser.complete(marker, NodeKind::InterfaceMethod);
 }

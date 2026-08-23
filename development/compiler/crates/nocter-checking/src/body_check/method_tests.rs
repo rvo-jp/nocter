@@ -322,7 +322,7 @@ fn concrete_and_bounded_generic_receivers_select_interface_dispatch() {
 fn conformance_default_method_uses_specialized_interface_contract() {
     let output = check(
         "pub interface DefaultValue<T> {\n\
-             pub method &self.value(): i64 { 0 }\n\
+             pub default method &self.value(): i64 { 0 }\n\
          }\n\
          struct Value {}\n\
          conform DefaultValue<T> for Value where T = i64 {}\n\
@@ -354,7 +354,7 @@ fn conformance_default_method_uses_specialized_interface_contract() {
 fn interface_default_body_proves_its_exact_self_conformance() {
     check(
         "pub interface Readable {\n\
-             pub method &self.read(): i32 { inspect(self) }\n\
+             pub default method &self.read(): i32 { inspect(self) }\n\
          }\n\
          func inspect<R>(value: &R): i32 where R: Readable { 0 }\n",
     )

@@ -1,0 +1,83 @@
+//! Iterator adapter and view representations.
+
+include ./index.nct
+
+struct MapIter<U, I, F> {
+    source: I
+    transform: F
+}
+
+struct FilterIter<I, F> {
+    source: I
+    predicate: F
+}
+
+struct TakeIter<I> {
+    source: I
+    remaining: usize
+}
+
+struct SkipIter<I> {
+    source: I
+    remaining_to_skip: usize
+}
+
+struct ChainIter<L, R> {
+    left: L
+    right: R
+    in_left: bool
+}
+
+struct EnumerateIter<I> {
+    source: I
+    next_index: usize
+}
+
+struct EmptyIter<T> {
+    exhausted: bool
+}
+
+struct OnceIter<T> {
+    item: T?
+    remaining: usize
+}
+
+struct ViewIter<T> {
+    view: &[T]
+    next_index: usize
+}
+
+struct MutableViewIter<T> {
+    view: &+[T]
+    next_index: usize
+}
+
+construct ViewIter<T> {
+    default func from_view(view: &[T]): Self {
+        return ViewIter<T> {
+            view: view,
+            next_index: 0,
+        }
+    }
+}
+
+func remaining<T>(iterator: &ViewIter<T>): usize {
+    return iterator.view.len() - iterator.next_index
+}
+
+conform ExactSizeIterator for ViewIter<T> {
+    method &self.remaining_len(): usize {
+        return remaining(self)
+    }
+}
+
+conform Iterator for ViewIter<T> {
+    method &+self.next(): &T? {
+        if self.next_index >= self.view.len() {
+            return none
+        }
+        let index: usize = self.next_index
+        self.next_index = index + 1
+        return &self.view[index]
+    }
+}

@@ -1,107 +1,32 @@
 //! Decimal integer parsing and text conversion.
 
-use std/fmt.{append_i32, append_u8, append_usize}
-use std/fmt.{try_append_i32, try_append_u8, try_append_usize}
 use std/mem.TryAllocator
-use std/string.{String, bytes}
+use std/string.String
+include ./scalar.nct
 
-pub func parse_usize(text: &str): usize? {
-    let raw = bytes(text)
-    if raw.len() == 0 { return none }
-    var value: usize = 0
-    var offset: usize = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: usize = (byte - 48) as usize
-        if value > (18446744073709551615 - digit) / 10 { return none }
-        value = value * 10 + digit
-        offset = offset + 1
-    }
-    return value
-}
+pub func parse_usize(text: &str): usize?
 
-pub func parse_u8(text: &str): u8? {
-    let raw = bytes(text)
-    if raw.len() == 0 { return none }
-    var value: u8 = 0
-    var offset: usize = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: u8 = byte - 48
-        if value > (255 - digit) / 10 { return none }
-        value = value * 10 + digit
-        offset = offset + 1
-    }
-    return value
-}
+pub func parse_u8(text: &str): u8?
 
-pub func parse_i32(text: &str): i32? {
-    let raw = bytes(text)
-    if raw.len() == 0 { return none }
-    var offset: usize = 0
-    var negative: bool = false
-    if raw[0] == 45 {
-        negative = true
-        offset = 1
-        if offset == raw.len() { return none }
-    }
-    var value: i32 = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: i32 = (byte - 48) as i32
-        if value < (-2147483648 + digit) / 10 { return none }
-        value = value * 10 - digit
-        offset = offset + 1
-    }
-    if negative { return value }
-    if value == -2147483648 { return none }
-    return 0 - value
-}
+pub func parse_i32(text: &str): i32?
 
-pub func usize_to_string(value: usize): String {
-    var result = String.empty()
-    append_usize(&+result, value)
-    return move result
-}
+pub func usize_to_string(value: usize): String
 
-pub func i32_to_string(value: i32): String {
-    var result = String.empty()
-    append_i32(&+result, value)
-    return move result
-}
+pub func i32_to_string(value: i32): String
 
-pub func u8_to_string(value: u8): String {
-    var result = String.empty()
-    append_u8(&+result, value)
-    return move result
-}
+pub func u8_to_string(value: u8): String
 
 pub func try_usize_to_string(
     allocator: &+TryAllocator,
     value: usize,
-): String! {
-    var result = String.try_with_capacity(allocator, 20)?
-    try_append_usize(&+result, value)?
-    return move result
-}
+): String!
 
 pub func try_i32_to_string(
     allocator: &+TryAllocator,
     value: i32,
-): String! {
-    var result = String.try_with_capacity(allocator, 11)?
-    try_append_i32(&+result, value)?
-    return move result
-}
+): String!
 
 pub func try_u8_to_string(
     allocator: &+TryAllocator,
     value: u8,
-): String! {
-    var result = String.try_with_capacity(allocator, 3)?
-    try_append_u8(&+result, value)?
-    return move result
-}
+): String!

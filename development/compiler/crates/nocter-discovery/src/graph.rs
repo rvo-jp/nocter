@@ -368,6 +368,7 @@ impl Builder {
             let mut pending = vec![tree.root_id()];
             while let Some(node) = pending.pop() {
                 if tree.node(node).is_some_and(|syntax| syntax.kind() == kind)
+                    && has_direct_child(tree, node, nocter_syntax::NodeKind::Visibility)
                     && let Some(token) = declaration_name_token(tree, node)
                     && self
                         .sources
@@ -753,6 +754,19 @@ impl Builder {
         }
         Ok(())
     }
+}
+
+fn has_direct_child(
+    tree: &SyntaxTree,
+    node: nocter_syntax::NodeId,
+    kind: nocter_syntax::NodeKind,
+) -> bool {
+    tree.children(node).iter().any(|child| {
+        let SyntaxElement::Node(child) = child else {
+            return false;
+        };
+        tree.node(*child).is_some_and(|node| node.kind() == kind)
+    })
 }
 
 fn discover_package_targets(

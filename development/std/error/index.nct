@@ -3,10 +3,10 @@
 //! Error codes are open UTF-8 strings. Standard-library and user-library code
 //! use dotted codes such as "std.io.not_found" or "app.config.missing_key".
 
+include ./construction.nct
+
 pub(/) primitive new_error(code: &str, message: &str): error from code | message
 
 construct error {
-    pub default func new(code: &str, message: &str): Self from code | message {
-        return new_error(code, message)
-    }
+    pub default func new(code: &str, message: &str): Self from code | message
 }

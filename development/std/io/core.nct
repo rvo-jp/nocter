@@ -1,8 +1,29 @@
 include ./index.nct
+use std/string.String
 use std/string.bytes as string_bytes
 use std/vec.Vec
 
 //! Portable byte-stream implementation bodies.
+
+interface Reader {
+    default method &+self.read_to_end(): Vec<u8>! {
+        return collect_bytes(self)?
+    }
+
+    default method &+self.read_to_string(): String! {
+        let collected = collect_bytes(self)?
+        return String.from_utf8(&collected as &[u8])?
+    }
+}
+
+interface Writer {
+    default method &+self.flush(): void! { return }
+
+    default method &+self.write_text(text: &str): void! {
+        write_text_to(self, text)?
+        return
+    }
+}
 
 func collect_bytes<R>(reader: &+R): Vec<u8>! where R: Reader {
     var result: Vec<u8> = Vec.empty()

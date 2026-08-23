@@ -1,0 +1,9 @@
+//! Built-in error payload construction.
+
+include ./index.nct
+
+construct error {
+    default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}

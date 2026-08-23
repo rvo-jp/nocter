@@ -11,6 +11,7 @@ rewrite. Public language and standard-library behavior belongs exclusively in
 - [Target and Executable Program Design](target-program-design.md)
 - [Machine Program and Native Target Design](machine-program-design.md)
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
+- [Standard Library Source Design](standard-library-source-design.md)
 - [Grammar Closure Audit](grammar-audit.md)
 - [Grammar Conformance Plan](grammar-conformance.md)
 - [Maintenance](maintenance.md)

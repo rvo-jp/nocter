@@ -99,6 +99,65 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
 }
 
 #[test]
+fn nested_opaque_results_share_their_callable_contract_identity() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        concat!(
+            "include ./source.nct\n",
+            "pub interface Source { pub method &+self.next(): i32? }\n",
+            "pub func source(): some Source\n",
+        ),
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/source.nct",
+        "include ./index.nct\nfunc source(): some Source { return source() }\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/source.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/source.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+    let mut contract_opaque = Vec::new();
+    let mut body_opaque = Vec::new();
+    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
+        if declaration.kind() != crate::SurfaceDeclarationKind::OpaqueType {
+            continue;
+        }
+        let id = SurfaceDeclarationId::from_index(index);
+        match surface.sources()[declaration.source().index()].kind() {
+            ModuleSourceKind::Root => contract_opaque.push(id),
+            ModuleSourceKind::Implementation => body_opaque.push(id),
+            ModuleSourceKind::SingleFile => unreachable!(),
+        }
+    }
+    assert_eq!(contract_opaque.len(), body_opaque.len());
+    assert!(!contract_opaque.is_empty());
+    for (contract, body) in contract_opaque.into_iter().zip(body_opaque) {
+        assert_eq!(contracts.representative(body), contract);
+    }
+}
+
+#[test]
 fn same_callable_label_with_a_different_header_is_a_mismatch() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
@@ -388,4 +447,176 @@ fn implementation_source_cannot_add_program_wide_conformance() {
         analyze_declaration_contracts(&surface),
         Err(DeclarationContractError::UncontractedConformance(_))
     ));
+}
+
+#[test]
+fn interface_default_contract_and_private_body_share_one_identity() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        concat!(
+            "include ./defaults.nct\n",
+            "pub interface Source {\n",
+            "    pub method &+self.next(): i32?\n",
+            "    pub default method self.count(): usize\n",
+            "}\n",
+        ),
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/defaults.nct",
+        concat!(
+            "include ./index.nct\n",
+            "interface Source {\n",
+            "    default method self.count(): usize { return 0 }\n",
+            "}\n",
+        ),
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/defaults.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/defaults.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(4)),
+        SurfaceDeclarationId::from_index(2)
+    );
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(3)),
+        SurfaceDeclarationId::from_index(0)
+    );
+}
+
+#[test]
+fn interface_requirement_does_not_request_an_implementation_body() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "pub interface Source { pub method &+self.next(): i32? }\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )],
+        Vec::new(),
+    );
+
+    analyze_declaration_contracts(&surface).unwrap();
+}
+
+#[test]
+fn uncontracted_interface_default_body_is_rejected() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./defaults.nct\npub interface Source {}\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/defaults.nct",
+        concat!(
+            "include ./index.nct\n",
+            "interface Source {\n",
+            "    default method self.count(): usize { return 0 }\n",
+            "}\n",
+        ),
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/defaults.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/defaults.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    assert!(matches!(
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::UncontractedInterfaceDefault(_))
+    ));
+}
+
+#[test]
+fn selected_target_body_completes_one_target_independent_contract() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./platform.nct\npub func process_id(): usize\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/platform.nct",
+        concat!(
+            "include ./index.nct\n",
+            "#target: \"arm64-darwin\"\n",
+            "func process_id(): usize { return 1 }\n",
+        ),
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/platform.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/platform.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(1)),
+        SurfaceDeclarationId::from_index(0)
+    );
 }

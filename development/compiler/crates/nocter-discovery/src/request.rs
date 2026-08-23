@@ -24,8 +24,12 @@ pub enum DiscoveryLayout {
     },
 }
 
-/// One compiler-owned standard semantic role selected by exact module, declaration kind, and
-/// declaration name. Discovery resolves this locator to one syntax token before semantic lowering.
+/// One compiler-owned standard semantic role selected from the visible contract with an exact
+/// module, declaration kind, and declaration name.
+///
+/// Discovery deliberately ignores matching private implementation fragments. It resolves this
+/// locator to the one authored contract token before declaration joining gives contract and body
+/// one semantic identity.
 #[derive(Clone, Debug)]
 pub struct StandardRoleLocator {
     role: StandardDeclarationRole,

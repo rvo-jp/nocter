@@ -1,4 +1,5 @@
 include ./index.nct
+include ./formatting.nct
 use std/ptr.{from_ref, slice_from_raw_parts_value}
 use std/string.String
 

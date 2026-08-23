@@ -1,0 +1,128 @@
+//! Darwin error classification and syscall constants.
+
+include ./index.nct
+
+#target: "arm64-darwin"
+func errno(code: i32): Errno {
+    return Errno { code: code }
+}
+
+#target: "arm64-darwin"
+func error_from_errno(value: Errno): OSError {
+    return OSError {
+        platform: Platform.macos,
+        code: value.code,
+        kind: kind_from_errno(value),
+    }
+}
+
+#target: "arm64-darwin"
+func kind_from_errno(value: Errno): OSErrorKind {
+    // Darwin errno values used by the std syscall wrappers.
+    if value.code == 4 {
+        return OSErrorKind.interrupted
+    }
+    if value.code == 35 {
+        return OSErrorKind.would_block
+    }
+    if value.code == 2 {
+        return OSErrorKind.not_found
+    }
+    if value.code == 20 {
+        return OSErrorKind.not_found
+    }
+    if value.code == 1 {
+        return OSErrorKind.permission_denied
+    }
+    if value.code == 13 {
+        return OSErrorKind.permission_denied
+    }
+    if value.code == 17 {
+        return OSErrorKind.already_exists
+    }
+    if value.code == 9 {
+        return OSErrorKind.invalid_input
+    }
+    if value.code == 14 {
+        return OSErrorKind.invalid_input
+    }
+    if value.code == 21 {
+        return OSErrorKind.invalid_input
+    }
+    if value.code == 22 {
+        return OSErrorKind.invalid_input
+    }
+    if value.code == 32 {
+        return OSErrorKind.broken_pipe
+    }
+    if value.code == 60 {
+        return OSErrorKind.timed_out
+    }
+    if value.code == 45 {
+        return OSErrorKind.unsupported
+    }
+    return OSErrorKind.unknown
+}
+
+#target: "arm64-darwin"
+func darwin_sys_read(): usize {
+    return 0x02000003
+}
+
+#target: "arm64-darwin"
+func darwin_sys_write(): usize {
+    return 0x02000004
+}
+
+#target: "arm64-darwin"
+func darwin_sys_open(): usize {
+    return 0x02000005
+}
+
+#target: "arm64-darwin"
+func darwin_sys_close(): usize {
+    return 0x02000006
+}
+
+#target: "arm64-darwin"
+func darwin_open_read_only(): usize {
+    return 0
+}
+
+#target: "arm64-darwin"
+func darwin_open_create_truncate(): usize {
+    // O_WRONLY | O_CREAT | O_TRUNC
+    return 0x0601
+}
+
+#target: "arm64-darwin"
+func darwin_open_create_append(): usize {
+    // O_WRONLY | O_CREAT | O_APPEND
+    return 0x0209
+}
+
+#target: "arm64-darwin"
+func darwin_create_mode(): usize {
+    // 0666, filtered by the process umask.
+    return 438
+}
+
+#target: "arm64-darwin"
+func darwin_errno_interrupted(): i32 {
+    return 4
+}
+
+#target: "arm64-darwin"
+func darwin_sys_fcntl(): usize {
+    return 0x0200005c
+}
+
+#target: "arm64-darwin"
+func darwin_f_getpath(): usize {
+    return 50
+}
+
+#target: "arm64-darwin"
+func darwin_max_path_len(): usize {
+    return 1024
+}

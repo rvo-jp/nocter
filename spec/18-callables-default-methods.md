@@ -6,8 +6,8 @@ This chapter defines callable values, closure expressions, and reusable interfac
 
 Nocter keeps capability and reusable stateless behavior separate from stored composition.
 
-- an `interface` declares a capability; a method without a body is required and a method with a
-  body is a reusable default
+- an `interface` declares a capability; an ordinary method is required and a method explicitly
+  marked `default` supplies reusable behavior
 - stored composition syntax is not part of the current language
 
 A default method adds no fields, layout, or implicit conformance. It is available only after the
@@ -22,7 +22,7 @@ pub interface Iterator {
     pub type Item
     pub method &+self.next(): Self.Item?
 
-    pub method self.count(): usize {
+    pub default method self.count(): usize {
         var source = move self
         var total: usize = 0
         loop {
@@ -46,14 +46,14 @@ yield from the current iterator state. Advancing the iterator decreases that num
 not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
 pack's length is fixed before its constructor body starts.
 
-Only methods without bodies are conformance requirements. A default body is checked once in the
+Only methods without the `default` modifier are conformance requirements. A default body is checked once in the
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
 the interface's required methods, other unambiguous default methods, and ordinary visible APIs.
 
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(Self.Item): U {
+pub default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(Self.Item): U {
     return MapIter<U, Self, F> {
         source: move self,
         transform: move transform,

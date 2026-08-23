@@ -4,6 +4,8 @@
 //! User-facing modules expose only the built-in `error` payload from fallible
 //! APIs; OSError and OSErrorKind stay behind `pub(/)` visibility.
 
+include ./darwin.nct
+
 pub(/) enum Platform {
     macos
     linux
@@ -41,132 +43,49 @@ pub(/) copy struct Errno {
 }
 
 #target: "arm64-darwin"
-pub(/) func errno(code: i32): Errno {
-    return Errno { code: code }
-}
+pub(/) func errno(code: i32): Errno
 
 #target: "arm64-darwin"
-pub(/) func error_from_errno(value: Errno): OSError {
-    return OSError {
-        platform: Platform.macos,
-        code: value.code,
-        kind: kind_from_errno(value),
-    }
-}
+pub(/) func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
-pub(/) func kind_from_errno(value: Errno): OSErrorKind {
-    // Darwin errno values used by the std syscall wrappers.
-    if value.code == 4 {
-        return OSErrorKind.interrupted
-    }
-    if value.code == 35 {
-        return OSErrorKind.would_block
-    }
-    if value.code == 2 {
-        return OSErrorKind.not_found
-    }
-    if value.code == 20 {
-        return OSErrorKind.not_found
-    }
-    if value.code == 1 {
-        return OSErrorKind.permission_denied
-    }
-    if value.code == 13 {
-        return OSErrorKind.permission_denied
-    }
-    if value.code == 17 {
-        return OSErrorKind.already_exists
-    }
-    if value.code == 9 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 14 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 21 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 22 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 32 {
-        return OSErrorKind.broken_pipe
-    }
-    if value.code == 60 {
-        return OSErrorKind.timed_out
-    }
-    if value.code == 45 {
-        return OSErrorKind.unsupported
-    }
-    return OSErrorKind.unknown
-}
-
-// Darwin syscall and flag constants belong in this target-gated module rather
-// than in public I/O types or the compiler backend.
+pub(/) func kind_from_errno(value: Errno): OSErrorKind
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_read(): usize {
-    return 0x02000003
-}
+pub(/) func darwin_sys_read(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_write(): usize {
-    return 0x02000004
-}
+pub(/) func darwin_sys_write(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_open(): usize {
-    return 0x02000005
-}
+pub(/) func darwin_sys_open(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_close(): usize {
-    return 0x02000006
-}
+pub(/) func darwin_sys_close(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_read_only(): usize {
-    return 0
-}
+pub(/) func darwin_open_read_only(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_create_truncate(): usize {
-    // O_WRONLY | O_CREAT | O_TRUNC
-    return 0x0601
-}
+pub(/) func darwin_open_create_truncate(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_create_append(): usize {
-    // O_WRONLY | O_CREAT | O_APPEND
-    return 0x0209
-}
+pub(/) func darwin_open_create_append(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_create_mode(): usize {
-    // 0666, filtered by the process umask.
-    return 438
-}
+pub(/) func darwin_create_mode(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_errno_interrupted(): i32 {
-    return 4
-}
+pub(/) func darwin_errno_interrupted(): i32
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_fcntl(): usize {
-    return 0x0200005c
-}
+pub(/) func darwin_sys_fcntl(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_f_getpath(): usize {
-    return 50
-}
+pub(/) func darwin_f_getpath(): usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_max_path_len(): usize {
-    return 1024
-}
+pub(/) func darwin_max_path_len(): usize
 
 #target: "arm64-darwin"
 pub(/) primitive syscall0(number: usize): SyscallResult

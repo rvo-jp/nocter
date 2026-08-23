@@ -1,0 +1,17 @@
+//! Test assertion behavior.
+
+include ./index.nct
+
+func assert(condition: bool): void! {
+    if !condition {
+        return error.new("std.testing.assertion_failed", "assertion failed")
+    }
+    return
+}
+
+func assert_eq<T>(actual: &T, expected: &T): void! where (&T == &T): bool {
+    if actual != expected {
+        return error.new("std.testing.not_equal", "values are not equal")
+    }
+    return
+}

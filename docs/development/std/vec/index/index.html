@@ -154,26 +154,12 @@
 <span class="token-comment">//! that prefix, while clear and drop destroy its elements in reverse order.</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">MutableViewIter</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> <span class="token-type">TryAllocator</span><span class="token-operator">,</span> alloc<span class="token-operator">,</span> allocation_abort_raw<span class="token-operator">,</span> current_allocator<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>empty_page_buffer<span class="token-operator">,</span> try_alloc<span class="token-operator">,</span> try_grow_owned<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>drop_value_at_ptr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>pointee_align
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>pointee_size
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>slice_from_raw_parts_value
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>slice_from_raw_parts_value_mut
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>store_value_to_ptr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>take_value_at_ptr
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> <span class="token-type">TryAllocator</span><span class="token-operator">}</span>
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>into_iter<span class="token-operator">.</span>nct
+<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A forward iterator that owns a Vec allocation and its remaining elements.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    ptr<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>
-    storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
-    next_index<span class="token-operator">:</span> <span class="token-type">usize</span>
-    end_index<span class="token-operator">:</span> <span class="token-type">usize</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> vec_into_iter_from_raw_parts<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
     pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span><span class="token-operator">,</span>
@@ -188,436 +174,102 @@
 
 <span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
+
     <span class="token-comment">/// Transfers the next element, or returns `none` at exhaustion.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// An owning, growable sequence with an initialized prefix of elements.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    ptr<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>
-    storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
-    len<span class="token-operator">:</span> <span class="token-type">usize</span>
-    capacity<span class="token-operator">:</span> <span class="token-type">usize</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Constructs a Vec from owned elements evaluated from left to right.</span>
-    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> item_count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> items<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-keyword">if</span> item_count <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>item_count<span class="token-operator">)</span>
-        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
-        <span class="token-keyword">let</span> element_align<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_align</span><span class="token-operator">(</span>pointer<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> storage <span class="token-operator">=</span> <span class="token-function">empty_page_buffer</span><span class="token-operator">(</span>element_align<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
-            storage<span class="token-operator">:</span> <span class="token-keyword">move</span> storage<span class="token-operator">,</span>
-            len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-            capacity<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> empty_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
-        <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>empty_pointer<span class="token-operator">)</span>
-        <span class="token-keyword">if</span> element_size <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> requested_capacity <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">/</span> element_size <span class="token-operator">{</span>
-            <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-
-        <span class="token-keyword">let</span> byte_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> requested_capacity <span class="token-operator">*</span> element_size
-        <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-keyword">let</span> storage <span class="token-operator">=</span> <span class="token-function">alloc</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> byte_capacity<span class="token-operator">,</span> <span class="token-function">pointee_align</span><span class="token-operator">(</span>empty_pointer<span class="token-operator">)</span><span class="token-operator">)</span>
-        <span class="token-keyword">let</span> address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span>
-            storage<span class="token-operator">:</span> <span class="token-keyword">move</span> storage<span class="token-operator">,</span>
-            len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-            capacity<span class="token-operator">:</span> requested_capacity<span class="token-operator">,</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> empty_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
-        <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>empty_pointer<span class="token-operator">)</span>
-        <span class="token-keyword">if</span> element_size <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">unsupported</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> requested_capacity <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">/</span> element_size <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 
-        <span class="token-keyword">let</span> byte_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> requested_capacity <span class="token-operator">*</span> element_size
-        <span class="token-keyword">let</span> storage <span class="token-operator">=</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> byte_capacity<span class="token-operator">,</span> <span class="token-function">pointee_align</span><span class="token-operator">(</span>empty_pointer<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">let</span> address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span>
-            storage<span class="token-operator">:</span> <span class="token-keyword">move</span> storage<span class="token-operator">,</span>
-            len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-            capacity<span class="token-operator">:</span> requested_capacity<span class="token-operator">,</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_slice</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where copy <span class="token-type">T</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>values<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
-        <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> values<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_slice</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where copy <span class="token-type">T</span>
 
     <span class="token-comment">/// Consumes an iterator and grows a Vec without an intermediate collection.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> from_iter<span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> iterator <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> from_iter<span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
 
     <span class="token-comment">/// Consumes an exact iterator after reserving its initial reported remainder.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> from_exact_iter<span class="token-operator">&lt;</span><span class="token-type">I</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
         iterator<span class="token-operator">:</span> <span class="token-type">I</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span> <span class="token-operator">+</span> <span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> source <span class="token-operator">=</span> <span class="token-keyword">move</span> iterator
-        <span class="token-keyword">let</span> initial_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> source<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        result<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>initial_len<span class="token-operator">)</span>
-        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> source <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">I</span><span class="token-operator">:</span> <span class="token-type">Iterator</span> <span class="token-operator">+</span> <span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
 
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_slice</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator | values where copy <span class="token-type">T</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> values<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> values<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">try_push</span><span class="token-operator">(</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">?</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
-    <span class="token-operator">}</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator | values where copy <span class="token-type">T</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> capacity<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> values_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>capacity
-    <span class="token-keyword">return</span> values_capacity
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
-<span class="token-keyword">func</span> view<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> view_mut<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_value_mut</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> into_iter<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> source <span class="token-operator">=</span> <span class="token-keyword">move</span> values
-    <span class="token-keyword">let</span> pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">=</span> source<span class="token-operator">.</span>ptr
-    <span class="token-keyword">let</span> source_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> source<span class="token-operator">.</span>len
-    source<span class="token-operator">.</span>len <span class="token-operator">=</span> <span class="token-number">0</span>
-    source<span class="token-operator">.</span>capacity <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">return</span> <span class="token-function">vec_into_iter_from_raw_parts</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>source<span class="token-operator">.</span>storage<span class="token-operator">,</span> source_len<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> try_reserve<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> additional <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">let</span> values_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len
-    <span class="token-keyword">if</span> additional <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> - values_len <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">let</span> required_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values_len <span class="token-operator">+</span> additional
-    <span class="token-keyword">let</span> values_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>capacity
-    <span class="token-keyword">if</span> values_capacity <span class="token-operator">&gt;</span><span class="token-operator">=</span> values_len <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> spare_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values_capacity - values_len
-        <span class="token-keyword">if</span> additional <span class="token-operator">&lt;</span><span class="token-operator">=</span> spare_capacity <span class="token-operator">{</span>
-            <span class="token-keyword">return</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">if</span> element_size <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">unsupported</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> required_capacity <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">/</span> element_size <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> values_len <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">/</span> element_size <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">let</span> byte_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> required_capacity <span class="token-operator">*</span> element_size
-    <span class="token-function">try_grow_owned</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>values<span class="token-operator">.</span>storage<span class="token-operator">,</span> byte_capacity<span class="token-operator">)</span><span class="token-operator">?</span>
-    values<span class="token-operator">.</span>ptr <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-function">addr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span><span class="token-operator">)</span>
-    values<span class="token-operator">.</span>capacity <span class="token-operator">=</span> required_capacity
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> reserve<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>values<span class="token-operator">,</span> additional<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> clear<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">while</span> values<span class="token-operator">.</span>len <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> next_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len - <span class="token-number">1</span>
-        values<span class="token-operator">.</span>len <span class="token-operator">=</span> next_len
-        <span class="token-function">drop_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> next_len <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> truncate<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> requested_len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-keyword">while</span> values<span class="token-operator">.</span>len <span class="token-operator">&gt;</span> requested_len <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> removed<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">pop</span><span class="token-operator">(</span>values<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> pop<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> values<span class="token-operator">.</span>len <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> next_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len - <span class="token-number">1</span>
-    values<span class="token-operator">.</span>len <span class="token-operator">=</span> next_len
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">return</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> next_len <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> try_push<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> old_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>values<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> byte_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> old_len <span class="token-operator">*</span> element_size
-    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> byte_offset<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
-    values<span class="token-operator">.</span>len <span class="token-operator">=</span> old_len <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> push<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-function">try_push</span><span class="token-operator">(</span>values<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> try_insert<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> old_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len
-    <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span> old_len <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">index_out_of_bounds</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-comment">// No fallible operation is permitted after this point. The initialized</span>
-    <span class="token-comment">// prefix remains unchanged if capacity growth fails.</span>
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>values<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">var</span> hole<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> old_len
-    <span class="token-keyword">while</span> hole <span class="token-operator">&gt;</span> index <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> source_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> hole - <span class="token-number">1</span>
-        <span class="token-keyword">let</span> shifted<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> source_index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-        <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> hole <span class="token-operator">*</span> element_size<span class="token-operator">,</span> <span class="token-keyword">move</span> shifted<span class="token-operator">)</span>
-        hole <span class="token-operator">=</span> source_index
-    <span class="token-operator">}</span>
-    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> index <span class="token-operator">*</span> element_size<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
-    values<span class="token-operator">.</span>len <span class="token-operator">=</span> old_len <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> insert<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-function">try_insert</span><span class="token-operator">(</span>values<span class="token-operator">,</span> index<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> insert_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> remove<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> old_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len
-    <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> old_len <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> removed<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-    <span class="token-keyword">var</span> hole<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> index
-    <span class="token-keyword">while</span> hole <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&lt;</span> old_len <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> source_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> hole <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-keyword">let</span> shifted<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> source_index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-        <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> hole <span class="token-operator">*</span> element_size<span class="token-operator">,</span> <span class="token-keyword">move</span> shifted<span class="token-operator">)</span>
-        hole <span class="token-operator">=</span> source_index
-    <span class="token-operator">}</span>
-    values<span class="token-operator">.</span>len <span class="token-operator">=</span> old_len - <span class="token-number">1</span>
-    <span class="token-keyword">return</span> <span class="token-keyword">move</span> removed
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">unsupported</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.unsupported"</span><span class="token-operator">,</span> <span class="token-string">"Vec element storage is not supported"</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.capacity_overflow"</span><span class="token-operator">,</span> <span class="token-string">"Vec capacity overflow"</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">index_out_of_bounds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.index_out_of_bounds"</span><span class="token-operator">,</span> <span class="token-string">"Vec insertion index is out of bounds"</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">index_out_of_bounds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-keyword">instance</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized element prefix as a readonly view.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span>
 
     <span class="token-comment">/// Exposes the initialized element prefix as a readwrite view.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;+</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">view_mut</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;+</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span>
 
     <span class="token-comment">/// Creates an allocation-free iterator over readonly element borrows.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">ViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Creates an allocation-free iterator over readwrite element borrows.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">view_mut</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Transfers the allocation and every element into an owning iterator.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">into_iter</span><span class="token-operator">(</span><span class="token-keyword">move</span> self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Returns the readonly iterator explicitly for method-chain construction.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">ViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Returns the readwrite iterator explicitly for mutation algorithms.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">iter_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">view_mut</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">iter_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Returns the owning iterator explicitly for method-chain construction.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">into_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">into_iter</span><span class="token-operator">(</span><span class="token-keyword">move</span> self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">into_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">capacity</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
     <span class="token-comment">/// Ensures capacity for at least `additional` more elements.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">reserve</span><span class="token-operator">(</span>self<span class="token-operator">,</span> additional<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">try_reserve</span><span class="token-operator">(</span>self<span class="token-operator">,</span> additional<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Destroys every initialized element and keeps the allocation for reuse.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">clear</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span>requested_len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">truncate</span><span class="token-operator">(</span>self<span class="token-operator">,</span> requested_len<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span>requested_len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>retain<span class="token-operator">&lt;</span><span class="token-type">F</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>predicate<span class="token-operator">:</span> <span class="token-type">F</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> where <span class="token-type">F</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-keyword">func</span><span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> predicate_fn <span class="token-operator">=</span> <span class="token-keyword">move</span> predicate
-        <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> original_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>len
-        <span class="token-keyword">var</span> read_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">var</span> write_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">while</span> read_index <span class="token-operator">&lt;</span> original_len <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> current<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">,</span> original_len<span class="token-operator">)</span><span class="token-operator">[</span>read_index<span class="token-operator">]</span>
-            <span class="token-keyword">if</span> <span class="token-function">predicate_fn</span><span class="token-operator">(</span>current<span class="token-operator">)</span> <span class="token-operator">{</span>
-                <span class="token-keyword">if</span> write_index <span class="token-operator">!</span><span class="token-operator">=</span> read_index <span class="token-operator">{</span>
-                    <span class="token-keyword">let</span> retained<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">,</span> read_index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-                    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">,</span> write_index <span class="token-operator">*</span> element_size<span class="token-operator">,</span> <span class="token-keyword">move</span> retained<span class="token-operator">)</span>
-                <span class="token-operator">}</span>
-                write_index <span class="token-operator">=</span> write_index <span class="token-operator">+</span> <span class="token-number">1</span>
-            <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
-                <span class="token-function">drop_value_at_ptr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">,</span> read_index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
-            <span class="token-operator">}</span>
-            read_index <span class="token-operator">=</span> read_index <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        self<span class="token-operator">.</span>len <span class="token-operator">=</span> write_index
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>retain<span class="token-operator">&lt;</span><span class="token-type">F</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>predicate<span class="token-operator">:</span> <span class="token-type">F</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> where <span class="token-type">F</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-keyword">func</span><span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 
     <span class="token-comment">/// Transfers `value` into the end of the initialized prefix.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">push</span><span class="token-operator">(</span>self<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_push</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">try_push</span><span class="token-operator">(</span>self<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_push</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Inserts an owned value and aborts if growth or bounds validation fails.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">insert</span><span class="token-operator">(</span>self<span class="token-operator">,</span> index<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
     <span class="token-comment">/// Inserts an owned value with recoverable allocation and bounds failure.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">try_insert</span><span class="token-operator">(</span>self<span class="token-operator">,</span> index<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Removes and transfers an element, or returns `none` out of bounds.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">remove</span><span class="token-operator">(</span>self<span class="token-operator">,</span> index<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Transfers and returns the last initialized element, or `none` when empty.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">pop</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">pop</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-drop <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
-    <span class="token-function">clear</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-    self<span class="token-operator">.</span>capacity <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">return</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">pop</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

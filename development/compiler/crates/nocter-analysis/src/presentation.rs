@@ -431,6 +431,9 @@ impl<'a> Renderer<'a> {
         {
             self.output.push_str("default ");
         }
+        if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
+            self.output.push_str("default ");
+        }
         match callable.kind() {
             CallableKind::Primitive => {
                 self.output.push_str("primitive func ");

@@ -19,6 +19,30 @@ Rules:
 
 This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.
 
+## Contract-First Module Roots
+
+`index.nct` is both the module root and the preferred human-readable API document. Keep it focused
+on the declarations that another source or module may use.
+
+Keep these forms in `index.nct`:
+
+- module documentation, imports needed by public signatures, and public re-exports;
+- public and restricted-public type contracts;
+- fields or variants intentionally exposed as stable data representation;
+- bodyless callable, construction, instance-operation, conformance, and interface-default
+  contracts;
+- short inline behavior whose implementation is itself the clearest contract.
+
+Move private representation, allocation or pointer work, platform operations, helper algorithms,
+and ordinary nontrivial bodies to responsibility-named sources included by `index.nct`. A useful
+inline body has no branch, loop, mutation, allocation, I/O, target-specific operation, or private
+representation access. Constant results and direct representation-independent forwarding are
+typical inline cases. Line count alone does not make a body trivial.
+
+A public record should expose all of its fields as stable representation. If any field is an
+implementation detail, prefer an opaque public nominal with construction and accessor contracts
+instead of mixing a public field API with private layout.
+
 ## CLI
 
 Formatting is exposed through `nocter fmt`.

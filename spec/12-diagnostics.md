@@ -105,6 +105,8 @@ Source-backed module-surface diagnostics:
   non-private visibility. Private inline construction members do not require visibility.
 - `E0233`: a `#target` gate names a target not recognized by this compiler release. The primary
   span is the gate's string literal.
+- `E0234`: an interface contract method in `index.nct` omits bare `pub`. Private implementation
+  fragments omit visibility and may only complete declared default methods.
 
 Source-backed namespace diagnostics:
 
@@ -337,6 +339,8 @@ Source-backed declaration contract diagnostics:
   name, generic parameters, requirements, or `copy` contract.
 - `E0257`: more than one private representation completes the same public nominal contract.
 - `E0258`: a represented nominal declaration is completed again.
+- `E0259`: an implementation interface fragment supplies a default body without one exact default
+  method contract in the reciprocally included `index.nct` interface.
 
 Source-backed declaration-header diagnostics:
 

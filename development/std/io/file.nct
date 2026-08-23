@@ -1,0 +1,264 @@
+//! File ownership and Darwin descriptor operations.
+
+include ./index.nct
+
+use std/mem.alloc_pages
+use std/mem.free_pages
+use std/internal/os.{OSError, OSErrorKind, SyscallResult, darwin_create_mode}
+use std/internal/os.{darwin_errno_interrupted, darwin_open_create_append}
+use std/internal/os.{darwin_open_create_truncate, darwin_open_read_only}
+use std/internal/os.{darwin_sys_close, darwin_sys_open, darwin_sys_read, darwin_sys_write}
+use std/internal/os.{errno, error_from_errno, syscall1, syscall3}
+use std/path.validate as validate_path
+use std/ptr.addr
+use std/ptr.copy_str_to_ptr
+use std/ptr.from_addr
+use std/ptr.store_u8_to_ptr
+use std/string.String
+use std/string.bytes as string_bytes
+use std/vec.Vec
+
+#target: "arm64-darwin"
+func stdout_fd(): usize {
+    return 1
+}
+
+#target: "arm64-darwin"
+func stderr_fd(): usize {
+    return 2
+}
+
+#target: "arm64-darwin"
+func open_read_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_read_only())?
+}
+
+#target: "arm64-darwin"
+func create_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_create_truncate())?
+}
+
+#target: "arm64-darwin"
+func append_fd(path: &str): usize! {
+    return open_fd(path, darwin_open_create_append())?
+}
+
+#target: "arm64-darwin"
+func open_fd(path: &str, flags: usize): usize! {
+    validate_path(path)?
+    let allocation_size: usize = path.len() + 1
+    let address: usize = alloc_pages(allocation_size)?
+    copy_str_to_ptr(from_addr(address), 0, path)
+    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
+
+    var result: SyscallResult = syscall3(
+        darwin_sys_open(),
+        address,
+        flags,
+        darwin_create_mode(),
+    )
+    while result.errno == darwin_errno_interrupted() {
+        result = syscall3(darwin_sys_open(), address, flags, darwin_create_mode())
+    }
+    free_pages(address, allocation_size)
+    if result.errno != 0 {
+        return from_os_error(error_from_errno(errno(result.errno)))
+    }
+    return result.value
+}
+
+#target: "arm64-darwin"
+func read_fd(fd: usize, buffer: &+[u8]): usize! {
+    var result: SyscallResult = syscall3(
+        darwin_sys_read(),
+        fd,
+        addr(buffer.ptr()),
+        buffer.len(),
+    )
+    while result.errno == darwin_errno_interrupted() {
+        result = syscall3(darwin_sys_read(), fd, addr(buffer.ptr()), buffer.len())
+    }
+    if result.errno != 0 {
+        return from_os_error(error_from_errno(errno(result.errno)))
+    }
+    if result.value > buffer.len() {
+        return invalid_read_count()
+    }
+    return result.value
+}
+
+#target: "arm64-darwin"
+func write_fd(fd: usize, bytes: &[u8]): void! {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        let remaining: usize = bytes.len() - offset
+        var result: SyscallResult = syscall3(
+            darwin_sys_write(),
+            fd,
+            addr(bytes.ptr()) + offset,
+            remaining,
+        )
+        while result.errno == darwin_errno_interrupted() {
+            result = syscall3(
+                darwin_sys_write(),
+                fd,
+                addr(bytes.ptr()) + offset,
+                remaining,
+            )
+        }
+        if result.errno != 0 {
+            return from_os_error(error_from_errno(errno(result.errno)))
+        }
+        if result.value == 0 {
+            return write_zero()
+        }
+        if result.value > remaining {
+            return invalid_write_count()
+        }
+        offset = offset + result.value
+    }
+    return
+}
+
+#target: "arm64-darwin"
+func write_text_fd(fd: usize, text: &str): void! {
+    write_fd(fd, string_bytes(text))?
+    return
+}
+
+#target: "arm64-darwin"
+func close_fd(fd: usize): void {
+    // A failed close is deliberately not retried: Darwin may have consumed the
+    // descriptor even when reporting an interruption, and retrying could close
+    // an unrelated descriptor that another operation has reused.
+    let _ = syscall1(darwin_sys_close(), fd)
+    return
+}
+
+struct File {
+    fd: usize
+    close_on_drop: bool
+}
+
+func from_os_error(os_error: OSError): error {
+    if os_error.kind is OSErrorKind.interrupted {
+        return error.new("std.io.interrupted", "operation interrupted")
+    }
+    if os_error.kind is OSErrorKind.would_block {
+        return error.new("std.io.would_block", "operation would block")
+    }
+    if os_error.kind is OSErrorKind.not_found {
+        return error.new("std.io.not_found", "file not found")
+    }
+    if os_error.kind is OSErrorKind.permission_denied {
+        return error.new("std.io.permission_denied", "permission denied")
+    }
+    if os_error.kind is OSErrorKind.already_exists {
+        return error.new("std.io.already_exists", "file already exists")
+    }
+    if os_error.kind is OSErrorKind.invalid_input {
+        return error.new("std.io.invalid_input", "invalid I/O input")
+    }
+    if os_error.kind is OSErrorKind.broken_pipe {
+        return error.new("std.io.broken_pipe", "broken pipe")
+    }
+    if os_error.kind is OSErrorKind.timed_out {
+        return error.new("std.io.timed_out", "operation timed out")
+    }
+    if os_error.kind is OSErrorKind.unsupported {
+        return error.new("std.io.unsupported", "unsupported I/O operation")
+    }
+    return error.new("std.io.os_error", "OS operation failed")
+}
+
+func stdout(): File {
+    return File { fd: stdout_fd(), close_on_drop: false }
+}
+
+func stderr(): File {
+    return File { fd: stderr_fd(), close_on_drop: false }
+}
+
+construct File {
+    default func open(path: &str): Self! {
+        let fd = open_read_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
+
+    func create(path: &str): Self! {
+        let fd = create_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
+
+    func append(path: &str): Self! {
+        let fd = append_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
+}
+
+func read(file: &+File, buffer: &+[u8]): usize! {
+    return read_fd(file.fd, buffer)?
+}
+
+func write(file: &+File, bytes: &[u8]): void! {
+    write_fd(file.fd, bytes)?
+    return
+}
+
+func write_text(file: &+File, text: &str): void! {
+    write_text_fd(file.fd, text)?
+    return
+}
+
+func close(file: &+File): void {
+    if file.close_on_drop {
+        close_fd(file.fd)
+        file.close_on_drop = false
+    }
+    return
+}
+
+instance File {
+    method &+self.close(): void {
+        close(self)
+        return
+    }
+}
+
+drop File(&+self) {
+    close(self)
+    return
+}
+
+conform Reader for File {
+    method &+self.read(buffer: &+[u8]): usize! { return read(self, buffer)? }
+}
+
+conform Writer for File {
+    method &+self.write(bytes: &[u8]): void! {
+        write(self, bytes)?
+        return
+    }
+
+    method &+self.flush(): void! { return }
+}
+
+func print(text: &str): void! {
+    write_text_fd(1, text)?
+    return
+}
+
+func unsupported(): error {
+    return error.new("std.io.unsupported", "unsupported I/O operation")
+}
+
+func write_zero(): error {
+    return error.new("std.io.write_zero", "writer made no progress")
+}
+
+func invalid_write_count(): error {
+    return error.new(
+        "std.io.invalid_write_count",
+        "writer reported more bytes than the supplied input contains",
+    )
+}

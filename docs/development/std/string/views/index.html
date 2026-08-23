@@ -154,6 +154,19 @@
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">Iterator</span>
 
+<span class="token-keyword">struct</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
+    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    next_start<span class="token-operator">:</span> <span class="token-type">usize</span>
+    finished<span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
+    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    next_start<span class="token-operator">:</span> <span class="token-type">usize</span>
+    finished<span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+
 <span class="token-comment">/// Returns whether `index` is a valid UTF-8 byte boundary in `text`.</span>
 <span class="token-keyword">func</span> <span class="token-function">is_char_boundary</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>

@@ -10,409 +10,129 @@
 //! primitive set; target-gated std internals provide the OS boundary behind
 //! this common API.
 
-use std/internal/os.{syscall2, syscall6}
-use std/ptr.addr
-use std/ptr.copy_ptr_to_ptr
-use std/ptr.from_addr
-use std/ptr.slice_from_raw_parts
-use std/ptr.slice_from_raw_parts_mut
-use std/ptr.slice_from_raw_parts_value
-use std/ptr.store_value_to_ptr
+include ./allocation.nct
 
-pub copy struct Layout {
-    pub(/) size: usize
-    pub(/) align: usize
-}
+pub copy struct Layout
 
-pub struct RawBuffer {
-    pub(/) ptr: *u8
-    pub(/) len: usize
-    pub(/) align: usize
-    pub(/) allocator_state: usize
-    pub(/) allocator_kind: usize
-}
+/// Owned raw storage shared by package-level collection implementations.
+pub struct RawBuffer
 
-pub struct Allocator {
-    state: usize
-    kind: usize
-}
+pub struct Allocator
 
-// Compiler-created lexical regions are the only public source of this opaque capability. The
-// target-owned region frame begins with the same state/kind header as Allocator.
-pub struct AllocationContext {
-    state: usize
-    kind: usize
-}
+pub struct AllocationContext
 
-pub struct TryAllocator {
-    state: usize
-    kind: usize
-}
+pub struct TryAllocator
 
 pub(/) primitive current_allocator_state(): usize
+
 pub(/) primitive current_allocator_kind(): usize
+
 pub(/) primitive allocation_abort_raw(): never
 
-pub(/) func current_allocator(): Allocator {
-    return Allocator {
-        state: current_allocator_state(),
-        kind: current_allocator_kind(),
-    }
-}
+pub(/) func current_allocator(): Allocator
 
-pub func page_allocator(): Allocator {
-    return Allocator { state: 0, kind: 0 }
-}
+pub func page_allocator(): Allocator
 
-pub func page_try_allocator(): TryAllocator {
-    return TryAllocator { state: 0, kind: 0 }
-}
+pub func page_try_allocator(): TryAllocator
 
-pub(/) func empty_page_buffer(align: usize): RawBuffer {
-    // Kind 2 is an unbound empty sentinel. It owns no storage and therefore
-    // carries no allocator origin. The first growth operation binds it to the
-    // allocator selected at that operation.
-    return RawBuffer {
-        ptr: from_addr(1),
-        len: 0,
-        align: align,
-        allocator_state: 0,
-        allocator_kind: 2,
-    }
-}
+pub(/) func empty_page_buffer(align: usize): RawBuffer
+
+pub(/) func raw_buffer_ptr(buffer: &RawBuffer): *u8
+
+pub(/) func raw_buffer_len(buffer: &RawBuffer): usize
+
+pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
 construct Layout {
-    pub default func new(size: usize, align: usize): Self! {
-        if !valid_alignment(align) {
-            return invalid_argument()
-        }
-        return Layout { size: size, align: align }
-    }
-}
-
-func layout_size(value: &Layout): usize {
-    return value.size
-}
-
-func layout_align(value: &Layout): usize {
-    return value.align
+    pub default func new(size: usize, align: usize): Self!
 }
 
 #target: "arm64-darwin"
-pub(/) func alloc_pages(size: usize): usize! {
-    let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
-    if result.errno != 0 {
-        return error.new("std.mem.out_of_memory", "allocation failed")
-    }
-    return result.value
-}
+pub(/) func alloc_pages(size: usize): usize!
 
 #target: "arm64-darwin"
-pub(/) func free_pages(address: usize, size: usize): void {
-    let result = syscall2(0x02000049, address, size)
-    return
-}
+pub(/) func free_pages(address: usize, size: usize): void
 
 pub(/) func region_alloc_pages(
     state: usize,
     size: usize,
     align: usize,
-): usize! {
-    // Every mapping begins with a release-list header. The payload is aligned
-    // within the mapping, so region release can walk mappings without storing
-    // metadata beside or inside user-visible bytes.
-    let header_size: usize = 16
-    if size > 18446744073709551615 - header_size - align {
-        return invalid_argument()
-    }
-    let mapping_size = size + header_size + align
-    let mapping = alloc_pages(mapping_size)?
-    let payload_start = mapping + header_size
-    let remainder = payload_start % align
-    var padding: usize = 0
-    if remainder != 0 {
-        padding = align - remainder
-    }
-
-    let state_pointer: *usize = from_addr(state)
-    let state_words: &[usize] = slice_from_raw_parts_value(state_pointer, 1)
-    let previous: usize = state_words[0]
-    let header: *usize = from_addr(mapping)
-    store_value_to_ptr(header, 0, previous)
-    store_value_to_ptr(header, 8, mapping_size)
-    store_value_to_ptr(state_pointer, 0, mapping)
-    return payload_start + padding
-}
+): usize!
 
 pub(/) func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
     align: usize,
-): RawBuffer! {
-    let requested = Layout.new(size, align)?
-    return try_alloc_layout(allocator, requested)?
-}
+): RawBuffer!
 
 pub func try_alloc_layout(
     allocator: &+TryAllocator,
     requested: Layout,
-): RawBuffer! {
-    if requested.size == 0 {
-        return RawBuffer {
-            ptr: from_addr(1),
-            len: 0,
-            align: requested.align,
-            allocator_state: allocator.state,
-            allocator_kind: allocator.kind,
-        }
-    }
-
-    var address: usize = 0
-    if allocator.kind == 0 {
-        address = alloc_pages(requested.size)?
-    } else if allocator.kind == 1 {
-        address = region_alloc_pages(allocator.state, requested.size, requested.align)?
-    } else {
-        return invalid_argument()
-    }
-    return RawBuffer {
-        ptr: from_addr(address),
-        len: requested.size,
-        align: requested.align,
-        allocator_state: allocator.state,
-        allocator_kind: allocator.kind,
-    }
-}
+): RawBuffer!
 
 pub(/) func alloc(
     allocator: &+Allocator,
     size: usize,
     align: usize,
-): RawBuffer {
-    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
-    return try_alloc(&+fallible, size, align) catch allocation_error {
-        return allocation_abort_raw()
-    }
-}
+): RawBuffer
 
 pub func alloc_layout(
     allocator: &+Allocator,
     requested: Layout,
-): RawBuffer {
-    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
-    return try_alloc_layout(&+fallible, requested) catch allocation_error {
-        return allocation_abort_raw()
-    }
-}
+): RawBuffer
 
-pub(/) func free(allocator: &+Allocator, buffer: RawBuffer): void {
-    // Consuming `buffer` transfers its one deallocation obligation into this
-    // call. RawBuffer.drop performs the provenance-aware release on return.
-    return
-}
+pub(/) func free(allocator: &+Allocator, buffer: RawBuffer): void
 
-pub(/) func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void {
-    // `RawBuffer.drop` owns the backend-aware release. The capability argument
-    // documents and validates the caller's selected recoverable backend.
-    return
-}
+pub(/) func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void
 
 pub(/) func try_grow(
     allocator: &+TryAllocator,
     buffer: &+RawBuffer,
     new_size: usize,
-): void! {
-    if new_size < buffer.len {
-        return invalid_argument()
-    }
-    if new_size == buffer.len {
-        return
-    }
-    if buffer.allocator_kind != 2 {
-        if allocator.state != buffer.allocator_state {
-            return invalid_argument()
-        }
-        if allocator.kind != buffer.allocator_kind {
-            return invalid_argument()
-        }
-    }
+): void!
 
-    var replacement = try_alloc(allocator, new_size, buffer.align)?
-    if buffer.len != 0 {
-        copy_ptr_to_ptr(replacement.ptr, buffer.ptr, buffer.len)
-    }
+pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void!
 
-    var previous = RawBuffer {
-        ptr: buffer.ptr,
-        len: buffer.len,
-        align: buffer.align,
-        allocator_state: buffer.allocator_state,
-        allocator_kind: buffer.allocator_kind,
-    }
+pub(/) func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void
 
-    buffer.ptr = replacement.ptr
-    buffer.len = replacement.len
-    buffer.align = replacement.align
-    buffer.allocator_state = replacement.allocator_state
-    buffer.allocator_kind = replacement.allocator_kind
+pub(/) func grow_owned(buffer: &+RawBuffer, new_size: usize): void
 
-    replacement.ptr = from_addr(1)
-    replacement.len = 0
-    return
-}
-
-pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
-    var allocator = TryAllocator {
-        state: buffer.allocator_state,
-        kind: buffer.allocator_kind,
-    }
-    if buffer.allocator_kind == 2 {
-        allocator.state = current_allocator_state()
-        allocator.kind = current_allocator_kind()
-    }
-    try_grow(&+allocator, buffer, new_size)?
-    return
-}
-
-pub(/) func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void {
-    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
-    try_grow(&+fallible, buffer, new_size) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
-
-pub(/) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
-    try_grow_owned(buffer, new_size) catch allocation_error {
-        return allocation_abort_raw()
-    }
-    return
-}
-
-func bytes(buffer: &RawBuffer): &[u8] {
-    return slice_from_raw_parts(buffer.ptr, buffer.len)
-}
-
-pub(/) func bytes_mut(buffer: &+RawBuffer): &+[u8] {
-    return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
-}
-
-func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
-    if len > buffer.len {
-        return invalid_argument()
-    }
-    return slice_from_raw_parts(buffer.ptr, len)
-}
-
-func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
-    if len > buffer.len {
-        return invalid_argument()
-    }
-    return slice_from_raw_parts_mut(buffer.ptr, len)
-}
+pub(/) func bytes_mut(buffer: &+RawBuffer): &+[u8]
 
 instance Allocator {
-    pub method &+self.alloc(size: usize, align: usize): RawBuffer {
-        return alloc(self, size, align)
-    }
+    pub method &+self.alloc(size: usize, align: usize): RawBuffer
 
-    pub method &+self.free(buffer: RawBuffer): void {
-        free(self, move buffer)
-        return
-    }
+    pub method &+self.free(buffer: RawBuffer): void
 
-    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void {
-        grow(self, buffer, new_size)
-        return
-    }
+    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void
 }
 
 instance TryAllocator {
-    pub method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
-        return try_alloc(self, size, align)?
-    }
+    pub method &+self.try_alloc(size: usize, align: usize): RawBuffer!
 
-    pub method &+self.try_grow(buffer: &+RawBuffer, new_size: usize): void! {
-        try_grow(self, buffer, new_size)?
-        return
-    }
+    pub method &+self.try_grow(buffer: &+RawBuffer, new_size: usize): void!
 
-
-    pub method &+self.free(buffer: RawBuffer): void {
-        try_free(self, move buffer)
-        return
-    }
+    pub method &+self.free(buffer: RawBuffer): void
 }
 
 instance RawBuffer {
-    pub method &self.bytes(): &[u8] {
-        return bytes(self)
-    }
+    pub method &self.bytes(): &[u8]
 
-    pub method &+self.bytes_mut(): &+[u8] {
-        return bytes_mut(self)
-    }
+    pub method &+self.bytes_mut(): &+[u8]
 
-    pub method &self.prefix(len: usize): &[u8]! {
-        return prefix(self, len)?
-    }
+    pub method &self.prefix(len: usize): &[u8]!
 
-    pub method &+self.prefix_mut(len: usize): &+[u8]! {
-        return prefix_mut(self, len)?
-    }
-}
-
-drop RawBuffer(&+self) {
-    if self.len != 0 {
-        if self.allocator_kind == 0 {
-            free_pages(addr(self.ptr), self.len)
-        } else if self.allocator_kind != 1 {
-            return allocation_abort_raw()
-        }
-        self.ptr = from_addr(1)
-        self.len = 0
-    }
-    return
+    pub method &+self.prefix_mut(len: usize): &+[u8]!
 }
 
 instance Layout {
-    pub method &self.size(): usize {
-        return layout_size(self)
-    }
+    pub method &self.size(): usize
 
-    pub method &self.align(): usize {
-        return layout_align(self)
-    }
+    pub method &self.align(): usize
 }
 
-func valid_alignment(align: usize): bool {
-    if align == 0 {
-        return false
-    }
-    if align > 16384 {
-        return false
-    }
+pub func out_of_memory(): error
 
-    var remaining = align
-    while remaining > 1 {
-        if remaining % 2 != 0 {
-            return false
-        }
-        remaining = remaining / 2
-    }
-    return true
-}
+pub func invalid_argument(): error
 
-pub func out_of_memory(): error {
-    return error.new("std.mem.out_of_memory", "allocation failed")
-}
-
-pub func invalid_argument(): error {
-    return error.new("std.mem.invalid_argument", "invalid allocation request")
-}
-
-pub(/) func abort_allocation(allocation_error: error): never {
-    // The compiler-owned boundary exits directly without allocating or
-    // unwinding Nocter scopes.
-    allocation_abort_raw()
-}
+pub(/) func abort_allocation(allocation_error: error): never

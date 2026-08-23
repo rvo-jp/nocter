@@ -263,16 +263,22 @@ not occur on an enum or alias.
 InterfaceDeclaration = Visibility? "interface" Name GenericParameters? WhereClause?
                        "{" LineSequence(InterfaceMember) "}"
 
-InterfaceMember = AssociatedTypeDeclaration | InterfaceMethod
+InterfaceMember = AssociatedTypeDeclaration
+                | PublicInterfaceMethod
+                | ImplementationInterfaceMethod
 
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = ":" Capability ("+" Capability)*
 
-InterfaceMethod = "pub" MethodSignature CallableBody
+PublicInterfaceMethod = "pub" "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = "default" MethodSignature Block
 ```
 
-An interface member always writes bare `pub`; it cannot narrow its visibility independently from
-the interface. A bodyless method is a requirement. A method with a block is a default method.
+An interface contract member always writes bare `pub`; it cannot narrow its visibility
+independently from the interface. A method without `default` is a bodyless requirement. A method
+with `default` is reusable behavior and either carries a block inline or omits it as an eligible
+root contract. The matching private interface fragment writes `default method` without visibility
+and must carry the body. A block on a method without `default` is invalid.
 Fields, operators, coercions, construction entries, drop declarations, and tests have no interface
 member production.
 

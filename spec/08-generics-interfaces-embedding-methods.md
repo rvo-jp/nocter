@@ -245,14 +245,15 @@ interface, conformance, or construction owner; it is not resolved as an ordinary
 ## Interfaces
 
 An interface is a nominal public capability. Its associated types and methods are explicitly
-public. A method without a body is required; a method with a body is reusable default behavior
-derived from the same interface contract.
+public. A method without `default` is required and has no body. A method marked `default` is
+reusable behavior derived from the same interface contract; its body may be inline or completed by
+a private implementation fragment.
 
 ```nct
 pub interface Counter {
     pub method &+self.next(): i32?
 
-    pub method self.count(): usize {
+    pub default method self.count(): usize {
         var source = move self
         var total: usize = 0
         loop {
@@ -264,7 +265,9 @@ pub interface Counter {
 ```
 
 An interface cannot declare fields, stored state, associated data, construction members, or
-`drop`. A default method does not establish conformance and cannot access members absent from its
+`drop`. A method without `default` is a conformance requirement. A method marked `default` supplies
+reusable behavior and may carry its body inline or in a reciprocally included private source. A
+default method does not establish conformance and cannot access members absent from its
 declaring interface contract.
 
 ## Associated Types

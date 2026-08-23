@@ -154,7 +154,7 @@ fn associated_result_uses_carried_origin_instead_of_the_receiver_reborrow() {
         "pub interface Source {\n\
              pub type Item\n\
              pub method &+self.next(): Self.Item?\n\
-             pub method self.last(): Self.Item? from self {\n\
+             pub default method self.last(): Self.Item? from self {\n\
                  var source = move self\n\
                  var result: Self.Item? = none\n\
                  while true {\n\

@@ -410,13 +410,25 @@ fn rejects_commas_between_line_separated_nominal_members() {
 #[test]
 fn parses_interface_requirements_and_default_methods() {
     let tree = assert_syntax_ok(
-        "interface Source<T> where copy T {\n    pub type Item: Iterable<T> + &func(T): T\n    pub method &+self.next(): Self.Item?\n    pub method self.consume(): void {}\n}\n",
+        "interface Source<T> where copy T {\n    pub type Item: Iterable<T> + &func(T): T\n    pub method &+self.next(): Self.Item?\n    pub default method self.consume(): void {}\n}\ninterface Source {\n    default method self.consume(): void {}\n}\n",
         ParseGoal::SourceFile,
     );
 
     assert!(has_node_kind(&tree, NodeKind::AssociatedTypeDeclaration));
     assert!(has_node_kind(&tree, NodeKind::InterfaceMethod));
     assert!(has_node_kind(&tree, NodeKind::SelfType));
+}
+
+#[test]
+fn rejects_implicit_interface_default_bodies() {
+    let tree = parse_text(
+        "interface Source { pub method self.consume(): void {} }\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(tree.diagnostics().iter().any(|diagnostic| {
+        diagnostic.kind() == ParseDiagnosticKind::Expected(ExpectedSyntax::Contextual("default"))
+    }));
 }
 
 #[test]

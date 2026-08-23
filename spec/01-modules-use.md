@@ -218,8 +218,46 @@ coercion entries, and source-defined operators. A construction definition repeat
 the public contract carries it; `default` is part of the contract even though visibility is not.
 Conformance methods may use the same split even though they omit visibility: the root conformance
 contract owns associated type bindings and bodyless method signatures, while its matching private
-conformance definition owns the bodies. Interface requirements remain intrinsically bodyless,
-interface default methods remain inline, and `drop` always has an inline body.
+conformance definition owns the bodies. Interface requirements remain intrinsically bodyless.
+Interface defaults write `default` explicitly and may use the same split: a bodyless
+`pub default method` in the root interface is completed by one private `default method` body in a
+reciprocally included implementation interface fragment. `drop` always has a body and does not
+participate in contract/body joining.
+
+A `drop` declaration has no separately callable public contract. In a contract-first directory
+module its mandatory body belongs to a private implementation source and is omitted from
+`index.nct`; the type's ownership semantics expose destruction behavior without exporting that
+body as an API entry.
+
+```nct
+// index.nct
+include ./iterator_defaults.nct
+
+pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+    pub default method self.count(): usize
+}
+```
+
+```nct
+// iterator_defaults.nct
+include ./index.nct
+
+interface Iterator {
+    default method self.count(): usize {
+        var source = move self
+        var total: usize = 0
+        while true {
+            source.next() otherwise { return total }
+            total = total + 1
+        }
+    }
+}
+```
+
+The private interface fragment may complete only contracted default methods. It cannot declare
+associated types, requirements, or a new interface surface.
 
 Calls, imports, hover, completion, signature help, definition, and public diagnostics use the
 contract in `index.nct`. Body checking and body diagnostics retain the implementation source.

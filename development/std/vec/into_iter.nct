@@ -1,6 +1,7 @@
 include ./index.nct
+include ./storage.nct
 use std/iter.{ExactSizeIterator, Iterator}
-use std/mem.RawBuffer
+use std/mem.{RawBuffer, take_raw_buffer}
 use std/ptr.{addr, drop_value_at_ptr, from_addr, pointee_size, take_value_at_ptr}
 
 //! Owning iteration for Vec storage.
@@ -15,22 +16,10 @@ func vec_into_iter_from_raw_parts<T>(
     storage: &+RawBuffer,
     item_count: usize,
 ): VecIntoIter<T> {
-    let owned_storage_address: usize = addr(storage.ptr)
-    let storage_len: usize = storage.len
-    let storage_align: usize = storage.align
-    let allocator_state: usize = storage.allocator_state
-    let allocator_kind: usize = storage.allocator_kind
-    storage.ptr = from_addr(1)
-    storage.len = 0
+    let owned_storage: RawBuffer = take_raw_buffer(storage)
     return VecIntoIter<T> {
         ptr: from_addr(addr(pointer)),
-        storage: RawBuffer {
-            ptr: from_addr(owned_storage_address),
-            len: storage_len,
-            align: storage_align,
-            allocator_state: allocator_state,
-            allocator_kind: allocator_kind,
-        },
+        storage: move owned_storage,
         next_index: 0,
         end_index: item_count,
     }

@@ -5,30 +5,9 @@
 
 use std/mem.RawBuffer
 use std/mem.TryAllocator
-use std/mem.alloc
-use std/mem.alloc_pages
-use std/mem.bytes_mut as raw_bytes_mut
-use std/mem.free_pages
-use std/mem.free
-use std/mem.page_allocator
-use std/mem.try_alloc
-use std/mem.try_free
-use std/internal/os.darwin_f_getpath
-use std/internal/os.darwin_max_path_len
-use std/internal/os.darwin_sys_close
-use std/internal/os.darwin_sys_fcntl
-use std/internal/os.darwin_sys_open
-use std/internal/os.syscall1
-use std/internal/os.syscall3
-use std/internal/os.trap
-use std/ptr.addr
-use std/ptr.copy_str_to_ptr
-use std/ptr.from_addr
-use std/ptr.store_u8_to_ptr
-use std/ptr.str_from_raw_parts
 use std/string.String
-use std/string.bytes as string_bytes
 use std/vec.Vec
+include ./darwin.nct
 
 #target: "arm64-darwin"
 pub(/) primitive exit_raw(code: i32): never
@@ -54,255 +33,46 @@ pub copy struct EnvironmentEntry {
 }
 
 #target: "arm64-darwin"
-pub(/) func open_current_directory(): usize! {
-    let allocation_size: usize = 2
-    let address: usize = alloc_pages(allocation_size)?
-    copy_str_to_ptr(from_addr(address), 0, ".")
-    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
-
-    let result = syscall3(darwin_sys_open(), address, 0, 0)
-    free_pages(address, allocation_size)
-    if result.errno != 0 {
-        return cwd_failed()
-    }
-    return result.value
-}
+pub(/) func open_current_directory(): usize!
 
 #target: "arm64-darwin"
-pub(/) func open_current_directory_aborting(): usize! {
-    let allocation_size: usize = 2
-    var allocator = page_allocator()
-    var path = alloc(&+allocator, allocation_size, 1)
-    copy_str_to_ptr(path.ptr, 0, ".")
-    store_u8_to_ptr(path.ptr, allocation_size - 1, 0)
-
-    let result = syscall3(darwin_sys_open(), addr(path.ptr), 0, 0)
-    free(&+allocator, move path)
-    if result.errno != 0 {
-        return cwd_failed()
-    }
-    return result.value
-}
+pub(/) func open_current_directory_aborting(): usize!
 
 #target: "arm64-darwin"
-pub(/) func close_fd_word(fd: usize): void {
-    let result = syscall1(darwin_sys_close(), fd)
-    return
-}
+pub(/) func close_fd_word(fd: usize): void
 
 #target: "arm64-darwin"
-pub(/) func cwd_path_len(buffer: &+RawBuffer): usize! {
-    let buffer_len = buffer.len
-    let raw_bytes = raw_bytes_mut(buffer)
-    var index: usize = 0
-    while index < buffer_len {
-        if raw_bytes[index] == 0 {
-            return index
-        }
-        index = index + 1
-    }
-    return cwd_failed()
-}
+pub(/) func cwd_path_len(buffer: &+RawBuffer): usize!
 
 #target: "arm64-darwin"
-pub(/) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
-    let result = syscall3(
-        darwin_sys_fcntl(),
-        fd,
-        darwin_f_getpath(),
-        addr(buffer.ptr),
-    )
-    if result.errno != 0 {
-        return cwd_failed()
-    }
-    return cwd_path_len(buffer)?
-}
+pub(/) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize!
 
-pub func args(): Vec<&str>! {
-    let count: usize = arg_count_raw()
-    var values: Vec<&str> = Vec.with_capacity(count)
-    var index: usize = 0
-    while index < count {
-        let value = arg_raw(index)
-        if !valid_utf8(value) {
-            return invalid_encoding()
-        }
-        values.push(value)
-        index = index + 1
-    }
-    return move values
-}
+pub func args(): Vec<&str>!
 
-pub func arg_count(): usize {
-    return arg_count_raw()
-}
+pub func arg_count(): usize
 
-pub func arg(index: usize): &str?! {
-    let count: usize = arg_count_raw()
-    if index >= count { return none }
-    let value = arg_raw(index)
-    if !valid_utf8(value) { return invalid_encoding() }
-    return value
-}
+pub func arg(index: usize): &str?!
 
-pub func environment_count(): usize {
-    return env_count_raw()
-}
+pub func environment_count(): usize
 
-pub func environment(index: usize): EnvironmentEntry?! {
-    let count: usize = env_count_raw()
-    if index >= count { return none }
-    let name = env_name_raw(index)
-    let value = env_value_raw(index)
-    if !valid_utf8(name) || !valid_utf8(value) { return invalid_encoding() }
-    return EnvironmentEntry { name: name, value: value }
-}
+pub func environment(index: usize): EnvironmentEntry?!
 
-pub func env(name: &str): &str?! {
-    if !valid_environment_name(name) {
-        return invalid_encoding()
-    }
-    let count = env_count_raw()
-    var index: usize = 0
-    while index < count {
-        let entry_name = env_name_raw(index)
-        let entry_value = env_value_raw(index)
-        if !valid_utf8(entry_name) || !valid_utf8(entry_value) {
-            return invalid_encoding()
-        }
-        if entry_name == name {
-            return entry_value
-        }
-        index = index + 1
-    }
-    return none
-}
+pub func env(name: &str): &str?!
 
-pub func cwd(): String! {
-    let fd = open_current_directory_aborting()?
-    var allocator = page_allocator()
-    var buffer = alloc(&+allocator, darwin_max_path_len(), 1)
-    let len = fill_cwd_path(fd, &+buffer) catch failure {
-        free(&+allocator, move buffer)
-        close_fd_word(fd)
-        return failure
-    }
-    let view = str_from_raw_parts(buffer.ptr, len)
-    let value = String.copy(view)
-    free(&+allocator, move buffer)
-    close_fd_word(fd)
-    return move value
-}
+pub func cwd(): String!
 
-pub func try_cwd(allocator: &+TryAllocator): String! {
-    let fd = open_current_directory() catch failure {
-        return failure
-    }
-    var buffer = try_alloc(allocator, darwin_max_path_len(), 1) catch failure {
-        close_fd_word(fd)
-        return failure
-    }
-    let len = fill_cwd_path(fd, &+buffer) catch failure {
-        try_free(allocator, move buffer)
-        close_fd_word(fd)
-        return failure
-    }
-    let view = str_from_raw_parts(buffer.ptr, len)
-    let value = String.try_copy(allocator, view) catch failure {
-        try_free(allocator, move buffer)
-        close_fd_word(fd)
-        return failure
-    }
-    try_free(allocator, move buffer)
-    close_fd_word(fd)
-    return move value
-}
+pub func try_cwd(allocator: &+TryAllocator): String!
 
-pub(/) func valid_environment_name(name: &str): bool {
-    if name.len() == 0 || !valid_utf8(name) {
-        return false
-    }
-    let name_bytes = string_bytes(name)
-    var index: usize = 0
-    while index < name_bytes.len() {
-        if name_bytes[index] == 0 || name_bytes[index] == 61 {
-            return false
-        }
-        index = index + 1
-    }
-    return true
-}
+pub(/) func valid_environment_name(name: &str): bool
 
-pub(/) func valid_utf8(value: &str): bool {
-    let value_bytes = string_bytes(value)
-    var index: usize = 0
-    while index < value_bytes.len() {
-        let first = value_bytes[index]
-        if first <= 127 {
-            index = index + 1
-        } else if first >= 194 && first <= 223 {
-            if index + 1 >= value_bytes.len() || !utf8_continuation(value_bytes[index + 1]) {
-                return false
-            }
-            index = index + 2
-        } else if first >= 224 && first <= 239 {
-            if index + 2 >= value_bytes.len() {
-                return false
-            }
-            let second = value_bytes[index + 1]
-            let second_valid = if first == 224 {
-                second >= 160 && second <= 191
-            } else if first == 237 {
-                second >= 128 && second <= 159
-            } else {
-                utf8_continuation(second)
-            }
-            if !second_valid || !utf8_continuation(value_bytes[index + 2]) {
-                return false
-            }
-            index = index + 3
-        } else if first >= 240 && first <= 244 {
-            if index + 3 >= value_bytes.len() {
-                return false
-            }
-            let second = value_bytes[index + 1]
-            let second_valid = if first == 240 {
-                second >= 144 && second <= 191
-            } else if first == 244 {
-                second >= 128 && second <= 143
-            } else {
-                utf8_continuation(second)
-            }
-            if !second_valid || !utf8_continuation(value_bytes[index + 2]) || !utf8_continuation(value_bytes[index + 3]) {
-                return false
-            }
-            index = index + 4
-        } else {
-            return false
-        }
-    }
-    return true
-}
+pub(/) func valid_utf8(value: &str): bool
 
-pub(/) func utf8_continuation(value: u8): bool {
-    return value >= 128 && value <= 191
-}
+pub(/) func utf8_continuation(value: u8): bool
 
-pub func exit(code: i32): never {
-    exit_raw(code)
-}
+pub func exit(code: i32): never
 
-pub func abort(): never {
-    trap()
-}
+pub func abort(): never
 
-pub func cwd_failed(): error {
-    return error.new("std.process.cwd_failed", "current working directory is not available")
-}
+pub func cwd_failed(): error
 
-pub func invalid_encoding(): error {
-    return error.new(
-        "std.process.invalid_encoding",
-        "process text or requested environment name is invalid",
-    )
-}
+pub func invalid_encoding(): error

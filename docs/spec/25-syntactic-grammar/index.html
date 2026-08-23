@@ -277,13 +277,16 @@ EnumPayload = "(" List(Parameter) ")"
 </code></pre><p>Struct fields and enum variants are newline-separated declarations. They are not comma-delimited items. Enum payload parameters are comma-delimited. A bodyless nominal is recognized for a public opaque contract; module rules require that form in <code>index.nct</code> and require one private complete definition. The grammar recognizes an empty enum body so the enum validity rule can emit its dedicated “at least one variant” diagnostic; a complete valid enum has one through 256 variants.</p><p><code>copy</code> is contextual only immediately before <code>struct</code>. It is not a general type modifier and does not occur on an enum or alias.</p><h2 id="interfaces">Interfaces</h2><pre><code class="language-text">InterfaceDeclaration = Visibility? "interface" Name GenericParameters? WhereClause?
                        "{" LineSequence(InterfaceMember) "}"
 
-InterfaceMember = AssociatedTypeDeclaration | InterfaceMethod
+InterfaceMember = AssociatedTypeDeclaration
+                | PublicInterfaceMethod
+                | ImplementationInterfaceMethod
 
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = ":" Capability ("+" Capability)*
 
-InterfaceMethod = "pub" MethodSignature CallableBody
-</code></pre><p>An interface member always writes bare <code>pub</code>; it cannot narrow its visibility independently from the interface. A bodyless method is a requirement. A method with a block is a default method. Fields, operators, coercions, construction entries, drop declarations, and tests have no interface member production.</p><h2 id="construction-declarations">Construction Declarations</h2><pre><code class="language-text">ConstructDeclaration = "construct" DeclarationTypePattern
+PublicInterfaceMethod = "pub" "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = "default" MethodSignature Block
+</code></pre><p>An interface contract member always writes bare <code>pub</code>; it cannot narrow its visibility independently from the interface. A method without <code>default</code> is a bodyless requirement. A method with <code>default</code> is reusable behavior and either carries a block inline or omits it as an eligible root contract. The matching private interface fragment writes <code>default method</code> without visibility and must carry the body. A block on a method without <code>default</code> is invalid. Fields, operators, coercions, construction entries, drop declarations, and tests have no interface member production.</p><h2 id="construction-declarations">Construction Declarations</h2><pre><code class="language-text">ConstructDeclaration = "construct" DeclarationTypePattern
                        "{" LineSequence(ConstructMember) "}"
 
 ConstructMember = Visibility? "default"? ConstructionFunction

@@ -865,7 +865,7 @@ mod tests {
         );
         assert!(changed_tokens.issue().is_none());
 
-        let memory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/mem/index.nct");
+        let memory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/mem/allocation.nct");
         let memory_uri = DocumentUri::new(format!("file://{}", memory.display())).unwrap();
         let memory = crate::semantic_document::semantic_document(
             &server.documents,
