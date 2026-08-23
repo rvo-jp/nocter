@@ -8,8 +8,8 @@ use nocter_model::{
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
-    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndexBuilder,
-    SourceOrigin, SourceRole, SyntaxOrigin,
+    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole,
+    SyntaxOrigin,
 };
 use nocter_syntax::NodeId;
 
@@ -155,7 +155,7 @@ impl From<DuplicateDocumentation> for ReservationError {
 #[derive(Debug)]
 pub struct ReservedDeclarations<'syntax> {
     pub(crate) program: DeclarationProgramBuilder,
-    pub(crate) source_index: SourceIndexBuilder,
+    pub(crate) source_index: crate::frontend_projection::FrontendProjectionBuilder,
     pub(crate) source_map: &'syntax SourceMap,
     pub(crate) packages: Box<[PackageInput<'syntax>]>,
     pub(crate) package_ids: Box<[PackageId]>,
@@ -275,7 +275,7 @@ pub(crate) fn reserve_with_contracts(
         declarations,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
-    let mut source_index = SourceIndexBuilder::new();
+    let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
     let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
     let semantic_roots = root_packages
         .iter()
@@ -352,7 +352,7 @@ pub(crate) fn reserve_with_contracts(
 fn reserve_packages(
     packages: &[PackageInput<'_>],
     program: &mut DeclarationProgramBuilder,
-    source_index: &mut SourceIndexBuilder,
+    source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<BTreeMap<crate::PackageIdentity, PackageId>, ReservationError> {
     let mut ids = BTreeMap::new();
     for package in packages {
@@ -409,7 +409,7 @@ fn reserve_modules(
 fn project_sources(
     sources: &[SurfaceSource<'_>],
     modules: &BTreeMap<ModuleIdentity, ModuleId>,
-    source_index: &mut SourceIndexBuilder,
+    source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<Vec<ModuleId>, ReservationError> {
     sources
         .iter()
@@ -444,7 +444,7 @@ fn project_declaration_documentation(
     declarations: &[SurfaceDeclaration],
     contracts: &CallableContracts,
     entities: &[Option<ReservedEntity>],
-    source_index: &mut SourceIndexBuilder,
+    source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<(), ReservationError> {
     for (index, declaration) in declarations.iter().copied().enumerate() {
         let id = SurfaceDeclarationId::from_index(index);

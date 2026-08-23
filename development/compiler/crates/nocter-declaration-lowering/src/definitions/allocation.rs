@@ -120,9 +120,13 @@ pub(super) fn finish(
 ) -> Result<LoweredDeclarations, HeaderDefinitionError> {
     types.namespaces.define_program_namespaces()?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
-    let source_index = reserved.source_index.finish();
+    let (source_index, frontend_bindings) = reserved.source_index.finish();
     match reserved.program.finish() {
-        Ok(program) => Ok(LoweredDeclarations::new(program, source_index)),
+        Ok(program) => Ok(LoweredDeclarations::new(
+            program,
+            frontend_bindings,
+            source_index,
+        )),
         Err(nocter_declarations::ProgramBuildError::InvalidProgram(
             nocter_declarations::ProgramValidationError::Declaration(violation),
         )) => {

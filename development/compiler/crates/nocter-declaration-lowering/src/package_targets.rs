@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use nocter_declarations::{DeclarationProgramBuilder, PackageTarget};
 use nocter_model::{ModuleId, PackageId, PackageTargetKind};
-use nocter_source_index::{SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 
 use crate::{
     ModuleIdentity, ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput,
@@ -16,7 +16,7 @@ pub(crate) fn reserve_package_targets(
     package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
     module_ids: &BTreeMap<ModuleIdentity, ModuleId>,
     program: &mut DeclarationProgramBuilder,
-    source_index: &mut SourceIndexBuilder,
+    source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<(), ReservationError> {
     let mut selected_names = BTreeMap::new();
     for resolution in resolutions {
@@ -72,7 +72,7 @@ pub(crate) fn reserve_single_file_targets(
     package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
     module_ids: &BTreeMap<ModuleIdentity, ModuleId>,
     program: &mut DeclarationProgramBuilder,
-    source_index: &mut SourceIndexBuilder,
+    source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<(), ReservationError> {
     for package in packages
         .iter()

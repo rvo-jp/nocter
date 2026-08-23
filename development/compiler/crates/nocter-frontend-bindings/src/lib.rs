@@ -38,6 +38,13 @@ impl FrontendBindings {
     }
 
     #[must_use]
+    pub fn module_for_source(&self, source: SourceId) -> Option<ModuleId> {
+        self.module_sources
+            .iter()
+            .find_map(|(module, sources)| sources.contains(&source).then_some(*module))
+    }
+
+    #[must_use]
     pub fn body_blocks(&self, body: BodyId) -> &[NodeId] {
         self.body_blocks.get(&body).map_or(&[], AsRef::as_ref)
     }
@@ -57,6 +64,15 @@ impl FrontendBindings {
     #[must_use]
     pub fn block_import(&self, declaration: NodeId) -> Option<ModuleId> {
         self.block_imports.get(&declaration).copied()
+    }
+
+    #[must_use]
+    pub fn with_block_imports(
+        mut self,
+        imports: impl IntoIterator<Item = (NodeId, ModuleId)>,
+    ) -> Self {
+        self.block_imports.extend(imports);
+        self
     }
 }
 

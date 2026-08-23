@@ -8,8 +8,7 @@ use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
 use nocter_source::SourceId;
 use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin,
-    SourceRole,
+    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceOrigin, SourceRole,
 };
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
@@ -25,6 +24,7 @@ pub(crate) type UseResolutionKey = (SourceId, usize);
 #[derive(Debug)]
 pub struct LoweredDeclarations {
     program: DeclarationProgram,
+    frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
 }
 
@@ -62,9 +62,14 @@ impl fmt::Display for PackageTargetResolutionError {
 impl std::error::Error for PackageTargetResolutionError {}
 
 impl LoweredDeclarations {
-    pub(crate) const fn new(program: DeclarationProgram, source_index: SourceIndex) -> Self {
+    pub(crate) const fn new(
+        program: DeclarationProgram,
+        frontend_bindings: FrontendBindings,
+        source_index: SourceIndex,
+    ) -> Self {
         Self {
             program,
+            frontend_bindings,
             source_index,
         }
     }
@@ -90,8 +95,7 @@ impl LoweredDeclarations {
         self,
         input: &CompileUnitInput<'_>,
     ) -> (DeclarationProgram, FrontendBindings, SourceIndex) {
-        let bindings =
-            crate::frontend_bindings::build(input, self.program.graph(), &self.source_index);
+        let bindings = crate::frontend_projection::add_block_imports(input, self.frontend_bindings);
         (self.program, bindings, self.source_index)
     }
 }
@@ -256,7 +260,7 @@ pub fn lower_compile_unit_topology(
 ) -> Result<LoweredDeclarations, LoweringError> {
     let prepared = prepare_compile_unit(input)?;
     let mut program = DeclarationProgramBuilder::new(input.target(), prepared.symbols);
-    let mut source_index = SourceIndexBuilder::new();
+    let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
     let mut package_ids = BTreeMap::new();
 
     for package in &prepared.packages {
@@ -308,9 +312,11 @@ pub fn lower_compile_unit_topology(
         project_module_sources(&mut source_index, id, module)?;
     }
 
+    let (source_index, frontend_bindings) = source_index.finish();
     Ok(LoweredDeclarations::new(
         program.finish()?,
-        source_index.finish(),
+        frontend_bindings,
+        source_index,
     ))
 }
 
@@ -952,7 +958,7 @@ fn collect_tree_symbols(
 }
 
 fn project_module_sources(
-    index: &mut SourceIndexBuilder,
+    index: &mut crate::frontend_projection::FrontendProjectionBuilder,
     module: ModuleId,
     input: &ModuleInput<'_>,
 ) -> Result<(), LoweringError> {

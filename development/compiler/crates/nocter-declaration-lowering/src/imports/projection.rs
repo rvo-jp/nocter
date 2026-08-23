@@ -56,7 +56,7 @@ pub(super) fn project_import(
 }
 
 fn project_reference(
-    index: &mut nocter_source_index::SourceIndexBuilder,
+    index: &mut crate::frontend_projection::FrontendProjectionBuilder,
     tree: &nocter_syntax::SyntaxTree,
     entity: ExportedEntity,
     token: SyntaxToken,

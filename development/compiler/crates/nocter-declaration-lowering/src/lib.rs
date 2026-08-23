@@ -17,7 +17,7 @@ mod contract_diagnostic;
 mod definition_diagnostic;
 mod definitions;
 mod diagnostic;
-mod frontend_bindings;
+mod frontend_projection;
 mod generic_diagnostic;
 mod generics;
 mod headers;
