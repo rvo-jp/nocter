@@ -2,11 +2,11 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 is active and closes compiler boundaries
-before practical application APIs are expanded. The phase removes semantic authority from
-`SourceIndex`, narrows concrete dispatch to checked evidence, replaces the backend-visible semantic
-`TypeStore` with a runtime type contract, and gives shared ABI facts one owner. The exact scope and
-completion gate are recorded in `development/milestones/v0.15.0.md`.
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 is complete. It removed semantic authority
+from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the backend-visible
+semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one owner. Phase 1 is
+the next planned source-design phase; its module-import behavior must be specified before
+implementation. The exact scope and completion record are in `development/milestones/v0.15.0.md`.
 
 The active compiler is the specification-first rewrite under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
@@ -49,7 +49,10 @@ input.
 
 The post-release v0.15.0 audit found that items 2 and 3 were weaker than their wording: checking
 still used `SourceIndex` as input authority, and the MIR environment still exposed semantic
-`TypeStore`. Phase 0 replaces those boundaries rather than preserving the inaccurate claim.
+`TypeStore`. Phase 0 replaced those boundaries rather than preserving the inaccurate claim. Its
+final review also removed an implicit presentation-to-semantics projection, lexical visibility
+re-evaluation during specialization, and an unused opaque declaration identity from the runtime
+contract.
 
 ## Guardrails
 
