@@ -2,17 +2,17 @@
 
 ## Current Task
 
-Nocter v0.16.0 Phase 0 and Phase 1 are complete, and release preparation is authorized. The tracked
-compiler installation, standard package, manifest, English candidate notes, and working
-specification now identify the unpublished v0.16.0 candidate. Release-content qualification still
-requires incremental and clean source gates, deterministic double packaging, and the complete
-fresh-install smoke matrix before the candidate can be frozen. Exact implementation scope is in
-`development/milestones/v0.16.0.md`; the qualification contract is in
-`development/milestones/v0.16.0-release-preparation.md`.
+Nocter v0.16.0 Phase 0 and Phase 1 are complete. The release candidate is fully prepared and
+qualified without publication. Release-content commit
+`1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
+Clippy from reusable and clean targets, explicit public-HTTPS acquisition, deterministic double
+packaging, and the complete fresh-install smoke matrix. Candidate evidence is recorded in
+`development/milestones/v0.16.0-release-preparation.md`; completed implementation scope is in
+`development/milestones/v0.16.0.md`.
 
-Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing,
-uploading, public latest-release updates, and publication remain outside the current operation and
-require explicit user authorization. Preserve the closed Phase 0 and Phase 1 contracts. Do not
+The qualified archive is frozen. Tagging, pushing, uploading, public latest-release updates, and
+publication remain outside the current operation and require explicit user authorization.
+Preserve the closed Phase 0 and Phase 1 contracts. Do not
 introduce user-defined failure types, dynamic interfaces, vtables, reference counting, implicit
 error conversion, synthetic editor fields, a second numeric error-layout authority, or a
 visibility lookup in Machine or ARM64.
