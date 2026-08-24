@@ -2,14 +2,17 @@
 
 ## Current Task
 
-Nocter v0.16.0 Phase 1 is complete. The closed primitive registry now validates source-private,
-package-visible, and public exposure; bundled implementation primitives use their narrowest
-authored boundary; the LSP retains one exact identity while editing that standard package; and the
-Phase 0 owned-error implementation is qualified through the physical bundled standard library.
-Exact scope and completion evidence are recorded in
-`development/milestones/v0.16.0.md`.
+Nocter v0.16.0 Phase 0 and Phase 1 are complete, and release preparation is authorized. The tracked
+compiler installation, standard package, manifest, English candidate notes, and working
+specification now identify the unpublished v0.16.0 candidate. Release-content qualification still
+requires incremental and clean source gates, deterministic double packaging, and the complete
+fresh-install smoke matrix before the candidate can be frozen. Exact implementation scope is in
+`development/milestones/v0.16.0.md`; the qualification contract is in
+`development/milestones/v0.16.0-release-preparation.md`.
 
-No later phase has been adopted. Preserve the closed Phase 0 and Phase 1 contracts. Do not
+Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing,
+uploading, public latest-release updates, and publication remain outside the current operation and
+require explicit user authorization. Preserve the closed Phase 0 and Phase 1 contracts. Do not
 introduce user-defined failure types, dynamic interfaces, vtables, reference counting, implicit
 error conversion, synthetic editor fields, a second numeric error-layout authority, or a
 visibility lookup in Machine or ARM64.
