@@ -1,0 +1,127 @@
+//! Vec construction from elements, views, and iterators.
+
+see ./index.nct
+see ./errors.nct
+see ./storage.nct
+
+use std/internal/mem.allocation_abort
+use std/internal/ptr.{from_addr, pointee_align, pointee_size}
+use std/iter.{ExactSizeIterator, Iterator}
+use std/mem.{TryAllocator, current_allocator, empty_page_buffer}
+use std/ptr.addr
+
+construct Vec<T> {
+    default literal [](...items: T): Self {
+        let item_count: usize = items.len()
+        if item_count == 0 {
+            return Vec.empty()
+        }
+        var result: Vec<T> = Vec.with_capacity(item_count)
+        for item in items {
+            result.push(move item)
+        }
+        return move result
+    }
+
+    func empty(): Self {
+        let pointer: *T = from_addr(1)
+        let element_align: usize = pointee_align(pointer)
+        let storage = empty_page_buffer(element_align)
+        return Vec<T> {
+            ptr: from_addr(1),
+            storage: move storage,
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    func with_capacity(requested_capacity: usize): Self {
+        let empty_pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(empty_pointer)
+        if element_size == 0 {
+            allocation_abort()
+        }
+        if requested_capacity > 18446744073709551615 / element_size {
+            allocation_abort()
+        }
+
+        let byte_capacity: usize = requested_capacity * element_size
+        var allocator = current_allocator()
+        let storage = allocator.alloc(byte_capacity, pointee_align(empty_pointer))
+        let address: usize = addr(storage.bytes().ptr())
+        return Vec<T> {
+            ptr: from_addr(address),
+            storage: move storage,
+            len: 0,
+            capacity: requested_capacity,
+        }
+    }
+
+    func try_with_capacity(
+        allocator: &+TryAllocator,
+        requested_capacity: usize,
+    ): Self! {
+        let empty_pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(empty_pointer)
+        if element_size == 0 {
+            return unsupported()
+        }
+        if requested_capacity > 18446744073709551615 / element_size {
+            return capacity_overflow()
+        }
+
+        let byte_capacity: usize = requested_capacity * element_size
+        let storage = allocator.try_alloc(byte_capacity, pointee_align(empty_pointer))?
+        let address: usize = addr(storage.bytes().ptr())
+        return Vec<T> {
+            ptr: from_addr(address),
+            storage: move storage,
+            len: 0,
+            capacity: requested_capacity,
+        }
+    }
+
+    func from_slice(values: &[T]): Self where copy T {
+        var result: Vec<T> = Vec.with_capacity(values.len())
+        var index: usize = 0
+        while index < values.len() {
+            result.push(values[index])
+            index += 1
+        }
+        return move result
+    }
+
+    func from_iter<I>(iterator: I): Self where I: Iterator, I.Item = T {
+        var result: Vec<T> = Vec.empty()
+        for item in move iterator {
+            result.push(move item)
+        }
+        return move result
+    }
+
+    func from_exact_iter<I>(
+        iterator: I,
+    ): Self where I: Iterator + ExactSizeIterator, I.Item = T {
+        var source = move iterator
+        let initial_len: usize = source.remaining_len()
+        var result: Vec<T> = Vec.empty()
+        result.reserve(initial_len)
+        for item in move source {
+            result.push(move item)
+        }
+        return move result
+    }
+
+    func try_from_slice(
+        allocator: &+TryAllocator,
+        values: &[T],
+    ): Self! from allocator | values where copy T {
+        var result: Vec<T> = Vec.try_with_capacity(allocator, values.len())?
+        var index: usize = 0
+        while index < values.len() {
+            result.try_push(values[index])?
+            index += 1
+        }
+        return move result
+    }
+}

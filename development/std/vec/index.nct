@@ -9,7 +9,9 @@
 
 use std/iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
 use std/mem.TryAllocator
+see ./construction.nct
 see ./into_iter.nct
+see ./mutation.nct
 see ./storage.nct
 
 /// A forward iterator that owns a Vec allocation and its remaining elements.

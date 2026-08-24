@@ -150,7 +150,8 @@
             <div class="markdown-body">
                 <h1>conformances.nct</h1><pre><code class="language-nocter"><span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_ref<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_ref
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span>slice_from_raw_parts_value
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-comment">//! Standard formatting conformances for compiler built-in and owning text types.</span>

@@ -773,12 +773,11 @@ fn lexical_region_context_reaches_authored_destruction() {
 #[test]
 fn pointer_and_view_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.{\n\
-             addr, from_ref, pointee_size_for_test, pointee_align_for_test,\n\
-         }\n\
+        "use std/ptr.{addr, from_ref}\n\
+         use std/internal/ptr.{pointee_size_for_test, pointee_align_for_test}\n\
          use std/str.{str_len_for_test, str_ptr_addr_for_test}\n\
          use std/slice.{slice_len_for_test, slice_ptr_addr_for_test}\n\
-         use std/string.{bytes_from_str_for_test, str_subview_unchecked_for_test}\n\
+         use std/str.{bytes_from_str_for_test, str_subview_unchecked_for_test}\n\
          func main(): i32 {\n\
              let byte: u8 = 65\n\
              let pointer = from_ref(&byte)\n\
@@ -801,7 +800,13 @@ fn pointer_and_view_primitives_cross_the_native_pipeline() {
              }\n\
              return 1\n\
          }\n",
-        &[&["ptr"], &["str"], &["slice"], &["string"]],
+        &[
+            &["ptr"],
+            &["internal", "ptr"],
+            &["str"],
+            &["slice"],
+            &["str"],
+        ],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -813,11 +818,12 @@ fn pointer_and_view_primitives_cross_the_native_pipeline() {
 #[test]
 fn memory_transfer_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.{\n\
-             copy_ptr_to_ptr_for_test, copy_str_to_ptr_for_test, from_ref, from_ref_mut,\n\
+        "use std/internal/ptr.{\n\
+             copy_ptr_to_ptr_for_test, copy_str_to_ptr_for_test,\n\
              store_u8_to_ptr_for_test, store_value_to_ptr_for_test,\n\
              take_three_u64_at_ptr_for_test, take_u64_at_ptr_for_test,\n\
          }\n\
+         use std/ptr.{from_ref, from_ref_mut}\n\
          struct Bytes {\n\
              a: u8\n\
              b: u8\n\
@@ -879,7 +885,7 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
              }\n\
              return 1\n\
          }\n",
-        &[&["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -891,7 +897,7 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
 #[test]
 fn darwin_syscall_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os.{syscall0_succeeds_for_test, syscall1_fails_for_test}\n\
+        "use std/internal/os/darwin.{syscall0_succeeds_for_test, syscall1_fails_for_test}\n\
          func main(): i32 {\n\
              if syscall0_succeeds_for_test(0x02000014) {\n\
                  if syscall1_fails_for_test(0x02000006, 18446744073709551615) {\n\
@@ -900,7 +906,7 @@ fn darwin_syscall_primitives_cross_the_native_pipeline() {
              }\n\
              return 1\n\
          }\n",
-        &[&["internal", "os"]],
+        &[&["internal", "os", "darwin"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -912,7 +918,7 @@ fn darwin_syscall_primitives_cross_the_native_pipeline() {
 #[test]
 fn generic_syscall_write_is_the_native_io_boundary() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os.syscall3_value_for_test\n\
+        "use std/internal/os/darwin.syscall3_value_for_test\n\
          use std/str.str_ptr_addr_for_test\n\
          func main(): i32 {\n\
              let text: &str = \"hello\"\n\
@@ -925,7 +931,7 @@ fn generic_syscall_write_is_the_native_io_boundary() {
              if written == 5 { return 42 }\n\
              return 1\n\
          }\n",
-        &[&["internal", "os"], &["str"]],
+        &[&["internal", "os", "darwin"], &["str"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -937,7 +943,7 @@ fn generic_syscall_write_is_the_native_io_boundary() {
 #[test]
 fn generic_syscalls_open_read_and_close_a_native_file() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os.{syscall1_fails_for_test, syscall3_value_for_test}\n\
+        "use std/internal/os/darwin.{syscall1_fails_for_test, syscall3_value_for_test}\n\
          use std/process.{arg_count_for_test, arg_for_test}\n\
          use std/ptr.{addr, from_ref_mut}\n\
          use std/str.str_ptr_addr_for_test\n\
@@ -969,7 +975,12 @@ fn generic_syscalls_open_read_and_close_a_native_file() {
              return 42\n\
          }\n\
          func main(): i32 { inspect_file() }\n",
-        &[&["internal", "os"], &["process"], &["ptr"], &["str"]],
+        &[
+            &["internal", "os", "darwin"],
+            &["process"],
+            &["ptr"],
+            &["str"],
+        ],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1018,9 +1029,9 @@ fn process_entry_state_crosses_calls_and_the_native_pipeline() {
 #[test]
 fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os.terminate_for_test\n\
+        "use std/internal/os/darwin.terminate_for_test\n\
          func main(): i32 { terminate_for_test(false) }\n",
-        &[&["internal", "os"]],
+        &[&["internal", "os", "darwin"]],
     );
     let machine = lower_machine_fixture(&fixture);
     nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1029,9 +1040,9 @@ fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
 #[test]
 fn allocation_abort_primitive_materializes_without_a_runtime_dependency() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/mem.allocation_abort_for_test\n\
+        "use std/internal/mem.allocation_abort_for_test\n\
          func main(): i32 { allocation_abort_for_test() }\n",
-        &[&["mem"]],
+        &[&["internal", "mem"]],
     );
     let machine = lower_machine_fixture(&fixture);
     nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1090,7 +1101,7 @@ fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
 fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
-         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct ExitOnDrop { status: i32 }\n\
          drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
@@ -1102,7 +1113,7 @@ fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
-        &[&["process"], &["ptr"], &["ptr"]],
+        &[&["process"], &["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1114,14 +1125,14 @@ fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
 #[test]
 fn copy_pointer_destruction_is_an_explicit_native_noop() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
+        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          func main(): i32 {\n\
              var value: i32 = 41\n\
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return value + 1\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     assert_eq!(machine.destructions().iter().len(), 0);
@@ -1135,7 +1146,7 @@ fn copy_pointer_destruction_is_an_explicit_native_noop() {
 fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
-         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct ExitOnDrop { status: i32 }\n\
          drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
@@ -1148,7 +1159,7 @@ fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
-        &[&["process"], &["ptr"], &["ptr"]],
+        &[&["process"], &["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1161,7 +1172,7 @@ fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
 fn generated_optional_pointer_destruction_selects_present_payload() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
-         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct ExitOnDrop { status: i32 }\n\
          drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
@@ -1170,7 +1181,7 @@ fn generated_optional_pointer_destruction_selects_present_payload() {
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
-        &[&["process"], &["ptr"], &["ptr"]],
+        &[&["process"], &["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -1183,7 +1194,7 @@ fn generated_optional_pointer_destruction_selects_present_payload() {
 fn generated_closure_pointer_destruction_visits_owned_captures() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process.exit_for_test\n\
-         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct ExitOnDrop { status: i32 }\n\
          drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
@@ -1193,7 +1204,7 @@ fn generated_closure_pointer_destruction_visits_owned_captures() {
              drop_value_at_ptr_for_test(from_ref_mut(&+callback), 0)\n\
              return 1\n\
          }\n",
-        &[&["process"], &["ptr"], &["ptr"]],
+        &[&["process"], &["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();

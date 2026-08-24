@@ -2,11 +2,10 @@
 
 ## Current Task
 
-Nocter v0.17.0 Phase 0 is complete. The normative contract, implementation boundaries, native
-acceptance, and final responsibility review are recorded in
-`development/milestones/v0.17.0.md`. No later v0.17.0 phase is active; the next phase must begin
-with an explicit contract and completion gate rather than extending the filesystem surface by
-optional flags.
+Nocter v0.17.0 Phase 0 and Phase 1 are complete. Phase 1 reconstructed the authored standard
+library around explicit contract, internal-runtime, target-ABI, borrowed-view, and owned-storage
+boundaries. Its completion evidence and architectural guards are recorded in
+`development/milestones/v0.17.0.md`. No later v0.17.0 phase is active.
 
 Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict

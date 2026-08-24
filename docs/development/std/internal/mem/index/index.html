@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/internal/os/primitives.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/internal/os/primitives.nct.">
+    <title>development/std/internal/mem/index.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/internal/mem/index.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/internal/os/primitives/">
+    <link rel="canonical" href="https://nocter.dev/development/std/internal/mem/index/">
     <link rel="icon" href="../../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/internal/os/primitives.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/internal/os/primitives.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/internal/os/primitives/">
+    <meta property="og:title" content="development/std/internal/mem/index.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/internal/mem/index.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/internal/mem/index/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/internal/os/primitives.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/internal/os/primitives.nct.">
+    <meta name="twitter:title" content="development/std/internal/mem/index.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/internal/mem/index.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/os/primitives.nct - Nocter","description":"Nocter source code for development/std/internal/os/primitives.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/os/primitives/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Os","item":"https://nocter.dev/development/std/internal/os/"},{"@type":"ListItem","position":6,"name":"Primitives","item":"https://nocter.dev/development/std/internal/os/primitives/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/mem/index.nct - Nocter","description":"Nocter source code for development/std/internal/mem/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/mem/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Mem","item":"https://nocter.dev/development/std/internal/mem/"},{"@type":"ListItem","position":6,"name":"Index","item":"https://nocter.dev/development/std/internal/mem/index/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../../style.css">
 </head>
@@ -145,37 +145,12 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/internal/os/primitives.nct</span>
+                <span class="markdown-path-text">/development/std/internal/mem/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>primitives.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Target-owned system primitives without current cross-module callers.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal allocation failure policy boundary.</span>
 
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-function">syscall0</span><span class="token-operator">(</span>number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-function">syscall4</span><span class="token-operator">(</span>
-    number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a2<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a3<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-function">syscall5</span><span class="token-operator">(</span>
-    number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a2<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a3<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    a4<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-function">unreachable</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
 </code></pre>
             </div>
         </main>

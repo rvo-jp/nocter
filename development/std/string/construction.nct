@@ -1,0 +1,90 @@
+//! Owned string construction.
+
+see ./index.nct
+see ./storage.nct
+see ./utf8.nct
+
+use std/mem.{TryAllocator, current_allocator, empty_page_buffer}
+use std/internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
+
+construct String {
+    default literal ""(text: &str): Self {
+        return String.copy(text)
+    }
+
+    func empty(): Self {
+        return String {
+            storage: empty_page_buffer(1),
+            len: 0,
+        }
+    }
+
+    func with_capacity(requested_capacity: usize): Self {
+        var allocator = current_allocator()
+        return String {
+            storage: allocator.alloc(requested_capacity, 1),
+            len: 0,
+        }
+    }
+
+    func try_with_capacity(
+        allocator: &+TryAllocator,
+        requested_capacity: usize,
+    ): Self! {
+        return String {
+            storage: allocator.try_alloc(requested_capacity, 1)?,
+            len: 0,
+        }
+    }
+
+    func copy(value: &str): Self {
+        let value_len: usize = value.len()
+        var result = String.with_capacity(value_len)
+        copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
+        result.len = value_len
+        return move result
+    }
+
+    func concat(...parts: &str): Self {
+        var result = String.empty()
+        for part in parts {
+            result.push_str(part)
+        }
+        return move result
+    }
+
+    func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
+        let value_len: usize = value.len()
+        var result = String.try_with_capacity(allocator, value_len)?
+        copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
+        result.len = value_len
+        return move result
+    }
+
+    func from_utf8(candidate: &[u8]): Self! {
+        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        var result = String.with_capacity(candidate.len())
+        var offset: usize = 0
+        while offset < candidate.len() {
+            store_u8_to_ptr(result.storage.bytes().ptr(), offset, candidate[offset])
+            offset += 1
+        }
+        result.len = candidate.len()
+        return move result
+    }
+
+    func try_from_utf8(
+        allocator: &+TryAllocator,
+        candidate: &[u8],
+    ): Self! from allocator {
+        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        var result = String.try_with_capacity(allocator, candidate.len())?
+        var offset: usize = 0
+        while offset < candidate.len() {
+            store_u8_to_ptr(result.storage.bytes().ptr(), offset, candidate[offset])
+            offset += 1
+        }
+        result.len = candidate.len()
+        return move result
+    }
+}

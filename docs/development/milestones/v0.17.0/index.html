@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.17.0: Practical Application Foundations - Nocter</title>
-    <meta name="description" content="Status: Phase 0 complete. The latest published release remains v0.16.0. This milestone returns development to ordinary application APIs without widening th">
+    <meta name="description" content="Status: Phase 0 and Phase 1 complete. The latest published release remains v0.16.0. Phase 0 returned development to ordinary application APIs. Phase 1 reco">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.17.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.17.0: Practical Application Foundations - Nocter">
-    <meta property="og:description" content="Status: Phase 0 complete. The latest published release remains v0.16.0. This milestone returns development to ordinary application APIs without widening th">
+    <meta property="og:description" content="Status: Phase 0 and Phase 1 complete. The latest published release remains v0.16.0. Phase 0 returned development to ordinary application APIs. Phase 1 reco">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.17.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.17.0: Practical Application Foundations - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0 complete. The latest published release remains v0.16.0. This milestone returns development to ordinary application APIs without widening th">
+    <meta name="twitter:description" content="Status: Phase 0 and Phase 1 complete. The latest published release remains v0.16.0. Phase 0 returned development to ordinary application APIs. Phase 1 reco">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.17.0: Practical Application Foundations - Nocter","description":"Status: Phase 0 complete. The latest published release remains v0.16.0. This milestone returns development to ordinary application APIs without widening th","url":"https://nocter.dev/development/milestones/v0.17.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.17.0/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.17.0","item":"https://nocter.dev/development/milestones/v0.17.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.17.0: Practical Application Foundations - Nocter","description":"Status: Phase 0 and Phase 1 complete. The latest published release remains v0.16.0. Phase 0 returned development to ordinary application APIs. Phase 1 reco","url":"https://nocter.dev/development/milestones/v0.17.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.17.0/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.17.0","item":"https://nocter.dev/development/milestones/v0.17.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -139,7 +139,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.17.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-17-0-practical-application-foundations">v0.17.0: Practical Application Foundations</h1><p><strong>Status: Phase 0 complete.</strong> The latest published release remains v0.16.0. This milestone returns development to ordinary application APIs without widening the compiler's trusted runtime surface.</p><h2 id="goal">Goal</h2><p>Make common local applications expressible through small, composable standard contracts. Public modules must own portable meaning, target-specific standard internals must own raw OS facts, and compiler primitives must remain limited to operations that Nocter source cannot express safely.</p><h2 id="phase-0-practical-filesystem-operations">Phase 0: Practical Filesystem Operations</h2><p>Phase 0 introduces <code>std/fs</code> as the path-oriented filesystem module. It complements rather than duplicates the existing modules:</p><ul><li><code>std/io</code> owns open byte streams and the <code>File</code>, <code>Reader</code>, and <code>Writer</code> contracts;</li><li><code>std/path</code> owns validated UTF-8 path values and lexical path operations;</li><li><code>std/fs</code> owns one-shot path operations and portable metadata;</li><li><code>std/internal/os</code> owns dependency-free Darwin syscall numbers, errno classification, and native
+                <h1 id="v0-17-0-practical-application-foundations">v0.17.0: Practical Application Foundations</h1><p><strong>Status: Phase 0 and Phase 1 complete.</strong> The latest published release remains v0.16.0. Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that public surface grows further. No later v0.17.0 phase is active.</p><h2 id="goal">Goal</h2><p>Make common local applications expressible through small, composable standard contracts. Public modules must own portable meaning, target-specific standard internals must own raw OS facts, and compiler primitives must remain limited to operations that Nocter source cannot express safely.</p><h2 id="phase-0-practical-filesystem-operations">Phase 0: Practical Filesystem Operations</h2><p>Phase 0 introduces <code>std/fs</code> as the path-oriented filesystem module. It complements rather than duplicates the existing modules:</p><ul><li><code>std/io</code> owns open byte streams and the <code>File</code>, <code>Reader</code>, and <code>Writer</code> contracts;</li><li><code>std/path</code> owns validated UTF-8 path values and lexical path operations;</li><li><code>std/fs</code> owns one-shot path operations and portable metadata;</li><li><code>std/internal/os</code> owns dependency-free Darwin syscall numbers, errno classification, and native
   metadata layout;</li><li><code>std/internal/io</code> owns the stable public-I/O error policy shared by stream and filesystem APIs;</li><li><code>std/internal/path</code> owns the allocator-backed target path argument shared by stream and
   filesystem operations.</li></ul><p>The public surface is:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs
 
@@ -171,7 +171,34 @@ fs<span class="token-operator">.</span><span class="token-function">write_text</
   callable re-exports and body type/constant module segments. Editor hover and navigation consume
   the same source projection.</li><li>The final responsibility search found no second descriptor read/write loop, target path encoder,
   I/O error mapper, metadata ABI table, or compiler dependency on a filesystem API name.</li><li><code>cargo test --workspace --quiet</code>, warnings-denied workspace Clippy, Rust formatting, generated
-  documentation, and <code>git diff --check</code> passed for the completed Phase 0 tree.</li></ul>
+  documentation, and <code>git diff --check</code> passed for the completed Phase 0 tree.</li></ul><h2 id="phase-1-standard-library-reconstruction">Phase 1: Standard-Library Reconstruction</h2><p>Phase 1 makes the authored standard library demonstrate the source and module architecture that Nocter asks package authors to use. It changes ownership and dependency structure rather than adding practical APIs.</p><p>The public root of a standard module is its user contract. Package-only declarations do not belong there merely because implementation sources need them. A representation-independent internal subsystem owns an explicit <code>std/internal/*</code> module. Because Nocter forbids implementation sources from adding restricted-visible declarations, a package contract inseparable from a public type's private representation may remain in that type's root only as a reviewed exception.</p><p>The intended dependency direction is from target and runtime facts, through pointer and allocation foundations, borrowed views and iteration contracts, owned values and streams, and finally adapters and application services. A higher layer must not become the implementation owner of a lower layer's algorithms. In particular, borrowed UTF-8 behavior belongs to <code>std/str</code>; <code>std/string</code> owns allocated <code>String</code> storage and mutation.</p><h3 id="completion-gate-2">Completion Gate</h3><p>Phase 1 is complete only when:</p><ul><li>every standard root contains the complete user-visible contract and no implementation body;</li><li>independent package-only contracts no longer obscure public roots and have an explicit internal
+  module owner; every representation-bound root exception is named and reviewed;</li><li>every compiler primitive has one reviewed domain owner, and public modules expose only the
+  primitives that are intentionally user-facing;</li><li>target ABI constants and syscalls live under a target-specific internal contract rather than a
+  target-neutral root;</li><li>borrowed string search, ranges, and iterators are owned by <code>std/str</code>, while <code>std/string</code> owns only
+  allocated string construction, storage, mutation, and UTF-8 validation needed for construction;</li><li>the standard dependency graph has no unreviewed reverse edge or duplicated implementation owner;</li><li>source navigation distinguishes public contracts, package contracts, and implementations without
+  synthetic editor behavior;</li><li>the authored standard-library checks, native acceptance, public examples, complete workspace
+  tests, warnings-denied Clippy, formatting, generated documentation, and whitespace gates pass;</li><li>a final responsibility review confirms that every source depends only on another responsibility's
+  declared contract, never its private representation.</li></ul><h3 id="non-goals-2">Non-goals</h3><p>Phase 1 does not add collection, text, filesystem, networking, concurrency, or asynchronous APIs. It does not preserve obsolete internal paths with aliases or compatibility declarations. Public API changes are limited to removing accidental or contradictory surface discovered by the ownership review; new application capabilities belong to a later phase.</p><h3 id="completion-evidence-2">Completion Evidence</h3><p>Completed on 2026-08-25:</p><ul><li><code>std/ptr</code> now contains only the three intentionally public address-observation primitives.
+  Address projection, memory copying, raw view construction, and typed value movement have the
+  single package-internal owner <code>std/internal/ptr</code>; allocation abort has the separate owner
+  <code>std/internal/mem</code>.</li><li>Target-neutral <code>std/internal/os</code> contains only portable OS facts. Darwin syscall declarations,
+  errno classification, file flags, mmap flags, path limits, and metadata layout live in the
+  target-specific <code>std/internal/os/darwin</code> module. No Darwin syscall number remains outside its
+  implementation source.</li><li>Borrowed search, ranges, byte projection, <code>SplitIter</code>, and <code>LinesIter</code> moved from <code>std/string</code> to
+  <code>std/str</code>. The owned <code>split</code> materialization edge is isolated in <code>std/str/owned.nct</code>, while
+  <code>std/string</code> is divided into storage, construction, UTF-8 validation, and mutation sources.</li><li><code>std/mem</code> and <code>std/vec</code> are likewise divided by stable responsibility. Their roots remain the
+  sole contract authority; implementation sources add no visible declarations. The only reviewed
+  restricted contracts in user-facing roots are the four <code>std/mem</code> operations inseparable from
+  private <code>RawBuffer</code> representation.</li><li><code>std/process</code> reuses the public UTF-8 validator instead of carrying a second implementation.
+  Upper modules consume allocator, buffer, string, reader, and writer methods through declared
+  contracts rather than package-visible function aliases.</li><li>The authored-standard test now rejects global public surface in <code>std/internal</code>, independent
+  package plumbing in user-facing roots, and any unreviewed resolved module dependency edge. Its
+  checks consume parsed declarations, resolved imports, and checked semantic references rather
+  than reparsing source spellings.</li><li>The source tree contains 65 responsibility-named files and 4,905 lines, down from 4,984 lines
+  before reconstruction despite the finer split. Standard roots contain 1,152 lines, down from
+  1,199, and no implementation source declares package visibility.</li><li>The complete workspace tests, all 61 language-server tests, warnings-denied workspace Clippy,
+  Rust formatting, generated documentation, and repository whitespace checks passed on the final
+  Phase 1 tree.</li></ul>
             </div>
         </main>
     </div>

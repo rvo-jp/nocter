@@ -11,6 +11,9 @@
 //! this common API.
 
 see ./allocation.nct
+see ./layout.nct
+see ./raw_buffer.nct
+see ./storage.nct
 
 pub copy struct Layout
 
@@ -23,8 +26,6 @@ pub struct AllocationContext
 
 pub struct TryAllocator
 
-pub(/) primitive allocation_abort_raw(): never
-
 pub(/) func current_allocator(): Allocator
 
 pub func page_allocator(): Allocator
@@ -33,45 +34,23 @@ pub func page_try_allocator(): TryAllocator
 
 pub(/) func empty_page_buffer(align: usize): RawBuffer
 
-pub(/) func raw_buffer_ptr(buffer: &RawBuffer): *u8
-
-pub(/) func raw_buffer_len(buffer: &RawBuffer): usize
-
 pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
 construct Layout {
     pub default func new(size: usize, align: usize): Self!
 }
 
-pub(/) func try_alloc(
-    allocator: &+TryAllocator,
-    size: usize,
-    align: usize,
-): RawBuffer!
-
 pub func try_alloc_layout(
     allocator: &+TryAllocator,
     requested: Layout,
 ): RawBuffer!
-
-pub(/) func alloc(
-    allocator: &+Allocator,
-    size: usize,
-    align: usize,
-): RawBuffer
 
 pub func alloc_layout(
     allocator: &+Allocator,
     requested: Layout,
 ): RawBuffer
 
-pub(/) func free(allocator: &+Allocator, buffer: RawBuffer): void
-
-pub(/) func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void
-
 pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void!
-
-pub(/) func bytes_mut(buffer: &+RawBuffer): &+[u8]
 
 instance Allocator {
     pub method &+self.alloc(size: usize, align: usize): RawBuffer

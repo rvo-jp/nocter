@@ -3,8 +3,6 @@
 see ./index.nct
 
 use std/io.{File, Reader, Writer}
-use std/io.read as file_read
-use std/io.write as file_write
 use std/vec.Vec
 
 struct BufReader {
@@ -20,7 +18,11 @@ construct BufReader {
 
     func with_capacity(source: File, requested_capacity: usize): Self {
         var storage: Vec<u8> = Vec.with_capacity(requested_capacity)
-        return BufReader { source: move source, buffer: move storage, next: 0 }
+        return BufReader {
+            source: move source,
+            buffer: move storage,
+            next: 0,
+        }
     }
 }
 
@@ -34,10 +36,12 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
                 reader.buffer.push(0)
                 initialized += 1
             }
-            let received: usize = file_read(&+reader.source, &+reader.buffer)?
+            let received: usize = reader.source.read(&+reader.buffer)?
             reader.buffer.truncate(received)
             reader.next = 0
-            if received == 0 { break }
+            if received == 0 {
+                break
+            }
         }
         let available: &[u8] = &reader.buffer
         destination[written] = available[reader.next]
@@ -48,7 +52,9 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
 }
 
 conform Reader for BufReader {
-    method &+self.read(destination: &+[u8]): usize! { return read(self, destination)? }
+    method &+self.read(destination: &+[u8]): usize! {
+        return read(self, destination)?
+    }
 }
 
 struct BufWriter {
@@ -75,7 +81,9 @@ construct BufWriter {
 func write(writer: &+BufWriter, bytes: &[u8]): void! {
     var offset: usize = 0
     while offset < bytes.len() {
-        if writer.buffer.len() == writer.limit { flush(writer)? }
+        if writer.buffer.len() == writer.limit {
+            flush(writer)?
+        }
         writer.buffer.push(bytes[offset])
         offset += 1
     }
@@ -83,8 +91,10 @@ func write(writer: &+BufWriter, bytes: &[u8]): void! {
 }
 
 func flush(writer: &+BufWriter): void! {
-    if writer.buffer.len() == 0 { return }
-    file_write(&+writer.destination, &writer.buffer)?
+    if writer.buffer.len() == 0 {
+        return
+    }
+    writer.destination.write(&writer.buffer)?
     writer.buffer.clear()
     writer.destination.flush()?
     return

@@ -152,7 +152,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> take_raw_buffer<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>addr<span class="token-operator">,</span> drop_value_at_ptr<span class="token-operator">,</span> from_addr<span class="token-operator">,</span> pointee_size<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>drop_value_at_ptr<span class="token-operator">,</span> from_addr<span class="token-operator">,</span> pointee_size<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
 
 <span class="token-comment">//! Owning iteration for Vec storage.</span>
 <span class="token-comment">//!</span>

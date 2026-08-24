@@ -7,66 +7,18 @@
 //!
 //! Public construction and mutation belong to `construct String` and
 //! `instance String`; borrowed observation belongs to `instance str`. Their
-//! implementation helpers remain private or package-visible. Empty strings,
+//! implementation helpers remain private. Empty strings,
 //! copying from `&str`, capacity reservation, growth, UTF-8 view construction,
 //! byte-slice view construction, and release are implemented in Nocter code
 //! through restricted runtime pointer primitives.
 
-use std/iter.Iterator
 use std/mem.TryAllocator
-use std/vec.Vec
-see ./views.nct
+see ./construction.nct
+see ./mutation.nct
 see ./storage.nct
-
-pub(/) primitive bytes_from_str(value: &str): &[u8] from value
+see ./utf8.nct
 
 pub struct String
-
-/// Allocation-free iterator over separator-delimited borrowed components.
-pub struct SplitIter
-
-/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
-pub struct LinesIter
-
-/// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
-pub(/) func is_char_boundary(text: &str, index: usize): bool
-
-/// Returns a borrowed UTF-8 range, or `none` for invalid endpoints.
-pub(/) func get_range(text: &str, start: usize, end: usize): &str?
-
-/// Removes `prefix` without allocation when it exactly matches.
-pub(/) func strip_prefix(text: &str, prefix: &str): &str? from text
-
-/// Removes `suffix` without allocation when it exactly matches.
-pub(/) func strip_suffix(text: &str, suffix: &str): &str? from text
-
-construct SplitIter {
-    pub default func new(
-        text: &str,
-        separator: &str,
-    ): Self! from text | separator
-}
-
-/// Creates an allocation-free separator iterator.
-pub(/) func split_views(
-    text: &str,
-    separator: &str,
-): SplitIter! from text | separator
-
-construct LinesIter {
-    pub default func new(text: &str): Self
-}
-
-conform Iterator for SplitIter {
-    type Item = &str
-}
-
-conform Iterator for LinesIter {
-    type Item = &str
-}
-
-/// Creates an allocation-free iterator over borrowed lines.
-pub(/) func lines(text: &str): LinesIter
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.
@@ -96,29 +48,8 @@ construct String {
     ): Self! from allocator
 }
 
-pub(/) func bytes(value: &str): &[u8]
-
 /// Returns whether `candidate` is a well-formed UTF-8 byte sequence.
 pub func is_valid_utf8(candidate: &[u8]): bool
-
-/// Returns the first byte offset of `needle` at or after `start`.
-pub(/) func find_from(value: &str, needle: &str, start: usize): usize?
-
-pub(/) func find(value: &str, needle: &str): usize?
-
-pub(/) func contains(value: &str, needle: &str): bool
-
-pub(/) func starts_with(value: &str, prefix: &str): bool
-
-pub(/) func ends_with(value: &str, suffix: &str): bool
-
-/// Splits UTF-8 text into independently owned strings.
-///
-/// An empty separator is rejected because character-boundary splitting belongs
-/// to a future scalar-value iterator rather than byte-oriented search.
-pub(/) func split(value: &str, separator: &str): Vec<String>!
-
-pub(/) func try_push_str(text: &+String, value: &str): void!
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.

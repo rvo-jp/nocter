@@ -1,6 +1,5 @@
 see ./index.nct
 use std/string.String
-use std/string.bytes as string_bytes
 use std/vec.Vec
 
 //! Portable byte-stream implementation bodies.
@@ -17,7 +16,9 @@ interface Reader {
 }
 
 interface Writer {
-    default method &+self.flush(): void! { return }
+    default method &+self.flush(): void! {
+        return
+    }
 
     default method &+self.write_text(text: &str): void! {
         write_text_to(self, text)?
@@ -56,7 +57,7 @@ func initialized_scratch(size: usize): Vec<u8> {
 }
 
 func write_text_to<W>(writer: &+W, text: &str): void! where W: Writer {
-    let encoded: &[u8] = string_bytes(text)
+    let encoded: &[u8] = text.bytes()
     writer.write(encoded)?
     return
 }

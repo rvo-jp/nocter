@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use std/string.{String, bytes}
+use std/string.String
 
 struct Utf8Path {
     text: String
@@ -10,30 +10,35 @@ struct Utf8Path {
 
 construct Utf8Path {
     default func new(value: &str): Self! {
-    validate(value)?
-    return Utf8Path { text: String.copy(value) }
-}
+        validate(value)?
+        return Utf8Path { text: String.copy(value) }
+    }
 }
 
 instance Utf8Path {
     /// Exposes the validated UTF-8 path text without transferring ownership.
     coerce &self as &str {
-    return &self.text
-}
+        return &self.text
+    }
 
-    method &self.is_absolute(): bool { return is_absolute(self) }
-    method &self.join(child: &str): Utf8Path! { return join(self, child)? }
+    method &self.is_absolute(): bool {
+        return is_absolute(self)
+    }
+
+    method &self.join(child: &str): Utf8Path! {
+        return join(self, child)?
+    }
 }
 
 func is_absolute(path: &Utf8Path): bool {
     let value: &str = &path.text
-    let raw: &[u8] = bytes(value)
+    let raw: &[u8] = value.bytes()
     return value.len() != 0 && raw[0] == 47
 }
 
 func join(path: &Utf8Path, child: &str): Utf8Path! {
     validate(child)?
-    let child_bytes: &[u8] = bytes(child)
+    let child_bytes: &[u8] = child.bytes()
     if child.len() != 0 && child_bytes[0] == 47 {
         return Utf8Path.new(child)?
     }
@@ -46,10 +51,12 @@ func join(path: &Utf8Path, child: &str): Utf8Path! {
 }
 
 func validate(value: &str): void! {
-    let raw = bytes(value)
+    let raw = value.bytes()
     var offset: usize = 0
     while offset < raw.len() {
-        if raw[offset] == 0 { return invalid_path() }
+        if raw[offset] == 0 {
+            return invalid_path()
+        }
         offset += 1
     }
     return

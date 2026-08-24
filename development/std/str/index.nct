@@ -1,13 +1,41 @@
-//! Public observation and projection methods for UTF-8 string views.
+//! Borrowed UTF-8 text observation, search, views, and materialization.
 //!
 //! `str` is a compiler built-in unsized type, but its public methods are
 //! ordinary Nocter source. Only the narrow representation query below is a
-//! trusted primitive.
+//! trusted primitive. Allocating conveniences are isolated from borrowed
+//! algorithms in `owned.nct`.
 
 use std/iter.{Iterator, ViewIter}
-use std/string.{LinesIter, SplitIter, String}
+use std/string.String
 use std/vec.Vec
 see ./text.nct
+see ./views.nct
+see ./owned.nct
+
+/// Allocation-free iterator over separator-delimited borrowed components.
+pub struct SplitIter
+
+/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
+pub struct LinesIter
+
+construct SplitIter {
+    pub default func new(
+        text: &str,
+        separator: &str,
+    ): Self! from text | separator
+}
+
+construct LinesIter {
+    pub default func new(text: &str): Self
+}
+
+conform Iterator for SplitIter {
+    type Item = &str
+}
+
+conform Iterator for LinesIter {
+    type Item = &str
+}
 
 instance str {
     /// Compares UTF-8 encoding bytes without allocation.

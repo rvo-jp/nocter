@@ -2,39 +2,11 @@
 //!
 //! Raw pointers are address-carrying values. They do not own memory, do not
 //! extend lifetimes, and do not grant dereference permission. These declarations
-//! are target-independent core primitives, separate from OS target primitives
-//! such as `std/internal/os.syscall0`.
+//! are target-independent core primitives. Operations that project or mutate
+//! memory through an address remain package-internal under `std/internal/ptr`.
 
 pub primitive addr<T>(pointer: *T): usize
 
 pub primitive from_ref<T>(value: &T): *T
 
 pub primitive from_ref_mut<T>(value: &+T): *T
-
-pub(/) primitive from_addr<T>(address: usize): *T
-
-pub(/) primitive pointee_size<T>(pointer: *T): usize
-
-pub(/) primitive pointee_align<T>(pointer: *T): usize
-
-pub(/) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
-
-pub(/) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
-
-pub(/) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
-
-pub(/) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
-
-pub(/) primitive drop_value_at_ptr<T>(pointer: *T, offset: usize): void
-
-pub(/) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T
-
-pub(/) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
-
-pub(/) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
-
-pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
-
-pub(/) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
-
-pub(/) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]

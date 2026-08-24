@@ -1,12 +1,13 @@
 //! Borrowed UTF-8 text operations.
 
 see ./index.nct
+see ./search.nct
+see ./views.nct
+see ./owned.nct
 
 use std/iter.{Iterator, ViewIter}
-use std/ptr.from_addr
-use std/string.{String, bytes_from_str, contains, ends_with, find, find_from, split, starts_with}
-use std/string.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
-use std/string.{strip_prefix, strip_suffix}
+use std/internal/ptr.from_addr
+use std/string.String
 use std/vec.Vec
 
 primitive str_len_raw(value: &str): usize

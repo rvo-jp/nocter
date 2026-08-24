@@ -127,7 +127,7 @@ Trusted standard-library implementation example:
 
 ```nct
 use std/ptr.addr
-use std/internal/os.syscall3
+use std/internal/os/darwin.syscall3
 
 let bytes = text.bytes()
 let result = syscall3(
@@ -142,7 +142,10 @@ User project modules must not call syscall primitives directly.
 
 ### Pointer Intrinsics
 
-The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/internal/os.syscall0` under `#target: "arm64-darwin"`.
+The public `std/ptr` functions above are target-independent core primitive declarations. Raw
+memory projection belongs to the package-internal `std/internal/ptr` contract. Both are separate
+from target-gated OS primitives such as `std/internal/os/darwin.syscall0` under
+`#target: "arm64-darwin"`.
 
 The compiler validates them by module path, name, and exact signature:
 
@@ -150,7 +153,7 @@ The compiler validates them by module path, name, and exact signature:
 std/ptr.addr
 std/ptr.from_ref
 std/ptr.from_ref_mut
-std/ptr.from_addr
+std/internal/ptr.from_addr
 ```
 
 These core pointer primitives exist because address conversion and borrow-to-pointer conversion cannot be implemented in ordinary Nocter code. They do not make `print`, `exit`, `abort`, allocation, strings, buffers, or file APIs compiler primitives.
@@ -513,7 +516,7 @@ are valid. The result borrows `text`; it never reconstructs provenance from an i
 affix is an input to the comparison, not a storage origin of the returned view. An empty affix
 matches and returns the complete input.
 
-`split_views` rejects an empty separator with `std.string.empty_separator`. Otherwise it yields the
+`split_views` rejects an empty separator with `std.str.empty_separator`. Otherwise it yields the
 same component boundaries as the owned `split` operation, including empty components for empty
 input, adjacent separators, a leading separator, and a trailing separator. `SplitIter` retains
 both `text` and `separator` while it can still advance. Each yielded item is a borrowed `&str`

@@ -1,4 +1,4 @@
-//! Target-owned system primitives without current cross-module callers.
+//! Compiler-owned Darwin system primitives without authored callers.
 
 see ./index.nct
 

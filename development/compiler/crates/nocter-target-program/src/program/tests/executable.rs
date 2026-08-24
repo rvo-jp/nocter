@@ -636,7 +636,7 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
 #[test]
 fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
     let target = build_target_program(&Fixture::with_app_standard_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
+        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
@@ -646,7 +646,7 @@ fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
              drop_value_at_ptr_for_test(pointer, 0)\n\
              return 0\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     ));
     let selected = target
         .checked()

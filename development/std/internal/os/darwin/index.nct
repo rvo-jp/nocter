@@ -1,0 +1,131 @@
+//! Darwin ARM64 ABI contract shared by standard-library target adapters.
+
+use std/internal/os.{OSError, OSErrorKind, Platform}
+see ./implementation.nct
+
+#target: "arm64-darwin"
+pub(/) copy struct SyscallResult {
+    pub value: usize
+    pub errno: i32
+}
+
+#target: "arm64-darwin"
+pub(/) copy struct Errno {
+    pub code: i32
+}
+
+#target: "arm64-darwin"
+pub(/) func errno(code: i32): Errno
+
+#target: "arm64-darwin"
+pub(/) func error_from_errno(value: Errno): OSError
+
+#target: "arm64-darwin"
+pub(/) const sys_read: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_write: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_open: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_close: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_unlink: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_rename: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_munmap: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_mmap: usize
+
+#target: "arm64-darwin"
+pub(/) const sys_stat64: usize
+
+#target: "arm64-darwin"
+pub(/) const open_read_only: usize
+
+#target: "arm64-darwin"
+pub(/) const open_create_truncate: usize
+
+#target: "arm64-darwin"
+pub(/) const open_create_append: usize
+
+#target: "arm64-darwin"
+pub(/) const create_mode: usize
+
+#target: "arm64-darwin"
+pub(/) const mmap_read_write: usize
+
+#target: "arm64-darwin"
+pub(/) const mmap_private_anonymous: usize
+
+#target: "arm64-darwin"
+pub(/) const mmap_no_file: usize
+
+#target: "arm64-darwin"
+pub(/) const errno_interrupted: i32
+
+#target: "arm64-darwin"
+pub(/) const sys_fcntl: usize
+
+#target: "arm64-darwin"
+pub(/) const f_getpath: usize
+
+#target: "arm64-darwin"
+pub(/) const max_path_len: usize
+
+#target: "arm64-darwin"
+pub(/) const stat_buffer_size: usize
+
+#target: "arm64-darwin"
+pub(/) const stat_mode_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const stat_size_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const stat_mode_regular: u16
+
+#target: "arm64-darwin"
+pub(/) const stat_mode_directory: u16
+
+#target: "arm64-darwin"
+pub(/) primitive syscall1(
+    number: usize,
+    a0: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) primitive syscall2(
+    number: usize,
+    a0: usize,
+    a1: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) primitive syscall3(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) primitive syscall6(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) primitive trap(): never

@@ -152,13 +152,13 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span>append_i32<span class="token-operator">,</span> append_u8<span class="token-operator">,</span> append_usize<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span>try_append_i32<span class="token-operator">,</span> try_append_u8<span class="token-operator">,</span> try_append_usize<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">String</span><span class="token-operator">,</span> bytes<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">var</span> value<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
@@ -174,7 +174,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">parse_u8</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">var</span> value<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
@@ -190,7 +190,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">parse_i32</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> <span class="token-function">bytes</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">var</span> negative<span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">=</span> <span class="token-keyword">false</span>
@@ -215,19 +215,25 @@
 
 <span class="token-keyword">func</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-function">append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span>
+    <span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">i32_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-function">append_i32</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span>
+    <span class="token-function">try_append_i32</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">u8_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-function">append_u8</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span>
+    <span class="token-function">try_append_u8</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>
 

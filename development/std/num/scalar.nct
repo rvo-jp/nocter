@@ -2,13 +2,13 @@
 
 see ./index.nct
 
-use std/fmt.{append_i32, append_u8, append_usize}
 use std/fmt.{try_append_i32, try_append_u8, try_append_usize}
 use std/mem.TryAllocator
-use std/string.{String, bytes}
+use std/internal/mem.allocation_abort
+use std/string.String
 
 func parse_usize(text: &str): usize? {
-    let raw = bytes(text)
+    let raw = text.bytes()
     if raw.len() == 0 { return none }
     var value: usize = 0
     var offset: usize = 0
@@ -24,7 +24,7 @@ func parse_usize(text: &str): usize? {
 }
 
 func parse_u8(text: &str): u8? {
-    let raw = bytes(text)
+    let raw = text.bytes()
     if raw.len() == 0 { return none }
     var value: u8 = 0
     var offset: usize = 0
@@ -40,7 +40,7 @@ func parse_u8(text: &str): u8? {
 }
 
 func parse_i32(text: &str): i32? {
-    let raw = bytes(text)
+    let raw = text.bytes()
     if raw.len() == 0 { return none }
     var offset: usize = 0
     var negative: bool = false
@@ -65,19 +65,25 @@ func parse_i32(text: &str): i32? {
 
 func usize_to_string(value: usize): String {
     var result = String.empty()
-    append_usize(&+result, value)
+    try_append_usize(&+result, value) catch allocation_error {
+        return allocation_abort()
+    }
     return move result
 }
 
 func i32_to_string(value: i32): String {
     var result = String.empty()
-    append_i32(&+result, value)
+    try_append_i32(&+result, value) catch allocation_error {
+        return allocation_abort()
+    }
     return move result
 }
 
 func u8_to_string(value: u8): String {
     var result = String.empty()
-    append_u8(&+result, value)
+    try_append_u8(&+result, value) catch allocation_error {
+        return allocation_abort()
+    }
     return move result
 }
 

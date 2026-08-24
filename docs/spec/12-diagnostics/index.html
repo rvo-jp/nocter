@@ -380,11 +380,11 @@ ByteSpan { source, start, end }
   buildability validation.</li><li>Removed optional extraction syntax such as <code>let ... else</code>, <code>var ... else</code>, <code>if let</code>, <code>if var</code>, <code>while let</code>, <code>while var</code>, and <code>??</code>.</li><li>Selected entry function missing from the root file.</li><li>Selected entry function with an invalid return type.</li><li><code>break</code> or <code>continue</code> whose nearest loop is outside the current callable body, including an outer
   loop surrounding a closure expression.</li><li>Selected entry function with type parameters, such as <code>func main&lt;T&gt;(): i32!</code>.</li><li>Selected entry function with value parameters, such as <code>func main(args: Vec&lt;&amp;str&gt;): i32!</code>.</li><li>Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.</li><li><code>return</code> without a value in a non-<code>void</code> function.</li><li><code>return</code> with a value in a <code>void</code> function.</li><li><code>return</code> value type mismatch when both expected and actual types are known.</li><li>Opaque result in an unsupported type position or bodyless contract.</li><li>Opaque result whose return paths select different witnesses, whose witness does not conform to
   the advertised interface, or whose associated binding disagrees with the conformance (<code>E0408</code>).</li><li>Assignment between distinct declaration-scoped opaque result identities, even when their
-  rendered interface contracts are identical.</li><li>Non-<code>void</code> function reaching the end without an explicit return.</li><li>A re-export whose visibility boundary is wider than the imported declaration's boundary.</li><li>Reserved target requested before implementation.</li></ul><p>Families above without an assigned code do not require final numeric code assignment in the language design phase. The implementation assigns a code when it implements that diagnostic.</p><h2 id="examples">Examples</h2><p>Visibility:</p><pre><code class="language-text">error[E0412]: import `std/ptr` cannot access `pub(/)` name `from_addr`
-  --&gt; app.nct:3:22
+  rendered interface contracts are identical.</li><li>Non-<code>void</code> function reaching the end without an explicit return.</li><li>A re-export whose visibility boundary is wider than the imported declaration's boundary.</li><li>Reserved target requested before implementation.</li></ul><p>Families above without an assigned code do not require final numeric code assignment in the language design phase. The implementation assigns a code when it implements that diagnostic.</p><h2 id="examples">Examples</h2><p>Visibility:</p><pre><code class="language-text">error[E0412]: import `std/internal/ptr` cannot access `pub(/)` name `from_addr`
+  --&gt; app.nct:3:31
    |
-3 | use std/ptr.from_addr
-   |                      ^^^^^^^^^
+3 | use std/internal/ptr.from_addr
+   |                               ^^^^^^^^^
    |
 note: `from_addr` is declared as `pub(/)` in the implicit `std` package
 help: use a public safe API instead

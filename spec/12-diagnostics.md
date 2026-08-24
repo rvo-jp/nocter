@@ -751,11 +751,11 @@ language design phase. The implementation assigns a code when it implements that
 Visibility:
 
 ```text
-error[E0412]: import `std/ptr` cannot access `pub(/)` name `from_addr`
-  --> app.nct:3:22
+error[E0412]: import `std/internal/ptr` cannot access `pub(/)` name `from_addr`
+  --> app.nct:3:31
    |
-3 | use std/ptr.from_addr
-   |                      ^^^^^^^^^
+3 | use std/internal/ptr.from_addr
+   |                               ^^^^^^^^^
    |
 note: `from_addr` is declared as `pub(/)` in the implicit `std` package
 help: use a public safe API instead

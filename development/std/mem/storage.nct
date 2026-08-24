@@ -1,0 +1,83 @@
+//! Allocator, layout, and raw-buffer representations.
+
+see ./index.nct
+
+use std/internal/ptr.from_addr
+
+primitive current_allocator_state(): usize
+
+primitive current_allocator_kind(): usize
+
+primitive allocation_failure_error(): error
+
+copy struct Layout {
+    size: usize
+    align: usize
+}
+
+struct RawBuffer {
+    ptr: *u8
+    len: usize
+    align: usize
+    allocator_state: usize
+    allocator_kind: usize
+}
+
+struct Allocator {
+    state: usize
+    kind: usize
+}
+
+struct AllocationContext {
+    state: usize
+    kind: usize
+}
+
+struct TryAllocator {
+    state: usize
+    kind: usize
+}
+
+func current_allocator(): Allocator {
+    return Allocator {
+        state: current_allocator_state(),
+        kind: current_allocator_kind(),
+    }
+}
+
+func page_allocator(): Allocator {
+    return Allocator { state: 0, kind: 0 }
+}
+
+func page_try_allocator(): TryAllocator {
+    return TryAllocator { state: 0, kind: 0 }
+}
+
+func empty_page_buffer(align: usize): RawBuffer {
+    // Kind 2 is an unbound empty sentinel. It owns no storage and therefore
+    // carries no allocator origin. The first growth operation binds it to the
+    // allocator selected at that operation.
+    return RawBuffer {
+        ptr: from_addr(1),
+        len: 0,
+        align: align,
+        allocator_state: 0,
+        allocator_kind: 2,
+    }
+}
+
+func take_raw_buffer(buffer: &+RawBuffer): RawBuffer {
+    let result = RawBuffer {
+        ptr: buffer.ptr,
+        len: buffer.len,
+        align: buffer.align,
+        allocator_state: buffer.allocator_state,
+        allocator_kind: buffer.allocator_kind,
+    }
+    buffer.ptr = from_addr(1)
+    buffer.len = 0
+    buffer.align = 1
+    buffer.allocator_state = 0
+    buffer.allocator_kind = 2
+    return move result
+}

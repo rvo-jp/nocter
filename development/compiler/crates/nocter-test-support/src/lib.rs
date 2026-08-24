@@ -66,26 +66,28 @@ pub fn primitive_source_location(
         Role::AllocationFailureError => (&["mem"], "allocation_failure_error"),
         Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
         Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
-        Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),
+        Role::AllocationAbort => (&["internal", "mem"], "allocation_abort"),
         Role::PointerAddress => (&["ptr"], "addr"),
         Role::PointerFromReference => (&["ptr"], "from_ref"),
         Role::PointerFromReadWriteReference => (&["ptr"], "from_ref_mut"),
-        Role::PointerFromAddress => (&["ptr"], "from_addr"),
-        Role::PointeeSize => (&["ptr"], "pointee_size"),
-        Role::PointeeAlignment => (&["ptr"], "pointee_align"),
-        Role::CopyStringToPointer => (&["ptr"], "copy_str_to_ptr"),
-        Role::CopyPointerToPointer => (&["ptr"], "copy_ptr_to_ptr"),
-        Role::StoreByteToPointer => (&["ptr"], "store_u8_to_ptr"),
-        Role::StoreValueToPointer => (&["ptr"], "store_value_to_ptr"),
-        Role::DropValueAtPointer => (&["ptr"], "drop_value_at_ptr"),
-        Role::TakeValueAtPointer => (&["ptr"], "take_value_at_ptr"),
-        Role::StringFromRawParts => (&["ptr"], "str_from_raw_parts"),
-        Role::ByteSliceFromRawParts => (&["ptr"], "slice_from_raw_parts"),
-        Role::MutableByteSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_mut"),
-        Role::ValueSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_value"),
-        Role::MutableValueSliceFromRawParts => (&["ptr"], "slice_from_raw_parts_value_mut"),
-        Role::BytesFromString => (&["string"], "bytes_from_str"),
-        Role::StringSubviewUnchecked => (&["string"], "str_subview_unchecked"),
+        Role::PointerFromAddress => (&["internal", "ptr"], "from_addr"),
+        Role::PointeeSize => (&["internal", "ptr"], "pointee_size"),
+        Role::PointeeAlignment => (&["internal", "ptr"], "pointee_align"),
+        Role::CopyStringToPointer => (&["internal", "ptr"], "copy_str_to_ptr"),
+        Role::CopyPointerToPointer => (&["internal", "ptr"], "copy_ptr_to_ptr"),
+        Role::StoreByteToPointer => (&["internal", "ptr"], "store_u8_to_ptr"),
+        Role::StoreValueToPointer => (&["internal", "ptr"], "store_value_to_ptr"),
+        Role::DropValueAtPointer => (&["internal", "ptr"], "drop_value_at_ptr"),
+        Role::TakeValueAtPointer => (&["internal", "ptr"], "take_value_at_ptr"),
+        Role::StringFromRawParts => (&["internal", "ptr"], "str_from_raw_parts"),
+        Role::ByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts"),
+        Role::MutableByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts_mut"),
+        Role::ValueSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts_value"),
+        Role::MutableValueSliceFromRawParts => {
+            (&["internal", "ptr"], "slice_from_raw_parts_value_mut")
+        }
+        Role::BytesFromString => (&["str"], "bytes_from_str"),
+        Role::StringSubviewUnchecked => (&["str"], "str_subview_unchecked"),
         Role::SliceLength => (&["slice"], "slice_len_raw"),
         Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
         Role::StringLength => (&["str"], "str_len_raw"),
@@ -96,15 +98,15 @@ pub fn primitive_source_location(
         Role::ProcessEnvironmentCount => (&["process"], "env_count_raw"),
         Role::ProcessEnvironmentName => (&["process"], "env_name_raw"),
         Role::ProcessEnvironmentValue => (&["process"], "env_value_raw"),
-        Role::Syscall0 => (&["internal", "os"], "syscall0"),
-        Role::Syscall1 => (&["internal", "os"], "syscall1"),
-        Role::Syscall2 => (&["internal", "os"], "syscall2"),
-        Role::Syscall3 => (&["internal", "os"], "syscall3"),
-        Role::Syscall4 => (&["internal", "os"], "syscall4"),
-        Role::Syscall5 => (&["internal", "os"], "syscall5"),
-        Role::Syscall6 => (&["internal", "os"], "syscall6"),
-        Role::Trap => (&["internal", "os"], "trap"),
-        Role::Unreachable => (&["internal", "os"], "unreachable"),
+        Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
+        Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),
+        Role::Syscall2 => (&["internal", "os", "darwin"], "syscall2"),
+        Role::Syscall3 => (&["internal", "os", "darwin"], "syscall3"),
+        Role::Syscall4 => (&["internal", "os", "darwin"], "syscall4"),
+        Role::Syscall5 => (&["internal", "os", "darwin"], "syscall5"),
+        Role::Syscall6 => (&["internal", "os", "darwin"], "syscall6"),
+        Role::Trap => (&["internal", "os", "darwin"], "trap"),
+        Role::Unreachable => (&["internal", "os", "darwin"], "unreachable"),
     }
 }
 const ITERATION_SOURCE: &str = "\
@@ -139,7 +141,6 @@ const MEM_SOURCE: &str = "\
 primitive current_allocator_state(): usize
 primitive current_allocator_kind(): usize
 primitive allocation_failure_error(): error
-pub(/) primitive allocation_abort_raw(): never
 pub func allocation_context_state_for_test(): usize {
     return current_allocator_state()
 }
@@ -147,12 +148,17 @@ pub func allocation_context_kind_for_test(): usize {
     return current_allocator_kind()
 }
 pub func allocation_failure_for_test(): error { return allocation_failure_error() }
-pub func allocation_abort_for_test(): never { allocation_abort_raw() }
+";
+const INTERNAL_MEM_SOURCE: &str = "\
+pub(/) primitive allocation_abort(): never
+pub func allocation_abort_for_test(): never { allocation_abort() }
 ";
 const PTR_SOURCE: &str = "\
 pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
+";
+const INTERNAL_PTR_SOURCE: &str = "\
 pub(/) primitive from_addr<T>(address: usize): *T
 pub(/) primitive pointee_size<T>(pointer: *T): usize
 pub(/) primitive pointee_align<T>(pointer: *T): usize
@@ -200,14 +206,7 @@ pub func take_three_u64_at_ptr_for_test(pointer: *[u64; 3], offset: usize): [u64
     return take_value_at_ptr(pointer, offset)
 }
 ";
-const STRING_SOURCE: &str = "\
-pub(/) primitive bytes_from_str(value: &str): &[u8] from value
-primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
-pub func bytes_from_str_for_test(value: &str): &[u8] { return bytes_from_str(value) }
-pub func str_subview_unchecked_for_test(text: &str, start: usize, len: usize): &str {
-    return str_subview_unchecked(text, start, len)
-}
-";
+const STRING_SOURCE: &str = "";
 const SLICE_SOURCE: &str = "\
 primitive slice_len_raw<T>(value: &[T]): usize
 primitive slice_ptr_addr_raw<T>(value: &[T]): usize
@@ -215,8 +214,14 @@ pub func slice_len_for_test<T>(value: &[T]): usize { return slice_len_raw(value)
 pub func slice_ptr_addr_for_test<T>(value: &[T]): usize { return slice_ptr_addr_raw(value) }
 ";
 const STR_SOURCE: &str = "\
+primitive bytes_from_str(value: &str): &[u8] from value
+primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
 primitive str_len_raw(value: &str): usize
 primitive str_ptr_addr_raw(value: &str): usize
+pub func bytes_from_str_for_test(value: &str): &[u8] { return bytes_from_str(value) }
+pub func str_subview_unchecked_for_test(text: &str, start: usize, len: usize): &str {
+    return str_subview_unchecked(text, start, len)
+}
 instance str {
     pub operator (&self == other: &Self): bool {
         if str_len_raw(self) != str_len_raw(other) { return false }
@@ -512,13 +517,15 @@ impl CompilerFixture {
         let modules = [
             (&["error"][..], ERROR_SOURCE),
             (&["mem"][..], MEM_SOURCE),
+            (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
             (&["ptr"][..], PTR_SOURCE),
+            (&["internal", "ptr"][..], INTERNAL_PTR_SOURCE),
             (&["string"][..], STRING_SOURCE),
             (&["slice"][..], SLICE_SOURCE),
             (&["str"][..], STR_SOURCE),
             (&["process"][..], PROCESS_SOURCE),
             (&["io"][..], IO_SOURCE),
-            (&["internal", "os"][..], INTERNAL_OS_SOURCE),
+            (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
         ]
         .into_iter()
         .map(|(path, text)| {

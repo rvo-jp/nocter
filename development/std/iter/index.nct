@@ -1,7 +1,7 @@
-//! Allocation-free readonly iteration over contiguous views.
+//! Core iteration contracts, source iterators, and lazy adapters.
 //!
-//! ViewIter retains the source view itself so element borrows preserve the
-//! view's storage origin. Iterator names are ordinary standard-library APIs.
+//! Adapters retain their sources and callbacks. ViewIter retains the source
+//! view itself so element borrows preserve the view's storage origin.
 
 see ./core.nct
 see ./defaults.nct

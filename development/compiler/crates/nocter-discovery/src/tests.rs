@@ -694,7 +694,9 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         repeated_conformance_methods.is_empty(),
         "standard module roots must derive conformance methods from interfaces: {repeated_conformance_methods:#?}"
     );
+    standard_contract::assert_standard_root_visibility_boundaries(&unit);
     let input = unit.compile_input().unwrap();
+    standard_contract::assert_reviewed_standard_dependencies(&input);
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let prepared = nocter_checking::prepare_program_checking(

@@ -2,7 +2,8 @@ see ./index.nct
 see ./storage.nct
 use std/iter.{ExactSizeIterator, Iterator}
 use std/mem.{RawBuffer, take_raw_buffer}
-use std/ptr.{addr, drop_value_at_ptr, from_addr, pointee_size, take_value_at_ptr}
+use std/ptr.addr
+use std/internal/ptr.{drop_value_at_ptr, from_addr, pointee_size, take_value_at_ptr}
 
 //! Owning iteration for Vec storage.
 //!

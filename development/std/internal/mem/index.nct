@@ -1,0 +1,3 @@
+//! Package-internal allocation failure policy boundary.
+
+pub(/) primitive allocation_abort(): never

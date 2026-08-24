@@ -1,6 +1,7 @@
 see ./index.nct
 see ./formatting.nct
-use std/ptr.{from_ref, slice_from_raw_parts_value}
+use std/ptr.from_ref
+use std/internal/ptr.slice_from_raw_parts_value
 use std/string.String
 
 //! Standard formatting conformances for compiler built-in and owning text types.

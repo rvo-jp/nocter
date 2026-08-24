@@ -1,0 +1,13 @@
+//! Stable Vec failure construction shared by construction and mutation.
+
+func unsupported(): error {
+    return error.new("std.vec.unsupported", "Vec element storage is not supported")
+}
+
+func capacity_overflow(): error {
+    return error.new("std.vec.capacity_overflow", "Vec capacity overflow")
+}
+
+func index_out_of_bounds(): error {
+    return error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")
+}

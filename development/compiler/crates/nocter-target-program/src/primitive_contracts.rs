@@ -616,7 +616,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             vec![0],
         ),
         PrimitiveRole::BytesFromString => {
-            make(0, vec![str_ref()], readonly_bytes(), package, None, vec![0])
+            make(0, vec![str_ref()], readonly_bytes(), private, None, vec![0])
         }
         PrimitiveRole::StringSubviewUnchecked => make(
             0,

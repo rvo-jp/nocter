@@ -2730,7 +2730,7 @@ mod tests {
         let response = hover.response().unwrap();
         assert!(response.contains("module std/iter"), "{response}");
         assert!(
-            response.contains("Allocation-free readonly iteration over contiguous views."),
+            response.contains("Core iteration contracts, source iterators, and lazy adapters."),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

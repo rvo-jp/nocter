@@ -1,0 +1,45 @@
+//! Allocation layout validation and observation.
+
+see ./index.nct
+see ./storage.nct
+
+construct Layout {
+    default func new(size: usize, align: usize): Self! {
+        if !valid_alignment(align) {
+            return invalid_argument()
+        }
+        return Layout { size: size, align: align }
+    }
+}
+
+instance Layout {
+    method &self.size(): usize {
+        return self.size
+    }
+
+    method &self.align(): usize {
+        return self.align
+    }
+}
+
+func valid_alignment(align: usize): bool {
+    if align == 0 {
+        return false
+    }
+    if align > 16384 {
+        return false
+    }
+
+    var remaining = align
+    while remaining > 1 {
+        if remaining % 2 != 0 {
+            return false
+        }
+        remaining /= 2
+    }
+    return true
+}
+
+func invalid_argument(): error {
+    return error.new("std.mem.invalid_argument", "invalid allocation request")
+}

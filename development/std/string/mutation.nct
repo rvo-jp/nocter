@@ -1,0 +1,82 @@
+//! Owned string capacity management and mutation.
+
+see ./index.nct
+see ./storage.nct
+
+use std/internal/mem.allocation_abort
+use std/internal/ptr.copy_str_to_ptr
+use std/mem.try_grow_owned
+
+func try_reserve(text: &+String, additional: usize): void! {
+    let text_len: usize = text.len
+    if additional > 18446744073709551615 - text_len {
+        return capacity_overflow()
+    }
+
+    let required_capacity: usize = text_len + additional
+    if required_capacity <= text.storage.bytes().len() {
+        return
+    }
+
+    try_grow_owned(&+text.storage, required_capacity)?
+    return
+}
+
+func reserve(text: &+String, additional: usize): void {
+    try_reserve(text, additional) catch allocation_error {
+        return allocation_abort()
+    }
+    return
+}
+
+func clear(text: &+String): void {
+    text.len = 0
+    return
+}
+
+func try_push_str(text: &+String, value: &str): void! {
+    let value_len: usize = value.len()
+    let old_len: usize = text.len
+    try_reserve(text, value_len)?
+    copy_str_to_ptr(text.storage.bytes().ptr(), old_len, value)
+    text.len = old_len + value_len
+    return
+}
+
+func push_str(text: &+String, value: &str): void {
+    try_push_str(text, value) catch allocation_error {
+        return allocation_abort()
+    }
+    return
+}
+
+func capacity_overflow(): error {
+    return error.new("std.string.capacity_overflow", "string capacity overflow")
+}
+
+instance String {
+    method &+self.reserve(additional: usize): void {
+        reserve(self, additional)
+        return
+    }
+
+    method &+self.try_reserve(additional: usize): void! {
+        try_reserve(self, additional)?
+        return
+    }
+
+    method &+self.clear(): void {
+        clear(self)
+        return
+    }
+
+    method &+self.push_str(value: &str): void {
+        push_str(self, value)
+        return
+    }
+
+    method &+self.try_push_str(value: &str): void! {
+        try_push_str(self, value)?
+        return
+    }
+}

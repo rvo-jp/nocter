@@ -3,7 +3,8 @@ see ./adapters.nct
 
 //! Zero- and one-element owning iterators.
 
-use std/ptr.{from_ref_mut, store_value_to_ptr, take_value_at_ptr}
+use std/ptr.from_ref_mut
+use std/internal/ptr.{store_value_to_ptr, take_value_at_ptr}
 
 /// Constructs an empty iterator.
 func empty<T>(): EmptyIter<T> {

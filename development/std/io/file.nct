@@ -3,16 +3,14 @@
 see ./index.nct
 see ./core.nct
 
-use std/internal/os.{SyscallResult, darwin_create_mode}
-use std/internal/os.{darwin_errno_interrupted, darwin_open_create_append}
-use std/internal/os.{darwin_open_create_truncate, darwin_open_read_only}
-use std/internal/os.{darwin_sys_close, darwin_sys_open, darwin_sys_read, darwin_sys_write}
+use std/internal/os/darwin.{SyscallResult, create_mode, errno_interrupted}
+use std/internal/os/darwin.{open_create_append, open_create_truncate, open_read_only}
+use std/internal/os/darwin.{sys_close, sys_open, sys_read, sys_write}
 use std/internal/io.io_error_from_os
-use std/internal/os.{errno, error_from_errno, syscall1, syscall3}
+use std/internal/os/darwin.{errno, error_from_errno, syscall1, syscall3}
 use std/internal/path.{target_path_address, target_path_argument}
 use std/ptr.addr
 use std/string.String
-use std/string.bytes as string_bytes
 use std/vec.Vec
 
 #target: "arm64-darwin"
@@ -23,17 +21,17 @@ const stderr_fd: usize = 2
 
 #target: "arm64-darwin"
 func open_read_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_read_only)?
+    return open_fd(path, open_read_only)?
 }
 
 #target: "arm64-darwin"
 func create_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_create_truncate)?
+    return open_fd(path, open_create_truncate)?
 }
 
 #target: "arm64-darwin"
 func append_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_create_append)?
+    return open_fd(path, open_create_append)?
 }
 
 #target: "arm64-darwin"
@@ -41,17 +39,17 @@ func open_fd(path: &str, flags: usize): usize! {
     let argument = target_path_argument(path)?
 
     var result: SyscallResult = syscall3(
-        darwin_sys_open,
+        sys_open,
         target_path_address(&argument),
         flags,
-        darwin_create_mode,
+        create_mode,
     )
-    while result.errno == darwin_errno_interrupted {
+    while result.errno == errno_interrupted {
         result = syscall3(
-            darwin_sys_open,
+            sys_open,
             target_path_address(&argument),
             flags,
-            darwin_create_mode,
+            create_mode,
         )
     }
     if result.errno != 0 {
@@ -63,13 +61,13 @@ func open_fd(path: &str, flags: usize): usize! {
 #target: "arm64-darwin"
 func read_fd(fd: usize, buffer: &+[u8]): usize! {
     var result: SyscallResult = syscall3(
-        darwin_sys_read,
+        sys_read,
         fd,
         addr(buffer.ptr()),
         buffer.len(),
     )
-    while result.errno == darwin_errno_interrupted {
-        result = syscall3(darwin_sys_read, fd, addr(buffer.ptr()), buffer.len())
+    while result.errno == errno_interrupted {
+        result = syscall3(sys_read, fd, addr(buffer.ptr()), buffer.len())
     }
     if result.errno != 0 {
         return io_error_from_os(error_from_errno(errno(result.errno)))
@@ -86,14 +84,14 @@ func write_fd(fd: usize, bytes: &[u8]): void! {
     while offset < bytes.len() {
         let remaining: usize = bytes.len() - offset
         var result: SyscallResult = syscall3(
-            darwin_sys_write,
+            sys_write,
             fd,
             addr(bytes.ptr()) + offset,
             remaining,
         )
-        while result.errno == darwin_errno_interrupted {
+        while result.errno == errno_interrupted {
             result = syscall3(
-                darwin_sys_write,
+                sys_write,
                 fd,
                 addr(bytes.ptr()) + offset,
                 remaining,
@@ -115,7 +113,7 @@ func write_fd(fd: usize, bytes: &[u8]): void! {
 
 #target: "arm64-darwin"
 func write_text_fd(fd: usize, text: &str): void! {
-    write_fd(fd, string_bytes(text))?
+    write_fd(fd, text.bytes())?
     return
 }
 
@@ -124,7 +122,7 @@ func close_fd(fd: usize): void {
     // A failed close is deliberately not retried: Darwin may have consumed the
     // descriptor even when reporting an interruption, and retrying could close
     // an unrelated descriptor that another operation has reused.
-    let _ = syscall1(darwin_sys_close, fd)
+    let _ = syscall1(sys_close, fd)
     return
 }
 
@@ -193,7 +191,9 @@ drop File(&+self) {
 }
 
 conform Reader for File {
-    method &+self.read(buffer: &+[u8]): usize! { return read(self, buffer)? }
+    method &+self.read(buffer: &+[u8]): usize! {
+        return read(self, buffer)?
+    }
 }
 
 conform Writer for File {
@@ -202,7 +202,9 @@ conform Writer for File {
         return
     }
 
-    method &+self.flush(): void! { return }
+    method &+self.flush(): void! {
+        return
+    }
 }
 
 func print(text: &str): void! {

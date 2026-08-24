@@ -10,7 +10,7 @@ use crate::{
 #[test]
 fn primitive_destruction_becomes_one_generated_machine_function() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
+        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
@@ -20,7 +20,7 @@ fn primitive_destruction_becomes_one_generated_machine_function() {
              drop_value_at_ptr_for_test(pointer, 0)\n\
              return 0\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let (destruction_id, destruction) = program
@@ -83,7 +83,7 @@ fn primitive_destruction_becomes_one_generated_machine_function() {
 #[test]
 fn generated_fixed_array_destruction_uses_a_reverse_loop() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
+        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
@@ -93,7 +93,7 @@ fn generated_fixed_array_destruction_uses_a_reverse_loop() {
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return 0\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let (destruction, _) = program.destructions().iter().next().unwrap();
@@ -133,7 +133,7 @@ fn generated_fixed_array_destruction_uses_a_reverse_loop() {
 fn generated_destruction_propagates_user_drop_allocation_context() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/mem.allocation_context_state_for_test\n\
-         use std/ptr.drop_value_at_ptr_for_test\n\
+         use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct Resource {}\n\
          drop Resource(&+self) {\n\
@@ -145,7 +145,7 @@ fn generated_destruction_propagates_user_drop_allocation_context() {
              drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
              return 0\n\
          }\n",
-        &[&["mem"], &["ptr"], &["ptr"]],
+        &[&["mem"], &["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let (destruction, _) = program.destructions().iter().next().unwrap();

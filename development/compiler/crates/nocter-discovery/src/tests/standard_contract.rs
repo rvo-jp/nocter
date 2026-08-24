@@ -4,6 +4,172 @@ use nocter_compile_input::ModuleSourceKind;
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, SyntaxElement, declaration_name_token};
 
+pub(super) fn assert_standard_root_visibility_boundaries(unit: &crate::DiscoveredUnit) {
+    let mut restricted_public_roots = Vec::new();
+    let mut globally_visible_internal_roots = Vec::new();
+
+    for module in unit.modules() {
+        let path = module.identity().path();
+        let internal = path
+            .first()
+            .is_some_and(|segment| segment.as_ref() == "internal");
+        let representation_bound_mem = path.len() == 1 && path[0].as_ref() == "mem";
+
+        for source in module
+            .sources()
+            .iter()
+            .filter(|source| source.kind() == ModuleSourceKind::Root)
+        {
+            let tree = &unit.syntax_trees()[source.syntax_index()];
+            let source_file = unit.sources().get(tree.source()).unwrap();
+            for element in tree.children(tree.root_id()) {
+                let SyntaxElement::Node(declaration) = element else {
+                    continue;
+                };
+                let Some(visibility) = declaration_visibility(tree, source_file, *declaration)
+                else {
+                    continue;
+                };
+                let name = declaration_name_token(tree, *declaration)
+                    .and_then(|token| source_file.text_at(token.range()))
+                    .unwrap_or("<anonymous>");
+                if internal && visibility == "pub" {
+                    globally_visible_internal_roots
+                        .push(format!("{}:{name}", source.canonical_path()));
+                }
+                if !internal
+                    && !representation_bound_mem
+                    && matches!(visibility.as_str(), "pub(/)" | "pub(./)")
+                {
+                    restricted_public_roots.push(format!("{}:{name}", source.canonical_path()));
+                }
+            }
+        }
+    }
+
+    assert!(
+        restricted_public_roots.is_empty(),
+        "user-facing standard roots must not contain package plumbing; move independent contracts below std/internal: {restricted_public_roots:#?}"
+    );
+    assert!(
+        globally_visible_internal_roots.is_empty(),
+        "std/internal roots must not expose globally visible declarations: {globally_visible_internal_roots:#?}"
+    );
+}
+
+pub(super) fn assert_reviewed_standard_dependencies(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+) {
+    const ALLOWED: &[(&str, &str)] = &[
+        ("fmt", "internal/mem"),
+        ("fmt", "internal/ptr"),
+        ("fmt", "ptr"),
+        ("fmt", "string"),
+        ("fs", "internal/io"),
+        ("fs", "internal/os"),
+        ("fs", "internal/os/darwin"),
+        ("fs", "internal/path"),
+        ("fs", "internal/ptr"),
+        ("fs", "io"),
+        ("fs", "mem"),
+        ("fs", "ptr"),
+        ("fs", "string"),
+        ("fs", "vec"),
+        ("internal/io", "internal/os"),
+        ("internal/os/darwin", "internal/os"),
+        ("internal/path", "internal/ptr"),
+        ("internal/path", "mem"),
+        ("internal/path", "path"),
+        ("internal/path", "ptr"),
+        ("io", "internal/io"),
+        ("io", "internal/os/darwin"),
+        ("io", "internal/path"),
+        ("io", "ptr"),
+        ("io", "string"),
+        ("io", "vec"),
+        ("io/buffer", "io"),
+        ("io/buffer", "vec"),
+        ("iter", "internal/ptr"),
+        ("iter", "ptr"),
+        ("iter/collect", "iter"),
+        ("iter/collect", "vec"),
+        ("mem", "internal/mem"),
+        ("mem", "internal/os/darwin"),
+        ("mem", "internal/ptr"),
+        ("mem", "ptr"),
+        ("num", "fmt"),
+        ("num", "internal/mem"),
+        ("num", "mem"),
+        ("num", "string"),
+        ("path", "string"),
+        ("prelude", "fmt"),
+        ("prelude", "iter"),
+        ("prelude", "string"),
+        ("prelude", "vec"),
+        ("process", "internal/os/darwin"),
+        ("process", "internal/path"),
+        ("process", "internal/ptr"),
+        ("process", "mem"),
+        ("process", "ptr"),
+        ("process", "string"),
+        ("process", "vec"),
+        ("slice", "internal/ptr"),
+        ("str", "internal/ptr"),
+        ("str", "iter"),
+        ("str", "string"),
+        ("str", "vec"),
+        ("string", "internal/mem"),
+        ("string", "internal/ptr"),
+        ("string", "mem"),
+        ("vec", "internal/mem"),
+        ("vec", "internal/ptr"),
+        ("vec", "iter"),
+        ("vec", "mem"),
+        ("vec", "ptr"),
+    ];
+
+    let source_modules = input
+        .modules()
+        .iter()
+        .flat_map(|module| {
+            module
+                .sources()
+                .iter()
+                .map(move |source| (source.syntax().source(), module.identity()))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut unexpected = Vec::new();
+    for resolution in input.use_resolutions() {
+        let Some(source) = source_modules.get(&resolution.declaration().source()) else {
+            continue;
+        };
+        if source.package() != resolution.target_module().package() {
+            continue;
+        }
+        let source_path = module_path(source.path());
+        let target_path = module_path(resolution.target_module().path());
+        if source_path == target_path {
+            continue;
+        }
+        if !ALLOWED.contains(&(source_path.as_str(), target_path.as_str())) {
+            unexpected.push(format!("{source_path} -> {target_path}"));
+        }
+    }
+    unexpected.sort();
+    unexpected.dedup();
+    assert!(
+        unexpected.is_empty(),
+        "standard module dependencies require an ownership review before expansion: {unexpected:#?}"
+    );
+}
+
+fn module_path(path: &[Box<str>]) -> String {
+    path.iter()
+        .map(AsRef::as_ref)
+        .collect::<Vec<&str>>()
+        .join("/")
+}
+
 pub(super) fn assert_package_visible_functions_have_cross_module_references(
     unit: &crate::DiscoveredUnit,
     checked: &nocter_checking::CheckedProgramOutput,
@@ -90,5 +256,21 @@ fn is_package_visible_function(
                     .text_at(visibility.range())
                     .is_some_and(|text| text.split_whitespace().collect::<String>() == "pub(/)")
         })
+    })
+}
+
+fn declaration_visibility(
+    tree: &nocter_syntax::SyntaxTree,
+    source: &nocter_source::SourceFile,
+    declaration: nocter_syntax::NodeId,
+) -> Option<String> {
+    tree.children(declaration).iter().find_map(|element| {
+        let SyntaxElement::Node(visibility) = element else {
+            return None;
+        };
+        tree.node(*visibility)
+            .filter(|visibility| visibility.kind() == NodeKind::Visibility)
+            .and_then(|visibility| source.text_at(visibility.range()))
+            .map(|text| text.split_whitespace().collect())
     })
 }

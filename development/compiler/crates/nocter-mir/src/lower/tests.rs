@@ -95,7 +95,7 @@ fn lowers_standard_calls_with_their_frozen_concrete_signatures() {
 #[test]
 fn lowers_pointer_destruction_with_its_frozen_plan() {
     let program = lower_fixture_with_uses(
-        "use std/ptr.drop_value_at_ptr_for_test\n\
+        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
          use std/ptr.from_ref_mut\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
@@ -105,7 +105,7 @@ fn lowers_pointer_destruction_with_its_frozen_plan() {
              drop_value_at_ptr_for_test(pointer, 0)\n\
              return 0\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["internal", "ptr"], &["ptr"]],
     )
     .unwrap();
     let dependency = program

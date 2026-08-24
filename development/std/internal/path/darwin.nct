@@ -2,9 +2,10 @@
 
 see ./index.nct
 
-use std/mem.{RawBuffer, page_try_allocator, raw_buffer_ptr, try_alloc}
+use std/mem.{RawBuffer, page_try_allocator}
 use std/path.validate
-use std/ptr.{addr, copy_str_to_ptr, store_u8_to_ptr}
+use std/ptr.addr
+use std/internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 
 #target: "arm64-darwin"
 struct TargetPathArgument {
@@ -20,13 +21,13 @@ func target_path_argument(value: &str): TargetPathArgument! {
 
     let allocation_size: usize = value.len() + 1
     var allocator = page_try_allocator()
-    let storage = try_alloc(&+allocator, allocation_size, 1)?
-    copy_str_to_ptr(raw_buffer_ptr(&storage), 0, value)
-    store_u8_to_ptr(raw_buffer_ptr(&storage), allocation_size - 1, 0)
+    let storage = allocator.try_alloc(allocation_size, 1)?
+    copy_str_to_ptr(storage.bytes().ptr(), 0, value)
+    store_u8_to_ptr(storage.bytes().ptr(), allocation_size - 1, 0)
     return TargetPathArgument { storage: move storage }
 }
 
 #target: "arm64-darwin"
 func target_path_address(value: &TargetPathArgument): usize {
-    return addr(raw_buffer_ptr(&value.storage))
+    return addr(value.storage.bytes().ptr())
 }

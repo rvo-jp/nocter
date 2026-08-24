@@ -1,11 +1,8 @@
-see ./index.nct
-
-//! Shared allocation-free byte search for UTF-8 string modules.
+//! Allocation-free byte search for borrowed UTF-8 text.
 //!
-//! Matching operates on bytes, but every successful match of a non-empty,
-//! well-formed UTF-8 needle begins at a UTF-8 boundary in the haystack.
+//! Matching operates on bytes, but every successful match of a non-empty, well-formed UTF-8
+//! needle begins at a UTF-8 boundary in the haystack.
 
-/// Returns the first byte offset of `needle` at or after `start`.
 func find_from_bytes(
     text: &str,
     needle: &str,

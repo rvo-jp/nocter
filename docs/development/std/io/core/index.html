@@ -150,7 +150,6 @@
             <div class="markdown-body">
                 <h1>core.nct</h1><pre><code class="language-nocter"><span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span>bytes <span class="token-keyword">as</span> string_bytes
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 <span class="token-comment">//! Portable byte-stream implementation bodies.</span>
@@ -167,7 +166,9 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
 
     default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-function">write_text_to</span><span class="token-operator">(</span>self<span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -206,7 +207,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> write_text_to<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span><span class="token-operator">:</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> encoded<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">string_bytes</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> encoded<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
     writer<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>encoded<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>

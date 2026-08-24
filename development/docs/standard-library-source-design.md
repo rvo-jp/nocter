@@ -7,14 +7,24 @@ This document defines repository policy for implementing the public standard-lib
 
 ## Module Root Responsibility
 
-Every standard-library `index.nct` is a contract root, not a general implementation file. A reader
-must be able to identify the module's externally visible and package-visible surface without
-following implementation sources.
+Every standard-library `index.nct` is a user contract root, not a general implementation file. A
+reader must be able to identify the module's externally visible surface without following
+implementation sources or reading package plumbing.
 
 The root owns documentation, required signature imports, re-exports, public data representation,
-opaque nominal contracts, bodyless callable contracts, interface requirements, explicit default
-contracts, construction selection, instance-operation contracts, and conformance heads with their
-associated type bindings. Required conformance method signatures remain solely in their interface.
+opaque nominal contracts, bodyless public callable contracts, interface requirements, explicit
+default contracts, construction selection, instance-operation contracts, and public conformance
+heads with their associated type bindings. Required conformance method signatures remain solely in
+their interface.
+
+A package-only subsystem that does not require another module's private representation owns an
+explicit module below `std/internal`. No implementation source may add restricted-visible
+declarations: module roots remain the sole surface authority. A package-only operation that is
+inseparable from a public type's private representation may therefore remain in that public module
+root only when moving it would expose the representation or change the public type identity.
+`std/mem` raw-buffer transfer and owned-growth operations are the current reviewed exception. Do
+not put independent package plumbing in a public root merely to make it discoverable, and do not
+hide a cross-module contract inside an implementation body.
 
 Implementation sources own private representation, callable bodies, destruction, allocation and
 pointer mechanics, target operations, and helper algorithms. Name each source for one stable
@@ -22,16 +32,42 @@ responsibility such as `storage.nct`, `mutation.nct`, `defaults.nct`, or `darwin
 generic `impl.nct` when the module has more than one implementation responsibility.
 
 Restricted visibility must be no wider than its actual consumers. A `pub(/)` function in a
-standard-library root must have a semantic reference from another module in the `std` package.
-Helpers used only by implementation sources in their declaring module stay private and those
-sources use direct `see` edges. Compiler-owned primitives are exempt because their declaration
-itself defines a target or runtime boundary even when current Nocter source has no caller. The
-authored-standard-library test enforces this rule from the checked source index rather than name
-matching.
+standard-library contract source must have a semantic reference from another module in the `std`
+package. Helpers used only by implementation sources in their declaring module stay private and
+those sources use direct `see` edges. Compiler-owned primitives are exempt because their
+declaration itself defines a target or runtime boundary even when current Nocter source has no
+caller. The authored-standard-library test enforces this rule from the checked source index rather
+than name matching.
+
+The same test freezes the reviewed module-dependency relation from discovery's resolved `use`
+edges. Adding an edge requires an ownership review and an explicit update to that relation; source
+spelling is never reparsed to infer dependencies.
 
 Stable error codes are behavioral API; helper functions that construct those errors are not.
 Error factories remain private unless callers must select them independently for a documented
 reason.
+
+## Current Foundation Ownership
+
+The reconstructed foundation has the following implementation owners:
+
+| Responsibility | Owner |
+| --- | --- |
+| public address observation and borrow-to-pointer conversion | `std/ptr` |
+| raw address projection, byte copying, and typed value movement | `std/internal/ptr` |
+| allocation abort boundary | `std/internal/mem` |
+| target-neutral OS error facts | `std/internal/os` |
+| Darwin syscall, errno, mmap, file-mode, and metadata-layout facts | `std/internal/os/darwin` |
+| allocator and raw-buffer policy | `std/mem` |
+| borrowed UTF-8 search, ranges, and iterators | `std/str` |
+| owned UTF-8 storage, construction, validation, and mutation | `std/string` |
+| initialized-prefix ownership and mutation | `std/vec` |
+
+Within `std/mem`, `std/string`, and `std/vec`, representation, construction, mutation, validation,
+and destruction live in responsibility-named sources. `std/str/owned.nct` is the explicit edge
+from borrowed text algorithms to `String` and `Vec`; the allocation-free search and view sources do
+not import owned collection modules. `std/process` reuses `std/string.is_valid_utf8` rather than
+owning another validator.
 
 ## Source Visibility Graph
 
@@ -68,8 +104,8 @@ in the responsibility-named private source that owns the type's destruction beha
 
 A standard-library module migration is complete only when:
 
-- its root declares every public and package-visible contract and no implementation source adds
-  exported surface;
+- its root declares every public contract, every package-only contract has an explicit internal
+  owner, and no implementation source adds exported surface;
 - ordinary definition navigation selects the root contract and implementation navigation selects
   its body;
 - opaque types reveal no private fields through source presentation, hover, or completion;

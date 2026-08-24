@@ -4,27 +4,13 @@ see ./index.nct
 
 use std/mem.RawBuffer
 use std/mem.TryAllocator
-use std/mem.alloc
-use std/mem.bytes_mut as raw_bytes_mut
-use std/mem.free
 use std/mem.page_allocator
-use std/mem.raw_buffer_len
-use std/mem.raw_buffer_ptr
-use std/mem.try_alloc
-use std/mem.try_free
-use std/internal/os.darwin_f_getpath
-use std/internal/os.darwin_max_path_len
-use std/internal/os.darwin_sys_close
-use std/internal/os.darwin_sys_fcntl
-use std/internal/os.darwin_sys_open
-use std/internal/os.syscall1
-use std/internal/os.syscall3
-use std/internal/os.trap
+use std/internal/os/darwin.{f_getpath, max_path_len, sys_close, sys_fcntl, sys_open}
+use std/internal/os/darwin.{syscall1, syscall3, trap}
 use std/internal/path.{target_path_address, target_path_argument}
 use std/ptr.addr
-use std/ptr.str_from_raw_parts
-use std/string.String
-use std/string.bytes as string_bytes
+use std/internal/ptr.str_from_raw_parts
+use std/string.{String, is_valid_utf8}
 use std/vec.Vec
 
 #target: "arm64-darwin"
@@ -48,7 +34,7 @@ primitive env_value_raw(index: usize): &str from static
 #target: "arm64-darwin"
 func open_current_directory(): usize! {
     let path = target_path_argument(".")?
-    let result = syscall3(darwin_sys_open, target_path_address(&path), 0, 0)
+    let result = syscall3(sys_open, target_path_address(&path), 0, 0)
     if result.errno != 0 {
         return cwd_failed()
     }
@@ -57,14 +43,14 @@ func open_current_directory(): usize! {
 
 #target: "arm64-darwin"
 func close_fd_word(fd: usize): void {
-    let result = syscall1(darwin_sys_close, fd)
+    let result = syscall1(sys_close, fd)
     return
 }
 
 #target: "arm64-darwin"
 func cwd_path_len(buffer: &+RawBuffer): usize! {
-    let buffer_len = raw_buffer_len(buffer)
-    let raw_bytes = raw_bytes_mut(buffer)
+    let buffer_len = buffer.bytes().len()
+    let raw_bytes = buffer.bytes_mut()
     var index: usize = 0
     while index < buffer_len {
         if raw_bytes[index] == 0 {
@@ -78,10 +64,10 @@ func cwd_path_len(buffer: &+RawBuffer): usize! {
 #target: "arm64-darwin"
 func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     let result = syscall3(
-        darwin_sys_fcntl,
+        sys_fcntl,
         fd,
-        darwin_f_getpath,
-        addr(raw_buffer_ptr(buffer)),
+        f_getpath,
+        addr(buffer.bytes().ptr()),
     )
     if result.errno != 0 {
         return cwd_failed()
@@ -95,7 +81,7 @@ func args(): Vec<&str>! {
     var index: usize = 0
     while index < count {
         let value = arg_raw(index)
-        if !valid_utf8(value) {
+        if !is_valid_utf8(value.bytes()) {
             return invalid_encoding()
         }
         values.push(value)
@@ -112,7 +98,7 @@ func arg(index: usize): &str?! {
     let count: usize = arg_count_raw()
     if index >= count { return none }
     let value = arg_raw(index)
-    if !valid_utf8(value) { return invalid_encoding() }
+    if !is_valid_utf8(value.bytes()) { return invalid_encoding() }
     return value
 }
 
@@ -125,7 +111,7 @@ func environment(index: usize): EnvironmentEntry?! {
     if index >= count { return none }
     let name = env_name_raw(index)
     let value = env_value_raw(index)
-    if !valid_utf8(name) || !valid_utf8(value) { return invalid_encoding() }
+    if !is_valid_utf8(name.bytes()) || !is_valid_utf8(value.bytes()) { return invalid_encoding() }
     return EnvironmentEntry { name: name, value: value }
 }
 
@@ -138,7 +124,7 @@ func env(name: &str): &str?! {
     while index < count {
         let entry_name = env_name_raw(index)
         let entry_value = env_value_raw(index)
-        if !valid_utf8(entry_name) || !valid_utf8(entry_value) {
+        if !is_valid_utf8(entry_name.bytes()) || !is_valid_utf8(entry_value.bytes()) {
             return invalid_encoding()
         }
         if entry_name == name {
@@ -152,15 +138,15 @@ func env(name: &str): &str?! {
 func cwd(): String! {
     let fd = open_current_directory()?
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, darwin_max_path_len, 1)
+    var buffer = allocator.alloc(max_path_len, 1)
     let len = fill_cwd_path(fd, &+buffer) catch failure {
-        free(&+allocator, move buffer)
+        allocator.free(move buffer)
         close_fd_word(fd)
         return move failure
     }
-    let view = str_from_raw_parts(raw_buffer_ptr(&buffer), len)
+    let view = str_from_raw_parts(buffer.bytes().ptr(), len)
     let value = String.copy(view)
-    free(&+allocator, move buffer)
+    allocator.free(move buffer)
     close_fd_word(fd)
     return move value
 }
@@ -169,31 +155,31 @@ func try_cwd(allocator: &+TryAllocator): String! {
     let fd = open_current_directory() catch failure {
         return move failure
     }
-    var buffer = try_alloc(allocator, darwin_max_path_len, 1) catch failure {
+    var buffer = allocator.try_alloc(max_path_len, 1) catch failure {
         close_fd_word(fd)
         return move failure
     }
     let len = fill_cwd_path(fd, &+buffer) catch failure {
-        try_free(allocator, move buffer)
+        allocator.free(move buffer)
         close_fd_word(fd)
         return move failure
     }
-    let view = str_from_raw_parts(raw_buffer_ptr(&buffer), len)
+    let view = str_from_raw_parts(buffer.bytes().ptr(), len)
     let value = String.try_copy(allocator, view) catch failure {
-        try_free(allocator, move buffer)
+        allocator.free(move buffer)
         close_fd_word(fd)
         return move failure
     }
-    try_free(allocator, move buffer)
+    allocator.free(move buffer)
     close_fd_word(fd)
     return move value
 }
 
 func valid_environment_name(name: &str): bool {
-    if name.len() == 0 || !valid_utf8(name) {
+    if name.len() == 0 || !is_valid_utf8(name.bytes()) {
         return false
     }
-    let name_bytes = string_bytes(name)
+    let name_bytes = name.bytes()
     var index: usize = 0
     while index < name_bytes.len() {
         if name_bytes[index] == 0 || name_bytes[index] == 61 {
@@ -202,61 +188,6 @@ func valid_environment_name(name: &str): bool {
         index += 1
     }
     return true
-}
-
-func valid_utf8(value: &str): bool {
-    let value_bytes = string_bytes(value)
-    var index: usize = 0
-    while index < value_bytes.len() {
-        let first = value_bytes[index]
-        if first <= 127 {
-            index += 1
-        } else if first >= 194 && first <= 223 {
-            if index + 1 >= value_bytes.len() || !utf8_continuation(value_bytes[index + 1]) {
-                return false
-            }
-            index += 2
-        } else if first >= 224 && first <= 239 {
-            if index + 2 >= value_bytes.len() {
-                return false
-            }
-            let second = value_bytes[index + 1]
-            let second_valid = if first == 224 {
-                second >= 160 && second <= 191
-            } else if first == 237 {
-                second >= 128 && second <= 159
-            } else {
-                utf8_continuation(second)
-            }
-            if !second_valid || !utf8_continuation(value_bytes[index + 2]) {
-                return false
-            }
-            index += 3
-        } else if first >= 240 && first <= 244 {
-            if index + 3 >= value_bytes.len() {
-                return false
-            }
-            let second = value_bytes[index + 1]
-            let second_valid = if first == 240 {
-                second >= 144 && second <= 191
-            } else if first == 244 {
-                second >= 128 && second <= 143
-            } else {
-                utf8_continuation(second)
-            }
-            if !second_valid || !utf8_continuation(value_bytes[index + 2]) || !utf8_continuation(value_bytes[index + 3]) {
-                return false
-            }
-            index += 4
-        } else {
-            return false
-        }
-    }
-    return true
-}
-
-func utf8_continuation(value: u8): bool {
-    return value >= 128 && value <= 191
 }
 
 func exit(code: i32): never {

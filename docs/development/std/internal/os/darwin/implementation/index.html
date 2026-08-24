@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/internal/os/darwin.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/internal/os/darwin.nct.">
+    <title>development/std/internal/os/darwin/implementation.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/internal/os/darwin/implementation.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/internal/os/darwin/">
-    <link rel="icon" href="../../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/internal/os/darwin/implementation/">
+    <link rel="icon" href="../../../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/internal/os/darwin.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/internal/os/darwin.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/internal/os/darwin/">
+    <meta property="og:title" content="development/std/internal/os/darwin/implementation.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/internal/os/darwin/implementation.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/internal/os/darwin/implementation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/internal/os/darwin.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/internal/os/darwin.nct.">
+    <meta name="twitter:title" content="development/std/internal/os/darwin/implementation.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/internal/os/darwin/implementation.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/os/darwin.nct - Nocter","description":"Nocter source code for development/std/internal/os/darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/os/darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Os","item":"https://nocter.dev/development/std/internal/os/"},{"@type":"ListItem","position":6,"name":"Darwin","item":"https://nocter.dev/development/std/internal/os/darwin/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/os/darwin/implementation.nct - Nocter","description":"Nocter source code for development/std/internal/os/darwin/implementation.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/os/darwin/implementation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Os","item":"https://nocter.dev/development/std/internal/os/"},{"@type":"ListItem","position":6,"name":"Darwin","item":"https://nocter.dev/development/std/internal/os/darwin/"},{"@type":"ListItem","position":7,"name":"Implementation","item":"https://nocter.dev/development/std/internal/os/darwin/implementation/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../../style.css">
+    <link rel="stylesheet" href="../../../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -122,35 +122,37 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../../milestones/v0.17.0/index.html#content">v0.17.0 practical application foundations</a></li>
-                <li><a href="../../../../milestones/v0.16.0/index.html#content">v0.16.0 practical failure values</a></li>
-                <li><a href="../../../../milestones/v0.16.0-release-preparation/index.html#content">v0.16.0 release preparation</a></li>
-                <li><a href="../../../../releases/v0.16.0/index.html#content">v0.16.0 publication and audit</a></li>
-                <li><a href="../../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../../../../docs/target-program-design/index.html#content">Target and executable program design</a></li>
-                <li><a href="../../../../docs/machine-program-design/index.html#content">Machine program and native target design</a></li>
-                <li><a href="../../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
-                <li><a href="../../../../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="../../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
-                <li><a href="../../../../docs/maintenance/index.html#content">Maintenance policy</a></li>
-                <li><a href="../../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../../milestones/v0.17.0/index.html#content">v0.17.0 practical application foundations</a></li>
+                <li><a href="../../../../../milestones/v0.16.0/index.html#content">v0.16.0 practical failure values</a></li>
+                <li><a href="../../../../../milestones/v0.16.0-release-preparation/index.html#content">v0.16.0 release preparation</a></li>
+                <li><a href="../../../../../releases/v0.16.0/index.html#content">v0.16.0 publication and audit</a></li>
+                <li><a href="../../../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../../../docs/checked-program-design/index.html#content">Checked program design</a></li>
+                <li><a href="../../../../../docs/target-program-design/index.html#content">Target and executable program design</a></li>
+                <li><a href="../../../../../docs/machine-program-design/index.html#content">Machine program and native target design</a></li>
+                <li><a href="../../../../../docs/declaration-diagnostic-boundary/index.html#content">Declaration diagnostic boundary</a></li>
+                <li><a href="../../../../../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
+                <li><a href="../../../../../docs/grammar-conformance/index.html#content">Grammar conformance plan</a></li>
+                <li><a href="../../../../../docs/maintenance/index.html#content">Maintenance policy</a></li>
+                <li><a href="../../../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/internal/os/darwin.nct</span>
+                <span class="markdown-path-text">/development/std/internal/os/darwin/implementation.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin error classification and syscall constants.</span>
+                <h1>implementation.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin error classification and ABI values.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">,</span> <span class="token-type">Platform</span><span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">errno</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
@@ -168,38 +170,22 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">kind_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
-    <span class="token-comment">// Darwin errno values used by the std syscall wrappers.</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">4</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">35</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>would_block
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">2</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">2</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">20</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_found
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">20</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_found
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>permission_denied
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">13</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">1</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">13</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>permission_denied
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">17</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>already_exists
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">14</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">21</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">22</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">9</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">14</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">21</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">22</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">32</span> <span class="token-operator">{</span>
@@ -215,68 +201,83 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_read<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000003
+<span class="token-keyword">const</span> sys_read<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000003
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_write<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000004
+<span class="token-keyword">const</span> sys_write<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000004
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_open<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000005
+<span class="token-keyword">const</span> sys_open<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000005
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_close<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000006
+<span class="token-keyword">const</span> sys_close<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000006
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_unlink<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200000a
+<span class="token-keyword">const</span> sys_unlink<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200000a
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_rename<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000080
+<span class="token-keyword">const</span> sys_rename<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000080
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_stat64<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000152
+<span class="token-keyword">const</span> sys_munmap<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000049
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_open_read_only<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+<span class="token-keyword">const</span> sys_mmap<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x020000c5
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> sys_stat64<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000152
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> open_read_only<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">// O_WRONLY | O_CREAT | O_TRUNC</span>
-<span class="token-keyword">const</span> darwin_open_create_truncate<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0601
+<span class="token-keyword">const</span> open_create_truncate<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0601
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">// O_WRONLY | O_CREAT | O_APPEND</span>
-<span class="token-keyword">const</span> darwin_open_create_append<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0209
+<span class="token-keyword">const</span> open_create_append<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0209
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">// 0666, filtered by the process umask.</span>
-<span class="token-keyword">const</span> darwin_create_mode<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">438</span>
+<span class="token-keyword">const</span> create_mode<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">438</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_errno_interrupted<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+<span class="token-keyword">const</span> mmap_read_write<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">3</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_sys_fcntl<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200005c
+<span class="token-keyword">const</span> mmap_private_anonymous<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x1002
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_f_getpath<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">50</span>
+<span class="token-keyword">const</span> mmap_no_file<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0xffffffffffffffff
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_max_path_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1024</span>
+<span class="token-keyword">const</span> errno_interrupted<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> sys_fcntl<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200005c
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> f_getpath<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">50</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> max_path_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1024</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">// Darwin arm64 `struct stat`: SDK sys/stat.h __DARWIN_STRUCT_STAT64.</span>
-<span class="token-keyword">const</span> darwin_stat_buffer_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">144</span>
+<span class="token-keyword">const</span> stat_buffer_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">144</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_stat_mode_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+<span class="token-keyword">const</span> stat_mode_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">4</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_stat_size_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">96</span>
+<span class="token-keyword">const</span> stat_size_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">96</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_stat_mode_regular<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">32768</span>
+<span class="token-keyword">const</span> stat_mode_regular<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">32768</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> darwin_stat_mode_directory<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">16384</span>
+<span class="token-keyword">const</span> stat_mode_directory<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">16384</span>
 </code></pre>
             </div>
         </main>
@@ -293,6 +294,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../../script.js" defer></script>
+    <script src="../../../../../../script.js" defer></script>
 </body>
 </html>

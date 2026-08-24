@@ -1,6 +1,8 @@
-//! Darwin error classification and syscall constants.
+//! Darwin error classification and ABI values.
 
 see ./index.nct
+
+use std/internal/os.{OSError, OSErrorKind, Platform}
 
 #target: "arm64-darwin"
 func errno(code: i32): Errno {
@@ -18,38 +20,22 @@ func error_from_errno(value: Errno): OSError {
 
 #target: "arm64-darwin"
 func kind_from_errno(value: Errno): OSErrorKind {
-    // Darwin errno values used by the std syscall wrappers.
     if value.code == 4 {
         return OSErrorKind.interrupted
     }
     if value.code == 35 {
         return OSErrorKind.would_block
     }
-    if value.code == 2 {
+    if value.code == 2 || value.code == 20 {
         return OSErrorKind.not_found
     }
-    if value.code == 20 {
-        return OSErrorKind.not_found
-    }
-    if value.code == 1 {
-        return OSErrorKind.permission_denied
-    }
-    if value.code == 13 {
+    if value.code == 1 || value.code == 13 {
         return OSErrorKind.permission_denied
     }
     if value.code == 17 {
         return OSErrorKind.already_exists
     }
-    if value.code == 9 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 14 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 21 {
-        return OSErrorKind.invalid_input
-    }
-    if value.code == 22 {
+    if value.code == 9 || value.code == 14 || value.code == 21 || value.code == 22 {
         return OSErrorKind.invalid_input
     }
     if value.code == 32 {
@@ -65,65 +51,80 @@ func kind_from_errno(value: Errno): OSErrorKind {
 }
 
 #target: "arm64-darwin"
-const darwin_sys_read: usize = 0x02000003
+const sys_read: usize = 0x02000003
 
 #target: "arm64-darwin"
-const darwin_sys_write: usize = 0x02000004
+const sys_write: usize = 0x02000004
 
 #target: "arm64-darwin"
-const darwin_sys_open: usize = 0x02000005
+const sys_open: usize = 0x02000005
 
 #target: "arm64-darwin"
-const darwin_sys_close: usize = 0x02000006
+const sys_close: usize = 0x02000006
 
 #target: "arm64-darwin"
-const darwin_sys_unlink: usize = 0x0200000a
+const sys_unlink: usize = 0x0200000a
 
 #target: "arm64-darwin"
-const darwin_sys_rename: usize = 0x02000080
+const sys_rename: usize = 0x02000080
 
 #target: "arm64-darwin"
-const darwin_sys_stat64: usize = 0x02000152
+const sys_munmap: usize = 0x02000049
 
 #target: "arm64-darwin"
-const darwin_open_read_only: usize = 0
+const sys_mmap: usize = 0x020000c5
+
+#target: "arm64-darwin"
+const sys_stat64: usize = 0x02000152
+
+#target: "arm64-darwin"
+const open_read_only: usize = 0
 
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_TRUNC
-const darwin_open_create_truncate: usize = 0x0601
+const open_create_truncate: usize = 0x0601
 
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_APPEND
-const darwin_open_create_append: usize = 0x0209
+const open_create_append: usize = 0x0209
 
 #target: "arm64-darwin"
 // 0666, filtered by the process umask.
-const darwin_create_mode: usize = 438
+const create_mode: usize = 438
 
 #target: "arm64-darwin"
-const darwin_errno_interrupted: i32 = 4
+const mmap_read_write: usize = 3
 
 #target: "arm64-darwin"
-const darwin_sys_fcntl: usize = 0x0200005c
+const mmap_private_anonymous: usize = 0x1002
 
 #target: "arm64-darwin"
-const darwin_f_getpath: usize = 50
+const mmap_no_file: usize = 0xffffffffffffffff
 
 #target: "arm64-darwin"
-const darwin_max_path_len: usize = 1024
+const errno_interrupted: i32 = 4
+
+#target: "arm64-darwin"
+const sys_fcntl: usize = 0x0200005c
+
+#target: "arm64-darwin"
+const f_getpath: usize = 50
+
+#target: "arm64-darwin"
+const max_path_len: usize = 1024
 
 #target: "arm64-darwin"
 // Darwin arm64 `struct stat`: SDK sys/stat.h __DARWIN_STRUCT_STAT64.
-const darwin_stat_buffer_size: usize = 144
+const stat_buffer_size: usize = 144
 
 #target: "arm64-darwin"
-const darwin_stat_mode_offset: usize = 4
+const stat_mode_offset: usize = 4
 
 #target: "arm64-darwin"
-const darwin_stat_size_offset: usize = 96
+const stat_size_offset: usize = 96
 
 #target: "arm64-darwin"
-const darwin_stat_mode_regular: u16 = 32768
+const stat_mode_regular: u16 = 32768
 
 #target: "arm64-darwin"
-const darwin_stat_mode_directory: u16 = 16384
+const stat_mode_directory: u16 = 16384

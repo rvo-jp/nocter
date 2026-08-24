@@ -153,7 +153,8 @@
 
 <span class="token-comment">//! Zero- and one-element owning iterators.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_ref_mut<span class="token-operator">,</span> store_value_to_ptr<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_ref_mut
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>store_value_to_ptr<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
 
 <span class="token-comment">/// Constructs an empty iterator.</span>
 <span class="token-keyword">func</span> empty<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
