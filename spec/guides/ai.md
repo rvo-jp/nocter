@@ -331,10 +331,10 @@ Avoid these obsolete or invalid patterns:
 let file = try File.open(path)
 
 // invalid: fallible types do not write a custom error type
-func read(): String!IOError
+func read(): String!DomainError
 
 // invalid: spaced fallible type syntax is obsolete
-func read(): String ! IOError
+func read(): String ! DomainError
 
 // invalid: Nocter does not use a module declaration
 module app/main

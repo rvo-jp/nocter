@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/process/index.nct - Nocter">
@@ -150,7 +150,6 @@
 <span class="token-comment">//! exit is a standard-library API, not a compiler primitive. The target-specific</span>
 <span class="token-comment">//! implementation calls the active target boundary.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
@@ -179,21 +178,6 @@
     <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 <span class="token-operator">}</span>
 
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">open_current_directory</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">open_current_directory_aborting</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">cwd_path_len</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">fill_cwd_path</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">args</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
@@ -210,19 +194,9 @@
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">valid_environment_name</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">valid_utf8</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">utf8_continuation</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">exit</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd_failed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_encoding</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 </code></pre>
             </div>
         </main>

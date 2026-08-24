@@ -152,7 +152,6 @@
 <span class="token-comment">//! results and errno wrappers stay behind `#target`-gated std internals.</span>
 
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>core<span class="token-operator">.</span>nct
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-type">OSError</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>file<span class="token-operator">.</span>nct
@@ -178,51 +177,7 @@
     <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">stdout_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">stderr_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">open_read_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">create_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">write_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">write_text_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">close_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">IOError</span> <span class="token-operator">{</span>
-    <span class="token-function">interrupted</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">would_block</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">not_found</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">permission_denied</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">already_exists</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">invalid_input</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">broken_pipe</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">timed_out</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">unsupported</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-    <span class="token-function">unexpected_os_error</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">File</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 

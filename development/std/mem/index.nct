@@ -53,12 +53,6 @@ pub(/) func alloc_pages(size: usize): usize!
 #target: "arm64-darwin"
 pub(/) func free_pages(address: usize, size: usize): void
 
-pub(/) func region_alloc_pages(
-    state: usize,
-    size: usize,
-    align: usize,
-): usize!
-
 pub(/) func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
@@ -85,17 +79,7 @@ pub(/) func free(allocator: &+Allocator, buffer: RawBuffer): void
 
 pub(/) func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void
 
-pub(/) func try_grow(
-    allocator: &+TryAllocator,
-    buffer: &+RawBuffer,
-    new_size: usize,
-): void!
-
 pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void!
-
-pub(/) func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void
-
-pub(/) func grow_owned(buffer: &+RawBuffer, new_size: usize): void
 
 pub(/) func bytes_mut(buffer: &+RawBuffer): &+[u8]
 
@@ -130,9 +114,3 @@ instance Layout {
 
     pub method &self.align(): usize
 }
-
-pub func out_of_memory(): error
-
-pub func invalid_argument(): error
-
-pub(/) func abort_allocation(allocation_error: error): never

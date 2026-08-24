@@ -15,6 +15,9 @@ use crate::{
     UseFailure, discover,
 };
 
+#[path = "tests/standard_contract.rs"]
+mod standard_contract;
+
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 struct TempTree(PathBuf);
@@ -555,13 +558,17 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         source_index,
     )
     .unwrap();
-    nocter_checking::check_prepared_program(&input, prepared).unwrap_or_else(|error| {
-        let source = error
-            .source_diagnostic()
-            .and_then(|diagnostic| unit.sources().get(diagnostic.primary().source()))
-            .map(|source| source.name().to_string());
-        panic!("standard source {source:?} failed body checking: {error:?}")
-    });
+    let checked =
+        nocter_checking::check_prepared_program(&input, prepared).unwrap_or_else(|error| {
+            let source = error
+                .source_diagnostic()
+                .and_then(|diagnostic| unit.sources().get(diagnostic.primary().source()))
+                .map(|source| source.name().to_string());
+            panic!("standard source {source:?} failed body checking: {error:?}")
+        });
+    standard_contract::assert_package_visible_functions_have_cross_module_references(
+        &unit, &checked,
+    );
 }
 
 fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {

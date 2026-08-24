@@ -21,6 +21,18 @@ pointer mechanics, target operations, and helper algorithms. Name each source fo
 responsibility such as `storage.nct`, `mutation.nct`, `defaults.nct`, or `darwin.nct`; do not use a
 generic `impl.nct` when the module has more than one implementation responsibility.
 
+Restricted visibility must be no wider than its actual consumers. A `pub(/)` function in a
+standard-library root must have a semantic reference from another module in the `std` package.
+Helpers used only by implementation sources in their declaring module stay private and those
+sources use direct `include` edges. Compiler-owned primitives are exempt because their declaration
+itself defines a target or runtime boundary even when current Nocter source has no caller. The
+authored-standard-library test enforces this rule from the checked source index rather than name
+matching.
+
+Stable error codes are behavioral API; helper functions that construct those errors are not.
+Error factories remain private unless callers must select them independently for a documented
+reason.
+
 ## Include Graph
 
 The root directly includes every source that completes one of its contracts. Each completing

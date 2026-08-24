@@ -49,9 +49,6 @@ pub(/) func errno(code: i32): Errno
 pub(/) func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
-pub(/) func kind_from_errno(value: Errno): OSErrorKind
-
-#target: "arm64-darwin"
 pub(/) func darwin_sys_read(): usize
 
 #target: "arm64-darwin"

@@ -272,13 +272,7 @@
 <span class="token-comment">/// to a future scalar-value iterator rather than byte-oriented search.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">split</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty_separator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
-
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">try_push_str</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-keyword">instance</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized UTF-8 prefix without transferring ownership.</span>

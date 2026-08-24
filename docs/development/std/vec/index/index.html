@@ -155,18 +155,12 @@
 <span class="token-comment">//! that prefix, while clear and drop destroy its elements in reverse order.</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">MutableViewIter</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> <span class="token-type">TryAllocator</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>into_iter<span class="token-operator">.</span>nct
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A forward iterator that owns a Vec allocation and its remaining elements.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> vec_into_iter_from_raw_parts<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
-    pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span><span class="token-operator">,</span>
-    storage<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
-    item_count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">conform</span> <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span>
 
@@ -205,10 +199,6 @@
         values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator | values where copy <span class="token-type">T</span>
 <span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">index_out_of_bounds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-keyword">instance</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized element prefix as a readonly view.</span>

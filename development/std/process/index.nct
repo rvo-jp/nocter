@@ -3,7 +3,6 @@
 //! exit is a standard-library API, not a compiler primitive. The target-specific
 //! implementation calls the active target boundary.
 
-use std/mem.RawBuffer
 use std/mem.TryAllocator
 use std/string.String
 use std/vec.Vec
@@ -32,21 +31,6 @@ pub copy struct EnvironmentEntry {
     pub value: &str
 }
 
-#target: "arm64-darwin"
-pub(/) func open_current_directory(): usize!
-
-#target: "arm64-darwin"
-pub(/) func open_current_directory_aborting(): usize!
-
-#target: "arm64-darwin"
-pub(/) func close_fd_word(fd: usize): void
-
-#target: "arm64-darwin"
-pub(/) func cwd_path_len(buffer: &+RawBuffer): usize!
-
-#target: "arm64-darwin"
-pub(/) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize!
-
 pub func args(): Vec<&str>!
 
 pub func arg_count(): usize
@@ -63,16 +47,6 @@ pub func cwd(): String!
 
 pub func try_cwd(allocator: &+TryAllocator): String!
 
-pub(/) func valid_environment_name(name: &str): bool
-
-pub(/) func valid_utf8(value: &str): bool
-
-pub(/) func utf8_continuation(value: u8): bool
-
 pub func exit(code: i32): never
 
 pub func abort(): never
-
-pub func cwd_failed(): error
-
-pub func invalid_encoding(): error

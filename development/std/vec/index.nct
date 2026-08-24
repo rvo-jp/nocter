@@ -8,18 +8,12 @@
 //! that prefix, while clear and drop destroy its elements in reverse order.
 
 use std/iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
-use std/mem.{RawBuffer, TryAllocator}
+use std/mem.TryAllocator
 include ./into_iter.nct
 include ./storage.nct
 
 /// A forward iterator that owns a Vec allocation and its remaining elements.
 pub struct VecIntoIter<T>
-
-pub(/) func vec_into_iter_from_raw_parts<T>(
-    pointer: *T,
-    storage: &+RawBuffer,
-    item_count: usize,
-): VecIntoIter<T>
 
 conform ExactSizeIterator for VecIntoIter<T> {}
 
@@ -58,10 +52,6 @@ construct Vec<T> {
         values: &[T],
     ): Self! from allocator | values where copy T
 }
-
-pub func capacity_overflow(): error
-
-pub func index_out_of_bounds(): error
 
 instance Vec<T> {
     /// Exposes the initialized element prefix as a readonly view.

@@ -21,5 +21,3 @@ instance Utf8Path {
 }
 
 pub func validate(value: &str): void!
-
-pub func invalid_path(): error

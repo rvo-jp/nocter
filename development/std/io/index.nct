@@ -5,7 +5,6 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 include ./core.nct
-use std/internal/os.OSError
 use std/string.String
 use std/vec.Vec
 include ./file.nct
@@ -31,51 +30,7 @@ pub interface Writer {
     pub default method &+self.write_text(text: &str): void!
 }
 
-pub func invalid_read_count(): error
-
-#target: "arm64-darwin"
-pub(/) func stdout_fd(): usize
-
-#target: "arm64-darwin"
-pub(/) func stderr_fd(): usize
-
-#target: "arm64-darwin"
-pub(/) func open_read_fd(path: &str): usize!
-
-#target: "arm64-darwin"
-pub(/) func create_fd(path: &str): usize!
-
-#target: "arm64-darwin"
-pub(/) func append_fd(path: &str): usize!
-
-#target: "arm64-darwin"
-pub(/) func read_fd(fd: usize, buffer: &+[u8]): usize!
-
-#target: "arm64-darwin"
-pub(/) func write_fd(fd: usize, bytes: &[u8]): void!
-
-#target: "arm64-darwin"
-pub(/) func write_text_fd(fd: usize, text: &str): void!
-
-#target: "arm64-darwin"
-pub(/) func close_fd(fd: usize): void
-
-pub(/) enum IOError {
-    interrupted(error: OSError)
-    would_block(error: OSError)
-    not_found(error: OSError)
-    permission_denied(error: OSError)
-    already_exists(error: OSError)
-    invalid_input(error: OSError)
-    broken_pipe(error: OSError)
-    timed_out(error: OSError)
-    unsupported(error: OSError)
-    unexpected_os_error(error: OSError)
-}
-
 pub struct File
-
-pub(/) func from_os_error(os_error: OSError): error
 
 pub func stdout(): File
 

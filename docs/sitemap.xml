@@ -338,7 +338,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/internal/os/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -362,7 +362,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/io/file/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -428,7 +428,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/mem/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -452,7 +452,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/path/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -476,7 +476,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/process/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -740,7 +740,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/02-values-types/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -794,7 +794,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/11-stdlib-primitives-os/</loc>
-    <lastmod>2026-08-20</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -884,7 +884,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/guides/ai/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

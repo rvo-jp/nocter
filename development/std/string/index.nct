@@ -125,13 +125,7 @@ pub(/) func ends_with(value: &str, suffix: &str): bool
 /// to a future scalar-value iterator rather than byte-oriented search.
 pub(/) func split(value: &str, separator: &str): Vec<String>!
 
-pub func invalid_utf8(): error
-
-pub func empty_separator(): error
-
 pub(/) func try_push_str(text: &+String, value: &str): void!
-
-pub func capacity_overflow(): error
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.

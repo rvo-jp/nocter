@@ -1,6 +1,7 @@
 //! File ownership and Darwin descriptor operations.
 
 include ./index.nct
+include ./core.nct
 
 use std/mem.alloc_pages
 use std/mem.free_pages

@@ -71,6 +71,9 @@ Standard-library error codes use stable dotted names such as `"std.io.not_found"
 define its own prefixes. Public standard-library APIs return `error` through `T!`; target-specific
 raw error records do not cross the public boundary.
 
+The dotted codes are the public contract. Standard-library helper functions that construct those
+errors are private implementation details and are not exported merely to make the code stable.
+
 `std/internal/os` converts target results through an internal common model:
 
 ```text
