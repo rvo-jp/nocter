@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
 
 function fail(message) {
   process.stderr.write(`packaged LSP verification failed: ${message}\n`);
@@ -15,10 +18,45 @@ const [binary, workspace, version] = process.argv.slice(2);
 const environment = { ...process.env };
 delete environment.NOCTER_HOME;
 
+const home = path.dirname(binary);
+const standardSources = [
+  path.join(home, "std", "error", "index.nct"),
+  path.join(home, "std", "error", "construction.nct"),
+].map((sourcePath) => ({
+  path: sourcePath,
+  uri: pathToFileURL(sourcePath).href,
+  text: fs.readFileSync(sourcePath, "utf8"),
+}));
+
 const requests = [
-  { jsonrpc: "2.0", id: 1, method: "initialize", params: { capabilities: {} } },
+  {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { rootUri: pathToFileURL(workspace).href, capabilities: {} },
+  },
   { jsonrpc: "2.0", method: "initialized", params: {} },
-  { jsonrpc: "2.0", id: 2, method: "shutdown" },
+  ...standardSources.flatMap((source, index) => [
+    {
+      jsonrpc: "2.0",
+      method: "textDocument/didOpen",
+      params: {
+        textDocument: {
+          uri: source.uri,
+          languageId: "nocter",
+          version: 1,
+          text: source.text,
+        },
+      },
+    },
+    {
+      jsonrpc: "2.0",
+      id: index + 2,
+      method: "textDocument/semanticTokens/full",
+      params: { textDocument: { uri: source.uri } },
+    },
+  ]),
+  { jsonrpc: "2.0", id: 4, method: "shutdown" },
   { jsonrpc: "2.0", method: "exit" },
 ];
 const input = requests
@@ -66,15 +104,28 @@ child.on("close", (code, signal) => {
   }
 
   const initialize = messages.find((message) => message.id === 1);
-  const shutdown = messages.find((message) => message.id === 2);
+  const shutdown = messages.find((message) => message.id === 4);
   if (initialize?.result?.serverInfo?.name !== "Nocter") {
     fail("initialize response has the wrong server name");
   }
   if (initialize.result.serverInfo.version !== version) {
     fail(`initialize reported ${initialize.result.serverInfo.version}, expected ${version}`);
   }
+  for (const [index, source] of standardSources.entries()) {
+    const tokens = messages.find((message) => message.id === index + 2);
+    if (!Array.isArray(tokens?.result?.data) || tokens.result.data.length === 0) {
+      fail(`installed standard source did not produce semantic tokens: ${source.path}`);
+    }
+    const diagnostics = messages.filter(
+      (message) =>
+        message.method === "textDocument/publishDiagnostics" &&
+        message.params?.uri === source.uri,
+    );
+    if (diagnostics.some((message) => message.params.diagnostics?.length !== 0)) {
+      fail(`installed standard source reported diagnostics: ${source.path}`);
+    }
+  }
   if (!shutdown || shutdown.result !== null) {
     fail("shutdown response is absent or invalid");
   }
 });
-

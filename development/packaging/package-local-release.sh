@@ -53,8 +53,9 @@ if find "$standard_root" ! -type d ! -type f -print -quit | grep -q .; then
 fi
 
 echo "Building optimized compiler for $archive_name"
-cargo build --locked --release --manifest-path "$compiler_manifest" --package nocter
-compiler="$repository_root/development/compiler/target/release/nocter"
+CARGO_TARGET_DIR="$temporary_root/cargo-target" \
+  cargo build --locked --release --manifest-path "$compiler_manifest" --package nocter
+compiler="$temporary_root/cargo-target/release/nocter"
 if [[ ! -x "$compiler" ]]; then
   echo "release compiler was not produced at $compiler" >&2
   exit 1
