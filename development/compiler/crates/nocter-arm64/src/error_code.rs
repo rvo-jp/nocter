@@ -3,8 +3,6 @@ use crate::{
     Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedInstruction,
 };
 
-use crate::error_layout::Arm64ErrorLayout;
-
 const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
 const DARWIN_WRITE: u64 = 0x0200_0004;
 const STDERR: u64 = 2;
@@ -18,17 +16,18 @@ pub(crate) fn emit_selected(
     let Arm64SelectedInstruction::ReportError { error, buffer } = *instruction else {
         unreachable!("error materialization accepts only report-error instructions")
     };
+    let error_schema = Arm64NocterAbi::error();
     let error = object_offset(
         function,
         error,
-        Arm64ErrorLayout::SIZE,
-        Arm64ErrorLayout::ALIGNMENT,
+        error_schema.size(),
+        error_schema.alignment(),
     )?;
     let buffer = object_offset(
         function,
         buffer,
-        Arm64ErrorLayout::REPORT_BUFFER_SIZE,
-        Arm64ErrorLayout::REPORT_BUFFER_ALIGNMENT,
+        error_schema.report_buffer_size(),
+        error_schema.report_buffer_alignment(),
     )?;
 
     let temporary = scratch();
@@ -40,9 +39,9 @@ pub(crate) fn emit_selected(
     );
     crate::frame_access::store_at_stack_offset(code, Arm64LoadStoreSize::Double, temporary, buffer);
 
-    emit_error_view(error, Arm64ErrorLayout::CODE_OFFSET, code)?;
+    emit_error_view(error, error_schema.code_offset(), code)?;
     emit_stack_bytes(buffer, 2, code);
-    emit_error_view(error, Arm64ErrorLayout::MESSAGE_OFFSET, code)?;
+    emit_error_view(error, error_schema.message_offset(), code)?;
     emit_stack_bytes(checked_add(buffer, 2)?, 1, code);
     Ok(())
 }
@@ -59,7 +58,7 @@ fn emit_error_view(
         argument(1),
         checked_add(
             checked_add(error, view)?,
-            Arm64ErrorLayout::VIEW_POINTER_OFFSET,
+            Arm64NocterAbi::error().view_pointer_offset(),
         )?,
     );
     crate::frame_access::load_at_stack_offset(
@@ -68,7 +67,7 @@ fn emit_error_view(
         argument(2),
         checked_add(
             checked_add(error, view)?,
-            Arm64ErrorLayout::VIEW_LENGTH_OFFSET,
+            Arm64NocterAbi::error().view_length_offset(),
         )?,
     );
     emit_write(code);

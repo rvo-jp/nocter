@@ -8,8 +8,6 @@ use crate::{
     Arm64SelectionContext, Arm64SelectionError, Arm64ValueStorage,
 };
 
-use crate::error_layout::Arm64ErrorLayout;
-
 pub(crate) fn select_report(
     operation: MachineOperationId,
     source: &nocter_machine::MachineOperation,
@@ -32,19 +30,22 @@ pub(crate) fn select_report(
         .layouts()
         .get(value.ty())
         .ok_or(Arm64SelectionError::ErrorReport(operation))?;
-    if layout.size() != Arm64ErrorLayout::SIZE
-        || layout.alignment() != Arm64ErrorLayout::ALIGNMENT
+    let error_schema = context.program().layouts().target().error();
+    if layout.size() != error_schema.size()
+        || layout.alignment() != error_schema.alignment()
         || !matches!(
             layout.kind(),
             MachineLayoutKind::Error {
-                code_offset: Arm64ErrorLayout::CODE_OFFSET,
-                message_offset: Arm64ErrorLayout::MESSAGE_OFFSET,
+                code_offset,
+                message_offset,
             }
+                if *code_offset == error_schema.code_offset()
+                    && *message_offset == error_schema.message_offset()
         )
         || !matches!(
             context.values().value(*error),
             Some(Arm64ValueStorage::Memory { size, alignment })
-                if *size == Arm64ErrorLayout::SIZE && *alignment == Arm64ErrorLayout::ALIGNMENT
+                if *size == error_schema.size() && *alignment == error_schema.alignment()
         )
     {
         return Err(Arm64SelectionError::ErrorReport(operation));

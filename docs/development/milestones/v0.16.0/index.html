@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.16.0: Practical Failure Values - Nocter</title>
+    <meta name="description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.16.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.16.0: Practical Failure Values - Nocter">
+    <meta property="og:description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.16.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-24">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.16.0: Practical Failure Values - Nocter">
+    <meta name="twitter:description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.16.0: Practical Failure Values - Nocter","description":"Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo","url":"https://nocter.dev/development/milestones/v0.16.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.16.0/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.16.0","item":"https://nocter.dev/development/milestones/v0.16.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span><span class="token-operator">:</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
+                <li><a href="../v0.15.0/index.html#content">v0.15.0 milestone</a></li>
+                <li><a href="../v0.15.0-release-preparation/index.html#content">release preparation</a></li>
+                <li><a href="../v0.14.0/index.html#content">v0.14.0 milestone</a></li>
+                <li><a href="../v0.14.0-qualification/index.html#content">implementation qualification</a></li>
+                <li><a href="../../reviews/v0.14.0-final-design/index.html#content">final design review</a></li>
+                <li><a href="../v0.14.0-release-preparation/index.html#content">release preparation</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.16.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-16-0-practical-failure-values">v0.16.0: Practical Failure Values</h1><p><strong>Status: in development.</strong> Phase 0 replaces only the representation and practical API of the existing built-in <code>error</code> type. The <code>T!</code> surface and its single common failure type remain intact.</p><h2 id="goal">Goal</h2><p>Keep error propagation uniform across packages while making a recovered failure safe to retain, enrich, classify, and report without preserving the storage lifetime of constructor arguments. Failure transport must remain statically laid out and must not introduce interface objects, vtables, reference counting, implicit error conversion, or user-defined failure payload types.</p><h2 id="phase-0-owned-error-handles">Phase 0: Owned Error Handles</h2><p>The built-in <code>error</code> type becomes a move-only handle to one immutable runtime error node. A leaf node owns a snapshot of its open dotted code and UTF-8 message. A context node owns one additional message and the previously constructed error. Literal-only standard failures may use immutable compiler data, while runtime text is copied into independently owned error storage.</p><p>The public surface remains one common failure channel:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">load</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Config</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-function">read</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-string">"while reading the configuration"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">parse</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>text<span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>error.new</code> snapshots its arguments and therefore publishes no input provenance. <code>context</code> consumes its receiver, preserves the root classification code, and adds an outer reporting frame. Readonly <code>code</code>, <code>message</code>, and exact-code classification operations borrow only the error value. No operation maps one failure type to another because no second failure type exists.</p><h3 id="runtime-contract">Runtime Contract</h3><p><code>nocter-runtime-contract</code> is the sole numeric authority for the error handle, node kinds, node fields, static/owned discrimination, and report scratch. Machine layout, generated destruction, and ARM64 lowering consume that closed schema. ARM64 must not retain a parallel error-layout table.</p><p>Owned nodes use allocation independent of an authored lexical region, so a propagated error never outlives its storage. Dynamic construction and context attachment abort if their infallible allocation fails. Allocation failure itself uses a prebuilt static error node and therefore does not allocate recursively.</p><p>The handle is move-only. Consequently every <code>T!</code> is move-only regardless of <code>T</code>; temporaries still use ordinary postfix <code>?</code>, while a stored outcome requires the existing explicit <code>move place?</code> form. Error inspection borrows the handle and rethrowing moves it.</p><h3 id="reporting-and-cleanup">Reporting and Cleanup</h3><p>The compiler-owned process wrapper reports the root code followed by outer-to-inner context and leaf messages, writes a trailing newline, destroys the complete owned node chain exactly once, and exits with status one. Reporting performs no allocation and remains best-effort when stderr cannot be written. Destruction walks the chain iteratively so authored context depth cannot consume the native call stack.</p><h3 id="completion-gate">Completion Gate</h3><p>Phase 0 is complete only when all of the following hold:</p><ul><li><code>error</code> and every <code>T!</code> are move-only in checking, ownership, deferred destruction, MIR, and
+  native code;</li><li><code>error.new</code> accepts runtime strings without publishing their provenance and no returned view can
+  outlive the error handle;</li><li>exact-code classification, message access, context attachment, unchanged <code>?</code> propagation, and
+  catch-and-rethrow execute natively;</li><li>one static allocation-failure path proves that error construction cannot recurse on allocation
+  failure;</li><li>process reporting traverses the same runtime node schema used by accessors and destruction;</li><li>Machine and ARM64 contain no independently authored error offset, tag, or size;</li><li>hover, completion, references, rename, signature help, and semantic tokens expose the ordinary
+  source-backed <code>std/error</code> surface rather than reconstructing built-in members;</li><li>focused semantic, ownership, layout, destruction, reporting, standard-library, and public-example
+  tests pass together with the complete workspace, warnings-denied Clippy, formatting, generated
+  documentation, and repository-integrity gates;</li><li>a final authority review finds no borrowed constructor lifetime, leaked recovered node, hidden
+  reference count, duplicated runtime schema, or error-specific semantic lookup in a backend.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

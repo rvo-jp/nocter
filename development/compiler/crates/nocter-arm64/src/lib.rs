@@ -13,7 +13,6 @@ mod code;
 mod destruction_selection;
 mod encode;
 mod error_code;
-mod error_layout;
 mod error_selection;
 mod frame;
 mod frame_access;

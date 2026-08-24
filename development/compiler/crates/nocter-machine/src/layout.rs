@@ -403,11 +403,11 @@ impl LayoutBuilder<'_> {
             RuntimePrimitive::Isize => integer(64, true)?,
             RuntimePrimitive::Usize => integer(64, false)?,
             RuntimePrimitive::Error => (
-                self.target.word_size() * 4,
-                self.target.word_size(),
+                self.target.error().size(),
+                self.target.error().alignment(),
                 MachineLayoutKind::Error {
-                    code_offset: 0,
-                    message_offset: self.target.word_size() * 2,
+                    code_offset: self.target.error().code_offset(),
+                    message_offset: self.target.error().message_offset(),
                 },
             ),
             RuntimePrimitive::Text | RuntimePrimitive::Void | RuntimePrimitive::Never => {

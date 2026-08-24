@@ -2,6 +2,17 @@
 
 ## Current Task
 
+Nocter v0.16.0 Phase 0 is active. The adopted design keeps the built-in `error` type and `T!`
+surface, but replaces the borrowed four-word payload with one move-only owned error-handle
+contract. The exact scope and completion gate are recorded in
+`development/milestones/v0.16.0.md`.
+
+Implementation starts by making `nocter-runtime-contract` the sole error ABI authority. It then
+closes semantic move-only behavior, node construction and access, deferred destruction, process
+reporting, the source-backed standard API, tooling, and native qualification in that order. Do not
+introduce user-defined failure types, dynamic interfaces, vtables, reference counting, or implicit
+error conversion as part of this phase.
+
 Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,
 deterministic double packaging, and the complete fresh-install smoke matrix. Annotated tag

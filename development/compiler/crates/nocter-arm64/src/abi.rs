@@ -38,6 +38,11 @@ impl Arm64NocterAbi {
     }
 
     #[must_use]
+    pub const fn error() -> nocter_runtime_contract::RuntimeErrorAbiSchema {
+        Self::SCHEMA.error()
+    }
+
+    #[must_use]
     pub const fn argument_register(index: u8) -> Option<Arm64Register> {
         if index < Self::SCHEMA.argument_register_count() {
             Arm64Register::new(index)

@@ -64,4 +64,9 @@ impl MachineTarget {
     pub const fn endianness(self) -> MachineEndianness {
         self.schema.endianness()
     }
+
+    #[must_use]
+    pub const fn error(self) -> nocter_runtime_contract::RuntimeErrorAbiSchema {
+        self.schema.error()
+    }
 }

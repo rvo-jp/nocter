@@ -448,8 +448,8 @@ fn place_hidden_objects(
         })
         .then(|| {
             builder.add_object(
-                crate::error_layout::Arm64ErrorLayout::REPORT_BUFFER_SIZE,
-                crate::error_layout::Arm64ErrorLayout::REPORT_BUFFER_ALIGNMENT,
+                Arm64NocterAbi::error().report_buffer_size(),
+                Arm64NocterAbi::error().report_buffer_alignment(),
             )
         })
         .transpose()?;
