@@ -2,15 +2,15 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. The v0.15.0 release candidate is fully prepared and
-qualified without publication. Release-content commit
+Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,
-deterministic double packaging, and the complete fresh-install smoke matrix. Candidate evidence is
-recorded in `development/milestones/v0.15.0-release-preparation.md`; completed implementation scope
-is in `development/milestones/v0.15.0.md`.
+deterministic double packaging, and the complete fresh-install smoke matrix. Annotated tag
+`v0.15.0` resolves to publication commit `a4f2f418d25d4600de3cfe2bab55e239752311d6`, and the public
+asset matches the qualified archive byte for byte. Complete evidence is recorded in
+`development/releases/v0.15.0.md`.
 
-The qualified archive is frozen. Tagging, pushing, uploading, public latest-release updates, and
-publication remain outside the current operation and require explicit user authorization.
+The v0.15.0 tag and release asset are frozen. No release-preparation or publication operation
+remains active.
 
 The active specification-first compiler is under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
