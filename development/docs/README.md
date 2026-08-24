@@ -13,6 +13,7 @@ and standard-library behavior belongs exclusively in
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
 - [Semantic Presentation Design](semantic-presentation-design.md)
 - [Standard Library Source Design](standard-library-source-design.md)
+- [Analysis Authority Reconstruction](../reviews/v0.17.0-analysis-authority.md)
 - [Grammar Conformance Plan](grammar-conformance.md)
 - [Maintenance](maintenance.md)
 - [Documentation Site Generation](site-generation.md)

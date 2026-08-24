@@ -2,10 +2,11 @@
 
 ## Current Task
 
-Nocter v0.17.0 Phase 0 and Phase 1 are complete. Phase 1 reconstructed the authored standard
-library around explicit contract, internal-runtime, target-ABI, borrowed-view, and owned-storage
-boundaries. Its completion evidence and architectural guards are recorded in
-`development/milestones/v0.17.0.md`. No later v0.17.0 phase is active.
+Nocter v0.17.0 Phase 0 and Phase 1 are complete. Before practical API work resumes, the active
+[analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is replacing the
+cross-cutting declaration-recovery, checking-recovery, session, analysis-snapshot, and LSP mutation
+boundary. The review inventory is frozen; implementation must follow its coherent migration order
+and delete every superseded authority in the same boundary change.
 
 Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
@@ -46,9 +47,10 @@ input.
   borrows the handle, cleanup is iterative, and process reporting uses the same runtime schema.
 - `nocter-runtime-contract` is the sole numeric error ABI authority. Standard error members are
   ordinary source-backed methods, and the editor has no synthetic error-field lookup.
-- Source discovery, declaration namespaces, private semantic access, and editor recovery now keep
-  exact-source includes separate from module imports. Public contracts and private definitions join
-  under reciprocal direct includes without widening implementation visibility.
+- Source discovery, declaration namespaces, private semantic access, and editor recovery keep
+  exact same-module source-visibility edges separate from module imports. Public contracts and
+  private definitions join under reciprocal direct `see` edges without widening implementation
+  visibility.
 - Editor queries consume one immutable generation. Hover and semantic tokens share one deterministic
   source-binding authority; semantic ranges, cursor containment, containment, and overlap belong to
   `nocter-source`.
