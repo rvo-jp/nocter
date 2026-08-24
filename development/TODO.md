@@ -4,8 +4,9 @@
 
 Nocter v0.16.0 Phase 1 is complete. The closed primitive registry now validates source-private,
 package-visible, and public exposure; bundled implementation primitives use their narrowest
-authored boundary; and the Phase 0 owned-error implementation is qualified through the physical
-bundled standard library. Exact scope and completion evidence are recorded in
+authored boundary; the LSP retains one exact identity while editing that standard package; and the
+Phase 0 owned-error implementation is qualified through the physical bundled standard library.
+Exact scope and completion evidence are recorded in
 `development/milestones/v0.16.0.md`.
 
 No later phase has been adopted. Preserve the closed Phase 0 and Phase 1 contracts. Do not

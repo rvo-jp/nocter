@@ -167,6 +167,38 @@ fn primitive_role_resolution_selects_a_private_included_declaration() {
 }
 
 #[test]
+fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
+    let tree = TempTree::new();
+    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source("std/index.nct", "//! Standard root.\n");
+    tree.source(
+        "std/unreferenced/index.nct",
+        "include ./body.nct\n\npub struct Unreferenced {}\n",
+    );
+    tree.source(
+        "std/unreferenced/body.nct",
+        "include ./index.nct\n\nstruct Unreferenced {}\n",
+    );
+    let identity = PackageIdentity::new("toolchain:std");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"))
+        .with_standard_dependency(identity.clone());
+
+    let unit = discover(DiscoveryRequest::toolchain_standard(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![standard]),
+        minimal_toolchain("toolchain:std"),
+    ))
+    .unwrap();
+
+    let unreferenced = unit
+        .modules()
+        .iter()
+        .find(|candidate| candidate.identity() == &module("toolchain:std", &["unreferenced"]))
+        .expect("complete standard catalog reaches an unreferenced child module");
+    assert_eq!(unreferenced.sources().len(), 2);
+}
+
+#[test]
 fn one_open_document_overlay_flows_from_package_data_through_module_discovery() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "#name: \"disk-name\"\n");
@@ -530,15 +562,10 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     let standard_identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &standard_root)
         .with_standard_dependency(standard_identity.clone());
-    let roots = module_root_paths(&standard_root)
-        .into_iter()
-        .map(|path| ModuleIdentity::new(standard_identity.clone(), path))
-        .collect();
 
-    let unit = discover(DiscoveryRequest::declared(
+    let unit = discover(DiscoveryRequest::toolchain_standard(
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
-        roots,
         standard_toolchain(&standard_identity),
     ))
     .unwrap();
@@ -712,38 +739,4 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
         .collect();
     ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)
         .with_primitive_roles(primitives)
-}
-
-fn module_root_paths(root: &Path) -> Vec<Vec<Box<str>>> {
-    let mut result = Vec::new();
-    let mut pending = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        let mut entries: Vec<_> = fs::read_dir(&directory)
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .collect();
-        entries.sort();
-        for entry in entries.into_iter().rev() {
-            if entry.is_dir() {
-                pending.push(entry);
-            }
-        }
-        if directory.join("index.nct").is_file() {
-            let relative = directory.strip_prefix(root).unwrap();
-            result.push(
-                relative
-                    .components()
-                    .map(|component| {
-                        component
-                            .as_os_str()
-                            .to_str()
-                            .expect("authored standard module path is Unicode")
-                            .into()
-                    })
-                    .collect(),
-            );
-        }
-    }
-    result.sort();
-    result
 }

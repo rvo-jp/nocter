@@ -9,6 +9,7 @@ mod error;
 mod failure;
 mod graph;
 mod include;
+mod module_catalog;
 mod request;
 mod snapshot;
 mod syntax;

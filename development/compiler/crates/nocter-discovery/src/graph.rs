@@ -15,6 +15,7 @@ use nocter_target_selection::TargetSelection;
 
 use crate::error::{IncludeFailure, ToolchainDiscoveryError, UseFailure};
 use crate::include::include_paths;
+use crate::module_catalog::toolchain_standard_modules;
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
@@ -124,6 +125,20 @@ impl Builder {
                     .into_iter()
                     .collect();
                 (loaded_package_graph(packages), roots, None, root_packages)
+            }
+            DiscoveryLayout::ToolchainStandard { package } => {
+                let loaded = loaded_package_graph(package);
+                let standard = toolchain.standard_package().clone();
+                let state = loaded
+                    .states
+                    .get(&standard)
+                    .ok_or_else(|| DiscoveryError::UnknownPackage(standard.clone()))?;
+                let roots = toolchain_standard_modules(
+                    &standard,
+                    &state.canonical_root,
+                    &loaded.source_overlay,
+                )?;
+                (loaded, roots, None, vec![standard])
             }
             DiscoveryLayout::SingleFile {
                 source,

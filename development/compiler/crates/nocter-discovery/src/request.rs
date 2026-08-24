@@ -18,6 +18,9 @@ pub enum DiscoveryLayout {
         packages: ResolvedPackageGraph,
         roots: Vec<ModuleIdentity>,
     },
+    ToolchainStandard {
+        package: ResolvedPackageGraph,
+    },
     SingleFile {
         source: PathBuf,
         support_packages: ResolvedPackageGraph,
@@ -208,6 +211,24 @@ impl DiscoveryRequest {
         }
     }
 
+    /// Selects every authored module in the exact standard package for editor analysis.
+    ///
+    /// Unlike an ordinary declared root, the toolchain standard is already present under its
+    /// compiler-selected identity. This layout must not synthesize a second path-package identity
+    /// for the same physical root.
+    #[must_use]
+    pub fn toolchain_standard(
+        target: CompilationTarget,
+        package: ResolvedPackageGraph,
+        toolchain: ToolchainRequest,
+    ) -> Self {
+        Self {
+            target,
+            layout: DiscoveryLayout::ToolchainStandard { package },
+            toolchain,
+        }
+    }
+
     #[must_use]
     pub const fn target(&self) -> CompilationTarget {
         self.target
@@ -227,6 +248,7 @@ impl DiscoveryRequest {
     pub const fn source_overlay(&self) -> &SourceOverlay {
         match &self.layout {
             DiscoveryLayout::Declared { packages, .. }
+            | DiscoveryLayout::ToolchainStandard { package: packages }
             | DiscoveryLayout::SingleFile {
                 support_packages: packages,
                 ..

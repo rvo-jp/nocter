@@ -65,6 +65,13 @@ and nested packages retain independent state.
 A failed source or package load retains every reached source and unresolved candidate needed for
 future invalidation. A failed graph is not replaced by a stale successful graph.
 
+A document under the exact standard-library root selected by the running toolchain belongs to one
+toolchain-standard snapshot, even when that root is outside the initialized workspace folders. The
+language server uses the already selected standard-package identity and catalogs every authored
+standard module for that snapshot. It must not reinterpret the same root as a path package or
+register a second package identity for it. Contract and implementation sources therefore share one
+overlay-aware standard snapshot when opened directly or reached through navigation.
+
 ## Semantic Ranges
 
 Every semantic result uses the exact token or identifier that carries the fact. Keywords,

@@ -20,6 +20,7 @@ use crate::{AcceptedDocumentGeneration, WorkspaceConfiguration};
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AnalysisScope {
     Package(PathBuf),
+    ToolchainStandard(PathBuf),
     SingleFile(PathBuf),
 }
 
@@ -27,7 +28,7 @@ impl AnalysisScope {
     #[must_use]
     pub fn path(&self) -> &Path {
         match self {
-            Self::Package(path) | Self::SingleFile(path) => path,
+            Self::Package(path) | Self::ToolchainStandard(path) | Self::SingleFile(path) => path,
         }
     }
 }
@@ -121,7 +122,8 @@ enum WorkspaceAnalysisState {
     },
 }
 
-/// Sequential owner of the latest immutable analysis for each package or standalone file.
+/// Sequential owner of the latest immutable analysis for each package, toolchain standard, or
+/// standalone file.
 #[derive(Debug)]
 pub struct WorkspaceAnalyses {
     configuration: WorkspaceConfiguration,
@@ -254,6 +256,12 @@ fn select_scope(
             document.to_path_buf(),
         ));
     }
+    let standard_root = configuration.toolchain().standard().root();
+    if document.starts_with(standard_root) {
+        return Ok(AnalysisScope::ToolchainStandard(
+            standard_root.to_path_buf(),
+        ));
+    }
     let workspace = configuration
         .root_for_document(document)
         .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
@@ -292,6 +300,9 @@ fn compile_scope(
         AnalysisScope::Package(root) => {
             discover_package(configuration, root, source_overlay.clone())
         }
+        AnalysisScope::ToolchainStandard(_) => {
+            discover_toolchain_standard(configuration, source_overlay.clone())
+        }
         AnalysisScope::SingleFile(source) => {
             discover_single_file(configuration, source, source_overlay.clone())
         }
@@ -312,6 +323,23 @@ fn compile_scope(
             }
         }
     }
+}
+
+fn discover_toolchain_standard(
+    configuration: &WorkspaceConfiguration,
+    source_overlay: SourceOverlay,
+) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
+    let toolchain = configuration.toolchain();
+    let standard = toolchain.standard().identity().clone();
+    let package =
+        resolve_standard_package_with_source_overlay(toolchain.standard().clone(), source_overlay)
+            .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
+    discover(DiscoveryRequest::toolchain_standard(
+        toolchain.target(),
+        package,
+        bundled_standard_toolchain(&standard),
+    ))
+    .map_err(AnalysisPreparationFailure::Discovery)
 }
 
 fn discover_package(
@@ -552,8 +580,87 @@ mod tests {
         );
     }
 
+    #[test]
+    fn toolchain_standard_inside_workspace_keeps_its_selected_identity() {
+        let standard_root = standard_root();
+        let workspace_root = standard_root.parent().unwrap();
+        let source = standard_root.join("error/index.nct");
+        let text = fs::read_to_string(&source).unwrap();
+        let configuration = configuration_with_standard(workspace_root, &standard_root);
+        let mut documents = DocumentWorkspace::new();
+        let accepted = documents.open(&open_params(&source, 1, &text)).unwrap();
+
+        let analyzed = WorkspaceAnalyses::new(configuration).analyze(accepted);
+
+        assert_eq!(
+            analyzed.scope(),
+            Some(&AnalysisScope::ToolchainStandard(standard_root))
+        );
+        assert!(analyzed.preparation_failure().is_none());
+        assert_eq!(
+            analyzed.snapshot().unwrap().status(),
+            AnalysisStatus::Complete
+        );
+    }
+
+    #[test]
+    fn toolchain_standard_outside_workspace_shares_one_complete_overlay_snapshot() {
+        let temporary = TemporaryDirectory::new();
+        let standard_root = standard_root();
+        let contract = standard_root.join("error/index.nct");
+        let implementation = standard_root.join("error/construction.nct");
+        let contract_text = fs::read_to_string(&contract).unwrap();
+        let implementation_text = format!(
+            "{}\n// Accepted editor overlay.\n",
+            fs::read_to_string(&implementation).unwrap()
+        );
+        let configuration = configuration_with_standard(temporary.path(), &standard_root);
+        let mut documents = DocumentWorkspace::new();
+        let contract_generation = documents
+            .open(&open_params(&contract, 1, &contract_text))
+            .unwrap();
+        let canonical_contract = contract_generation.path().to_path_buf();
+        let mut analyses = WorkspaceAnalyses::new(configuration);
+        let first = analyses.analyze(contract_generation);
+        assert_eq!(first.snapshot().unwrap().status(), AnalysisStatus::Complete);
+
+        let implementation_generation = documents
+            .open(&open_params(&implementation, 3, &implementation_text))
+            .unwrap();
+        let canonical_implementation = implementation_generation.path().to_path_buf();
+        let second = analyses.analyze(implementation_generation);
+
+        assert_eq!(first.scope(), second.scope());
+        assert_eq!(
+            second.scope(),
+            Some(&AnalysisScope::ToolchainStandard(standard_root))
+        );
+        assert_eq!(
+            second.snapshot().unwrap().status(),
+            AnalysisStatus::Complete
+        );
+        assert_eq!(
+            second
+                .source_overlay()
+                .document(&canonical_implementation)
+                .unwrap()
+                .bytes(),
+            implementation_text.as_bytes()
+        );
+        assert_eq!(
+            analyses
+                .latest_for_document(&canonical_contract)
+                .unwrap()
+                .generation(),
+            second.generation()
+        );
+    }
+
     fn configuration(root: &Path) -> WorkspaceConfiguration {
-        let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+        configuration_with_standard(root, &standard_root())
+    }
+
+    fn configuration_with_standard(root: &Path, standard_root: &Path) -> WorkspaceConfiguration {
         let environment = LanguageServerEnvironment::new(
             root,
             LanguageServerToolchain::new(
@@ -573,8 +680,17 @@ mod tests {
         WorkspaceConfiguration::resolve(&environment, &params).unwrap()
     }
 
+    fn standard_root() -> PathBuf {
+        fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap()
+    }
+
     fn open_params(path: &Path, version: i32, text: &str) -> DidOpenParams {
-        let escaped = text.replace('\\', "\\\\").replace('\n', "\\n");
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\r', "\\r")
+            .replace('\n', "\\n")
+            .replace('\t', "\\t");
         DidOpenParams::decode(Some(
             parse(&format!(
                 concat!(

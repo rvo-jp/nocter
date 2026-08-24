@@ -237,6 +237,17 @@ ownership independent of client ordering. URI decoding, root filesystem validati
 commit are one transaction. A bad root therefore restores the uninitialized protocol state rather
 than leaving compiler configuration partially visible.
 
+The compiler-selected standard root is already canonicalized by the validated installation
+boundary and is not a workspace-owned path package. Scope selection compares that exact root before
+workspace containment and assigns all of its documents one `ToolchainStandard` scope, including
+documents opened through navigation outside every workspace folder. Discovery owns a dedicated
+toolchain-standard layout: it catalogs every directory module beneath that one closed package and
+retains the installation's existing package identity. LSP composition neither recanonicalizes the
+toolchain root, enumerates module directories, nor submits the standard root to ordinary
+root-package resolution, so the package graph cannot acquire a second path-derived identity for the
+same physical root. All open standard contracts and implementation sources participate in the same
+immutable overlay snapshot.
+
 The language-server service composes each validated protocol event with document state. Requests
 without an implemented handler receive the standard method-not-found response; malformed
 notifications produce no protocol response but remain typed server issues. Initialize and shutdown
@@ -244,15 +255,17 @@ responses preserve request identity, and clean versus premature exit produces an
 status. The transport loop writes only framed JSON-RPC messages to its output.
 
 Every accepted document transition now retains the canonical document that triggered its immutable
-source generation. `WorkspaceAnalyses` selects the deepest `nocter.nct` ancestor bounded by the
-owning initialized root; that declaration selects package mode, while a `.nct` file without such an
-ancestor selects single-file mode. Package mode resolves the complete exact graph under mandatory
-locked/offline policy and discovers the package root plus every declared executable and test module.
-Single-file mode resolves only the toolchain standard package. Both routes pass the same source
-overlay through discovery and `AnalysisSnapshot` target checking. Latest results are stored by
-package or standalone-file scope and shared with request/publication outputs through immutable
-ownership. If a document changes scope, its prior scoped result is removed before the new result is
-visible, so a successful stale program cannot answer queries after package topology changes.
+source generation. `WorkspaceAnalyses` first selects the exact compiler-owned standard root. Other
+documents select the deepest `nocter.nct` ancestor bounded by the owning initialized root; that
+declaration selects package mode, while a `.nct` file without such an ancestor selects single-file
+mode. Package mode resolves the complete exact graph under mandatory locked/offline policy and
+discovers the package root plus every declared executable and test module. Toolchain-standard mode
+loads its closed package once and catalogs every module. Single-file mode resolves only the
+toolchain standard support package. All three routes pass the same source overlay through discovery
+and `AnalysisSnapshot` target checking. Latest results are stored by package, toolchain-standard, or
+standalone-file scope and shared with request/publication outputs through immutable ownership. If a
+document changes scope, its prior scoped result is removed before the new result is visible, so a
+successful stale program cannot answer queries after package topology changes.
 
 `DiagnosticPublisher` projects only compiler-owned `SourceDiagnostic` values. Primary and related
 origins resolve through the snapshot's own `SourceMap`, and normalized byte spans convert through

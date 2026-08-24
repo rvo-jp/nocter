@@ -184,7 +184,10 @@
   classification, propagation, catch-and-rethrow, process reporting, static allocation failure,
   and ownership-sensitive cleanup.</li><li><code>cargo test --workspace --quiet</code> passed the complete compiler workspace. Warnings-denied Clippy,
   Rust formatting, documentation regeneration, and repository whitespace checks also passed.</li><li>The authority review found one owner for exposure policy, no package-name or spelling fallback,
-  no backend visibility lookup, and no restricted primitive exposed wider than its current callers.</li></ul>
+  no backend visibility lookup, and no restricted primitive exposed wider than its current callers.</li><li>The Phase 1 editor audit added an exact toolchain-standard LSP scope. Opening an installed
+  standard contract or implementation source now retains the selected standard identity, catalogs
+  the complete standard module set in discovery, and cannot register the same canonical root as a
+  second path package.</li></ul>
             </div>
         </main>
     </div>
