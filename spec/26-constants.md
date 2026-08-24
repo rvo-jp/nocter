@@ -24,7 +24,7 @@ generic-dependent values are not constant types.
 
 Visibility and target directives apply in the same way as for other targetable declarations.
 Constants occupy the ordinary value namespace and may be selected through `use`, direct
-`include`, or a module-qualified reference.
+`see`, or a module-qualified reference.
 
 ## Contract and Initializer Separation
 
@@ -32,17 +32,17 @@ A visible bodyless declaration in `index.nct` may act as a public contract:
 
 ```nct
 //! index.nct
-include ./limits.nct
+see ./limits.nct
 
 pub const buffer_size: usize
 ```
 
-The reciprocally included implementation source supplies exactly one private initializer with the
+The reciprocally seen implementation source supplies exactly one private initializer with the
 same name, type, and module:
 
 ```nct
 //! limits.nct
-include ./index.nct
+see ./index.nct
 
 const buffer_size: usize = 4096
 ```

@@ -135,8 +135,6 @@
                 <li><a href="../../text-report/report/index/index.html#content">report/index.nct</a></li>
                 <li><a href="../../text-report/report/analysis/index.html#content">analysis.nct</a></li>
                 <li><a href="../../../spec/index.html#content">language specification</a></li>
-                <li><a href="../nocter/index.html#content">file-summary/nocter.nct</a></li>
-                <li><a href="../../text-report/nocter/index.html#content">text-report/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -144,7 +142,16 @@
                 <span class="markdown-path-text">/examples/file-summary/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span>read_to_string
+                <h1>index.nct</h1><pre><code class="language-nocter">#package<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"file-summary"</span><span class="token-operator">,</span>
+    version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+#executable<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"file-summary"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span>read_to_string
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
 
@@ -154,7 +161,7 @@
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span>arg
 
-<span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>summary<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>summary<span class="token-operator">.</span>nct
 
 <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> requested<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>

@@ -12,14 +12,15 @@ use nocter_source_index::{
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
 
+use crate::package_source::validate_package_directive_ownership;
 use crate::{
-    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, TopologyViolation,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageIdentity, PackageInput, PackageMode, SourceVisibilityResolutionInput, TopologyViolation,
     UseResolutionInput,
 };
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
-pub(crate) type IncludeResolutionKey = (SourceId, usize);
+pub(crate) type SourceVisibilityResolutionKey = (SourceId, usize);
 pub(crate) type UseResolutionKey = (SourceId, usize);
 
 #[derive(Debug)]
@@ -110,7 +111,6 @@ pub enum LoweringError {
     DuplicateSource(SourceId),
     UnknownPackage(PackageIdentity),
     MissingSource(SourceId),
-    InvalidPackageDeclaration(PackageIdentity),
     InvalidModuleSource(Box<str>),
     InconsistentSyntax(SourceId),
     MissingCollectedSymbol(Box<str>),
@@ -119,16 +119,18 @@ pub enum LoweringError {
     InvalidPackageModuleSet(PackageIdentity),
     InvalidSingleFilePackage(PackageIdentity),
     PackageTargetResolution(PackageTargetResolutionError),
-    MissingIncludeResolution(NodeId),
-    DuplicateIncludeResolution(NodeId),
-    InvalidIncludeResolution(NodeId),
-    UnknownIncludeTarget(NodeId),
+    MissingSourceVisibilityResolution(NodeId),
+    DuplicateSourceVisibilityResolution(NodeId),
+    InvalidSourceVisibilityResolution(NodeId),
+    UnknownSourceVisibilityTarget {
+        declaration: NodeId,
+        target: Box<str>,
+    },
     MissingUseResolution(NodeId),
     UnknownTargetGate(NodeId),
     DuplicateUseResolution(NodeId),
     InvalidUseResolution(NodeId),
     UnknownUseTarget(NodeId),
-    UnreachableImplementationSource(Box<str>),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
 }
@@ -171,11 +173,6 @@ impl fmt::Display for LoweringError {
             Self::MissingSource(source) => {
                 write!(formatter, "{source} is absent from the source map")
             }
-            Self::InvalidPackageDeclaration(package) => write!(
-                formatter,
-                "package {} has an invalid declaration-source shape",
-                package.as_str()
-            ),
             Self::InvalidModuleSource(path) => {
                 write!(formatter, "{path} is not a module-source syntax tree")
             }
@@ -204,22 +201,16 @@ impl fmt::Display for LoweringError {
                 "single-file package {} does not contain exactly one single-file module",
                 package.as_str()
             ),
-            Self::MissingIncludeResolution(_)
-            | Self::DuplicateIncludeResolution(_)
-            | Self::InvalidIncludeResolution(_)
-            | Self::UnknownIncludeTarget(_)
+            Self::MissingSourceVisibilityResolution(_)
+            | Self::DuplicateSourceVisibilityResolution(_)
+            | Self::InvalidSourceVisibilityResolution(_)
+            | Self::UnknownSourceVisibilityTarget { .. }
             | Self::MissingUseResolution(_)
             | Self::DuplicateUseResolution(_)
             | Self::InvalidUseResolution(_)
             | Self::UnknownUseTarget(_) => unreachable!("resolution errors returned above"),
             Self::UnknownTargetGate(literal) => {
                 write!(formatter, "unknown compilation target in {literal:?}")
-            }
-            Self::UnreachableImplementationSource(path) => {
-                write!(
-                    formatter,
-                    "implementation source {path} is not reachable from its module root"
-                )
             }
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
@@ -232,20 +223,22 @@ fn format_resolution_error(
     formatter: &mut fmt::Formatter<'_>,
 ) -> Option<fmt::Result> {
     let (declaration, message) = match error {
-        LoweringError::MissingIncludeResolution(node) => {
-            (*node, "include declaration has no resolved source")
+        LoweringError::MissingSourceVisibilityResolution(node) => {
+            (*node, "see declaration has no resolved source")
         }
-        LoweringError::DuplicateIncludeResolution(node) => (
+        LoweringError::DuplicateSourceVisibilityResolution(node) => {
+            (*node, "see declaration has more than one resolved source")
+        }
+        LoweringError::InvalidSourceVisibilityResolution(node) => (
             *node,
-            "include declaration has more than one resolved source",
+            "resolved see does not identify an authored see declaration",
         ),
-        LoweringError::InvalidIncludeResolution(node) => (
-            *node,
-            "resolved include does not identify an authored include declaration",
-        ),
-        LoweringError::UnknownIncludeTarget(node) => (
-            *node,
-            "resolved include names a source outside the compile unit",
+        LoweringError::UnknownSourceVisibilityTarget {
+            declaration,
+            target: _,
+        } => (
+            *declaration,
+            "resolved see names a source outside the compile unit",
         ),
         LoweringError::MissingUseResolution(node) => {
             (*node, "use declaration has no resolved target")
@@ -315,8 +308,10 @@ pub fn lower_compile_unit_topology(
             .ok_or_else(|| LoweringError::MissingCollectedSymbol(package.display_name().into()))?;
         let id = program.add_package(package.identity().clone(), display_name)?;
         package_ids.insert(package.identity().clone(), id);
-        if let Some(declaration) = package.declaration() {
-            let tree = declaration.syntax();
+        if package.mode() == PackageMode::Declared {
+            let tree = package_root_source(package.identity(), &prepared.modules)
+                .ok_or_else(|| LoweringError::InvalidPackageModuleSet(package.identity().clone()))?
+                .syntax();
             source_index.insert(
                 SemanticEntity::Package(id),
                 SourceRole::Declaration,
@@ -367,9 +362,10 @@ pub fn lower_compile_unit_topology(
 
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) symbols: SymbolTable,
-    pub(crate) packages: Vec<&'input PackageInput<'syntax>>,
+    pub(crate) packages: Vec<&'input PackageInput>,
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
-    pub(crate) include_resolutions: BTreeMap<IncludeResolutionKey, &'input IncludeResolutionInput>,
+    pub(crate) source_visibility_resolutions:
+        BTreeMap<SourceVisibilityResolutionKey, &'input SourceVisibilityResolutionInput>,
     pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<&'input crate::PackageTargetResolutionInput>,
     pub(crate) target_selection: TargetSelection,
@@ -397,14 +393,14 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     })?;
     let package_target_resolutions =
         validate_package_target_resolutions(input, &packages, &modules)?;
-    let include_resolutions = validate_include_resolutions(input, &modules)?;
+    let source_visibility_resolutions = validate_source_visibility_resolutions(input, &modules)?;
     let use_resolutions = validate_use_resolutions(input, &modules, &target_selection)?;
     let symbols = collect_symbols(input, &packages, &modules, &target_selection)?;
     Ok(PreparedCompileUnit {
         symbols,
         packages,
         modules,
-        include_resolutions,
+        source_visibility_resolutions,
         use_resolutions,
         package_target_resolutions,
         target_selection,
@@ -413,15 +409,15 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
 
 fn validate_package_target_resolutions<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
-    packages: &[&'input PackageInput<'syntax>],
+    packages: &[&'input PackageInput],
     modules: &[&'input ModuleInput<'syntax>],
 ) -> Result<Vec<&'input crate::PackageTargetResolutionInput>, LoweringError> {
     let package_sources: BTreeMap<_, _> = packages
         .iter()
+        .filter(|package| package.mode() == PackageMode::Declared)
         .filter_map(|package| {
-            package
-                .declaration()
-                .map(|declaration| (declaration.syntax().source(), package.identity()))
+            package_root_source(package.identity(), modules)
+                .map(|source| (source.syntax().source(), package.identity()))
         })
         .collect();
     let module_packages: BTreeMap<_, _> = modules
@@ -448,14 +444,14 @@ fn validate_package_target_resolutions<'input, 'syntax>(
                 PackageTargetResolutionError::Invalid(declaration),
             ));
         };
-        let tree = packages
+        let tree = modules
             .iter()
-            .find_map(|candidate| {
-                candidate
-                    .declaration()
-                    .filter(|input| input.syntax().source() == declaration.source())
-                    .map(crate::PackageDeclarationInput::syntax)
+            .flat_map(|module| module.sources())
+            .find(|source| {
+                source.kind() == ModuleSourceKind::Root
+                    && source.syntax().source() == declaration.source()
             })
+            .map(ModuleSourceInput::syntax)
             .ok_or(LoweringError::PackageTargetResolution(
                 PackageTargetResolutionError::Invalid(declaration),
             ))?;
@@ -518,9 +514,23 @@ fn contains_node(tree: &nocter_syntax::SyntaxTree, root: NodeId, expected: NodeI
     false
 }
 
-fn canonical_packages<'input, 'syntax>(
-    input: &'input CompileUnitInput<'syntax>,
-) -> Result<Vec<&'input PackageInput<'syntax>>, LoweringError> {
+fn package_root_source<'input, 'syntax>(
+    package: &PackageIdentity,
+    modules: &[&'input ModuleInput<'syntax>],
+) -> Option<&'input ModuleSourceInput<'syntax>> {
+    modules
+        .iter()
+        .find(|module| {
+            module.identity().package() == package && module.identity().path().is_empty()
+        })?
+        .sources()
+        .iter()
+        .find(|source| source.kind() == ModuleSourceKind::Root)
+}
+
+fn canonical_packages<'input>(
+    input: &'input CompileUnitInput<'_>,
+) -> Result<Vec<&'input PackageInput>, LoweringError> {
     let mut packages: Vec<_> = input.packages().iter().collect();
     packages.sort_unstable_by_key(|package| package.identity());
     if let Some(pair) = packages
@@ -534,7 +544,7 @@ fn canonical_packages<'input, 'syntax>(
 
 fn canonical_modules<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
-    packages: &[&PackageInput<'_>],
+    packages: &[&PackageInput],
 ) -> Result<Vec<&'input ModuleInput<'syntax>>, LoweringError> {
     let package_ids: BTreeSet<_> = packages.iter().map(|package| package.identity()).collect();
     let mut modules: Vec<_> = input.modules().iter().collect();
@@ -562,7 +572,7 @@ fn canonical_modules<'input, 'syntax>(
 
 fn validate_sources(
     input: &CompileUnitInput<'_>,
-    packages: &[&PackageInput<'_>],
+    packages: &[&PackageInput],
     modules: &[&ModuleInput<'_>],
 ) -> Result<(), LoweringError> {
     let mut paths = BTreeSet::new();
@@ -571,31 +581,6 @@ fn validate_sources(
         .iter()
         .map(|package| (package.identity(), package.mode()))
         .collect();
-    for package in packages {
-        match (package.mode(), package.declaration()) {
-            (PackageMode::Declared, Some(declaration))
-                if declaration.syntax().root().kind() == NodeKind::PackageFile =>
-            {
-                require_source(input, declaration.syntax().source())?;
-                if !source_ids.insert(declaration.syntax().source()) {
-                    return Err(LoweringError::DuplicateSource(
-                        declaration.syntax().source(),
-                    ));
-                }
-                if !paths.insert(declaration.canonical_path()) {
-                    return Err(LoweringError::DuplicateSourcePath(
-                        declaration.canonical_path().into(),
-                    ));
-                }
-            }
-            (PackageMode::SingleFile, None) => {}
-            (PackageMode::Declared, _) | (PackageMode::SingleFile, Some(_)) => {
-                return Err(LoweringError::InvalidPackageDeclaration(
-                    package.identity().clone(),
-                ));
-            }
-        }
-    }
     for module in modules {
         let mut roots = 0;
         let mut single_files = 0;
@@ -635,6 +620,7 @@ fn validate_sources(
             ));
         }
     }
+    let mut package_declaration_sources = BTreeSet::new();
     for package in packages {
         let package_modules: Vec<_> = modules
             .iter()
@@ -650,6 +636,18 @@ fn validate_sources(
                 package.identity().clone(),
             ));
         }
+        if package.mode() == PackageMode::Declared {
+            let root = package_modules
+                .iter()
+                .find(|module| module.identity().path().is_empty())
+                .expect("validated declared package has one root module");
+            let root_source = root
+                .sources()
+                .iter()
+                .find(|source| source.kind() == ModuleSourceKind::Root)
+                .expect("validated declared module has one root source");
+            package_declaration_sources.insert(root_source.syntax().source());
+        }
         if package.mode() == PackageMode::SingleFile
             && (package_modules.len() != 1
                 || package_modules[0].sources().len() != 1
@@ -660,13 +658,17 @@ fn validate_sources(
             ));
         }
     }
+    validate_package_directive_ownership(&package_declaration_sources, modules)?;
     Ok(())
 }
 
-fn validate_include_resolutions<'input, 'syntax>(
+fn validate_source_visibility_resolutions<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
     modules: &[&'input ModuleInput<'syntax>],
-) -> Result<BTreeMap<IncludeResolutionKey, &'input IncludeResolutionInput>, LoweringError> {
+) -> Result<
+    BTreeMap<SourceVisibilityResolutionKey, &'input SourceVisibilityResolutionInput>,
+    LoweringError,
+> {
     let mut authored = BTreeMap::new();
     let mut source_owners = BTreeMap::new();
     let mut path_owners = BTreeMap::new();
@@ -675,13 +677,12 @@ fn validate_include_resolutions<'input, 'syntax>(
         for source in module.sources() {
             source_owners.insert(source.syntax().source(), module.identity());
             path_owners.insert(source.canonical_path(), (module.identity(), source));
-            collect_include_nodes(source.syntax(), &mut authored)?;
+            collect_source_visibility_nodes(source.syntax(), &mut authored)?;
         }
     }
 
     let mut resolved = BTreeMap::new();
-    let mut source_edges: BTreeMap<SourceId, Vec<SourceId>> = BTreeMap::new();
-    let mut input_resolutions: Vec<_> = input.include_resolutions().iter().collect();
+    let mut input_resolutions: Vec<_> = input.source_visibility_resolutions().iter().collect();
     input_resolutions.sort_unstable_by(|left, right| {
         resolution_key(left.declaration())
             .cmp(&resolution_key(right.declaration()))
@@ -691,33 +692,35 @@ fn validate_include_resolutions<'input, 'syntax>(
         let declaration = resolution.declaration();
         let key = resolution_key(declaration);
         if resolved.insert(key, resolution).is_some() {
-            return Err(LoweringError::DuplicateIncludeResolution(declaration));
+            return Err(LoweringError::DuplicateSourceVisibilityResolution(
+                declaration,
+            ));
         }
         if !authored.contains_key(&key) {
-            return Err(LoweringError::InvalidIncludeResolution(declaration));
+            return Err(LoweringError::InvalidSourceVisibilityResolution(
+                declaration,
+            ));
         }
-        let importing_module = source_owners
-            .get(&declaration.source())
+        let importing_module = source_owners.get(&declaration.source()).copied().ok_or(
+            LoweringError::InvalidSourceVisibilityResolution(declaration),
+        )?;
+        let (target_module, _) = path_owners
+            .get(resolution.target_source())
             .copied()
-            .ok_or(LoweringError::InvalidIncludeResolution(declaration))?;
-        let (target_module, target_source) =
-            path_owners
-                .get(resolution.target_source())
-                .copied()
-                .ok_or(LoweringError::UnknownIncludeTarget(declaration))?;
+            .ok_or_else(|| LoweringError::UnknownSourceVisibilityTarget {
+                declaration,
+                target: resolution.target_source().into(),
+            })?;
         if importing_module != target_module {
-            return Err(TopologyViolation::invalid_source_include(declaration).into());
+            return Err(TopologyViolation::invalid_source_see(declaration).into());
         }
-        source_edges
-            .entry(declaration.source())
-            .or_default()
-            .push(target_source.syntax().source());
     }
     if let Some((_, declaration)) = authored.iter().find(|(key, _)| !resolved.contains_key(key)) {
-        return Err(LoweringError::MissingIncludeResolution(*declaration));
+        return Err(LoweringError::MissingSourceVisibilityResolution(
+            *declaration,
+        ));
     }
 
-    validate_source_reachability(modules, &source_edges)?;
     Ok(resolved)
 }
 
@@ -783,9 +786,9 @@ fn validate_use_resolutions<'input, 'syntax>(
     Ok(resolved)
 }
 
-fn collect_include_nodes(
+fn collect_source_visibility_nodes(
     tree: &nocter_syntax::SyntaxTree,
-    declarations: &mut BTreeMap<IncludeResolutionKey, NodeId>,
+    declarations: &mut BTreeMap<SourceVisibilityResolutionKey, NodeId>,
 ) -> Result<(), LoweringError> {
     for element in tree.children(tree.root_id()) {
         let SyntaxElement::Node(node) = element else {
@@ -795,7 +798,7 @@ fn collect_include_nodes(
             .node(*node)
             .ok_or(LoweringError::InconsistentSyntax(tree.source()))?
             .kind();
-        if kind == NodeKind::IncludeDeclaration {
+        if kind == NodeKind::SourceVisibilityDeclaration {
             declarations.insert(resolution_key(*node), *node);
         }
     }
@@ -826,49 +829,6 @@ fn collect_use_nodes(
             if let SyntaxElement::Node(child) = child {
                 pending.push(*child);
             }
-        }
-    }
-    Ok(())
-}
-
-fn validate_source_reachability(
-    modules: &[&ModuleInput<'_>],
-    edges: &BTreeMap<SourceId, Vec<SourceId>>,
-) -> Result<(), LoweringError> {
-    for module in modules {
-        let root = module
-            .sources()
-            .iter()
-            .find(|source| {
-                matches!(
-                    source.kind(),
-                    ModuleSourceKind::Root | ModuleSourceKind::SingleFile
-                )
-            })
-            .expect("validated module has one root source");
-        let mut reached = BTreeSet::from([root.syntax().source()]);
-        let mut pending = vec![root.syntax().source()];
-        while let Some(source) = pending.pop() {
-            if let Some(targets) = edges.get(&source) {
-                for target in targets {
-                    if reached.insert(*target) {
-                        pending.push(*target);
-                    }
-                }
-            }
-        }
-        if let Some(source) = module
-            .sources()
-            .iter()
-            .filter(|source| {
-                source.kind() == ModuleSourceKind::Implementation
-                    && !reached.contains(&source.syntax().source())
-            })
-            .min_by_key(|source| source.canonical_path())
-        {
-            return Err(LoweringError::UnreachableImplementationSource(
-                source.canonical_path().into(),
-            ));
         }
     }
     Ok(())
@@ -955,16 +915,13 @@ const fn resolution_key(declaration: NodeId) -> (SourceId, usize) {
 
 fn collect_symbols(
     input: &CompileUnitInput<'_>,
-    packages: &[&PackageInput<'_>],
+    packages: &[&PackageInput],
     modules: &[&ModuleInput<'_>],
     target_selection: &TargetSelection,
 ) -> Result<SymbolTable, LoweringError> {
     let mut spellings: Vec<Box<str>> = Vec::new();
     for package in packages {
         spellings.push(package.display_name().into());
-        if let Some(declaration) = package.declaration() {
-            collect_tree_symbols(input, declaration.syntax(), None, &mut spellings)?;
-        }
     }
     for module in modules {
         spellings.extend(module.identity().path().iter().cloned());

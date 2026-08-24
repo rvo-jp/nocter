@@ -11,7 +11,8 @@ use crate::{
 
 /// Reserves discovery-selected package targets without interpreting an authored module path.
 pub(crate) fn reserve_package_targets(
-    packages: &[PackageInput<'_>],
+    packages: &[PackageInput],
+    sources: &[SurfaceSource<'_>],
     resolutions: &[PackageTargetResolutionInput],
     package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
     module_ids: &BTreeMap<ModuleIdentity, ModuleId>,
@@ -21,18 +22,18 @@ pub(crate) fn reserve_package_targets(
     let mut selected_names = BTreeMap::new();
     for resolution in resolutions {
         let declaration = resolution.declaration();
-        let package = packages
+        let source = sources
             .iter()
-            .find(|package| {
-                package
-                    .declaration()
-                    .is_some_and(|input| input.syntax().source() == declaration.source())
+            .find(|source| {
+                source.kind() == ModuleSourceKind::Root
+                    && source.syntax().source() == declaration.source()
             })
             .ok_or(ReservationError::InvalidPackageTarget(declaration))?;
-        let package_declaration = package
-            .declaration()
+        let package = packages
+            .iter()
+            .find(|package| package.identity() == source.module().package())
             .ok_or(ReservationError::InvalidPackageTarget(declaration))?;
-        let tree = package_declaration.syntax();
+        let tree = source.syntax();
         let name_symbol = program
             .symbols()
             .get(resolution.name())
@@ -67,7 +68,7 @@ pub(crate) fn reserve_package_targets(
 }
 
 pub(crate) fn reserve_single_file_targets(
-    packages: &[PackageInput<'_>],
+    packages: &[PackageInput],
     sources: &[SurfaceSource<'_>],
     package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
     module_ids: &BTreeMap<ModuleIdentity, ModuleId>,

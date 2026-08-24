@@ -4,7 +4,7 @@ use std::fmt;
 ///
 /// Package declarations retain syntax-bearing [`crate::DependencyLock`] values. Resolution and
 /// package-state transactions use this value so a provisional lock can validate a complete graph
-/// before it is committed to `nocter.nct`.
+/// before it is committed to `index.nct`.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ExactDependencyLock {
     kind: ExactDependencyLockKind,

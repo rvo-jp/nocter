@@ -2,10 +2,10 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{DeclarationContractError, analyze_declaration_contracts};
-use crate::test_support::source_include;
+use crate::test_support::source_see;
 use crate::{
-    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageIdentity, PackageInput, PackageMode, SourceVisibilityResolutionInput,
     SurfaceDeclarationId, collect_declaration_surface,
 };
 
@@ -25,15 +25,14 @@ fn parse_source(
 
 fn surface<'syntax>(
     sources: &'syntax SourceMap,
-    manifest: &'syntax SyntaxTree,
+    _manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
-    include_resolutions: Vec<IncludeResolutionInput>,
+    source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
 ) -> crate::DeclarationSurface<'syntax> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
         "app",
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new("/app/nocter.nct", manifest)),
     );
     let module = ModuleInput::new(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -47,7 +46,7 @@ fn surface<'syntax>(
             vec![module],
             Vec::new(),
         )
-        .with_include_resolutions(include_resolutions),
+        .with_source_visibility_resolutions(source_visibility_resolutions),
     )
     .unwrap()
 }
@@ -55,18 +54,18 @@ fn surface<'syntax>(
 #[test]
 fn exact_contracts_and_bodies_share_the_contract_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./parse.nct\n\npub func parse(\n    text: &str\n): usize\n\ninstance Text {\n    pub method &self.len(): usize\n}\n",
+        "see ./parse.nct\n\npub func parse(\n    text: &str\n): usize\n\ninstance Text {\n    pub method &self.len(): usize\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "include ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n\ninstance Text {\n    method &self.len(): usize { 0 }\n}\n",
+        "see ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n\ninstance Text {\n    method &self.len(): usize { 0 }\n}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -81,8 +80,8 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/parse.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/parse.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -101,18 +100,18 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
 #[test]
 fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./limits.nct\npub const buffer_size: usize\n",
+        "see ./limits.nct\npub const buffer_size: usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/limits.nct",
-        "include ./index.nct\nconst buffer_size: usize = 4096\n",
+        "see ./index.nct\nconst buffer_size: usize = 4096\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -127,8 +126,8 @@ fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/limits.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/limits.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -142,18 +141,18 @@ fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
 #[test]
 fn constant_contract_rejects_a_different_initializer_header() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./limits.nct\npub const buffer_size: usize\n",
+        "see ./limits.nct\npub const buffer_size: usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/limits.nct",
-        "include ./index.nct\nconst buffer_size: u32 = 4096\n",
+        "see ./index.nct\nconst buffer_size: u32 = 4096\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -168,8 +167,8 @@ fn constant_contract_rejects_a_different_initializer_header() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/limits.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/limits.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -182,12 +181,12 @@ fn constant_contract_rejects_a_different_initializer_header() {
 #[test]
 fn nested_opaque_results_share_their_callable_contract_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./source.nct\n",
+            "see ./source.nct\n",
             "pub interface Source { pub method &+self.next(): i32? }\n",
             "pub func source(): some Source\n",
         ),
@@ -195,9 +194,9 @@ fn nested_opaque_results_share_their_callable_contract_identity() {
     let implementation_id = add_source(
         &mut sources,
         "/app/source.nct",
-        "include ./index.nct\nfunc source(): some Source { return source() }\n",
+        "see ./index.nct\nfunc source(): some Source { return source() }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -212,8 +211,8 @@ fn nested_opaque_results_share_their_callable_contract_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/source.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/source.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -241,18 +240,18 @@ fn nested_opaque_results_share_their_callable_contract_identity() {
 #[test]
 fn same_callable_label_with_a_different_header_is_a_mismatch() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./parse.nct\n\npub func parse(text: &str): usize\n",
+        "see ./parse.nct\n\npub func parse(text: &str): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "include ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
+        "see ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -267,8 +266,8 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/parse.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/parse.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -281,23 +280,23 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
 #[test]
 fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./a.nct\ninclude ./b.nct\n\npub func parse(text: &str): usize\n",
+        "see ./a.nct\nsee ./b.nct\n\npub func parse(text: &str): usize\n",
     );
     let first_id = add_source(
         &mut sources,
         "/app/a.nct",
-        "include ./index.nct\n\nfunc parse(text: &str): usize { 1 }\n",
+        "see ./index.nct\n\nfunc parse(text: &str): usize { 1 }\n",
     );
     let second_id = add_source(
         &mut sources,
         "/app/b.nct",
-        "include ./index.nct\n\nfunc parse(text: &str): usize { 2 }\n",
+        "see ./index.nct\n\nfunc parse(text: &str): usize { 2 }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let first = parse_source(&sources, first_id, ParseGoal::SourceFile);
     let second = parse_source(&sources, second_id, ParseGoal::SourceFile);
@@ -310,10 +309,10 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
             ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &first),
         ],
         vec![
-            source_include(&root, 0, "/app/a.nct"),
-            source_include(&root, 1, "/app/b.nct"),
-            source_include(&first, 0, "/app/index.nct"),
-            source_include(&second, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/a.nct"),
+            source_see(&root, 1, "/app/b.nct"),
+            source_see(&first, 0, "/app/index.nct"),
+            source_see(&second, 0, "/app/index.nct"),
         ],
     );
 
@@ -326,9 +325,9 @@ fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
 #[test]
 fn body_omission_is_not_a_general_callable_form() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(&mut sources, "/app/index.nct", "func unfinished(): void\n");
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
@@ -350,12 +349,12 @@ fn body_omission_is_not_a_general_callable_form() {
 #[test]
 fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./value.nct\n",
+            "see ./value.nct\n",
             "pub interface Source { pub type Item }\n",
             "pub struct Value {}\n",
             "conform Source for Value { type Item = i32 }\n",
@@ -365,11 +364,11 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
         &mut sources,
         "/app/value.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "conform Source for Value { type Item = i32 }\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -384,8 +383,8 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -398,18 +397,18 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
 #[test]
 fn coercion_bodies_use_the_same_contract_joining_rule() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./view.nct\n\ninstance Text {\n    pub coerce &self as &str\n}\n",
+        "see ./view.nct\n\ninstance Text {\n    pub coerce &self as &str\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/view.nct",
-        "include ./index.nct\n\ninstance Text {\n    coerce &self as &str { self }\n}\n",
+        "see ./index.nct\n\ninstance Text {\n    coerce &self as &str { self }\n}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -424,8 +423,8 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/view.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/view.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -444,18 +443,18 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
 #[test]
 fn construction_body_omits_visibility_but_repeats_default_and_keeps_one_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./value.nct\n\nstruct Value { value: usize }\n\nconstruct Value {\n    pub default func new(): Self\n}\n",
+        "see ./value.nct\n\nstruct Value { value: usize }\n\nconstruct Value {\n    pub default func new(): Self\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/value.nct",
-        "include ./index.nct\n\nconstruct Value {\n    default func new(): Self { Value { value: 0 } }\n}\n",
+        "see ./index.nct\n\nconstruct Value {\n    default func new(): Self { Value { value: 0 } }\n}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     assert!(!implementation.has_errors());
@@ -471,8 +470,8 @@ fn construction_body_omits_visibility_but_repeats_default_and_keeps_one_identity
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -491,18 +490,18 @@ fn construction_body_omits_visibility_but_repeats_default_and_keeps_one_identity
 #[test]
 fn opaque_nominal_contract_and_private_representation_share_one_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./string.nct\n\npub struct String\n",
+        "see ./string.nct\n\npub struct String\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/string.nct",
-        "include ./index.nct\n\nstruct String { len: usize }\n",
+        "see ./index.nct\n\nstruct String { len: usize }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -517,8 +516,8 @@ fn opaque_nominal_contract_and_private_representation_share_one_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/string.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/string.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -532,12 +531,12 @@ fn opaque_nominal_contract_and_private_representation_share_one_identity() {
 #[test]
 fn implementation_source_cannot_add_program_wide_conformance() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./value.nct\n",
+            "see ./value.nct\n",
             "pub interface Read { pub method &self.read(): usize }\n",
             "pub struct Value {}\n",
         ),
@@ -546,13 +545,13 @@ fn implementation_source_cannot_add_program_wide_conformance() {
         &mut sources,
         "/app/value.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "conform Read for Value {\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -567,8 +566,8 @@ fn implementation_source_cannot_add_program_wide_conformance() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -581,12 +580,12 @@ fn implementation_source_cannot_add_program_wide_conformance() {
 #[test]
 fn conformance_head_joins_private_methods_without_repeating_interface_signatures() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./value.nct\n",
+            "see ./value.nct\n",
             "pub interface Read { pub method &self.read(): usize }\n",
             "pub struct Value {}\n",
             "conform Read for Value {}\n",
@@ -596,13 +595,13 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
         &mut sources,
         "/app/value.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "conform Read for Value {\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -617,8 +616,8 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -637,12 +636,12 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
 #[test]
 fn conformance_contract_cannot_repeat_an_interface_method_signature() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./value.nct\n",
+            "see ./value.nct\n",
             "pub interface Read { pub method &self.read(): usize }\n",
             "pub struct Value {}\n",
             "conform Read for Value { method &self.read(): usize }\n",
@@ -652,13 +651,13 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
         &mut sources,
         "/app/value.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "conform Read for Value {\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -673,8 +672,8 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -687,12 +686,12 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
 #[test]
 fn interface_default_contract_and_private_body_share_one_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./defaults.nct\n",
+            "see ./defaults.nct\n",
             "pub interface Source {\n",
             "    pub method &+self.next(): i32?\n",
             "    pub default method self.count(): usize\n",
@@ -703,13 +702,13 @@ fn interface_default_contract_and_private_body_share_one_identity() {
         &mut sources,
         "/app/defaults.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "interface Source {\n",
             "    default method self.count(): usize { return 0 }\n",
             "}\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -724,8 +723,8 @@ fn interface_default_contract_and_private_body_share_one_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/defaults.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/defaults.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -744,13 +743,13 @@ fn interface_default_contract_and_private_body_share_one_identity() {
 #[test]
 fn interface_requirement_does_not_request_an_implementation_body() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         "pub interface Source { pub method &+self.next(): i32? }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let surface = surface(
         &sources,
@@ -769,23 +768,23 @@ fn interface_requirement_does_not_request_an_implementation_body() {
 #[test]
 fn uncontracted_interface_default_body_is_rejected() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./defaults.nct\npub interface Source {}\n",
+        "see ./defaults.nct\npub interface Source {}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/defaults.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "interface Source {\n",
             "    default method self.count(): usize { return 0 }\n",
             "}\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -800,8 +799,8 @@ fn uncontracted_interface_default_body_is_rejected() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/defaults.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/defaults.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -814,22 +813,22 @@ fn uncontracted_interface_default_body_is_rejected() {
 #[test]
 fn selected_target_body_completes_one_target_independent_contract() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./platform.nct\npub func process_id(): usize\n",
+        "see ./platform.nct\npub func process_id(): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/platform.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "#target: \"arm64-darwin\"\n",
             "func process_id(): usize { return 1 }\n",
         ),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let surface = surface(
@@ -844,8 +843,8 @@ fn selected_target_body_completes_one_target_independent_contract() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/platform.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/platform.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 

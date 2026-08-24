@@ -47,9 +47,12 @@ pub(crate) fn query_code_actions(
     for action in &planned {
         let overlay = candidate_overlay(document.snapshot(), action.edits())
             .map_err(CodeActionQueryError::WorkspaceEdit)?;
-        let Some(candidate) =
-            analyses.compile_candidate(scope, document.snapshot().generation(), overlay)
-        else {
+        let Some(candidate) = analyses.compile_candidate(
+            scope,
+            document.path(),
+            document.snapshot().generation(),
+            overlay,
+        ) else {
             continue;
         };
         if candidate.status() != AnalysisStatus::Complete {

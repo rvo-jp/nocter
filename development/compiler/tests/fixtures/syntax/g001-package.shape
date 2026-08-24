@@ -1,10 +1,19 @@
-PackageFile
-  PackageDirective
-    DirectiveValue
-      StringLiteral
+SourceFile
   PackageDirective
     DirectiveValue
       DirectiveRecord
         DirectiveField
           DirectiveValue
             StringLiteral
+        DirectiveField
+          DirectiveValue
+            StringLiteral
+  PackageDirective
+    DirectiveValue
+      DirectiveRecord
+        DirectiveField
+          DirectiveValue
+            DirectiveRecord
+              DirectiveField
+                DirectiveValue
+                  StringLiteral

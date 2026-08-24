@@ -70,7 +70,7 @@ Package test targets remain explicit:
 
 Only test declarations directly contained in the target's selected directory module are selected. Imported
 modules are not scanned recursively, so a package never runs dependency or helper-module tests by
-accident. Targets run in package-file declaration order; cases within a target run in source
+accident. Targets run in package-source declaration order; cases within a target run in source
 declaration order.
 
 Each accepted declaration is compiled with an explicit compiler-owned runner identity and launched

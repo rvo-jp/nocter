@@ -1,7 +1,7 @@
 //! Darwin filesystem operations and native metadata decoding.
 
-include ./index.nct
-include ./filesystem.nct
+see ./index.nct
+see ./filesystem.nct
 
 use std/internal/io.io_error_from_os
 use std/internal/os.{OSErrorKind, SyscallResult, darwin_errno_interrupted}

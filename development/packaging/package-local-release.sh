@@ -19,7 +19,10 @@ node "$script_directory/validate-manifest.js" "$manifest_file" "$version_file"
 version="$(tr -d '\n' < "$version_file")"
 archive_name="nocter-v${version}-arm64-darwin.tar.gz"
 
-std_version="$({ sed -n 's/^#version: "\([^"]*\)"$/\1/p' "$standard_root/nocter.nct" || true; })"
+std_version="$({
+  sed -n '/^#package:/,/^}/s/^[[:space:]]*version:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$standard_root/index.nct" || true
+})"
 if [[ "$std_version" != "$version" ]]; then
   echo "standard-library version $std_version does not match release $version" >&2
   exit 1

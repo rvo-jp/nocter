@@ -1,6 +1,6 @@
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
+    PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_model::PackageIdentity;
@@ -301,15 +301,15 @@ struct Fixture {
 impl Fixture {
     fn new(app: &str, prelude: &str) -> Self {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", app);
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", prelude);
         let library_id = add_source(&mut sources, "/app/lib/index.nct", "pub struct helper {}\n");
         Self {
-            app_manifest: parse_source(&sources, app_manifest_id, ParseGoal::PackageFile),
-            std_manifest: parse_source(&sources, std_manifest_id, ParseGoal::PackageFile),
+            app_manifest: parse_source(&sources, app_manifest_id, ParseGoal::SourceFile),
+            std_manifest: parse_source(&sources, std_manifest_id, ParseGoal::SourceFile),
             app: parse_source(&sources, app_id, ParseGoal::SourceFile),
             standard: parse_source(&sources, std_id, ParseGoal::SourceFile),
             prelude: parse_source(&sources, prelude_id, ParseGoal::SourceFile),
@@ -337,18 +337,8 @@ impl Fixture {
         include_library: bool,
     ) -> CompileUnitInput<'_> {
         let mut packages = vec![
-            package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &self.app_manifest,
-            ),
-            package(
-                "toolchain:std",
-                "std",
-                "/std/nocter.nct",
-                &self.std_manifest,
-            ),
+            package("workspace:app", "app", "/app/index.nct", &self.app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &self.std_manifest),
         ];
         let mut modules = vec![
             module("workspace:app", &[], "/app/index.nct", &self.app),
@@ -417,18 +407,8 @@ fn parse_source(sources: &SourceMap, source: SourceId, goal: ParseGoal) -> Synta
     tree
 }
 
-fn package<'syntax>(
-    identity: &str,
-    name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
-    PackageInput::new(
-        PackageIdentity::new(identity),
-        name,
-        PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
-    )
+fn package(identity: &str, name: &str, _path: &str, _manifest: &SyntaxTree) -> PackageInput {
+    PackageInput::new(PackageIdentity::new(identity), name, PackageMode::Declared)
 }
 
 fn module<'syntax>(

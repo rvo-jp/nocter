@@ -53,18 +53,13 @@ pub(super) fn load_standalone_source(
     let name = path
         .to_str()
         .ok_or_else(|| StandaloneSourceError::NonUnicodePath(path.clone()))?;
-    let goal = if path.file_name().is_some_and(|name| name == "nocter.nct") {
-        InspectionGoal::PackageFile
-    } else {
-        InspectionGoal::SourceFile
-    };
     let inspection =
-        SourceInspection::new(SourceName::new(name), &bytes, goal).map_err(|source| {
-            StandaloneSourceError::Source {
+        SourceInspection::new(SourceName::new(name), &bytes, InspectionGoal::SourceFile).map_err(
+            |source| StandaloneSourceError::Source {
                 path: path.clone(),
                 source,
-            }
-        })?;
+            },
+        )?;
     Ok(StandaloneSource {
         path,
         bytes,

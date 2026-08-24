@@ -36,7 +36,11 @@ impl TempTree {
             copy_directory(&compiler.join("../std"), &standard);
         } else {
             fs::create_dir(&standard).unwrap();
-            fs::write(standard.join("nocter.nct"), "#name: \"std\"\n").unwrap();
+            fs::write(
+                standard.join("index.nct"),
+                "#package: { name: \"std\", version: \"0.0.0\", }\n",
+            )
+            .unwrap();
         }
         fs::write(root.join("VERSION"), "0.14.0\n").unwrap();
         fs::write(root.join("MANIFEST.json"), manifest(host)).unwrap();
@@ -169,7 +173,6 @@ fn initialization_does_not_select_an_installation_and_never_overwrites_source() 
             .unwrap()
             .starts_with("Initialized executable package `hello` at ")
     );
-    assert!(tree.0.join("hello/nocter.nct").is_file());
     assert!(tree.0.join("hello/index.nct").is_file());
     assert!(tree.0.join("hello/tests/unit/index.nct").is_file());
 
@@ -189,11 +192,13 @@ fn graph_uses_the_validated_home_and_projects_one_read_only_selection() {
     let tree = TempTree::new("graph");
     let home = tree.installation("arm64-darwin", false);
     fs::write(
-        tree.0.join("nocter.nct"),
-        "#name: \"application\"\n#version: \"1.0.0\"\n",
+        tree.0.join("index.nct"),
+        concat!(
+            "//! Application.\n",
+            "#package: { name: \"application\", version: \"1.0.0\", }\n",
+        ),
     )
     .unwrap();
-    fs::write(tree.0.join("index.nct"), "//! Application.\n").unwrap();
 
     let outcome = execute_invocation(invocation(
         ["graph", "--format", "json"],
@@ -545,7 +550,11 @@ fn semantic_failures_cross_the_same_process_diagnostic_boundary() {
 fn public_fetch_stops_after_the_shared_package_transaction() {
     let tree = TempTree::new("fetch");
     let home = tree.installation("arm64-darwin", true);
-    fs::write(tree.0.join("nocter.nct"), "#name: \"package\"\n").unwrap();
+    fs::write(
+        tree.0.join("index.nct"),
+        "#package: { name: \"package\", version: \"0.0.0\", }\n",
+    )
+    .unwrap();
 
     let outcome = execute_invocation(invocation(
         ["fetch", "--locked", "--offline"],
@@ -560,8 +569,8 @@ fn public_fetch_stops_after_the_shared_package_transaction() {
     };
     assert_eq!(result.root().as_str().get(..5), Some("path-"));
     assert_eq!(
-        fs::read_to_string(tree.0.join("nocter.nct")).unwrap(),
-        "#name: \"package\"\n"
+        fs::read_to_string(tree.0.join("index.nct")).unwrap(),
+        "#package: { name: \"package\", version: \"0.0.0\", }\n"
     );
 }
 
@@ -685,7 +694,7 @@ fn json_argument_failure_retains_format_selected_after_the_first_error() {
         rendered,
         concat!(
             "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":false,",
-            "\"command\":\"check\",\"target\":null,\"root\":\"nocter.nct\",",
+            "\"command\":\"check\",\"target\":null,\"root\":\"index.nct\",",
             "\"root_absolute_path\":null,\"diagnostics\":[{\"code\":\"E0700\",",
             "\"severity\":\"error\",\"message\":\"unknown option --unknown\",",
             "\"primary_span\":null,\"notes\":[],\"help\":null}]}\n"
@@ -708,7 +717,7 @@ fn json_installation_failure_has_partial_null_context() {
 
     assert_eq!(error.exit_code(), 2);
     assert!(rendered.contains("\"code\":\"E0703\""));
-    assert!(rendered.contains("\"target\":null,\"root\":\"nocter.nct\""));
+    assert!(rendered.contains("\"target\":null,\"root\":\"index.nct\""));
 }
 
 #[test]
@@ -783,13 +792,13 @@ fn public_test_reports_independent_runs_from_one_typed_result() {
     let tree = TempTree::new("test-report");
     let home = tree.installation("arm64-darwin", true);
     fs::write(
-        tree.0.join("nocter.nct"),
-        "#name: \"tested\"\n#test: { name: \"unit\", module: \".\" }\n",
-    )
-    .unwrap();
-    fs::write(
         tree.0.join("index.nct"),
-        "test passes { return }\ntest fails { return error.new(\"tested.failure\", \"failed\") }\n",
+        concat!(
+            "#package: { name: \"tested\", version: \"0.0.0\", }\n",
+            "#test: { name: \"unit\", module: \".\" }\n",
+            "test passes { return }\n",
+            "test fails { return error.new(\"tested.failure\", \"failed\") }\n",
+        ),
     )
     .unwrap();
 
@@ -856,11 +865,15 @@ fn json_test_keeps_target_local_source_failure_beside_later_runs() {
     let tree = TempTree::new("test-json-isolation");
     let home = tree.installation("arm64-darwin", true);
     fs::write(
-        tree.0.join("nocter.nct"),
-        "#name: \"isolated\"\n#test: { name: \"broken\", module: \"./broken\" }\n#test: { name: \"good\", module: \"./good\" }\n",
+        tree.0.join("index.nct"),
+        concat!(
+            "//! Isolated package.\n",
+            "#package: { name: \"isolated\", version: \"0.0.0\", }\n",
+            "#test: { name: \"broken\", module: \"./broken\" }\n",
+            "#test: { name: \"good\", module: \"./good\" }\n",
+        ),
     )
     .unwrap();
-    fs::write(tree.0.join("index.nct"), "//! Isolated package.\n").unwrap();
     fs::create_dir(tree.0.join("broken")).unwrap();
     fs::write(tree.0.join("broken/index.nct"), "test incomplete {").unwrap();
     fs::create_dir(tree.0.join("good")).unwrap();

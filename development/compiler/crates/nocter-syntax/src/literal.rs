@@ -342,11 +342,11 @@ mod decode_tests {
         let source = sources
             .add_bytes(
                 SourceName::new("strings.nct"),
-                b"#name: \"line\\nvalue\"\n#version: \"\"\"\n  first\n  second\n  \"\"\"\n",
+                b"#package: { name: \"line\\nvalue\", version: \"\"\"\n  first\n  second\n  \"\"\", }\n",
             )
             .unwrap();
         let file = sources.get(source).unwrap();
-        let tree = parse(file, ParseGoal::PackageFile);
+        let tree = parse(file, ParseGoal::SourceFile);
         assert!(!tree.has_errors());
         let mut literals = Vec::new();
         let mut pending = vec![tree.root_id()];

@@ -1,6 +1,6 @@
 //! Formatting algorithms and allocation-failure policy.
 
-include ./index.nct
+see ./index.nct
 
 use std/mem.allocation_abort_raw
 use std/string.{String, try_push_str}

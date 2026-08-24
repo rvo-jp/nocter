@@ -14,7 +14,7 @@ Every failure leaving that facade belongs to exactly one of these classes:
 - **upstream rejection**: source has lexer or parser diagnostics and cannot enter semantic
   lowering; the source error is authored, but its diagnostic belongs to the source/syntax stage;
 - **discovery contract**: the caller supplied missing, duplicate, stale, unreachable, or
-  contradictory package, module, source, include, or use inputs;
+  contradictory package, module, source-visibility, or use inputs;
 - **compiler integrity**: a completed earlier pass, semantic builder, source projection, or
   canonical arena is inconsistent with its own guarantees.
 
@@ -31,7 +31,7 @@ one row have the same classification and boundary reason.
 | Stage error | Class | Reason |
 |---|---|---|
 | `LoweringError::Rule` | authored rule | `E0270` and `E0271` retain exact source-edge subjects. |
-| `DuplicatePackage`, `DuplicateModule`, `DuplicateSourcePath`, `DuplicateSource`, `UnknownPackage`, `MissingSource`, `InvalidPackageDeclaration`, `InvalidModuleSource`, `InvalidModuleSegment`, `InvalidModuleLayout`, `InvalidPackageModuleSet`, `InvalidSingleFilePackage`, `MissingIncludeResolution`, `DuplicateIncludeResolution`, `InvalidIncludeResolution`, `UnknownIncludeTarget`, `MissingUseResolution`, `DuplicateUseResolution`, `InvalidUseResolution`, `UnknownUseTarget`, `UnreachableImplementationSource` | discovery contract | Package discovery owns identities, physical source ownership, layouts, reachability, and one exact-source edge per authored `include` plus one module edge per authored `use`. |
+| `DuplicatePackage`, `DuplicateModule`, `DuplicateSourcePath`, `DuplicateSource`, `UnknownPackage`, `MissingSource`, `InvalidPackageDeclaration`, `InvalidModuleSource`, `InvalidModuleSegment`, `InvalidModuleLayout`, `InvalidPackageModuleSet`, `InvalidSingleFilePackage`, `MissingSourceVisibilityResolution`, `DuplicateSourceVisibilityResolution`, `InvalidSourceVisibilityResolution`, `UnknownSourceVisibilityTarget`, `MissingUseResolution`, `DuplicateUseResolution`, `InvalidUseResolution`, `UnknownUseTarget` | discovery contract | Package discovery owns identities, physical source ownership, layouts, and one exact-source visibility edge per authored `see` plus one module edge per authored `use`. |
 | `InconsistentSyntax`, `MissingCollectedSymbol`, `Program`, `DuplicateSourceBinding` | compiler integrity | Valid syntax projection, complete symbol collection, legal builder operations, and unique source bindings are earlier-pass guarantees. |
 
 | Surface error | Class | Reason |
@@ -40,7 +40,7 @@ one row have the same classification and boundary reason.
 | `ImplementationVisibility`, `InvalidNominalContract`, `MissingConstructionContractVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
 | `SyntaxErrors` | upstream rejection | The syntax tree already contains its authoritative lexer/parser diagnostics. |
 | `Topology` with a non-rule error | discovery contract or compiler integrity | Preserves the topology classification above. |
-| `InvalidRootShape`, `InvalidItemShape`, `InconsistentIncludeResolution`, `InconsistentUseResolution` | compiler integrity | A valid parse goal and prepared topology guarantee these shapes and independently retained source and module resolutions. |
+| `InvalidRootShape`, `InvalidItemShape`, `InconsistentSourceVisibilityResolution`, `InconsistentUseResolution` | compiler integrity | A valid parse goal and prepared topology guarantee these shapes and independently retained source and module resolutions. |
 
 | Contract/reservation error | Class | Reason |
 |---|---|---|

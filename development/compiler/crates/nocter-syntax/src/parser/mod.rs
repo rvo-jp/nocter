@@ -1,13 +1,13 @@
 mod block;
 mod declaration;
 mod expression;
-mod include;
 mod newline;
 mod place;
 mod requirements;
 mod root;
 #[cfg(test)]
 mod snapshots;
+mod source_visibility;
 mod statement;
 #[cfg(test)]
 mod tests;
@@ -23,7 +23,6 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParseGoal {
-    PackageFile,
     SourceFile,
 }
 
@@ -32,7 +31,6 @@ pub fn parse(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
     let lexed = lex(source);
     let mut parser = Parser::new(source, lexed.tokens());
     match goal {
-        ParseGoal::PackageFile => root::package_file(&mut parser),
         ParseGoal::SourceFile => root::source_file(&mut parser),
     }
     let (events, diagnostics) = parser.finish();

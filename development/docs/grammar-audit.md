@@ -24,8 +24,8 @@ instead of maintaining competing recognition rules.
 | Grammar domain | Current normative sources | Closure work |
 |---|---|---|
 | Source text, tokens, comments, literals, newlines | `spec/13-lexical-grammar.md` | Keep as the lexical authority and export named terminals to the syntactic grammar. |
-| Package directives and target gates | `spec/15-command-line-interface.md`, `spec/11-stdlib-primitives-os.md` | Define package-file prefix order, directive values, repetition, and declaration attachment. |
-| Imports and visibility | `spec/01-modules-use.md` | Consolidate private, scoped, selected, alias, re-export, module-use, and exact-source include forms. |
+| Package directives and target gates | `spec/15-command-line-interface.md`, `spec/11-stdlib-primitives-os.md` | Define package-source prefix order, directive values, repetition, and declaration attachment. |
+| Imports and visibility | `spec/01-modules-use.md` | Consolidate private, scoped, selected, alias, re-export, module-use, and exact-source visibility forms. |
 | Top-level declarations | `spec/02`, `03`, `05`, `08`, `11`, `17` through `24` | Define one `Item` production and exact member containers. |
 | Types and result provenance | `spec/02`, `04`, `06`, `08`, `18`, `22` | Define one precedence grammar for prefix types, outcome suffixes, projections, callable contracts, opaque results, and `from`. |
 | Generic parameters and requirements | `spec/08`, `22`, `23`, `24` | Reuse one generic list and one `where` predicate grammar in every eligible declaration. |

@@ -1,6 +1,6 @@
 //! Darwin error classification and syscall constants.
 
-include ./index.nct
+see ./index.nct
 
 #target: "arm64-darwin"
 func errno(code: i32): Errno {

@@ -1,7 +1,7 @@
 //! Portable filesystem behavior built on stream and target contracts.
 
-include ./index.nct
-include ./darwin.nct
+see ./index.nct
+see ./darwin.nct
 
 use std/io.{File, Reader, Writer}
 use std/string.String

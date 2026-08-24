@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use nocter_syntax::SyntaxTree;
+use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::{ExactDependencyLock, PackageDeclaration};
 
@@ -26,7 +26,7 @@ pub(crate) fn render_effective_locks(
         return Ok(PackageLockSourceUpdate::new(
             path,
             original,
-            append_block(original, &block, newline)?.into_boxed_slice(),
+            insert_block(original, syntax, &block, newline)?.into_boxed_slice(),
         ));
     };
     let node = syntax
@@ -104,26 +104,39 @@ fn render_block(locks: &BTreeMap<Box<str>, ExactDependencyLock>, newline: &str) 
     output
 }
 
-fn append_block(
+fn insert_block(
     original: &[u8],
+    syntax: &SyntaxTree,
     block: &str,
     newline: &str,
 ) -> Result<Vec<u8>, PackageLockSourceError> {
-    let source =
-        std::str::from_utf8(original).map_err(|_| PackageLockSourceError::InvalidSourceRange)?;
-    let mut output = String::with_capacity(source.len() + block.len() + newline.len() * 2);
-    output.push_str(source);
-    if !source.is_empty() {
-        if !source.ends_with('\n') {
-            output.push_str(newline);
-        }
-        if !(source.ends_with("\n\n") || source.ends_with("\r\n\r\n")) {
-            output.push_str(newline);
-        }
-    }
-    output.push_str(block);
-    output.push_str(newline);
-    Ok(output.into_bytes())
+    let insertion = syntax
+        .children(syntax.root_id())
+        .iter()
+        .filter_map(|element| {
+            let SyntaxElement::Node(node) = element else {
+                return None;
+            };
+            syntax
+                .node(*node)
+                .filter(|node| node.kind() == NodeKind::PackageDirective)
+                .map(|node| node.range().end().get())
+        })
+        .max()
+        .ok_or(PackageLockSourceError::MissingPackageDeclaration)?;
+    let insertion = raw_offset(original, insertion)?;
+    let prefix = original
+        .get(..insertion)
+        .ok_or(PackageLockSourceError::InvalidSourceRange)?;
+    let suffix = original
+        .get(insertion..)
+        .ok_or(PackageLockSourceError::InvalidSourceRange)?;
+    let mut output = Vec::with_capacity(original.len() + block.len() + newline.len());
+    output.extend_from_slice(prefix);
+    output.extend_from_slice(newline.as_bytes());
+    output.extend_from_slice(block.as_bytes());
+    output.extend_from_slice(suffix);
+    Ok(output)
 }
 
 fn preferred_newline(source: &[u8]) -> &'static str {
@@ -195,17 +208,17 @@ mod tests {
     fn render(source: &str, locks: &[(&str, ExactDependencyLock)]) -> PackageLockSourceUpdate {
         let mut sources = SourceMap::new();
         let source_id = sources
-            .add_bytes(SourceName::new("nocter.nct"), source.as_bytes())
+            .add_bytes(SourceName::new("index.nct"), source.as_bytes())
             .unwrap();
         let source = sources.get(source_id).unwrap();
-        let syntax = parse(source, ParseGoal::PackageFile);
+        let syntax = parse(source, ParseGoal::SourceFile);
         let declaration = decode_package_declaration(source, &syntax).unwrap();
         let locks = locks
             .iter()
             .map(|(alias, lock)| (Box::<str>::from(*alias), lock.clone()))
             .collect();
         render_effective_locks(
-            Path::new("nocter.nct"),
+            Path::new("index.nct"),
             source.text().as_bytes(),
             &syntax,
             &declaration,
@@ -215,9 +228,9 @@ mod tests {
     }
 
     #[test]
-    fn appends_one_sorted_generated_block() {
+    fn inserts_one_sorted_generated_block_in_the_directive_prefix() {
         let rendered = render(
-            "#name: \"app\"\n",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
             &[
                 (
                     "json",
@@ -235,14 +248,39 @@ mod tests {
 
         assert_eq!(
             std::str::from_utf8(rendered.replacement()).unwrap(),
-            "#name: \"app\"\n\n#lock: {\n    format: 1,\n    dependencies: {\n        http: \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\n        json: \"git:7db21c1000000000000000000000000000000000\",\n    },\n}\n"
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#lock: {\n    format: 1,\n    dependencies: {\n        http: \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\n        json: \"git:7db21c1000000000000000000000000000000000\",\n    },\n}\n"
         );
+    }
+
+    #[test]
+    fn inserts_before_source_dependencies_and_code() {
+        let rendered = render(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { json: { git: \"https://example.test/json.git\", revision: \"main\", }, }\n\nsee ./body.nct\n\npub func run(): void\n",
+            &[(
+                "json",
+                ExactDependencyLock::git("7db21c1000000000000000000000000000000000").unwrap(),
+            )],
+        );
+        let replacement = std::str::from_utf8(rendered.replacement()).unwrap();
+
+        assert!(
+            replacement
+                .starts_with("#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies:")
+        );
+        assert!(replacement.contains("\n#lock: {\n"));
+        assert!(replacement.ends_with("\n\nsee ./body.nct\n\npub func run(): void\n"));
+
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_bytes(SourceName::new("index.nct"), rendered.replacement())
+            .unwrap();
+        assert!(!parse(sources.get(source_id).unwrap(), ParseGoal::SourceFile).has_errors());
     }
 
     #[test]
     fn replaces_the_complete_existing_block_without_touching_neighbors() {
         let rendered = render(
-            "//! package\n#dependencies: { json: { git: \"https://example.test/json.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { json: \"git:7db21c1000000000000000000000000000000000\", }, }\n#name: \"app\"\n",
+            "//! package\n#dependencies: { json: { git: \"https://example.test/json.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { json: \"git:7db21c1000000000000000000000000000000000\", }, }\n#package: { name: \"app\", version: \"0.0.0\", }\n",
             &[(
                 "json",
                 ExactDependencyLock::git("7db21c1000000000000000000000000000000000").unwrap(),
@@ -251,19 +289,19 @@ mod tests {
 
         assert_eq!(
             std::str::from_utf8(rendered.replacement()).unwrap(),
-            "//! package\n#dependencies: { json: { git: \"https://example.test/json.git\", revision: \"main\", }, }\n#lock: {\n    format: 1,\n    dependencies: {\n        json: \"git:7db21c1000000000000000000000000000000000\",\n    },\n}\n#name: \"app\"\n"
+            "//! package\n#dependencies: { json: { git: \"https://example.test/json.git\", revision: \"main\", }, }\n#lock: {\n    format: 1,\n    dependencies: {\n        json: \"git:7db21c1000000000000000000000000000000000\",\n    },\n}\n#package: { name: \"app\", version: \"0.0.0\", }\n"
         );
     }
 
     #[test]
     fn preserves_crlf_when_adding_generated_source() {
-        let source = "#name: \"app\"\r\n";
+        let source = "#package: { name: \"app\", version: \"0.0.0\", }\r\n";
         let mut sources = SourceMap::new();
         let source_id = sources
-            .add_bytes(SourceName::new("nocter.nct"), source.as_bytes())
+            .add_bytes(SourceName::new("index.nct"), source.as_bytes())
             .unwrap();
         let normalized = sources.get(source_id).unwrap();
-        let syntax = parse(normalized, ParseGoal::PackageFile);
+        let syntax = parse(normalized, ParseGoal::SourceFile);
         let declaration = decode_package_declaration(normalized, &syntax).unwrap();
         let locks = [(
             Box::<str>::from("json"),
@@ -273,7 +311,7 @@ mod tests {
         .collect();
 
         let update = render_effective_locks(
-            Path::new("nocter.nct"),
+            Path::new("index.nct"),
             source.as_bytes(),
             &syntax,
             &declaration,
@@ -296,13 +334,13 @@ mod tests {
 
     #[test]
     fn maps_normalized_lock_ranges_back_to_existing_crlf_bytes() {
-        let source = "#dependencies: { remote: { git: \"https://example.test/remote.git\", revision: \"main\", }, }\r\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\r\n#name: \"app\"\r\n";
+        let source = "#dependencies: { remote: { git: \"https://example.test/remote.git\", revision: \"main\", }, }\r\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\r\n#package: { name: \"app\", version: \"0.0.0\", }\r\n";
         let mut sources = SourceMap::new();
         let source_id = sources
-            .add_bytes(SourceName::new("nocter.nct"), source.as_bytes())
+            .add_bytes(SourceName::new("index.nct"), source.as_bytes())
             .unwrap();
         let normalized = sources.get(source_id).unwrap();
-        let syntax = parse(normalized, ParseGoal::PackageFile);
+        let syntax = parse(normalized, ParseGoal::SourceFile);
         let declaration = decode_package_declaration(normalized, &syntax).unwrap();
         let locks = [(
             Box::<str>::from("remote"),
@@ -312,7 +350,7 @@ mod tests {
         .collect();
 
         let update = render_effective_locks(
-            Path::new("nocter.nct"),
+            Path::new("index.nct"),
             source.as_bytes(),
             &syntax,
             &declaration,
@@ -322,7 +360,7 @@ mod tests {
         let replacement = std::str::from_utf8(update.replacement()).unwrap();
 
         assert!(replacement.contains("\r\n#lock: {\r\n"));
-        assert!(replacement.ends_with("}\r\n#name: \"app\"\r\n"));
+        assert!(replacement.ends_with("}\r\n#package: { name: \"app\", version: \"0.0.0\", }\r\n"));
         assert!(!replacement.contains("#lock: { format:"));
     }
 }

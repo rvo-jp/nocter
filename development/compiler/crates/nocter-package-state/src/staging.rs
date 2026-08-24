@@ -62,7 +62,7 @@ impl StagingArea {
             .get(package)
             .ok_or_else(|| invalid("validate unknown staged package", &self.root))?;
         require_physical_directory(root)?;
-        require_physical_file(&root.join("nocter.nct"))
+        require_physical_file(&root.join("index.nct"))
     }
 
     pub(crate) fn publish(

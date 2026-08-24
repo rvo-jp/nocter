@@ -340,7 +340,7 @@ fn every_public_package_example_crosses_the_complete_target_session() {
     let mut discovered = fs::read_dir(&examples_root)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.join("nocter.nct").is_file())
+        .filter(|path| path.join("index.nct").is_file())
         .map(|path| path.file_name().unwrap().to_str().unwrap().to_owned())
         .collect::<Vec<_>>();
     let mut contracted = PUBLIC_PACKAGE_EXAMPLES
@@ -390,10 +390,14 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
     let standard_root = compiler.join("../std");
     let package_root = TempPackage::new();
     package_root.source(
-        "nocter.nct",
-        "#name: \"multi\"\n#executable: { name: \"first\", module: \"./first\" }\n#executable: { name: \"second\", module: \"./second\" }\n",
+        "index.nct",
+        concat!(
+            "//! Multi executable package.\n",
+            "#package: { name: \"multi\", version: \"0.0.0\", }\n",
+            "#executable: { name: \"first\", module: \"./first\" }\n",
+            "#executable: { name: \"second\", module: \"./second\" }\n",
+        ),
     );
-    package_root.source("index.nct", "//! Multi executable package.\n");
     package_root.source("first/index.nct", "func main(): void { return }\n");
     package_root.source("second/index.nct", "func main(): void { return }\n");
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -466,10 +470,14 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
     package_root.source(
-        "nocter.nct",
-        "#name: \"tests\"\n#test: { name: \"unit\", module: \"./unit\" }\n#test: { name: \"integration\", module: \"./integration\" }\n",
+        "index.nct",
+        concat!(
+            "//! Test package.\n",
+            "#package: { name: \"tests\", version: \"0.0.0\", }\n",
+            "#test: { name: \"unit\", module: \"./unit\" }\n",
+            "#test: { name: \"integration\", module: \"./integration\" }\n",
+        ),
     );
-    package_root.source("index.nct", "//! Test package.\n");
     package_root.source(
         "unit/index.nct",
         "test first { return }\ntest second { return }\n",

@@ -50,7 +50,7 @@ impl InitCommandResult {
     }
 }
 
-/// Creates the three source files owned by `nocter init` as one rollback-capable transaction.
+/// Creates the two source files owned by `nocter init` as one rollback-capable transaction.
 ///
 /// Existing files are checked before the first mutation and every created path is removed if a
 /// later write fails. Unrelated content in an existing target directory is never removed.
@@ -74,11 +74,7 @@ pub fn execute_init(
             .map(Box::<str>::from)
             .ok_or_else(|| InitCommandError::MissingPackageName(root.clone()))?,
     };
-    let protected = [
-        root.join("nocter.nct"),
-        root.join("index.nct"),
-        root.join("tests/unit/index.nct"),
-    ];
+    let protected = [root.join("index.nct"), root.join("tests/unit/index.nct")];
     for path in &protected {
         match fs::symlink_metadata(path) {
             Ok(_) => return Err(InitCommandError::ExistingSource(path.clone())),
@@ -99,7 +95,6 @@ pub fn execute_init(
         InitializedPackageKind::Executable
     };
     let escaped_name = escape_string(&name);
-    let manifest = manifest_template(&escaped_name, kind);
     let root_source = root_template(&escaped_name, kind);
     let test_source = test_template(kind);
 
@@ -116,9 +111,8 @@ pub fn execute_init(
         return transaction.abort(error);
     }
     for (path, contents) in [
-        (&protected[0], manifest.as_bytes()),
-        (&protected[1], root_source.as_bytes()),
-        (&protected[2], test_source.as_bytes()),
+        (&protected[0], root_source.as_bytes()),
+        (&protected[1], test_source.as_bytes()),
     ] {
         if let Err(error) = transaction.write_new(path, contents) {
             return transaction.abort(error);
@@ -183,7 +177,7 @@ fn canonicalize_existing_prefix(target: &Path) -> Result<PathBuf, InitCommandErr
     }
 }
 
-fn manifest_template(name: &str, kind: InitializedPackageKind) -> String {
+fn package_directives(name: &str, kind: InitializedPackageKind) -> String {
     let executable = match kind {
         InitializedPackageKind::Executable => {
             format!("#executable: {{\n    name: \"{name}\",\n}}\n")
@@ -191,19 +185,21 @@ fn manifest_template(name: &str, kind: InitializedPackageKind) -> String {
         InitializedPackageKind::Library => String::new(),
     };
     format!(
-        "#name: \"{name}\"\n#version: \"0.1.0\"\n{executable}#test: {{\n    name: \"unit\",\n    module: \"./tests/unit\",\n}}\n"
+        "#package: {{ name: \"{name}\", version: \"0.1.0\", }}\n{executable}#test: {{\n    name: \"unit\",\n    module: \"./tests/unit\",\n}}\n"
     )
 }
 
 fn root_template(name: &str, kind: InitializedPackageKind) -> String {
-    match kind {
+    let directives = package_directives(name, kind);
+    let body = match kind {
         InitializedPackageKind::Executable => format!(
             "use std/io.print\n\nfunc main(): i32! {{\n    print(\"Hello from {name}\\n\")?\n    return 0\n}}\n"
         ),
         InitializedPackageKind::Library => {
             format!("pub func greeting(): &str {{\n    return \"Hello from {name}\"\n}}\n")
         }
-    }
+    };
+    format!("{directives}\n{body}")
 }
 
 fn test_template(kind: InitializedPackageKind) -> &'static str {
@@ -498,8 +494,8 @@ mod tests {
             fs::canonicalize(parent.join("hello")).unwrap()
         );
         assert_eq!(
-            fs::read_to_string(result.root().join("nocter.nct")).unwrap(),
-            "#name: \"hello\"\n#version: \"0.1.0\"\n#executable: {\n    name: \"hello\",\n}\n#test: {\n    name: \"unit\",\n    module: \"./tests/unit\",\n}\n"
+            fs::read_to_string(result.root().join("index.nct")).unwrap(),
+            "#package: { name: \"hello\", version: \"0.1.0\", }\n#executable: {\n    name: \"hello\",\n}\n#test: {\n    name: \"unit\",\n    module: \"./tests/unit\",\n}\n\nuse std/io.print\n\nfunc main(): i32! {\n    print(\"Hello from hello\\n\")?\n    return 0\n}\n"
         );
         assert!(
             fs::read_to_string(result.root().join("index.nct"))
@@ -529,9 +525,9 @@ mod tests {
 
         assert_eq!(result.kind(), InitializedPackageKind::Library);
         assert!(
-            fs::read_to_string(result.root().join("nocter.nct"))
+            fs::read_to_string(result.root().join("index.nct"))
                 .unwrap()
-                .contains("#name: \"quoted \\\"\\$name\"")
+                .contains("#package: { name: \"quoted \\\"\\$name\", version: \"0.1.0\", }")
         );
         assert!(
             fs::read_to_string(result.root().join("tests/unit/index.nct"))
@@ -556,7 +552,7 @@ mod tests {
             fs::read_to_string(package.join("index.nct")).unwrap(),
             "user content\n"
         );
-        assert!(!package.join("nocter.nct").exists());
+        assert!(package.join("index.nct").exists());
         assert!(!package.join("tests").exists());
         fs::remove_dir_all(parent).unwrap();
     }

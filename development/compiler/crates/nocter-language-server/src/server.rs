@@ -832,8 +832,8 @@ mod tests {
         let widgets = temporary.path().join("widgets");
         fs::create_dir(&widgets).unwrap();
         fs::write(
-            temporary.path().join("nocter.nct"),
-            "#name: \"hover-alias\"\n#version: \"0.1.0\"\n#executable: {\n    name: \"hover-alias\",\n}\n",
+            temporary.path().join("index.nct"),
+            "#package: { name: \"hover-alias\", version: \"0.1.0\", }\n#executable: {\n    name: \"hover-alias\",\n}\n",
         )
         .unwrap();
         fs::write(
@@ -841,7 +841,7 @@ mod tests {
             "pub struct Widget {\n    pub value: i32\n}\n\nconstruct Widget {\n    pub default func new(): Self { return Widget { value: 1 } }\n}\n",
         )
         .unwrap();
-        let source = temporary.path().join("index.nct");
+        let source = temporary.path().join("app.nct");
         let uri = format!("file://{}", source.display());
         let mut server = semantic_server(temporary.path());
         server.receive(&format!(

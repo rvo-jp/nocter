@@ -46,7 +46,12 @@ pub(crate) fn query_rename(
         .scope()
         .ok_or(RenameQueryError::MissingScope)?;
     let candidate = analyses
-        .compile_candidate(scope, document.snapshot().generation(), overlay)
+        .compile_candidate(
+            scope,
+            document.path(),
+            document.snapshot().generation(),
+            overlay,
+        )
         .ok_or(RenameQueryError::CandidateRejected)?;
     if !document
         .snapshot()

@@ -7,7 +7,7 @@
 use std/iter.{Iterator, ViewIter}
 use std/string.{LinesIter, SplitIter, String}
 use std/vec.Vec
-include ./text.nct
+see ./text.nct
 
 instance str {
     /// Compares UTF-8 encoding bytes without allocation.

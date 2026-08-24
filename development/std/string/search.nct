@@ -1,4 +1,4 @@
-include ./index.nct
+see ./index.nct
 
 //! Shared allocation-free byte search for UTF-8 string modules.
 //!

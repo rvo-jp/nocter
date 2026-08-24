@@ -48,14 +48,12 @@ impl std::error::Error for FormatError {}
 /// The grammar root selected for one standalone inspection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InspectionGoal {
-    PackageFile,
     SourceFile,
 }
 
 impl From<InspectionGoal> for ParseGoal {
     fn from(goal: InspectionGoal) -> Self {
         match goal {
-            InspectionGoal::PackageFile => Self::PackageFile,
             InspectionGoal::SourceFile => Self::SourceFile,
         }
     }
@@ -451,17 +449,17 @@ mod tests {
     }
 
     #[test]
-    fn package_goal_exposes_package_directives() {
+    fn source_goal_exposes_package_directives_in_the_unified_root() {
         let inspection = SourceInspection::new(
-            SourceName::new("/tmp/nocter.nct"),
-            b"#name: \"demo\"\n",
-            InspectionGoal::PackageFile,
+            SourceName::new("/tmp/index.nct"),
+            b"#package: { name: \"demo\", version: \"0.0.0\", }\n",
+            InspectionGoal::SourceFile,
         )
         .unwrap();
 
         let json = inspection.render_ast_json().unwrap();
 
-        assert!(json.contains("\"kind\":\"package_file\""));
+        assert!(json.contains("\"kind\":\"source_file\""));
         assert!(json.contains("\"kind\":\"package_directive\""));
     }
 }

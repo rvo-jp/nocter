@@ -1,6 +1,6 @@
 //! Target-owned system primitives without current cross-module callers.
 
-include ./index.nct
+see ./index.nct
 
 #target: "arm64-darwin"
 primitive syscall0(number: usize): SyscallResult

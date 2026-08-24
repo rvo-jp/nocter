@@ -10,7 +10,7 @@
 //! primitive set; target-gated std internals provide the OS boundary behind
 //! this common API.
 
-include ./allocation.nct
+see ./allocation.nct
 
 pub copy struct Layout
 

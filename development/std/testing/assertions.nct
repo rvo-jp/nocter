@@ -1,6 +1,6 @@
 //! Test assertion behavior.
 
-include ./index.nct
+see ./index.nct
 
 func assert(condition: bool): void! {
     if !condition {

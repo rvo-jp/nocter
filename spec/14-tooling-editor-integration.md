@@ -42,9 +42,10 @@ The lexical chapter defines the single Markdown-extraction rule used by AST outp
 indexes, hover, and future generated documentation. These consumers do not independently strip or
 reformat comment text.
 
-File documentation has one public owner. Documentation in `nocter.nct` belongs to its package.
-Documentation in a directory module's `index.nct`, or in the source of single-file mode, belongs to
-that module. File documentation in a module implementation source remains available on that
+File documentation has one public source owner. Documentation in a package root `index.nct`
+describes both that package and its root module because the same physical source declares both.
+Documentation in a child module's `index.nct`, or in the source of single-file mode, belongs to
+that module. File documentation in an ordinary module source remains available on that
 source's syntax snapshot and AST output, but it is not appended to or allowed to replace the public
 module documentation.
 
@@ -58,7 +59,7 @@ Diagnostics, hover, completion, signature help, definition, implementation, refe
 code actions, inlay hints, and semantic tokens for that request observe the same generation.
 
 An open document overrides disk content throughout its generation. Package graphs for open
-`nocter.nct` overlays are locked, offline, and read-only: analysis never fetches dependencies,
+`index.nct` overlays are locked, offline, and read-only: analysis never fetches dependencies,
 generates locks, or rewrites source. Changed imports invalidate reverse importers; unrelated modules
 and nested packages retain independent state.
 
@@ -91,7 +92,7 @@ Internal canonical identities may contain package/module qualification. User pre
 the shortest unambiguous visible spelling and must not leak storage paths such as
 `std/iter.Type` into ordinary signatures. The compiler derives that spelling from the resolved
 namespace graph, including local import aliases and visible module exports; protocol adapters do not
-recover it from source text. Directly included declarations and source-local import aliases affect
+recover it from source text. Directly seen declarations and source-local import aliases affect
 only that source's presentation; they do not become module exports.
 
 ## Semantic Tokens
@@ -155,7 +156,7 @@ Ordinary unconditional keyword lists and snippets are lexical editor convenience
 completion results. This avoids presenting `break`, `continue`, visibility, or declaration forms in
 grammar contexts where they cannot be used.
 Construction completion uses the use-site construction view, not hover's public-presentation view,
-so private construction remains available in its authored source and direct includers without
+so private construction remains available in its authored source and direct seers without
 leaking to unrelated sources in the same module.
 After a construction owner followed by `.`, completion offers only named entries expressible in
 that position: accessible enum variants and construction functions. Structural construction and
@@ -227,7 +228,7 @@ A required-interface-method action implements every missing required method in t
 diagnostic remains on the public conformance fact in `index.nct`, while the edit targets its joined
 private implementation conformance. An inline conformance is edited in place. The source index's
 declaration and implementation roles select this destination; the server does not infer it from a
-file name or include path. Each generated signature uses the conformance-specialized
+file name or `see` path. Each generated signature uses the conformance-specialized
 associated types, callable generics, parameter and result types, and `where` predicates. Generated
 method bodies call `std/process.abort()`; the action adds that import when it is not already visible.
 The server offers no action unless the complete edited package passes ordinary compilation, so a

@@ -140,7 +140,7 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         | SurfaceError::SyntaxErrors(_)
         | SurfaceError::InvalidRootShape(_)
         | SurfaceError::InvalidItemShape(_)
-        | SurfaceError::InconsistentIncludeResolution(_)
+        | SurfaceError::InconsistentSourceVisibilityResolution(_)
         | SurfaceError::InconsistentUseResolution(_) => None,
     }
 }
@@ -151,11 +151,10 @@ mod tests {
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
     use super::{SurfaceDiagnostic, SurfaceRule};
-    use crate::test_support::source_include;
+    use crate::test_support::source_see;
     use crate::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-        collect_declaration_surface,
+        PackageIdentity, PackageInput, PackageMode, collect_declaration_surface,
     };
 
     #[test]
@@ -186,13 +185,13 @@ mod tests {
     #[test]
     fn inline_private_root_construction_members_do_not_require_visibility() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
             "struct Value { value: usize }\nconstruct Value {\n    func new(): Self { Value { value: 0 } }\n}\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
@@ -211,13 +210,13 @@ mod tests {
     #[test]
     fn root_interface_contract_methods_require_public_visibility() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
             "pub interface Source { default method self.count(): usize {} }\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
@@ -248,13 +247,13 @@ mod tests {
     #[test]
     fn unknown_target_names_have_a_source_backed_rule() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
             "#target: \"unknown-target\"\nfunc main(): void {}\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = compile_unit(
             &sources,
@@ -284,14 +283,10 @@ mod tests {
         expected_rule: SurfaceRule,
     ) -> (SurfaceDiagnostic, nocter_source::SourceId) {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let root_id = add_source(
-            &mut sources,
-            "/app/index.nct",
-            "include ./implementation.nct\n",
-        );
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "see ./implementation.nct\n");
         let implementation_id = add_source(&mut sources, "/app/implementation.nct", text);
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = compile_unit(
@@ -305,7 +300,7 @@ mod tests {
                     &implementation,
                 ),
             ],
-            vec![source_include(&root, 0, "/app/implementation.nct")],
+            vec![source_see(&root, 0, "/app/implementation.nct")],
         );
 
         let error = collect_declaration_surface(&input).unwrap_err();
@@ -332,9 +327,9 @@ mod tests {
 
     fn compile_unit<'syntax>(
         sources: &'syntax SourceMap,
-        manifest: &'syntax SyntaxTree,
+        _manifest: &'syntax SyntaxTree,
         module_sources: Vec<ModuleSourceInput<'syntax>>,
-        resolutions: Vec<crate::IncludeResolutionInput>,
+        resolutions: Vec<crate::SourceVisibilityResolutionInput>,
     ) -> CompileUnitInput<'syntax> {
         CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -343,7 +338,6 @@ mod tests {
                 PackageIdentity::new("workspace:app"),
                 "app",
                 PackageMode::Declared,
-                Some(PackageDeclarationInput::new("/app/nocter.nct", manifest)),
             )],
             vec![ModuleInput::new(
                 ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -351,6 +345,6 @@ mod tests {
             )],
             Vec::new(),
         )
-        .with_include_resolutions(resolutions)
+        .with_source_visibility_resolutions(resolutions)
     }
 }

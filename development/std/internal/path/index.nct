@@ -3,7 +3,7 @@
 //! This module depends on ordinary memory and UTF-8 path contracts. Raw OS
 //! facts stay in `std/internal/os`, which never imports this higher layer.
 
-include ./darwin.nct
+see ./darwin.nct
 
 /// Owned temporary path storage in the active target's native argument representation.
 #target: "arm64-darwin"

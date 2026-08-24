@@ -9,7 +9,7 @@ use nocter_syntax::{
 };
 
 use crate::topology::{
-    IncludeResolutionKey, PreparedCompileUnit, UseResolutionKey, prepare_compile_unit,
+    PreparedCompileUnit, SourceVisibilityResolutionKey, UseResolutionKey, prepare_compile_unit,
 };
 use crate::{CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput};
 use nocter_target_selection::TargetSelection;
@@ -107,13 +107,13 @@ impl<'syntax> SurfaceSource<'syntax> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SurfaceInclude {
+pub struct SurfaceVisibility {
     source: SurfaceSourceId,
     node: NodeId,
     target: SurfaceSourceId,
 }
 
-impl SurfaceInclude {
+impl SurfaceVisibility {
     #[must_use]
     pub const fn source(self) -> SurfaceSourceId {
         self.source
@@ -225,11 +225,11 @@ pub struct DeclarationSurface<'syntax> {
     target: CompilationTarget,
     source_map: &'syntax SourceMap,
     symbols: SymbolTable,
-    packages: Box<[PackageInput<'syntax>]>,
+    packages: Box<[PackageInput]>,
     root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
     sources: Box<[SurfaceSource<'syntax>]>,
-    includes: Box<[SurfaceInclude]>,
+    includes: Box<[SurfaceVisibility]>,
     imports: Box<[SurfaceImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
@@ -252,7 +252,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
-    pub const fn packages(&self) -> &[PackageInput<'syntax>] {
+    pub const fn packages(&self) -> &[PackageInput] {
         &self.packages
     }
 
@@ -267,7 +267,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
-    pub const fn includes(&self) -> &[SurfaceInclude] {
+    pub const fn includes(&self) -> &[SurfaceVisibility] {
         &self.includes
     }
 
@@ -302,11 +302,11 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) target: CompilationTarget,
     pub(crate) source_map: &'syntax SourceMap,
     pub(crate) symbols: SymbolTable,
-    pub(crate) packages: Box<[PackageInput<'syntax>]>,
+    pub(crate) packages: Box<[PackageInput]>,
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
-    pub(crate) includes: Box<[SurfaceInclude]>,
+    pub(crate) includes: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
@@ -322,7 +322,7 @@ pub enum SurfaceError {
     InvalidNominalContract(NodeId),
     MissingConstructionContractVisibility(NodeId),
     MissingInterfaceContractVisibility(NodeId),
-    InconsistentIncludeResolution(NodeId),
+    InconsistentSourceVisibilityResolution(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
 }
@@ -359,10 +359,10 @@ impl fmt::Display for SurfaceError {
                 formatter,
                 "interface contract member {node:?} requires explicit visibility"
             ),
-            Self::InconsistentIncludeResolution(node) => {
+            Self::InconsistentSourceVisibilityResolution(node) => {
                 write!(
                     formatter,
-                    "include declaration {node:?} lost its resolved target"
+                    "see declaration {node:?} lost its resolved target"
                 )
             }
             Self::InconsistentUseResolution(node) => {
@@ -422,7 +422,7 @@ fn collect_declaration_surface_with<'syntax>(
         symbols,
         packages,
         modules,
-        include_resolutions,
+        source_visibility_resolutions,
         use_resolutions,
         package_target_resolutions,
         target_selection,
@@ -454,7 +454,7 @@ fn collect_declaration_surface_with<'syntax>(
         .map(|(index, source)| (source.canonical_path(), SurfaceSourceId(index)))
         .collect();
     let source_collection = SourceCollectionInput {
-        include_resolutions: &include_resolutions,
+        source_visibility_resolutions: &source_visibility_resolutions,
         use_resolutions: &use_resolutions,
         target_selection: &target_selection,
         source_by_path: &source_by_path,
@@ -499,8 +499,10 @@ fn collect_declaration_surface_with<'syntax>(
 }
 
 struct SourceCollectionInput<'input> {
-    include_resolutions:
-        &'input BTreeMap<IncludeResolutionKey, &'input crate::IncludeResolutionInput>,
+    source_visibility_resolutions: &'input BTreeMap<
+        SourceVisibilityResolutionKey,
+        &'input crate::SourceVisibilityResolutionInput,
+    >,
     use_resolutions: &'input BTreeMap<UseResolutionKey, &'input crate::UseResolutionInput>,
     target_selection: &'input TargetSelection,
     source_by_path: &'input BTreeMap<&'input str, SurfaceSourceId>,
@@ -517,7 +519,7 @@ fn collect_source(
     source_id: SurfaceSourceId,
     source: &SurfaceSource<'_>,
     input: &SourceCollectionInput<'_>,
-    includes: &mut Vec<SurfaceInclude>,
+    includes: &mut Vec<SurfaceVisibility>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
@@ -527,16 +529,17 @@ fn collect_source(
     }
     for child in child_nodes(tree, tree.root_id()) {
         match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
-            Some(NodeKind::IncludeDeclaration) => {
+            Some(NodeKind::PackageDirective) if source.kind() == ModuleSourceKind::Root => {}
+            Some(NodeKind::SourceVisibilityDeclaration) => {
                 let resolution = input
-                    .include_resolutions
+                    .source_visibility_resolutions
                     .get(&(child.source(), child.index()))
-                    .ok_or(SurfaceError::InconsistentIncludeResolution(child))?;
+                    .ok_or(SurfaceError::InconsistentSourceVisibilityResolution(child))?;
                 let target = *input
                     .source_by_path
                     .get(resolution.target_source())
-                    .ok_or(SurfaceError::InconsistentIncludeResolution(child))?;
-                includes.push(SurfaceInclude {
+                    .ok_or(SurfaceError::InconsistentSourceVisibilityResolution(child))?;
+                includes.push(SurfaceVisibility {
                     source: source_id,
                     node: child,
                     target,

@@ -1,5 +1,5 @@
-include ./index.nct
-include ./adapters.nct
+see ./index.nct
+see ./adapters.nct
 
 //! Allocation-free mutable iteration over contiguous views.
 

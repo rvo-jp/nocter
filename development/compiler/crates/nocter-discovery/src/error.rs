@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use nocter_compile_input::ModuleIdentity;
 use nocter_model::PackageIdentity;
 use nocter_source::SourceError;
+use nocter_source::SourceId;
 use nocter_syntax::NodeId;
 use nocter_target_selection::TargetSelectionError;
 
@@ -23,7 +24,7 @@ pub enum UseFailure {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IncludeFailure {
+pub enum SourceVisibilityFailure {
     OutsidePackage,
     NotFound,
     CrossesPackage { root: PathBuf },
@@ -35,6 +36,7 @@ pub enum DiscoveryError {
     DuplicatePackage(PackageIdentity),
     UnknownPackage(PackageIdentity),
     Toolchain(ToolchainDiscoveryError),
+    PackageRootProbe(nocter_package::PackageRootProbeError),
     InvalidPackageRoot {
         package: PackageIdentity,
         path: PathBuf,
@@ -54,10 +56,10 @@ pub enum DiscoveryError {
         path: Box<str>,
         failure: UseFailure,
     },
-    Include {
+    SourceVisibility {
         declaration: NodeId,
         path: Box<str>,
-        failure: IncludeFailure,
+        failure: SourceVisibilityFailure,
     },
     ConflictingSourceOwner {
         path: PathBuf,
@@ -76,6 +78,7 @@ pub enum DiscoveryError {
     },
     TargetSelection(TargetSelectionError),
     InconsistentSyntax(NodeId),
+    InconsistentSourceSnapshot(SourceId),
 }
 
 impl fmt::Display for DiscoveryError {
@@ -88,6 +91,7 @@ impl fmt::Display for DiscoveryError {
                 write!(formatter, "unknown resolved package {}", package.as_str())
             }
             Self::Toolchain(error) => error.fmt(formatter),
+            Self::PackageRootProbe(error) => error.fmt(formatter),
             Self::InvalidPackageRoot { package, path } => write!(
                 formatter,
                 "package {} has invalid root {}",
@@ -123,13 +127,13 @@ impl fmt::Display for DiscoveryError {
                 formatter,
                 "use {declaration:?} cannot resolve {path}: {failure:?}"
             ),
-            Self::Include {
+            Self::SourceVisibility {
                 declaration,
                 path,
                 failure,
             } => write!(
                 formatter,
-                "include {declaration:?} cannot resolve {path}: {failure:?}"
+                "source visibility {declaration:?} cannot resolve {path}: {failure:?}"
             ),
             Self::ConflictingSourceOwner {
                 path,
@@ -161,6 +165,9 @@ impl fmt::Display for DiscoveryError {
             Self::InconsistentSyntax(node) => {
                 write!(formatter, "syntax tree is inconsistent at {node:?}")
             }
+            Self::InconsistentSourceSnapshot(source) => {
+                write!(formatter, "source snapshot is inconsistent at {source}")
+            }
         }
     }
 }
@@ -170,6 +177,7 @@ impl std::error::Error for DiscoveryError {
         match self {
             Self::Filesystem { error, .. } => Some(error),
             Self::Toolchain(error) => Some(error),
+            Self::PackageRootProbe(error) => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }
@@ -177,12 +185,13 @@ impl std::error::Error for DiscoveryError {
             | Self::MissingModuleRoot { .. }
             | Self::InvalidModulePath { .. }
             | Self::Use { .. }
-            | Self::Include { .. }
+            | Self::SourceVisibility { .. }
             | Self::ConflictingSourceOwner { .. }
             | Self::NonUnicodeCanonicalPath(_)
             | Self::Source { .. }
             | Self::TargetSelection(_)
-            | Self::InconsistentSyntax(_) => None,
+            | Self::InconsistentSyntax(_)
+            | Self::InconsistentSourceSnapshot(_) => None,
         }
     }
 }

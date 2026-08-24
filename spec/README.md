@@ -17,7 +17,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 - [Design Principles](00-design-principles.md)
 - [Overview](00-overview.md)
-- [Modules, Use Declarations, and Source Includes](01-modules-use.md)
+- [Modules, Use Declarations, and Source Visibility](01-modules-use.md)
 - [Values and Types](02-values-types.md)
 - [Control Flow](03-control-flow.md)
 - [Errors and Optionals](04-errors-optionals.md)

@@ -1,4 +1,4 @@
-include ./index.nct
+see ./index.nct
 use std/string.String
 use std/string.bytes as string_bytes
 use std/vec.Vec

@@ -4,8 +4,8 @@
 //! return allocation errors. Both surfaces share the same formatting core.
 
 use std/string.String
-include ./conformances.nct
-include ./formatting.nct
+see ./conformances.nct
+see ./formatting.nct
 
 /// Appends the ordinary textual representation of a value.
 pub interface Format {

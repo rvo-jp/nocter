@@ -109,12 +109,13 @@ Rules for generated code:
 
 ## Imports
 
-Nocter does not use a `module` declaration. A file's module identity comes from its path.
+Nocter does not use a `module` declaration. A source belongs to the nearest ancestor directory
+containing `index.nct`.
 
 ```nct
 use std/io.print
 use ./config.Config
-include ./helpers.nct
+see ./helpers.nct
 ```
 
 Rules:
@@ -129,11 +130,12 @@ Rules:
   `./` or `../` and omit both `index.nct` and `.nct`.
 - Non-relative paths name a declared dependency or `std`; `std/io` resolves only through the
   active Nocter home.
-- `include ./file.nct` makes that exact same-module physical source's declarations directly visible
-  in the current source. It requires `./`, the complete `.nct` filename, and forbids `../`.
-- Include visibility is direct-only and directional. An included source does not inherit the
-  including source's declarations unless it writes its own reciprocal include.
-- Do not invent wildcard imports, source-file `use`, extensionless `include`, or `module`
+- `see ./file.nct` and `see ../file.nct` make one exact same-module physical source's declarations
+  directly visible in the current source. The complete `.nct` filename is required; canonical
+  resolution must remain inside the same module.
+- See visibility is direct-only and directional. A seen source does not inherit the authored
+  source's declarations unless it writes its own reciprocal `see`.
+- Do not invent wildcard imports, source-file `use`, extensionless `see`, or `module`
   declarations.
 
 ## Errors And Optionals
@@ -318,7 +320,7 @@ Rules:
 
 - `///` and `/** ... */` document the next documentable declaration, member, field, variant, or local binding.
 - `//!` and `/*! ... */` document the source file/module.
-- In package mode, use `//!` in `nocter.nct` for package documentation and in `index.nct` for the
+- In package mode, use `//!` in `index.nct` for package documentation and in `index.nct` for the
   public module documentation. A `//!` comment in an implementation source documents only that
   source snapshot.
 - Empty lines break attachment between a doc comment and the following construct.

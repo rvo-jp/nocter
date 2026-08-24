@@ -9,8 +9,8 @@ pub use public_examples::{
 
 use nocter_compile_input::{
     BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
-    PackageTargetResolutionInput, StandardRoleInput, ToolchainInput, UseResolutionInput,
+    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleInput,
+    ToolchainInput, UseResolutionInput,
 };
 use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
 use nocter_model::{CompilationTarget, PackageIdentity};
@@ -386,8 +386,7 @@ const ALLOCATION_ROLES: &[StandardRoleSpec] = &[
 /// surface required to construct an `arm64-darwin` target program.
 pub struct CompilerFixture {
     sources: SourceMap,
-    app_manifest: Option<SyntaxTree>,
-    std_manifest: SyntaxTree,
+    app_is_package: bool,
     app: SyntaxTree,
     standard: SyntaxTree,
     prelude: SyntaxTree,
@@ -476,30 +475,32 @@ impl CompilerFixture {
 
     fn build(
         app_source: &str,
-        app_manifest_source: Option<&str>,
+        app_package_directives: Option<&str>,
         standard_source: &str,
         standard_roles: impl Into<Box<[StandardRoleSpec]>>,
     ) -> Self {
         let mut sources = SourceMap::new();
-        let std_manifest = add_parsed(&mut sources, "/std/nocter.nct", "", ParseGoal::PackageFile);
-        let app_manifest = app_manifest_source.map(|text| {
-            add_parsed(
-                &mut sources,
-                "/app/nocter.nct",
-                text,
-                ParseGoal::PackageFile,
-            )
-        });
-        let app_path = if app_manifest.is_some() {
+        let app_is_package = app_package_directives.is_some();
+        let app_path = if app_is_package {
             "/app/index.nct"
         } else {
             "/tmp/app.nct"
         };
-        let app = add_parsed(&mut sources, app_path, app_source, ParseGoal::SourceFile);
+        let app_source = app_package_directives.map_or_else(
+            || app_source.to_owned(),
+            |directives| {
+                format!(
+                    "#package: {{ name: \"app\", version: \"0.0.0\", }}\n{directives}{app_source}"
+                )
+            },
+        );
+        let app = add_parsed(&mut sources, app_path, &app_source, ParseGoal::SourceFile);
+        let standard_source =
+            format!("#package: {{ name: \"std\", version: \"0.0.0\", }}\n{standard_source}");
         let standard = add_parsed(
             &mut sources,
             "/std/index.nct",
-            standard_source,
+            &standard_source,
             ParseGoal::SourceFile,
         );
         let prelude = add_parsed(
@@ -536,8 +537,7 @@ impl CompilerFixture {
         .collect();
         Self {
             sources,
-            app_manifest,
-            std_manifest,
+            app_is_package,
             app,
             standard,
             prelude,
@@ -551,43 +551,38 @@ impl CompilerFixture {
     ///
     /// # Panics
     ///
-    /// Panics when an internally authored fixture manifest lacks its required target directive.
+    /// Panics when an internally authored package source lacks its required target directive.
     #[must_use]
     pub fn input(&self) -> CompileUnitInput<'_> {
         let app_package = PackageIdentity::new("workspace:app");
         let standard_package = PackageIdentity::new("toolchain:std");
-        let app_declaration = self
-            .app_manifest
-            .as_ref()
-            .map(|manifest| PackageDeclarationInput::new("/app/nocter.nct", manifest));
         let packages = vec![
             PackageInput::new(
                 app_package.clone(),
                 "app",
-                if app_declaration.is_some() {
+                if self.app_is_package {
                     PackageMode::Declared
                 } else {
                     PackageMode::SingleFile
                 },
-                app_declaration,
             ),
             package(
                 standard_package.clone(),
                 "std",
-                "/std/nocter.nct",
-                &self.std_manifest,
+                "/std/index.nct",
+                &self.standard,
             ),
         ];
         let mut modules = vec![
             ModuleInput::new(
                 ModuleIdentity::new(app_package.clone(), Vec::<&str>::new()),
                 vec![ModuleSourceInput::new(
-                    if self.app_manifest.is_some() {
+                    if self.app_is_package {
                         "/app/index.nct"
                     } else {
                         "/tmp/app.nct"
                     },
-                    if self.app_manifest.is_some() {
+                    if self.app_is_package {
                         ModuleSourceKind::Root
                     } else {
                         ModuleSourceKind::SingleFile
@@ -628,14 +623,14 @@ impl CompilerFixture {
         )
         .with_root_packages(vec![app_package.clone()])
         .with_toolchain(toolchain);
-        if let Some(manifest) = &self.app_manifest {
-            let source = self.sources.get(manifest.source()).unwrap();
-            let declaration = nocter_package::decode_package_declaration(source, manifest)
-                .expect("test fixture manifest is valid");
+        if self.app_is_package {
+            let source = self.sources.get(self.app.source()).unwrap();
+            let declaration = nocter_package::decode_package_declaration(source, &self.app)
+                .expect("test fixture package source is valid");
             let target = declaration
                 .targets()
                 .first()
-                .expect("test fixture manifest has no target directive");
+                .expect("test fixture package source has no target directive");
             input = input.with_package_target_resolutions(vec![PackageTargetResolutionInput::new(
                 target.declaration(),
                 target.name().value(),
@@ -772,18 +767,13 @@ fn parsed(sources: &SourceMap, source: SourceId, goal: ParseGoal) -> SyntaxTree 
     tree
 }
 
-fn package<'syntax>(
+fn package(
     identity: PackageIdentity,
     name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
-    PackageInput::new(
-        identity,
-        name,
-        PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
-    )
+    _path: &str,
+    _manifest: &SyntaxTree,
+) -> PackageInput {
+    PackageInput::new(identity, name, PackageMode::Declared)
 }
 
 fn module<'syntax>(

@@ -3,10 +3,9 @@ use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, pars
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
-    UseResolutionInput, apply_toolchain_profile, collect_declaration_surface,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
-    reserve_declaration_identities,
+    PackageIdentity, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
+    apply_toolchain_profile, collect_declaration_surface, prepare_authored_imports,
+    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
 };
 
 use super::{PreparedTypeBindings, TypeBindingError, bind_header_type_syntax};
@@ -31,17 +30,16 @@ pub(super) fn parse_source(
     tree
 }
 
-pub(super) fn package<'syntax>(
+pub(super) fn package(
     identity: &str,
     display_name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
+    _path: &str,
+    _manifest: &SyntaxTree,
+) -> PackageInput {
     PackageInput::new(
         PackageIdentity::new(identity),
         display_name,
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
     )
 }
 
@@ -63,7 +61,7 @@ pub(super) fn module<'syntax>(
 
 pub(super) fn bind<'syntax>(
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,

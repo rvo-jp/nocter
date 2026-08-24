@@ -3,7 +3,7 @@
 //! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary
 //! source built on the narrow representation query below.
 
-include ./views.nct
+see ./views.nct
 
 instance [T] {
     pub method &self.len(): usize

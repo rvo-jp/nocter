@@ -368,17 +368,17 @@ fn set_file_mode(
 }
 
 fn require_manifest(destination: &Path) -> Result<(), PackageAcquisitionError> {
-    let manifest = destination.join("nocter.nct");
+    let manifest = destination.join("index.nct");
     match fs::symlink_metadata(&manifest) {
         Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(()),
         Ok(_) => Err(PackageAcquisitionError::invalid_git(
             "materialize Git package",
-            "Git tree root nocter.nct is not a regular file",
+            "Git tree root index.nct is not a regular file",
         )),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Err(PackageAcquisitionError::invalid_git(
                 "materialize Git package",
-                "Git tree root does not contain nocter.nct",
+                "Git tree root does not contain index.nct",
             ))
         }
         Err(error) => Err(PackageAcquisitionError::filesystem(
@@ -430,6 +430,6 @@ mod tests {
         fs::create_dir(&destination).unwrap();
         let error = export_commit(&repository, &lock, &destination).unwrap_err();
         assert!(destination.join("README").is_file());
-        assert!(error.to_string().contains("does not contain nocter.nct"));
+        assert!(error.to_string().contains("does not contain index.nct"));
     }
 }

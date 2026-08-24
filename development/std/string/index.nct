@@ -15,8 +15,8 @@
 use std/iter.Iterator
 use std/mem.TryAllocator
 use std/vec.Vec
-include ./views.nct
-include ./storage.nct
+see ./views.nct
+see ./storage.nct
 
 pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 

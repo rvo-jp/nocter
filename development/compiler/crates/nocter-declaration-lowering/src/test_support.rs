@@ -1,15 +1,19 @@
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::{
-    IncludeResolutionInput, ModuleIdentity, PackageTargetResolutionInput, UseResolutionInput,
+    ModuleIdentity, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
+    UseResolutionInput,
 };
 
-pub(crate) fn source_include(
+pub(crate) fn source_see(
     tree: &SyntaxTree,
     position: usize,
     canonical_target: &str,
-) -> IncludeResolutionInput {
-    IncludeResolutionInput::new(include_declarations(tree)[position], canonical_target)
+) -> SourceVisibilityResolutionInput {
+    SourceVisibilityResolutionInput::new(
+        source_visibility_declarations(tree)[position],
+        canonical_target,
+    )
 }
 
 pub(crate) fn module_use(
@@ -20,14 +24,14 @@ pub(crate) fn module_use(
     UseResolutionInput::new(use_declarations(tree)[position], target)
 }
 
-fn include_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
+fn source_visibility_declarations(tree: &SyntaxTree) -> Vec<NodeId> {
     tree.children(tree.root_id())
         .iter()
         .filter_map(|element| match element {
             SyntaxElement::Node(node)
                 if tree
                     .node(*node)
-                    .is_some_and(|node| node.kind() == NodeKind::IncludeDeclaration) =>
+                    .is_some_and(|node| node.kind() == NodeKind::SourceVisibilityDeclaration) =>
             {
                 Some(*node)
             }

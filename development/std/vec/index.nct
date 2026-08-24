@@ -9,8 +9,8 @@
 
 use std/iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
 use std/mem.TryAllocator
-include ./into_iter.nct
-include ./storage.nct
+see ./into_iter.nct
+see ./storage.nct
 
 /// A forward iterator that owns a Vec allocation and its remaining elements.
 pub struct VecIntoIter<T>

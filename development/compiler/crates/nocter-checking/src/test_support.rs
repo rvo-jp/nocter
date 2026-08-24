@@ -1,7 +1,7 @@
 use nocter_compile_input::{
-    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode, StandardRoleInput,
-    ToolchainInput, UseResolutionInput,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageInput, PackageMode, SourceVisibilityResolutionInput, StandardRoleInput, ToolchainInput,
+    UseResolutionInput,
 };
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
@@ -9,8 +9,6 @@ use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 pub(crate) struct Fixture {
     sources: SourceMap,
-    app_manifest: SyntaxTree,
-    std_manifest: SyntaxTree,
     app: SyntaxTree,
     child: Option<SyntaxTree>,
     implementations: Vec<(Box<str>, SyntaxTree)>,
@@ -37,14 +35,10 @@ impl Fixture {
 
     pub(crate) fn with_standard(app: &str, standard: &str) -> Self {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", app);
         let std_id = add_source(&mut sources, "/std/index.nct", standard);
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         Self {
-            app_manifest: parsed(&sources, app_manifest_id, ParseGoal::PackageFile),
-            std_manifest: parsed(&sources, std_manifest_id, ParseGoal::PackageFile),
             app: parsed(&sources, app_id, ParseGoal::SourceFile),
             child: None,
             implementations: Vec::new(),
@@ -92,18 +86,8 @@ impl Fixture {
 
     pub(crate) fn input(&self, reverse: bool) -> CompileUnitInput<'_> {
         let mut packages = vec![
-            package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &self.app_manifest,
-            ),
-            package(
-                "toolchain:std",
-                "std",
-                "/std/nocter.nct",
-                &self.std_manifest,
-            ),
+            package("workspace:app", "app"),
+            package("toolchain:std", "std"),
         ];
         let mut app_sources = vec![ModuleSourceInput::new(
             "/app/index.nct",
@@ -152,7 +136,7 @@ impl Fixture {
             modules,
             resolutions,
         )
-        .with_include_resolutions(self.include_resolutions())
+        .with_source_visibility_resolutions(self.source_visibility_resolutions())
         .with_toolchain(ToolchainInput::new(
             PackageIdentity::new("toolchain:std"),
             prelude,
@@ -161,7 +145,7 @@ impl Fixture {
         ))
     }
 
-    fn include_resolutions(&self) -> Vec<IncludeResolutionInput> {
+    fn source_visibility_resolutions(&self) -> Vec<SourceVisibilityResolutionInput> {
         std::iter::once(&self.app)
             .chain(self.implementations.iter().map(|(_, syntax)| syntax))
             .flat_map(|tree| {
@@ -170,7 +154,7 @@ impl Fixture {
                         return None;
                     };
                     if tree.node(*declaration).map(nocter_syntax::SyntaxNode::kind)
-                        != Some(NodeKind::IncludeDeclaration)
+                        != Some(NodeKind::SourceVisibilityDeclaration)
                     {
                         return None;
                     }
@@ -179,7 +163,7 @@ impl Fixture {
                             return None;
                         };
                         (tree.node(*path).map(nocter_syntax::SyntaxNode::kind)
-                            == Some(NodeKind::IncludePath))
+                            == Some(NodeKind::SourceVisibilityPath))
                         .then_some(*path)
                     })?;
                     let authored = self
@@ -187,7 +171,7 @@ impl Fixture {
                         .get(tree.source())?
                         .text_at(tree.node(path)?.range())?;
                     let relative = authored.strip_prefix("./")?;
-                    Some(IncludeResolutionInput::new(
+                    Some(SourceVisibilityResolutionInput::new(
                         *declaration,
                         format!("/app/{relative}"),
                     ))
@@ -265,18 +249,8 @@ fn parsed(sources: &SourceMap, source: SourceId, goal: ParseGoal) -> SyntaxTree 
     tree
 }
 
-fn package<'syntax>(
-    identity: &str,
-    name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
-    PackageInput::new(
-        PackageIdentity::new(identity),
-        name,
-        PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
-    )
+fn package(identity: &str, name: &str) -> PackageInput {
+    PackageInput::new(PackageIdentity::new(identity), name, PackageMode::Declared)
 }
 
 fn module<'syntax>(

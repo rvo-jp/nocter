@@ -1,5 +1,0 @@
-#name: "text-report"
-#version: "0.1.0"
-#executable: {
-    name: "text-report",
-}

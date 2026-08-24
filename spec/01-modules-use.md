@@ -1,29 +1,39 @@
-# Modules, Use Declarations, and Source Includes
+# Modules, Use Declarations, and Source Visibility
 
 This file is part of the Nocter language specification. The specification entry point is
 [README.md](README.md).
 
 ## Directory Modules
 
-Nocter has no `module` declaration. A directory containing `index.nct` defines one module, and the
-directory path defines that module's identity.
+Nocter has no `module` declaration. Physical placement determines module ownership. A directory
+containing `index.nct` defines one module, and the directory path defines that module's identity.
 
 ```text
 project/
-    nocter.nct             package declarations
-    index.nct              root module root source
-    string.nct             root module source
+    index.nct              package root and root-module source
+    app.nct                root-module source
     parser/
         index.nct          child module `parser`
-        lexer.nct          source of module `parser`
+        lexer.nct          child-module source
     internal/
-        scanner.nct        source folder; not a module
+        scanner.nct        root-module source in a source folder
 ```
 
-`index.nct` is the module root source file and the sole source of that module's public surface.
-Other `.nct` files are ordinary physical sources. Their basenames do not create modules or
-namespaces, and their declarations do not participate merely because the files share a directory.
-A directory without `index.nct` is a source folder rather than a module.
+Every `.nct` file belongs to the nearest ancestor directory containing `index.nct`. `app.nct` and
+`internal/scanner.nct` therefore belong to the root module; `parser/lexer.nct` belongs to `parser`.
+A directory without `index.nct` is a source folder, not a module or namespace. A source basename
+never creates a module.
+
+Selecting a module inventories all physical `.nct` files owned by that module. Inventory descends
+through source folders and stops before a descendant directory containing `index.nct`, because that
+directory starts another module or package. Source inventory and source visibility are independent:
+an inventoried source is checked even when no other source writes `see` for it, but its declarations
+remain private to that source until an authored `see` grants direct visibility.
+
+`index.nct` is the module root source and the conventional public contract. Public APIs should be
+declared there without substantial bodies. Trivial bodies are allowed, but nontrivial definitions
+belong in ordinary module sources so `index.nct` remains readable as API documentation. This is a
+style rule rather than a grammar restriction.
 
 Import paths use `/` and omit `.nct`:
 
@@ -106,14 +116,14 @@ Module paths are valid only in `use`. An expression cannot call `std/io.print()`
 `./parser.parse()` directly. `use` always resolves a directory module; it never probes for or
 selects an ordinary `.nct` source.
 
-## Source Includes
+## Source Visibility
 
-`include` makes declarations authored in one physical source directly visible from another
-physical source:
+`see` makes declarations authored in one physical source directly visible from another physical
+source. It does not load the target, add it to a module, or create a namespace.
 
 ```nct
 // index.nct
-include ./search.nct
+see ./search.nct
 
 pub func contains(text: &str, needle: &str): bool {
     return find(text, needle)
@@ -131,31 +141,29 @@ Here `search.nct` does not introduce a `search` namespace. `index.nct` may use `
 it were a private declaration written in `index.nct`, but this visibility does not spread to any
 third source.
 
-An include has the following closed form and behavior:
+A `see` declaration has the following closed form and behavior:
 
 - it is a private top-level declaration and cannot use `pub`, a selection, an alias, or block scope;
-- its path begins with `./`, is relative to the including source's directory, and ends with the
-  complete `.nct` filename;
-- `../`, package-absolute paths, dependency aliases, module paths, directories, and omitted
-  extensions are invalid;
-- the exact target must belong to the same directory module as the including source; it must not
-  cross into a child module, another package, or a nested package boundary;
-- including a file exposes only declarations authored in that target source;
-- declarations that the target sees through its own `include`, `use`, lexical scopes, or synthetic
-  prelude are not re-exposed to the including source;
-- visibility is directional: if `a.nct` includes `b.nct`, `b.nct` does not see declarations from
-  `a.nct` unless it includes `a.nct` explicitly;
-- include cycles are valid and idempotent because sources are loaded once and declarations are
-  collected before bodies are resolved;
-- a source that is not reached from a selected module root or single-file source through `include`
-  is not part of the compile unit.
+- its path begins with `./` or one or more `../` components, resolves relative to the authored
+  source, and ends with the complete `.nct` filename;
+- package-absolute paths, dependency aliases, module paths, directories, omitted extensions, and
+  normalized `./../` forms are invalid;
+- the canonical target must belong to the same physical directory module as the authored source;
+  it cannot cross into a child module, parent module, another package, or nested package;
+- it exposes only declarations authored in the exact target source;
+- declarations visible to the target through its own `see`, `use`, lexical scopes, or synthetic
+  prelude are not re-exposed;
+- visibility is directional: if `a.nct` sees `b.nct`, `b.nct` does not see declarations from
+  `a.nct` unless it writes its own reciprocal `see`;
+- cycles are valid and idempotent because direct visibility is a set relation, not recursive source
+  loading.
 
 For example, direct-only visibility requires `a.nct` to name every source whose authored
 declarations it uses:
 
 ```nct
 // a.nct
-include ./b.nct
+see ./b.nct
 
 func a(): i32 {
     return b() + c() // error: c is not visible
@@ -164,24 +172,24 @@ func a(): i32 {
 
 ```nct
 // b.nct
-include ./c.nct
+see ./c.nct
 
 func b(): i32 {
     return c()
 }
 ```
 
-The fix is `include ./c.nct` in `a.nct`. The compiler does not compute a transitive source
+The fix is `see ./c.nct` in `a.nct`. The compiler does not compute a transitive source
 namespace.
 
 ## Public Contracts and Private Definitions
 
 `index.nct` is a readable module contract. A public callable may omit its body when one directly
-included source supplies its private definition:
+seen source supplies its private definition:
 
 ```nct
 // index.nct
-include ./parse.nct
+see ./parse.nct
 
 pub func parse(text: &str): Value!
 
@@ -192,7 +200,7 @@ instance Value {
 
 ```nct
 // parse.nct
-include ./index.nct
+see ./index.nct
 
 func parse(text: &str): Value! {
     ...
@@ -206,8 +214,8 @@ instance Value {
 ```
 
 The private declaration completes the visible public declaration; it does not define a second
-callable. The contract source must directly include the definition source, and the definition
-source must directly include that `index.nct`; one-way or transitive reachability cannot form a
+callable. The contract source must directly see the definition source, and the definition source
+must directly see that `index.nct`; one-way or transitive visibility cannot form a
 contract/definition pair.
 The compiler joins the pair by module identity, declaration kind, owner, name, generic parameters
 and bounds, receiver, parameter names and types, result type, authored `from` clause, and every
@@ -225,7 +233,7 @@ of required method signatures, so a root conformance contract must not repeat th
 requirements remain intrinsically bodyless.
 Interface defaults write `default` explicitly and may use the same split: a bodyless
 `pub default method` in the root interface is completed by one private `default method` body in a
-reciprocally included implementation interface fragment. `drop` always has a body and does not
+reciprocally visible implementation interface fragment. `drop` always has a body and does not
 participate in contract/body joining.
 
 A `drop` declaration has no separately callable public contract. In a contract-first directory
@@ -235,7 +243,7 @@ body as an API entry.
 
 ```nct
 // index.nct
-include ./iterator_defaults.nct
+see ./iterator_defaults.nct
 
 pub interface Iterator {
     pub type Item
@@ -246,7 +254,7 @@ pub interface Iterator {
 
 ```nct
 // iterator_defaults.nct
-include ./index.nct
+see ./index.nct
 
 interface Iterator {
     default method self.count(): usize {
@@ -274,7 +282,7 @@ A public struct may omit its representation in `index.nct`:
 
 ```nct
 // index.nct
-include ./string.nct
+see ./string.nct
 
 pub struct String
 
@@ -290,11 +298,11 @@ instance String {
 }
 ```
 
-One directly included source completes the representation and callable bodies:
+One directly seen source completes the representation and callable bodies:
 
 ```nct
 // string.nct
-include ./index.nct
+see ./index.nct
 
 struct String {
     storage: RawBuffer
@@ -332,11 +340,12 @@ declared and defined in any reached source without a separate contract. `copy` i
 ownership contract: a separated copyable struct repeats `copy` on both its public contract and its
 private definition, and the definition must satisfy the ordinary structural copy rules.
 
-Only declarations authored in `index.nct` can define the module's exported namespace. An included
-source cannot add a public name, member, construction entry, coercion, operator, or conformance to
-that namespace. It may define private helpers and may complete declarations already contracted in
-`index.nct`. Thus documentation, hover, completion, signature help, and ordinary source review can
-derive the complete public use surface without reading implementation sources.
+Only declarations authored in `index.nct` can define the module's exported namespace. An ordinary
+source made visible with `see` cannot add a public name, member, construction entry, coercion,
+operator, or conformance to that namespace. It may define private helpers and may complete
+declarations already contracted in `index.nct`. Thus documentation, hover, completion, signature
+help, and ordinary source review can derive the complete public use surface without reading
+implementation sources.
 
 ## Re-exports
 
@@ -392,12 +401,12 @@ I/O functions require explicit imports from their domain modules.
 
 ## Package Layout
 
-A package root is a directory that directly contains `nocter.nct`. There is no source-root
-concept.
+A package root is a directory whose `index.nct` contains exactly one top-level `#package`
+directive. The same file is both the package declaration source and the root module's root source.
+There is no separate manifest file and no source-root concept.
 
 ```text
 project/
-    nocter.nct
     index.nct
     search.nct
     parser/
@@ -408,13 +417,16 @@ project/
             index.nct
 ```
 
-`nocter.nct` contains package documentation and directives only:
+The root `index.nct` contains package documentation, a directive prefix, and ordinary root-module
+code:
 
 ```nct
 //! Example application package.
 
-#name: "example"
-#version: "0.1.0"
+#package: {
+    name: "example",
+    version: "0.1.0",
+}
 #executable: {
     name: "example",
 }
@@ -422,11 +434,6 @@ project/
     name: "unit",
     module: "./tests/unit",
 }
-```
-
-The root `index.nct` contains ordinary Nocter code:
-
-```nct
 use std/io.print
 use ./parser.Parser
 
@@ -437,11 +444,13 @@ func main(): i32! {
 }
 ```
 
-Package-file rules:
+Package-root rules:
 
-- file documentation precedes package directives; ordinary code is rejected in `nocter.nct`
-- `#name` defaults to the package-directory basename for display only
-- `#version` remains absent when omitted
+- file documentation precedes the package directive prefix
+- that file documentation belongs to the package; the root module does not register a second copy
+- `#package` is required and requires string fields `name` and `version`
+- `#dependencies`, generated `#lock`, `#executable`, and `#test` follow in the same directive prefix
+- every package directive precedes `see`, `use`, and ordinary declarations
 - `#executable` is repeatable, requires `name`, and accepts an optional `module`
 - an omitted executable `module` selects `.`
 - `#test` is repeatable and requires both `name` and `module`
@@ -450,24 +459,25 @@ Package-file rules:
 - `module: "./tools/app"` selects `tools/app/index.nct`
 - targets never select ordinary implementation sources
 - module paths omit `.nct` and cannot escape the package or cross a nested package
-- package directives are invalid outside `nocter.nct`
-- a nested `nocter.nct` starts another package; a nested `index.nct` starts a child module
-- dependency declarations and generated exact locks remain in `nocter.nct`
+- package directives are invalid outside the package root `index.nct`
+- a descendant `index.nct` containing `#package` starts a nested package; one without `#package`
+  starts a child module
+- dependency declarations and generated exact locks remain in the package root `index.nct`
 
 The compiler does not discover a package target by probing `main.nct` or another conventional
 filename.
 
 ## Implicit Standard-Library Package
 
-The active Nocter home contributes one immutable package at `<Nocter-home>/std`. It contains its
-own `nocter.nct` and root `index.nct`; the package name and version must match the toolchain
+The active Nocter home contributes one immutable package at `<Nocter-home>/std`. Its root
+`index.nct` contains `#package`; the package name and version must match the toolchain
 installation. Every compilation graph binds reserved dependency alias `std` to this exact package,
 including imports written inside `std` itself.
 
 User `#dependencies` and generated `#lock` data must not contain `std`. A package named `std`, a
 directory with that spelling, or a dependency alias cannot shadow the compiler-selected package or
 gain its primitive authority. Single-file mode uses the same toolchain package without creating a
-manifest for the source file.
+package declaration for the source file.
 
 ## Compile Units
 
@@ -475,13 +485,14 @@ Package `build`, `run`, and `check` begin with resolved target modules. Explicit
 available for isolated scripts and diagnostics as specified by
 [Command Line Interface](15-command-line-interface.md).
 
-A compile unit contains each selected module, every source reached recursively through `include`,
-and every module reached recursively through `use` or the synthetic prelude. Physical sources are
+A compile unit contains every physical source owned by each selected module, plus every module
+reached recursively through `use` or the synthetic prelude. `see` contributes direct visibility
+between already inventoried sources; it does not expand the compile unit. Physical sources are
 loaded by canonical path at most once.
 
 Rules:
 
-- include cycles are valid
+- see cycles are valid
 - module import and re-export cycles are errors
 - executable entry lookup selects top-level `main` in the selected directory module, not an
   imported module
@@ -516,8 +527,9 @@ absolute:     /Users/me/.nocter/std/io/index.nct
 
 ## Path Resolution
 
-An include path begins with `./`, resolves from the including source's directory, and names exactly
-one existing `.nct` file. It does not probe an extensionless alternative or a directory module.
+A `see` path begins with `./` or repeated `../`, resolves from the authored source's directory, and
+names exactly one existing `.nct` file. It does not probe an extensionless alternative or a
+directory module. Canonical resolution must keep both sources in the same module.
 
 Relative module imports begin with `./` or `../`, resolve from the importing source's directory,
 and select only a directory containing `index.nct`. A module path omits both `index.nct` and the
@@ -548,7 +560,7 @@ Rules:
 - `use config.Config` requires a dependency alias named `config`; it does not search project files
 - `std` is a reserved implicit dependency bound to the active toolchain standard-library package
 - packages must not declare or lock a dependency named `std`
-- `.nct` is required in `include` and omitted from `use`
+- `.nct` is required in `see` and omitted from `use`
 - `index.nct` is the only directory-module root convention
 - Nocter home comes from `NOCTER_HOME` when set, otherwise from the real running compiler path
 
@@ -560,7 +572,7 @@ uses:
 1. current and enclosing lexical bindings
 2. function parameters
 3. declarations authored in the current source
-4. declarations authored in sources named by a direct `include`
+4. declarations authored in sources named by a direct `see`
 5. explicit module imports authored in the current source and synthetic prelude names
 6. built-in types and syntax forms
 
@@ -569,7 +581,7 @@ authored imports, built-in type names, and the contextual `Self` type form must 
 same visible name. The synthetic prelude is the sole exception: it is a fallback layer, so any
 authored source name or valid lexical name with the same spelling takes precedence. Two private
 declarations with the same spelling may exist in different sources when no one source sees both.
-If one source sees both through its direct include set, lookup reports an authored-name collision;
+If one source sees both through its direct `see` set, lookup reports an authored-name collision;
 source traversal order never selects one.
 
 ## Visibility
@@ -606,7 +618,7 @@ Rules:
   construction entries, coercion entries, and re-exports follow this
   rule
 - an implementation definition that completes an `index.nct` contract omits visibility
-- private declarations are visible only in their authored source and in sources that include it
+- private declarations are visible only in their authored source and in sources that directly see it
   directly
 - `pub(./)` exposes the declaring module and all descendant modules
 - each `../` in `pub(../)`, `pub(../../)`, and deeper forms moves the boundary to one ancestor
@@ -617,7 +629,7 @@ Rules:
 - names, dependency aliases, and arbitrary module paths are not valid inside `pub(...)`
 - a re-export may narrow a boundary but cannot widen it
 - variants declared inline in `index.nct` follow their enum's visibility; variants supplied by a
-  private representation definition remain private to their authored source and direct includers
+  private representation definition remain private to their authored source and direct seers
 - `instance` and `conform` declarations are not themselves marked public
 - there is no `private` keyword, friend namespace, or named visibility scope
 

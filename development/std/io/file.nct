@@ -1,7 +1,7 @@
 //! File ownership and Darwin descriptor operations.
 
-include ./index.nct
-include ./core.nct
+see ./index.nct
+see ./core.nct
 
 use std/internal/os.{SyscallResult, darwin_create_mode}
 use std/internal/os.{darwin_errno_interrupted, darwin_open_create_append}

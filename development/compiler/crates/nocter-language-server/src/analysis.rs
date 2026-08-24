@@ -185,7 +185,13 @@ impl WorkspaceAnalyses {
         let selected = select_scope(&self.configuration, &source_overlay, &document);
         let (scope, state) = match selected {
             Ok(scope) => {
-                let state = compile_scope(&self.configuration, &scope, generation, source_overlay);
+                let state = compile_scope(
+                    &self.configuration,
+                    &scope,
+                    &document,
+                    generation,
+                    source_overlay,
+                );
                 (Some(scope), state)
             }
             Err(error) => (
@@ -232,10 +238,17 @@ impl WorkspaceAnalyses {
     pub(crate) fn compile_candidate(
         &self,
         scope: &AnalysisScope,
+        document: &Path,
         generation: GenerationId,
         source_overlay: SourceOverlay,
     ) -> Option<Box<AnalysisSnapshot>> {
-        match compile_scope(&self.configuration, scope, generation, source_overlay) {
+        match compile_scope(
+            &self.configuration,
+            scope,
+            document,
+            generation,
+            source_overlay,
+        ) {
             WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. } => None,
         }
@@ -269,14 +282,9 @@ fn select_scope(
         .parent()
         .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
     loop {
-        let declaration = directory.join("nocter.nct");
-        if source_overlay.is_file(&declaration).map_err(|error| {
-            WorkspaceAnalysisError::Filesystem {
-                operation: "inspect package declaration",
-                path: declaration,
-                error,
-            }
-        })? {
+        if nocter_package::has_package_declaration(source_overlay, directory)
+            .map_err(WorkspaceAnalysisError::PackageRootProbe)?
+        {
             return Ok(AnalysisScope::Package(directory.to_path_buf()));
         }
         if directory == workspace {
@@ -293,12 +301,13 @@ fn select_scope(
 fn compile_scope(
     configuration: &WorkspaceConfiguration,
     scope: &AnalysisScope,
+    document: &Path,
     generation: GenerationId,
     source_overlay: SourceOverlay,
 ) -> WorkspaceAnalysisState {
     let discovered = match scope {
         AnalysisScope::Package(root) => {
-            discover_package(configuration, root, source_overlay.clone())
+            discover_package(configuration, root, document, source_overlay.clone())
         }
         AnalysisScope::ToolchainStandard(_) => {
             discover_toolchain_standard(configuration, source_overlay.clone())
@@ -345,6 +354,7 @@ fn discover_toolchain_standard(
 fn discover_package(
     configuration: &WorkspaceConfiguration,
     root: &Path,
+    document: &Path,
     source_overlay: SourceOverlay,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
@@ -375,6 +385,17 @@ fn discover_package(
         root_package.clone(),
         Vec::<Box<str>>::new(),
     ));
+    roots.insert(
+        nocter_discovery::module_for_source(
+            &root_package,
+            root,
+            document,
+            selected.graph().source_overlay(),
+        )
+        .map_err(|error| {
+            AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::ModuleOwner(error))
+        })?,
+    );
     if let Some(declaration) = package.declaration() {
         roots.extend(declaration.targets().iter().map(|target| {
             ModuleIdentity::new(root_package.clone(), target.module().iter().cloned())
@@ -421,6 +442,8 @@ pub enum WorkspaceAnalysisError {
     MissingRootPackage(nocter_model::PackageIdentity),
     Package(PackageResolutionFailure),
     StandardPackage(PackageGraphError),
+    PackageRootProbe(nocter_package::PackageRootProbeError),
+    ModuleOwner(nocter_discovery::DiscoveryError),
     Filesystem {
         operation: &'static str,
         path: PathBuf,
@@ -432,10 +455,11 @@ impl WorkspaceAnalysisError {
     #[must_use]
     pub const fn diagnostic_code(&self) -> &'static str {
         match self {
-            Self::OutsideWorkspace(_) | Self::UnsupportedSource(_) | Self::Filesystem { .. } => {
-                "E0702"
-            }
-            Self::Package(_) => "E0800",
+            Self::OutsideWorkspace(_)
+            | Self::UnsupportedSource(_)
+            | Self::Filesystem { .. }
+            | Self::ModuleOwner(_) => "E0702",
+            Self::Package(_) | Self::PackageRootProbe(_) => "E0800",
             Self::StandardPackage(_) => "E0703",
             Self::MissingRootPackage(_) => "E0900",
         }
@@ -478,6 +502,10 @@ impl fmt::Display for WorkspaceAnalysisError {
             Self::StandardPackage(error) => {
                 write!(formatter, "standard package is invalid: {error}")
             }
+            Self::PackageRootProbe(error) => error.fmt(formatter),
+            Self::ModuleOwner(error) => {
+                write!(formatter, "cannot determine source module: {error}")
+            }
             Self::Filesystem {
                 operation,
                 path,
@@ -492,6 +520,8 @@ impl std::error::Error for WorkspaceAnalysisError {
         match self {
             Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
+            Self::PackageRootProbe(error) => Some(error),
+            Self::ModuleOwner(error) => Some(error),
             Self::Filesystem { error, .. } => Some(error),
             Self::OutsideWorkspace(_)
             | Self::UnsupportedSource(_)
@@ -519,16 +549,25 @@ mod tests {
     #[test]
     fn package_generation_uses_overlay_bytes_and_reaches_compiler_analysis() {
         let temporary = TemporaryDirectory::new();
-        fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        fs::write(
+            temporary.path().join("index.nct"),
+            concat!(
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
+                "pub func answer(): i32 { return 42 }\n",
+            ),
+        )
+        .unwrap();
         let source = temporary.path().join("index.nct");
-        fs::write(&source, "pub func answer(): i32 { return 42 }\n").unwrap();
         let configuration = configuration(temporary.path());
         let mut documents = DocumentWorkspace::new();
         let accepted = documents
             .open(&open_params(
                 &source,
                 7,
-                "pub func answer(): i32 { return }\n",
+                concat!(
+                    "#package: { name: \"app\", version: \"0.0.0\", }\n",
+                    "pub func answer(): i32 { return }\n",
+                ),
             ))
             .unwrap();
         let canonical_source = accepted.path().to_path_buf();
@@ -546,7 +585,11 @@ mod tests {
                 .document(&canonical_source)
                 .unwrap()
                 .bytes(),
-            b"pub func answer(): i32 { return }\n"
+            concat!(
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
+                "pub func answer(): i32 { return }\n",
+            )
+            .as_bytes()
         );
         assert_eq!(
             analyses
@@ -558,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn source_without_a_bounded_manifest_uses_single_file_mode() {
+    fn source_without_a_bounded_package_root_uses_single_file_mode() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("standalone.nct");
         let configuration = configuration(temporary.path());
@@ -576,7 +619,9 @@ mod tests {
         );
         assert_eq!(
             analyzed.snapshot().unwrap().status(),
-            AnalysisStatus::Complete
+            AnalysisStatus::Complete,
+            "{:?}",
+            analyzed.snapshot().unwrap().diagnostics()
         );
     }
 
@@ -599,7 +644,10 @@ mod tests {
         assert!(analyzed.preparation_failure().is_none());
         assert_eq!(
             analyzed.snapshot().unwrap().status(),
-            AnalysisStatus::Complete
+            AnalysisStatus::Complete,
+            "diagnostics={:?}, failure={:?}",
+            analyzed.snapshot().unwrap().diagnostics(),
+            analyzed.snapshot().unwrap().compilation_failure()
         );
     }
 
@@ -622,7 +670,13 @@ mod tests {
         let canonical_contract = contract_generation.path().to_path_buf();
         let mut analyses = WorkspaceAnalyses::new(configuration);
         let first = analyses.analyze(contract_generation);
-        assert_eq!(first.snapshot().unwrap().status(), AnalysisStatus::Complete);
+        assert_eq!(
+            first.snapshot().unwrap().status(),
+            AnalysisStatus::Complete,
+            "diagnostics={:?}, failure={:?}",
+            first.snapshot().unwrap().diagnostics(),
+            first.snapshot().unwrap().compilation_failure()
+        );
 
         let implementation_generation = documents
             .open(&open_params(&implementation, 3, &implementation_text))

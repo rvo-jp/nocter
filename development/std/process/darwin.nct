@@ -1,6 +1,6 @@
 //! Process views and Darwin process operations.
 
-include ./index.nct
+see ./index.nct
 
 use std/mem.RawBuffer
 use std/mem.TryAllocator

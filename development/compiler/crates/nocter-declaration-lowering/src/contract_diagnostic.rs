@@ -383,11 +383,11 @@ mod tests {
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
     use super::{DeclarationContractDiagnostic, DeclarationContractRule};
-    use crate::test_support::source_include;
+    use crate::test_support::source_see;
     use crate::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-        analyze_declaration_contracts, collect_declaration_surface,
+        PackageIdentity, PackageInput, PackageMode, analyze_declaration_contracts,
+        collect_declaration_surface,
     };
 
     #[test]
@@ -436,25 +436,24 @@ mod tests {
     #[test]
     fn mismatch_projects_body_as_primary_and_contract_as_related() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
-            "include ./parse.nct\n\npub func parse(text: &str): usize\n",
+            "see ./parse.nct\n\npub func parse(text: &str): usize\n",
         );
         let implementation_id = add_source(
             &mut sources,
             "/app/parse.nct",
-            "include ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
+            "see ./index.nct\n\nfunc parse(text: usize): usize { text }\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let _manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let package = PackageInput::new(
             PackageIdentity::new("workspace:app"),
             "app",
             PackageMode::Declared,
-            Some(PackageDeclarationInput::new("/app/nocter.nct", &manifest)),
         );
         let module = ModuleInput::new(
             ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -474,9 +473,9 @@ mod tests {
             vec![module],
             Vec::new(),
         )
-        .with_include_resolutions(vec![
-            source_include(&root, 0, "/app/parse.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+        .with_source_visibility_resolutions(vec![
+            source_see(&root, 0, "/app/parse.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ]);
         let surface = collect_declaration_surface(&input).unwrap();
 
@@ -497,12 +496,12 @@ mod tests {
     #[test]
     fn implementation_only_conformance_projects_its_authored_source() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
             concat!(
-                "include ./value.nct\n",
+                "see ./value.nct\n",
                 "pub interface Read { pub method &self.read(): usize }\n",
                 "pub struct Value {}\n",
             ),
@@ -511,13 +510,13 @@ mod tests {
             &mut sources,
             "/app/value.nct",
             concat!(
-                "include ./index.nct\n",
+                "see ./index.nct\n",
                 "conform Read for Value {\n",
                 "    method &self.read(): usize { return 0 }\n",
                 "}\n",
             ),
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let _manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
@@ -527,7 +526,6 @@ mod tests {
                 PackageIdentity::new("workspace:app"),
                 "app",
                 PackageMode::Declared,
-                Some(PackageDeclarationInput::new("/app/nocter.nct", &manifest)),
             )],
             vec![ModuleInput::new(
                 ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -542,9 +540,9 @@ mod tests {
             )],
             Vec::new(),
         )
-        .with_include_resolutions(vec![
-            source_include(&root, 0, "/app/value.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+        .with_source_visibility_resolutions(vec![
+            source_see(&root, 0, "/app/value.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ]);
         let surface = collect_declaration_surface(&input).unwrap();
         let error = analyze_declaration_contracts(&surface).unwrap_err();
@@ -561,18 +559,18 @@ mod tests {
     #[test]
     fn private_implementation_entries_do_not_require_public_contracts() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
             &mut sources,
             "/app/index.nct",
-            "include ./build.nct\n\nstruct Value {}\n",
+            "see ./build.nct\n\nstruct Value {}\n",
         );
         let implementation_id = add_source(
             &mut sources,
             "/app/build.nct",
-            "include ./index.nct\n\nconstruct Value {\n    func new(): Self {}\n}\n",
+            "see ./index.nct\n\nconstruct Value {\n    func new(): Self {}\n}\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let _manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
@@ -582,7 +580,6 @@ mod tests {
                 PackageIdentity::new("workspace:app"),
                 "app",
                 PackageMode::Declared,
-                Some(PackageDeclarationInput::new("/app/nocter.nct", &manifest)),
             )],
             vec![ModuleInput::new(
                 ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -597,9 +594,9 @@ mod tests {
             )],
             Vec::new(),
         )
-        .with_include_resolutions(vec![
-            source_include(&root, 0, "/app/build.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+        .with_source_visibility_resolutions(vec![
+            source_see(&root, 0, "/app/build.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ]);
         let surface = collect_declaration_surface(&input).unwrap();
         analyze_declaration_contracts(&surface).unwrap();

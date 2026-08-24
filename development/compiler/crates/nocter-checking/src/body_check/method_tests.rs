@@ -25,13 +25,13 @@ fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate
 #[test]
 fn private_methods_require_direct_source_access() {
     let root = concat!(
-        "include ./value.nct\n",
-        "include ./consumer.nct\n",
+        "see ./value.nct\n",
+        "see ./consumer.nct\n",
         "\n",
         "pub struct Value\n",
     );
     let value = concat!(
-        "include ./index.nct\n",
+        "see ./index.nct\n",
         "\n",
         "struct Value { value: i32 }\n",
         "instance Value {\n",
@@ -39,7 +39,7 @@ fn private_methods_require_direct_source_access() {
         "}\n",
     );
     let indirect_consumer = concat!(
-        "include ./index.nct\n",
+        "see ./index.nct\n",
         "\n",
         "func probe(value: &Value): i32 { value.hidden() }\n",
     );
@@ -51,8 +51,8 @@ fn private_methods_require_direct_source_access() {
     assert_eq!(error.rule(), Some(crate::BodyRule::InvalidCall));
 
     let direct_consumer = concat!(
-        "include ./index.nct\n",
-        "include ./value.nct\n",
+        "see ./index.nct\n",
+        "see ./value.nct\n",
         "\n",
         "func probe(value: &Value): i32 { value.hidden() }\n",
     );
@@ -113,18 +113,14 @@ fn interface_methods_preserve_the_argument_pack_contract_through_conformance() {
 #[test]
 fn private_fields_require_direct_source_access() {
     let root = concat!(
-        "include ./value.nct\n",
-        "include ./consumer.nct\n",
+        "see ./value.nct\n",
+        "see ./consumer.nct\n",
         "\n",
         "pub struct Value\n",
     );
-    let value = concat!(
-        "include ./index.nct\n",
-        "\n",
-        "struct Value { hidden: i32 }\n",
-    );
+    let value = concat!("see ./index.nct\n", "\n", "struct Value { hidden: i32 }\n",);
     let indirect_consumer = concat!(
-        "include ./index.nct\n",
+        "see ./index.nct\n",
         "\n",
         "func probe(value: &Value): i32 { value.hidden }\n",
     );
@@ -136,8 +132,8 @@ fn private_fields_require_direct_source_access() {
     assert_eq!(error.rule(), Some(crate::BodyRule::InaccessibleField));
 
     let direct_consumer = concat!(
-        "include ./index.nct\n",
-        "include ./value.nct\n",
+        "see ./index.nct\n",
+        "see ./value.nct\n",
         "\n",
         "func probe(value: &Value): i32 { value.hidden }\n",
     );
@@ -151,13 +147,13 @@ fn private_fields_require_direct_source_access() {
 #[test]
 fn private_construction_members_require_direct_source_access() {
     let root = concat!(
-        "include ./value.nct\n",
-        "include ./consumer.nct\n",
+        "see ./value.nct\n",
+        "see ./consumer.nct\n",
         "\n",
         "pub struct Value\n",
     );
     let value = concat!(
-        "include ./index.nct\n",
+        "see ./index.nct\n",
         "\n",
         "struct Value {}\n",
         "construct Value {\n",
@@ -165,7 +161,7 @@ fn private_construction_members_require_direct_source_access() {
         "}\n",
     );
     let indirect_consumer = concat!(
-        "include ./index.nct\n",
+        "see ./index.nct\n",
         "\n",
         "func probe(): Value { Value.hidden() }\n",
     );
@@ -177,8 +173,8 @@ fn private_construction_members_require_direct_source_access() {
     assert_eq!(error.rule(), Some(crate::BodyRule::InvalidCall));
 
     let direct_consumer = concat!(
-        "include ./index.nct\n",
-        "include ./value.nct\n",
+        "see ./index.nct\n",
+        "see ./value.nct\n",
         "\n",
         "func probe(): Value { Value.hidden() }\n",
     );

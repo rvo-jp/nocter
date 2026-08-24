@@ -3,11 +3,11 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{HeaderError, prepare_declaration_headers};
-use crate::test_support::source_include;
+use crate::test_support::source_see;
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId,
-    collect_declaration_surface, reserve_declaration_identities,
+    PackageIdentity, PackageInput, PackageMode, SurfaceDeclarationId, collect_declaration_surface,
+    reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -24,12 +24,11 @@ fn parse_source(
     parse(sources.get(source).unwrap(), goal)
 }
 
-fn package(manifest: &SyntaxTree) -> PackageInput<'_> {
+fn package(_manifest: &SyntaxTree) -> PackageInput {
     PackageInput::new(
         PackageIdentity::new("workspace:app"),
         "app",
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new("/app/nocter.nct", manifest)),
     )
 }
 
@@ -46,13 +45,13 @@ fn module<'syntax>(
 #[test]
 fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         "pub copy struct Value {\n    pub item: usize\n}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -85,18 +84,18 @@ fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
 #[test]
 fn duplicate_module_names_are_order_independent() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./other.nct\n\nfunc duplicate(): void {}\n",
+        "see ./other.nct\n\nfunc duplicate(): void {}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/other.nct",
         "func duplicate(value: usize): void {}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
@@ -116,7 +115,7 @@ fn duplicate_module_names_are_order_independent() {
         )],
         Vec::new(),
     )
-    .with_include_resolutions(vec![source_include(&root, 0, "/app/other.nct")]);
+    .with_source_visibility_resolutions(vec![source_see(&root, 0, "/app/other.nct")]);
     let reserved =
         reserve_declaration_identities(collect_declaration_surface(&input).unwrap()).unwrap();
 
@@ -130,14 +129,14 @@ fn duplicate_module_names_are_order_independent() {
 #[test]
 fn visibility_scopes_resolve_to_semantic_package_and_module_boundaries() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(&mut sources, "/app/index.nct", "func root(): void {}\n");
     let child_id = add_source(
         &mut sources,
         "/app/parser/index.nct",
         "pub(../) func ancestor(): void {}\npub(./) enum Local { item }\npub(/) func package(): void {}\npub func global(): void {}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let child = parse_source(&sources, child_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(

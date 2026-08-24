@@ -29,7 +29,7 @@ const CASES: &[SnapshotCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g001-package.shape"
         )),
-        goal: ParseGoal::PackageFile,
+        goal: ParseGoal::SourceFile,
     },
     SnapshotCase {
         name: "G002-G006 module prefix and callable declaration",
@@ -124,7 +124,7 @@ const REJECTED_CASES: &[RejectedCase] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/fixtures/syntax/g001-package-reject.nct"
         )),
-        goal: ParseGoal::PackageFile,
+        goal: ParseGoal::SourceFile,
     },
     RejectedCase {
         name: "G002-G006 module prefix",

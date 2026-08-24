@@ -3,7 +3,7 @@
 //! Whole-file functions compose the stream contracts in `std/io`. Raw target
 //! paths, errno values, syscalls, and metadata layout remain in `std/internal/os`.
 
-include ./filesystem.nct
+see ./filesystem.nct
 
 use std/string.String
 use std/vec.Vec

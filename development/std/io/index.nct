@@ -4,10 +4,10 @@
 //! and fail with the compiler built-in `error` payload. Target-specific syscall
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
-include ./core.nct
+see ./core.nct
 use std/string.String
 use std/vec.Vec
-include ./file.nct
+see ./file.nct
 
 /// A source that initializes at most `buffer.len()` bytes per read.
 pub interface Reader {

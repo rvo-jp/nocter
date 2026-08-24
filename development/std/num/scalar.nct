@@ -1,6 +1,6 @@
 //! Built-in scalar comparison behavior.
 
-include ./index.nct
+see ./index.nct
 
 use std/fmt.{append_i32, append_u8, append_usize}
 use std/fmt.{try_append_i32, try_append_u8, try_append_usize}

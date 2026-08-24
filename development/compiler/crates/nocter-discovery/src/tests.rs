@@ -38,7 +38,9 @@ impl TempTree {
     fn source(&self, relative: &str, text: &str) {
         let path = self.0.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, text).unwrap();
+        let mut contents = fs::read_to_string(&path).unwrap_or_default();
+        contents.push_str(text);
+        fs::write(path, contents).unwrap();
     }
 }
 
@@ -80,14 +82,17 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
 #[test]
 fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
     let tree = TempTree::new();
-    tree.source("std/nocter.nct", "#name: \"std\"\n");
     tree.source(
         "std/index.nct",
-        "include ./defaults.nct\n\npub interface Iterator {\n    pub default method self.count(): usize\n}\n",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
+    tree.source(
+        "std/index.nct",
+        "see ./defaults.nct\n\npub interface Iterator {\n    pub default method self.count(): usize\n}\n",
     );
     tree.source(
         "std/defaults.nct",
-        "include ./index.nct\n\ninterface Iterator {\n    default method self.count(): usize { return 0 }\n}\n",
+        "see ./index.nct\n\ninterface Iterator {\n    default method self.count(): usize { return 0 }\n}\n",
     );
     let identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &tree.path().join("std"))
@@ -124,13 +129,16 @@ fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
 }
 
 #[test]
-fn primitive_role_resolution_selects_a_private_included_declaration() {
+fn primitive_role_resolution_selects_a_private_visible_declaration() {
     let tree = TempTree::new();
-    tree.source("std/nocter.nct", "#name: \"std\"\n");
-    tree.source("std/index.nct", "include ./runtime.nct\n");
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
+    tree.source("std/index.nct", "see ./runtime.nct\n");
     tree.source(
         "std/runtime.nct",
-        "include ./index.nct\n\nprimitive new_error(code: &str, message: &str): error\n",
+        "see ./index.nct\n\nprimitive new_error(code: &str, message: &str): error\n",
     );
     let identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &tree.path().join("std"))
@@ -169,15 +177,18 @@ fn primitive_role_resolution_selects_a_private_included_declaration() {
 #[test]
 fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
     let tree = TempTree::new();
-    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
     tree.source("std/index.nct", "//! Standard root.\n");
     tree.source(
         "std/unreferenced/index.nct",
-        "include ./body.nct\n\npub struct Unreferenced {}\n",
+        "see ./body.nct\n\npub struct Unreferenced {}\n",
     );
     tree.source(
         "std/unreferenced/body.nct",
-        "include ./index.nct\n\nstruct Unreferenced {}\n",
+        "see ./index.nct\n\nstruct Unreferenced {}\n",
     );
     let identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &tree.path().join("std"))
@@ -201,23 +212,20 @@ fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
 #[test]
 fn one_open_document_overlay_flows_from_package_data_through_module_discovery() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "#name: \"disk-name\"\n");
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"disk-name\", version: \"0.0.0\", }\n",
+    );
     tree.source("app/index.nct", "func disk_version(): void { return }\n");
-    let manifest = fs::canonicalize(tree.path().join("app/nocter.nct")).unwrap();
+    let manifest = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let root_source = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
-    overlay
-        .insert_document(
-            manifest.clone(),
-            OpenDocument::new(DocumentVersion::new(4), &b"#name: \"editor-name\"\n"[..]),
-        )
-        .unwrap();
     overlay
         .insert_document(
             root_source.clone(),
             OpenDocument::new(
                 DocumentVersion::new(9),
-                &b"func editor_version(): void { return }\n"[..],
+                &b"#package: { name: \"editor-name\", version: \"0.0.0\", }\nfunc editor_version(): void { return }\n"[..],
             ),
         )
         .unwrap();
@@ -235,7 +243,7 @@ fn one_open_document_overlay_flows_from_package_data_through_module_discovery() 
 
     assert_eq!(
         unit.source_overlay().document(&manifest).unwrap().version(),
-        DocumentVersion::new(4)
+        DocumentVersion::new(9)
     );
     assert_eq!(
         unit.source_overlay()
@@ -255,7 +263,10 @@ fn one_open_document_overlay_flows_from_package_data_through_module_discovery() 
         .sources()
         .get(root.sources()[0].syntax().source())
         .unwrap();
-    assert_eq!(source.text(), "func editor_version(): void { return }\n");
+    assert_eq!(
+        source.text(),
+        "#package: { name: \"editor-name\", version: \"0.0.0\", }\nfunc editor_version(): void { return }\n"
+    );
 }
 
 #[test]
@@ -265,7 +276,10 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         "app.nct",
         "use std/value.Value\n\nfunc main(): void { return }\n",
     );
-    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
     tree.source("std/index.nct", "//! Standard root.\n");
     tree.source("std/value/index.nct", "pub struct Value {}\n");
     let standard = package("toolchain:std", "std", &tree.path().join("std"));
@@ -288,7 +302,7 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         std::slice::from_ref(single.identity())
     );
     assert_eq!(single.display_name(), "app");
-    assert!(single.declaration().is_none());
+    assert_eq!(single.mode(), PackageMode::SingleFile);
     let module = input
         .modules()
         .iter()
@@ -312,7 +326,10 @@ fn single_file_cannot_open_a_parallel_local_source_graph() {
     let tree = TempTree::new();
     tree.source("app.nct", "use ./helper\n\nfunc main(): void { return }\n");
     tree.source("helper.nct", "func helper(): void { return }\n");
-    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
     tree.source("std/index.nct", "//! Standard root.\n");
 
     let error = discover(DiscoveryRequest::single_file(
@@ -348,19 +365,22 @@ fn single_file_cannot_open_a_parallel_local_source_graph() {
 fn closes_source_folder_module_and_dependency_edges_once() {
     let tree = TempTree::new();
     tree.source(
-        "app/nocter.nct",
-        "#name: \"app\"\n#dependencies: { dep: { path: \"../dep\", }, }\n",
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { dep: { path: \"../dep\", }, }\n",
     );
     tree.source(
         "app/index.nct",
-        "include ./internal/search.nct\nuse ./parser\nuse dep/value.Value\n\nfunc root(): void { return }\n",
+        "see ./internal/search.nct\nuse ./parser\nuse dep/value.Value\n\nfunc root(): void { return }\n",
     );
     tree.source(
         "app/internal/search.nct",
         "func private_search(): void { return }\n",
     );
     tree.source("app/parser/index.nct", "pub struct Parser {}\n");
-    tree.source("dep/nocter.nct", "#name: \"dep\"\n");
+    tree.source(
+        "dep/index.nct",
+        "#package: { name: \"dep\", version: \"0.0.0\", }\n",
+    );
     tree.source("dep/index.nct", "//! Dependency root.\n");
     tree.source("dep/value/index.nct", "pub struct Value {}\n");
 
@@ -411,9 +431,9 @@ fn closes_source_folder_module_and_dependency_edges_once() {
         input.root_packages(),
         &[PackageIdentity::new("workspace:app")]
     );
-    assert_eq!(input.include_resolutions().len(), 1);
+    assert_eq!(input.source_visibility_resolutions().len(), 1);
     assert!(
-        input.include_resolutions()[0]
+        input.source_visibility_resolutions()[0]
             .target_source()
             .ends_with("/app/internal/search.nct")
     );
@@ -425,8 +445,8 @@ fn closes_source_folder_module_and_dependency_edges_once() {
 fn selected_declared_roots_retain_exact_package_target_directives() {
     let tree = TempTree::new();
     tree.source(
-        "app/nocter.nct",
-        "#name: \"app\"\n#executable: { name: \"app\" }\n#test: { name: \"unit\", module: \"./tests/unit\" }\n",
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n#executable: { name: \"app\" }\n#test: { name: \"unit\", module: \"./tests/unit\" }\n",
     );
     tree.source("app/index.nct", "func main(): void { return }\n");
     tree.source("app/tests/unit/index.nct", "test works { return }\n");
@@ -453,9 +473,60 @@ fn selected_declared_roots_retain_exact_package_target_directives() {
 }
 
 #[test]
+fn declared_module_inventory_includes_an_overlay_only_source_with_physical_ownership() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
+    let package_root = fs::canonicalize(tree.path().join("app")).unwrap();
+    let virtual_source = package_root.join("editor.nct");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_document(
+            virtual_source.clone(),
+            OpenDocument::new(
+                DocumentVersion::new(1),
+                &b"func editor_value(): i32 { return 1 }\n"[..],
+            ),
+        )
+        .unwrap();
+    let package = PackageIdentity::new("workspace:app");
+    let root = ModuleIdentity::new(package.clone(), Vec::<&str>::new());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![ResolvedPackageSpec::new(package.clone(), &package_root)],
+            overlay.finish(),
+        ),
+        vec![root.clone()],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+
+    let sources = unit
+        .modules()
+        .iter()
+        .find(|module| module.identity() == &root)
+        .unwrap()
+        .sources();
+    assert_eq!(sources.len(), 2);
+    assert!(
+        sources
+            .iter()
+            .any(|source| source.canonical_path() == virtual_source.to_str().unwrap())
+    );
+    nocter_declaration_lowering::lower_compile_unit_declarations(&unit.compile_input().unwrap())
+        .unwrap();
+}
+
+#[test]
 fn use_selects_a_directory_module_even_when_a_same_named_source_exists() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "");
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
     tree.source("app/index.nct", "use ./search\n");
     tree.source("app/search.nct", "func search(): void { return }\n");
     tree.source(
@@ -476,7 +547,7 @@ fn use_selects_a_directory_module_even_when_a_same_named_source_exists() {
     .unwrap();
 
     let input = unit.compile_input().unwrap();
-    assert!(input.include_resolutions().is_empty());
+    assert!(input.source_visibility_resolutions().is_empty());
     assert_eq!(input.use_resolutions().len(), 1);
     assert_eq!(
         input.use_resolutions()[0].target_module(),
@@ -487,7 +558,10 @@ fn use_selects_a_directory_module_even_when_a_same_named_source_exists() {
 #[test]
 fn inactive_target_imports_do_not_probe_the_filesystem() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "");
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
     tree.source(
         "app/index.nct",
         "#target: \"x64-linux\"\nfunc inactive(): void {\n    use ./missing\n    return\n}\nfunc active(): void { return }\n",
@@ -511,8 +585,10 @@ fn inactive_target_imports_do_not_probe_the_filesystem() {
 fn canonical_output_does_not_depend_on_request_order() {
     let tree = TempTree::new();
     for name in ["a", "b"] {
-        tree.source(&format!("{name}/nocter.nct"), "");
-        tree.source(&format!("{name}/index.nct"), "");
+        tree.source(
+            &format!("{name}/index.nct"),
+            &format!("#package: {{ name: \"{name}\", version: \"0.0.0\", }}\n"),
+        );
     }
     let a = package("workspace:a", "a", &tree.path().join("a"));
     let b = package("workspace:b", "b", &tree.path().join("b"));

@@ -6,7 +6,7 @@
 
 use std/iter.Iterator
 use std/vec.Vec
-include ./collection.nct
+see ./collection.nct
 
 /// Consumes `source` into a newly allocated Vec.
 pub func to_vec<I>(source: I): Vec<I.Item> from source where I: Iterator

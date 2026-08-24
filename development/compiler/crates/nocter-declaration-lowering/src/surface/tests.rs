@@ -2,10 +2,10 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{SurfaceDeclarationKind, SurfaceError, collect_declaration_surface};
-use crate::test_support::{module_use, source_include};
+use crate::test_support::{module_use, source_see};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    PackageIdentity, PackageInput, PackageMode,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -22,12 +22,11 @@ fn parse_source(
     parse(sources.get(source).unwrap(), goal)
 }
 
-fn package(manifest: &SyntaxTree) -> PackageInput<'_> {
+fn package(_manifest: &SyntaxTree) -> PackageInput {
     PackageInput::new(
         PackageIdentity::new("workspace:app"),
         "app",
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new("/app/nocter.nct", manifest)),
     )
 }
 
@@ -41,7 +40,11 @@ fn root_module(sources: Vec<ModuleSourceInput<'_>>) -> ModuleInput<'_> {
 #[test]
 fn inventories_every_reservable_declaration_with_its_exact_owner() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "#name: \"app\"\n");
+    let manifest_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -50,7 +53,7 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
             "/../../tests/fixtures/syntax/g007-g012-declarations.nct"
         )),
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -100,7 +103,11 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
 #[test]
 fn retains_resolved_import_edges_and_unresolved_item_target_syntax() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "#name: \"app\"\n");
+    let manifest_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -110,7 +117,7 @@ fn retains_resolved_import_edges_and_unresolved_item_target_syntax() {
         )),
     );
     let parser_id = add_source(&mut sources, "/app/parser/index.nct", "");
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let parser = parse_source(&sources, parser_id, ParseGoal::SourceFile);
     let parser_identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["parser"]);
@@ -150,15 +157,15 @@ fn retains_resolved_import_edges_and_unresolved_item_target_syntax() {
 #[test]
 fn canonical_source_order_is_independent_of_discovery_order() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./a.nct\ninclude ./z.nct\n\nfunc root(): void {}\n",
+        "see ./a.nct\nsee ./z.nct\n\nfunc root(): void {}\n",
     );
     let a_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let z_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
     let z = parse_source(&sources, z_id, ParseGoal::SourceFile);
@@ -168,8 +175,8 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         ModuleSourceInput::new("/app/a.nct", ModuleSourceKind::Implementation, &a),
     ];
     let resolutions = vec![
-        source_include(&root, 0, "/app/a.nct"),
-        source_include(&root, 1, "/app/z.nct"),
+        source_see(&root, 0, "/app/a.nct"),
+        source_see(&root, 1, "/app/z.nct"),
     ];
     let forward = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -178,7 +185,7 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         vec![root_module(module_sources.clone())],
         Vec::new(),
     )
-    .with_include_resolutions(resolutions.clone());
+    .with_source_visibility_resolutions(resolutions.clone());
     let reverse = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -186,7 +193,7 @@ fn canonical_source_order_is_independent_of_discovery_order() {
         vec![root_module(module_sources.into_iter().rev().collect())],
         Vec::new(),
     )
-    .with_include_resolutions(resolutions);
+    .with_source_visibility_resolutions(resolutions);
 
     let forward = collect_declaration_surface(&forward).unwrap();
     let reverse = collect_declaration_surface(&reverse).unwrap();
@@ -205,11 +212,11 @@ fn canonical_source_order_is_independent_of_discovery_order() {
 #[test]
 fn implementation_sources_are_private_but_may_define_nominal_representation() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./implementation.nct\n\nfunc root(): void {}\n",
+        "see ./implementation.nct\n\nfunc root(): void {}\n",
     );
     let public_id = add_source(
         &mut sources,
@@ -221,7 +228,7 @@ fn implementation_sources_are_private_but_may_define_nominal_representation() {
         "/app/record.nct",
         "struct Hidden { value: usize }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let public = parse_source(&sources, public_id, ParseGoal::SourceFile);
     let field = parse_source(&sources, field_id, ParseGoal::SourceFile);
@@ -241,7 +248,7 @@ fn implementation_sources_are_private_but_may_define_nominal_representation() {
             ])],
             Vec::new(),
         )
-        .with_include_resolutions(vec![source_include(
+        .with_source_visibility_resolutions(vec![source_see(
             &root,
             0,
             "/app/implementation.nct",
@@ -258,7 +265,7 @@ fn implementation_sources_are_private_but_may_define_nominal_representation() {
 #[test]
 fn target_selection_excludes_the_complete_inactive_item_from_frontend_inputs() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -270,7 +277,7 @@ fn target_selection_excludes_the_complete_inactive_item_from_frontend_inputs() {
              dormant_symbol()\n\
          }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     assert!(!root.has_errors(), "{:#?}", root.diagnostics());
     let input = CompileUnitInput::new(
@@ -305,13 +312,13 @@ fn target_selection_excludes_the_complete_inactive_item_from_frontend_inputs() {
 #[test]
 fn unknown_target_gate_is_an_authored_surface_error() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
         "#target: \"mips-templeos\"\nfunc platform(): void {}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     assert!(!root.has_errors(), "{:#?}", root.diagnostics());
     let input = CompileUnitInput::new(

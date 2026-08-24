@@ -1,6 +1,6 @@
 //! Borrowed UTF-8 text operations.
 
-include ./index.nct
+see ./index.nct
 
 use std/iter.{Iterator, ViewIter}
 use std/ptr.from_addr

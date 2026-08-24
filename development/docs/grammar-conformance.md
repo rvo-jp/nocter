@@ -35,8 +35,8 @@ those results.
 
 | ID | Production coverage | Parse case | Syntax rejection | Semantic-boundary case |
 | --- | --- | --- | --- | --- |
-| G001 | `PackageFile`, `PackageDirective`, directive records and fields | `#name: "p"` | `#name: true` | duplicate `#name` directives |
-| G002 | `ModuleSource`, include/use/item sequencing | `include ./helper.nct` before `func run(): void {}` | an `include` after the function | a public item in an implementation source |
+| G001 | `SourceFile`, `PackageDirective`, directive records and fields | `#package: { name: "p", version: "0.0.0" }` | `#package: true` | duplicate `#package` directives |
+| G002 | `SourceFile`, see/use/item sequencing | `see ./helper.nct` before `func run(): void {}` | a `see` after the function | a public item in an implementation source |
 | G003 | visibility scopes | `pub(../../) func run(): void {}` | `pub(parser) func run(): void {}` | visibility wider than the declaration can expose |
 | G004 | module paths, selections, aliases, and re-exports | `use /parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
 | G005 | target attachment and targetable items | `#target: "arm64-darwin"` followed by a function | `#target: "arm64-darwin"` before `test smoke {}` | an unsupported target name |

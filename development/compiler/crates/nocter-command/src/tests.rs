@@ -67,12 +67,8 @@ impl PackageAcquisitionAuthority for FixtureAcquisition {
         assert!(request.workspace().is_dir());
         self.fetch_calls += 1;
         fs::write(
-            request.destination().join("nocter.nct"),
-            "#name: \"remote\"\n",
-        )?;
-        fs::write(
             request.destination().join("index.nct"),
-            "//! Remote package.\n",
+            "//! Remote package.\n#package: { name: \"remote\", version: \"0.0.0\", }\n",
         )
     }
 }
@@ -112,7 +108,11 @@ fn failed_output_selection_does_not_create_a_temporary_artifact() {
 #[test]
 fn default_program_input_selects_only_the_exact_current_package() {
     let directory = unique_test_directory("input-package");
-    fs::write(directory.join("nocter.nct"), "#name: \"app\"\n").unwrap();
+    fs::write(
+        directory.join("index.nct"),
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    )
+    .unwrap();
 
     let selected = super::resolve_program_input(
         &directory,
@@ -122,14 +122,18 @@ fn default_program_input_selects_only_the_exact_current_package() {
 
     let package = selected.package().unwrap();
     assert_eq!(package.root(), fs::canonicalize(&directory).unwrap());
-    assert_eq!(package.declaration(), package.root().join("nocter.nct"));
+    assert_eq!(package.declaration(), package.root().join("index.nct"));
     fs::remove_dir_all(directory).unwrap();
 }
 
 #[test]
 fn package_input_never_searches_an_ancestor_for_nocter_nct() {
     let directory = unique_test_directory("input-no-ancestor");
-    fs::write(directory.join("nocter.nct"), "#name: \"parent\"\n").unwrap();
+    fs::write(
+        directory.join("index.nct"),
+        "#package: { name: \"parent\", version: \"0.0.0\", }\n",
+    )
+    .unwrap();
     let child = directory.join("child");
     fs::create_dir(&child).unwrap();
 
@@ -140,7 +144,7 @@ fn package_input_never_searches_an_ancestor_for_nocter_nct() {
     assert!(matches!(
         error,
         super::ProgramInputError::MissingPackageDeclaration(path)
-            if path == fs::canonicalize(&child).unwrap().join("nocter.nct")
+            if path == fs::canonicalize(&child).unwrap().join("index.nct")
     ));
     fs::remove_dir_all(directory).unwrap();
 }
@@ -185,7 +189,11 @@ fn build_and_run_plans_close_package_and_file_selection_rules() {
     let directory = unique_test_directory("command-plans");
     let package_root = directory.join("package");
     fs::create_dir(&package_root).unwrap();
-    fs::write(package_root.join("nocter.nct"), "#name: \"app\"\n").unwrap();
+    fs::write(
+        package_root.join("index.nct"),
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    )
+    .unwrap();
     fs::write(
         directory.join("script.nct"),
         "func main(): void { return }\n",
@@ -280,8 +288,8 @@ fn package_build_publishes_all_executables_in_declaration_order() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"tools\"\n#executable: { name: \"first\", module: \"./src/first\" }\n#executable: { name: \"second\", module: \"./src/second\" }\n",
+        "index.nct",
+        "#package: { name: \"tools\", version: \"0.0.0\", }\n#executable: { name: \"first\", module: \"./src/first\" }\n#executable: { name: \"second\", module: \"./src/second\" }\n",
     );
     write_source(&package_root, "index.nct", "//! Tools package.\n");
     write_source(
@@ -332,8 +340,10 @@ fn package_build_rejects_cross_root_output_collisions_before_writing() {
     for (root, name) in [(&first_root, "first"), (&second_root, "second")] {
         write_source(
             root,
-            "nocter.nct",
-            &format!("#name: \"{name}\"\n#executable: {{ name: \"tool\" }}\n"),
+            "index.nct",
+            &format!(
+                "#package: {{ name: \"{name}\", version: \"0.0.0\", }}\n#executable: {{ name: \"tool\" }}\n"
+            ),
         );
         write_source(root, "index.nct", "func main(): void { return }\n");
     }
@@ -378,8 +388,8 @@ fn parsed_package_build_crosses_exact_resolution_discovery_and_publication() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"application\"\n#executable: { name: \"hello\" }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#executable: { name: \"hello\" }\n",
     );
     write_source(&package_root, "index.nct", "func main(): void { return }\n");
     let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
@@ -414,8 +424,8 @@ fn named_package_build_does_not_expand_an_unselected_target_module() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
     );
     write_source(&package_root, "index.nct", "//! Package root.\n");
     write_source(
@@ -456,8 +466,8 @@ fn parsed_resolution_policy_reaches_the_exact_package_boundary() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
     );
     write_source(&package_root, "index.nct", "//! Package root.\n");
     let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
@@ -494,8 +504,8 @@ fn package_build_commits_graph_validated_acquisition_before_discovery() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"application\"\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n#executable: { name: \"hello\" }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n#executable: { name: \"hello\" }\n",
     );
     write_source(&package_root, "index.nct", "func main(): void { return }\n");
     let super::ParsedCommand::Build(parsed) = super::parse_command_arguments([
@@ -518,12 +528,12 @@ fn package_build_commits_graph_validated_acquisition_before_discovery() {
     assert!(
         package_root
             .join(format!(
-                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/nocter.nct"
+                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/index.nct"
             ))
             .is_file()
     );
-    let manifest = fs::read_to_string(package_root.join("nocter.nct")).unwrap();
-    assert!(manifest.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    let root_source = fs::read_to_string(package_root.join("index.nct")).unwrap();
+    assert!(root_source.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
     assert!(package_root.join("hello").is_file());
     fs::remove_dir_all(directory).unwrap();
 }
@@ -534,8 +544,8 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"application\"\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#dependencies: { remote: { archive: \"https://example.test/package.tar.gz\" } }\n",
     );
     let super::ParsedCommand::Fetch(parsed) = super::parse_command_arguments([
         "fetch".into(),
@@ -563,12 +573,12 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
     assert!(
         package_root
             .join(format!(
-                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/nocter.nct"
+                ".nocter/packages/sha256-{ARCHIVE_DIGEST}/index.nct"
             ))
             .is_file()
     );
-    let manifest = fs::read_to_string(package_root.join("nocter.nct")).unwrap();
-    assert!(manifest.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    let root_source = fs::read_to_string(package_root.join("index.nct")).unwrap();
+    assert!(root_source.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
     let mut root_entries = fs::read_dir(&package_root)
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
@@ -576,7 +586,7 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
     root_entries.sort();
     assert_eq!(
         root_entries,
-        [std::ffi::OsString::from(".nocter"), "nocter.nct".into()]
+        [std::ffi::OsString::from(".nocter"), "index.nct".into()]
     );
     fs::remove_dir_all(directory).unwrap();
 }
@@ -585,7 +595,11 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
 fn check_accepts_library_packages_and_single_files_without_emitting_artifacts() {
     let directory = unique_test_directory("prepared-check");
     let package_root = directory.join("library");
-    write_source(&package_root, "nocter.nct", "#name: \"library\"\n");
+    write_source(
+        &package_root,
+        "index.nct",
+        "#package: { name: \"library\", version: \"0.0.0\", }\n",
+    );
     write_source(&package_root, "index.nct", "//! Library root.\n");
     write_source(
         &directory,
@@ -641,8 +655,8 @@ fn named_check_selects_exactly_one_module_and_rejects_an_unknown_target() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"application\"\n#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
+        "index.nct",
+        "#package: { name: \"application\", version: \"0.0.0\", }\n#executable: { name: \"good\", module: \"./src/good\" }\n#executable: { name: \"broken\", module: \"./src/broken\" }\n",
     );
     write_source(&package_root, "index.nct", "//! Package root.\n");
     write_source(
@@ -908,8 +922,8 @@ fn parsed_package_test_runs_every_case_independently_and_preserves_failures() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"tested\"\n#test: { name: \"unit\", module: \".\" }\n",
+        "index.nct",
+        "#package: { name: \"tested\", version: \"0.0.0\", }\n#test: { name: \"unit\", module: \".\" }\n",
     );
     write_source(
         &package_root,
@@ -1000,8 +1014,8 @@ fn one_invalid_test_target_does_not_suppress_later_target_sessions() {
     let package_root = directory.join("package");
     write_source(
         &package_root,
-        "nocter.nct",
-        "#name: \"isolated\"\n#test: { name: \"broken\", module: \"./broken\" }\n#test: { name: \"good\", module: \"./good\" }\n",
+        "index.nct",
+        "#package: { name: \"isolated\", version: \"0.0.0\", }\n#test: { name: \"broken\", module: \"./broken\" }\n#test: { name: \"good\", module: \"./good\" }\n",
     );
     write_source(&package_root, "index.nct", "//! Isolated tests.\n");
     write_source(&package_root, "broken/index.nct", "test incomplete {");
@@ -1106,7 +1120,9 @@ fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
 fn write_source(root: &Path, relative: &str, text: &str) {
     let path = root.join(relative);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, text).unwrap();
+    let mut contents = fs::read_to_string(&path).unwrap_or_default();
+    contents.push_str(text);
+    fs::write(path, contents).unwrap();
 }
 
 fn unique_test_directory(label: &str) -> std::path::PathBuf {

@@ -1,4 +1,0 @@
-//! Nocter standard library.
-
-#name: "std"
-#version: "0.16.0"

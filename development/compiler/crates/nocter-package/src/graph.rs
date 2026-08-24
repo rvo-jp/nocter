@@ -65,7 +65,7 @@ impl ResolvedPackageSpec {
     }
 }
 
-/// One loaded package whose manifest facts and exact dependency edges have been closed.
+/// One loaded package whose root-source facts and exact dependency edges have been closed.
 #[derive(Clone, Debug)]
 pub struct ResolvedPackageSnapshot {
     identity: PackageIdentity,
@@ -74,7 +74,7 @@ pub struct ResolvedPackageSnapshot {
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
     locks: BTreeMap<Box<str>, ExactDependencyLock>,
     declaration_path: PathBuf,
-    manifest_bytes: Box<[u8]>,
+    root_source_bytes: Box<[u8]>,
     declaration_syntax: usize,
     declaration: Option<PackageDeclaration>,
 }
@@ -102,7 +102,7 @@ impl ResolvedPackageSnapshot {
 
     /// Returns the exact effective locks used for remote dependency edges.
     ///
-    /// This may include transaction overlays that were validated before their generated source
+    /// This may see transaction overlays that were validated before their generated source
     /// block was committed.
     #[must_use]
     pub const fn locks(&self) -> &BTreeMap<Box<str>, ExactDependencyLock> {
@@ -168,10 +168,10 @@ impl PackageSourceSnapshot {
 }
 
 impl ResolvedPackageGraph {
-    /// Loads and validates all exact packages without reopening a manifest in later stages.
+    /// Loads and validates all exact packages without reopening a root source in later stages.
     ///
-    /// Syntax-invalid manifests remain in the snapshot so the normal diagnostic pipeline can
-    /// project them. Every syntax-clean manifest must have dependency edges matching its authored
+    /// Syntax-invalid root sources remain in the snapshot so the normal diagnostic pipeline can
+    /// project them. Every syntax-clean root source must have dependency edges matching its authored
     /// aliases, remote dependencies must have exact locks, and path edges must select the authored
     /// canonical directory.
     ///
@@ -253,7 +253,7 @@ impl ResolvedPackageGraph {
     ///
     /// Returns an error if the package is absent or its retained source/syntax identity is
     /// internally inconsistent.
-    pub fn manifest_lock_update(
+    pub fn root_lock_update(
         &self,
         identity: &PackageIdentity,
     ) -> Result<PackageLockSourceUpdate, PackageLockSourceError> {
@@ -274,7 +274,7 @@ impl ResolvedPackageGraph {
             .ok_or(PackageLockSourceError::MissingPackageDeclaration)?;
         crate::lock_source::render_effective_locks(
             package.declaration_path(),
-            &package.manifest_bytes,
+            &package.root_source_bytes,
             syntax,
             declaration,
             package.locks(),
@@ -402,7 +402,7 @@ struct LoadedPackageSnapshot {
     display_name: Box<str>,
     canonical_root: PathBuf,
     declaration_path: PathBuf,
-    manifest_bytes: Box<[u8]>,
+    root_source_bytes: Box<[u8]>,
     declaration_syntax: usize,
     declaration: Option<PackageDeclaration>,
 }
@@ -426,7 +426,7 @@ impl LoadedPackageSnapshot {
             dependencies,
             locks,
             declaration_path: self.declaration_path,
-            manifest_bytes: self.manifest_bytes,
+            root_source_bytes: self.root_source_bytes,
             declaration_syntax: self.declaration_syntax,
             declaration: self.declaration,
         }
@@ -454,16 +454,16 @@ fn load_package(
             path: canonical_root,
         });
     }
-    let declaration_path = canonical_root.join("nocter.nct");
+    let declaration_path = canonical_root.join("index.nct");
     if !regular_file(source_overlay, &declaration_path)? {
-        return Err(PackageGraphError::MissingPackageFile {
+        return Err(PackageGraphError::MissingPackageRootSource {
             package: identity,
             path: declaration_path,
         });
     }
     let declaration_path = canonicalize(
         source_overlay,
-        "canonicalize package file",
+        "canonicalize package root source",
         &declaration_path,
     )?;
     if !declaration_path.starts_with(&canonical_root) {
@@ -491,7 +491,7 @@ fn load_package(
         sources
             .get(source_id)
             .expect("new package source remains in the source map"),
-        ParseGoal::PackageFile,
+        ParseGoal::SourceFile,
     );
     let declaration_syntax = syntax.len();
     syntax.push(tree);
@@ -508,7 +508,7 @@ fn load_package(
     };
     let display_name = declaration
         .as_ref()
-        .and_then(PackageDeclaration::name)
+        .map(PackageDeclaration::name)
         .map_or_else(
             || directory_name(&canonical_root),
             |name| Ok(Box::<str>::from(name.value())),
@@ -517,7 +517,7 @@ fn load_package(
         display_name,
         canonical_root,
         declaration_path,
-        manifest_bytes: bytes.into_boxed_slice(),
+        root_source_bytes: bytes.into_boxed_slice(),
         declaration_syntax,
         declaration,
     })
@@ -726,7 +726,7 @@ pub enum PackageGraphError {
         package: PackageIdentity,
         path: PathBuf,
     },
-    MissingPackageFile {
+    MissingPackageRootSource {
         package: PackageIdentity,
         path: PathBuf,
     },
@@ -792,9 +792,9 @@ impl fmt::Display for PackageGraphError {
                 package.as_str(),
                 path.display()
             ),
-            Self::MissingPackageFile { package, path } => write!(
+            Self::MissingPackageRootSource { package, path } => write!(
                 formatter,
-                "package {} has no package file at {}",
+                "package {} has no package root source at {}",
                 package.as_str(),
                 path.display()
             ),
@@ -877,7 +877,7 @@ impl std::error::Error for PackageGraphError {
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
             | Self::InvalidPackageRoot { .. }
-            | Self::MissingPackageFile { .. }
+            | Self::MissingPackageRootSource { .. }
             | Self::DuplicateCanonicalRoot { .. }
             | Self::DependencyEdgeMismatch { .. }
             | Self::MissingLock { .. }
@@ -932,13 +932,16 @@ mod tests {
     }
 
     #[test]
-    fn loads_manifest_sources_and_closes_exact_path_edges() {
+    fn loads_package_root_sources_and_closes_exact_path_edges() {
         let tree = TempTree::new();
         tree.source(
-            "app/nocter.nct",
-            "#name: \"application\"\n#dependencies: { util: { path: \"../util\", }, }\n#executable: { name: \"app\", }\n",
+            "app/index.nct",
+            "#package: { name: \"application\", version: \"0.0.0\", }\n#dependencies: { util: { path: \"../util\", }, }\n#executable: { name: \"app\", }\n",
         );
-        tree.source("util/nocter.nct", "#name: \"utility\"\n");
+        tree.source(
+            "util/index.nct",
+            "#package: { name: \"utility\", version: \"0.0.0\", }\n",
+        );
         let graph = ResolvedPackageGraph::load(vec![
             ResolvedPackageSpec::new(identity("root"), tree.0.join("app"))
                 .with_dependency("util", identity("util")),
@@ -963,10 +966,13 @@ mod tests {
     fn rejects_edges_that_disagree_with_authored_dependencies_and_locks() {
         let tree = TempTree::new();
         tree.source(
-            "app/nocter.nct",
-            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
+            "app/index.nct",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
         );
-        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        tree.source(
+            "remote/index.nct",
+            "#package: { name: \"remote\", version: \"0.0.0\", }\n",
+        );
         let missing_lock = ResolvedPackageGraph::load(vec![
             ResolvedPackageSpec::new(identity("app"), tree.0.join("app"))
                 .with_dependency("remote", identity("remote")),
@@ -978,7 +984,10 @@ mod tests {
             PackageGraphError::MissingLock { .. }
         ));
 
-        tree.source("empty/nocter.nct", "#name: \"empty\"\n");
+        tree.source(
+            "empty/index.nct",
+            "#package: { name: \"empty\", version: \"0.0.0\", }\n",
+        );
         let extra_edge = ResolvedPackageGraph::load(vec![
             ResolvedPackageSpec::new(identity("empty"), tree.0.join("empty"))
                 .with_dependency("remote", identity("remote")),
@@ -995,10 +1004,13 @@ mod tests {
     fn validates_and_retains_a_provisional_exact_lock() {
         let tree = TempTree::new();
         tree.source(
-            "app/nocter.nct",
-            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
+            "app/index.nct",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n",
         );
-        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        tree.source(
+            "remote/index.nct",
+            "#package: { name: \"remote\", version: \"0.0.0\", }\n",
+        );
         let lock = ExactDependencyLock::git("7db21c1000000000000000000000000000000000").unwrap();
 
         let graph = ResolvedPackageGraph::load(vec![
@@ -1023,10 +1035,13 @@ mod tests {
     fn rejects_a_provisional_lock_that_changes_an_authored_selection() {
         let tree = TempTree::new();
         tree.source(
-            "app/nocter.nct",
-            "#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\n",
+            "app/index.nct",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\n",
         );
-        tree.source("remote/nocter.nct", "#name: \"remote\"\n");
+        tree.source(
+            "remote/index.nct",
+            "#package: { name: \"remote\", version: \"0.0.0\", }\n",
+        );
         let replacement =
             ExactDependencyLock::git("8db21c1000000000000000000000000000000000").unwrap();
 
@@ -1045,9 +1060,9 @@ mod tests {
     }
 
     #[test]
-    fn retains_syntax_invalid_manifests_for_normal_diagnostic_projection() {
+    fn retains_syntax_invalid_root_sources_for_normal_diagnostic_projection() {
         let tree = TempTree::new();
-        tree.source("app/nocter.nct", "#name: { nested: \"app\"\n");
+        tree.source("app/index.nct", "#package: { name: { nested: \"app\"\n");
         let graph = ResolvedPackageGraph::load(vec![ResolvedPackageSpec::new(
             identity("app"),
             tree.0.join("app"),

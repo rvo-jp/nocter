@@ -458,7 +458,7 @@ as static calls.
 of `CheckedProgram`. Each entry owns structural field identity and declaration order, intrinsic
 enum variants by semantic name, and any validated `construct` declaration. It independently
 answers whether an explicit default or empty construct hides raw structural entry outside the
-representation source and its direct includers; the common source-access authority still owns
+representation source and its direct seers; the common source-access authority still owns
 field visibility. Construction-function
 calls resolve their owner through semantic module/type identity and select an accessible named
 member through that table. Named struct literals and enum variants select their exact field or

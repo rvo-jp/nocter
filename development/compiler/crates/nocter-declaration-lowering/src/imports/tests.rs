@@ -5,12 +5,12 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 use super::{
     ImportError, PreparedImports, ToolchainError, apply_toolchain_profile, prepare_authored_imports,
 };
-use crate::test_support::{module_use, source_include};
+use crate::test_support::{module_use, source_see};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
-    UseResolutionInput, collect_declaration_surface, prepare_declaration_headers,
-    prepare_generic_binders, reserve_declaration_identities,
+    PackageIdentity, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
+    collect_declaration_surface, prepare_declaration_headers, prepare_generic_binders,
+    reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -29,17 +29,16 @@ fn parse_source(
     tree
 }
 
-fn package<'syntax>(
+fn package(
     identity: &str,
     display_name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
+    _path: &str,
+    _manifest: &SyntaxTree,
+) -> PackageInput {
     PackageInput::new(
         PackageIdentity::new(identity),
         display_name,
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
     )
 }
 
@@ -64,7 +63,7 @@ fn toolchain(prelude: ModuleIdentity) -> ToolchainInput {
 
 fn prepare<'syntax>(
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
     uses: Vec<UseResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
@@ -84,9 +83,9 @@ fn prepare<'syntax>(
 
 fn prepare_with_includes<'syntax>(
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::IncludeResolutionInput>,
+    includes: Vec<crate::SourceVisibilityResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -95,7 +94,7 @@ fn prepare_with_includes<'syntax>(
         modules,
         Vec::new(),
     )
-    .with_include_resolutions(includes);
+    .with_source_visibility_resolutions(includes);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -128,8 +127,8 @@ fn source_id(imports: &PreparedImports<'_>, path: &str) -> crate::SurfaceSourceI
 #[test]
 fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_names() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let dep_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -140,8 +139,8 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
         "/dep/index.nct",
         "pub struct Value {}\npub func make(): Value {}\nfunc hidden(): void {}\n",
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
     let app_identity =
@@ -152,8 +151,8 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
     let imports = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
         ],
         vec![
             module(
@@ -209,16 +208,16 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
 #[test]
 fn imported_names_cannot_collide_with_module_declarations() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let dep_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
         "use dep.Value as Item\n\nstruct Item {}\n",
     );
     let dep_id = add_source(&mut sources, "/dep/index.nct", "pub struct Value {}\n");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
     let dep_identity =
@@ -227,8 +226,8 @@ fn imported_names_cannot_collide_with_module_declarations() {
     let error = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
         ],
         vec![
             module(
@@ -264,12 +263,12 @@ fn imported_names_cannot_collide_with_module_declarations() {
 #[test]
 fn selected_imports_reject_private_targets() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let dep_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", "use dep.Hidden\n");
     let dep_id = add_source(&mut sources, "/dep/index.nct", "struct Hidden {}\n");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
     let dep_identity =
@@ -278,8 +277,8 @@ fn selected_imports_reject_private_targets() {
     let error = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
         ],
         vec![
             module(
@@ -315,7 +314,7 @@ fn selected_imports_reject_private_targets() {
 #[test]
 fn chained_reexports_cannot_widen_a_descendant_boundary() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(&mut sources, "/app/index.nct", "use ./core/facade\n");
     let core_id = add_source(
         &mut sources,
@@ -327,7 +326,7 @@ fn chained_reexports_cannot_widen_a_descendant_boundary() {
         "/app/core/facade/index.nct",
         "pub use /core.Internal\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let core = parse_source(&sources, core_id, ParseGoal::SourceFile);
     let facade = parse_source(&sources, facade_id, ParseGoal::SourceFile);
@@ -337,12 +336,7 @@ fn chained_reexports_cannot_widen_a_descendant_boundary() {
 
     let error = prepare(
         &sources,
-        vec![package(
-            "workspace:app",
-            "app",
-            "/app/nocter.nct",
-            &manifest,
-        )],
+        vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
         vec![
             module(
                 "workspace:app",
@@ -396,8 +390,8 @@ fn chained_reexports_cannot_widen_a_descendant_boundary() {
 #[test]
 fn selected_reexports_resolve_in_dependency_order() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let dep_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
     let root_id = add_source(&mut sources, "/app/index.nct", "use ./facade.Item\n");
     let facade_id = add_source(
         &mut sources,
@@ -405,8 +399,8 @@ fn selected_reexports_resolve_in_dependency_order() {
         "pub use dep.Value as Item\n",
     );
     let dep_id = add_source(&mut sources, "/dep/index.nct", "pub struct Value {}\n");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let facade = parse_source(&sources, facade_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
@@ -417,8 +411,8 @@ fn selected_reexports_resolve_in_dependency_order() {
     let imports = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
         ],
         vec![
             module(
@@ -471,32 +465,23 @@ fn selected_reexports_resolve_in_dependency_order() {
 }
 
 #[test]
-fn direct_source_includes_add_no_import_and_do_not_publish_implementation_names() {
+fn direct_source_sees_add_no_import_and_do_not_publish_implementation_names() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(
-        &mut sources,
-        "/app/index.nct",
-        "include ./implementation.nct\n",
-    );
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "see ./implementation.nct\n");
     let implementation_id = add_source(
         &mut sources,
         "/app/implementation.nct",
         "func helper(): void {}\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
 
     let imports = prepare_with_includes(
         &sources,
-        vec![package(
-            "workspace:app",
-            "app",
-            "/app/nocter.nct",
-            &manifest,
-        )],
+        vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
         vec![module(
             "workspace:app",
             &[],
@@ -509,7 +494,7 @@ fn direct_source_includes_add_no_import_and_do_not_publish_implementation_names(
                 ),
             ],
         )],
-        vec![source_include(&root, 0, "/app/implementation.nct")],
+        vec![source_see(&root, 0, "/app/implementation.nct")],
     )
     .unwrap();
     let module = module_id(&imports, &identity);
@@ -531,29 +516,24 @@ fn direct_source_includes_add_no_import_and_do_not_publish_implementation_names(
 }
 
 #[test]
-fn source_includes_expose_only_the_direct_target_namespace() {
+fn source_sees_expose_only_the_direct_target_namespace() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let root_id = add_source(&mut sources, "/app/index.nct", "include ./a.nct\n");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(&mut sources, "/app/index.nct", "see ./a.nct\n");
     let a_id = add_source(
         &mut sources,
         "/app/a.nct",
-        "include ./b.nct\nfunc from_a(): void {}\n",
+        "see ./b.nct\nfunc from_a(): void {}\n",
     );
     let b_id = add_source(&mut sources, "/app/b.nct", "func from_b(): void {}\n");
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
     let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
 
     let imports = prepare_with_includes(
         &sources,
-        vec![package(
-            "workspace:app",
-            "app",
-            "/app/nocter.nct",
-            &manifest,
-        )],
+        vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
         vec![module(
             "workspace:app",
             &[],
@@ -564,8 +544,8 @@ fn source_includes_expose_only_the_direct_target_namespace() {
             ],
         )],
         vec![
-            source_include(&root, 0, "/app/a.nct"),
-            source_include(&a, 0, "/app/b.nct"),
+            source_see(&root, 0, "/app/a.nct"),
+            source_see(&a, 0, "/app/b.nct"),
         ],
     )
     .unwrap();
@@ -583,8 +563,8 @@ fn source_includes_expose_only_the_direct_target_namespace() {
 #[test]
 fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_root_id = add_source(&mut sources, "/app/index.nct", "struct String {}\n");
     let app_child_id = add_source(&mut sources, "/app/child/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
@@ -598,8 +578,8 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
         "/std/prelude/index.nct",
         "pub use /string.String\n",
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app_root = parse_source(&sources, app_root_id, ParseGoal::SourceFile);
     let app_child = parse_source(&sources, app_child_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
@@ -615,8 +595,8 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let imports = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module(
@@ -684,8 +664,8 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
 #[test]
 fn source_code_cannot_import_the_compiler_managed_prelude() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", "use std/prelude.String\n");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(
@@ -693,8 +673,8 @@ fn source_code_cannot_import_the_compiler_managed_prelude() {
         "/std/prelude/index.nct",
         "pub struct String {}\n",
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -702,8 +682,8 @@ fn source_code_cannot_import_the_compiler_managed_prelude() {
     let imports = prepare(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module(

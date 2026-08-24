@@ -6,7 +6,7 @@
 use std/mem.TryAllocator
 use std/string.String
 use std/vec.Vec
-include ./darwin.nct
+see ./darwin.nct
 
 pub copy struct EnvironmentEntry {
     pub name: &str

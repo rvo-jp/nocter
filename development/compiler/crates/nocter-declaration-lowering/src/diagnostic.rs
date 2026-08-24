@@ -29,20 +29,12 @@ pub(crate) fn origin_from_syntax<'syntax>(
 pub(crate) fn input_trees<'input, 'syntax: 'input>(
     input: &'input CompileUnitInput<'syntax>,
 ) -> impl Iterator<Item = &'syntax SyntaxTree> + 'input {
-    input
-        .packages()
-        .iter()
-        .filter_map(|package| {
-            package
-                .declaration()
-                .map(crate::PackageDeclarationInput::syntax)
-        })
-        .chain(input.modules().iter().flat_map(|module| {
-            module
-                .sources()
-                .iter()
-                .map(crate::ModuleSourceInput::syntax)
-        }))
+    input.modules().iter().flat_map(|module| {
+        module
+            .sources()
+            .iter()
+            .map(crate::ModuleSourceInput::syntax)
+    })
 }
 
 pub(crate) fn project_syntax_diagnostic(

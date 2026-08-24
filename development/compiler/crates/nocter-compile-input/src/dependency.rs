@@ -2,17 +2,17 @@ use nocter_syntax::NodeId;
 
 use crate::ModuleIdentity;
 
-/// One exact physical source selected for an authored `include`.
+/// One exact physical source selected for an authored `see`.
 ///
 /// The target is a canonical source path rather than a module identity. Consumers can validate
 /// source ownership and direct visibility without acquiring filesystem probing authority.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct IncludeResolutionInput {
+pub struct SourceVisibilityResolutionInput {
     declaration: NodeId,
     target_source: Box<str>,
 }
 
-impl IncludeResolutionInput {
+impl SourceVisibilityResolutionInput {
     #[must_use]
     pub fn new(declaration: NodeId, target_source: impl Into<Box<str>>) -> Self {
         Self {

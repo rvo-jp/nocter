@@ -1,6 +1,6 @@
 //! Vec storage, growth, mutation, and destruction.
 
-include ./index.nct
+see ./index.nct
 
 use std/iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
@@ -15,7 +15,7 @@ use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
-include ./into_iter.nct
+see ./into_iter.nct
 
 struct VecIntoIter<T> {
     ptr: *T

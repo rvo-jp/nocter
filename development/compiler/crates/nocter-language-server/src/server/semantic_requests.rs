@@ -429,9 +429,9 @@ mod tests {
         end: (usize, usize),
     ) -> ServerStep {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
         let source_path = temporary.path().join("index.nct");
-        std::fs::write(&source_path, source).unwrap();
+        let full_source = format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{source}");
+        std::fs::write(&source_path, &full_source).unwrap();
         let uri = format!("file://{}", source_path.display());
         let mut server = semantic_server(temporary.path());
         server.receive(&format!(
@@ -439,7 +439,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let opened = set_completion_document(&mut server, &uri, &full_source, 1);
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
             snapshot.status(),
@@ -447,7 +447,13 @@ mod tests {
         );
         assert_eq!(snapshot.diagnostics()[0].code(), "E0392", "{source}");
 
-        request_code_action(&mut server, &uri, 2, start, end)
+        request_code_action(
+            &mut server,
+            &uri,
+            2,
+            (start.0 + 1, start.1),
+            (end.0 + 1, end.1),
+        )
     }
 
     fn request_code_action(
@@ -626,21 +632,27 @@ mod tests {
     #[test]
     fn separated_constant_selects_its_contract_and_initializer() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         let contract = temporary.path().join("index.nct");
         let implementation = temporary.path().join("limits.nct");
-        let contract_text = concat!(
-            "include ./limits.nct\n",
+        let contract_body = concat!(
+            "see ./limits.nct\n",
             "\n",
             "pub const answer: i32\n",
             "func main(): i32 {\n",
             "    answer\n",
             "}\n",
         );
-        std::fs::write(&contract, contract_text).unwrap();
+        let contract_text =
+            format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{contract_body}");
+        std::fs::write(&contract, &contract_text).unwrap();
         std::fs::write(
             &implementation,
-            concat!("include ./index.nct\n", "\n", "const answer: i32 = 42\n",),
+            concat!("see ./index.nct\n", "\n", "const answer: i32 = 42\n",),
         )
         .unwrap();
         let contract_uri = format!("file://{}", contract.display());
@@ -659,7 +671,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let mut source_json = String::new();
-        nocter_json::write_string(&mut source_json, contract_text);
+        nocter_json::write_string(&mut source_json, &contract_text);
         let opened = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
         ));
@@ -672,20 +684,20 @@ mod tests {
         );
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":7}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":5,\"character\":7}}}}}}"
         ));
         assert_eq!(
             definition.response(),
             Some(
                 format!(
-                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":10}},\"end\":{{\"line\":2,\"character\":16}}}}}}]}}"
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":3,\"character\":10}},\"end\":{{\"line\":3,\"character\":16}}}}}}]}}"
                 )
                 .as_str()
             )
         );
 
         let initializer = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":7}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":5,\"character\":7}}}}}}"
         ));
         assert_eq!(
             initializer.response(),
@@ -703,22 +715,28 @@ mod tests {
     #[test]
     fn definition_selects_the_contract_and_implementation_selects_the_body() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         let contract = temporary.path().join("index.nct");
         let implementation = temporary.path().join("value.nct");
-        let contract_text = concat!(
-            "include ./value.nct\n",
+        let contract_body = concat!(
+            "see ./value.nct\n",
             "\n",
             "pub func helper(): i32\n",
             "func main(): i32 {\n",
             "    return helper()\n",
             "}\n",
         );
-        std::fs::write(&contract, contract_text).unwrap();
+        let contract_text =
+            format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{contract_body}");
+        std::fs::write(&contract, &contract_text).unwrap();
         std::fs::write(
             &implementation,
             concat!(
-                "include ./index.nct\n",
+                "see ./index.nct\n",
                 "\n",
                 "func helper(): i32 { return 1 }\n",
             ),
@@ -740,7 +758,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let mut source_json = String::new();
-        nocter_json::write_string(&mut source_json, contract_text);
+        nocter_json::write_string(&mut source_json, &contract_text);
         let opened = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
         ));
@@ -753,20 +771,20 @@ mod tests {
         );
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":12}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":5,\"character\":12}}}}}}"
         ));
         assert_eq!(
             definition.response(),
             Some(
                 format!(
-                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":9}},\"end\":{{\"line\":2,\"character\":15}}}}}}]}}"
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":3,\"character\":9}},\"end\":{{\"line\":3,\"character\":15}}}}}}]}}"
                 )
                 .as_str()
             )
         );
 
         let body = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":12}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":5,\"character\":12}}}}}}"
         ));
         assert_eq!(
             body.response(),
@@ -782,11 +800,15 @@ mod tests {
     #[test]
     fn separated_interface_default_keeps_contract_and_body_navigation() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         let contract = temporary.path().join("index.nct");
         let implementation = temporary.path().join("defaults.nct");
-        let contract_text = concat!(
-            "include ./defaults.nct\n",
+        let contract_body = concat!(
+            "see ./defaults.nct\n",
             "\n",
             "pub interface Answer {\n",
             "    pub default method &self.answer(): i32\n",
@@ -798,11 +820,13 @@ mod tests {
             "    return value.answer()\n",
             "}\n",
         );
-        std::fs::write(&contract, contract_text).unwrap();
+        let contract_text =
+            format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{contract_body}");
+        std::fs::write(&contract, &contract_text).unwrap();
         std::fs::write(
             &implementation,
             concat!(
-                "include ./index.nct\n",
+                "see ./index.nct\n",
                 "\n",
                 "interface Answer {\n",
                 "    default method &self.answer(): i32 { return 1 }\n",
@@ -826,7 +850,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let mut source_json = String::new();
-        nocter_json::write_string(&mut source_json, contract_text);
+        nocter_json::write_string(&mut source_json, &contract_text);
         let opened = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
         ));
@@ -841,7 +865,7 @@ mod tests {
         );
 
         let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":3,\"character\":31}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":31}}}}}}"
         ));
         assert!(
             hover.response().is_some_and(
@@ -852,20 +876,20 @@ mod tests {
         );
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":9,\"character\":18}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":10,\"character\":18}}}}}}"
         ));
         assert_eq!(
             definition.response(),
             Some(
                 format!(
-                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":3,\"character\":29}},\"end\":{{\"line\":3,\"character\":35}}}}}}]}}"
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":4,\"character\":29}},\"end\":{{\"line\":4,\"character\":35}}}}}}]}}"
                 )
                 .as_str()
             )
         );
 
         let body = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":9,\"character\":18}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":10,\"character\":18}}}}}}"
         ));
         assert_eq!(
             body.response(),
@@ -933,13 +957,17 @@ mod tests {
     #[test]
     fn rename_versions_open_sources_and_leaves_closed_sources_unversioned() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
-        let source = temporary.path().join("index.nct");
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
+        let source = temporary.path().join("program.nct");
         let helper = temporary.path().join("helper.nct");
         std::fs::write(
             &source,
             concat!(
-                "include ./helper.nct\n",
+                "see ./helper.nct\n",
                 "func main(): void {\n",
                 "    let value = answer()\n",
                 "    return\n",
@@ -1158,8 +1186,8 @@ mod tests {
         let widgets = temporary.path().join("widgets");
         std::fs::create_dir(&widgets).unwrap();
         std::fs::write(
-            temporary.path().join("nocter.nct"),
-            "#name: \"presentation-alias\"\n#version: \"0.1.0\"\n#executable: {\n    name: \"presentation-alias\",\n}\n",
+            temporary.path().join("index.nct"),
+            "#package: { name: \"presentation-alias\", version: \"0.1.0\", }\n#executable: {\n    name: \"presentation-alias\",\n}\n",
         )
         .unwrap();
         std::fs::write(
@@ -1172,7 +1200,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let source_path = temporary.path().join("index.nct");
+        let source_path = temporary.path().join("app.nct");
         let source = concat!(
             "use ./widgets.Widget as LocalWidget\n",
             "\n",
@@ -1940,7 +1968,11 @@ mod tests {
     #[test]
     fn completion_supplies_a_top_level_edit_for_a_reached_export() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         std::fs::create_dir(temporary.path().join("tools")).unwrap();
         std::fs::write(
             temporary.path().join("tools/index.nct"),
@@ -1954,7 +1986,7 @@ mod tests {
             "    return\n",
             "}\n",
         );
-        let source_path = temporary.path().join("index.nct");
+        let source_path = temporary.path().join("app.nct");
         std::fs::write(&source_path, source).unwrap();
         let uri = format!("file://{}", source_path.display());
         let mut server = semantic_server(temporary.path());
@@ -2181,15 +2213,18 @@ mod tests {
         std::fs::create_dir(&dependency).unwrap();
         std::fs::create_dir(dependency.join("api")).unwrap();
         std::fs::write(
-            application.join("nocter.nct"),
+            application.join("index.nct"),
             concat!(
-                "#name: \"app\"\n",
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
                 "#dependencies: { dep: { path: \"../dependency\" } }\n",
             ),
         )
         .unwrap();
-        std::fs::write(dependency.join("nocter.nct"), "#name: \"dependency\"\n").unwrap();
-        std::fs::write(dependency.join("index.nct"), "").unwrap();
+        std::fs::write(
+            dependency.join("index.nct"),
+            "#package: { name: \"dependency\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         std::fs::write(
             dependency.join("api/index.nct"),
             concat!(
@@ -2205,7 +2240,7 @@ mod tests {
             "    return\n",
             "}\n",
         );
-        let source_path = application.join("index.nct");
+        let source_path = application.join("app.nct");
         std::fs::write(&source_path, source).unwrap();
         let uri = format!("file://{}", source_path.display());
         let mut server = semantic_server(&application);
@@ -2238,11 +2273,16 @@ mod tests {
     #[test]
     fn automatic_imports_do_not_create_a_module_cycle() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         std::fs::create_dir(temporary.path().join("child")).unwrap();
         std::fs::write(
             temporary.path().join("index.nct"),
             concat!(
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
                 "pub func root_value(): i32 {\n",
                 "    use ./child\n",
                 "\n",
@@ -2276,12 +2316,17 @@ mod tests {
     #[test]
     fn code_actions_publish_only_recompiled_compiler_owned_import_edits() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         std::fs::create_dir(temporary.path().join("api")).unwrap();
         std::fs::create_dir(temporary.path().join("child")).unwrap();
         std::fs::write(
             temporary.path().join("index.nct"),
             concat!(
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
                 "use ./api\n",
                 "use ./child\n",
                 "pub func root_marker(): i32 { return 1 }\n",
@@ -2380,7 +2425,11 @@ mod tests {
     #[test]
     fn code_actions_implement_required_conformance_methods_with_abort() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         let source = concat!(
             "pub interface Readable {\n",
             "    pub type Item\n",
@@ -2394,7 +2443,8 @@ mod tests {
             "}\n",
         );
         let source_path = temporary.path().join("index.nct");
-        std::fs::write(&source_path, source).unwrap();
+        let full_source = format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{source}");
+        std::fs::write(&source_path, &full_source).unwrap();
         let uri = format!("file://{}", source_path.display());
         let mut server = semantic_server(temporary.path());
         server.receive(&format!(
@@ -2402,7 +2452,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let opened = set_completion_document(&mut server, &uri, &full_source, 1);
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
             snapshot.status(),
@@ -2415,8 +2465,8 @@ mod tests {
                 "{{\"jsonrpc\":\"2.0\",\"id\":2,",
                 "\"method\":\"textDocument/codeAction\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
-                "\"range\":{{\"start\":{{\"line\":7,\"character\":0}},",
-                "\"end\":{{\"line\":9,\"character\":1}}}},",
+                "\"range\":{{\"start\":{{\"line\":8,\"character\":0}},",
+                "\"end\":{{\"line\":10,\"character\":1}}}},",
                 "\"context\":{{\"diagnostics\":[]}}}}}}"
             ),
             uri = uri,
@@ -2444,9 +2494,13 @@ mod tests {
     #[test]
     fn separated_conformance_code_action_edits_the_private_definition() {
         let temporary = TemporaryDirectory::new();
-        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        std::fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         let contract = concat!(
-            "include ./value.nct\n",
+            "see ./value.nct\n",
             "pub interface Readable {\n",
             "    pub method &self.read(): i32\n",
             "}\n",
@@ -2455,10 +2509,12 @@ mod tests {
         );
         let contract_path = temporary.path().join("index.nct");
         let implementation_path = temporary.path().join("value.nct");
-        std::fs::write(&contract_path, contract).unwrap();
+        let full_contract =
+            format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{contract}");
+        std::fs::write(&contract_path, &full_contract).unwrap();
         std::fs::write(
             &implementation_path,
-            "include ./index.nct\nconform Readable for Value {}\n",
+            "see ./index.nct\nconform Readable for Value {}\n",
         )
         .unwrap();
         let contract_uri = format!("file://{}", contract_path.display());
@@ -2474,7 +2530,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let opened = set_completion_document(&mut server, &contract_uri, contract, 1);
+        let opened = set_completion_document(&mut server, &contract_uri, &full_contract, 1);
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
             snapshot.status(),
@@ -2487,8 +2543,8 @@ mod tests {
                 "{{\"jsonrpc\":\"2.0\",\"id\":2,",
                 "\"method\":\"textDocument/codeAction\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
-                "\"range\":{{\"start\":{{\"line\":5,\"character\":0}},",
-                "\"end\":{{\"line\":5,\"character\":29}}}},",
+                "\"range\":{{\"start\":{{\"line\":6,\"character\":0}},",
+                "\"end\":{{\"line\":6,\"character\":29}}}},",
                 "\"context\":{{\"diagnostics\":[]}}}}}}"
             ),
             uri = contract_uri,
@@ -2583,9 +2639,9 @@ mod tests {
     fn package_root_selection_compiles_from_a_child_target() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(
-            temporary.path().join("nocter.nct"),
+            temporary.path().join("index.nct"),
             concat!(
-                "#name: \"app\"\n",
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
                 "#executable: { name: \"app\", module: \"./child\" }\n",
             ),
         )
@@ -2593,7 +2649,11 @@ mod tests {
         std::fs::create_dir(temporary.path().join("child")).unwrap();
         std::fs::write(
             temporary.path().join("index.nct"),
-            "pub func root_value(): i32 { return 1 }\n",
+            concat!(
+                "#package: { name: \"app\", version: \"0.0.0\", }\n",
+                "#executable: { name: \"app\", module: \"./child\" }\n",
+                "pub func root_value(): i32 { return 1 }\n",
+            ),
         )
         .unwrap();
         let source = concat!(

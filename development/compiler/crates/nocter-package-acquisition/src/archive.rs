@@ -223,14 +223,14 @@ fn set_file_mode(
 }
 
 fn require_manifest(destination: &Path) -> Result<(), PackageAcquisitionError> {
-    let manifest = destination.join("nocter.nct");
+    let manifest = destination.join("index.nct");
     match fs::symlink_metadata(&manifest) {
         Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(()),
         Ok(_) => Err(PackageAcquisitionError::invalid_archive(
-            "archive-root nocter.nct is not a regular file",
+            "archive-root index.nct is not a regular file",
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Err(
-            PackageAcquisitionError::invalid_archive("archive root does not contain nocter.nct"),
+            PackageAcquisitionError::invalid_archive("archive root does not contain index.nct"),
         ),
         Err(error) => Err(PackageAcquisitionError::filesystem(
             "inspect archive manifest",
@@ -289,7 +289,7 @@ mod tests {
     }
 
     fn append_file(archive: &mut tar::Builder<GzEncoder<Vec<u8>>>, path: &str) {
-        let bytes = b"#name: \"fixture\"\n";
+        let bytes = b"#package: { name: \"fixture\", version: \"0.0.0\", }\n";
         let mut header = tar::Header::new_gnu();
         header.set_size(bytes.len() as u64);
         header.set_mode(0o644);
@@ -299,32 +299,32 @@ mod tests {
 
     #[test]
     fn verifies_compressed_bytes_and_extracts_root_manifest() {
-        let bytes = package_archive("nocter.nct");
+        let bytes = package_archive("index.nct");
         let lock = archive_lock(&bytes).unwrap();
         let destination = TempDirectory::new();
         verified_archive(&bytes, &lock).unwrap();
         extract_archive(&bytes, &destination.0).unwrap();
         assert_eq!(
-            fs::read_to_string(destination.0.join("nocter.nct")).unwrap(),
-            "#name: \"fixture\"\n"
+            fs::read_to_string(destination.0.join("index.nct")).unwrap(),
+            "#package: { name: \"fixture\", version: \"0.0.0\", }\n"
         );
     }
 
     #[test]
     fn does_not_strip_an_enclosing_directory() {
-        let bytes = package_archive("package/nocter.nct");
+        let bytes = package_archive("package/index.nct");
         let destination = TempDirectory::new();
         let error = extract_archive(&bytes, &destination.0).unwrap_err();
         assert!(
             error
                 .to_string()
-                .contains("archive root does not contain nocter.nct")
+                .contains("archive root does not contain index.nct")
         );
     }
 
     #[test]
     fn rejects_a_lock_for_different_compressed_bytes() {
-        let original = package_archive("nocter.nct");
+        let original = package_archive("index.nct");
         let mut changed = original.clone();
         changed[0] ^= 1;
         let lock = archive_lock(&original).unwrap();
@@ -336,12 +336,12 @@ mod tests {
     fn rejects_links_and_duplicate_normalized_paths() {
         let encoder = GzEncoder::new(Vec::new(), Compression::default());
         let mut linked = tar::Builder::new(encoder);
-        append_file(&mut linked, "nocter.nct");
+        append_file(&mut linked, "index.nct");
         let mut header = tar::Header::new_gnu();
         header.set_entry_type(EntryType::Symlink);
         header.set_size(0);
         linked
-            .append_link(&mut header, "alias", "nocter.nct")
+            .append_link(&mut header, "alias", "index.nct")
             .unwrap();
         let bytes = linked.into_inner().unwrap().finish().unwrap();
         let destination = TempDirectory::new();
@@ -349,8 +349,8 @@ mod tests {
 
         let encoder = GzEncoder::new(Vec::new(), Compression::default());
         let mut duplicate = tar::Builder::new(encoder);
-        append_file(&mut duplicate, "nocter.nct");
-        append_file(&mut duplicate, "./nocter.nct");
+        append_file(&mut duplicate, "index.nct");
+        append_file(&mut duplicate, "./index.nct");
         let bytes = duplicate.into_inner().unwrap().finish().unwrap();
         let destination = TempDirectory::new();
         let error = extract_archive(&bytes, &destination.0).unwrap_err();
@@ -359,8 +359,8 @@ mod tests {
 
     #[test]
     fn rejects_absolute_parent_and_backslash_paths_before_writing() {
-        assert!(normalize_path(b"/nocter.nct").is_err());
-        assert!(normalize_path(b"../nocter.nct").is_err());
-        assert!(normalize_path(b"folder\\nocter.nct").is_err());
+        assert!(normalize_path(b"/index.nct").is_err());
+        assert!(normalize_path(b"../index.nct").is_err());
+        assert!(normalize_path(b"folder\\index.nct").is_err());
     }
 }

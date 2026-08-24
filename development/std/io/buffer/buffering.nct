@@ -1,6 +1,6 @@
 //! Buffered reader and writer state machines.
 
-include ./index.nct
+see ./index.nct
 
 use std/io.{File, Reader, Writer}
 use std/io.read as file_read

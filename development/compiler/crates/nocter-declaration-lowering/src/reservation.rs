@@ -18,7 +18,7 @@ use crate::surface::SurfaceParts;
 use crate::{
     DeclarationContractError, DeclarationContracts, DeclarationSurface, ModuleIdentity,
     ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration,
-    SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceInclude, SurfaceSource,
+    SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceSource, SurfaceVisibility,
     analyze_declaration_contracts,
 };
 
@@ -160,13 +160,13 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) program: DeclarationProgramBuilder,
     pub(crate) source_index: crate::frontend_projection::FrontendProjectionBuilder,
     pub(crate) source_map: &'syntax SourceMap,
-    pub(crate) packages: Box<[PackageInput<'syntax>]>,
+    pub(crate) packages: Box<[PackageInput]>,
     pub(crate) package_ids: Box<[PackageId]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) module_ids: Box<[ModuleId]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_modules: Box<[ModuleId]>,
-    pub(crate) includes: Box<[SurfaceInclude]>,
+    pub(crate) includes: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
     pub(crate) contracts: DeclarationContracts,
@@ -185,7 +185,7 @@ impl ReservedDeclarations<'_> {
     }
 
     #[must_use]
-    pub const fn packages(&self) -> &[PackageInput<'_>] {
+    pub const fn packages(&self) -> &[PackageInput] {
         &self.packages
     }
 
@@ -215,7 +215,7 @@ impl ReservedDeclarations<'_> {
     }
 
     #[must_use]
-    pub const fn includes(&self) -> &[SurfaceInclude] {
+    pub const fn includes(&self) -> &[SurfaceVisibility] {
         &self.includes
     }
 
@@ -286,7 +286,7 @@ pub(crate) fn reserve_with_contracts(
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
-    let package_ids = reserve_packages(&packages, &mut program, &mut source_index)?;
+    let package_ids = reserve_packages(&packages, &sources, &mut program, &mut source_index)?;
     let semantic_roots = root_packages
         .iter()
         .map(|identity| {
@@ -308,6 +308,7 @@ pub(crate) fn reserve_with_contracts(
     )?;
     reserve_package_targets(
         &packages,
+        &sources,
         &package_target_resolutions,
         &package_ids,
         &module_ids,
@@ -361,7 +362,8 @@ pub(crate) fn reserve_with_contracts(
 }
 
 fn reserve_packages(
-    packages: &[PackageInput<'_>],
+    packages: &[PackageInput],
+    sources: &[SurfaceSource<'_>],
     program: &mut DeclarationProgramBuilder,
     source_index: &mut crate::frontend_projection::FrontendProjectionBuilder,
 ) -> Result<BTreeMap<crate::PackageIdentity, PackageId>, ReservationError> {
@@ -373,8 +375,15 @@ fn reserve_packages(
             .ok_or_else(|| ReservationError::MissingSymbol(package.display_name().into()))?;
         let id = program.add_package(package.identity().clone(), name)?;
         ids.insert(package.identity().clone(), id);
-        if let Some(declaration) = package.declaration() {
-            let tree = declaration.syntax();
+        if package.mode() == crate::PackageMode::Declared {
+            let module = ModuleIdentity::new(package.identity().clone(), Vec::<&str>::new());
+            let tree = sources
+                .iter()
+                .find(|source| {
+                    source.module() == &module && source.kind() == ModuleSourceKind::Root
+                })
+                .map(SurfaceSource::syntax)
+                .ok_or_else(|| ReservationError::UnknownModule(module.clone()))?;
             if let Some(markdown) = tree.file_documentation() {
                 source_index.insert_documentation(SemanticEntity::Package(id), markdown)?;
             }
@@ -432,10 +441,10 @@ fn project_sources(
                 ModuleSourceKind::Root | ModuleSourceKind::SingleFile => SourceRole::Declaration,
                 ModuleSourceKind::Implementation => SourceRole::Implementation,
             };
-            if matches!(
-                source.kind(),
-                ModuleSourceKind::Root | ModuleSourceKind::SingleFile
-            ) && let Some(markdown) = source.syntax().file_documentation()
+            let owns_module_documentation = source.kind() == ModuleSourceKind::SingleFile
+                || source.kind() == ModuleSourceKind::Root && !source.module().path().is_empty();
+            if owns_module_documentation
+                && let Some(markdown) = source.syntax().file_documentation()
             {
                 source_index.insert_documentation(SemanticEntity::Module(module), markdown)?;
             }

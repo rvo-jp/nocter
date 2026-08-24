@@ -188,8 +188,8 @@ impl SourceOverlay {
     /// Returns the disk canonicalization error when the path is neither present on disk nor an
     /// exact overlay key.
     pub fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        if self.entries.contains_key(path) {
-            return Ok(path.to_path_buf());
+        if let Some((canonical_path, _)) = self.entries.get_key_value(path) {
+            return Ok(canonical_path.clone());
         }
         fs::canonicalize(path)
     }
@@ -350,6 +350,26 @@ mod tests {
         assert_eq!(overlay.read(&virtual_path).unwrap(), b"virtual");
         assert!(overlay.is_file(&virtual_path).unwrap());
         assert_eq!(overlay.canonicalize(&virtual_path).unwrap(), virtual_path);
+    }
+
+    #[test]
+    fn canonicalization_returns_the_stored_identity_for_an_equivalent_overlay_path() {
+        let directory = TemporaryDirectory::new();
+        let canonical_path = directory.path().join("index.nct");
+        let equivalent_path = directory.path().join("./index.nct");
+        let mut builder = SourceOverlay::builder();
+        builder
+            .insert_document(
+                canonical_path.clone(),
+                OpenDocument::new(DocumentVersion::new(1), &b"source"[..]),
+            )
+            .unwrap();
+        let overlay = builder.finish();
+
+        assert_eq!(
+            overlay.canonicalize(&equivalent_path).unwrap(),
+            canonical_path
+        );
     }
 
     #[test]

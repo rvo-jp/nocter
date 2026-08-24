@@ -133,7 +133,7 @@ impl CommandTestSource {
     }
 }
 
-/// Resolves package state once, then forks its immutable manifest snapshot into one discovery
+/// Resolves package state once, then forks its immutable root-source snapshot into one discovery
 /// request per selected test target.
 ///
 /// A target-local syntax or discovery failure remains beside that target, allowing later targets

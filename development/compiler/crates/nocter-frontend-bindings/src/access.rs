@@ -7,7 +7,7 @@ use nocter_source::SourceId;
 /// Closed direct-source visibility selected by declaration lowering.
 ///
 /// This table is semantic input, not an editor projection. A private declaration site is visible
-/// only from its authored source and sources that directly include that source.
+/// only from its authored source and sources that directly see that source.
 #[derive(Clone, Debug, Default)]
 pub struct SourceAccessTable {
     visible_sources: HashMap<SourceId, Box<[SourceId]>>,

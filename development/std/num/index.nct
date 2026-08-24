@@ -2,7 +2,7 @@
 
 use std/mem.TryAllocator
 use std/string.String
-include ./scalar.nct
+see ./scalar.nct
 
 pub func parse_usize(text: &str): usize?
 

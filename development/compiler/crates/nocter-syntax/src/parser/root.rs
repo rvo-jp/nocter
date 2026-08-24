@@ -1,24 +1,14 @@
-use super::{Parser, declaration, include};
+use super::{Parser, declaration, source_visibility};
 use crate::{ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation, TokenKind};
-
-pub(super) fn package_file(parser: &mut Parser<'_>) {
-    let root = parser.start();
-    parser.eat_newlines();
-    while !parser.at(TokenKind::Eof) {
-        if parser.at_punctuation(Punctuation::Hash) {
-            package_directive(parser);
-        } else {
-            parser.error_token(ExpectedSyntax::PackageDirectiveName);
-        }
-        parser.require_line_end();
-    }
-    parser.bump();
-    parser.complete(root, NodeKind::PackageFile);
-}
 
 pub(super) fn source_file(parser: &mut Parser<'_>) {
     let root = parser.start();
     parser.eat_newlines();
+
+    while at_package_directive_start(parser) {
+        package_directive(parser);
+        parser.require_line_end();
+    }
 
     while at_dependency_start(parser) {
         dependency_declaration(parser);
@@ -40,12 +30,12 @@ pub(super) fn source_file(parser: &mut Parser<'_>) {
 }
 
 fn at_dependency_start(parser: &Parser<'_>) -> bool {
-    parser.at_keyword(Keyword::Include) || at_use_start(parser)
+    parser.at_keyword(Keyword::See) || at_use_start(parser)
 }
 
 fn dependency_declaration(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::Include) {
-        include::declaration(parser);
+    if parser.at_keyword(Keyword::See) {
+        source_visibility::declaration(parser);
     } else {
         use_declaration(parser);
     }
@@ -65,10 +55,26 @@ fn package_directive(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::PackageDirective);
 }
 
+fn at_package_directive_start(parser: &Parser<'_>) -> bool {
+    if !parser.at_punctuation(Punctuation::Hash) {
+        return false;
+    }
+    let Some(next) = parser.tokens.get(parser.cursor + 1) else {
+        return false;
+    };
+    matches!(
+        next.kind(),
+        TokenKind::Identifier | TokenKind::Keyword(Keyword::Test)
+    ) && matches!(
+        parser.source.text_at(next.span().range()),
+        Some("package" | "dependencies" | "lock" | "executable" | "test")
+    )
+}
+
 fn is_package_directive_name(parser: &Parser<'_>) -> bool {
     matches!(
         parser.current_text(),
-        "name" | "version" | "dependencies" | "lock" | "executable"
+        "package" | "dependencies" | "lock" | "executable"
     ) && parser.at(TokenKind::Identifier)
         || parser.at_keyword(Keyword::Test)
 }

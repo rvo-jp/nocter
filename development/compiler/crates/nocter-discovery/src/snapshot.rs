@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_compile_input::{
-    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageInput, PackageMode,
-    PackageTargetResolutionInput, ToolchainInput, UseResolutionInput,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageInput, PackageMode, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
+    ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, PackageIdentity};
@@ -97,7 +97,6 @@ pub(crate) struct DiscoveredPackage {
     pub(crate) display_name: Box<str>,
     pub(crate) mode: PackageMode,
     pub(crate) dependencies: BTreeMap<Box<str>, PackageIdentity>,
-    pub(crate) declaration: Option<(Box<str>, usize)>,
 }
 
 #[derive(Debug)]
@@ -110,7 +109,7 @@ pub struct DiscoveredUnit {
     pub(crate) root_packages: Vec<PackageIdentity>,
     pub(crate) modules: Vec<DiscoveredModule>,
     pub(crate) module_dependencies: Vec<DiscoveredModuleDependency>,
-    pub(crate) include_resolutions: Vec<IncludeResolutionInput>,
+    pub(crate) source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pub(crate) toolchain: Option<ToolchainInput>,
@@ -171,18 +170,12 @@ impl DiscoveredUnit {
 
     /// Reports whether one discovered source is authored by a selected root package.
     ///
-    /// Package declarations and module sources share this ownership boundary. Consumers do not
-    /// need to reconstruct it from filesystem ancestry, which would misclassify dependencies or
+    /// The package root declaration is the root module's physical root source. Consumers do not
+    /// reconstruct ownership from filesystem ancestry, which would misclassify dependencies or
     /// nested package roots.
     #[must_use]
     pub fn is_root_package_source(&self, canonical_path: &str) -> bool {
-        self.packages.iter().any(|package| {
-            self.root_packages.contains(&package.identity)
-                && package
-                    .declaration
-                    .as_ref()
-                    .is_some_and(|(path, _)| path.as_ref() == canonical_path)
-        }) || self.modules.iter().any(|module| {
+        self.modules.iter().any(|module| {
             self.root_packages.contains(module.identity().package())
                 && module
                     .sources()
@@ -247,9 +240,6 @@ impl DiscoveredUnit {
                     package.identity.clone(),
                     package.display_name.clone(),
                     package.mode,
-                    package.declaration.as_ref().map(|(path, syntax)| {
-                        PackageDeclarationInput::new(path.clone(), &self.syntax[*syntax])
-                    }),
                 )
             })
             .collect();
@@ -284,7 +274,7 @@ impl DiscoveredUnit {
             modules,
             self.use_resolutions.clone(),
         )
-        .with_include_resolutions(self.include_resolutions.clone())
+        .with_source_visibility_resolutions(self.source_visibility_resolutions.clone())
         .with_root_packages(self.root_packages.clone())
         .with_package_target_resolutions(self.package_target_resolutions.clone())
         .with_toolchain(toolchain))

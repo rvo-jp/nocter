@@ -925,17 +925,14 @@ mod tests {
     fn opaque_enum_variants_remain_private_to_direct_source_access() {
         let fixture = Fixture::with_implementation_sources(
             concat!(
-                "include ./choice.nct\n",
-                "include ./consumer.nct\n",
+                "see ./choice.nct\n",
+                "see ./consumer.nct\n",
                 "\n",
                 "pub enum Choice\n",
             ),
             &[
-                (
-                    "choice.nct",
-                    "include ./index.nct\n\nenum Choice { hidden }\n",
-                ),
-                ("consumer.nct", "include ./index.nct\n"),
+                ("choice.nct", "see ./index.nct\n\nenum Choice { hidden }\n"),
+                ("consumer.nct", "see ./index.nct\n"),
             ],
         );
         let input = fixture.input(false);
@@ -1007,14 +1004,14 @@ mod tests {
     fn empty_opaque_struct_representation_requires_direct_source_access() {
         let fixture = Fixture::with_implementation_sources(
             concat!(
-                "include ./empty.nct\n",
-                "include ./consumer.nct\n",
+                "see ./empty.nct\n",
+                "see ./consumer.nct\n",
                 "\n",
                 "pub struct Empty\n",
             ),
             &[
-                ("empty.nct", "include ./index.nct\n\nstruct Empty {}\n"),
-                ("consumer.nct", "include ./index.nct\n"),
+                ("empty.nct", "see ./index.nct\n\nstruct Empty {}\n"),
+                ("consumer.nct", "see ./index.nct\n"),
             ],
         );
         let input = fixture.input(false);

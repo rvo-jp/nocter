@@ -19,7 +19,7 @@ pub use access::{SourceAccessError, SourceAccessTable};
 
 /// Closed source-local name authority selected by declaration lowering.
 ///
-/// A source sees its own declarations, declarations from sources it directly includes, and its
+/// A source sees its own declarations, declarations from its direct `see` targets, and its
 /// own authored imports. Consumers must not reconstruct this table from module membership.
 #[derive(Clone, Debug, Default)]
 pub struct SourceNamespaceTable {
@@ -45,7 +45,7 @@ impl SourceNamespaceTable {
             .or_else(|| lookup_namespace(&namespace.fallback, name))
     }
 
-    /// Resolves only a declaration, direct include, or import authored for this source.
+    /// Resolves only a declaration, direct see, or import authored for this source.
     #[must_use]
     pub fn lookup_authored(
         &self,

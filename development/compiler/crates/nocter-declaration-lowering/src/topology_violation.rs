@@ -4,43 +4,55 @@ use nocter_syntax::NodeId;
 /// Stable source-level rule for authored source composition and module import topology.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TopologyRule {
-    InvalidSourceInclude,
+    InvalidSourceVisibility,
     ModuleImportCycle,
+    PackageDirectiveOutsideRoot,
 }
 
 impl TopologyRule {
-    pub const ALL: [Self; 2] = [Self::InvalidSourceInclude, Self::ModuleImportCycle];
+    pub const ALL: [Self; 3] = [
+        Self::InvalidSourceVisibility,
+        Self::ModuleImportCycle,
+        Self::PackageDirectiveOutsideRoot,
+    ];
 
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
-            Self::InvalidSourceInclude => "E0270",
+            Self::InvalidSourceVisibility => "E0270",
             Self::ModuleImportCycle => "E0271",
+            Self::PackageDirectiveOutsideRoot => "E0276",
         }
     }
 
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
-            Self::InvalidSourceInclude => "source include crosses a directory-module boundary",
+            Self::InvalidSourceVisibility => "source see crosses a directory-module boundary",
             Self::ModuleImportCycle => "module imports form a dependency cycle",
+            Self::PackageDirectiveOutsideRoot => {
+                "package directives are permitted only in the package root index.nct"
+            }
         }
     }
 
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
-            Self::InvalidSourceInclude => {
-                "include a source in the same directory module, or use the target directory module"
+            Self::InvalidSourceVisibility => {
+                "see a source in the same directory module, or use the target directory module"
             }
             Self::ModuleImportCycle => "remove at least one module import in this cycle",
+            Self::PackageDirectiveOutsideRoot => {
+                "move this directive to the index.nct that contains #package"
+            }
         }
     }
 
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::InvalidSourceInclude => None,
+            Self::InvalidSourceVisibility | Self::PackageDirectiveOutsideRoot => None,
             Self::ModuleImportCycle => Some("another import in this cycle is here"),
         }
     }
@@ -56,9 +68,18 @@ pub struct TopologyViolation {
 
 impl TopologyViolation {
     #[must_use]
-    pub fn invalid_source_include(declaration: NodeId) -> Self {
+    pub fn invalid_source_see(declaration: NodeId) -> Self {
         Self {
-            rule: TopologyRule::InvalidSourceInclude,
+            rule: TopologyRule::InvalidSourceVisibility,
+            primary: SyntaxOrigin::Node(declaration),
+            related: Box::new([]),
+        }
+    }
+
+    #[must_use]
+    pub fn package_directive_outside_root(declaration: NodeId) -> Self {
+        Self {
+            rule: TopologyRule::PackageDirectiveOutsideRoot,
             primary: SyntaxOrigin::Node(declaration),
             related: Box::new([]),
         }

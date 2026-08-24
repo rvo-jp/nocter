@@ -49,7 +49,7 @@ programs never depend on this projection value.
 Declaration lowering also records each source's effective visible spellings in `SourceIndex`.
 This editor-only projection is emitted beside, not read back from, the `FrontendBindings` consumed
 by semantic checking. Hover, completion, signature help, and inlay hints select names from that
-projection, so a source-local alias or direct include can affect presentation without entering a
+projection, so a source-local alias or direct see can affect presentation without entering a
 module export table or becoming semantic input to a later compiler stage.
 
 Editor descriptions follow the separate
@@ -147,8 +147,9 @@ declaration or checked expression instead.
 `nocter-filesystem` owns one immutable map from canonical absolute paths to accepted open-document
 bytes and versions. Reads select that map before disk, while writes, fetches, lock generation, and
 publication have no API in the crate. Package resolution retains the exact map in its resolved
-graph, and discovery consumes and retains that same value while loading module sources. Manifest
-decoding and module analysis therefore cannot observe different content for one editor generation.
+graph, and discovery consumes and retains that same value while loading module sources. Package-
+directive decoding and module analysis therefore cannot observe different content for one editor
+generation.
 Overlay-aware resolution is a separate read-only entry point; package-state transactions accept
 only the disk-backed request type and cannot mistake editor bytes for persistent package source.
 
@@ -256,7 +257,7 @@ status. The transport loop writes only framed JSON-RPC messages to its output.
 
 Every accepted document transition now retains the canonical document that triggered its immutable
 source generation. `WorkspaceAnalyses` first selects the exact compiler-owned standard root. Other
-documents select the deepest `nocter.nct` ancestor bounded by the owning initialized root; that
+documents select the deepest `index.nct` ancestor bounded by the owning initialized root; that
 declaration selects package mode, while a `.nct` file without such an ancestor selects single-file
 mode. Package mode resolves the complete exact graph under mandatory locked/offline policy and
 discovers the package root plus every declared executable and test module. Toolchain-standard mode
@@ -290,7 +291,7 @@ validated installation and current directory for later root/toolchain compositio
 enters the stdio loop before ordinary outcome rendering, guaranteeing that reports and diagnostics
 cannot be printed to protocol stdout.
 
-`nocter-package` is the sole data-interpretation authority for `nocter.nct`. It converts package
+`nocter-package` is the sole data-interpretation authority for `index.nct`. It converts package
 metadata, dependency sources, exact locks, and target declarations into one structured snapshot
 with exact syntax origins. Git, archive, and path dependency shapes are disjoint; `std` is rejected
 as an authored dependency or lock; lock kind is validated against its declared source. Package
@@ -306,19 +307,20 @@ dependency-free SHA-256 implementation shared by package identity, Mach-O UUID g
 Mach-O code signing.
 
 The same crate closes externally selected identities and roots into one `ResolvedPackageGraph`.
-That graph owns the manifest `SourceMap`, syntax trees, decoded declarations, presentation names,
+That graph owns the package-source `SourceMap`, syntax trees, decoded declarations, presentation names,
 and exact alias edges. It rejects duplicate identities or canonical roots, unknown edge targets,
 authored/resolved alias disagreement, missing remote locks, and path dependencies whose canonical
-directory differs from the resolved target package. Syntax-invalid manifests remain owned by the
-snapshot for ordinary diagnostic projection. Discovery consumes the graph by ownership and appends
-module sources to its existing source universe; it never opens or parses a manifest again.
+directory differs from the resolved target package. Syntax-invalid package sources remain owned by
+the snapshot for ordinary diagnostic projection. Discovery consumes the graph by ownership,
+reuses the already parsed package root `index.nct` as the root module source, and appends the other
+inventoried module sources to the same source universe.
 
 `resolve_package_graph` constructs that snapshot directly from one explicit root, Nocter home,
 toolchain-selected standard package, and immutable locked/offline policy. It resolves mutable path
 dependencies at their canonical authored directories and exact remote dependencies first at
 `<root>/.nocter/packages/<PackageId>`, then at `<Nocter-home>/packages/<PackageId>`. A shared graph
-builder loads each selected manifest once while recursively closing its dependencies; resolution
-does not inspect a manifest and then ask the graph to reopen it. Missing locks and installed
+builder loads each selected package root source once while recursively closing its dependencies;
+resolution does not inspect a source and then ask the graph to reopen it. Missing locks and installed
 packages cross typed `LockRequired` and `FetchRequired` boundaries. Locked/offline policy converts
 only the forbidden requirement into a policy error. The resolver never writes a lock, contacts a
 source, downloads content, or mutates either store. Source-independent `ExactDependencyLock`
@@ -328,8 +330,8 @@ private staged roots before they are published. Both are immutable resolver inpu
 mutation authority.
 
 The editor-facing retained resolver wraps every failure in `PackageResolutionFailure`. Its
-`PackageSourceSnapshot` owns the exact source overlay, `SourceMap`, and all manifest syntax trees
-reached before resolution stopped. A tree enters that snapshot before semantic manifest decoding,
+`PackageSourceSnapshot` owns the exact source overlay, `SourceMap`, and all package-root syntax trees
+reached before resolution stopped. A tree enters that snapshot before semantic package decoding,
 so an invalid directive cannot discard the node that owns its error subject. Ordinary command APIs
 still project the same underlying `PackageResolutionError`; editor analysis keeps the richer value
 for invalidation and presentation. Package declaration failures therefore publish `E0800` at their
@@ -341,8 +343,9 @@ implementation receives typed lock-resolution and exact-fetch requests, but only
 chooses private staging roots, publishes verified package directories, or rewrites package source.
 It resolves the complete graph through both overlays, publishes only after that graph succeeds,
 reruns resolution using persistent stores alone, then atomically commits one canonical sorted root
-`#lock` block. The source commit compares the exact retained manifest bytes first, so a concurrent
-edit is rejected rather than overwritten; generated source also preserves the manifest's LF or
+`#lock` block inside the package-directive prefix. The source commit compares the exact retained
+package-source bytes first, so a concurrent edit is rejected rather than overwritten; generated
+source also preserves the source's LF or
 CRLF convention. Missing locks below the selected root are rejected because an exact stored
 package and a separately selected path package are not implicit mutation targets. Failed staging
 removes its private transaction tree, and individually published exact packages remain valid cache
@@ -383,10 +386,10 @@ canonical compiler, standard-library, license, and notice paths. Its release own
 package identity. No command or compiler stage may inspect installation JSON independently.
 
 `nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
-lowering. `nocter-discovery` consumes exact resolved package roots, loads reachable module sources
-once, distinguishes exact same-module `include` edges from directory-module `use` edges, rejects
+lowering. `nocter-discovery` consumes exact resolved package roots, inventories every physical
+source owned by each selected directory module, distinguishes exact same-module `see` edges from directory-module `use` edges, rejects
 ambiguous physical candidates and nested-package or cross-module escapes, and retains one edge for
-every active authored `include` and `use`.
+every active authored `see` and `use`.
 Lexically or syntactically invalid sources remain in the snapshot for diagnostic projection, but
 the snapshot cannot be borrowed as a semantic input until those errors are absent. Discovery uses
 the shared `nocter-target-selection` inventory, so an inactive gated import never probes the
@@ -396,7 +399,7 @@ The discovery request is an explicit sum of declared-package and single-file lay
 requires one `.nct` path, derives its opaque package identity from the canonical source identity,
 adds only the selected standard package as a dependency, and rejects package-local imports that
 would silently turn the file into a directory graph. It then emits the same package, module,
-source, include-edge, import-edge, and toolchain snapshot consumed by declaration lowering. There
+source, source-visibility edge, import-edge, and toolchain snapshot consumed by declaration lowering. There
 is no single-file semantic pipeline.
 
 Declared discovery owns package-target module edges for the roots selected by its caller. It maps
@@ -408,14 +411,15 @@ compile roots do not expand the unit.
 
 `nocter-declaration-lowering` accepts one explicit compile-unit input after package discovery. A
 package has an opaque resolved identity distinct from its display name. A module has that package
-identity plus normalized directory segments. Physical package declarations, module roots,
-implementation files, and single-file inputs carry canonical path keys, but those keys are used
-only to reject duplicate ownership and to produce deterministic source projections. Lowering does
-not probe directories or reinterpret paths. It sorts packages, modules, and sources by their exact
-input identities before allocating semantic IDs, so discovery order cannot change the declaration
-program. Declared packages require one package declaration and one root module; single-file mode
-requires exactly one root module source and no package declaration. The two layouts cannot be
-silently substituted for each other.
+identity plus normalized directory segments. `PackageInput` deliberately carries no declaration
+syntax: the declared package's root module `Root` source is the sole semantic representation of the
+package `index.nct`. Physical root-module sources, child-module roots, ordinary module sources, and
+single-file inputs carry canonical path keys, but those keys are used only to reject duplicate
+ownership and to produce deterministic source projections. Lowering does not probe directories or
+reinterpret paths. It sorts packages, modules, and sources by their exact input identities before
+allocating semantic IDs, so discovery order cannot change the declaration program. Declared
+packages require one root module with one `Root` source; single-file mode requires exactly one root
+module with one `SingleFile` source. The two layouts cannot be silently substituted for each other.
 
 The resolved `PackageIdentity` is a syntax-independent model value, and each semantic `Package`
 retains it beside its presentation-only display-name symbol. Declaration reservation rejects a
@@ -424,20 +428,20 @@ internal relation keys, while commands, caches, and diagnostics can recover the 
 identity without correlating arena order or reparsing source metadata.
 
 Package discovery supplies disjoint resolved inputs for source composition and module imports. An
-`IncludeResolutionInput` identifies one exact physical source for a top-level `include`; a
+`SourceVisibilityResolutionInput` identifies one exact physical source for a top-level `see`; a
 `UseResolutionInput` can identify only a directory module for a top-level or block `use`. Neither
 type can encode the other's target, so lowering never derives the distinction from path text or
-filesystem layout. Validation requires every implementation source to be reachable from its
-module root through same-module include edges. Include edges may cycle and remain idempotent.
+filesystem layout. Every inventoried source is checked independently of visibility reachability.
+See edges may cycle and remain idempotent.
 Module-use edges must target a module in the compile unit and form an acyclic graph. The canonical
-surface retains includes and imports in separate collections, so later namespace preparation has
+surface retains source-visibility edges and imports in separate collections, so later namespace preparation has
 no path-probing fallback or source-or-module union.
 
 Module edges also retain the exact authored `use` node selected by discovery. Acyclic validation
 first removes the deterministic acyclic prefix, then derives one canonical complete cycle from the
 residual graph. The cycle is rotated by canonical module identity, so compile-unit input ordering
-cannot change its primary edge or ordered notes. Missing, duplicate, stale, and unreachable
-discovery inputs remain internal boundary failures; only authored source-include boundaries and
+cannot change its primary edge or ordered notes. Missing, duplicate, and stale
+discovery inputs remain internal boundary failures; only authored source-visibility boundaries and
 module-cycle rules receive source diagnostic codes.
 
 The authored standard library now crosses this production boundary as one declaration unit. This
@@ -454,7 +458,7 @@ semantic declaration roles, and closed primitive roles. Discovery loads every se
 resolves each role locator to one declaration-name token before semantic lowering. Standard
 semantic roles deliberately select visible contract declarations and ignore private implementation
 bodies. Primitive roles deliberately select primitive declarations from the complete authored
-module source set, including private declarations in included implementation files. Lowering then
+module source set, including private declarations in directly seen ordinary sources. Lowering then
 normalizes each selected declaration's ordinary source visibility. Target validation requires that
 visibility to equal the closed registry's source-private, package-visible, or public exposure.
 Lowering records standard package and built-in authority from those identities; checking resolves
@@ -513,7 +517,7 @@ identity that failed.
 
 The command input boundary resolves package and single-file modes before package graph discovery.
 It receives the invocation directory explicitly rather than reading process-global state. No file
-input selects exactly that directory as a package root and requires its `nocter.nct`; `--root`
+input selects exactly that directory as a package root and requires its `index.nct`; `--root`
 selects exactly the requested directory. Positional and `--file` sources converge only after their
 mutual-exclusion check, require the `.nct` extension and one regular file, and cannot coexist with
 `--root`. Resolution canonicalizes the selected identity once and never searches ancestors,
@@ -550,7 +554,7 @@ representable after parsing. `--locked` and `--offline` survive as a separate im
 resolution policy; they never alter executable or output selection.
 
 `init` is the only installation-independent package mutation. Its command-owned transaction
-preflights `nocter.nct`, root `index.nct`, and `tests/unit/index.nct`, records each newly created
+preflights root `index.nct` and `tests/unit/index.nct`, records each newly created
 file and directory, and rolls those paths back after any later failure. It never removes unrelated
 content from an existing destination. `graph` has the opposite capability: it receives a validated
 `CommandPackageContext` but no acquisition authority, invokes the read-only exact resolver, and
@@ -560,7 +564,7 @@ by changing source or store state.
 
 `fmt`, `tokens`, and `ast` are source-only commands with exact-one-file parse results. One
 command-owned standalone loader resolves the canonical path, retains the original bytes, selects
-the package-file or module-source parse goal, and constructs `nocter-source-tooling`: one
+the single source-file parse goal, and constructs `nocter-source-tooling`: one
 filesystem-independent snapshot owning normalized source, lexer output, and its concrete syntax
 tree. The `nocter.tokens` and `nocter.ast` version-1 renderers project that snapshot directly into
 flat, ID-based JSON; they do not create a second AST. Lexer/parser diagnostics use the same
@@ -642,7 +646,7 @@ owner. Blocks are opaque to this pass; body syntax cannot create or alter a decl
 The pass also enforces the module rule that implementation sources cannot add visibility,
 re-exports, or bodyless nominal contracts. Private representations, helpers, construction entries,
 and inherent methods may remain implementation-only. A following contract pass joins every
-bodyless public callable and opaque nominal to one reciprocal direct-include definition. Because
+bodyless public callable and opaque nominal to one reciprocal direct-see definition. Because
 conformance has program-wide dispatch meaning and no private visibility form, every implementation
 conformance must complete a conformance head authored in `index.nct`. That container-level join
 attaches private method bodies to the public conformance identity; required signatures are read
@@ -729,11 +733,11 @@ subjects; the diagnostic adapter never searches syntax or reconstructs scope anc
 
 Authored module imports are resolved after generic scopes but before type construction. Every
 source owns one symbol-sorted authored namespace containing its declarations, declarations copied
-from exact direct include targets, and only the imports written in that source. Include copying
-uses a snapshot of each target's authored declarations, so it cannot become transitive through the
-target's own includes or imports. Separately, every module owns the export table authored by its
+from exact direct see targets, and only the imports written in that source. Source-visibility
+composition uses a snapshot of each target's authored declarations, so it cannot become transitive
+through the target's own see edges or imports. Separately, every module owns the export table authored by its
 root `index.nct` or single-file root. Implementation declarations never enter that table, including
-when another source includes them. Dependency modules are completed before importers. Selection
+when another source sees them. Dependency modules are completed before importers. Selection
 checks the target export from the importing module, and a re-export's normalized visibility must
 denote a subset of the target boundary. Declaration lowering freezes each source namespace into a
 dedicated frontend binding contract consumed by header binding, lexical name resolution, and typed
@@ -743,7 +747,7 @@ semantic consumers cannot read that projection. The compiler-managed prelude rem
 fallback layer, preserving authored shadowing without turning collisions into priority rules.
 
 Declaration lowering separately freezes a `SourceAccessTable`. It maps every source to itself and
-its exact direct include targets, every declaration site to its authored source, and every nominal
+its exact direct see targets, every declaration site to its authored source, and every nominal
 representation to the source that owns its fields or variants. It also records whether a bodyless
 public nominal contract seals that representation. Name lookup consumes `SourceNamespaceTable`;
 private field, method, operator, coercion, variant, and raw structural-construction selection consume

@@ -118,8 +118,8 @@ impl PackageTargetDeclaration {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageDeclaration {
-    name: Option<AuthoredString>,
-    version: Option<AuthoredString>,
+    name: AuthoredString,
+    version: AuthoredString,
     dependencies: BTreeMap<Box<str>, DependencyDeclaration>,
     locks: BTreeMap<Box<str>, DependencyLock>,
     lock_directive: Option<NodeId>,
@@ -128,13 +128,13 @@ pub struct PackageDeclaration {
 
 impl PackageDeclaration {
     #[must_use]
-    pub const fn name(&self) -> Option<&AuthoredString> {
-        self.name.as_ref()
+    pub const fn name(&self) -> &AuthoredString {
+        &self.name
     }
 
     #[must_use]
-    pub const fn version(&self) -> Option<&AuthoredString> {
-        self.version.as_ref()
+    pub const fn version(&self) -> &AuthoredString {
+        &self.version
     }
 
     #[must_use]
@@ -202,6 +202,7 @@ pub enum PackageDeclarationRule {
     PathDependencyLock,
     LockKindMismatch,
     TargetOrderOverflow,
+    MissingPackageDirective,
 }
 
 impl fmt::Display for PackageDeclarationError {
@@ -229,7 +230,7 @@ pub fn decode_package_declaration(
     if tree.has_errors()
         || tree
             .node(tree.root_id())
-            .is_none_or(|root| root.kind() != NodeKind::PackageFile)
+            .is_none_or(|root| root.kind() != NodeKind::SourceFile)
     {
         return Err(error(
             tree.root_id(),
@@ -238,8 +239,7 @@ pub fn decode_package_declaration(
         ));
     }
 
-    let mut name = None;
-    let mut version = None;
+    let mut package = None;
     let mut dependencies = None;
     let mut locks = None;
     let mut lock_directive = None;
@@ -256,17 +256,11 @@ pub fn decode_package_declaration(
         let directive = directive_name(source, tree, declaration)
             .ok_or_else(|| error(declaration, PackageDeclarationRule::InvalidDirective, None))?;
         match directive.as_ref() {
-            "name" => set_once(
-                &mut name,
-                authored_string(source, tree, declaration)?,
+            "package" => set_once(
+                &mut package,
+                decode_package_header(source, tree, declaration)?,
                 declaration,
-                "name",
-            )?,
-            "version" => set_once(
-                &mut version,
-                authored_string(source, tree, declaration)?,
-                declaration,
-                "version",
+                "package",
             )?,
             "dependencies" => set_once(
                 &mut dependencies,
@@ -317,6 +311,13 @@ pub fn decode_package_declaration(
     let dependencies = dependencies.unwrap_or_default();
     let locks = locks.unwrap_or_default();
     validate_locks(&dependencies, &locks)?;
+    let (name, version) = package.ok_or_else(|| {
+        error(
+            tree.root_id(),
+            PackageDeclarationRule::MissingPackageDirective,
+            Some("package".into()),
+        )
+    })?;
     Ok(PackageDeclaration {
         name,
         version,
@@ -325,6 +326,30 @@ pub fn decode_package_declaration(
         lock_directive,
         targets: targets.into_boxed_slice(),
     })
+}
+
+fn decode_package_header(
+    source: &SourceFile,
+    tree: &SyntaxTree,
+    declaration: NodeId,
+) -> Result<(AuthoredString, AuthoredString), PackageDeclarationError> {
+    let record = required_record(tree, declaration)?;
+    let fields = unique_fields(source, tree, record)?;
+    for name in fields.keys() {
+        if !matches!(name.as_ref(), "name" | "version") {
+            return Err(error(
+                fields[name],
+                PackageDeclarationRule::UnknownField,
+                Some(name.clone()),
+            ));
+        }
+    }
+    let name = required_field(&fields, declaration, "name")?;
+    let version = required_field(&fields, declaration, "version")?;
+    Ok((
+        authored_string(source, tree, name)?,
+        authored_string(source, tree, version)?,
+    ))
 }
 
 fn decode_dependencies(
@@ -758,18 +783,17 @@ mod tests {
     fn decode(text: &str) -> Result<PackageDeclaration, PackageDeclarationError> {
         let mut sources = SourceMap::new();
         let source = sources
-            .add_bytes(SourceName::new("/package/nocter.nct"), text.as_bytes())
+            .add_bytes(SourceName::new("/package/index.nct"), text.as_bytes())
             .unwrap();
         let source = sources.get(source).unwrap();
-        let syntax = parse(source, ParseGoal::PackageFile);
+        let syntax = parse(source, ParseGoal::SourceFile);
         decode_package_declaration(source, &syntax)
     }
 
     #[test]
     fn decodes_complete_package_data_and_exact_target_order() {
         let declaration = decode(
-            "#name: \"app\"\n\
-             #version: \"1.2.3\"\n\
+            "#package: { name: \"app\", version: \"1.2.3\", }\n\
              #dependencies: {\n\
                git_dep: { git: \"https://example.test/a.git\", revision: \"main\", },\n\
                archive_dep: { archive: \"https://example.test/a.tar.gz\", },\n\
@@ -787,8 +811,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(declaration.name().unwrap().value(), "app");
-        assert_eq!(declaration.version().unwrap().value(), "1.2.3");
+        assert_eq!(declaration.name().value(), "app");
+        assert_eq!(declaration.version().value(), "1.2.3");
         assert_eq!(declaration.dependencies().len(), 3);
         assert_eq!(declaration.locks().len(), 2);
         assert_eq!(declaration.targets().len(), 2);
@@ -842,10 +866,14 @@ mod tests {
 
     #[test]
     fn scalar_fields_never_search_inside_nested_records() {
-        let name = decode("#name: { nested: \"app\", }\n").unwrap_err();
+        let name =
+            decode("#package: { name: { nested: \"app\", }, version: \"0.1.0\", }\n").unwrap_err();
         assert_eq!(name.rule(), PackageDeclarationRule::ExpectedString);
 
-        let target = decode("#executable: { name: { nested: \"app\", }, }\n").unwrap_err();
+        let target = decode(
+            "#package: { name: \"app\", version: \"0.1.0\", }\n#executable: { name: { nested: \"app\", }, }\n",
+        )
+        .unwrap_err();
         assert_eq!(target.rule(), PackageDeclarationRule::ExpectedString);
     }
 }

@@ -466,13 +466,13 @@ fn apply_direct_includes(
     namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
 ) -> Result<(), ImportError> {
     let direct = namespaces.to_vec();
-    for include in generics.headers.reserved.includes.iter().copied() {
+    for see in generics.headers.reserved.includes.iter().copied() {
         let target = direct
-            .get(include.target().index())
-            .ok_or(ImportError::MissingSource(include.target()))?;
+            .get(see.target().index())
+            .ok_or(ImportError::MissingSource(see.target()))?;
         let destination = namespaces
-            .get_mut(include.source().index())
-            .ok_or(ImportError::MissingSource(include.source()))?;
+            .get_mut(see.source().index())
+            .ok_or(ImportError::MissingSource(see.source()))?;
         for (name, binding) in target {
             insert_binding(destination, *name, *binding)?;
         }

@@ -266,7 +266,7 @@ pub interface Counter {
 
 An interface cannot declare fields, stored state, associated data, construction members, or
 `drop`. A method without `default` is a conformance requirement. A method marked `default` supplies
-reusable behavior and may carry its body inline or in a reciprocally included private source. A
+reusable behavior and may carry its body inline or in a reciprocally seen private source. A
 default method does not establish conformance and cannot access members absent from its
 declaring interface contract.
 
@@ -397,7 +397,7 @@ member. An inherent method never establishes or overrides interface conformance.
 
 In a directory module, `index.nct` may instead expose a conformance contract. It writes the
 conformance head, conditional requirements, and associated type bindings, but no method
-signatures. One reciprocally included private source repeats only the conformance head and
+signatures. One reciprocally seen private source repeats only the conformance head and
 conditional requirements and supplies the method bodies; it does not repeat associated type
 bindings. Both occurrences form one semantic conformance, and only the `index.nct` occurrence
 defines the public conformance fact. Required method signatures come exclusively from the

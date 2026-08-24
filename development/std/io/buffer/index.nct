@@ -4,7 +4,7 @@
 //! unflushed buffer instead of hiding an I/O failure in destruction.
 
 use std/io.{File, Reader, Writer}
-include ./buffering.nct
+see ./buffering.nct
 
 pub struct BufReader
 

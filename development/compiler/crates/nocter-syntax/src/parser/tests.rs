@@ -76,32 +76,35 @@ fn has_node_kind(tree: &SyntaxTree, expected: NodeKind) -> bool {
 }
 
 #[test]
-fn parses_empty_and_nested_package_files() {
-    assert_syntax_ok("", ParseGoal::PackageFile);
+fn parses_empty_and_nested_package_directive_values() {
+    assert_syntax_ok("", ParseGoal::SourceFile);
     assert_syntax_ok(
-        "#name: \"example\"\n#version: \"0.1.0\"\n#dependencies: {\n    json: {\n        git: \"https://example.test/json.git\",\n    },\n}\n#test: { name: \"unit\", module: \"./tests/unit\", }\n",
-        ParseGoal::PackageFile,
+        "#package: { name: \"example\", version: \"0.1.0\", }\n#dependencies: {\n    json: {\n        git: \"https://example.test/json.git\",\n    },\n}\n#test: { name: \"unit\", module: \"./tests/unit\", }\n",
+        ParseGoal::SourceFile,
     );
     assert_syntax_ok(
         "#executable: {\n    name: \"app\"\n}\n",
-        ParseGoal::PackageFile,
+        ParseGoal::SourceFile,
     );
 }
 
 #[test]
 fn keeps_duplicate_directives_as_a_semantic_boundary() {
     assert_syntax_ok(
-        "#name: \"first\"\n#name: \"second\"\n",
-        ParseGoal::PackageFile,
+        "#package: { name: \"first\", version: \"0.0.0\", }\n#package: { name: \"second\", version: \"0.0.0\", }\n",
+        ParseGoal::SourceFile,
     );
 }
 
 #[test]
 fn rejects_non_data_and_interpolated_directive_values() {
-    let boolean = parse_text("#name: true\n", ParseGoal::PackageFile);
+    let boolean = parse_text("#package: true\n", ParseGoal::SourceFile);
     assert!(boolean.has_errors());
 
-    let interpolation = parse_text("#name: \"${name}\"\n", ParseGoal::PackageFile);
+    let interpolation = parse_text(
+        "#package: { name: \"${name}\", version: \"0.0.0\", }\n",
+        ParseGoal::SourceFile,
+    );
     assert!(interpolation.has_errors());
 }
 
@@ -109,7 +112,7 @@ fn rejects_non_data_and_interpolated_directive_values() {
 fn rejects_record_fields_without_commas() {
     let tree = parse_text(
         "#executable: {\n    name: \"app\"\n    module: \".\"\n}\n",
-        ParseGoal::PackageFile,
+        ParseGoal::SourceFile,
     );
 
     assert!(tree.diagnostics().iter().any(|diagnostic| {
@@ -120,7 +123,7 @@ fn rejects_record_fields_without_commas() {
 
 #[test]
 fn eof_recovery_never_duplicates_the_eof_token() {
-    let tree = parse_text("#", ParseGoal::PackageFile);
+    let tree = parse_text("#", ParseGoal::SourceFile);
     assert!(tree.has_errors());
     assert_complete_token_projection(&tree);
 }
@@ -134,9 +137,9 @@ fn parses_private_scoped_and_selected_imports() {
 }
 
 #[test]
-fn parses_exact_source_includes_separately_from_module_uses() {
+fn parses_exact_source_visibility_separately_from_module_uses() {
     let tree = assert_syntax_ok(
-        "include ./index.nct\ninclude ./internal/search.nct\nuse ./parser\n",
+        "see ./index.nct\nsee ./internal/search.nct\nsee ../shared.nct\nuse ./parser\n",
         ParseGoal::SourceFile,
     );
     assert_eq!(tree.root().kind(), NodeKind::SourceFile);
@@ -147,19 +150,20 @@ fn parses_exact_source_includes_separately_from_module_uses() {
                 SyntaxElement::Node(node) => tree.node(*node),
                 _ => None,
             })
-            .filter(|node| node.kind() == NodeKind::IncludeDeclaration)
+            .filter(|node| node.kind() == NodeKind::SourceVisibilityDeclaration)
             .count(),
-        2
+        3
     );
 }
 
 #[test]
-fn rejects_noncanonical_include_paths() {
+fn rejects_noncanonical_source_visibility_paths() {
     for source in [
-        "include ../search.nct\n",
-        "include ./search\n",
-        "include /search.nct\n",
-        "include std/search.nct\n",
+        "see ./search\n",
+        "see ../search\n",
+        "see ./../search.nct\n",
+        "see /search.nct\n",
+        "see std/search.nct\n",
     ] {
         let tree = parse_text(source, ParseGoal::SourceFile);
         assert!(tree.has_errors(), "accepted {source:?}");
@@ -201,9 +205,9 @@ fn recognizes_late_use_after_an_item_shaped_line() {
 }
 
 #[test]
-fn recognizes_late_include_after_an_item_shaped_line() {
+fn recognizes_late_see_after_an_item_shaped_line() {
     let tree = parse_text(
-        "func main(): void {}\ninclude ./helper.nct\n",
+        "func main(): void {}\nsee ./helper.nct\n",
         ParseGoal::SourceFile,
     );
 

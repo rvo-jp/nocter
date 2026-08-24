@@ -36,7 +36,7 @@ Keep these forms in `index.nct`:
 - short inline behavior whose implementation is itself the clearest contract.
 
 Move private representation, allocation or pointer work, platform operations, helper algorithms,
-and ordinary nontrivial bodies to responsibility-named sources included by `index.nct`. A useful
+and ordinary nontrivial bodies to responsibility-named sources seen by `index.nct`. A useful
 inline body has no branch, loop, mutation, allocation, I/O, target-specific operation, or private
 representation access. Constant results and direct representation-independent forwarding are
 typical inline cases. Line count alone does not make a body trivial.
@@ -78,8 +78,10 @@ Package directive records use the same four-space indentation as declarations. M
 place one field per line and retain a trailing comma.
 
 ```nct
-#name: "json-tool"
-#version: "0.1.0"
+#package: {
+    name: "json-tool",
+    version: "0.1.0",
+}
 #executable: {
     name: "json-tool",
     module: "./src/app",

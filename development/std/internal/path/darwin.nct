@@ -1,6 +1,6 @@
 //! Darwin UTF-8-to-C-path argument encoding.
 
-include ./index.nct
+see ./index.nct
 
 use std/mem.{RawBuffer, page_try_allocator, raw_buffer_ptr, try_alloc}
 use std/path.validate

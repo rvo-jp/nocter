@@ -242,7 +242,7 @@ nocter build --target x64-linux
 
 The command-line contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-`build`, `run`, and `check` select the current directory's `nocter.nct` package when no explicit file
+`build`, `run`, and `check` select the current directory's `index.nct` package when no explicit file
 is supplied. Package metadata remains Nocter source rather than a second manifest language.
 
 `-o path` sets the executable output path. If `-o` is omitted, the driver derives an output path from the selected executable name or root file stem.

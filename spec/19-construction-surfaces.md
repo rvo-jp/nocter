@@ -47,7 +47,7 @@ Rules:
 - A nominal type may have at most one `construct` declaration.
 - Every public construction contract member in `index.nct` must carry an explicit non-private
   visibility: `pub(./)`, an ancestor scope, `pub(/)`, or bare `pub`. A matching private definition
-  in a directly included source omits visibility, repeats the contract's `default` marker when
+  in a directly seen source omits visibility, repeats the contract's `default` marker when
   present, and joins that contract under the source body-matching rule; it does not define another
   construction entry. A private construction surface that is defined entirely within one source
   does not require `pub`.
@@ -133,7 +133,7 @@ is not externally accessible and the construct declaration exposes members, one 
 marked `default`.
 
 With an explicit default member, named-field `Type { ... }` construction is restricted to the
-source that owns the representation and sources that include it directly, even when every field is
+source that owns the representation and sources that directly see it directly, even when every field is
 public. This restriction hides raw initialization, not field access after a value exists. A
 bodyless public nominal contract also seals an empty private representation; the absence of fields
 does not make `Type {}` public.
@@ -162,7 +162,7 @@ visibility and must use the visible type spelling rather than an internal canoni
 
 The canonical surface has two derived views. The use-site view contains every entry ordinary source
 may access from the requesting source and module. Private structural construction and private enum
-variants appear only in their authored source and sources that include it directly. The
+variants appear only in their authored source and sources that directly see it directly. The
 public-presentation view used by type hover removes raw private construction and private entries
 even when the requesting source can access them. Both views preserve the same semantic entry and
 default identities; they are not separate indexes.

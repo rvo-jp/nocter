@@ -153,14 +153,14 @@ impl PreparedNamespaces<'_> {
                 .includes
                 .iter()
                 .copied()
-                .filter(|include| include.source().index() == index)
-                .filter_map(|include| {
+                .filter(|see| see.source().index() == index)
+                .filter_map(|see| {
                     self.imports
                         .generics
                         .headers
                         .reserved
                         .sources
-                        .get(include.target().index())
+                        .get(see.target().index())
                         .map(|target| target.syntax().source())
                 });
             self.imports

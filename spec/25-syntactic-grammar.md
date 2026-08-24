@@ -54,28 +54,28 @@ metadata and attach according to their lexical kind; removing them leaves the sa
 
 ## Source Files
 
-Nocter recognizes package declarations separately from ordinary source files:
+Every Nocter source uses one grammar root. A package root `index.nct` adds a package-directive
+prefix to the same source that defines its root module:
 
 ```text
-PackageFile = LineSequence(PackageDirective) eof
-
 SourceFile = newline*
+             (PackageDirectiveSequence newline+)?
              (DependencySequence (newline+ ItemSequence)? | ItemSequence)?
              newline* eof
 
+PackageDirectiveSequence = PackageDirective (newline+ PackageDirective)*
 DependencySequence = DependencyDeclaration (newline+ DependencyDeclaration)*
-DependencyDeclaration = IncludeDeclaration | UseDeclaration
+DependencyDeclaration = SeeDeclaration | UseDeclaration
 ItemSequence = Item (newline+ Item)*
 ```
 
-Only `nocter.nct` is a `PackageFile`. It accepts package documentation and package directives, but
-not includes, imports, or declarations. Every other selected `.nct` file is a `SourceFile`. A
-source file places every top-level `include` and `use` before its first item. The same grammar
-applies to single-file programs, an `index.nct` module contract, and a private implementation
-source; source and module rules validate their different semantic roles.
+The same grammar applies to single-file programs, package and child-module `index.nct` contracts,
+and ordinary module sources. Semantic package rules permit package directives only in the
+`index.nct` whose `#package` declares the package. Every top-level `see` and `use` follows the
+directive prefix and precedes the first item.
 
 The grammar deliberately does not accept an arbitrary mixture of dependency declarations and
-items. A later top-level `include` or `use` is a syntax error even when resolution would otherwise
+items. A later top-level `see` or `use` is a syntax error even when resolution would otherwise
 succeed.
 
 ## Package Directives
@@ -83,8 +83,7 @@ succeed.
 ```text
 PackageDirective = "#" PackageDirectiveName ":" DirectiveValue
 
-PackageDirectiveName = "name"
-                     | "version"
+PackageDirectiveName = "package"
                      | "dependencies"
                      | "lock"
                      | "executable"
@@ -99,14 +98,17 @@ DirectiveField  = Name ":" DirectiveValue
 ```
 
 The closed directive names, allowed repetitions, and record schemas are defined by
-[Package File](15-command-line-interface.md#package-file). The recursive record grammar only
+[Package Source](15-command-line-interface.md#package-source). The recursive record grammar only
 recognizes their common data notation; it does not permit a schema to accept arbitrary fields or
 value kinds.
 
 For example:
 
 ```nct
-#name: "example"
+#package: {
+    name: "example",
+    version: "0.1.0",
+}
 #executable: {
     name: "example",
     module: "./src/app",
@@ -130,12 +132,13 @@ The spellings inside `pub(...)` are closed. A name, package alias, or arbitrary 
 a `VisibilityScope`. The visibility chapter determines whether a recognized boundary can be used
 from the declaring module and whether an item kind permits visibility at all.
 
-## Includes and Use Declarations
+## See and Use Declarations
 
 ```text
-IncludeDeclaration = "include" IncludePath
+SeeDeclaration = "see" SeePath
 
-IncludePath = "." "/" SourcePathSegment ("/" SourcePathSegment)* "." "nct"
+SeePath = RelativeSourcePrefix SourcePathSegment ("/" SourcePathSegment)* "." "nct"
+RelativeSourcePrefix = "." "/" | ("." "." "/")+
 SourcePathSegment = ModuleSegment
 
 UseDeclaration = Visibility? "use" UseTree
@@ -156,12 +159,14 @@ PackageAbsoluteModulePath = "/" ModuleSegment ("/" ModuleSegment)*
 RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment)*
 ```
 
-`ModuleSegment` is the snake-case module segment defined by the lexical grammar. `IncludePath`
-contains the exact source filename and admits neither `../` nor a missing `.nct` suffix. A
+`ModuleSegment` is the snake-case module segment defined by the lexical grammar. `SeePath`
+contains the exact source filename and admits neither a missing `.nct` suffix nor a mixed `./../`
+prefix. Semantic resolution permits the canonical target only when both sources have the same
+physical module owner. A
 `ModulePath` never contains `.nct`; every `use` is a directory-module import.
 
 A block-scope import uses the private `BlockUseDeclaration` form. Its enclosing block owns the
-newline separator. Visibility is recognized only on a top-level use declaration. `include` has no
+newline separator. Visibility is recognized only on a top-level use declaration. `see` has no
 block-scope or visibility-bearing form. Module rules further reject namespace alias re-exports.
 
 ## Items
@@ -383,7 +388,7 @@ ConformMethod = MethodSignature CallableBody
 
 Conformance members never write visibility. An `index.nct` conformance contract contains only
 associated type bindings; a bodyless `ConformMethod` is invalid because the interface already owns
-that signature. A reciprocally included private conformance definition contains body-bearing
+that signature. A reciprocally seen private conformance definition contains body-bearing
 methods and no associated type bindings. The contract and definition repeat the exact conformance
 head and form one semantic conformance. An inline conformance in `index.nct` or single-file mode may
 contain both bindings and body-bearing methods. Construction entries, fields, operators,
@@ -447,7 +452,7 @@ construct ExternalType {}
 ```
 
 The first is invalid unless it is an eligible public contract with one matching private definition
-connected through reciprocal direct includes;
+connected through reciprocal direct sees;
 the second violates the enum variant-count rule; the third violates construction ownership unless
 the resolved target belongs to the declaring module or to the authorized standard-library
 surface. Keeping those checks outside parsing gives every accepted token sequence one stable
@@ -1032,7 +1037,7 @@ special role only at the listed boundary:
 | `error` | a built-in type atom or construction-owner head; otherwise an ordinary value name |
 | `_` | a discard binding, catch discard, payload slot, or match fallback |
 | `target` | immediately after `#` in an item prefix |
-| package directive names | immediately after `#` in `nocter.nct` |
+| package directive names | immediately after `#` in a source directive prefix |
 
 Outside those positions, an otherwise valid identifier spelling remains ordinary unless a topical
 semantic rule forbids that declaration name. `alloc`, `import`, and `trait` have no contextual

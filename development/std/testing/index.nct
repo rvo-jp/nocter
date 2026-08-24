@@ -3,7 +3,7 @@
 //! These are ordinary fallible functions. Assertion failure therefore uses the same Error
 //! propagation, process cleanup, and reporting path as application failures.
 
-include ./assertions.nct
+see ./assertions.nct
 
 pub func assert(condition: bool): void!
 

@@ -18,7 +18,10 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 #[test]
 fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "#name: \"app\"\n");
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
     tree.source("app/index.nct", "func broken(: void {}\n");
     let source_path = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
@@ -64,14 +67,22 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
 #[test]
 fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "#name: \"app\"\n");
-    tree.source("app/index.nct", "func disk(): void { return }\n");
+    tree.source(
+        "app/index.nct",
+        concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func disk(): void { return }\n",
+        ),
+    );
     let source_path = fs::canonicalize(tree.path().join("app/index.nct")).unwrap();
     let mut overlay = SourceOverlay::builder();
     overlay
         .insert_document(
             source_path.clone(),
-            OpenDocument::new(DocumentVersion::new(23), &b"use ./missing\n"[..]),
+            OpenDocument::new(
+                DocumentVersion::new(23),
+                &b"#package: { name: \"app\", version: \"0.0.0\", }\nuse ./missing\n"[..],
+            ),
         )
         .unwrap();
     let package = PackageIdentity::new("workspace:app");
@@ -165,10 +176,13 @@ fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
 #[test]
 fn namespace_call_accepts_the_callable_reexport_selected_by_name_resolution() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "#name: \"app\"\n");
     tree.source(
         "app/index.nct",
-        "use ./surface\nfunc main(): i32 { return surface.implementation.answer() }\n",
+        concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "use ./surface\n",
+            "func main(): i32 { return surface.implementation.answer() }\n",
+        ),
     );
     tree.source("app/surface/index.nct", "pub use ../implementation\n");
     tree.source(
@@ -189,10 +203,13 @@ fn namespace_call_accepts_the_callable_reexport_selected_by_name_resolution() {
 #[test]
 fn inaccessible_namespace_member_uses_the_module_visibility_diagnostic() {
     let tree = TempTree::new();
-    tree.source("app/nocter.nct", "#name: \"app\"\n");
     tree.source(
         "app/index.nct",
-        "use ./implementation\nfunc main(): i32 { return implementation.answer() }\n",
+        concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "use ./implementation\n",
+            "func main(): i32 { return implementation.answer() }\n",
+        ),
     );
     tree.source(
         "app/implementation/index.nct",

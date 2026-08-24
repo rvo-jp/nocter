@@ -1,6 +1,6 @@
 //! Package declaration and exact dependency-graph authority.
 //!
-//! This crate owns the data interpretation of `nocter.nct`. Source discovery and semantic
+//! This crate owns the data interpretation of `index.nct`. Source discovery and semantic
 //! lowering consume its structured facts and exact syntax origins; they must not decode package
 //! directive fields independently.
 
@@ -11,6 +11,7 @@ mod lock;
 mod lock_overlay;
 mod lock_source;
 mod resolution;
+mod root_probe;
 mod store_overlay;
 
 pub use declaration::{
@@ -33,4 +34,5 @@ pub use resolution::{
     resolve_package_selection_with_source_overlay, resolve_package_selection_with_source_snapshot,
     resolve_standard_package, resolve_standard_package_with_source_overlay,
 };
+pub use root_probe::{PackageRootProbeError, has_package_declaration};
 pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

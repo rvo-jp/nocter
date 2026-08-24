@@ -266,7 +266,7 @@ fn body_module(
 mod tests {
     use nocter_compile_input::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageDeclarationInput, PackageInput, PackageMode, ToolchainInput,
+        PackageInput, PackageMode, ToolchainInput,
     };
     use nocter_declaration_lowering::lower_compile_unit_declarations;
     use nocter_model::PackageIdentity;
@@ -278,8 +278,8 @@ mod tests {
     #[test]
     fn body_catalog_is_exact_and_input_order_independent() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(
             &mut sources,
             "/app/index.nct",
@@ -287,8 +287,8 @@ mod tests {
         );
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -298,8 +298,8 @@ mod tests {
 
         for reverse in [false, true] {
             let mut packages = vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/index.nct", &std_manifest),
             ];
             let mut modules = vec![
                 module("workspace:app", &[], "/app/index.nct", &app),
@@ -362,8 +362,8 @@ mod tests {
     #[test]
     fn missing_phase_two_projection_is_an_internal_boundary_error() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(
             &mut sources,
             "/app/index.nct",
@@ -371,8 +371,8 @@ mod tests {
         );
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -382,8 +382,8 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/index.nct", &std_manifest),
             ],
             vec![
                 module("workspace:app", &[], "/app/index.nct", &app),
@@ -431,18 +431,8 @@ mod tests {
         tree
     }
 
-    fn package<'syntax>(
-        identity: &str,
-        name: &str,
-        path: &str,
-        manifest: &'syntax SyntaxTree,
-    ) -> PackageInput<'syntax> {
-        PackageInput::new(
-            PackageIdentity::new(identity),
-            name,
-            PackageMode::Declared,
-            Some(PackageDeclarationInput::new(path, manifest)),
-        )
+    fn package(identity: &str, name: &str, _path: &str, _manifest: &SyntaxTree) -> PackageInput {
+        PackageInput::new(PackageIdentity::new(identity), name, PackageMode::Declared)
     }
 
     fn module<'syntax>(

@@ -843,7 +843,7 @@ Rules:
 - Field initializer expressions are evaluated left to right in the order written in the literal.
 - Field initializer expressions follow normal ownership, move, copy, borrow, and postfix `?` rules.
 - If a later field initializer fails through postfix `?`, already initialized owned field values are dropped in reverse initialization order before the failure propagates.
-- Private fields may be initialized only in their authored source and sources that include it
+- Private fields may be initialized only in their authored source and sources that directly see it
   directly.
 - Public fields may be initialized from other modules.
 - Construction entries cannot be overloaded.

@@ -5,7 +5,7 @@ use nocter_declarations::{
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use crate::test_support::source_include;
+use crate::test_support::source_see;
 
 const FULL_HEADER_SOURCE: &str = r#"
 pub const base: usize = 40
@@ -62,8 +62,8 @@ test headers { return }
 "#;
 use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-    ToolchainInput, UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
+    ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
+    UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
     collect_declaration_surface, define_declaration_headers, evaluate_header_constants,
     normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
     prepare_generic_binders, reserve_declaration_identities,
@@ -85,18 +85,8 @@ fn parse_source(
     tree
 }
 
-fn package<'syntax>(
-    identity: &str,
-    name: &str,
-    path: &str,
-    manifest: &'syntax SyntaxTree,
-) -> PackageInput<'syntax> {
-    PackageInput::new(
-        PackageIdentity::new(identity),
-        name,
-        PackageMode::Declared,
-        Some(PackageDeclarationInput::new(path, manifest)),
-    )
+fn package(identity: &str, name: &str, _path: &str, _manifest: &SyntaxTree) -> PackageInput {
+    PackageInput::new(PackageIdentity::new(identity), name, PackageMode::Declared)
 }
 
 fn module<'syntax>(
@@ -117,9 +107,9 @@ fn module<'syntax>(
 
 fn lower<'syntax>(
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::IncludeResolutionInput>,
+    includes: Vec<crate::SourceVisibilityResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> crate::LoweredDeclarations {
@@ -128,9 +118,9 @@ fn lower<'syntax>(
 
 fn try_lower<'syntax>(
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::IncludeResolutionInput>,
+    includes: Vec<crate::SourceVisibilityResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
@@ -141,7 +131,7 @@ fn try_lower<'syntax>(
         modules,
         uses,
     )
-    .with_include_resolutions(includes);
+    .with_source_visibility_resolutions(includes);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -162,13 +152,13 @@ fn try_lower<'syntax>(
 
 fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", source_text);
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
@@ -177,8 +167,8 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app_tree),
@@ -214,8 +204,8 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
 #[test]
 fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(
         &mut sources,
@@ -223,8 +213,8 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
         "pub func shared(): void { return }\n",
     );
     let app_id = add_source(&mut sources, "/app/index.nct", FULL_HEADER_SOURCE);
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
@@ -232,8 +222,8 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let lowered = lower(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app_tree),
@@ -396,22 +386,22 @@ fn assert_provenance_annotations(declarations: &nocter_declarations::Declaration
 #[test]
 fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./implementation.nct\n\npub func select<T>(value: &T): &T from value\n",
+        "see ./implementation.nct\n\npub func select<T>(value: &T): &T from value\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/implementation.nct",
-        "include ./index.nct\n\nfunc select<T>(value: &T): &T from value { return }\n",
+        "see ./index.nct\n\nfunc select<T>(value: &T): &T from value { return }\n",
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -431,8 +421,8 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let lowered = lower(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             app_module,
@@ -445,8 +435,8 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/implementation.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/implementation.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
         vec![],
         &prelude,
@@ -680,8 +670,8 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
 #[test]
 fn complete_header_identity_is_independent_of_input_order() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(
@@ -689,8 +679,8 @@ fn complete_header_identity_is_independent_of_input_order() {
         "/app/index.nct",
         "struct Value { item: i32 }\nfunc read(value: &Value): i32 { return 0 }\n",
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
@@ -698,8 +688,8 @@ fn complete_header_identity_is_independent_of_input_order() {
 
     let build = |reverse: bool| {
         let mut packages = vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ];
         let mut modules = vec![
             module("workspace:app", &[], "/app/index.nct", &app_tree),
@@ -745,13 +735,13 @@ fn complete_header_identity_is_independent_of_input_order() {
 #[test]
 fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", "enum Empty {}\n");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
@@ -759,8 +749,8 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
 
     let build = |reverse: bool| {
         let mut packages = vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ];
         let mut modules = vec![
             module("workspace:app", &[], "/app/index.nct", &app_tree),
@@ -789,15 +779,15 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
 #[test]
 fn public_index_contract_is_completed_by_one_private_representation_and_body() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let contract_id = add_source(
         &mut sources,
         "/app/index.nct",
         concat!(
-            "include ./record.nct\n",
+            "see ./record.nct\n",
             "pub struct Box<T>\n",
             "construct Box<T> {\n",
             "    pub default func new(value: T): Self\n",
@@ -815,7 +805,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
         &mut sources,
         "/app/record.nct",
         concat!(
-            "include ./index.nct\n",
+            "see ./index.nct\n",
             "struct Box<T> { value: T }\n",
             "construct Box<T> {\n",
             "    default func new(value: T): Self { return Box<T> { value: value } }\n",
@@ -829,8 +819,8 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "}\n",
         ),
     );
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let contract = parse_source(&sources, contract_id, ParseGoal::SourceFile);
@@ -839,8 +829,8 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
     let lowered = lower(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             ModuleInput::new(
@@ -863,8 +853,8 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             ),
         ],
         vec![
-            source_include(&contract, 0, "/app/record.nct"),
-            source_include(&definition, 0, "/app/index.nct"),
+            source_see(&contract, 0, "/app/record.nct"),
+            source_see(&definition, 0, "/app/index.nct"),
         ],
         vec![],
         &prelude,

@@ -3,10 +3,10 @@ use nocter_source_index::SemanticEntity;
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{ReservedEntity, reserve_declaration_identities};
-use crate::test_support::source_include;
+use crate::test_support::source_see;
 use crate::{
-    CompileUnitInput, IncludeResolutionInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageIdentity, PackageInput, PackageMode, SourceVisibilityResolutionInput,
     SurfaceDeclarationId, collect_declaration_surface,
 };
 
@@ -26,15 +26,14 @@ fn parse_source(
 
 fn reserve<'syntax>(
     sources: &'syntax SourceMap,
-    manifest: &'syntax SyntaxTree,
+    _manifest: &'syntax SyntaxTree,
     module_sources: Vec<ModuleSourceInput<'syntax>>,
-    include_resolutions: Vec<IncludeResolutionInput>,
+    source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
 ) -> super::ReservedDeclarations<'syntax> {
     let package = PackageInput::new(
         PackageIdentity::new("workspace:app"),
         "app",
         PackageMode::Declared,
-        Some(PackageDeclarationInput::new("/app/nocter.nct", manifest)),
     );
     let module = ModuleInput::new(
         ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
@@ -48,7 +47,7 @@ fn reserve<'syntax>(
             vec![module],
             Vec::new(),
         )
-        .with_include_resolutions(include_resolutions),
+        .with_source_visibility_resolutions(source_visibility_resolutions),
     )
     .unwrap();
     reserve_declaration_identities(surface).unwrap()
@@ -57,7 +56,7 @@ fn reserve<'syntax>(
 #[test]
 fn reserves_every_recursive_identity_domain_before_header_resolution() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_text = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/syntax/g007-g012-declarations.nct"
@@ -67,7 +66,7 @@ fn reserves_every_recursive_identity_domain_before_header_resolution() {
         "method &self.item(): &T from self {}",
     );
     let root_id = add_source(&mut sources, "/app/index.nct", &root_text);
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
 
     let reserved = reserve(
@@ -103,18 +102,18 @@ fn reserves_every_recursive_identity_domain_before_header_resolution() {
 #[test]
 fn contract_and_implementation_receive_one_callable_identity() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./parse.nct\n\npub func parse(text: &str): usize\n",
+        "see ./parse.nct\n\npub func parse(text: &str): usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/parse.nct",
-        "include ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n",
+        "see ./index.nct\n\nfunc parse(text: &str): usize { 0 }\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
@@ -130,8 +129,8 @@ fn contract_and_implementation_receive_one_callable_identity() {
             ),
         ],
         vec![
-            source_include(&root, 0, "/app/parse.nct"),
-            source_include(&implementation, 0, "/app/index.nct"),
+            source_see(&root, 0, "/app/parse.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
         ],
     );
 
@@ -145,28 +144,22 @@ fn contract_and_implementation_receive_one_callable_identity() {
 #[test]
 fn public_file_documentation_has_one_semantic_owner() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(
-        &mut sources,
-        "/app/nocter.nct",
-        "//! Package documentation.\n",
-    );
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "//! Public module documentation.\n\ninclude ./detail.nct\n",
+        "//! Package documentation.\n\nsee ./detail.nct\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/detail.nct",
         "//! Implementation source documentation.\n",
     );
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
 
     let reserved = reserve(
         &sources,
-        &manifest,
+        &root,
         vec![
             ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
             ModuleSourceInput::new(
@@ -175,7 +168,7 @@ fn public_file_documentation_has_one_semantic_owner() {
                 &implementation,
             ),
         ],
-        vec![source_include(&root, 0, "/app/detail.nct")],
+        vec![source_see(&root, 0, "/app/detail.nct")],
     );
     let package = reserved.package_ids()[0];
     let module = reserved.module_ids()[0];
@@ -187,7 +180,8 @@ fn public_file_documentation_has_one_semantic_owner() {
     );
     assert_eq!(
         source_index.documentation(SemanticEntity::Module(module)),
-        Some("Public module documentation.")
+        None,
+        "the package root source has one documentation owner"
     );
     assert_eq!(
         implementation.file_documentation(),
@@ -199,15 +193,15 @@ fn public_file_documentation_has_one_semantic_owner() {
 #[test]
 fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     let mut sources = SourceMap::new();
-    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "include ./a.nct\ninclude ./z.nct\n\nfunc root(): void {}\n",
+        "see ./a.nct\nsee ./z.nct\n\nfunc root(): void {}\n",
     );
     let first_id = add_source(&mut sources, "/app/a.nct", "func alpha(): void {}\n");
     let second_id = add_source(&mut sources, "/app/z.nct", "func omega(): void {}\n");
-    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
     let first = parse_source(&sources, first_id, ParseGoal::SourceFile);
     let second = parse_source(&sources, second_id, ParseGoal::SourceFile);
@@ -218,8 +212,8 @@ fn reservation_ids_do_not_depend_on_implementation_discovery_order() {
     ];
 
     let resolutions = vec![
-        source_include(&root, 0, "/app/a.nct"),
-        source_include(&root, 1, "/app/z.nct"),
+        source_see(&root, 0, "/app/a.nct"),
+        source_see(&root, 1, "/app/z.nct"),
     ];
     let forward = reserve(
         &sources,

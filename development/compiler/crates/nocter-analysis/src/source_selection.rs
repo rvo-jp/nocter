@@ -8,10 +8,10 @@ use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 /// projection insertion order can never decide presentation.
 pub(crate) fn select_source_binding<'a>(
     bindings: impl Iterator<Item = &'a SourceBinding>,
-    include: impl Fn(&SourceBinding) -> bool,
+    see: impl Fn(&SourceBinding) -> bool,
 ) -> Option<SourceBinding> {
     bindings
-        .filter(|binding| include(binding))
+        .filter(|binding| see(binding))
         .min_by_key(|binding| source_binding_key(binding))
         .copied()
 }

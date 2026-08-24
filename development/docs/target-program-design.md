@@ -106,7 +106,7 @@ top-level `main` callable to satisfy the specified non-generic, parameter-free p
 contract. Test targets instead select direct `test` declarations in source order.
 
 Single-file mode creates one explicit executable selection owned by discovery. It does not mutate
-the source into a package manifest and does not introduce a parallel entry algorithm.
+the source into a package declaration and does not introduce a parallel entry algorithm.
 
 That selection is implemented as one ordinary semantic `PackageTargetId`: `PackageMode::SingleFile`
 supplies the sole root module and source display name, and the target projects to the complete file

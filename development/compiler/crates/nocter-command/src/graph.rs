@@ -284,7 +284,7 @@ fn project_package(package: &ResolvedPackageSnapshot) -> Result<GraphPackage, Gr
         id: package.identity().as_str().into(),
         name: package.display_name().into(),
         version: declaration
-            .and_then(|declaration| declaration.version())
+            .map(nocter_package::PackageDeclaration::version)
             .map(|version| Box::<str>::from(version.value())),
         root,
         dependencies,
@@ -371,10 +371,13 @@ mod tests {
         path
     }
 
-    fn write_package(root: &Path, manifest: &str) {
+    fn write_package(root: &Path, root_source: &str) {
         fs::create_dir_all(root).unwrap();
-        fs::write(root.join("nocter.nct"), manifest).unwrap();
-        fs::write(root.join("index.nct"), "//! Package root.\n").unwrap();
+        fs::write(
+            root.join("index.nct"),
+            format!("//! Package root.\n{root_source}"),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -385,11 +388,17 @@ mod tests {
         let package = directory.join("package");
         let home = directory.join("home");
         fs::create_dir(&home).unwrap();
-        write_package(&standard, "#name: \"std\"\n#version: \"0.14.0\"\n");
-        write_package(&dependency, "#name: \"local\"\n");
+        write_package(
+            &standard,
+            "#package: { name: \"std\", version: \"0.14.0\", }\n",
+        );
+        write_package(
+            &dependency,
+            "#package: { name: \"local\", version: \"0.0.0\", }\n",
+        );
         write_package(
             &package,
-            "#name: \"application\"\n#version: \"1.2.3\"\n#dependencies: { local: { path: \"../dependency\" } }\n",
+            "#package: { name: \"application\", version: \"1.2.3\", }\n#dependencies: { local: { path: \"../dependency\" } }\n",
         );
         let command = parse_command_arguments([
             OsString::from("graph"),
@@ -446,10 +455,13 @@ mod tests {
         let package = directory.join("package");
         let home = directory.join("home");
         fs::create_dir(&home).unwrap();
-        write_package(&standard, "#name: \"std\"\n");
+        write_package(
+            &standard,
+            "#package: { name: \"std\", version: \"0.0.0\", }\n",
+        );
         write_package(
             &package,
-            "#dependencies: { remote: { archive: \"https://example.test/archive.tar.gz\" } }\n",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { archive: \"https://example.test/archive.tar.gz\" } }\n",
         );
         let command = parse_command_arguments([
             OsString::from("graph"),
@@ -474,7 +486,7 @@ mod tests {
         ));
         assert!(!package.join(".nocter").exists());
         assert!(
-            !fs::read_to_string(package.join("nocter.nct"))
+            !fs::read_to_string(package.join("index.nct"))
                 .unwrap()
                 .contains("#lock")
         );

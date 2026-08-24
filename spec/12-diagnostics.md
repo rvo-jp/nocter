@@ -66,7 +66,7 @@ Spanless CLI diagnostic codes:
 - `E0702`: filesystem path or permission failure.
 - `E0703`: Nocter home resolution or validation failed.
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
-- `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
+- `E0800`: package source, package-root, executable declaration, or package target selection failed.
 - `E0900`: an internal compiler consistency or lowering failure occurred.
 
 Source-backed lexical diagnostics:
@@ -90,7 +90,7 @@ Source-backed lexical diagnostics:
 Source-backed syntactic diagnostics:
 
 - `E0120`: required syntax is missing at the parser's committed position.
-- `E0121`: a top-level `include` or `use` declaration appears after the first item.
+- `E0121`: a top-level `see` or `use` declaration appears after the first item.
 - `E0122`: source nesting exceeds the compiler's supported nesting limit.
 
 Lexer and parser errors enter the same source-diagnostic envelope as later language-rule errors.
@@ -128,10 +128,11 @@ Source-backed import diagnostics:
 
 Source-backed module-topology diagnostics:
 
-- `E0270`: an authored `include` does not name exactly one permitted `.nct` source through its
-  required direct `./` path, or a discovery edge does not match that exact source.
+- `E0270`: an authored `see` does not name exactly one permitted `.nct` source through its
+  required relative path, or a discovery edge does not match that exact same-module source.
 - `E0271`: authored module imports form a dependency cycle. The primary span and related notes
   identify one deterministic complete cycle of `use` declarations.
+- `E0276`: a package directive appears outside the package root `index.nct`.
 
 Source-backed generic-binder diagnostics:
 
@@ -348,14 +349,14 @@ Source-backed declaration contract diagnostics:
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
 - `E0254`: an implementation source declares a conformance without a matching conformance head in
-  the reciprocally included `index.nct` source.
+  the reciprocally seen `index.nct` source.
 - `E0255`: a bodyless public nominal contract has no complete private representation definition.
 - `E0256`: a private nominal representation does not exactly match its public contract's kind,
   name, generic parameters, requirements, or `copy` contract.
 - `E0257`: more than one private representation completes the same public nominal contract.
 - `E0258`: a represented nominal declaration is completed again.
 - `E0259`: an implementation interface fragment supplies a default body without one exact default
-  method contract in the reciprocally included `index.nct` interface.
+  method contract in the reciprocally seen `index.nct` interface.
 - `E0264`: more than one private implementation conformance completes the same public conformance
   contract.
 - `E0265`: a private implementation conformance matches more than one identical root contract.
@@ -439,7 +440,7 @@ JSON span rules:
 - These JSON line and column fields are not LSP positions.
 - LSP adapters convert byte offsets or byte columns into the client position encoding.
 - Display path rules and canonical source-file identity are specified in
-  [Modules, Use Declarations, and Source Includes](01-modules-use.md#source-and-module-identity).
+  [Modules, Use Declarations, and Source Visibility](01-modules-use.md#source-and-module-identity).
 
 ## Machine-Readable JSON Diagnostics
 
@@ -454,8 +455,8 @@ Top-level envelope:
   "ok": false,
   "command": "check",
   "target": "arm64-darwin",
-  "root": "/Users/me/project/nocter.nct",
-  "root_absolute_path": "/Users/me/project/nocter.nct",
+  "root": "/Users/me/project/index.nct",
+  "root_absolute_path": "/Users/me/project/index.nct",
   "diagnostics": []
 }
 ```
@@ -471,7 +472,7 @@ Envelope rules:
 - `ok` is `false` when at least one diagnostic is present.
 - `command` is the command that produced the diagnostics, initially `"check"`.
 - `target` is the active target when known, or `null` if target selection did not complete.
-- `root` is the selected package `nocter.nct` or explicit file display path when known, or `null` if
+- `root` is the selected package `index.nct` or explicit file display path when known, or `null` if
   input selection did not complete.
 - `root_absolute_path` is the canonical absolute path of the root file when known, or `null` if root-file discovery did not complete.
 - `diagnostics` is an array of diagnostic objects.

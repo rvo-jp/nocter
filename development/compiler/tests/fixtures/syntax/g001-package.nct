@@ -1,4 +1,9 @@
-#name: "p"
+#package: {
+    name: "p",
+    version: "0.0.0",
+}
 #dependencies: {
-    json: "https://example.test/json",
+    json: {
+        archive: "https://example.test/json",
+    },
 }

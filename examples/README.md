@@ -71,7 +71,7 @@ nocter run examples/ordering.nct
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line
 argument and reports the number of newline bytes. Its private
-[summary.nct](file-summary/summary.nct) helper demonstrates a direct source include without
+[summary.nct](file-summary/summary.nct) helper demonstrates a direct source-visibility edge without
 creating another namespace. The package also demonstrates process arguments, owned paths,
 `std/fs` whole-file UTF-8 input, borrowed byte views, and numeric formatting.
 

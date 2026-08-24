@@ -135,8 +135,6 @@
                 <li><a href="./text-report/report/index/index.html#content">report/index.nct</a></li>
                 <li><a href="./text-report/report/analysis/index.html#content">analysis.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
-                <li><a href="./file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
-                <li><a href="./text-report/nocter/index.html#content">text-report/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -158,7 +156,7 @@
 <span class="token-function">nocter</span> run examples/mutable-iteration.nct
 </code></pre><p><a href="./ordering/index.html#content">ordering.nct</a> defines strict ordering for a project type, uses the same structural requirement from generic code, and compares <code>String</code> plus <code>Vec</code> values through standard source declarations and readonly coercions.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/ordering.nct
 <span class="token-function">nocter</span> run examples/ordering.nct
-</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a direct source include without creating another namespace. The package also demonstrates process arguments, owned paths, <code>std/fs</code> whole-file UTF-8 input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a direct source-visibility edge without creating another namespace. The package also demonstrates process arguments, owned paths, <code>std/fs</code> whole-file UTF-8 input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./file-summary ../../README.md

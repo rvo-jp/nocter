@@ -123,7 +123,7 @@ false
 for
 func
 if
-include
+see
 in
 instance
 interface
@@ -160,7 +160,7 @@ special `error` type spelling is contextual as described above.
 Package metadata uses the same `test` token in `#test`; package parsing treats it as that
 directive's exact name rather than as a general identifier.
 
-Module-directory segments and included source-path segments use snake_case identifiers:
+Module-directory segments and `see` source-path segments use snake_case identifiers:
 
 ```text
 file_name
@@ -407,7 +407,7 @@ tokens:
 # target : "target-name"
 ```
 
-At the start of package-root `nocter.nct`, package directives accept the declarative strings,
+At the start of a package-root `index.nct`, package directives accept the declarative strings,
 integers, and records admitted by the package grammar. These values are data: they do not perform
 lookup, calls, interpolation, allocation, or target execution. `#target` remains a declaration
 directive and is recognized only before an eligible top-level declaration. A `#` token in any

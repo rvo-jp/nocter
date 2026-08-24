@@ -3,7 +3,7 @@
 //! Darwin permits non-UTF-8 path bytes. This type deliberately promises UTF-8
 //! instead of misrepresenting every platform path as text.
 
-include ./utf8_path.nct
+see ./utf8_path.nct
 
 pub struct Utf8Path
 

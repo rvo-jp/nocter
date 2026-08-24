@@ -1,4 +1,4 @@
-include ./analysis.nct
+see ./analysis.nct
 
 pub struct Report
 

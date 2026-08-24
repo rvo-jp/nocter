@@ -82,7 +82,6 @@ fn parse_candidate(
         .get(formatted_id)
         .ok_or(FormatError::ChangedSyntax)?;
     let goal = match original.root().kind() {
-        NodeKind::PackageFile => nocter_syntax::ParseGoal::PackageFile,
         NodeKind::SourceFile => nocter_syntax::ParseGoal::SourceFile,
         _ => return Err(FormatError::ChangedSyntax),
     };
@@ -133,7 +132,9 @@ impl<'syntax> Formatter<'syntax> {
                     .expect("root child belongs to the same syntax tree");
                 matches!(
                     node.kind(),
-                    NodeKind::Item | NodeKind::IncludeDeclaration | NodeKind::UseDeclaration
+                    NodeKind::Item
+                        | NodeKind::SourceVisibilityDeclaration
+                        | NodeKind::UseDeclaration
                 )
                 .then_some(node.range().start().get())
             })
@@ -324,8 +325,8 @@ fn space_before_punctuation(
                             if space_after_punctuation(previous, None)
                     )
         }
-        Punctuation::Dot if parent == Some(NodeKind::IncludePath) => {
-            previous == TokenKind::Keyword(Keyword::Include)
+        Punctuation::Dot if parent == Some(NodeKind::SourceVisibilityPath) => {
+            previous == TokenKind::Keyword(Keyword::See)
         }
         Punctuation::Dot => previous == TokenKind::Keyword(Keyword::Use),
         Punctuation::RightBrace => {
@@ -348,7 +349,7 @@ fn space_before_punctuation(
         Punctuation::Slash if parent == Some(NodeKind::ModulePath) => {
             previous == TokenKind::Keyword(Keyword::Use)
         }
-        Punctuation::Slash if parent == Some(NodeKind::IncludePath) => false,
+        Punctuation::Slash if parent == Some(NodeKind::SourceVisibilityPath) => false,
         Punctuation::Slash if parent == Some(NodeKind::Visibility) => false,
         Punctuation::ReadWrite
         | Punctuation::Star
@@ -434,7 +435,7 @@ const fn space_after_punctuation(punctuation: Punctuation, parent: Option<NodeKi
     }
     if matches!(
         parent,
-        Some(NodeKind::IncludePath | NodeKind::ModulePath | NodeKind::Visibility)
+        Some(NodeKind::SourceVisibilityPath | NodeKind::ModulePath | NodeKind::Visibility)
     ) && matches!(punctuation, Punctuation::Slash)
     {
         return false;
@@ -615,7 +616,7 @@ mod tests {
         assert_eq!(
             format_with_goal(
                 "#dependencies: { json:\"https://example.test/json\", http:\"https://example.test/http\"\n}\n",
-                InspectionGoal::PackageFile,
+                InspectionGoal::SourceFile,
             ),
             "#dependencies: {\n    json: \"https://example.test/json\",\n    http: \"https://example.test/http\",\n}\n"
         );
@@ -700,14 +701,12 @@ mod tests {
 
         for path in sources {
             let bytes = fs::read(&path).unwrap();
-            let goal = if path.file_name().unwrap() == "nocter.nct" {
-                InspectionGoal::PackageFile
-            } else {
-                InspectionGoal::SourceFile
-            };
-            let inspection =
-                SourceInspection::new(SourceName::new(path.to_string_lossy()), &bytes, goal)
-                    .unwrap();
+            let inspection = SourceInspection::new(
+                SourceName::new(path.to_string_lossy()),
+                &bytes,
+                InspectionGoal::SourceFile,
+            )
+            .unwrap();
             let formatted = inspection.format().unwrap();
             assert_eq!(formatted.as_bytes(), bytes, "{}", path.display());
         }
@@ -717,7 +716,7 @@ mod tests {
     fn complete_accepted_syntax_corpus_formats_idempotently() {
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/syntax");
         for (name, goal) in [
-            ("g001-package.nct", InspectionGoal::PackageFile),
+            ("g001-package.nct", InspectionGoal::SourceFile),
             ("g002-g006-module.nct", InspectionGoal::SourceFile),
             ("g007-g012-declarations.nct", InspectionGoal::SourceFile),
             ("g013-g018-types.nct", InspectionGoal::SourceFile),

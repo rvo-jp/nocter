@@ -8,6 +8,72 @@ use nocter_model::PackageIdentity;
 
 use crate::DiscoveryError;
 
+/// Inventories every physical source owned by one directory module.
+///
+/// A descendant directory containing `index.nct` starts another module and is never traversed.
+/// Directories without `index.nct` remain source folders of the selected module.
+pub(crate) fn module_sources(
+    package: &PackageIdentity,
+    package_root: &Path,
+    module_directory: &Path,
+    source_overlay: &SourceOverlay,
+) -> Result<Vec<PathBuf>, DiscoveryError> {
+    let mut pending = BTreeSet::from([module_directory.to_path_buf()]);
+    let mut sources = BTreeSet::new();
+    while let Some(directory) = pending.pop_first() {
+        if directory != module_directory
+            && source_overlay
+                .is_file(&directory.join("index.nct"))
+                .map_err(|error| {
+                    filesystem_error("inspect child module boundary", &directory, error)
+                })?
+        {
+            continue;
+        }
+        let entries = fs::read_dir(&directory)
+            .map_err(|error| filesystem_error("inventory module sources", &directory, error))?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                filesystem_error("read module directory entry", &directory, error)
+            })?;
+            let path = entry.path();
+            let file_type = entry.file_type().map_err(|error| {
+                filesystem_error("inspect module directory entry", &path, error)
+            })?;
+            if file_type.is_dir() {
+                pending.insert(path);
+            } else if file_type.is_file()
+                && path.extension().and_then(|extension| extension.to_str()) == Some("nct")
+            {
+                sources.insert(path);
+            }
+        }
+    }
+    let identity = module_identity(package, package_root, module_directory)?;
+    for (path, _) in source_overlay.sources() {
+        if path.starts_with(module_directory)
+            && path.extension().and_then(|extension| extension.to_str()) == Some("nct")
+            && module_for_source(package, package_root, path, source_overlay)? == identity
+        {
+            sources.insert(path.to_path_buf());
+        }
+    }
+    let mut sources: Vec<_> = sources.into_iter().collect();
+    let root = module_directory.join("index.nct");
+    if !sources.iter().any(|source| source == &root) {
+        return Err(DiscoveryError::MissingModuleRoot {
+            module: module_identity(package, package_root, module_directory)?,
+            path: root,
+        });
+    }
+    sources.sort_unstable_by(|left, right| {
+        (left != &root)
+            .cmp(&(right != &root))
+            .then_with(|| left.cmp(right))
+    });
+    Ok(sources)
+}
+
 /// Catalogs every directory module in one exact toolchain-standard package.
 ///
 /// Ordinary compilation follows selected targets and authored module edges. Editor analysis of the
@@ -21,17 +87,9 @@ pub(crate) fn toolchain_standard_modules(
     let mut pending = BTreeSet::from([root.to_path_buf()]);
     let mut modules = Vec::new();
     while let Some(directory) = pending.pop_first() {
-        let package_declaration = directory.join("nocter.nct");
         if directory != root
-            && source_overlay
-                .is_file(&package_declaration)
-                .map_err(|error| {
-                    filesystem_error(
-                        "inspect nested package boundary",
-                        &package_declaration,
-                        error,
-                    )
-                })?
+            && nocter_package::has_package_declaration(source_overlay, &directory)
+                .map_err(DiscoveryError::PackageRootProbe)?
         {
             continue;
         }
@@ -91,6 +149,56 @@ fn module_identity(
         path.push(Box::<str>::from(segment));
     }
     Ok(ModuleIdentity::new(package.clone(), path))
+}
+
+/// Resolves physical source ownership to the nearest enclosing directory module.
+///
+/// The package root is itself a module root. Descendant `index.nct` files establish child modules;
+/// ordinary source folders do not. Ownership selection does not grant visibility between sources.
+///
+/// # Errors
+///
+/// Returns a typed discovery failure when the source is outside the package, no module root exists,
+/// or filesystem inspection fails.
+pub fn module_for_source(
+    package: &PackageIdentity,
+    package_root: &Path,
+    source: &Path,
+    source_overlay: &SourceOverlay,
+) -> Result<ModuleIdentity, DiscoveryError> {
+    if !source.starts_with(package_root) {
+        return Err(DiscoveryError::InvalidPackageRoot {
+            package: package.clone(),
+            path: source.to_path_buf(),
+        });
+    }
+    let mut directory = source
+        .parent()
+        .ok_or_else(|| DiscoveryError::InvalidPackageRoot {
+            package: package.clone(),
+            path: source.to_path_buf(),
+        })?;
+    loop {
+        let root = directory.join("index.nct");
+        if source_overlay
+            .is_file(&root)
+            .map_err(|error| filesystem_error("inspect module ownership", &root, error))?
+        {
+            return module_identity(package, package_root, directory);
+        }
+        if directory == package_root {
+            return Err(DiscoveryError::MissingModuleRoot {
+                module: ModuleIdentity::new(package.clone(), Vec::<Box<str>>::new()),
+                path: root,
+            });
+        }
+        directory = directory
+            .parent()
+            .ok_or_else(|| DiscoveryError::InvalidPackageRoot {
+                package: package.clone(),
+                path: source.to_path_buf(),
+            })?;
+    }
 }
 
 fn filesystem_error(operation: &'static str, path: &Path, error: std::io::Error) -> DiscoveryError {

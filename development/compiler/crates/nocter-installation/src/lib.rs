@@ -88,7 +88,7 @@ impl NocterHome {
         let manifest_path = required_file(&root, "MANIFEST.json")?;
         let compiler = required_file(&root, "nocter")?;
         let standard_root = required_directory(&root, "std")?;
-        required_file(&standard_root, "nocter.nct")?;
+        required_file(&standard_root, "index.nct")?;
         let release = read_release(&version)?;
         let manifest_bytes =
             fs::read(&manifest_path).map_err(|error| NocterHomeError::Filesystem {
@@ -428,7 +428,11 @@ mod tests {
             fs::write(root.join("nocter"), b"compiler").unwrap();
             fs::write(root.join("LICENSE"), b"license").unwrap();
             fs::write(root.join("NOTICE"), b"notice").unwrap();
-            fs::write(root.join("std/nocter.nct"), b"#name: \"std\"\n").unwrap();
+            fs::write(
+                root.join("std/index.nct"),
+                b"#package: { name: \"std\", version: \"0.0.0\", }\n",
+            )
+            .unwrap();
             root
         }
     }

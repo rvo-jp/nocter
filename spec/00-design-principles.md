@@ -43,8 +43,8 @@ The source language should also keep one canonical way to express a concept.
 Nocter should reject duplicate syntax when existing forms already cover the
 same meaning. This is why Nocter favors `if` and `match` as value-producing
 expressions over separate conditional operators, `use` as the single import
-form for modules, `include` as the distinct source-visibility form, and
-`otherwise` as the single optional fallback form. `use` and `include` do not
+form for modules, `see` as the distinct source-visibility form, and
+`otherwise` as the single optional fallback form. `use` and `see` do not
 compete: one names a module contract and the other names an exact physical
 source file.
 

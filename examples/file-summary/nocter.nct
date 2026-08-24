@@ -1,5 +1,0 @@
-#name: "file-summary"
-#version: "0.1.0"
-#executable: {
-    name: "file-summary",
-}

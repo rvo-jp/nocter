@@ -18,8 +18,8 @@ fn normalized_app<'syntax>(
     let bound = bind(
         sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", std_manifest),
+            package("workspace:app", "app", "/app/index.nct", app_manifest),
+            package("builtin:std", "std", "/std/index.nct", std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", app),
@@ -48,15 +48,15 @@ fn fixture(
     nocter_syntax::SyntaxTree,
     nocter_syntax::SyntaxTree,
 ) {
-    let app_manifest_id = add_source(sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(sources, "/std/index.nct", "");
     let app_id = add_source(sources, "/app/index.nct", text);
     let std_root_id = add_source(sources, "/std/index.nct", "");
     let prelude_id = add_source(sources, "/std/prelude/index.nct", "");
     (
-        parse_source(sources, app_manifest_id, ParseGoal::PackageFile),
+        parse_source(sources, app_manifest_id, ParseGoal::SourceFile),
         parse_source(sources, app_id, ParseGoal::SourceFile),
-        parse_source(sources, std_manifest_id, ParseGoal::PackageFile),
+        parse_source(sources, std_manifest_id, ParseGoal::SourceFile),
         parse_source(sources, std_root_id, ParseGoal::SourceFile),
         parse_source(sources, prelude_id, ParseGoal::SourceFile),
     )

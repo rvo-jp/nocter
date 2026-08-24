@@ -11,7 +11,7 @@ use nocter_package::{
 };
 
 use crate::authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
-use crate::manifest::{ManifestCommitError, commit_lock_source};
+use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
 use crate::staging::{PackageStateFilesystemError, StagingArea};
 
 /// Resolves and commits all mutable package state as one graph-validated transaction.
@@ -206,9 +206,9 @@ impl PackageStateTransaction {
         if self.generated_locks {
             let update = selected
                 .graph()
-                .manifest_lock_update(&self.root)
+                .root_lock_update(&self.root)
                 .map_err(PackageStateError::LockSource)?;
-            commit_lock_source(&update).map_err(PackageStateError::Manifest)?;
+            commit_root_lock_source(&update).map_err(PackageStateError::RootSourceCommit)?;
         }
         Ok(selected)
     }
@@ -246,7 +246,7 @@ pub enum PackageStateError<E: Error + Send + Sync + 'static> {
     LockOverlay(PackageLockOverlayError),
     StoreOverlay(PackageStoreOverlayError),
     LockSource(nocter_package::PackageLockSourceError),
-    Manifest(ManifestCommitError),
+    RootSourceCommit(RootSourceCommitError),
     Filesystem(PackageStateFilesystemError),
 }
 
@@ -287,7 +287,7 @@ impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
             Self::LockOverlay(error) => error.fmt(formatter),
             Self::StoreOverlay(error) => error.fmt(formatter),
             Self::LockSource(error) => error.fmt(formatter),
-            Self::Manifest(error) => error.fmt(formatter),
+            Self::RootSourceCommit(error) => error.fmt(formatter),
             Self::Filesystem(error) => error.fmt(formatter),
         }
     }
@@ -302,7 +302,7 @@ impl<E: Error + Send + Sync + 'static> Error for PackageStateError<E> {
             Self::LockOverlay(error) => Some(error),
             Self::StoreOverlay(error) => Some(error),
             Self::LockSource(error) => Some(error),
-            Self::Manifest(error) => Some(error),
+            Self::RootSourceCommit(error) => Some(error),
             Self::Filesystem(error) => Some(error),
             Self::NonRootLockRequired { .. }
             | Self::UnexpectedLockSource { .. }

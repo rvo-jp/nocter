@@ -1,6 +1,6 @@
 //! Built-in error payload construction.
 
-include ./index.nct
+see ./index.nct
 
 primitive new_error(code: &str, message: &str): error
 

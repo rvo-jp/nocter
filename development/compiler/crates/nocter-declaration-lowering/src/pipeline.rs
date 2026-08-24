@@ -317,13 +317,12 @@ mod tests {
     use nocter_source_index::SemanticEntity;
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-    use crate::test_support::{module_use, package_target, source_include};
+    use crate::test_support::{module_use, package_target, source_see};
     use crate::{
         CompileUnitInput, DeclarationContractRule, DeclarationLoweringError, DefinitionRule,
         GenericRule, ImportRule, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        NamespaceRule, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
-        ToolchainInput, TopologyRule, TypeBindingRule, TypeNormalizationRule,
-        lower_compile_unit_declarations,
+        NamespaceRule, PackageIdentity, PackageInput, PackageMode, ToolchainInput, TopologyRule,
+        TypeBindingRule, TypeNormalizationRule, lower_compile_unit_declarations,
     };
 
     #[test]
@@ -331,23 +330,21 @@ mod tests {
         let mut sources = SourceMap::new();
         let app_manifest_id = add_source(
             &mut sources,
-            "/app/nocter.nct",
-            "#name: \"app\"\n\
+            "/app/index.nct",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n\
              #executable: { name: \"app\", }\n\
              #test: { name: \"unit\", module: \"./tests/unit\", }\n\
              #executable: { name: \"tool\", module: \"./tools/tool\", }\n",
         );
-        let app_id = add_source(&mut sources, "/app/index.nct", "");
         let test_id = add_source(&mut sources, "/app/tests/unit/index.nct", "");
         let tool_id = add_source(&mut sources, "/app/tools/tool/index.nct", "");
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let tests = parse_source(&sources, test_id, ParseGoal::SourceFile);
         let tool = parse_source(&sources, tool_id, ParseGoal::SourceFile);
-        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let app_package = PackageIdentity::new("workspace:app");
@@ -358,11 +355,11 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/index.nct", &std_manifest),
             ],
             vec![
-                module("workspace:app", &[], "/app/index.nct", &app),
+                module("workspace:app", &[], "/app/index.nct", &app_manifest),
                 module(
                     "workspace:app",
                     &["tests", "unit"],
@@ -404,11 +401,11 @@ mod tests {
             "/tmp/example.nct",
             "func main(): void { return }\n",
         );
-        let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let std_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
-        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+        let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, std_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
         let app_package = PackageIdentity::new("single:/tmp/example.nct");
@@ -416,13 +413,8 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                PackageInput::new(
-                    app_package.clone(),
-                    "example",
-                    PackageMode::SingleFile,
-                    None,
-                ),
-                package("toolchain:std", "std", "/std/nocter.nct", &std_manifest),
+                PackageInput::new(app_package.clone(), "example", PackageMode::SingleFile),
+                package("toolchain:std", "std", "/std/index.nct", &std_manifest),
             ],
             vec![
                 ModuleInput::new(
@@ -510,25 +502,20 @@ mod tests {
     #[test]
     fn production_pipeline_projects_surface_diagnostics() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let root_id = add_source(&mut sources, "/app/index.nct", "include ./private.nct\n");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "see ./private.nct\n");
         let implementation_id = add_source(
             &mut sources,
             "/app/private.nct",
             "pub func exposed(): void {}\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![ModuleInput::new(
                 ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
                 vec![
@@ -542,7 +529,7 @@ mod tests {
             )],
             Vec::new(),
         )
-        .with_include_resolutions(vec![source_include(&root, 0, "/app/private.nct")]);
+        .with_source_visibility_resolutions(vec![source_see(&root, 0, "/app/private.nct")]);
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
 
@@ -556,11 +543,11 @@ mod tests {
     #[test]
     fn production_pipeline_projects_a_deterministic_module_cycle() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", "use ./a\n");
         let a_id = add_source(&mut sources, "/app/a/index.nct", "use /b\n");
         let b_id = add_source(&mut sources, "/app/b/index.nct", "use /a\n");
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
         let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
@@ -570,12 +557,7 @@ mod tests {
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![
                 module("workspace:app", &[], "/app/index.nct", &root),
                 module("workspace:app", &["a"], "/app/a/index.nct", &a),
@@ -604,19 +586,14 @@ mod tests {
     fn production_pipeline_projects_duplicate_name_tokens_in_canonical_order() {
         let text = "func duplicate(): void {}\nfunc duplicate(value: usize): void {}\n";
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
         );
@@ -649,19 +626,14 @@ mod tests {
     #[test]
     fn production_pipeline_projects_reserved_declaration_names() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", "struct usize {}\n");
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
         );
@@ -680,25 +652,20 @@ mod tests {
     #[test]
     fn production_pipeline_projects_visibility_above_the_package_root() {
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", "");
         let child_id = add_source(
             &mut sources,
             "/app/parser/index.nct",
             "pub(../../) func exposed(): void {}\n",
         );
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let child = parse_source(&sources, child_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![
                 module("workspace:app", &[], "/app/index.nct", &root),
                 module(
@@ -726,19 +693,14 @@ mod tests {
     fn production_pipeline_projects_duplicate_generic_binder_tokens() {
         let text = "pub struct Broken<T, T> {}\n";
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
         );
@@ -777,19 +739,14 @@ mod tests {
             "}\n",
         );
         let mut sources = SourceMap::new();
-        let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(&mut sources, "/app/index.nct", text);
-        let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
         let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
         let input = CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
-            vec![package(
-                "workspace:app",
-                "app",
-                "/app/nocter.nct",
-                &manifest,
-            )],
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
         );
@@ -823,13 +780,13 @@ mod tests {
     #[test]
     fn production_pipeline_projects_import_access_with_its_declaration() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", "use dep.Hidden\n");
         let dependency_id = add_source(&mut sources, "/dep/index.nct", "struct Hidden {}\n");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let dependency_manifest =
-            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+            parse_source(&sources, dependency_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
@@ -838,11 +795,11 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
                 package(
                     "resolved:dep",
                     "dep",
-                    "/dep/nocter.nct",
+                    "/dep/index.nct",
                     &dependency_manifest,
                 ),
             ],
@@ -873,13 +830,13 @@ mod tests {
     #[test]
     fn production_pipeline_projects_missing_imported_names() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", "use dep.Missing\n");
         let dependency_id = add_source(&mut sources, "/dep/index.nct", "pub struct Present {}\n");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let dependency_manifest =
-            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+            parse_source(&sources, dependency_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
@@ -888,11 +845,11 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
                 package(
                     "resolved:dep",
                     "dep",
-                    "/dep/nocter.nct",
+                    "/dep/index.nct",
                     &dependency_manifest,
                 ),
             ],
@@ -919,8 +876,8 @@ mod tests {
     fn production_pipeline_projects_the_explicit_prelude_path() {
         let text = "use std/prelude.String\n";
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(
@@ -928,9 +885,8 @@ mod tests {
             "/std/prelude/index.nct",
             "pub struct String {}\n",
         );
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -940,13 +896,8 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-                package(
-                    "toolchain:std",
-                    "std",
-                    "/std/nocter.nct",
-                    &standard_manifest,
-                ),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/index.nct", &standard_manifest),
             ],
             vec![
                 module("workspace:app", &[], "/app/index.nct", &app),
@@ -981,17 +932,17 @@ mod tests {
     #[test]
     fn import_collisions_reuse_the_namespace_diagnostic() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let dependency_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let dependency_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
         let app_id = add_source(
             &mut sources,
             "/app/index.nct",
             "use dep.Value as Item\n\nstruct Item {}\n",
         );
         let dependency_id = add_source(&mut sources, "/dep/index.nct", "pub struct Value {}\n");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let dependency_manifest =
-            parse_source(&sources, dependency_manifest_id, ParseGoal::PackageFile);
+            parse_source(&sources, dependency_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let dependency = parse_source(&sources, dependency_id, ParseGoal::SourceFile);
         let dependency_identity =
@@ -1000,11 +951,11 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
                 package(
                     "resolved:dep",
                     "dep",
-                    "/dep/nocter.nct",
+                    "/dep/index.nct",
                     &dependency_manifest,
                 ),
             ],
@@ -1032,14 +983,13 @@ mod tests {
     #[test]
     fn production_pipeline_projects_callable_contract_diagnostics() {
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", "pub func run(): void\n");
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1047,13 +997,8 @@ mod tests {
             nocter_model::CompilationTarget::Arm64Darwin,
             &sources,
             vec![
-                package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-                package(
-                    "toolchain:std",
-                    "std",
-                    "/std/nocter.nct",
-                    &standard_manifest,
-                ),
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("toolchain:std", "std", "/std/index.nct", &standard_manifest),
             ],
             vec![
                 module("workspace:app", &[], "/app/index.nct", &app),
@@ -1087,14 +1032,13 @@ mod tests {
     fn production_pipeline_projects_the_exact_unknown_type_name() {
         let text = "pub func run(value: Missing): void {}\n";
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1127,14 +1071,13 @@ mod tests {
     fn production_pipeline_projects_both_duplicate_callable_parameter_names() {
         let text = "pub func install(callback: &func(value: usize, value: usize): void): void {}\n";
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1192,14 +1135,14 @@ mod tests {
         ];
         for (text, expected_rule, primary_name, related_name) in cases {
             let mut sources = SourceMap::new();
-            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
             let standard_id = add_source(&mut sources, "/std/index.nct", "");
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
-                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+                parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
             let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
             let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1245,14 +1188,13 @@ mod tests {
     fn production_pipeline_projects_a_canonical_alias_cycle() {
         let text = "type A = B\ntype B = A\n";
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1294,14 +1236,13 @@ mod tests {
     fn production_pipeline_projects_ambiguous_callable_provenance_at_the_callable() {
         let text = "type Callback = &func(left: &str, right: &str): &str\n";
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1340,14 +1281,13 @@ mod tests {
             "func read<T>(value: &T): T.Missing where T: Source { return value }\n",
         );
         let mut sources = SourceMap::new();
-        let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-        let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
         let standard_id = add_source(&mut sources, "/std/index.nct", "");
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-        let standard_manifest =
-            parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
         let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1422,14 +1362,14 @@ mod tests {
 
         for (text, expected_rule, primary_text, related_text) in cases {
             let mut sources = SourceMap::new();
-            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
             let standard_id = add_source(&mut sources, "/std/index.nct", "");
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
-                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+                parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
             let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
             let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1534,14 +1474,14 @@ mod tests {
 
         for (grammar_row, text, expected_family, expected_code) in cases {
             let mut sources = SourceMap::new();
-            let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-            let standard_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+            let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+            let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
             let standard_id = add_source(&mut sources, "/std/index.nct", "");
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
+            let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
-                parse_source(&sources, standard_manifest_id, ParseGoal::PackageFile);
+                parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
             let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
             let standard = parse_source(&sources, standard_id, ParseGoal::SourceFile);
             let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -1617,18 +1557,8 @@ mod tests {
         tree
     }
 
-    fn package<'syntax>(
-        identity: &str,
-        name: &str,
-        path: &str,
-        manifest: &'syntax SyntaxTree,
-    ) -> PackageInput<'syntax> {
-        PackageInput::new(
-            PackageIdentity::new(identity),
-            name,
-            PackageMode::Declared,
-            Some(PackageDeclarationInput::new(path, manifest)),
-        )
+    fn package(identity: &str, name: &str, _path: &str, _manifest: &SyntaxTree) -> PackageInput {
+        PackageInput::new(PackageIdentity::new(identity), name, PackageMode::Declared)
     }
 
     fn input_with_standard_prelude<'syntax>(
@@ -1661,8 +1591,8 @@ mod tests {
         reverse: bool,
     ) -> CompileUnitInput<'syntax> {
         let mut packages = vec![
-            package("workspace:app", "app", "/app/nocter.nct", app_manifest),
-            package("toolchain:std", "std", "/std/nocter.nct", standard_manifest),
+            package("workspace:app", "app", "/app/index.nct", app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", standard_manifest),
         ];
         let mut modules = vec![
             module("workspace:app", &[], "/app/index.nct", app),

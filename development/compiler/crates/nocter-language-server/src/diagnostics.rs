@@ -369,13 +369,16 @@ mod tests {
     #[test]
     fn package_declaration_failure_uses_its_retained_syntax_subject() {
         let temporary = TemporaryDirectory::new();
-        let manifest = temporary.path().join("nocter.nct");
+        let package_source = temporary.path().join("index.nct");
         let mut documents = DocumentWorkspace::new();
         let accepted = documents
             .open(&open_params(
-                &manifest,
+                &package_source,
                 1,
-                "#dependencies: { remote: { unknown: \"value\", }, }\n",
+                concat!(
+                    "#package: { name: \"app\", version: \"0.0.0\", }\n",
+                    "#dependencies: { remote: { unknown: \"value\", }, }\n",
+                ),
             ))
             .unwrap();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));

@@ -24,7 +24,7 @@ generic `impl.nct` when the module has more than one implementation responsibili
 Restricted visibility must be no wider than its actual consumers. A `pub(/)` function in a
 standard-library root must have a semantic reference from another module in the `std` package.
 Helpers used only by implementation sources in their declaring module stay private and those
-sources use direct `include` edges. Compiler-owned primitives are exempt because their declaration
+sources use direct `see` edges. Compiler-owned primitives are exempt because their declaration
 itself defines a target or runtime boundary even when current Nocter source has no caller. The
 authored-standard-library test enforces this rule from the checked source index rather than name
 matching.
@@ -33,14 +33,14 @@ Stable error codes are behavioral API; helper functions that construct those err
 Error factories remain private unless callers must select them independently for a documented
 reason.
 
-## Include Graph
+## Source Visibility Graph
 
-The root directly includes every source that completes one of its contracts. Each completing
-source directly includes the root. This reciprocal edge is declaration identity, not a visibility
+The root directly sees every source that completes one of its contracts. Each completing
+source directly sees the root. This reciprocal edge is declaration identity, not a visibility
 shortcut.
 
-An implementation source explicitly includes every other source whose private declaration or
-representation it uses. Direct-only include semantics must remain visible in the authored graph;
+An implementation source explicitly sees every other source whose private declaration or
+representation it uses. Direct-only see semantics must remain visible in the authored graph;
 an aggregator source must not simulate transitive private visibility.
 
 Private helper-only sources may be reached from their direct implementation consumers without a
@@ -73,7 +73,7 @@ A standard-library module migration is complete only when:
 - ordinary definition navigation selects the root contract and implementation navigation selects
   its body;
 - opaque types reveal no private fields through source presentation, hover, or completion;
-- every private cross-source dependency has one authored direct include;
+- every private cross-source dependency has one authored direct see;
 - target-independent APIs do not expose platform declarations;
 - focused semantic and native tests pass through the same package graph used by users;
 - any remaining inline body satisfies the exception above and is called out during review.

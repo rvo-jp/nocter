@@ -9,8 +9,8 @@ use crate::{ModuleIdentity, PackageIdentity, SurfaceDeclarationId};
 #[test]
 fn binds_every_requirement_family_and_associated_type_bounds() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -25,8 +25,8 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
     );
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -34,8 +34,8 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
     let bound = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app),
@@ -107,8 +107,8 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
 #[test]
 fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -116,8 +116,8 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     );
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -125,8 +125,8 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     let bound = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app),
@@ -158,8 +158,8 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     let error = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/recursive.nct", &recursive),

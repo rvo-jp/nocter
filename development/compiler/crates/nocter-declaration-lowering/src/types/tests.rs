@@ -10,9 +10,9 @@ use crate::{ModuleIdentity, PackageIdentity, SurfaceDeclarationId};
 #[test]
 fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let dep_manifest_id = add_source(&mut sources, "/dep/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -21,9 +21,9 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     let dep_id = add_source(&mut sources, "/dep/index.nct", "pub struct Buffer<T> {}\n");
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
@@ -34,9 +34,9 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     let bound = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("resolved:dep", "dep", "/dep/nocter.nct", &dep_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app),
@@ -82,8 +82,8 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
 #[test]
 fn normalizes_explicit_callable_origins_to_parameter_positions() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -91,8 +91,8 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     );
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -100,8 +100,8 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     let bound = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app),
@@ -133,8 +133,8 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
 #[test]
 fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/nocter.nct", "");
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
@@ -149,8 +149,8 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     );
     let std_root_id = add_source(&mut sources, "/std/index.nct", "");
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::PackageFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::PackageFile);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
     let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
     let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
@@ -158,8 +158,8 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     let bound = bind(
         &sources,
         vec![
-            package("workspace:app", "app", "/app/nocter.nct", &app_manifest),
-            package("builtin:std", "std", "/std/nocter.nct", &std_manifest),
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
         ],
         vec![
             module("workspace:app", &[], "/app/index.nct", &app),

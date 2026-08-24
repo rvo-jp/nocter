@@ -1,5 +1,5 @@
-include ./index.nct
-include ./search.nct
+see ./index.nct
+see ./search.nct
 
 //! Allocation-free borrowed UTF-8 ranges and text iterators.
 //!

@@ -543,7 +543,7 @@ mod tests {
     #[test]
     fn preparation_retains_syntax_owned_documentation_on_semantic_identities() {
         let fixture = Fixture::new(
-            "//! Application module.\n\n/// Stored value.\nstruct Value {\n    /// Numeric field.\n    value: i32\n}\n\n/// Runs the program.\nfunc main(): void {\n    /// Temporary value.\n    let local = 1\n    return\n}\n",
+            "//! Application package.\n\n/// Stored value.\nstruct Value {\n    /// Numeric field.\n    value: i32\n}\n\n/// Runs the program.\nfunc main(): void {\n    /// Temporary value.\n    let local = 1\n    return\n}\n",
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
@@ -580,9 +580,9 @@ mod tests {
             )),
             Some("Temporary value.")
         );
-        assert!(prepared.graph().modules().iter().any(|(module, _)| {
-            index.documentation(nocter_source_index::SemanticEntity::Module(module))
-                == Some("Application module.")
+        assert!(prepared.graph().packages().iter().any(|(package, _)| {
+            index.documentation(nocter_source_index::SemanticEntity::Package(package))
+                == Some("Application package.")
         }));
     }
 

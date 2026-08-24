@@ -59,8 +59,8 @@ impl ProgramInputOptions {
             .or(self.explicit_file.as_ref())
             .cloned()
             .or_else(|| match self.root.as_deref() {
-                Some(root) => Some(root.join("nocter.nct")),
-                None => Some(PathBuf::from("nocter.nct")),
+                Some(root) => Some(root.join("index.nct")),
+                None => Some(PathBuf::from("index.nct")),
             })
     }
 }
@@ -143,7 +143,7 @@ impl SingleFileCommandInput {
 /// Resolves a command's explicit input mode against one caller-owned current directory.
 ///
 /// The function does not search ancestors, infer a source filename, or inspect package contents
-/// beyond requiring the selected root's `nocter.nct`.
+/// beyond requiring the selected root's `index.nct`.
 ///
 /// # Errors
 ///
@@ -198,7 +198,7 @@ fn resolve_package_input_from(
         return Err(ProgramInputError::PackageRootNotDirectory(selected));
     }
     let root = canonicalize(&selected)?;
-    let declaration = root.join("nocter.nct");
+    let declaration = root.join("index.nct");
     match fs::metadata(&declaration) {
         Ok(metadata) if metadata.is_file() => {}
         Ok(_) => return Err(ProgramInputError::PackageDeclarationNotFile(declaration)),

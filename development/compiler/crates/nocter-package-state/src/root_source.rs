@@ -9,17 +9,17 @@ use crate::staging::PackageStateFilesystemError;
 
 static NEXT_SOURCE: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) fn commit_lock_source(
+pub(crate) fn commit_root_lock_source(
     update: &PackageLockSourceUpdate,
-) -> Result<(), ManifestCommitError> {
+) -> Result<(), RootSourceCommitError> {
     let path = update.path();
     let current = fs::read(path).map_err(|error| filesystem("read package source", path, error))?;
     if current != update.original() {
-        return Err(ManifestCommitError::SourceChanged(path.into()));
+        return Err(RootSourceCommitError::SourceChanged(path.into()));
     }
     let parent = path
         .parent()
-        .ok_or_else(|| ManifestCommitError::Filesystem(invalid(path)))?;
+        .ok_or_else(|| RootSourceCommitError::Filesystem(invalid(path)))?;
     let (temporary, mut file) = create_unique_file(parent)?;
     let result = write_and_replace(&mut file, update.replacement(), &temporary, path);
     drop(file);
@@ -34,7 +34,7 @@ fn write_and_replace(
     bytes: &[u8],
     temporary: &Path,
     destination: &Path,
-) -> Result<(), ManifestCommitError> {
+) -> Result<(), RootSourceCommitError> {
     file.write_all(bytes)
         .map_err(|error| filesystem("write generated lock source", temporary, error))?;
     let permissions = fs::metadata(destination)
@@ -48,17 +48,17 @@ fn write_and_replace(
         .map_err(|error| filesystem("commit generated lock source", destination, error))
 }
 
-fn create_unique_file(parent: &Path) -> Result<(PathBuf, File), ManifestCommitError> {
+fn create_unique_file(parent: &Path) -> Result<(PathBuf, File), RootSourceCommitError> {
     for _ in 0..128 {
         let serial = NEXT_SOURCE.fetch_add(1, Ordering::Relaxed);
-        let path = parent.join(format!(".nocter.nct.{}-{serial}.tmp", std::process::id()));
+        let path = parent.join(format!(".index.nct.{}-{serial}.tmp", std::process::id()));
         match open_private_file(&path) {
             Ok(file) => return Ok((path, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(filesystem("create generated lock source", path, error)),
         }
     }
-    Err(ManifestCommitError::Filesystem(invalid(parent)))
+    Err(RootSourceCommitError::Filesystem(invalid(parent)))
 }
 
 #[cfg(unix)]
@@ -89,17 +89,17 @@ fn filesystem(
     operation: &'static str,
     path: impl Into<PathBuf>,
     error: io::Error,
-) -> ManifestCommitError {
-    ManifestCommitError::Filesystem(PackageStateFilesystemError::new(operation, path, error))
+) -> RootSourceCommitError {
+    RootSourceCommitError::Filesystem(PackageStateFilesystemError::new(operation, path, error))
 }
 
 #[derive(Debug)]
-pub enum ManifestCommitError {
+pub enum RootSourceCommitError {
     SourceChanged(PathBuf),
     Filesystem(PackageStateFilesystemError),
 }
 
-impl std::fmt::Display for ManifestCommitError {
+impl std::fmt::Display for RootSourceCommitError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SourceChanged(path) => write!(
@@ -112,7 +112,7 @@ impl std::fmt::Display for ManifestCommitError {
     }
 }
 
-impl std::error::Error for ManifestCommitError {
+impl std::error::Error for RootSourceCommitError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Filesystem(error) => Some(error),

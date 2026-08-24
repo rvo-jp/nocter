@@ -560,11 +560,11 @@ pub(super) fn reciprocal_include(
     surface
         .includes()
         .iter()
-        .any(|include| include.source() == contract && include.target() == definition)
+        .any(|see| see.source() == contract && see.target() == definition)
         && surface
             .includes()
             .iter()
-            .any(|include| include.source() == definition && include.target() == contract)
+            .any(|see| see.source() == definition && see.target() == contract)
 }
 
 fn join_implementation_containers(

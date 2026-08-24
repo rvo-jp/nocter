@@ -1,6 +1,6 @@
 //! Owned string storage and mutation.
 
-include ./index.nct
+see ./index.nct
 
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
@@ -9,7 +9,7 @@ use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
 use std/vec.Vec
-include ./search.nct
+see ./search.nct
 
 struct String {
     storage: RawBuffer

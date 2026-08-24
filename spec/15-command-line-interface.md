@@ -5,9 +5,9 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Package Initialization and Graph Inspection
 
-`nocter init [DIR]` creates a source-owned package without overwriting an existing `nocter.nct`,
-root `index.nct`, or generated `tests/unit/index.nct`. The directory name supplies `#name` unless
-`--name` is explicit. The default template is executable; `--library` selects a library template.
+`nocter init [DIR]` creates a source-owned package without overwriting an existing root
+`index.nct` or generated `tests/unit/index.nct`. The directory name supplies `#package.name`
+unless `--name` is explicit. The default template is executable; `--library` selects a library template.
 Both templates declare a separate package test target and must pass `nocter check` and
 `nocter test` immediately after creation.
 
@@ -29,8 +29,9 @@ nocter init path/to/library --library
 ```
 
 Omitting `DIR` selects the current directory. The selected directory may already contain unrelated
-files, but `init` checks all three owned source paths before its first write. It creates
-`nocter.nct`, root `index.nct`, and `tests/unit/index.nct` as one rollback-capable operation. The
+files, but `init` checks both owned source paths before its first write. It creates root `index.nct`
+and `tests/unit/index.nct` as one rollback-capable operation. The root source contains both the
+package directive prefix and ordinary root-module code. The
 executable template declares one root executable and one test target. The library template omits
 the executable, exports one root function, and tests that API from the separate test module. A
 successful command reports the canonical initialized directory. `init` does not select a Nocter
@@ -47,7 +48,7 @@ nocter graph --format json
 
 The human form starts with `root: <PackageId>`. Each package then has a `package <PackageId>` line,
 indented name, version, and canonical-root lines, followed by zero or more dependency lines. A
-missing authored version or exact lock is rendered as `-`. Packages are ordered by `PackageId` and
+missing exact lock is rendered as `-`. Packages are ordered by `PackageId` and
 dependency edges by alias.
 
 The JSON form is one LF-terminated object:
@@ -76,15 +77,15 @@ The JSON form is one LF-terminated object:
 }
 ```
 
-`source` is exactly `standard`, `git`, `archive`, or `path`. `version` and `lock` are JSON null
-when absent. The root package and bundled standard package are ordinary entries in `packages`.
+`source` is exactly `standard`, `git`, `archive`, or `path`. `lock` is JSON null when absent. Every
+valid package has a version. The root package and bundled standard package are ordinary entries in `packages`.
 Graph resolution uses only authored locks and already installed exact packages. When a required
 lock or package is absent, it reports the normal resolution requirement without downloading,
-creating package-store state, or editing `nocter.nct`; the user may run `nocter fetch` explicitly.
+creating package-store state, or editing `index.nct`; the user may run `nocter fetch` explicitly.
 
 ## Command Model
 
-Package commands operate on a source-owned `nocter.nct`. Omitting a source selects a package; it
+Package commands operate on a source-owned `index.nct`. Omitting a source selects a package; it
 never guesses that `main.nct` is an executable. Explicit single-file operation remains available
 for scripts and isolated experiments.
 
@@ -149,8 +150,8 @@ nocter check --root ./tools/json
 
 - The default root is the current directory.
 - `--root path` selects another package directory.
-- The selected directory must contain `nocter.nct`.
-- The package file declares zero or more executable and test targets.
+- The selected directory must contain `index.nct` with a valid `#package` directive.
+- The package source declares zero or more executable and test targets.
 - The compiler never searches for `main.nct`, walks upward for another package, or invents an
   executable target.
 
@@ -166,20 +167,23 @@ nocter check --file app.nct
 - `--root` and file mode cannot be combined.
 - `--executable` cannot be used in file mode.
 - Package directives are rejected in file mode because they belong to a selected package
-  `nocter.nct`.
+  `index.nct`.
 
 The compiler follows imports from each selected root module to form a compile unit. Import and
 source identity rules are specified in [Modules and Use Declarations](01-modules-use.md).
 
-## Package File
+## Package Source
 
-The package file uses declarative directives:
+The package root `index.nct` uses a declarative directive prefix followed by ordinary root-module
+source:
 
 ```nct
 //! JSON command-line tool.
 
-#name: "json-tool"
-#version: "0.1.0"
+#package: {
+    name: "json-tool",
+    version: "0.1.0",
+}
 #executable: {
     name: "json-tool",
     module: "./src/app",
@@ -190,22 +194,22 @@ The package file uses declarative directives:
 }
 ```
 
-`#name` is presentation metadata. If absent, the package root directory basename is used as the
-display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
-unique package-local name and may select an explicit logical directory-module path. When `module`
-is absent, the package root module at `index.nct` is selected.
+`#package` is required and contains required string fields `name` and `version`. Each
+`#executable` contains a unique package-local name and may select an explicit logical
+directory-module path. When `module` is absent, the package root module at `index.nct` is selected.
 
 Each repeatable `#test` contains a unique test name and a required logical `module`. Test and
 executable names occupy different target namespaces. Test modules are never discovered from
 directory names or filenames.
 
-`nocter.nct` accepts package documentation and directives only. Ordinary imports and declarations
-belong in `index.nct` or another module source.
+Package directives form one prefix after file documentation and before every `see`, `use`, or
+ordinary declaration. They are invalid in every other source. Root imports, public contracts, and
+ordinary declarations follow the directive prefix in the same `index.nct`.
 
 Directive list elements and record fields are comma-delimited and may use one trailing comma on any
 layout under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
 
-Dependencies and their generated exact locks share `nocter.nct`:
+Dependencies and their generated exact locks share `index.nct`:
 
 ```nct
 #dependencies: {
@@ -305,7 +309,7 @@ complete canonical `PackageId`; it is not an alias or display name. Package comm
 the same missing lock generation and fetch before analysis.
 
 The complete dependency graph is validated before generated lock data is committed. A failed graph
-does not partially rewrite `nocter.nct`.
+does not partially rewrite `index.nct`.
 
 - `--locked` rejects any operation that would create or change lock selection.
 - `--offline` prohibits source resolution and downloads; every exact package must already exist in
@@ -344,7 +348,7 @@ rejects symbolic links, submodules, and Git LFS pointer blobs. A materialized tr
 
 An archive lock hashes the compressed `.tar.gz` response bytes. Nocter verifies that SHA-256 digest
 before decompression or extraction. The archive root itself is the package root and must directly
-contain `nocter.nct`; Nocter never removes an enclosing directory automatically.
+contain `index.nct`; Nocter never removes an enclosing directory automatically.
 
 Archive extraction accepts regular files and directories only. It rejects symbolic links, hard
 links, device nodes, FIFOs, absolute paths, parent-directory traversal, and duplicate destination
@@ -505,7 +509,7 @@ only stdout data while the server is running.
 
 The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration
 identities, and exact source spans. Diagnostics and semantic requests share one locked, offline,
-read-only package snapshot. Public editor behavior, including package manifests, native tests,
+read-only package snapshot. Public editor behavior, including package sources, native tests,
 rename, code actions, hints, and incomplete-source recovery, is specified in [Tooling and Editor
 Integration](14-tooling-editor-integration.md).
 

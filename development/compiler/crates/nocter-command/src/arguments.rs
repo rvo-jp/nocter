@@ -213,10 +213,9 @@ impl ParsedTestCommand {
 
     #[must_use]
     pub fn root_hint(&self) -> PathBuf {
-        self.root.as_deref().map_or_else(
-            || PathBuf::from("nocter.nct"),
-            |root| root.join("nocter.nct"),
-        )
+        self.root
+            .as_deref()
+            .map_or_else(|| PathBuf::from("index.nct"), |root| root.join("index.nct"))
     }
 
     /// Resolves one exact package and closes semantic test selection policy.
@@ -1496,7 +1495,7 @@ mod tests {
         assert_eq!(parsed.kind(), SourceInspectionKind::Tokens);
         assert_eq!(parsed.source(), Path::new("app.nct"));
 
-        let parsed = parse_command_arguments(arguments(&["ast", "nocter.nct"])).unwrap();
+        let parsed = parse_command_arguments(arguments(&["ast", "index.nct"])).unwrap();
         assert!(matches!(
             parsed,
             ParsedCommand::SourceInspection(ref command)
@@ -1653,7 +1652,11 @@ mod tests {
             std::process::id()
         ));
         fs::create_dir(&root).unwrap();
-        fs::write(root.join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        fs::write(
+            root.join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
         root
     }
 

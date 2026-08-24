@@ -1,6 +1,6 @@
 //! Iterator collection algorithms.
 
-include ./index.nct
+see ./index.nct
 
 use std/iter.Iterator
 use std/vec.Vec

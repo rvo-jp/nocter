@@ -1,6 +1,6 @@
 //! Slice view operations and iteration adapters.
 
-include ./index.nct
+see ./index.nct
 
 use std/ptr.from_addr
 

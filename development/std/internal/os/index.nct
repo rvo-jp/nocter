@@ -4,8 +4,8 @@
 //! User-facing modules expose only the built-in `error` payload from fallible
 //! APIs; OSError and OSErrorKind stay behind `pub(/)` visibility.
 
-include ./darwin.nct
-include ./primitives.nct
+see ./darwin.nct
+see ./primitives.nct
 
 pub(/) enum Platform {
     macos

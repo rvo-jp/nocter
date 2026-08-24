@@ -1,6 +1,6 @@
 //! Stable public error classification for OS-originated I/O failures.
 
-include ./index.nct
+see ./index.nct
 
 use std/internal/os.{OSError, OSErrorKind}
 

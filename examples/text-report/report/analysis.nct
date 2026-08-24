@@ -1,4 +1,4 @@
-include ./index.nct
+see ./index.nct
 
 struct Report {
     lines: usize

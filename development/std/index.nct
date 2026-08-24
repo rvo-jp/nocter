@@ -2,3 +2,8 @@
 //!
 //! Public APIs are organized into explicit child modules such as `std/io`, `std/iter`,
 //! `std/string`, and `std/vec`.
+
+#package: {
+    name: "std",
+    version: "0.16.0",
+}

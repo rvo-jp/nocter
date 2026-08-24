@@ -1,6 +1,6 @@
 //! Allocator representations, page operations, and raw-buffer behavior.
 
-include ./index.nct
+see ./index.nct
 
 use std/internal/os.{syscall2, syscall6}
 use std/ptr.addr

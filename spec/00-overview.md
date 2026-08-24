@@ -48,7 +48,7 @@ AI support must not fragment the language surface. Nocter should prefer `nocter 
 Nocter uses a normal top-level function as the executable entry point.
 
 The executable entry name is fixed to `main`. The CLI does not provide `--entry`. Package-root
-`nocter.nct` selects the containing module through `#executable`.
+`index.nct` selects the containing module through `#executable`.
 
 ```nct
 func main(): i32! {

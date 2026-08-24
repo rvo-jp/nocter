@@ -104,7 +104,7 @@ allows an implementation occurrence to explain itself without replacing the publ
 documentation or leaking to another semantic identity projected at the same token. The immutable
 `SourceIndex` stores both indexes and preserves them across the sole staged-extension boundary.
 
-Package file documentation comes from `nocter.nct`. Module file documentation comes only from a
+Package documentation comes from the root `index.nct`. Module file documentation comes only from a
 root `index.nct` or a single-file program. File documentation in an implementation source remains
 available in its syntax tree but cannot silently become public module documentation. Hover selects
 occurrence documentation first and canonical identity documentation second, then appends that

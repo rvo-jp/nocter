@@ -167,7 +167,7 @@ impl ResolvedPackageSelection {
 /// Resolves one root package and its complete exact dependency selection without mutating locks
 /// or stores.
 ///
-/// Each selected `nocter.nct` is loaded exactly once into the returned graph. Missing mutable
+/// Each selected `index.nct` is loaded exactly once into the returned graph. Missing mutable
 /// state is reported as a typed lock or fetch requirement when policy permits it; a separate
 /// package-management authority may satisfy that requirement and submit a new request.
 ///
@@ -785,22 +785,28 @@ mod tests {
         }
     }
 
-    fn root_manifest(lock: bool) -> String {
+    fn root_source(lock: bool) -> String {
         let lock = if lock {
             format!("#lock: {{ format: 1, dependencies: {{ remote: \"git:{COMMIT}\", }}, }}\n")
         } else {
             String::new()
         };
         format!(
-            "#name: \"app\"\n#dependencies: {{ remote: {{ git: \"https://example.test/repository.git\", revision: \"main\", }}, local: {{ path: \"../local\", }}, }}\n{lock}"
+            "#package: {{ name: \"app\", version: \"0.0.0\", }}\n#dependencies: {{ remote: {{ git: \"https://example.test/repository.git\", revision: \"main\", }}, local: {{ path: \"../local\", }}, }}\n{lock}"
         )
     }
 
     fn base_tree(lock: bool) -> TempTree {
         let tree = TempTree::new();
-        tree.source("app/nocter.nct", &root_manifest(lock));
-        tree.source("local/nocter.nct", "#name: \"local\"\n");
-        tree.source("std/nocter.nct", "#name: \"std\"\n");
+        tree.source("app/index.nct", &root_source(lock));
+        tree.source(
+            "local/index.nct",
+            "#package: { name: \"local\", version: \"0.0.0\", }\n",
+        );
+        tree.source(
+            "std/index.nct",
+            "#package: { name: \"std\", version: \"0.0.0\", }\n",
+        );
         tree
     }
 
@@ -809,12 +815,12 @@ mod tests {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
         tree.source(
-            &format!("app/.nocter/packages/{}/nocter.nct", package_id.as_str()),
-            "#name: \"package-local-remote\"\n",
+            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+            "#package: { name: \"package-local-remote\", version: \"0.0.0\", }\n",
         );
         tree.source(
-            &format!("home/packages/{}/nocter.nct", package_id.as_str()),
-            "#name: \"home-remote\"\n",
+            &format!("home/packages/{}/index.nct", package_id.as_str()),
+            "#package: { name: \"home-remote\", version: \"0.0.0\", }\n",
         );
 
         let graph =
@@ -838,22 +844,25 @@ mod tests {
     }
 
     #[test]
-    fn package_resolution_retains_the_exact_open_manifest_overlay() {
+    fn package_resolution_retains_the_exact_open_root_source_overlay() {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
         tree.source(
-            &format!("app/.nocter/packages/{}/nocter.nct", package_id.as_str()),
-            "#name: \"remote\"\n",
+            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+            "#package: { name: \"remote\", version: \"0.0.0\", }\n",
         );
-        let manifest = fs::canonicalize(tree.0.join("app/nocter.nct")).unwrap();
+        let root_source_path = fs::canonicalize(tree.0.join("app/index.nct")).unwrap();
         let mut overlay = SourceOverlay::builder();
         overlay
             .insert_document(
-                manifest.clone(),
+                root_source_path.clone(),
                 OpenDocument::new(
                     DocumentVersion::new(12),
-                    root_manifest(true)
-                        .replace("#name: \"app\"", "#name: \"editor-app\"")
+                    root_source(true)
+                        .replace(
+                            "#package: { name: \"app\", version: \"0.0.0\", }",
+                            "#package: { name: \"editor-app\", version: \"0.0.0\", }",
+                        )
                         .into_bytes(),
                 ),
             )
@@ -868,7 +877,7 @@ mod tests {
         assert_eq!(
             graph
                 .source_overlay()
-                .document(&manifest)
+                .document(&root_source_path)
                 .unwrap()
                 .version(),
             DocumentVersion::new(12)
@@ -905,7 +914,7 @@ mod tests {
     }
 
     #[test]
-    fn resolution_failure_retains_every_manifest_reached_before_policy_rejection() {
+    fn resolution_failure_retains_every_root_source_reached_before_policy_rejection() {
         let tree = base_tree(false);
 
         let failure = resolve_package_selection_with_source_snapshot(
@@ -926,7 +935,7 @@ mod tests {
     fn declaration_failure_retains_the_tree_that_owns_its_subject() {
         let tree = base_tree(false);
         tree.source(
-            "app/nocter.nct",
+            "app/index.nct",
             "#dependencies: { remote: { unknown: \"value\", }, }\n",
         );
 
@@ -945,15 +954,15 @@ mod tests {
     }
 
     #[test]
-    fn resolves_with_a_provisional_lock_without_editing_the_manifest() {
+    fn resolves_with_a_provisional_lock_without_editing_the_root_source() {
         let tree = base_tree(false);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
         tree.source(
-            &format!("app/.nocter/packages/{}/nocter.nct", package_id.as_str()),
-            "#name: \"remote\"\n",
+            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+            "#package: { name: \"remote\", version: \"0.0.0\", }\n",
         );
-        let manifest_path = tree.0.join("app/nocter.nct");
-        let before = fs::read(&manifest_path).unwrap();
+        let root_source_path = tree.0.join("app/index.nct");
+        let before = fs::read(&root_source_path).unwrap();
         let root = canonical_package_root(&tree.0.join("app")).unwrap();
         let root_id = PackageId::from_canonical_path(&root)
             .unwrap()
@@ -977,7 +986,7 @@ mod tests {
             .unwrap();
         assert_eq!(root.locks().get("remote"), Some(&lock));
         assert!(root.declaration().unwrap().locks().is_empty());
-        assert_eq!(fs::read(manifest_path).unwrap(), before);
+        assert_eq!(fs::read(root_source_path).unwrap(), before);
     }
 
     #[test]
@@ -985,7 +994,10 @@ mod tests {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
         let staged = tree.0.join("staging/remote");
-        tree.source("staging/remote/nocter.nct", "#name: \"staged-remote\"\n");
+        tree.source(
+            "staging/remote/index.nct",
+            "#package: { name: \"staged-remote\", version: \"0.0.0\", }\n",
+        );
         let mut overlay = PackageStoreOverlay::new();
         overlay.insert(package_id.clone(), &staged).unwrap();
 

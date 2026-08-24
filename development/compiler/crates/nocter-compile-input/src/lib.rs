@@ -13,7 +13,7 @@ use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
 mod dependency;
 mod identity;
 
-pub use dependency::{IncludeResolutionInput, UseResolutionInput};
+pub use dependency::{SourceVisibilityResolutionInput, UseResolutionInput};
 pub use identity::{ModuleIdentity, is_valid_module_segment};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -22,54 +22,29 @@ pub enum PackageMode {
     SingleFile,
 }
 
-/// The authored package declaration and its canonical physical identity.
+/// Package identity selected independently of its root-module source.
+///
+/// Declared package syntax is not repeated here: the root module's `Root` source is the single
+/// package declaration authority. This keeps discovery from handing lowering two representations
+/// of the same physical `index.nct`.
 #[derive(Clone, Debug)]
-pub struct PackageDeclarationInput<'syntax> {
-    canonical_path: Box<str>,
-    syntax: &'syntax SyntaxTree,
-}
-
-impl<'syntax> PackageDeclarationInput<'syntax> {
-    #[must_use]
-    pub fn new(canonical_path: impl Into<Box<str>>, syntax: &'syntax SyntaxTree) -> Self {
-        Self {
-            canonical_path: canonical_path.into(),
-            syntax,
-        }
-    }
-
-    #[must_use]
-    pub const fn canonical_path(&self) -> &str {
-        &self.canonical_path
-    }
-
-    #[must_use]
-    pub const fn syntax(&self) -> &'syntax SyntaxTree {
-        self.syntax
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct PackageInput<'syntax> {
+pub struct PackageInput {
     identity: PackageIdentity,
     display_name: Box<str>,
     mode: PackageMode,
-    declaration: Option<PackageDeclarationInput<'syntax>>,
 }
 
-impl<'syntax> PackageInput<'syntax> {
+impl PackageInput {
     #[must_use]
     pub fn new(
         identity: PackageIdentity,
         display_name: impl Into<Box<str>>,
         mode: PackageMode,
-        declaration: Option<PackageDeclarationInput<'syntax>>,
     ) -> Self {
         Self {
             identity,
             display_name: display_name.into(),
             mode,
-            declaration,
         }
     }
 
@@ -86,11 +61,6 @@ impl<'syntax> PackageInput<'syntax> {
     #[must_use]
     pub const fn mode(&self) -> PackageMode {
         self.mode
-    }
-
-    #[must_use]
-    pub const fn declaration(&self) -> Option<&PackageDeclarationInput<'syntax>> {
-        self.declaration.as_ref()
     }
 }
 
@@ -367,10 +337,10 @@ impl<'syntax> ModuleInput<'syntax> {
 pub struct CompileUnitInput<'syntax> {
     target: CompilationTarget,
     sources: &'syntax SourceMap,
-    packages: Vec<PackageInput<'syntax>>,
+    packages: Vec<PackageInput>,
     root_packages: Vec<PackageIdentity>,
     modules: Vec<ModuleInput<'syntax>>,
-    include_resolutions: Vec<IncludeResolutionInput>,
+    source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     toolchain: Option<ToolchainInput>,
@@ -381,7 +351,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
     pub fn new(
         target: CompilationTarget,
         sources: &'syntax SourceMap,
-        packages: Vec<PackageInput<'syntax>>,
+        packages: Vec<PackageInput>,
         modules: Vec<ModuleInput<'syntax>>,
         use_resolutions: Vec<UseResolutionInput>,
     ) -> Self {
@@ -391,17 +361,20 @@ impl<'syntax> CompileUnitInput<'syntax> {
             packages,
             root_packages: Vec::new(),
             modules,
-            include_resolutions: Vec::new(),
+            source_visibility_resolutions: Vec::new(),
             use_resolutions,
             package_target_resolutions: Vec::new(),
             toolchain: None,
         }
     }
 
-    /// Adds exact physical-source edges selected from authored `include` declarations.
+    /// Adds exact physical-source edges selected from authored `see` declarations.
     #[must_use]
-    pub fn with_include_resolutions(mut self, resolutions: Vec<IncludeResolutionInput>) -> Self {
-        self.include_resolutions = resolutions;
+    pub fn with_source_visibility_resolutions(
+        mut self,
+        resolutions: Vec<SourceVisibilityResolutionInput>,
+    ) -> Self {
+        self.source_visibility_resolutions = resolutions;
         self
     }
 
@@ -444,7 +417,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
     }
 
     #[must_use]
-    pub fn packages(&self) -> &[PackageInput<'syntax>] {
+    pub fn packages(&self) -> &[PackageInput] {
         &self.packages
     }
 
@@ -464,8 +437,8 @@ impl<'syntax> CompileUnitInput<'syntax> {
     }
 
     #[must_use]
-    pub fn include_resolutions(&self) -> &[IncludeResolutionInput] {
-        &self.include_resolutions
+    pub fn source_visibility_resolutions(&self) -> &[SourceVisibilityResolutionInput] {
+        &self.source_visibility_resolutions
     }
 
     #[must_use]

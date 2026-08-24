@@ -1,6 +1,6 @@
 //! UTF-8 path representation, validation, and joining.
 
-include ./index.nct
+see ./index.nct
 
 use std/string.{String, bytes}
 

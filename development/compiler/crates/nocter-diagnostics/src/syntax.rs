@@ -123,7 +123,7 @@ pub fn parse_diagnostic(diagnostic: ParseDiagnostic) -> SourceDiagnostic {
         ParseDiagnosticKind::Expected(expected) => ("E0120", expected_message(expected), None),
         ParseDiagnosticKind::LateDependencyDeclaration => (
             "E0121",
-            "top-level `include` and `use` declarations must precede items".into(),
+            "top-level `see` and `use` declarations must precede items".into(),
             Some("move this dependency declaration before the first item"),
         ),
         ParseDiagnosticKind::NestingLimit => (

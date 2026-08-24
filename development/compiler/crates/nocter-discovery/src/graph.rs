@@ -3,8 +3,8 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    IncludeResolutionInput, ModuleIdentity, ModuleSourceKind, PackageMode,
-    PackageTargetResolutionInput, PrimitiveRoleInput, StandardRoleInput, ToolchainInput,
+    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
+    PrimitiveRoleInput, SourceVisibilityResolutionInput, StandardRoleInput, ToolchainInput,
     UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
@@ -13,9 +13,8 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
 use nocter_target_selection::TargetSelection;
 
-use crate::error::{IncludeFailure, ToolchainDiscoveryError, UseFailure};
-use crate::include::include_paths;
-use crate::module_catalog::toolchain_standard_modules;
+use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
+use crate::module_catalog::{module_sources, toolchain_standard_modules};
 use crate::request::{
     DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
 };
@@ -23,6 +22,7 @@ use crate::snapshot::{
     DiscoveredModule, DiscoveredModuleDependency, DiscoveredPackage, DiscoveredSource,
     DiscoveredUnit,
 };
+use crate::source_visibility::source_visibility_paths;
 use crate::syntax::active_use_paths;
 use crate::{DiscoveryError, DiscoveryFailure};
 
@@ -39,7 +39,6 @@ struct PackageState {
     mode: PackageMode,
     canonical_root: PathBuf,
     dependencies: BTreeMap<Box<str>, PackageIdentity>,
-    declaration: Option<(PathBuf, usize)>,
     package_declaration: Option<nocter_package::PackageDeclaration>,
 }
 
@@ -75,7 +74,7 @@ struct Builder {
     modules: BTreeMap<ModuleIdentity, Vec<DiscoveredSource>>,
     module_dependencies: Vec<DiscoveredModuleDependency>,
     source_owners: BTreeMap<PathBuf, ModuleIdentity>,
-    include_resolutions: Vec<IncludeResolutionInput>,
+    source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     pending: BTreeSet<Work>,
@@ -174,7 +173,7 @@ impl Builder {
             modules: BTreeMap::new(),
             module_dependencies: Vec::new(),
             source_owners: BTreeMap::new(),
-            include_resolutions: Vec::new(),
+            source_visibility_resolutions: Vec::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
             pending,
@@ -205,17 +204,6 @@ impl Builder {
             Err(error) => return Err(self.into_failure(error)),
         };
 
-        let non_unicode_declaration = self.packages.values().find_map(|state| {
-            state
-                .declaration
-                .as_ref()
-                .map(|(path, _)| path)
-                .filter(|path| path.to_str().is_none())
-                .cloned()
-        });
-        if let Some(path) = non_unicode_declaration {
-            return Err(self.into_failure(DiscoveryError::NonUnicodeCanonicalPath(path)));
-        }
         let packages = self
             .packages
             .into_values()
@@ -224,14 +212,6 @@ impl Builder {
                 display_name: state.display_name,
                 mode: state.mode,
                 dependencies: state.dependencies,
-                declaration: state.declaration.map(|(path, syntax)| {
-                    (
-                        path.to_str()
-                            .expect("validated canonical declaration path is Unicode")
-                            .into(),
-                        syntax,
-                    )
-                }),
             })
             .collect();
         let modules = self
@@ -247,10 +227,11 @@ impl Builder {
                 DiscoveredModule::new(identity, sources)
             })
             .collect();
-        self.include_resolutions.sort_unstable_by_key(|resolution| {
-            let node = resolution.declaration();
-            (node.source(), node.index())
-        });
+        self.source_visibility_resolutions
+            .sort_unstable_by_key(|resolution| {
+                let node = resolution.declaration();
+                (node.source(), node.index())
+            });
         self.use_resolutions.sort_unstable_by_key(|resolution| {
             let node = resolution.declaration();
             (node.source(), node.index())
@@ -266,7 +247,7 @@ impl Builder {
             root_packages: self.root_packages,
             modules,
             module_dependencies: self.module_dependencies,
-            include_resolutions: self.include_resolutions,
+            source_visibility_resolutions: self.source_visibility_resolutions,
             use_resolutions: self.use_resolutions,
             package_target_resolutions: self.package_target_resolutions,
             toolchain,
@@ -432,13 +413,27 @@ impl Builder {
             });
         }
         let directory = join_module_path(&package.canonical_root, module.path());
-        let root = directory.join("index.nct");
-        if !regular_file(&self.source_overlay, &root)? {
-            return Err(DiscoveryError::MissingModuleRoot { module, path: root });
+        let paths = module_sources(
+            module.package(),
+            &package.canonical_root,
+            &directory,
+            &self.source_overlay,
+        )?;
+        for path in paths {
+            let kind = if path == directory.join("index.nct") {
+                ModuleSourceKind::Root
+            } else {
+                ModuleSourceKind::Implementation
+            };
+            let path = canonicalize(&self.source_overlay, "canonicalize module source", &path)?;
+            self.validate_inside_package(
+                module.package(),
+                &path,
+                (kind == ModuleSourceKind::Root).then_some(&module),
+            )?;
+            self.load_module_source(module.clone(), &path, kind)?;
         }
-        let root = canonicalize(&self.source_overlay, "canonicalize module root", &root)?;
-        self.validate_inside_package(module.package(), &root, None)?;
-        self.load_module_source(module, &root, ModuleSourceKind::Root)
+        Ok(())
     }
 
     fn load_module_source(
@@ -463,13 +458,21 @@ impl Builder {
             &path,
             (kind == ModuleSourceKind::Root).then_some(&module),
         )?;
-        let syntax_index = load_source(
-            &self.source_overlay,
-            &mut self.sources,
-            &mut self.syntax,
-            &path,
-            ParseGoal::SourceFile,
-        )?;
+        let canonical_name = canonical_text(&path)?;
+        let syntax_index = if let Some(source) = self.sources.find_by_name(&canonical_name) {
+            self.syntax
+                .iter()
+                .position(|tree| tree.source() == source.id())
+                .ok_or(DiscoveryError::InconsistentSourceSnapshot(source.id()))?
+        } else {
+            load_source(
+                &self.source_overlay,
+                &mut self.sources,
+                &mut self.syntax,
+                &path,
+                ParseGoal::SourceFile,
+            )?
+        };
         self.source_owners.insert(path.clone(), module.clone());
         self.modules
             .entry(module.clone())
@@ -491,14 +494,17 @@ impl Builder {
                 nocter_target_selection::TargetSelectionError::MissingSource(tree.source()),
             )
         })?;
-        for (declaration, authored_path) in include_paths(source, tree)? {
-            let target = self.resolve_include(&module, &path, declaration, &authored_path)?;
-            self.pending.insert(Work::Source {
-                module: module.clone(),
-                path: PathBuf::from(target.as_ref()),
-            });
-            self.include_resolutions
-                .push(IncludeResolutionInput::new(declaration, target));
+        for (declaration, authored_path) in source_visibility_paths(source, tree)? {
+            let target =
+                self.resolve_source_visibility(&module, &path, declaration, &authored_path)?;
+            if self.package(module.package())?.mode == PackageMode::SingleFile {
+                self.pending.insert(Work::Source {
+                    module: module.clone(),
+                    path: PathBuf::from(target.as_ref()),
+                });
+            }
+            self.source_visibility_resolutions
+                .push(SourceVisibilityResolutionInput::new(declaration, target));
         }
         for (declaration, authored_path) in active_use_paths(source, tree, &selection)? {
             let target = self.resolve_use(&module, &path, declaration, &authored_path)?;
@@ -514,7 +520,7 @@ impl Builder {
         Ok(())
     }
 
-    fn resolve_include(
+    fn resolve_source_visibility(
         &self,
         importer: &ModuleIdentity,
         source: &Path,
@@ -522,32 +528,33 @@ impl Builder {
         authored: &str,
     ) -> Result<Box<str>, DiscoveryError> {
         let package = self.package(importer.package())?;
-        let relative = authored
-            .strip_prefix("./")
-            .ok_or_else(|| include_error(declaration, authored, IncludeFailure::OutsidePackage))?;
-        let source_directory = source
-            .parent()
-            .ok_or_else(|| include_error(declaration, authored, IncludeFailure::OutsidePackage))?;
-        let candidate = source_directory.join(relative);
-        if !regular_file(&self.source_overlay, &candidate)? {
-            return Err(include_error(
+        let source_directory = source.parent().ok_or_else(|| {
+            source_visibility_error(
                 declaration,
                 authored,
-                IncludeFailure::NotFound,
+                SourceVisibilityFailure::OutsidePackage,
+            )
+        })?;
+        let candidate = source_directory.join(authored);
+        if !regular_file(&self.source_overlay, &candidate)? {
+            return Err(source_visibility_error(
+                declaration,
+                authored,
+                SourceVisibilityFailure::NotFound,
             ));
         }
         let candidate = canonicalize_dependency(&self.source_overlay, &candidate)?;
         self.validate_package_boundary(importer.package(), &candidate)
-            .map_err(|error| include_boundary_error(declaration, authored, error))?;
+            .map_err(|error| source_visibility_boundary_error(declaration, authored, error))?;
         if package.mode == PackageMode::Declared {
             let owner = self
                 .nearest_module(importer.package(), &candidate)
-                .map_err(|error| include_boundary_error(declaration, authored, error))?;
+                .map_err(|error| source_visibility_boundary_error(declaration, authored, error))?;
             if &owner != importer {
-                return Err(include_error(
+                return Err(source_visibility_error(
                     declaration,
                     authored,
-                    IncludeFailure::CrossesModule { module: owner },
+                    SourceVisibilityFailure::CrossesModule { module: owner },
                 ));
             }
         }
@@ -772,8 +779,9 @@ impl Builder {
         }
         let mut directory = path.parent().ok_or(UseFailure::OutsidePackage)?;
         while directory != state.canonical_root {
-            let nested = directory.join("nocter.nct");
-            if regular_file(&self.source_overlay, &nested)? {
+            if nocter_package::has_package_declaration(&self.source_overlay, directory)
+                .map_err(DiscoveryError::PackageRootProbe)?
+            {
                 return Err(UseFailure::CrossesPackage {
                     root: directory.into(),
                 }
@@ -884,10 +892,6 @@ fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPa
                     mode: PackageMode::Declared,
                     canonical_root: package.root().to_path_buf(),
                     dependencies: package.dependencies().clone(),
-                    declaration: Some((
-                        package.declaration_path().to_path_buf(),
-                        package.declaration_syntax(),
-                    )),
                     package_declaration: package.declaration().cloned(),
                 },
             )
@@ -949,7 +953,6 @@ fn load_single_file_package(
                 Box::<str>::from("std"),
                 toolchain.standard_package().clone(),
             )]),
-            declaration: None,
             package_declaration: None,
         },
     );
@@ -1133,36 +1136,38 @@ fn use_error(
     }
 }
 
-fn include_error(
+fn source_visibility_error(
     declaration: nocter_syntax::NodeId,
     path: &str,
-    failure: IncludeFailure,
+    failure: SourceVisibilityFailure,
 ) -> DiscoveryError {
-    DiscoveryError::Include {
+    DiscoveryError::SourceVisibility {
         declaration,
         path: path.into(),
         failure,
     }
 }
 
-fn include_boundary_error(
+fn source_visibility_boundary_error(
     declaration: nocter_syntax::NodeId,
     path: &str,
     error: ResolveError,
 ) -> DiscoveryError {
     match error {
         ResolveError::Discovery(error) => error,
-        ResolveError::Use(UseFailure::CrossesPackage { root }) => {
-            include_error(declaration, path, IncludeFailure::CrossesPackage { root })
-        }
+        ResolveError::Use(UseFailure::CrossesPackage { root }) => source_visibility_error(
+            declaration,
+            path,
+            SourceVisibilityFailure::CrossesPackage { root },
+        ),
         ResolveError::Use(
             UseFailure::OutsidePackage
             | UseFailure::InvalidModuleDirectory
             | UseFailure::SingleFileLocalUse
             | UseFailure::UnknownDependency { .. },
-        ) => include_error(declaration, path, IncludeFailure::OutsidePackage),
+        ) => source_visibility_error(declaration, path, SourceVisibilityFailure::OutsidePackage),
         ResolveError::Use(UseFailure::NotFound) => {
-            include_error(declaration, path, IncludeFailure::NotFound)
+            source_visibility_error(declaration, path, SourceVisibilityFailure::NotFound)
         }
     }
 }

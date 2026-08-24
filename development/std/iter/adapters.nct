@@ -1,6 +1,6 @@
 //! Iterator adapter and view representations.
 
-include ./index.nct
+see ./index.nct
 
 struct MapIter<U, I, F> {
     source: I

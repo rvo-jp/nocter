@@ -1,7 +1,7 @@
 //! Reusable behavior derived only from the Iterator contract.
 
-include ./index.nct
-include ./adapters.nct
+see ./index.nct
+see ./adapters.nct
 
 func iterator_items_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right

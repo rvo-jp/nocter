@@ -1,3 +1,12 @@
+#package: {
+    name: "file-summary",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "file-summary",
+}
+
 use std/fs.read_to_string
 
 use std/io.print
@@ -8,7 +17,7 @@ use std/path.Utf8Path
 
 use std/process.arg
 
-include ./summary.nct
+see ./summary.nct
 
 func main(): i32! {
     let requested: &str = arg(1)? otherwise {
