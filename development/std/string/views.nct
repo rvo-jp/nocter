@@ -44,7 +44,7 @@ func strip_prefix(text: &str, prefix: &str): &str? from text {
     var index: usize = 0
     while index < prefix.len() {
         if text[index] != prefix[index] { return none }
-        index = index + 1
+        index += 1
     }
     return str_subview_unchecked(text, prefix.len(), text.len() - prefix.len())
 }
@@ -56,7 +56,7 @@ func strip_suffix(text: &str, suffix: &str): &str? from text {
     var index: usize = 0
     while index < suffix.len() {
         if text[start + index] != suffix[index] { return none }
-        index = index + 1
+        index += 1
     }
     return str_subview_unchecked(text, 0, start)
 }
@@ -134,7 +134,7 @@ conform Iterator for LinesIter {
         }
         var line_end: usize = newline
         if line_end > line_start && self.text[line_end - 1] == 13 {
-            line_end = line_end - 1
+            line_end -= 1
         }
         self.next_start = newline + 1
         if self.next_start == self.text.len() {
@@ -152,7 +152,7 @@ func find_byte(text: &str, needle: u8, start: usize): usize? {
     var index: usize = start
     while index < text.len() {
         if text[index] == needle { return index }
-        index = index + 1
+        index += 1
     }
     return none
 }

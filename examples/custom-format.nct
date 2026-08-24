@@ -21,6 +21,6 @@ conform Format for Point {
 func main(): i32! {
     let point = Point { x: 3, y: 4 }
     let message = "point = ${point}\n"
-    print(((&message) as &str))?
+    print(&message)?
     return 0
 }

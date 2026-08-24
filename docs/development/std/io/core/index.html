@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/io/core.nct - Nocter">
@@ -161,7 +161,7 @@
 
     default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> collected <span class="token-operator">=</span> <span class="token-function">collect_bytes</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>collected <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>collected<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -178,7 +178,7 @@
     <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> scratch<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-function">initialized_scratch</span><span class="token-operator">(</span><span class="token-number">8192</span><span class="token-operator">)</span>
     <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> received<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> reader<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>scratch <span class="token-keyword">as</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">let</span> received<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> reader<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>scratch<span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">if</span> received <span class="token-operator">&gt;</span> scratch<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
@@ -186,11 +186,11 @@
             <span class="token-keyword">break</span>
         <span class="token-operator">}</span>
         result<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>received<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> initialized<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>scratch <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
+        <span class="token-keyword">let</span> initialized<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>scratch
         <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> received <span class="token-operator">{</span>
             result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>initialized<span class="token-operator">[</span>offset<span class="token-operator">]</span><span class="token-operator">)</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result

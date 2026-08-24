@@ -32,11 +32,11 @@ func print_report(report: &Report): void! {
     let matching = usize_to_string(report.matching())
     let output = String.concat(
         "lines: ",
-        (&lines) as &str,
+        &lines,
         "\nmatching: ",
-        (&matching) as &str,
+        &matching,
         "\n",
     )
-    print((&output) as &str)?
+    print(&output)?
     return
 }

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/slice/views.nct - Nocter">
@@ -201,7 +201,7 @@
             <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">values_equal</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>other<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
             <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-keyword">true</span>
     <span class="token-operator">}</span>
@@ -217,7 +217,7 @@
             <span class="token-keyword">if</span> <span class="token-function">values_equal</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> expected<span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> index
             <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-keyword">none</span>
     <span class="token-operator">}</span>
@@ -228,7 +228,7 @@
         <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> shared_len <span class="token-operator">{</span>
             <span class="token-keyword">if</span> <span class="token-function">value_is_less</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>other<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">true</span> <span class="token-operator">}</span>
             <span class="token-keyword">if</span> <span class="token-function">value_is_less</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>other<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> other<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>

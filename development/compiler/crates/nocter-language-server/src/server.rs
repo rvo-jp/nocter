@@ -619,6 +619,50 @@ mod tests {
     }
 
     #[test]
+    fn mutable_binding_hover_uses_the_checked_var_introducer() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = "func main(): i32 {\n    var count = 1\n    count\n}\n";
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":6}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nvar count: i32\\n```"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"start\":{\"line\":2,\"character\":4}"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"end\":{\"line\":2,\"character\":9}"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
+    #[test]
     fn catch_bindings_keep_one_exact_local_identity_across_hover_and_tokens() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

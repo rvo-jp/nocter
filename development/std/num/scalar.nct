@@ -18,7 +18,7 @@ func parse_usize(text: &str): usize? {
         let digit: usize = (byte - 48) as usize
         if value > (18446744073709551615 - digit) / 10 { return none }
         value = value * 10 + digit
-        offset = offset + 1
+        offset += 1
     }
     return value
 }
@@ -34,7 +34,7 @@ func parse_u8(text: &str): u8? {
         let digit: u8 = byte - 48
         if value > (255 - digit) / 10 { return none }
         value = value * 10 + digit
-        offset = offset + 1
+        offset += 1
     }
     return value
 }
@@ -56,7 +56,7 @@ func parse_i32(text: &str): i32? {
         let digit: i32 = (byte - 48) as i32
         if value < (-2147483648 + digit) / 10 { return none }
         value = value * 10 - digit
-        offset = offset + 1
+        offset += 1
     }
     if negative { return value }
     if value == -2147483648 { return none }

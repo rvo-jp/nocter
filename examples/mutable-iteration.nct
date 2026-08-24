@@ -10,22 +10,22 @@ func main(): i32! {
     var counters = Vec [Counter { value: 1 }, Counter { value: 2 }, Counter { value: 3 }]
     var expected: i32 = 11
     for counter in &+counters {
-        counter.value = counter.value + 10
+        counter.value += 10
         if counter.value != expected {
             return 1
         }
-        expected = expected + 1
+        expected += 1
     }
     var readonly_total: i32 = 0
     for counter in &counters {
-        readonly_total = readonly_total + counter.value
+        readonly_total += counter.value
     }
     if readonly_total != 36 {
         return 1
     }
     var owned_total: i32 = 0
     for counter in move counters {
-        owned_total = owned_total + counter.value
+        owned_total += counter.value
     }
     if owned_total != 36 {
         return 1

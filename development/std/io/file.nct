@@ -112,7 +112,7 @@ func write_fd(fd: usize, bytes: &[u8]): void! {
         if result.value > remaining {
             return invalid_write_count()
         }
-        offset = offset + result.value
+        offset += result.value
     }
     return
 }

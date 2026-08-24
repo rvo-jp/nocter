@@ -261,7 +261,7 @@
         <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> remaining <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">invalid_write_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
-        offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> result<span class="token-operator">.</span>value
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> result<span class="token-operator">.</span>value
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>

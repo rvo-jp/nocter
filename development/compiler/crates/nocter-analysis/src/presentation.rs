@@ -1,8 +1,8 @@
 use std::fmt::{self, Write};
 
 use nocter_checking::{
-    CheckedPredicate, CheckedProgram, GenericArguments, RequiredConformanceMethod,
-    SelectedConstructionEntry, SelectedConstructionSurface,
+    CheckedPredicate, CheckedProgram, GenericArguments, LocalBindingKind,
+    RequiredConformanceMethod, SelectedConstructionEntry, SelectedConstructionSurface,
 };
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, ExportedEntity,
@@ -394,9 +394,18 @@ impl<'a> Renderer<'a> {
             SemanticEntity::LocalBinding(body, id) => {
                 let checked = checked?;
                 let local = checked.bodies().get(body)?.locals().get(id)?;
+                let introducer = match local.declaration().kind() {
+                    LocalBindingKind::Mutable => "var",
+                    LocalBindingKind::Immutable
+                    | LocalBindingKind::PatternPayload
+                    | LocalBindingKind::Loop
+                    | LocalBindingKind::Region
+                    | LocalBindingKind::Catch
+                    | LocalBindingKind::ClosureParameter => "let",
+                };
                 write!(
                     self.output,
-                    "let {}: ",
+                    "{introducer} {}: ",
                     self.symbol(local.declaration().name())?
                 )
                 .ok()?;

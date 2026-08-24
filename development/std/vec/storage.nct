@@ -108,7 +108,7 @@ construct Vec<T> {
         var index: usize = 0
         while index < values.len() {
             result.push(values[index])
-            index = index + 1
+            index += 1
         }
         return move result
     }
@@ -142,7 +142,7 @@ construct Vec<T> {
         var index: usize = 0
         while index < values.len() {
             result.try_push(values[index])?
-            index = index + 1
+            index += 1
         }
         return move result
     }
@@ -388,11 +388,11 @@ instance Vec<T> {
                     let retained: T = take_value_at_ptr(self.ptr, read_index * element_size)
                     store_value_to_ptr(self.ptr, write_index * element_size, move retained)
                 }
-                write_index = write_index + 1
+                write_index += 1
             } else {
                 drop_value_at_ptr(self.ptr, read_index * element_size)
             }
-            read_index = read_index + 1
+            read_index += 1
         }
         self.len = write_index
         return

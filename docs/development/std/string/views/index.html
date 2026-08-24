@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string/views.nct - Nocter">
@@ -193,7 +193,7 @@
     <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> prefix<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> text<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> prefix<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>text<span class="token-operator">,</span> prefix<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - prefix<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
@@ -205,7 +205,7 @@
     <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> suffix<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> text<span class="token-operator">[</span>start <span class="token-operator">+</span> index<span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> suffix<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>text<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> start<span class="token-operator">)</span>
 <span class="token-operator">}</span>
@@ -283,7 +283,7 @@
         <span class="token-operator">}</span>
         <span class="token-keyword">var</span> line_end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> newline
         <span class="token-keyword">if</span> line_end <span class="token-operator">&gt;</span> line_start <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>text<span class="token-operator">[</span>line_end - <span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">13</span> <span class="token-operator">{</span>
-            line_end <span class="token-operator">=</span> line_end - <span class="token-number">1</span>
+            line_end -<span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         self<span class="token-operator">.</span>next_start <span class="token-operator">=</span> newline <span class="token-operator">+</span> <span class="token-number">1</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>next_start <span class="token-operator">=</span><span class="token-operator">=</span> self<span class="token-operator">.</span>text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
@@ -301,7 +301,7 @@
     <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> start
     <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> text<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> needle <span class="token-operator">{</span> <span class="token-keyword">return</span> index <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">none</span>
 <span class="token-operator">}</span>

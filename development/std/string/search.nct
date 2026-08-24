@@ -23,10 +23,10 @@ func find_from_bytes(
             if actual != expected {
                 equal = false
             }
-            matched = matched + 1
+            matched += 1
         }
         if equal { return candidate }
-        candidate = candidate + 1
+        candidate += 1
     }
     return none
 }

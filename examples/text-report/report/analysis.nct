@@ -19,9 +19,9 @@ func analyze(text: &str, needle: &str): Report {
     var lines: usize = 0
     var matching: usize = 0
     for line in text.lines() {
-        lines = lines + 1
+        lines += 1
         if line.contains(needle) {
-            matching = matching + 1
+            matching += 1
         }
     }
     return Report {

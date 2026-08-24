@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string/storage.nct - Nocter">
@@ -225,7 +225,7 @@
         <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span><span class="token-function">raw_buffer_ptr</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">.</span>storage<span class="token-operator">)</span><span class="token-operator">,</span> offset<span class="token-operator">,</span> candidate<span class="token-operator">[</span>offset<span class="token-operator">]</span><span class="token-operator">)</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         result<span class="token-operator">.</span>len <span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -240,7 +240,7 @@
         <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span><span class="token-function">raw_buffer_ptr</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">.</span>storage<span class="token-operator">)</span><span class="token-operator">,</span> offset<span class="token-operator">,</span> candidate<span class="token-operator">[</span>offset<span class="token-operator">]</span><span class="token-operator">)</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         result<span class="token-operator">.</span>len <span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -292,12 +292,12 @@
     <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> leading<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> candidate<span class="token-operator">[</span>offset<span class="token-operator">]</span>
         <span class="token-keyword">if</span> leading <span class="token-operator">&lt;</span> <span class="token-number">128</span> <span class="token-operator">{</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">194</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">223</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
             <span class="token-operator">}</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">2</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">2</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">224</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">239</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">2</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
@@ -308,7 +308,7 @@
             <span class="token-operator">}</span>
             <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">224</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&lt;</span> <span class="token-number">160</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
             <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">237</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">160</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">3</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">3</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">240</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">244</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">3</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
@@ -319,7 +319,7 @@
             <span class="token-operator">}</span>
             <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">240</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&lt;</span> <span class="token-number">144</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
             <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">244</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">144</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">4</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">4</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-keyword">false</span>
         <span class="token-operator">}</span>
@@ -378,8 +378,8 @@
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> start
     <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> end <span class="token-operator">{</span>
         <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span><span class="token-function">raw_buffer_ptr</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">.</span>storage<span class="token-operator">)</span><span class="token-operator">,</span> result<span class="token-operator">.</span>len<span class="token-operator">,</span> source<span class="token-operator">[</span>offset<span class="token-operator">]</span><span class="token-operator">)</span>
-        result<span class="token-operator">.</span>len <span class="token-operator">=</span> result<span class="token-operator">.</span>len <span class="token-operator">+</span> <span class="token-number">1</span>
-        offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
+        result<span class="token-operator">.</span>len <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>

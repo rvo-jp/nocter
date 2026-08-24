@@ -32,17 +32,17 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
             var initialized: usize = 0
             while initialized < reader.buffer.capacity() {
                 reader.buffer.push(0)
-                initialized = initialized + 1
+                initialized += 1
             }
-            let received: usize = file_read(&+reader.source, &+reader.buffer as &+[u8])?
+            let received: usize = file_read(&+reader.source, &+reader.buffer)?
             reader.buffer.truncate(received)
             reader.next = 0
             if received == 0 { break }
         }
-        let available: &[u8] = &reader.buffer as &[u8]
+        let available: &[u8] = &reader.buffer
         destination[written] = available[reader.next]
-        written = written + 1
-        reader.next = reader.next + 1
+        written += 1
+        reader.next += 1
     }
     return written
 }
@@ -77,14 +77,14 @@ func write(writer: &+BufWriter, bytes: &[u8]): void! {
     while offset < bytes.len() {
         if writer.buffer.len() == writer.limit { flush(writer)? }
         writer.buffer.push(bytes[offset])
-        offset = offset + 1
+        offset += 1
     }
     return
 }
 
 func flush(writer: &+BufWriter): void! {
     if writer.buffer.len() == 0 { return }
-    file_write(&+writer.destination, &writer.buffer as &[u8])?
+    file_write(&+writer.destination, &writer.buffer)?
     writer.buffer.clear()
     writer.destination.flush()?
     return

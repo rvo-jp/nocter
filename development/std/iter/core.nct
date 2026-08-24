@@ -40,7 +40,7 @@ conform Iterator for TakeIter<I> where I: Iterator {
             self.remaining = 0
             return none
         }
-        self.remaining = self.remaining - 1
+        self.remaining -= 1
         return move item
     }
 }
@@ -62,7 +62,7 @@ conform Iterator for SkipIter<I> where I: Iterator {
                 self.remaining_to_skip = 0
                 return none
             }
-            self.remaining_to_skip = self.remaining_to_skip - 1
+            self.remaining_to_skip -= 1
         }
         return self.source.next()?
     }

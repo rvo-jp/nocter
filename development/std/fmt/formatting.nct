@@ -18,7 +18,7 @@ func append_str(out: &+String, value: &str): void {
 }
 
 func try_append_string(out: &+String, value: &String): void! {
-    try_append_str(out, value as &str)?
+    try_append_str(out, value)?
     return
 }
 

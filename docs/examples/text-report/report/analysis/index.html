@@ -165,9 +165,9 @@
     <span class="token-keyword">var</span> lines<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">var</span> matching<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">for</span> line <span class="token-keyword">in</span> text<span class="token-operator">.</span><span class="token-function">lines</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        lines <span class="token-operator">=</span> lines <span class="token-operator">+</span> <span class="token-number">1</span>
+        lines <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-keyword">if</span> line<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span>needle<span class="token-operator">)</span> <span class="token-operator">{</span>
-            matching <span class="token-operator">=</span> matching <span class="token-operator">+</span> <span class="token-number">1</span>
+            matching <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">Report</span> <span class="token-operator">{</span>

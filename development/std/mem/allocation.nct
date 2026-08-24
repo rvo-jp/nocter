@@ -407,7 +407,7 @@ func valid_alignment(align: usize): bool {
         if remaining % 2 != 0 {
             return false
         }
-        remaining = remaining / 2
+        remaining /= 2
     }
     return true
 }

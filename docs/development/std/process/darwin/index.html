@@ -226,7 +226,7 @@
         <span class="token-keyword">if</span> raw_bytes<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> index
         <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">cwd_failed</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
@@ -255,7 +255,7 @@
             <span class="token-keyword">return</span> <span class="token-function">invalid_encoding</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
         values<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> values
 <span class="token-operator">}</span>
@@ -300,7 +300,7 @@
         <span class="token-keyword">if</span> entry_name <span class="token-operator">=</span><span class="token-operator">=</span> name <span class="token-operator">{</span>
             <span class="token-keyword">return</span> entry_value
         <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">none</span>
 <span class="token-operator">}</span>
@@ -355,7 +355,7 @@
         <span class="token-keyword">if</span> name_bytes<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || name_bytes<span class="token-operator">[</span>index<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">61</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-keyword">false</span>
         <span class="token-operator">}</span>
-        index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">true</span>
 <span class="token-operator">}</span>
@@ -366,12 +366,12 @@
     <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> value_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> first <span class="token-operator">=</span> value_bytes<span class="token-operator">[</span>index<span class="token-operator">]</span>
         <span class="token-keyword">if</span> first <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">127</span> <span class="token-operator">{</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> first <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">194</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> first <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">223</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> index <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> value_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">utf8_continuation</span><span class="token-operator">(</span>value_bytes<span class="token-operator">[</span>index <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
             <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">2</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">2</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> first <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">224</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> first <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">239</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> index <span class="token-operator">+</span> <span class="token-number">2</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> value_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
@@ -387,7 +387,7 @@
             <span class="token-keyword">if</span> <span class="token-operator">!</span>second_valid || <span class="token-operator">!</span><span class="token-function">utf8_continuation</span><span class="token-operator">(</span>value_bytes<span class="token-operator">[</span>index <span class="token-operator">+</span> <span class="token-number">2</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
             <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">3</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">3</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> first <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">240</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> first <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">244</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> index <span class="token-operator">+</span> <span class="token-number">3</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> value_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
@@ -403,7 +403,7 @@
             <span class="token-keyword">if</span> <span class="token-operator">!</span>second_valid || <span class="token-operator">!</span><span class="token-function">utf8_continuation</span><span class="token-operator">(</span>value_bytes<span class="token-operator">[</span>index <span class="token-operator">+</span> <span class="token-number">2</span><span class="token-operator">]</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">utf8_continuation</span><span class="token-operator">(</span>value_bytes<span class="token-operator">[</span>index <span class="token-operator">+</span> <span class="token-number">3</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-keyword">false</span>
             <span class="token-operator">}</span>
-            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">4</span>
+            index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">4</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-keyword">false</span>
         <span class="token-operator">}</span>

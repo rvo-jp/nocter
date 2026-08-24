@@ -18,7 +18,7 @@ func main(): i32! {
     let text = file.read_to_string()?
     let lines = count_lines(&text)
     let result = usize_to_string(lines)
-    print((&result) as &str)?
+    print(&result)?
     print("\n")?
     return 0
 }

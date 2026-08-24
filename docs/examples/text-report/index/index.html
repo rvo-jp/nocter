@@ -178,12 +178,12 @@
     <span class="token-keyword">let</span> matching <span class="token-operator">=</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>report<span class="token-operator">.</span><span class="token-function">matching</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-keyword">let</span> output <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span>
         <span class="token-string">"lines: "</span><span class="token-operator">,</span>
-        <span class="token-operator">(</span><span class="token-operator">&amp;</span>lines<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+        <span class="token-operator">&amp;</span>lines<span class="token-operator">,</span>
         <span class="token-string">"\nmatching: "</span><span class="token-operator">,</span>
-        <span class="token-operator">(</span><span class="token-operator">&amp;</span>matching<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+        <span class="token-operator">&amp;</span>matching<span class="token-operator">,</span>
         <span class="token-string">"\n"</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 </code></pre>

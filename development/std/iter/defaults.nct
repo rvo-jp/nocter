@@ -56,7 +56,7 @@ interface Iterator {
         var total: usize = 0
         while true {
             let item = source.next() otherwise { return total }
-            total = total + 1
+            total += 1
         }
         return 0
     }
@@ -126,7 +126,7 @@ interface Iterator {
             if iterator_items_equal(&item, expected) {
                 return index
             }
-            index = index + 1
+            index += 1
         }
         return none
     }

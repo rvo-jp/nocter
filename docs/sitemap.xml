@@ -326,7 +326,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/fmt/formatting/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -356,7 +356,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/io/buffer/buffering/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -368,7 +368,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/io/core/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -404,13 +404,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/core/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/defaults/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -434,7 +434,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/mem/allocation/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -458,7 +458,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/num/scalar/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -470,7 +470,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/path/utf8_path/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -506,7 +506,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/slice/views/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -518,7 +518,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/str/text/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -530,19 +530,19 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/search/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/storage/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/views/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -572,13 +572,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/vec/storage/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/examples/custom-format/</loc>
-    <lastmod>2026-08-16</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -590,7 +590,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/file-summary/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -602,7 +602,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/file-summary/summary/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -620,7 +620,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/mutable-iteration/</loc>
-    <lastmod>2026-08-16</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

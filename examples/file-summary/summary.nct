@@ -4,9 +4,9 @@ func count_lines(text: &String): usize {
     var offset: usize = 0
     while offset < bytes.len() {
         if bytes[offset] == 10 {
-            lines = lines + 1
+            lines += 1
         }
-        offset = offset + 1
+        offset += 1
     }
     return lines
 }

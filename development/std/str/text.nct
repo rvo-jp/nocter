@@ -21,7 +21,7 @@ instance str {
             if left[index] != right[index] {
                 return false
             }
-            index = index + 1
+            index += 1
         }
         return true
     }
@@ -34,7 +34,7 @@ instance str {
         while index < shared_len {
             if left[index] < right[index] { return true }
             if right[index] < left[index] { return false }
-            index = index + 1
+            index += 1
         }
         return left.len() < right.len()
     }

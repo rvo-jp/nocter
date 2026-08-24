@@ -18,7 +18,7 @@ construct Utf8Path {
 instance Utf8Path {
     /// Exposes the validated UTF-8 path text without transferring ownership.
     coerce &self as &str {
-    return &self.text as &str
+    return &self.text
 }
 
     method &self.is_absolute(): bool { return is_absolute(self) }
@@ -26,7 +26,7 @@ instance Utf8Path {
 }
 
 func is_absolute(path: &Utf8Path): bool {
-    let value: &str = &path.text as &str
+    let value: &str = &path.text
     let raw: &[u8] = bytes(value)
     return value.len() != 0 && raw[0] == 47
 }
@@ -37,7 +37,7 @@ func join(path: &Utf8Path, child: &str): Utf8Path! {
     if child.len() != 0 && child_bytes[0] == 47 {
         return Utf8Path.new(child)?
     }
-    var result = String.copy(&path.text as &str)
+    var result = String.copy(&path.text)
     if result.len() != 0 && !result.ends_with("/") {
         result.push_str("/")
     }
@@ -50,7 +50,7 @@ func validate(value: &str): void! {
     var offset: usize = 0
     while offset < raw.len() {
         if raw[offset] == 0 { return invalid_path() }
-        offset = offset + 1
+        offset += 1
     }
     return
 }
