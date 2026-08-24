@@ -77,6 +77,15 @@ const darwin_sys_open: usize = 0x02000005
 const darwin_sys_close: usize = 0x02000006
 
 #target: "arm64-darwin"
+const darwin_sys_unlink: usize = 0x0200000a
+
+#target: "arm64-darwin"
+const darwin_sys_rename: usize = 0x02000080
+
+#target: "arm64-darwin"
+const darwin_sys_stat64: usize = 0x02000152
+
+#target: "arm64-darwin"
 const darwin_open_read_only: usize = 0
 
 #target: "arm64-darwin"
@@ -102,3 +111,19 @@ const darwin_f_getpath: usize = 50
 
 #target: "arm64-darwin"
 const darwin_max_path_len: usize = 1024
+
+#target: "arm64-darwin"
+// Darwin arm64 `struct stat`: SDK sys/stat.h __DARWIN_STRUCT_STAT64.
+const darwin_stat_buffer_size: usize = 144
+
+#target: "arm64-darwin"
+const darwin_stat_mode_offset: usize = 4
+
+#target: "arm64-darwin"
+const darwin_stat_size_offset: usize = 96
+
+#target: "arm64-darwin"
+const darwin_stat_mode_regular: u16 = 32768
+
+#target: "arm64-darwin"
+const darwin_stat_mode_directory: u16 = 16384

@@ -1,0 +1,115 @@
+use std/fs
+use std/process.arg
+use std/string.String
+use std/vec.Vec
+
+func main(): i32! {
+    let root: &str = arg(1)? otherwise {
+        return error.new("phase0.missing_root", "filesystem test root is missing")
+    }
+    let text_path = String.concat(root, "/text.txt")
+    let renamed_path = String.concat(root, "/renamed.txt")
+    let binary_path = String.concat(root, "/binary.dat")
+    let missing_path = String.concat(root, "/missing.dat")
+    let link_path = String.concat(root, "/link.txt")
+    let link_target_path = String.concat(root, "/link-target.txt")
+
+    verify_directory(root)?
+    verify_text(&text_path, &renamed_path)?
+    verify_bytes(&binary_path)?
+    verify_missing(&missing_path)?
+    verify_link(&link_path, &link_target_path)?
+    return 0
+}
+
+func verify_directory(path: &str): void! {
+    let details = fs.metadata(path)?
+    require(details.is_directory(), "root was not classified as a directory")?
+    require(!details.is_file(), "directory was classified as a regular file")?
+    return
+}
+
+func verify_text(path: &str, renamed: &str): void! {
+    fs.write_text(path, "hello")?
+    require(fs.exists(path)?, "written text file does not exist")?
+
+    let details = fs.metadata(path)?
+    require(details.is_file(), "text file was not classified as regular")?
+    require(!details.is_directory(), "text file was classified as a directory")?
+    require(details.len() == 5, "text metadata length is incorrect")?
+
+    let text = fs.read_to_string(path)?
+    require((&text as &str) == "hello", "text round trip changed bytes")?
+
+    fs.write_text(renamed, "old")?
+    fs.rename(path, renamed)?
+    require(!fs.exists(path)?, "rename left the source path present")?
+    require(fs.exists(renamed)?, "rename did not create the destination path")?
+    let renamed_text = fs.read_to_string(renamed)?
+    require(
+        (&renamed_text as &str) == "hello",
+        "rename did not replace the destination",
+    )?
+    fs.remove_file(renamed)?
+    require(!fs.exists(renamed)?, "removed text file still exists")?
+    return
+}
+
+func verify_bytes(path: &str): void! {
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.push(0)
+    bytes.push(127)
+    bytes.push(255)
+    fs.write(path, &bytes as &[u8])?
+    let loaded = fs.read(path)?
+    require(loaded.len() == 3, "byte read length is incorrect")?
+    require(loaded[0] == 0, "first byte changed")?
+    require(loaded[1] == 127, "second byte changed")?
+    require(loaded[2] == 255, "third byte changed")?
+    verify_invalid_utf8(path)?
+    fs.remove_file(path)?
+    return
+}
+
+func verify_invalid_utf8(path: &str): void! {
+    let unexpected = fs.read_to_string(path) catch failure {
+        if failure.has_code("std.string.invalid_utf8") {
+            return
+        }
+        return move failure
+    }
+    drop unexpected
+    return error.new("phase0.expected_invalid_utf8", "invalid UTF-8 was accepted")
+}
+
+func verify_missing(path: &str): void! {
+    require(!fs.exists(path)?, "missing path was reported as present")?
+    let unexpected = fs.read(path) catch failure {
+        if failure.has_code("std.io.not_found") {
+            return
+        }
+        return move failure
+    }
+    drop unexpected
+    return error.new("phase0.expected_not_found", "missing read unexpectedly succeeded")
+}
+
+func verify_link(path: &str, target: &str): void! {
+    let details = fs.metadata(path)?
+    require(details.is_file(), "metadata did not follow the symbolic link")?
+    require(details.len() == 5, "symbolic-link target length is incorrect")?
+    fs.remove_file(path)?
+    require(!fs.exists(path)?, "symbolic link still exists after removal")?
+    require(fs.exists(target)?, "removing a symbolic link removed its target")?
+    let text = fs.read_to_string(target)?
+    require((&text as &str) == "hello", "symbolic-link target content changed")?
+    fs.remove_file(target)?
+    return
+}
+
+func require(condition: bool, message: &str): void! {
+    if !condition {
+        return error.new("phase0.verification_failed", message)
+    }
+    return
+}

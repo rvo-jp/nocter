@@ -81,6 +81,16 @@ impl BodyChecker<'_, '_> {
                 return Err(self.rule(BodyRule::InvalidCall, reference)?);
             }
         };
+        self.finish_declared_module_call(node, suffix, callable_id, result_context)
+    }
+
+    fn finish_declared_module_call(
+        &mut self,
+        node: NodeId,
+        suffix: NodeId,
+        callable_id: nocter_model::CallableId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let callable = self
             .graph
             .declarations()
@@ -137,6 +147,11 @@ impl BodyChecker<'_, '_> {
         suffix: NodeId,
         result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some(call) =
+            self.check_module_namespace_call(node, owner, member, suffix, result_context)?
+        {
+            return Ok(call);
+        }
         if let Some((parameter, _)) = self.argument_pack_parameter(owner)? {
             return self.check_argument_pack_method(
                 node,
@@ -179,6 +194,39 @@ impl BodyChecker<'_, '_> {
             }
             Err(error) => Err(error),
         }
+    }
+
+    fn check_module_namespace_call(
+        &mut self,
+        node: NodeId,
+        owner: NodeId,
+        member: NodeId,
+        suffix: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<Option<BodyNodeId>, BodyCheckError> {
+        let owner_tokens = crate::syntax::identifier_tokens(self.tree(), owner);
+        let Some(owner_token) = owner_tokens.last().copied() else {
+            return Ok(None);
+        };
+        let owner_origin = SyntaxOrigin::Token(owner_token);
+        let Some(NameTarget::Exported(ExportedEntity::Module(_))) =
+            self.uses.get(&owner_origin).copied()
+        else {
+            return Ok(None);
+        };
+        let member_target = call_name_target(self, member)?;
+        let NameTarget::Exported(ExportedEntity::Callable(callable)) = member_target else {
+            return Err(self.rule(BodyRule::InvalidCall, member)?);
+        };
+        self.consumed_uses.extend(
+            owner_tokens
+                .into_iter()
+                .map(SyntaxOrigin::Token)
+                .filter(|origin| self.uses.contains_key(origin)),
+        );
+        self.consumed_uses.insert(call_origin(self, member)?);
+        self.finish_declared_module_call(node, suffix, callable, result_context)
+            .map(Some)
     }
 }
 

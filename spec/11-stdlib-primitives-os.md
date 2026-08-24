@@ -248,8 +248,11 @@ separate capability and distribution design rather than overloading visibility.
 Target primitives expose only the minimum facts needed by ordinary wrappers: process entry state,
 process termination, and generic syscall results. File-descriptor operations are ordinary
 `std/io` functions over that syscall result boundary, not parallel compiler primitives.
-`std/process` and `std/io` own validation, UTF-8 policy, ownership, retry policy, partial-transfer
-handling, error mapping, and public types.
+`std/process`, `std/io`, and `std/fs` own public validation policy, ownership, retry policy,
+partial-transfer handling, operation semantics, and public types. Package-internal helpers may
+share a target path argument representation and I/O error mapping. `std/internal/os` remains the
+dependency-free owner of syscall, errno-classification, and native-layout facts; it does not own
+public operation policy.
 
 Consequences:
 

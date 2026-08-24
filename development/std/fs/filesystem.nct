@@ -1,0 +1,77 @@
+//! Portable filesystem behavior built on stream and target contracts.
+
+include ./index.nct
+include ./darwin.nct
+
+use std/io.{File, Reader, Writer}
+use std/string.String
+use std/vec.Vec
+
+copy struct Metadata {
+    file_type: FileType
+    len: u64
+}
+
+instance Metadata {
+    method &self.file_type(): FileType {
+        return self.file_type
+    }
+
+    method &self.len(): u64 {
+        return self.len
+    }
+
+    method &self.is_file(): bool {
+        if self.file_type is FileType.regular {
+            return true
+        }
+        return false
+    }
+
+    method &self.is_directory(): bool {
+        if self.file_type is FileType.directory {
+            return true
+        }
+        return false
+    }
+}
+
+func read(path: &str): Vec<u8>! {
+    var file = File.open(path)?
+    return file.read_to_end()?
+}
+
+func read_to_string(path: &str): String! {
+    var file = File.open(path)?
+    return file.read_to_string()?
+}
+
+func write(path: &str, value: &[u8]): void! {
+    var file = File.create(path)?
+    file.write(value)?
+    return
+}
+
+func write_text(path: &str, text: &str): void! {
+    var file = File.create(path)?
+    file.write_text(text)?
+    return
+}
+
+func metadata(path: &str): Metadata! {
+    return metadata_target(path)?
+}
+
+func exists(path: &str): bool! {
+    return exists_target(path)?
+}
+
+func remove_file(path: &str): void! {
+    remove_file_target(path)?
+    return
+}
+
+func rename(from: &str, to: &str): void! {
+    rename_target(from, to)?
+    return
+}

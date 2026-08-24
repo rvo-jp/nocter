@@ -773,6 +773,45 @@ fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
     fs::remove_dir_all(output_directory).unwrap();
 }
 
+#[test]
+fn bundled_standard_filesystem_runtime_crosses_public_stream_and_os_contracts() {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler.join("tests/fixtures/standard/filesystem-runtime.nct");
+    let unit = discover_single_file(&source);
+    let output_directory = unique_test_directory("standard-filesystem-runtime");
+    let executable = output_directory.join("program");
+    super::build_executable(ExecutableCompileRequest::only(&unit), &executable).unwrap_or_else(
+        |error| {
+            let sources = unit
+                .sources()
+                .iter()
+                .map(|source| (source.id(), source.name().as_str()))
+                .collect::<Vec<_>>();
+            panic!("filesystem runtime failed to compile: {error:?}\nsources: {sources:#?}")
+        },
+    );
+
+    let link_target = output_directory.join("link-target.txt");
+    let link = output_directory.join("link.txt");
+    fs::write(&link_target, b"hello").unwrap();
+    std::os::unix::fs::symlink(&link_target, &link).unwrap();
+
+    let executed = Command::new(&executable)
+        .arg(&output_directory)
+        .output()
+        .unwrap();
+    assert_eq!(executed.status.code(), Some(0));
+    assert!(executed.stdout.is_empty());
+    assert!(executed.stderr.is_empty());
+    assert!(!output_directory.join("text.txt").exists());
+    assert!(!output_directory.join("renamed.txt").exists());
+    assert!(!output_directory.join("binary.dat").exists());
+    assert!(!link.exists());
+    assert!(!link_target.exists());
+
+    fs::remove_dir_all(output_directory).unwrap();
+}
+
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
         "custom-format.nct" => b"point = (3, 4)\n",

@@ -60,6 +60,16 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
         bundled_standard_toolchain(&package),
     ))
     .unwrap();
+    let diagnostics = unit.syntax_diagnostics();
+    let source_names = unit
+        .sources()
+        .iter()
+        .map(|source| (source.id(), source.name().as_str()))
+        .collect::<Vec<_>>();
+    assert!(
+        diagnostics.is_empty(),
+        "bundled standard library has syntax diagnostics: {diagnostics:#?}\nsources: {source_names:#?}"
+    );
     let compiled = compile_target(&unit).unwrap();
 
     assert_eq!(

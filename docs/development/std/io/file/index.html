@@ -123,6 +123,7 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.17.0/index.html#content">v0.17.0 practical application foundations</a></li>
                 <li><a href="../../../milestones/v0.16.0/index.html#content">v0.16.0 practical failure values</a></li>
                 <li><a href="../../../milestones/v0.16.0-release-preparation/index.html#content">v0.16.0 release preparation</a></li>
                 <li><a href="../../../releases/v0.16.0/index.html#content">v0.16.0 publication and audit</a></li>
@@ -152,18 +153,14 @@
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>core<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>alloc_pages
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>free_pages
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">,</span> <span class="token-type">SyscallResult</span><span class="token-operator">,</span> darwin_create_mode<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">SyscallResult</span><span class="token-operator">,</span> darwin_create_mode<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>darwin_errno_interrupted<span class="token-operator">,</span> darwin_open_create_append<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>darwin_open_create_truncate<span class="token-operator">,</span> darwin_open_read_only<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>darwin_sys_close<span class="token-operator">,</span> darwin_sys_open<span class="token-operator">,</span> darwin_sys_read<span class="token-operator">,</span> darwin_sys_write<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>io<span class="token-operator">.</span>io_error_from_os
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>errno<span class="token-operator">,</span> error_from_errno<span class="token-operator">,</span> syscall1<span class="token-operator">,</span> syscall3<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>path<span class="token-operator">.</span>validate <span class="token-keyword">as</span> validate_path
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-operator">{</span>target_path_address<span class="token-operator">,</span> target_path_argument<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_str_to_ptr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>store_u8_to_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span>bytes <span class="token-keyword">as</span> string_bytes
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
@@ -191,24 +188,24 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> flags<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-function">validate_path</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> allocation_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-keyword">let</span> address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>allocation_size<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-function">copy_str_to_ptr</span><span class="token-operator">(</span><span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> path<span class="token-operator">)</span>
-    <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span><span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span> allocation_size - <span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> <span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
 
     <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
         darwin_sys_open<span class="token-operator">,</span>
-        address<span class="token-operator">,</span>
+        <span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
         flags<span class="token-operator">,</span>
         darwin_create_mode<span class="token-operator">,</span>
     <span class="token-operator">)</span>
     <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin_errno_interrupted <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>darwin_sys_open<span class="token-operator">,</span> address<span class="token-operator">,</span> flags<span class="token-operator">,</span> darwin_create_mode<span class="token-operator">)</span>
+        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin_sys_open<span class="token-operator">,</span>
+            <span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
+            flags<span class="token-operator">,</span>
+            darwin_create_mode<span class="token-operator">,</span>
+        <span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-function">free_pages</span><span class="token-operator">(</span>address<span class="token-operator">,</span> allocation_size<span class="token-operator">)</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
 <span class="token-operator">}</span>
@@ -225,7 +222,7 @@
         result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>darwin_sys_read<span class="token-operator">,</span> fd<span class="token-operator">,</span> <span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -253,7 +250,7 @@
             <span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+            <span class="token-keyword">return</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">write_zero</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -284,37 +281,6 @@
 <span class="token-keyword">struct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
     fd<span class="token-operator">:</span> <span class="token-type">usize</span>
     close_on_drop<span class="token-operator">:</span> <span class="token-type">bool</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.interrupted"</span><span class="token-operator">,</span> <span class="token-string">"operation interrupted"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>would_block <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.would_block"</span><span class="token-operator">,</span> <span class="token-string">"operation would block"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_found <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.not_found"</span><span class="token-operator">,</span> <span class="token-string">"file not found"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>permission_denied <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.permission_denied"</span><span class="token-operator">,</span> <span class="token-string">"permission denied"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>already_exists <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.already_exists"</span><span class="token-operator">,</span> <span class="token-string">"file already exists"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.invalid_input"</span><span class="token-operator">,</span> <span class="token-string">"invalid I/O input"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>broken_pipe <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.broken_pipe"</span><span class="token-operator">,</span> <span class="token-string">"broken pipe"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>timed_out <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.timed_out"</span><span class="token-operator">,</span> <span class="token-string">"operation timed out"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>unsupported <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.unsupported"</span><span class="token-operator">,</span> <span class="token-string">"unsupported I/O operation"</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.os_error"</span><span class="token-operator">,</span> <span class="token-string">"OS operation failed"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>

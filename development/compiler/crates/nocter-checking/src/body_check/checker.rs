@@ -293,6 +293,22 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         })
     }
 
+    /// Consumes one semantic identity fixed by body name resolution for an exact token.
+    pub(super) fn consume_name_use(
+        &mut self,
+        node: NodeId,
+        token: nocter_syntax::SyntaxToken,
+    ) -> Result<NameTarget, BodyCheckInternalError> {
+        let origin = SyntaxOrigin::Token(token);
+        let target = self
+            .uses
+            .get(&origin)
+            .copied()
+            .ok_or(BodyCheckInternalError::MissingNameUse(node))?;
+        self.consumed_uses.insert(origin);
+        Ok(target)
+    }
+
     pub(super) fn check(mut self) -> Result<CheckedBodyOutput, BodyConstructionFailure> {
         let checked = (|| {
             let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;

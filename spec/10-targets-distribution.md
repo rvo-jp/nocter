@@ -45,7 +45,9 @@ Future target-specific boundaries should keep stable ordinary modules under `std
 
 ```text
 ~/.nocter/std/internal/os/index.nct
+~/.nocter/std/internal/path/index.nct
 ~/.nocter/std/io/index.nct
+~/.nocter/std/fs/index.nct
 ~/.nocter/std/process/index.nct
 ```
 

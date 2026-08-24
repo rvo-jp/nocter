@@ -43,12 +43,6 @@ construct Layout {
     pub default func new(size: usize, align: usize): Self!
 }
 
-#target: "arm64-darwin"
-pub(/) func alloc_pages(size: usize): usize!
-
-#target: "arm64-darwin"
-pub(/) func free_pages(address: usize, size: usize): void
-
 pub(/) func try_alloc(
     allocator: &+TryAllocator,
     size: usize,

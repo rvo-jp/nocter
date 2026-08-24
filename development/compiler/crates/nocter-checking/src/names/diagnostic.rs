@@ -11,6 +11,8 @@ pub enum NameRule {
     InvalidCaptureTarget,
     CaptureCollision,
     ImplicitCapture,
+    MissingModuleMember,
+    InaccessibleModuleMember,
 }
 
 impl NameRule {
@@ -24,6 +26,8 @@ impl NameRule {
             Self::InvalidCaptureTarget => "E0344",
             Self::CaptureCollision => "E0345",
             Self::ImplicitCapture => "E0346",
+            Self::MissingModuleMember => "E0347",
+            Self::InaccessibleModuleMember => "E0348",
         }
     }
 }
@@ -69,6 +73,26 @@ pub(super) fn inaccessible_block_import(name: &str, primary: SourceOrigin) -> So
         primary,
         [],
         Some("use a name whose visibility includes the importing module"),
+    )
+}
+
+pub(super) fn missing_module_member(name: &str, primary: SourceOrigin) -> SourceDiagnostic {
+    SourceDiagnostic::new(
+        NameRule::MissingModuleMember.code(),
+        format!("module does not export `{name}`"),
+        primary,
+        [],
+        Some("use a name exported by the selected module"),
+    )
+}
+
+pub(super) fn inaccessible_module_member(name: &str, primary: SourceOrigin) -> SourceDiagnostic {
+    SourceDiagnostic::new(
+        NameRule::InaccessibleModuleMember.code(),
+        format!("module member `{name}` is not visible from this module"),
+        primary,
+        [],
+        Some("use a member whose visibility includes the current module"),
     )
 }
 
@@ -134,6 +158,8 @@ mod tests {
             NameRule::InvalidCaptureTarget,
             NameRule::CaptureCollision,
             NameRule::ImplicitCapture,
+            NameRule::MissingModuleMember,
+            NameRule::InaccessibleModuleMember,
         ];
         let codes: HashSet<_> = rules.into_iter().map(NameRule::code).collect();
         assert_eq!(codes.len(), rules.len());

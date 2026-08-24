@@ -1,0 +1,8 @@
+//! Package-internal policy shared by public I/O modules.
+
+include ./errors.nct
+
+use std/internal/os.OSError
+
+/// Maps one target-independent OS classification to the stable public I/O error family.
+pub(/) func io_error_from_os(os_error: OSError): error

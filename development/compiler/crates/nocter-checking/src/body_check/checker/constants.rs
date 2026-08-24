@@ -138,7 +138,7 @@ impl BodyConstantResolver<'_, '_, '_> {
                         SyntaxOrigin::Node(node),
                     ));
                 }
-                let ExportedEntity::Module(module) = self.resolve_entity(*base)? else {
+                let ExportedEntity::Module(_) = self.resolve_entity(*base)? else {
                     return Err(constant_error(
                         self.checker.tree(),
                         ConstantExpressionRule::NonConstantExpression,
@@ -147,19 +147,14 @@ impl BodyConstantResolver<'_, '_, '_> {
                 };
                 let token = direct_identifier(self.checker.tree(), *suffix)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(*suffix))?;
-                let name = self.checker.segment_symbol(token)?;
-                let entity = self
-                    .checker
-                    .graph
-                    .lookup_export(self.checker.source.module(), module, name)
-                    .ok_or_else(|| {
-                        constant_error(
-                            self.checker.tree(),
-                            ConstantExpressionRule::NonConstantExpression,
-                            SyntaxOrigin::Token(token),
-                        )
-                    })?;
-                self.checker.project_exported(token, entity)?;
+                let NameTarget::Exported(entity) = self.checker.consume_name_use(*suffix, token)?
+                else {
+                    return Err(constant_error(
+                        self.checker.tree(),
+                        ConstantExpressionRule::NonConstantExpression,
+                        SyntaxOrigin::Token(token),
+                    ));
+                };
                 Ok(entity)
             }
             _ => Err(constant_error(

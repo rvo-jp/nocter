@@ -89,6 +89,65 @@ zero-progress write, and maps other errno values into the public built-in `error
 once and is not retried because an interrupted close may already have consumed the descriptor.
 Borrowed string paths are checked for NUL before a target call.
 
+`std/fs` provides path-oriented one-shot operations over those stream contracts:
+
+```nct
+pub enum FileType {
+    regular
+    directory
+    other
+}
+
+pub copy struct Metadata
+
+instance Metadata {
+    pub method &self.file_type(): FileType
+    pub method &self.len(): u64
+    pub method &self.is_file(): bool
+    pub method &self.is_directory(): bool
+}
+
+pub func read(path: &str): Vec<u8>!
+pub func read_to_string(path: &str): String!
+pub func write(path: &str, value: &[u8]): void!
+pub func write_text(path: &str, text: &str): void!
+pub func metadata(path: &str): Metadata!
+pub func exists(path: &str): bool!
+pub func remove_file(path: &str): void!
+pub func rename(from: &str, to: &str): void!
+```
+
+`read` and `read_to_string` open an existing entry and return independently owned storage.
+`read_to_string` validates the complete file as UTF-8 and preserves the ordinary
+`std.string.invalid_utf8` failure when validation fails. `write` and `write_text` create or
+truncate the destination and return success only after the complete input has passed through the
+`Writer` contract. These four functions compose `File`, `Reader`, and `Writer`; they do not define
+a second descriptor-I/O algorithm.
+
+`metadata` follows symbolic links. Its `len` is the target-reported byte length represented as
+`u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and
+`directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
+reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.
+
+`exists` returns `false` only when the target classifies the path as absent, including a missing
+component or a dangling symbolic link. Permission denial and every other failure remain errors.
+The absent path does not require construction of a built-in error value. This makes `exists` a
+convenience query rather than a mechanism for hiding access failures.
+
+`remove_file` removes one non-directory entry. When the path names a symbolic link, the link itself
+is removed rather than its target. `rename` performs one target rename operation; on the current
+target it replaces an existing destination when the OS permits. It does not fall back to copying
+and deleting across filesystems. All filesystem functions accept `Utf8Path` through its existing
+readonly coercion and reject an embedded NUL before any OS operation.
+
+Errno classification, syscall numbers, and metadata layout are dependency-free,
+target-specific `std/internal/os` responsibilities. The allocator-backed temporary path argument
+is a separate package-internal path responsibility shared by `std/process`, `std/io`, and `std/fs`;
+this keeps the raw OS fact layer independent from memory allocation policy. Mapping an OS
+classification into the stable built-in `std.io.*` family is a package-internal I/O policy shared
+by `File` and `std/fs`, not an OS ABI responsibility. None of these internal contracts is exposed
+by `std/fs`; an operation may add reporting context without changing the root code.
+
 `Reader` and `Writer` define the shared byte-I/O contracts. `Reader.read` initializes no more than
 the supplied buffer length and returns zero at end of stream. The `read_to_end` default method
 collects bytes into independently owned `Vec<u8>` storage. A reader that reports an impossible byte

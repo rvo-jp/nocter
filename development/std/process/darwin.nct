@@ -5,9 +5,7 @@ include ./index.nct
 use std/mem.RawBuffer
 use std/mem.TryAllocator
 use std/mem.alloc
-use std/mem.alloc_pages
 use std/mem.bytes_mut as raw_bytes_mut
-use std/mem.free_pages
 use std/mem.free
 use std/mem.page_allocator
 use std/mem.raw_buffer_len
@@ -22,10 +20,8 @@ use std/internal/os.darwin_sys_open
 use std/internal/os.syscall1
 use std/internal/os.syscall3
 use std/internal/os.trap
+use std/internal/path.{target_path_address, target_path_argument}
 use std/ptr.addr
-use std/ptr.copy_str_to_ptr
-use std/ptr.from_addr
-use std/ptr.store_u8_to_ptr
 use std/ptr.str_from_raw_parts
 use std/string.String
 use std/string.bytes as string_bytes
@@ -51,29 +47,8 @@ primitive env_value_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
 func open_current_directory(): usize! {
-    let allocation_size: usize = 2
-    let address: usize = alloc_pages(allocation_size)?
-    copy_str_to_ptr(from_addr(address), 0, ".")
-    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
-
-    let result = syscall3(darwin_sys_open, address, 0, 0)
-    free_pages(address, allocation_size)
-    if result.errno != 0 {
-        return cwd_failed()
-    }
-    return result.value
-}
-
-#target: "arm64-darwin"
-func open_current_directory_aborting(): usize! {
-    let allocation_size: usize = 2
-    var allocator = page_allocator()
-    var path = alloc(&+allocator, allocation_size, 1)
-    copy_str_to_ptr(raw_buffer_ptr(&path), 0, ".")
-    store_u8_to_ptr(raw_buffer_ptr(&path), allocation_size - 1, 0)
-
-    let result = syscall3(darwin_sys_open, addr(raw_buffer_ptr(&path)), 0, 0)
-    free(&+allocator, move path)
+    let path = target_path_argument(".")?
+    let result = syscall3(darwin_sys_open, target_path_address(&path), 0, 0)
     if result.errno != 0 {
         return cwd_failed()
     }
@@ -175,7 +150,7 @@ func env(name: &str): &str?! {
 }
 
 func cwd(): String! {
-    let fd = open_current_directory_aborting()?
+    let fd = open_current_directory()?
     var allocator = page_allocator()
     var buffer = alloc(&+allocator, darwin_max_path_len, 1)
     let len = fill_cwd_path(fd, &+buffer) catch failure {

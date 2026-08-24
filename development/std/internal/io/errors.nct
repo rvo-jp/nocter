@@ -1,0 +1,36 @@
+//! Stable public error classification for OS-originated I/O failures.
+
+include ./index.nct
+
+use std/internal/os.{OSError, OSErrorKind}
+
+func io_error_from_os(os_error: OSError): error {
+    if os_error.kind is OSErrorKind.interrupted {
+        return error.new("std.io.interrupted", "operation interrupted")
+    }
+    if os_error.kind is OSErrorKind.would_block {
+        return error.new("std.io.would_block", "operation would block")
+    }
+    if os_error.kind is OSErrorKind.not_found {
+        return error.new("std.io.not_found", "file not found")
+    }
+    if os_error.kind is OSErrorKind.permission_denied {
+        return error.new("std.io.permission_denied", "permission denied")
+    }
+    if os_error.kind is OSErrorKind.already_exists {
+        return error.new("std.io.already_exists", "file already exists")
+    }
+    if os_error.kind is OSErrorKind.invalid_input {
+        return error.new("std.io.invalid_input", "invalid I/O input")
+    }
+    if os_error.kind is OSErrorKind.broken_pipe {
+        return error.new("std.io.broken_pipe", "broken pipe")
+    }
+    if os_error.kind is OSErrorKind.timed_out {
+        return error.new("std.io.timed_out", "operation timed out")
+    }
+    if os_error.kind is OSErrorKind.unsupported {
+        return error.new("std.io.unsupported", "unsupported I/O operation")
+    }
+    return error.new("std.io.os_error", "OS operation failed")
+}

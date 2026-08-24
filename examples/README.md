@@ -73,7 +73,7 @@ nocter run examples/ordering.nct
 argument and reports the number of newline bytes. Its private
 [summary.nct](file-summary/summary.nct) helper demonstrates a direct source include without
 creating another namespace. The package also demonstrates process arguments, owned paths,
-whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.
+`std/fs` whole-file UTF-8 input, borrowed byte views, and numeric formatting.
 
 ```sh
 cd examples/file-summary

@@ -144,7 +144,9 @@
                 <span class="markdown-path-text">/examples/file-summary/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> print<span class="token-operator">}</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span>read_to_string
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>num<span class="token-operator">.</span>usize_to_string
 
@@ -160,8 +162,7 @@
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> path <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> text <span class="token-operator">=</span> file<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> lines <span class="token-operator">=</span> <span class="token-function">count_lines</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>text<span class="token-operator">)</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>lines<span class="token-operator">)</span>
     <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">)</span><span class="token-operator">?</span>

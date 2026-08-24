@@ -51,9 +51,10 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.16.0 language. The
-[release index](../releases/README.md) owns current publication and download status, and repository
-tags preserve the exact specification for every published release.
+This working tree specifies and implements the adopted v0.17.0 Phase 0 language contract. v0.16.0
+remains the latest published language. The
+[release index](../releases/README.md) owns publication and download status, and repository tags
+preserve the exact specification for every published release.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

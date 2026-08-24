@@ -251,7 +251,7 @@ pub func env_count_for_test(): usize { return env_count_raw() }
 pub func env_name_for_test(index: usize): &str { return env_name_raw(index) }
 pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 ";
-const IO_SOURCE: &str = "";
+const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 pub(/) copy struct SyscallResult {

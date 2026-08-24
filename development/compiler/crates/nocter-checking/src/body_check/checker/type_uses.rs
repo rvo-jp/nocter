@@ -186,15 +186,12 @@ impl BodyChecker<'_, '_> {
         for suffix in selections {
             let token = direct_identifier(self.tree(), suffix)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
-            let name = self.segment_symbol(token)?;
-            let NameTarget::Exported(ExportedEntity::Module(module)) = target else {
+            let NameTarget::Exported(ExportedEntity::Module(_)) = target else {
                 return Err(self.rule(BodyRule::InvalidCall, suffix)?);
             };
-            let Some(selected) = self.graph.lookup_export(self.source.module(), module, name)
-            else {
+            let NameTarget::Exported(selected) = self.consume_name_use(suffix, token)? else {
                 return Err(self.rule(BodyRule::InvalidCall, suffix)?);
             };
-            self.project_exported(token, selected)?;
             target = NameTarget::Exported(selected);
         }
         Ok(InferredConstructionOwner { reference, target })
@@ -565,19 +562,16 @@ impl BodyChecker<'_, '_> {
             return self.resolve_type_entity(node, entity, first.arguments);
         }
         while matches!(entity, ExportedEntity::Module(_)) {
-            let ExportedEntity::Module(module) = entity else {
+            let ExportedEntity::Module(_) = entity else {
                 unreachable!()
             };
             let Some(segment) = (!segments.is_empty()).then(|| segments.remove(0)) else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
-            let name = self.segment_symbol(segment.token)?;
-            let selected = self.graph.lookup_export(self.source.module(), module, name);
-            let Some(selected) = selected else {
+            let NameTarget::Exported(selected) = self.consume_name_use(node, segment.token)? else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             entity = selected;
-            self.project_exported(segment.token, entity)?;
             if !segment.arguments.is_empty() {
                 if !segments.is_empty() {
                     return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -689,16 +683,13 @@ impl BodyChecker<'_, '_> {
         let first_name = self.segment_symbol(first.token)?;
         let mut entity = self.resolve_type_base(node, first.token, first_name)?;
         for segment in &segments[1..] {
-            let ExportedEntity::Module(module) = entity else {
+            let ExportedEntity::Module(_) = entity else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
-            let name = self.segment_symbol(segment.token)?;
-            let Some(selected) = self.graph.lookup_export(self.source.module(), module, name)
-            else {
+            let NameTarget::Exported(selected) = self.consume_name_use(node, segment.token)? else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             entity = selected;
-            self.project_exported(segment.token, entity)?;
         }
         match entity {
             ExportedEntity::NominalType(definition) => Ok(definition),

@@ -8,6 +8,8 @@ use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_session::bundled_standard_toolchain;
+use nocter_source::ByteOffset;
 
 use crate::{AnalysisSnapshot, AnalysisStatus, GenerationId};
 
@@ -102,6 +104,154 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     assert_eq!(snapshot.diagnostics()[0].code(), "E0263");
     assert!(snapshot.discovery_failure().is_some());
     assert!(snapshot.target().is_none());
+}
+
+#[test]
+fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "use std/fs\n",
+        "func inspect(path: &str): void! {\n",
+        "    let details = fs.metadata(path)?\n",
+        "    let _ = details.len()\n",
+        "    return\n",
+        "}\n",
+        "func main(): i32 { return 0 }\n",
+    );
+    let (source_path, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(43));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "namespace fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str() == source_path.to_str().unwrap())
+        .unwrap();
+    let member_offset = source_text.find("metadata").unwrap();
+    let offset = ByteOffset::new(u32::try_from(member_offset).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        subject.presentation().code(),
+        "pub func metadata(path: &str): Metadata!"
+    );
+    assert_eq!(snapshot.semantic_definition(source.id(), offset).len(), 1);
+    assert_eq!(
+        snapshot.semantic_implementation(source.id(), offset).len(),
+        1
+    );
+}
+
+#[test]
+fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        "use std/fs\nfunc main(): void { fs.missing() }\n",
+        GenerationId::new(44),
+    );
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(snapshot.diagnostics().len(), 1);
+    assert_eq!(snapshot.diagnostics()[0].code(), "E0347");
+}
+
+#[test]
+fn namespace_call_accepts_the_callable_reexport_selected_by_name_resolution() {
+    let tree = TempTree::new();
+    tree.source("app/nocter.nct", "#name: \"app\"\n");
+    tree.source(
+        "app/index.nct",
+        "use ./surface\nfunc main(): i32 { return surface.implementation.answer() }\n",
+    );
+    tree.source("app/surface/index.nct", "pub use ../implementation\n");
+    tree.source(
+        "app/implementation/index.nct",
+        "pub func answer(): i32 { return 42 }\n",
+    );
+    let snapshot = declared_bundled_snapshot(&tree, GenerationId::new(45));
+
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "re-export fixture diagnostics: {:#?}; failure: {:#?}",
+        snapshot.diagnostics(),
+        snapshot.compilation_failure()
+    );
+}
+
+#[test]
+fn inaccessible_namespace_member_uses_the_module_visibility_diagnostic() {
+    let tree = TempTree::new();
+    tree.source("app/nocter.nct", "#name: \"app\"\n");
+    tree.source(
+        "app/index.nct",
+        "use ./implementation\nfunc main(): i32 { return implementation.answer() }\n",
+    );
+    tree.source(
+        "app/implementation/index.nct",
+        "func answer(): i32 { return 42 }\n",
+    );
+
+    let snapshot = declared_bundled_snapshot(&tree, GenerationId::new(46));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(snapshot.diagnostics().len(), 1);
+    assert_eq!(snapshot.diagnostics()[0].code(), "E0348");
+}
+
+fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> AnalysisSnapshot {
+    let package = PackageIdentity::new("workspace:app");
+    let standard = PackageIdentity::new("toolchain:std");
+    let standard_root =
+        fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
+    let graph = ResolvedPackageGraph::load(vec![
+        ResolvedPackageSpec::new(package.clone(), tree.path().join("app"))
+            .with_standard_dependency(standard.clone()),
+        ResolvedPackageSpec::new(standard.clone(), standard_root)
+            .with_standard_dependency(standard.clone()),
+    ])
+    .unwrap();
+    let root = ModuleIdentity::new(package, Vec::<&str>::new());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        graph,
+        vec![root],
+        bundled_standard_toolchain(&standard),
+    ))
+    .unwrap();
+    AnalysisSnapshot::compile(generation, unit)
+}
+
+fn bundled_snapshot(
+    tree: &TempTree,
+    source_text: &str,
+    generation: GenerationId,
+) -> (PathBuf, AnalysisSnapshot) {
+    tree.source("app.nct", source_text);
+    let source_path = fs::canonicalize(tree.path().join("app.nct")).unwrap();
+    let standard_root =
+        fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
+    let standard = PackageIdentity::new("toolchain:std");
+    let graph = ResolvedPackageGraph::load(vec![
+        ResolvedPackageSpec::new(standard.clone(), &standard_root)
+            .with_standard_dependency(standard.clone()),
+    ])
+    .unwrap();
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        &source_path,
+        graph,
+        bundled_standard_toolchain(&standard),
+    ))
+    .unwrap();
+    (source_path, AnalysisSnapshot::compile(generation, unit))
 }
 
 struct TempTree(PathBuf);

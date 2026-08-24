@@ -1,4 +1,6 @@
-use std/io.{File, Reader, print}
+use std/fs.read_to_string
+
+use std/io.print
 
 use std/num.usize_to_string
 
@@ -14,8 +16,7 @@ func main(): i32! {
         return 2
     }
     let path = Utf8Path.new(requested)?
-    var file = File.open(&path)?
-    let text = file.read_to_string()?
+    let text = read_to_string(&path)?
     let lines = count_lines(&text)
     let result = usize_to_string(lines)
     print(&result)?

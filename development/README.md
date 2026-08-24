@@ -9,6 +9,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
+- [v0.17.0 practical application foundations](milestones/v0.17.0.md)
 - [v0.16.0 practical failure values](milestones/v0.16.0.md)
 - [v0.16.0 release preparation](milestones/v0.16.0-release-preparation.md)
 - [v0.16.0 publication and audit](releases/v0.16.0.md)

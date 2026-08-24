@@ -62,6 +62,15 @@ pub(/) const darwin_sys_open: usize
 pub(/) const darwin_sys_close: usize
 
 #target: "arm64-darwin"
+pub(/) const darwin_sys_unlink: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_sys_rename: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_sys_stat64: usize
+
+#target: "arm64-darwin"
 pub(/) const darwin_open_read_only: usize
 
 #target: "arm64-darwin"
@@ -84,6 +93,21 @@ pub(/) const darwin_f_getpath: usize
 
 #target: "arm64-darwin"
 pub(/) const darwin_max_path_len: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_stat_buffer_size: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_stat_mode_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_stat_size_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const darwin_stat_mode_regular: u16
+
+#target: "arm64-darwin"
+pub(/) const darwin_stat_mode_directory: u16
 
 #target: "arm64-darwin"
 pub(/) primitive syscall1(

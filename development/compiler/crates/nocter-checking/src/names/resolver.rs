@@ -226,6 +226,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     actions.push(Action::Visit(child));
                 }
             }
+            NodeKind::PostfixExpression if self.resolve_module_member(node)? => {}
             NodeKind::BlockUseDeclaration => {}
             _ => {
                 for child in direct_nodes(self.tree(), node).into_iter().rev() {
@@ -234,6 +235,91 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             }
         }
         Ok(())
+    }
+
+    /// Resolves a module-qualified chain as exact semantic identities before typed planning.
+    ///
+    /// Value fields, methods, and construction members remain type-directed, so resolving their
+    /// simple owner is the only name work performed here. A valid module member is source-name
+    /// resolution, not member dispatch: recording it here gives checking and editor projection one
+    /// shared target instead of making the call checker repeat namespace lookup.
+    fn resolve_module_member(&mut self, node: NodeId) -> Result<bool, NameResolutionError> {
+        let mut current = node;
+        let mut members = Vec::new();
+        loop {
+            let children = direct_nodes(self.tree(), current);
+            let [owner, member] = children.as_slice() else {
+                return Ok(false);
+            };
+            if self.node_kind(*member)? != NodeKind::MemberSuffix {
+                return Ok(false);
+            }
+            members.push(*member);
+            current = *owner;
+            if self.node_kind(current)? != NodeKind::PostfixExpression {
+                break;
+            }
+        }
+        if self.node_kind(current)? != NodeKind::ReferenceExpression {
+            return Ok(false);
+        }
+
+        self.resolve_node_name(current)?;
+        let owner_token = direct_identifier(self.tree(), current)
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(current))?;
+        let owner_origin = SyntaxOrigin::Token(owner_token);
+        let Some(mut target) = self
+            .uses
+            .iter()
+            .rev()
+            .find(|usage| usage.origin() == owner_origin)
+            .map(|usage| usage.target())
+        else {
+            return Ok(true);
+        };
+        members.reverse();
+        for member in members {
+            let NameTarget::Exported(ExportedEntity::Module(module)) = target else {
+                break;
+            };
+            let member_token = direct_identifier(self.tree(), member)
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(member))?;
+            let selected = self.resolve_exported_module_member(module, member_token)?;
+            target = NameTarget::Exported(selected);
+            self.record_use(member_token, target)?;
+        }
+        Ok(true)
+    }
+
+    fn resolve_exported_module_member(
+        &self,
+        module: ModuleId,
+        token: SyntaxToken,
+    ) -> Result<ExportedEntity, NameResolutionError> {
+        let name = self.symbol(token)?;
+        let Some(entry) = self
+            .graph
+            .module_namespaces()
+            .get(module)
+            .and_then(|namespace| namespace.lookup_authored(name))
+        else {
+            return Err(diagnostic::missing_module_member(
+                self.spelling(name)?,
+                self.origin(token)?,
+            )
+            .into());
+        };
+        if !self
+            .graph
+            .is_visible_from(entry.visibility(), self.source.module(), module)
+        {
+            return Err(diagnostic::inaccessible_module_member(
+                self.spelling(name)?,
+                self.origin(token)?,
+            )
+            .into());
+        }
+        Ok(entry.target())
     }
 
     fn visit_binding(
@@ -768,19 +854,43 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         Err(diagnostic::unknown_name(self.spelling(name)?, self.origin(token)?).into())
     }
 
-    /// Records only a lexical override for a type path's first segment.
+    /// Freezes source-backed names in a body type path before typed construction.
     ///
-    /// Generic parameters, `Self`, builtins, and source-level types remain owned by body type
-    /// resolution. A block import is different: its binding exists only in this exact lexical
-    /// scope, so name resolution must freeze that selection before typed body construction.
+    /// Generic parameters, `Self`, builtins, and associated projections remain type-directed.
+    /// Module segments are ordinary exported-name resolution and therefore use the same exact
+    /// namespace and visibility authority as value-position qualification.
     fn resolve_type_override(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
-        let token = identifier_tokens(self.tree(), node)
-            .first()
-            .copied()
-            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let name = self.symbol(token)?;
-        if let Some(binding) = self.lookup_all_scopes(name) {
-            self.record_use(token, binding.target)?;
+        let tokens = self
+            .tree()
+            .children(node)
+            .iter()
+            .filter_map(|element| match element {
+                SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+                    Some(*token)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let Some(first) = tokens.first().copied() else {
+            // `Self` is represented by a nested `SelfType` node and remains type-directed.
+            return Ok(());
+        };
+        let name = self.symbol(first)?;
+        let mut target = if let Some(binding) = self.lookup_all_scopes(name) {
+            binding.target
+        } else if let Some(target) = self.bindings.source_name(self.tree().source(), name) {
+            NameTarget::Exported(target)
+        } else {
+            return Ok(());
+        };
+        self.record_use(first, target)?;
+        for token in tokens.into_iter().skip(1) {
+            let NameTarget::Exported(ExportedEntity::Module(module)) = target else {
+                break;
+            };
+            let selected = self.resolve_exported_module_member(module, token)?;
+            target = NameTarget::Exported(selected);
+            self.record_use(token, target)?;
         }
         Ok(())
     }

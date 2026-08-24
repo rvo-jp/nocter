@@ -17,6 +17,7 @@ and standard-library behavior belongs exclusively in
 - [Maintenance](maintenance.md)
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
+- [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
 - [v0.16.0 Practical Failure Values](../milestones/v0.16.0.md)
 - [v0.16.0 Release Preparation](../milestones/v0.16.0-release-preparation.md)
 
@@ -42,6 +43,7 @@ language behavior. Git history and published release records preserve chronology
 | Declaration-lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
 | Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
+| Completed v0.17.0 Phase 0 scope and qualification | `../milestones/v0.17.0.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |
 | Completed v0.16.0 scope and release qualification | `../milestones/v0.16.0.md` and `../milestones/v0.16.0-release-preparation.md` |

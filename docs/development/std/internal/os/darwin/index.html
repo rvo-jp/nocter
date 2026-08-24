@@ -123,6 +123,7 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../milestones/v0.17.0/index.html#content">v0.17.0 practical application foundations</a></li>
                 <li><a href="../../../../milestones/v0.16.0/index.html#content">v0.16.0 practical failure values</a></li>
                 <li><a href="../../../../milestones/v0.16.0-release-preparation/index.html#content">v0.16.0 release preparation</a></li>
                 <li><a href="../../../../releases/v0.16.0/index.html#content">v0.16.0 publication and audit</a></li>
@@ -226,6 +227,15 @@
 <span class="token-keyword">const</span> darwin_sys_close<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000006
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_sys_unlink<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200000a
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_sys_rename<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000080
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_sys_stat64<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000152
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> darwin_open_read_only<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -251,6 +261,22 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> darwin_max_path_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1024</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-comment">// Darwin arm64 `struct stat`: SDK sys/stat.h __DARWIN_STRUCT_STAT64.</span>
+<span class="token-keyword">const</span> darwin_stat_buffer_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">144</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_stat_mode_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_stat_size_offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">96</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_stat_mode_regular<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">32768</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> darwin_stat_mode_directory<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">16384</span>
 </code></pre>
             </div>
         </main>

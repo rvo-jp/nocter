@@ -1,0 +1,16 @@
+//! Package-internal target path argument encoding.
+//!
+//! This module depends on ordinary memory and UTF-8 path contracts. Raw OS
+//! facts stay in `std/internal/os`, which never imports this higher layer.
+
+include ./darwin.nct
+
+/// Owned temporary path storage in the active target's native argument representation.
+#target: "arm64-darwin"
+pub(/) struct TargetPathArgument
+
+#target: "arm64-darwin"
+pub(/) func target_path_argument(value: &str): TargetPathArgument!
+
+#target: "arm64-darwin"
+pub(/) func target_path_address(value: &TargetPathArgument): usize

@@ -691,13 +691,15 @@ fixed-array lengths present in bound declaration headers before structural type 
 Declaration lowering treats blocks as opaque and publishes no body expression result through
 `FrontendBindings`.
 
-Body name resolution traverses body type annotations along with value expressions. It freezes an
-exact lexical target when a type path or constant subexpression uses a block import or runtime
-binding. Body type checking resolves conversion target types through its ordinary type authority,
-then adapts those frozen targets to the same constant planner and evaluates each body fixed-array
-length once. It cannot retry source-namespace lookup after a lexical target was selected. MIR,
-target specialization, machine lowering, and editor presentation consume normalized types and
-frozen constant values only; they cannot inspect or evaluate constant-expression syntax.
+Body name resolution traverses body type annotations along with value expressions. It freezes each
+source-backed lexical or module-namespace identity used by a value, body type path, or constant
+subexpression. Generic parameters, `Self`, built-in types, and associated projections remain
+type-directed. Body type checking resolves those type-directed forms through its ordinary type
+authority, consumes every source-backed identity selected by name resolution, then adapts constant
+targets to the shared planner and evaluates each body fixed-array length once. It cannot repeat a
+module namespace or visibility lookup after name resolution selected an identity. MIR, target
+specialization, machine lowering, and editor presentation consume normalized types and frozen
+constant values only; they cannot inspect or evaluate constant-expression syntax.
 
 Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
 associated types, callables, construction surfaces, instances, conformances, variants, drops,
@@ -976,7 +978,10 @@ cannot become an implicit capture.
 Block imports enter the same lexical insertion path as body bindings but create no storage
 identity. Their discovery-owned module identities are converted to `ModuleId` only through exact
 physical-source projections, then selected names use the frozen authored export namespace and
-normalized visibility rules. Synthetic prelude names remain a separate shadowable fallback.
+normalized visibility rules. Namespace-qualified value and body-type segments use that same
+selection authority; a re-export retains its selected declaration identity rather than being
+reinterpreted as a declaration owned by the qualifier module. Synthetic prelude names remain a
+separate shadowable fallback.
 Successful resolution extends `SourceIndex` with local/capture declarations and exact references
 only after every body succeeds; temporary syntax-keyed uses are consumed by typed-node
 construction.

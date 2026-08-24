@@ -226,6 +226,9 @@ Source-backed body-name diagnostics:
   immediately enclosing callable body.
 - `E0345`: a closure capture is repeated, or a closure parameter collides with a capture.
 - `E0346`: a closure body uses an enclosing callable binding without listing an explicit capture.
+- `E0347`: a member name selected through a module namespace is not exported by that module.
+- `E0348`: a member selected through a module namespace is outside the current module's visibility
+  boundary.
 
 These diagnostics are selected by the body-owned lexical resolver. The resolver retains the exact
 declaration or reference token that selected the rule and never scans rendered source text to

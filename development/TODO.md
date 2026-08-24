@@ -2,6 +2,12 @@
 
 ## Current Task
 
+Nocter v0.17.0 Phase 0 is complete. The normative contract, implementation boundaries, native
+acceptance, and final responsibility review are recorded in
+`development/milestones/v0.17.0.md`. No later v0.17.0 phase is active; the next phase must begin
+with an explicit contract and completion gate rather than extending the filesystem surface by
+optional flags.
+
 Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
 Clippy from reusable and clean targets, explicit public-HTTPS acquisition, deterministic double
@@ -54,6 +60,13 @@ input.
   stderr checks. One shared acceptance catalog covers every public package example; `file-summary`
   and `text-report` compile through the target session and execute successful and argument-error
   scenarios as native processes.
+- `std/fs` provides whole-file reads and writes, portable metadata, existence, removal, and rename.
+  Stream algorithms stay in `std/io`; target paths, public I/O error policy, and Darwin ABI facts
+  have separate package-internal owners. Native acceptance covers the complete Phase 0 behavior.
+- Module-qualified values, body types, and constant subexpressions use one name-resolution
+  authority. Checking consumes the selected identity without repeating namespace lookup, and
+  callable re-exports retain their declaration identity through native lowering and editor
+  projection.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
 - Every completed v0.15.0 phase passed its focused tests and complete workspace, Clippy, formatting,

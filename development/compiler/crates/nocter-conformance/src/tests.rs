@@ -22,6 +22,19 @@ fn constant_process_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn module_namespace_function_call_uses_the_selected_callable_identity() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/io\nfunc main(): i32 { return io.answer_for_test() }\n",
+        &[&["io"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn independent_test_roots_cross_the_complete_native_pipeline() {
     let machine = lower_test_machine(
         "test passes { return }\n\
