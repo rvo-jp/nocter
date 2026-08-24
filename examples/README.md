@@ -87,7 +87,7 @@ UTF-8 file, counts logical lines and lines containing a requested string, and re
 report. Its [report/index.nct](text-report/report/index.nct) child module is a short public API
 contract; [analysis.nct](text-report/report/analysis.nct) contains the reciprocal private
 representation and implementation. The example combines directory-module imports, direct source
-includes, opaque public types, borrowed line iteration, string search, owned string construction,
+visibility, opaque public types, borrowed line iteration, string search, owned string construction,
 numeric formatting, process arguments, and fallible file I/O.
 
 ```sh
