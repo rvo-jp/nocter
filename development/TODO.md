@@ -2,23 +2,17 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 6 are complete. Phase 0 removed
-semantic authority from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the
-backend-visible semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one
-owner. Phase 1 separated direct-only physical-source `include` from directory-module `use`, made
-`index.nct` the sole public contract, and centralized exact-source private access. Phase 2 added
-explicit, separable interface defaults and migrated the standard library to contract-first module
-roots. Phase 3 generalized the compiler-owned sequence pack into typed callable argument packs,
-preserving one ownership, provenance, cleanup, and hidden-ABI pipeline. The exact scope and
-completion records are in `development/milestones/v0.15.0.md`. Phase 4 added typed compile-time
-constants and migrated standard platform numbers to that surface. Phase 5 separated shared
-constant-expression semantics from context-owned name resolution: headers and bodies now provide
-their own frozen targets to one typed planner and evaluator, and no body array-length table crosses
-`FrontendBindings`. Phase 6 qualified those foundations with the public `text-report` application,
-centralized package-example process contracts, and aligned provenance with the loop-owned iterator
-lifetime already published by ownership. v0.15.0 implementation work is ready for a separately
-authorized release-preparation and clean qualification pass; release identity, packaging, tagging,
-pushing, and publication have not started.
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 6 are complete, and release
+preparation is authorized. The tracked compiler installation, standard package, manifest, English
+candidate notes, and working specification now identify the unpublished v0.15.0 candidate. The
+release-content commit still requires incremental and clean source qualification, deterministic
+double packaging, and the complete fresh-install smoke matrix before it can be frozen.
+
+Packaging, artifact qualification, and candidate recording are authorized. Tagging, pushing,
+uploading, public latest-release updates, and publication remain outside the current operation and
+require explicit user authorization. The exact preparation contract is in
+`development/milestones/v0.15.0-release-preparation.md`; completed implementation scope is in
+`development/milestones/v0.15.0.md`.
 
 The active specification-first compiler is under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

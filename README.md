@@ -116,13 +116,14 @@ module, use package mode as demonstrated by
 
 ## Current Status
 
-The v0.14.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
-emits ARM64 Mach-O executables directly. Unsupported runtime forms are rejected with source-backed
-diagnostics before machine code is emitted.
+The published v0.14.0 compiler parses, checks, builds, and runs the supported language on
+`arm64-darwin` and emits ARM64 Mach-O executables directly. The repository is preparing v0.15.0;
+it is not available from the download link above until publication completes. Unsupported runtime
+forms are rejected with source-backed diagnostics before machine code is emitted.
 
-The [language specification](spec/README.md) describes the published v0.14.0 language. The
-`v0.14.0` repository tag preserves the exact compiler, standard library, specification, packaging
-inputs, and public release documentation.
+The [language specification](spec/README.md) describes the prepared v0.15.0 contract. The
+`v0.14.0` repository tag preserves the exact latest published compiler, standard library,
+specification, packaging inputs, and public release documentation.
 
 ## Learn More
 

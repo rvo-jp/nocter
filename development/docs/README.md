@@ -18,6 +18,7 @@ and standard-library behavior belongs exclusively in
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
 - [v0.15.0 Practical Application Foundation](../milestones/v0.15.0.md)
+- [v0.15.0 Release Preparation](../milestones/v0.15.0-release-preparation.md)
 
 ## Completed Foundation Records
 
@@ -43,7 +44,7 @@ language behavior. Git history and published release records preserve chronology
 | Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |
-| Active v0.15.0 scope and completion records | `../milestones/v0.15.0.md` |
+| Active v0.15.0 scope, completion, and candidate qualification | `../milestones/v0.15.0.md` and `../milestones/v0.15.0-release-preparation.md` |
 | Completed v0.14.0 rewrite scope and qualification | `../milestones/v0.14.0.md` and `../milestones/v0.14.0-qualification.md` |
 | Next concrete work and blockers | `../TODO.md` |
 | Published qualification evidence | `../releases/` |

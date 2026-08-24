@@ -51,8 +51,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the active v0.15.0 development language. The
-[release index](../releases/README.md) owns publication and download status; the v0.14.0 tag
+This working tree specifies the prepared v0.15.0 release candidate. It is not a published release.
+The [release index](../releases/README.md) owns publication and download status; the v0.14.0 tag
 preserves the latest published specification until v0.15.0 is released.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or

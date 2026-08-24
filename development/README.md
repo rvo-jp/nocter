@@ -1,7 +1,8 @@
 # Contributor Documentation
 
-Nocter has published v0.14.0 with a new compiler built from the language specification. The
-v0.13.0 compiler implementation was not an input to the rewrite.
+Nocter has published v0.14.0 with a compiler built from the language specification. The v0.15.0
+release candidate is being prepared while v0.14.0 remains available to users. The v0.13.0 compiler
+implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
@@ -10,6 +11,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [v0.15.0 practical application foundation](milestones/v0.15.0.md)
+- [v0.15.0 release preparation](milestones/v0.15.0-release-preparation.md)
 - [Compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
