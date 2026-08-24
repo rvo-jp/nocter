@@ -3,7 +3,6 @@
 include ./index.nct
 
 use std/internal/os.{syscall2, syscall6}
-use std/error.allocation_failure_error
 use std/ptr.addr
 use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
@@ -11,6 +10,12 @@ use std/ptr.slice_from_raw_parts
 use std/ptr.slice_from_raw_parts_mut
 use std/ptr.slice_from_raw_parts_value
 use std/ptr.store_value_to_ptr
+
+primitive current_allocator_state(): usize
+
+primitive current_allocator_kind(): usize
+
+primitive allocation_failure_error(): error
 
 copy struct Layout {
     size: usize

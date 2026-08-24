@@ -152,7 +152,6 @@
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>syscall2<span class="token-operator">,</span> syscall6<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span>allocation_failure_error
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_ptr_to_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
@@ -160,6 +159,12 @@
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>slice_from_raw_parts_mut
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>slice_from_raw_parts_value
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>store_value_to_ptr
+
+<span class="token-keyword">primitive</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+<span class="token-keyword">primitive</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+<span class="token-keyword">primitive</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 copy <span class="token-keyword">struct</span> <span class="token-type">Layout</span> <span class="token-operator">{</span>
     size<span class="token-operator">:</span> <span class="token-type">usize</span>

@@ -58,13 +58,14 @@ struct PrimitiveContract {
     generic_count: usize,
     parameters: Vec<TypeContract>,
     result: TypeContract,
-    visibility: ContractVisibility,
+    exposure: PrimitiveExposure,
     target: Option<CompilationTarget>,
     provenance_parameters: Vec<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ContractVisibility {
+enum PrimitiveExposure {
+    SourcePrivate,
     Public,
     Package,
 }
@@ -169,9 +170,10 @@ fn validate_identity(
         .declaration_sites()
         .get(declaration.site())
         .ok_or(PrimitiveContractRule::Authority)?;
-    let expected_visibility = match contract.visibility {
-        ContractVisibility::Public => Visibility::Public,
-        ContractVisibility::Package => Visibility::Package(standard_package),
+    let expected_visibility = match contract.exposure {
+        PrimitiveExposure::SourcePrivate => Visibility::Private,
+        PrimitiveExposure::Public => Visibility::Public,
+        PrimitiveExposure::Package => Visibility::Package(standard_package),
     };
     if site.module() != module || site.visibility() != expected_visibility {
         return Err(PrimitiveContractRule::Visibility);
@@ -430,15 +432,16 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let byte_pointer = || TypeContract::pointer(u8());
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
     let syscall_result = || TypeContract::SyscallResult;
-    let package = ContractVisibility::Package;
-    let public = ContractVisibility::Public;
+    let private = PrimitiveExposure::SourcePrivate;
+    let package = PrimitiveExposure::Package;
+    let public = PrimitiveExposure::Public;
     let arm64_darwin = Some(CompilationTarget::Arm64Darwin);
-    let make = |generic_count, parameters, result, visibility, target, provenance_parameters| {
+    let make = |generic_count, parameters, result, exposure, target, provenance_parameters| {
         PrimitiveContract {
             generic_count,
             parameters,
             result,
-            visibility,
+            exposure,
             target,
             provenance_parameters,
         }
@@ -448,7 +451,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![str_ref(), str_ref()],
             builtin(BuiltinType::Error),
-            package,
+            private,
             None,
             vec![],
         ),
@@ -456,7 +459,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![builtin(BuiltinType::Error), str_ref()],
             builtin(BuiltinType::Error),
-            package,
+            private,
             None,
             vec![],
         ),
@@ -464,7 +467,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![TypeContract::readonly(builtin(BuiltinType::Error))],
             str_ref(),
-            package,
+            private,
             None,
             vec![0],
         ),
@@ -472,12 +475,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![],
             builtin(BuiltinType::Error),
-            package,
+            private,
             None,
             vec![],
         ),
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
-            make(0, vec![], usize(), package, None, vec![])
+            make(0, vec![], usize(), private, None, vec![])
         }
         PrimitiveRole::AllocationAbort => make(0, vec![], never(), package, None, vec![]),
         PrimitiveRole::PointerAddress => make(
@@ -619,7 +622,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![str_ref(), usize(), usize()],
             str_ref(),
-            package,
+            private,
             None,
             vec![0],
         ),
@@ -629,21 +632,21 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 TypeContract::Generic(0),
             ))],
             usize(),
-            package,
+            private,
             None,
             vec![],
         ),
         PrimitiveRole::StringLength | PrimitiveRole::StringPointerAddress => {
-            make(0, vec![str_ref()], usize(), package, None, vec![])
+            make(0, vec![str_ref()], usize(), private, None, vec![])
         }
-        PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), package, arm64_darwin, vec![]),
+        PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
         PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {
-            make(0, vec![], usize(), package, arm64_darwin, vec![])
+            make(0, vec![], usize(), private, arm64_darwin, vec![])
         }
         PrimitiveRole::ProcessArgument
         | PrimitiveRole::ProcessEnvironmentName
         | PrimitiveRole::ProcessEnvironmentValue => {
-            make(0, vec![usize()], str_ref(), package, arm64_darwin, vec![])
+            make(0, vec![usize()], str_ref(), private, arm64_darwin, vec![])
         }
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
@@ -666,13 +669,17 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 0,
                 (0..argument_count).map(|_| usize()).collect(),
                 syscall_result(),
-                package,
+                match role {
+                    PrimitiveRole::Syscall0 | PrimitiveRole::Syscall4 | PrimitiveRole::Syscall5 => {
+                        private
+                    }
+                    _ => package,
+                },
                 arm64_darwin,
                 vec![],
             )
         }
-        PrimitiveRole::Trap | PrimitiveRole::Unreachable => {
-            make(0, vec![], never(), package, arm64_darwin, vec![])
-        }
+        PrimitiveRole::Trap => make(0, vec![], never(), package, arm64_darwin, vec![]),
+        PrimitiveRole::Unreachable => make(0, vec![], never(), private, arm64_darwin, vec![]),
     }
 }

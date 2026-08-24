@@ -361,6 +361,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/internal/os/primitives/</loc>
+    <lastmod>2026-08-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/io/buffer/buffering/</loc>
     <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
@@ -506,7 +512,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/slice/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -518,7 +524,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/str/index/</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

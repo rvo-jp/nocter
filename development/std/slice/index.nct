@@ -5,10 +5,6 @@
 
 include ./views.nct
 
-pub(/) primitive slice_len_raw<T>(value: &[T]): usize
-
-pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
-
 instance [T] {
     pub method &self.len(): usize
 

@@ -2,6 +2,14 @@
 
 include ./index.nct
 
+primitive new_error(code: &str, message: &str): error
+
+primitive context_error(value: error, message: &str): error
+
+primitive error_code(value: &error): &str from value
+
+primitive error_message(value: &error): &str from value
+
 construct error {
     default func new(code: &str, message: &str): Self {
         return new_error(code, message)

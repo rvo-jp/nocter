@@ -157,6 +157,13 @@
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">Iterator</span>
 
+<span class="token-comment">/// Reconstructs a previously validated UTF-8 subview.</span>
+<span class="token-keyword">primitive</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
+    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text
+
 <span class="token-keyword">struct</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
     text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
     separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>

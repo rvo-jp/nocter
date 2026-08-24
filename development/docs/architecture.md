@@ -438,13 +438,18 @@ references instead of being rejected as ordinary duplicate generic parameters.
 The selected toolchain is part of the discovery request and the immutable compile input. It names
 one exact standard package, prelude module, set of built-in attachment modules, and set of standard
 semantic declaration roles, and closed primitive roles. Discovery loads every selected module and
-resolves each role locator to one declaration-name token before semantic lowering. Lowering records
-standard package and built-in authority from those identities; checking resolves standard semantic
-declarations through the same source-index tokens. Target setup resolves primitive tokens through
-that index into a canonical registry. No later stage may recover toolchain authority from a package
-name, module path, declaration spelling, or opportunistic presence in the source graph. The
-complete authored standard source graph now passes declaration lowering and body checking through
-this boundary as one qualification case.
+resolves each role locator to one declaration-name token before semantic lowering. Standard
+semantic roles deliberately select visible contract declarations and ignore private implementation
+bodies. Primitive roles deliberately select primitive declarations from the complete authored
+module source set, including private declarations in included implementation files. Lowering then
+normalizes each selected declaration's ordinary source visibility. Target validation requires that
+visibility to equal the closed registry's source-private, package-visible, or public exposure.
+Lowering records standard package and built-in authority from those identities; checking resolves
+standard semantic declarations through the same source-index tokens. Target setup resolves
+primitive tokens through that index into a canonical registry. No later stage may recover toolchain
+authority from a package name, module path, declaration spelling, visibility guess, or
+opportunistic presence in the source graph. The complete authored standard source graph now passes
+declaration lowering and body checking through this boundary as one qualification case.
 
 `nocter-session` owns the only production transition from a syntax-clean discovery snapshot to a
 target-validated semantic program. It invokes the declaration facade, checking preparation and

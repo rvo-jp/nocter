@@ -25,6 +25,12 @@ use crate::snapshot::{
 use crate::syntax::active_use_paths;
 use crate::{DiscoveryError, DiscoveryFailure};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DeclarationMatchSurface {
+    VisibleContract,
+    AnyDeclaration,
+}
+
 #[derive(Debug)]
 struct PackageState {
     identity: PackageIdentity,
@@ -289,7 +295,12 @@ impl Builder {
         locator: &StandardRoleLocator,
     ) -> Result<StandardRoleInput, DiscoveryError> {
         let matches = self
-            .declaration_matches(locator.module(), locator.kind(), locator.name())
+            .declaration_matches(
+                locator.module(),
+                locator.kind(),
+                locator.name(),
+                DeclarationMatchSurface::VisibleContract,
+            )
             .ok_or_else(|| {
                 DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
                     role: locator.role(),
@@ -328,6 +339,7 @@ impl Builder {
                 locator.module(),
                 nocter_syntax::NodeKind::PrimitiveDeclaration,
                 locator.name(),
+                DeclarationMatchSurface::AnyDeclaration,
             )
             .ok_or_else(|| {
                 DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingPrimitiveDeclaration {
@@ -360,6 +372,7 @@ impl Builder {
         module: &ModuleIdentity,
         kind: nocter_syntax::NodeKind,
         name: &str,
+        surface: DeclarationMatchSurface,
     ) -> Option<Vec<nocter_syntax::SyntaxToken>> {
         let module = self.modules.get(module)?;
         let mut matches = Vec::new();
@@ -368,7 +381,8 @@ impl Builder {
             let mut pending = vec![tree.root_id()];
             while let Some(node) = pending.pop() {
                 if tree.node(node).is_some_and(|syntax| syntax.kind() == kind)
-                    && has_direct_child(tree, node, nocter_syntax::NodeKind::Visibility)
+                    && (surface == DeclarationMatchSurface::AnyDeclaration
+                        || has_direct_child(tree, node, nocter_syntax::NodeKind::Visibility))
                     && let Some(token) = declaration_name_token(tree, node)
                     && self
                         .sources

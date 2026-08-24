@@ -177,13 +177,6 @@
 <span class="token-comment">/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">LinesIter</span>
 
-<span class="token-comment">/// Reconstructs a previously validated UTF-8 subview.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
-    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text
-
 <span class="token-comment">/// Returns whether `index` is a valid UTF-8 byte boundary in `text`.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">is_char_boundary</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 

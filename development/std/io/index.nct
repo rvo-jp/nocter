@@ -44,9 +44,9 @@ construct File {
     pub func append(path: &str): Self!
 }
 
-pub(/) func read(file: &+File, buffer: &+[u8]): usize!
+pub(./) func read(file: &+File, buffer: &+[u8]): usize!
 
-pub(/) func write(file: &+File, bytes: &[u8]): void!
+pub(./) func write(file: &+File, bytes: &[u8]): void!
 
 instance File {
     pub method &+self.close(): void

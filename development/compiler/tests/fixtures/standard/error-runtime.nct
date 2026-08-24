@@ -1,0 +1,79 @@
+use std/mem.page_try_allocator
+use std/process.arg
+use std/string.String
+use std/testing.assert
+
+func main(): i32! {
+    let mode: &str = arg(1)? otherwise { "verify" }
+    if mode == "report" {
+        return error.new("phase1.report", "leaf").context("inner").context("outer")
+    }
+
+    verify_snapshot_and_access()?
+    verify_propagation_and_rethrow()?
+    verify_static_allocation_failure()?
+    return 0
+}
+
+func verify_snapshot_and_access(): void! {
+    let source = String.copy("owned message")
+    let failure = error.new("phase1.snapshot", &source)
+    drop source
+
+    require(failure.has_code("phase1.snapshot"), "error code was not retained")?
+    require(failure.code() == "phase1.snapshot", "error code view is incorrect")?
+    require(failure.message() == "owned message", "error message was not snapshotted")?
+
+    let enriched = failure.context("outer context")
+    require(enriched.has_code("phase1.snapshot"), "context changed the root code")?
+    require(enriched.message() == "outer context", "context message is not outermost")?
+    return
+}
+
+func verify_propagation_and_rethrow(): void! {
+    var propagated = false
+    propagate_assertion() catch failure {
+        propagated = failure.has_code("std.testing.assertion_failed")
+    }
+    require(propagated, "postfix propagation changed the standard error")?
+
+    var rethrown = false
+    rethrow_assertion() catch failure {
+        rethrown = failure.has_code("std.testing.assertion_failed")
+    }
+    require(rethrown, "catch-and-rethrow changed the standard error")?
+    return
+}
+
+func propagate_assertion(): void! {
+    assert(false)?
+    return
+}
+
+func rethrow_assertion(): void! {
+    assert(false) catch failure {
+        return move failure
+    }
+    return
+}
+
+func verify_static_allocation_failure(): void! {
+    var allocator = page_try_allocator()
+    let unexpectedly_allocated = String.try_with_capacity(
+        &+allocator,
+        18446744073709551615,
+    ) catch failure {
+        require(failure.has_code("std.mem.out_of_memory"), "allocation code is incorrect")?
+        require(failure.message() == "allocation failed", "allocation message is incorrect")?
+        return
+    }
+    drop unexpectedly_allocated
+    return error.new("phase1.expected_oom", "impossible allocation unexpectedly succeeded")
+}
+
+func require(condition: bool, message: &str): void! {
+    if !condition {
+        return error.new("phase1.verification_failed", message)
+    }
+    return
+}

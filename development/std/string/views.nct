@@ -8,6 +8,13 @@ include ./search.nct
 
 use std/iter.Iterator
 
+/// Reconstructs a previously validated UTF-8 subview.
+primitive str_subview_unchecked(
+    text: &str,
+    start: usize,
+    len: usize,
+): &str from text
+
 struct SplitIter {
     text: &str
     separator: &str

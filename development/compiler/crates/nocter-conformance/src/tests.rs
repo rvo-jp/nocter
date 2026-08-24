@@ -94,11 +94,14 @@ fn owned_error_context_and_borrowed_accessors_cross_the_native_pipeline() {
 
 #[test]
 fn static_allocation_failure_crosses_reporting_and_release_without_allocating() {
-    let machine = lower_machine(
-        "func main(): void! {\n\
-             return error.allocation_failure_for_test()\n\
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/mem.allocation_failure_for_test\n\
+         func main(): void! {\n\
+             return allocation_failure_for_test()\n\
          }\n",
+        &[&["mem"]],
     );
+    let machine = lower_machine_fixture(&fixture);
     let image = nocter_macho::MachOImage::build(
         &nocter_arm64::Arm64Program::lower_machine(&machine).unwrap(),
     )

@@ -122,12 +122,7 @@ fn primitive_roles(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
         .copied()
         .map(|role| {
             let (path, name) = primitive_source_location(role);
-            PrimitiveRoleLocator::new(
-                role,
-                module(package, path),
-                NodeKind::PrimitiveDeclaration,
-                name,
-            )
+            PrimitiveRoleLocator::new(role, module(package, path), name)
         })
         .collect()
 }
@@ -142,7 +137,7 @@ fn primitive_source_location(role: PrimitiveRole) -> (&'static [&'static str], &
         Role::ErrorContext => (&["error"], "context_error"),
         Role::ErrorCode => (&["error"], "error_code"),
         Role::ErrorMessage => (&["error"], "error_message"),
-        Role::AllocationFailureError => (&["error"], "allocation_failure_error"),
+        Role::AllocationFailureError => (&["mem"], "allocation_failure_error"),
         Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
         Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
         Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),

@@ -8,24 +8,6 @@ use std/string.String
 use std/vec.Vec
 include ./darwin.nct
 
-#target: "arm64-darwin"
-pub(/) primitive exit_raw(code: i32): never
-
-#target: "arm64-darwin"
-pub(/) primitive arg_count_raw(): usize
-
-#target: "arm64-darwin"
-pub(/) primitive arg_raw(index: usize): &str from static
-
-#target: "arm64-darwin"
-pub(/) primitive env_count_raw(): usize
-
-#target: "arm64-darwin"
-pub(/) primitive env_name_raw(index: usize): &str from static
-
-#target: "arm64-darwin"
-pub(/) primitive env_value_raw(index: usize): &str from static
-
 pub copy struct EnvironmentEntry {
     pub name: &str
     pub value: &str

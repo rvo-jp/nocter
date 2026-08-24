@@ -751,6 +751,28 @@ fn every_public_single_file_example_runs_to_success() {
     }
 }
 
+#[test]
+fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
+    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler.join("tests/fixtures/standard/error-runtime.nct");
+    let unit = discover_single_file(&source);
+    let output_directory = unique_test_directory("standard-error-runtime");
+    let executable = output_directory.join("program");
+    super::build_executable(ExecutableCompileRequest::only(&unit), &executable).unwrap();
+
+    let verified = Command::new(&executable).output().unwrap();
+    assert_eq!(verified.status.code(), Some(0));
+    assert!(verified.stdout.is_empty());
+    assert!(verified.stderr.is_empty());
+
+    let reported = Command::new(&executable).arg("report").output().unwrap();
+    assert_eq!(reported.status.code(), Some(1));
+    assert!(reported.stdout.is_empty());
+    assert_eq!(reported.stderr, b"phase1.report: outer: inner: leaf\n");
+
+    fs::remove_dir_all(output_directory).unwrap();
+}
+
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
         "custom-format.nct" => b"point = (3, 4)\n",

@@ -23,10 +23,6 @@ pub struct AllocationContext
 
 pub struct TryAllocator
 
-pub(/) primitive current_allocator_state(): usize
-
-pub(/) primitive current_allocator_kind(): usize
-
 pub(/) primitive allocation_abort_raw(): never
 
 pub(/) func current_allocator(): Allocator

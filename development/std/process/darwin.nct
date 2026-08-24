@@ -32,6 +32,24 @@ use std/string.bytes as string_bytes
 use std/vec.Vec
 
 #target: "arm64-darwin"
+primitive exit_raw(code: i32): never
+
+#target: "arm64-darwin"
+primitive arg_count_raw(): usize
+
+#target: "arm64-darwin"
+primitive arg_raw(index: usize): &str from static
+
+#target: "arm64-darwin"
+primitive env_count_raw(): usize
+
+#target: "arm64-darwin"
+primitive env_name_raw(index: usize): &str from static
+
+#target: "arm64-darwin"
+primitive env_value_raw(index: usize): &str from static
+
+#target: "arm64-darwin"
 func open_current_directory(): usize! {
     let allocation_size: usize = 2
     let address: usize = alloc_pages(allocation_size)?

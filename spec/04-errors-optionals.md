@@ -76,11 +76,11 @@ instance error {
 }
 ```
 
-Its package-visible representation primitive accepts the same two inputs but returns an owned
-error with no input provenance:
+Its source-private representation primitive is authored with the implementation body. It accepts
+the same two inputs but returns an owned error with no input provenance:
 
 ```nct
-pub(/) primitive new_error(
+primitive new_error(
     code: &str,
     message: &str,
 ): error

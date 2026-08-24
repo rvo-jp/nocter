@@ -124,6 +124,49 @@ fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
 }
 
 #[test]
+fn primitive_role_resolution_selects_a_private_included_declaration() {
+    let tree = TempTree::new();
+    tree.source("std/nocter.nct", "#name: \"std\"\n");
+    tree.source("std/index.nct", "include ./runtime.nct\n");
+    tree.source(
+        "std/runtime.nct",
+        "include ./index.nct\n\nprimitive new_error(code: &str, message: &str): error\n",
+    );
+    let identity = PackageIdentity::new("toolchain:std");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"))
+        .with_standard_dependency(identity.clone());
+    let primitive = PrimitiveRoleLocator::new(
+        PrimitiveRole::NewError,
+        ModuleIdentity::new(identity.clone(), Vec::<&str>::new()),
+        "new_error",
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![standard]),
+        vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+        ToolchainRequest::new(
+            identity.clone(),
+            ModuleIdentity::new(identity, Vec::<&str>::new()),
+            Vec::new(),
+            Vec::new(),
+        )
+        .with_primitive_roles(vec![primitive]),
+    ))
+    .unwrap();
+
+    assert_eq!(
+        unit.compile_input()
+            .unwrap()
+            .toolchain()
+            .unwrap()
+            .primitive_roles()
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn one_open_document_overlay_flows_from_package_data_through_module_discovery() {
     let tree = TempTree::new();
     tree.source("app/nocter.nct", "#name: \"disk-name\"\n");
@@ -664,7 +707,7 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
         .copied()
         .map(|role| {
             let (path, name) = nocter_test_support::primitive_source_location(role);
-            PrimitiveRoleLocator::new(role, module(path), NodeKind::PrimitiveDeclaration, name)
+            PrimitiveRoleLocator::new(role, module(path), name)
         })
         .collect();
     ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)

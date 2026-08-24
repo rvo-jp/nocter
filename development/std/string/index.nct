@@ -28,13 +28,6 @@ pub struct SplitIter
 /// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
 pub struct LinesIter
 
-/// Reconstructs a previously validated UTF-8 subview.
-pub(/) primitive str_subview_unchecked(
-    text: &str,
-    start: usize,
-    len: usize,
-): &str from text
-
 /// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
 pub(/) func is_char_boundary(text: &str, index: usize): bool
 

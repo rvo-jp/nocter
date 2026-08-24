@@ -606,7 +606,8 @@ Required diagnostic families:
 - A module importing a declaration outside its ancestor or package visibility boundary.
 - Primitive declaration outside the exact implicit toolchain standard-library package.
 - Primitive declaration with an invalid module path, name, or signature.
-- Direct call to a package-visible standard-library primitive from a user package.
+- Import or direct call to a private or package-visible standard-library primitive from outside
+  its ordinary visibility boundary.
 - Borrow exclusivity violation.
 - Readwrite borrow from a non-writable place.
 - Move while borrowed.

@@ -1,0 +1,28 @@
+//! Target-owned system primitives without current cross-module callers.
+
+include ./index.nct
+
+#target: "arm64-darwin"
+primitive syscall0(number: usize): SyscallResult
+
+#target: "arm64-darwin"
+primitive syscall4(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+primitive syscall5(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+primitive unreachable(): never

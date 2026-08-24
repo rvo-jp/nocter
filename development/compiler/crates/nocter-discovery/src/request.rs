@@ -43,22 +43,15 @@ pub struct StandardRoleLocator {
 pub struct PrimitiveRoleLocator {
     role: PrimitiveRole,
     module: ModuleIdentity,
-    kind: NodeKind,
     name: Box<str>,
 }
 
 impl PrimitiveRoleLocator {
     #[must_use]
-    pub fn new(
-        role: PrimitiveRole,
-        module: ModuleIdentity,
-        kind: NodeKind,
-        name: impl Into<Box<str>>,
-    ) -> Self {
+    pub fn new(role: PrimitiveRole, module: ModuleIdentity, name: impl Into<Box<str>>) -> Self {
         Self {
             role,
             module,
-            kind,
             name: name.into(),
         }
     }
@@ -71,11 +64,6 @@ impl PrimitiveRoleLocator {
     #[must_use]
     pub const fn module(&self) -> &ModuleIdentity {
         &self.module
-    }
-
-    #[must_use]
-    pub const fn kind(&self) -> NodeKind {
-        self.kind
     }
 
     #[must_use]

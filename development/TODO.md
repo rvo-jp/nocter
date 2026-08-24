@@ -2,14 +2,16 @@
 
 ## Current Task
 
-Nocter v0.16.0 Phase 0 is complete. The built-in `error` type and `T!` surface retain one common
-failure type, while the runtime value is now one move-only owned error handle. Exact scope,
-implementation evidence, and the completed authority review are recorded in
+Nocter v0.16.0 Phase 1 is complete. The closed primitive registry now validates source-private,
+package-visible, and public exposure; bundled implementation primitives use their narrowest
+authored boundary; and the Phase 0 owned-error implementation is qualified through the physical
+bundled standard library. Exact scope and completion evidence are recorded in
 `development/milestones/v0.16.0.md`.
 
-No later phase has been adopted. Preserve the closed Phase 0 contract: do not introduce
-user-defined failure types, dynamic interfaces, vtables, reference counting, implicit error
-conversion, synthetic editor fields, or a second numeric error-layout authority.
+No later phase has been adopted. Preserve the closed Phase 0 and Phase 1 contracts. Do not
+introduce user-defined failure types, dynamic interfaces, vtables, reference counting, implicit
+error conversion, synthetic editor fields, a second numeric error-layout authority, or a
+visibility lookup in Machine or ARM64.
 
 Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,

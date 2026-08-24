@@ -9,10 +9,6 @@ use std/string.{LinesIter, SplitIter, String}
 use std/vec.Vec
 include ./text.nct
 
-pub(/) primitive str_len_raw(value: &str): usize
-
-pub(/) primitive str_ptr_addr_raw(value: &str): usize
-
 instance str {
     /// Compares UTF-8 encoding bytes without allocation.
     pub operator (&self == other: &Self): bool

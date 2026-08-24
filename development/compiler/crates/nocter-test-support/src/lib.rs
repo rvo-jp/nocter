@@ -18,23 +18,17 @@ use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 const ERROR_SOURCE: &str = "\
-pub(/) primitive new_error(code: &str, message: &str): error
+primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive context_error(value: error, message: &str): error
+primitive context_error(value: error, message: &str): error
 
-pub(/) primitive error_code(value: &error): &str from value
+primitive error_code(value: &error): &str from value
 
-pub(/) primitive error_message(value: &error): &str from value
-
-pub(/) primitive allocation_failure_error(): error
+primitive error_message(value: &error): &str from value
 
 construct error {
     pub default func new(code: &str, message: &str): Self {
         return new_error(code, message)
-    }
-
-    pub func allocation_failure_for_test(): Self {
-        return allocation_failure_error()
     }
 }
 instance error {
@@ -69,7 +63,7 @@ pub fn primitive_source_location(
         Role::ErrorContext => (&["error"], "context_error"),
         Role::ErrorCode => (&["error"], "error_code"),
         Role::ErrorMessage => (&["error"], "error_message"),
-        Role::AllocationFailureError => (&["error"], "allocation_failure_error"),
+        Role::AllocationFailureError => (&["mem"], "allocation_failure_error"),
         Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
         Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
         Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),
@@ -142,8 +136,9 @@ pub struct AllocationContext { state: usize
     kind: usize }
 ";
 const MEM_SOURCE: &str = "\
-pub(/) primitive current_allocator_state(): usize
-pub(/) primitive current_allocator_kind(): usize
+primitive current_allocator_state(): usize
+primitive current_allocator_kind(): usize
+primitive allocation_failure_error(): error
 pub(/) primitive allocation_abort_raw(): never
 pub func allocation_context_state_for_test(): usize {
     return current_allocator_state()
@@ -151,6 +146,7 @@ pub func allocation_context_state_for_test(): usize {
 pub func allocation_context_kind_for_test(): usize {
     return current_allocator_kind()
 }
+pub func allocation_failure_for_test(): error { return allocation_failure_error() }
 pub func allocation_abort_for_test(): never { allocation_abort_raw() }
 ";
 const PTR_SOURCE: &str = "\
@@ -206,21 +202,21 @@ pub func take_three_u64_at_ptr_for_test(pointer: *[u64; 3], offset: usize): [u64
 ";
 const STRING_SOURCE: &str = "\
 pub(/) primitive bytes_from_str(value: &str): &[u8] from value
-pub(/) primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
+primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
 pub func bytes_from_str_for_test(value: &str): &[u8] { return bytes_from_str(value) }
 pub func str_subview_unchecked_for_test(text: &str, start: usize, len: usize): &str {
     return str_subview_unchecked(text, start, len)
 }
 ";
 const SLICE_SOURCE: &str = "\
-pub(/) primitive slice_len_raw<T>(value: &[T]): usize
-pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+primitive slice_len_raw<T>(value: &[T]): usize
+primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 pub func slice_len_for_test<T>(value: &[T]): usize { return slice_len_raw(value) }
 pub func slice_ptr_addr_for_test<T>(value: &[T]): usize { return slice_ptr_addr_raw(value) }
 ";
 const STR_SOURCE: &str = "\
-pub(/) primitive str_len_raw(value: &str): usize
-pub(/) primitive str_ptr_addr_raw(value: &str): usize
+primitive str_len_raw(value: &str): usize
+primitive str_ptr_addr_raw(value: &str): usize
 instance str {
     pub operator (&self == other: &Self): bool {
         if str_len_raw(self) != str_len_raw(other) { return false }
@@ -237,17 +233,17 @@ pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(val
 ";
 const PROCESS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
-pub(/) primitive exit_raw(code: i32): never
+primitive exit_raw(code: i32): never
 #target: \"arm64-darwin\"
-pub(/) primitive arg_count_raw(): usize
+primitive arg_count_raw(): usize
 #target: \"arm64-darwin\"
-pub(/) primitive arg_raw(index: usize): &str from static
+primitive arg_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
-pub(/) primitive env_count_raw(): usize
+primitive env_count_raw(): usize
 #target: \"arm64-darwin\"
-pub(/) primitive env_name_raw(index: usize): &str from static
+primitive env_name_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
-pub(/) primitive env_value_raw(index: usize): &str from static
+primitive env_value_raw(index: usize): &str from static
 pub func exit_for_test(code: i32): never { exit_raw(code) }
 pub func arg_count_for_test(): usize { return arg_count_raw() }
 pub func arg_for_test(index: usize): &str { return arg_raw(index) }
@@ -263,7 +259,7 @@ pub(/) copy struct SyscallResult {
     pub errno: i32
 }
 #target: \"arm64-darwin\"
-pub(/) primitive syscall0(number: usize): SyscallResult
+primitive syscall0(number: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive syscall1(number: usize, a0: usize): SyscallResult
 #target: \"arm64-darwin\"
@@ -271,15 +267,15 @@ pub(/) primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive trap(): never
 #target: \"arm64-darwin\"
-pub(/) primitive unreachable(): never
+primitive unreachable(): never
 pub func syscall0_succeeds_for_test(number: usize): bool {
     let result = syscall0(number)
     return result.errno == 0 && result.value > 0

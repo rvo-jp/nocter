@@ -5,6 +5,7 @@
 //! APIs; OSError and OSErrorKind stay behind `pub(/)` visibility.
 
 include ./darwin.nct
+include ./primitives.nct
 
 pub(/) enum Platform {
     macos
@@ -85,9 +86,6 @@ pub(/) const darwin_f_getpath: usize
 pub(/) const darwin_max_path_len: usize
 
 #target: "arm64-darwin"
-pub(/) primitive syscall0(number: usize): SyscallResult
-
-#target: "arm64-darwin"
 pub(/) primitive syscall1(
     number: usize,
     a0: usize,
@@ -109,25 +107,6 @@ pub(/) primitive syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive syscall4(
-    number: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-): SyscallResult
-
-#target: "arm64-darwin"
-pub(/) primitive syscall5(
-    number: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-): SyscallResult
-
-#target: "arm64-darwin"
 pub(/) primitive syscall6(
     number: usize,
     a0: usize,
@@ -140,6 +119,3 @@ pub(/) primitive syscall6(
 
 #target: "arm64-darwin"
 pub(/) primitive trap(): never
-
-#target: "arm64-darwin"
-pub(/) primitive unreachable(): never

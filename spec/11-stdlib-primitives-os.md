@@ -31,8 +31,8 @@ Representative layering:
 ```text
 user package
     -> public std function or type
-        -> package-visible std implementation
-            -> registered primitive
+        -> narrowly visible std implementation
+            -> private or package-visible registered primitive
                 -> target backend or process boundary
 ```
 
@@ -124,10 +124,11 @@ being misclassified.
 
 ## Primitive Declarations
 
-A primitive declaration has a typed Nocter signature but no Nocter body:
+A primitive declaration has a typed Nocter signature but no Nocter body. It may be private when
+only its authored implementation source needs the trusted operation:
 
 ```nct
-pub(/) primitive new_error(
+primitive new_error(
     code: &str,
     message: &str,
 ): error
@@ -142,6 +143,11 @@ Rules:
 - Primitive declarations are allowed only in the exact implicit standard-library package selected
   by the active Nocter home.
 - Every primitive must match an entry in the compiler's closed registry exactly.
+- The registry assigns each primitive one authorized exposure: source-private, package-visible, or
+  public. The declaration's normalized language visibility must match that exposure.
+- Source-private primitives are callable only in their authored source and a source that directly
+  includes it, following the ordinary private-declaration rule. Primitive authority does not widen
+  that access.
 - Moving a registered declaration to another module or changing its signature is a compile error.
 - An ordinary function with the same name has no primitive behavior.
 - `pub(/)` primitives are callable only from modules in that same `std` package.
@@ -189,7 +195,7 @@ Target-dependent functions, primitives, aliases, structs, enums, and interfaces 
 
 ```nct
 #target: "arm64-darwin"
-pub(/) primitive exit_raw(code: i32): never
+primitive exit_raw(code: i32): never
 ```
 
 Rules:
