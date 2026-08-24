@@ -529,6 +529,22 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         rooted_bodies.is_empty(),
         "standard module roots must remain contract-only: {rooted_bodies:#?}"
     );
+    let repeated_conformance_methods = unit
+        .modules()
+        .iter()
+        .flat_map(crate::DiscoveredModule::sources)
+        .filter(|source| source.kind() == ModuleSourceKind::Root)
+        .filter(|source| {
+            unit.syntax_trees()[source.syntax_index()]
+                .nodes()
+                .any(|(_, node)| node.kind() == NodeKind::ConformMethod)
+        })
+        .map(crate::DiscoveredSource::canonical_path)
+        .collect::<Vec<_>>();
+    assert!(
+        repeated_conformance_methods.is_empty(),
+        "standard module roots must derive conformance methods from interfaces: {repeated_conformance_methods:#?}"
+    );
     let input = unit.compile_input().unwrap();
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);

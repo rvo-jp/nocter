@@ -21,16 +21,10 @@ pub(/) func vec_into_iter_from_raw_parts<T>(
     item_count: usize,
 ): VecIntoIter<T>
 
-conform ExactSizeIterator for VecIntoIter<T> {
-    /// Implements exact-size iteration for compiler-owned element packs.
-    method &self.remaining_len(): usize
-}
+conform ExactSizeIterator for VecIntoIter<T> {}
 
 conform Iterator for VecIntoIter<T> {
     type Item = T
-
-    /// Transfers the next element, or returns `none` at exhaustion.
-    method &+self.next(): T?
 }
 
 /// An owning, growable sequence with an initialized prefix of elements.

@@ -216,9 +216,11 @@ are errors independent of source traversal order.
 This rule applies to top-level functions, inherent methods, construction functions, typed literals,
 coercion entries, and source-defined operators. A construction definition repeats `default` when
 the public contract carries it; `default` is part of the contract even though visibility is not.
-Conformance methods may use the same split even though they omit visibility: the root conformance
-contract owns associated type bindings and bodyless method signatures, while its matching private
-conformance definition owns the bodies. Interface requirements remain intrinsically bodyless.
+Conformance is split at the declaration boundary rather than at each method. The root conformance
+contract owns the conformance head, its `where` clause, and associated type bindings. Its matching
+private conformance definition owns all method implementations. The interface is the sole source
+of required method signatures, so a root conformance contract must not repeat them. Interface
+requirements remain intrinsically bodyless.
 Interface defaults write `default` explicitly and may use the same split: a bodyless
 `pub default method` in the root interface is completed by one private `default method` body in a
 reciprocally included implementation interface fragment. `drop` always has a body and does not

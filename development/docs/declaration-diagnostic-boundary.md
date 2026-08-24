@@ -45,7 +45,7 @@ one row have the same classification and boundary reason.
 | Contract/reservation error | Class | Reason |
 |---|---|---|
 | `DeclarationContractError::MissingBody`, `MismatchedBody`, `DuplicateBody`, `InvalidBodyOmission` | authored rule | `E0250`-`E0253` distinguish public callable contracts from their private definitions. Private implementation-only members need no public contract. |
-| `DeclarationContractError::UncontractedConformance` | authored rule | `E0254` prevents an implementation source from adding program-wide conformance outside `index.nct`. |
+| `DeclarationContractError::UncontractedConformance`, `DuplicateConformanceDefinition`, `AmbiguousConformanceContract`, `InvalidConformanceSplit` | authored rule | `E0254` and `E0264`-`E0266` make the root conformance head the single public fact, join it to exactly one private implementation container, and keep bindings and methods on their owning side. |
 | `DeclarationContractError::MissingRepresentation`, `MismatchedRepresentation`, `DuplicateRepresentation`, `RepresentationCompletedAgain` | authored rule | `E0255`-`E0258` distinguish public nominal contracts from their one private representation definition. |
 | `DeclarationContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
 | every `ReservationError` variant: `Contract`, `Program`, `DuplicateSourceBinding`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, valid owners, and unused builder/source-index slots. |

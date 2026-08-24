@@ -13,7 +13,8 @@ following implementation sources.
 
 The root owns documentation, required signature imports, re-exports, public data representation,
 opaque nominal contracts, bodyless callable contracts, interface requirements, explicit default
-contracts, construction selection, instance-operation contracts, and conformance contracts.
+contracts, construction selection, instance-operation contracts, and conformance heads with their
+associated type bindings. Required conformance method signatures remain solely in their interface.
 
 Implementation sources own private representation, callable bodies, destruction, allocation and
 pointer mechanics, target operations, and helper algorithms. Name each source for one stable

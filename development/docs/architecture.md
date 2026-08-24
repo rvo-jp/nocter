@@ -626,8 +626,10 @@ re-exports, or bodyless nominal contracts. Private representations, helpers, con
 and inherent methods may remain implementation-only. A following contract pass joins every
 bodyless public callable and opaque nominal to one reciprocal direct-include definition. Because
 conformance has program-wide dispatch meaning and no private visibility form, every implementation
-conformance and each of its methods must complete a contract authored in `index.nct`. This inventory
-is consumed by declaration reservation and never becomes a second long-lived program model.
+conformance must complete a conformance head authored in `index.nct`. That container-level join
+attaches private method bodies to the public conformance identity; required signatures are read
+once from the interface instead of being copied into the module root. This inventory is consumed by
+declaration reservation and never becomes a second long-lived program model.
 
 The compile-unit input carries one closed `CompilationTarget`, and the frozen declaration graph
 retains that identity through checking. Before import-edge validation or symbol collection, one
@@ -640,7 +642,9 @@ Before allocating declaration IDs, contract joining compares canonical header to
 excludes visibility, bodies, and newlines while retaining names, owner patterns, generic
 requirements, parameter names and types, results, authored provenance, and construction `default`.
 One eligible public bodyless root callable must match exactly one private implementation body.
-Source-defined operators and conformance methods use the same callable rule. A separate nominal-
+Source-defined operators use the same callable rule. Conformance definitions instead join once by
+their exact interface, target, generic, and requirement header; their method bodies remain owned by
+the private definition source. A separate nominal-
 representation pass matches each public opaque struct or enum contract to one private complete
 representation. The definition occurrence and its implementation container map to the public
 representative; private members in that container retain their own identities under the shared

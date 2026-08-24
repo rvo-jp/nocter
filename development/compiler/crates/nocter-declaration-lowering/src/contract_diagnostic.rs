@@ -16,6 +16,9 @@ pub enum DeclarationContractRule {
     DuplicateBody,
     InvalidBodyOmission,
     UncontractedConformance,
+    DuplicateConformanceDefinition,
+    AmbiguousConformanceContract,
+    InvalidConformanceSplit,
     UncontractedInterfaceDefault,
     MissingRepresentation,
     MismatchedRepresentation,
@@ -24,12 +27,15 @@ pub enum DeclarationContractRule {
 }
 
 impl DeclarationContractRule {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 13] = [
         Self::MissingBody,
         Self::MismatchedBody,
         Self::DuplicateBody,
         Self::InvalidBodyOmission,
         Self::UncontractedConformance,
+        Self::DuplicateConformanceDefinition,
+        Self::AmbiguousConformanceContract,
+        Self::InvalidConformanceSplit,
         Self::UncontractedInterfaceDefault,
         Self::MissingRepresentation,
         Self::MismatchedRepresentation,
@@ -45,6 +51,9 @@ impl DeclarationContractRule {
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
             Self::UncontractedConformance => "E0254",
+            Self::DuplicateConformanceDefinition => "E0264",
+            Self::AmbiguousConformanceContract => "E0265",
+            Self::InvalidConformanceSplit => "E0266",
             Self::UncontractedInterfaceDefault => "E0259",
             Self::MissingRepresentation => "E0255",
             Self::MismatchedRepresentation => "E0256",
@@ -66,6 +75,15 @@ impl DeclarationContractRule {
             }
             Self::UncontractedConformance => {
                 "implementation conformance has no public index contract"
+            }
+            Self::DuplicateConformanceDefinition => {
+                "public conformance contract has more than one implementation definition"
+            }
+            Self::AmbiguousConformanceContract => {
+                "implementation conformance matches more than one public contract"
+            }
+            Self::InvalidConformanceSplit => {
+                "separated conformance mixes contract and implementation members"
             }
             Self::UncontractedInterfaceDefault => {
                 "interface default implementation has no public index contract"
@@ -97,7 +115,16 @@ impl DeclarationContractRule {
                 "write the body inline or declare an eligible public root contract"
             }
             Self::UncontractedConformance => {
-                "declare the conformance contract and every implemented method in index.nct"
+                "declare the conformance head and associated type bindings in index.nct"
+            }
+            Self::DuplicateConformanceDefinition => {
+                "keep exactly one private implementation conformance for this contract"
+            }
+            Self::AmbiguousConformanceContract => {
+                "keep exactly one conformance contract for this interface and target"
+            }
+            Self::InvalidConformanceSplit => {
+                "keep associated type bindings in index.nct and method bodies in the private source"
             }
             Self::UncontractedInterfaceDefault => {
                 "declare the default method contract in the reciprocally included index.nct interface"
@@ -120,6 +147,8 @@ impl DeclarationContractRule {
         match self {
             Self::MismatchedBody
             | Self::DuplicateBody
+            | Self::DuplicateConformanceDefinition
+            | Self::AmbiguousConformanceContract
             | Self::MismatchedRepresentation
             | Self::DuplicateRepresentation
             | Self::RepresentationCompletedAgain => Some("public contract is declared here"),
@@ -127,6 +156,7 @@ impl DeclarationContractRule {
             | Self::InvalidBodyOmission
             | Self::UncontractedConformance
             | Self::UncontractedInterfaceDefault
+            | Self::InvalidConformanceSplit
             | Self::MissingRepresentation => None,
         }
     }
@@ -208,6 +238,15 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
         DeclarationContractError::UncontractedConformance(_) => {
             Some(DeclarationContractRule::UncontractedConformance)
         }
+        DeclarationContractError::DuplicateConformanceDefinition { .. } => {
+            Some(DeclarationContractRule::DuplicateConformanceDefinition)
+        }
+        DeclarationContractError::AmbiguousConformanceContract { .. } => {
+            Some(DeclarationContractRule::AmbiguousConformanceContract)
+        }
+        DeclarationContractError::InvalidConformanceSplit(_) => {
+            Some(DeclarationContractRule::InvalidConformanceSplit)
+        }
         DeclarationContractError::UncontractedInterfaceDefault(_) => {
             Some(DeclarationContractRule::UncontractedInterfaceDefault)
         }
@@ -233,13 +272,16 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
         | DeclarationContractError::InvalidBodyOmission(node)
         | DeclarationContractError::UncontractedConformance(node)
         | DeclarationContractError::UncontractedInterfaceDefault(node)
+        | DeclarationContractError::InvalidConformanceSplit(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
         DeclarationContractError::MismatchedBody { body, .. }
         | DeclarationContractError::DuplicateBody { body, .. } => body,
-        DeclarationContractError::MismatchedRepresentation { definition, .. }
+        DeclarationContractError::DuplicateConformanceDefinition { definition, .. }
+        | DeclarationContractError::MismatchedRepresentation { definition, .. }
         | DeclarationContractError::DuplicateRepresentation { definition, .. }
         | DeclarationContractError::RepresentationCompletedAgain { definition, .. } => definition,
+        DeclarationContractError::AmbiguousConformanceContract { conflicting, .. } => conflicting,
     }
 }
 
@@ -247,6 +289,8 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
     match error {
         DeclarationContractError::MismatchedBody { contract, .. }
         | DeclarationContractError::DuplicateBody { contract, .. }
+        | DeclarationContractError::DuplicateConformanceDefinition { contract, .. }
+        | DeclarationContractError::AmbiguousConformanceContract { contract, .. }
         | DeclarationContractError::MismatchedRepresentation { contract, .. }
         | DeclarationContractError::DuplicateRepresentation { contract, .. }
         | DeclarationContractError::RepresentationCompletedAgain { contract, .. } => Some(contract),
@@ -254,6 +298,7 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
         | DeclarationContractError::InvalidBodyOmission(_)
         | DeclarationContractError::UncontractedConformance(_)
         | DeclarationContractError::UncontractedInterfaceDefault(_)
+        | DeclarationContractError::InvalidConformanceSplit(_)
         | DeclarationContractError::MissingRepresentation(_)
         | DeclarationContractError::InconsistentSurface(_) => None,
     }

@@ -334,8 +334,8 @@ Source-backed declaration contract diagnostics:
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
-- `E0254`: an implementation source declares a conformance, or a conformance method, without a
-  matching public contract in the reciprocally included `index.nct` source.
+- `E0254`: an implementation source declares a conformance without a matching conformance head in
+  the reciprocally included `index.nct` source.
 - `E0255`: a bodyless public nominal contract has no complete private representation definition.
 - `E0256`: a private nominal representation does not exactly match its public contract's kind,
   name, generic parameters, requirements, or `copy` contract.
@@ -343,6 +343,11 @@ Source-backed declaration contract diagnostics:
 - `E0258`: a represented nominal declaration is completed again.
 - `E0259`: an implementation interface fragment supplies a default body without one exact default
   method contract in the reciprocally included `index.nct` interface.
+- `E0264`: more than one private implementation conformance completes the same public conformance
+  contract.
+- `E0265`: a private implementation conformance matches more than one identical root contract.
+- `E0266`: a separated conformance repeats method declarations in `index.nct` or associated type
+  bindings in its private implementation source.
 
 Source-backed declaration-header diagnostics:
 

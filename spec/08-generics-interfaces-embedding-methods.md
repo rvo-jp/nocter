@@ -395,13 +395,31 @@ The conformance body owns every required member implementation. Members omit `pu
 interface declaration owns visibility. A default may be omitted or overridden by a same-name
 member. An inherent method never establishes or overrides interface conformance.
 
-In a directory module, `index.nct` may instead expose a conformance contract. It writes associated
-type bindings and bodyless method signatures. One reciprocally included private source repeats the
-conformance head and supplies the matching method bodies; it does not repeat associated type
+In a directory module, `index.nct` may instead expose a conformance contract. It writes the
+conformance head, conditional requirements, and associated type bindings, but no method
+signatures. One reciprocally included private source repeats only the conformance head and
+conditional requirements and supplies the method bodies; it does not repeat associated type
 bindings. Both occurrences form one semantic conformance, and only the `index.nct` occurrence
-defines the public surface. Because a conformance changes program-wide dispatch and has no private
-visibility form, an implementation source cannot introduce one without this complete `index.nct`
-contract. An inline conformance that needs no separated body is therefore authored in `index.nct`.
+defines the public conformance fact. Required method signatures come exclusively from the
+interface. Because a conformance changes program-wide dispatch and has no private visibility form,
+an implementation source cannot introduce one without this complete `index.nct` contract. An
+inline conformance that needs no separated body is therefore authored in `index.nct`.
+
+```nct
+// index.nct
+conform Iterator for ValuesIter<T> {
+    type Item = T
+}
+```
+
+```nct
+// iteration.nct
+conform Iterator for ValuesIter<T> {
+    method &+self.next(): T? {
+        ...
+    }
+}
+```
 
 Conformance rules are:
 

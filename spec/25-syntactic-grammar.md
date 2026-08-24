@@ -373,12 +373,13 @@ AssociatedTypeBinding = "type" Name "=" Type
 ConformMethod = MethodSignature CallableBody
 ```
 
-Conformance members never write visibility. They contain only associated type bindings and
-method signatures. A bodyless method is valid only in an `index.nct` conformance contract with one
-matching private definition connected through reciprocal direct includes. The contract owns
-associated type bindings; the private definition repeats the conformance head and supplies method
-bodies without repeating those bindings. Construction entries, fields, operators, coercions, drop
-declarations, tests, and extra functions have no conformance-member production.
+Conformance members never write visibility. An `index.nct` conformance contract contains only
+associated type bindings; a bodyless `ConformMethod` is invalid because the interface already owns
+that signature. A reciprocally included private conformance definition contains body-bearing
+methods and no associated type bindings. The contract and definition repeat the exact conformance
+head and form one semantic conformance. An inline conformance in `index.nct` or single-file mode may
+contain both bindings and body-bearing methods. Construction entries, fields, operators,
+coercions, drop declarations, tests, and extra functions have no conformance-member production.
 
 ## Declaration Type Patterns
 

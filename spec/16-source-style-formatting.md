@@ -29,8 +29,9 @@ Keep these forms in `index.nct`:
 - module documentation, imports needed by public signatures, and public re-exports;
 - public and restricted-public type contracts;
 - fields or variants intentionally exposed as stable data representation;
-- bodyless callable, construction, instance-operation, conformance, and interface-default
-  contracts;
+- bodyless callable, construction, instance-operation, and interface-default contracts;
+- conformance heads, conditional requirements, and associated type bindings, without repeated
+  interface method signatures;
 - short inline behavior whose implementation is itself the clearest contract.
 
 Move private representation, allocation or pointer work, platform operations, helper algorithms,

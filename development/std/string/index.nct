@@ -66,14 +66,10 @@ construct LinesIter {
 
 conform Iterator for SplitIter {
     type Item = &str
-
-    method &+self.next(): &str?
 }
 
 conform Iterator for LinesIter {
     type Item = &str
-
-    method &+self.next(): &str?
 }
 
 /// Creates an allocation-free iterator over borrowed lines.

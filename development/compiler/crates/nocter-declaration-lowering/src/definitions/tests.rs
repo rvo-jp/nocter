@@ -721,9 +721,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "pub interface View<T> {\n",
             "    pub method &self.get(): &T from self\n",
             "}\n",
-            "conform View<T> for Box<T> {\n",
-            "    method &self.get(): &T from self\n",
-            "}\n",
+            "conform View<T> for Box<T> {}\n",
         ),
     );
     let definition_id = add_source(

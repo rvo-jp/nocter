@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Syntactic Grammar - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Syntactic Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/25-syntactic-grammar/","mainEntityOfPage":"https://nocter.dev/spec/25-syntactic-grammar/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"25 Syntactic Grammar","item":"https://nocter.dev/spec/25-syntactic-grammar/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Syntactic Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/25-syntactic-grammar/","mainEntityOfPage":"https://nocter.dev/spec/25-syntactic-grammar/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"25 Syntactic Grammar","item":"https://nocter.dev/spec/25-syntactic-grammar/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -341,7 +341,7 @@ ConformMember = AssociatedTypeBinding | ConformMethod
 
 AssociatedTypeBinding = "type" Name "=" Type
 ConformMethod = MethodSignature CallableBody
-</code></pre><p>Conformance members never write visibility. They contain only associated type bindings and method signatures. A bodyless method is valid only in an <code>index.nct</code> conformance contract with one matching private definition connected through reciprocal direct includes. The contract owns associated type bindings; the private definition repeats the conformance head and supplies method bodies without repeating those bindings. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
+</code></pre><p>Conformance members never write visibility. An <code>index.nct</code> conformance contract contains only associated type bindings; a bodyless <code>ConformMethod</code> is invalid because the interface already owns that signature. A reciprocally included private conformance definition contains body-bearing methods and no associated type bindings. The contract and definition repeat the exact conformance head and form one semantic conformance. An inline conformance in <code>index.nct</code> or single-file mode may contain both bindings and body-bearing methods. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
                        | BuiltinTypePattern
                        | "[" Name "]"
 

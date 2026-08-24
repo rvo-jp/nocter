@@ -97,14 +97,8 @@ instance File {
     pub method &+self.close(): void
 }
 
-conform Reader for File {
-    method &+self.read(buffer: &+[u8]): usize!
-}
+conform Reader for File {}
 
-conform Writer for File {
-    method &+self.write(bytes: &[u8]): void!
-
-    method &+self.flush(): void!
-}
+conform Writer for File {}
 
 pub func print(text: &str): void!
