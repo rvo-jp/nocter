@@ -10,12 +10,11 @@ packaging, and the complete fresh-install smoke matrix. Candidate evidence is re
 `development/milestones/v0.16.0-release-preparation.md`; completed implementation scope is in
 `development/milestones/v0.16.0.md`.
 
-The qualified archive is frozen. Tagging, pushing, uploading, public latest-release updates, and
-publication remain outside the current operation and require explicit user authorization.
-Preserve the closed Phase 0 and Phase 1 contracts. Do not
-introduce user-defined failure types, dynamic interfaces, vtables, reference counting, implicit
-error conversion, synthetic editor fields, a second numeric error-layout authority, or a
-visibility lookup in Machine or ARM64.
+Publication is authorized. The qualified archive is frozen while the publication commit, annotated
+tag, GitHub release, asset upload, and public re-download audit are completed. Preserve the closed
+Phase 0 and Phase 1 contracts. Do not introduce user-defined failure types, dynamic interfaces,
+vtables, reference counting, implicit error conversion, synthetic editor fields, a second numeric
+error-layout authority, or a visibility lookup in Machine or ARM64.
 
 Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,

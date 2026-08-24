@@ -1,6 +1,6 @@
 # Contributor Documentation
 
-Nocter has published v0.15.0 with a compiler built from the language specification. The v0.13.0
+Nocter has published v0.16.0 with a compiler built from the language specification. The v0.13.0
 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the

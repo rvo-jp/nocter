@@ -5,8 +5,7 @@ Public language behavior belongs in [`spec/`](../../spec/README.md); published q
 in [`development/releases/`](../releases/README.md).
 
 The [v0.16.0 milestone](v0.16.0.md) and its
-[release preparation](v0.16.0-release-preparation.md) are complete; the qualified candidate awaits
-separately authorized publication. The
+[release preparation](v0.16.0-release-preparation.md) are complete, and v0.16.0 is published. The
 [v0.15.0 milestone](v0.15.0.md) and its
 [release preparation](v0.15.0-release-preparation.md) are complete, and v0.15.0 is published. The
 [v0.14.0 milestone](v0.14.0.md), its
