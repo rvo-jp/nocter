@@ -221,7 +221,6 @@ fn finish_checked_program(
         body_names: _,
         source_namespaces: _,
         source_access,
-        constant_array_lengths: _,
         source_index,
     } = prepared;
     let source_index = extend_source_index(source_index, projections)

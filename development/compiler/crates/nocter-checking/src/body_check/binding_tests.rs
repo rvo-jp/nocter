@@ -4,7 +4,8 @@ use nocter_model::{BuiltinType, TypeKind};
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    BodyRule, CheckedControl, CheckedOperation, TypeValidityRule, prepare_program_checking,
+    BodyRule, CheckedControl, CheckedOperation, ConstantExpressionRule, TypeValidityRule,
+    prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -97,6 +98,76 @@ fn constants_share_values_between_expressions_and_body_array_annotations() {
             )
         })
     }));
+}
+
+#[test]
+fn body_array_types_use_the_same_block_import_scope_as_value_expressions() {
+    for body in [
+        "use ./child.{Value, width}\n\n    let values: [Value; width] = []",
+        "use ./child\n\n    let values: [child.Value; child.width] = []",
+    ] {
+        let source = format!("func value(): void {{\n    {body}\n    return\n}}\n");
+        let fixture =
+            Fixture::with_child(&source, "pub const width: usize = 0\npub struct Value {}\n");
+        for reverse in [false, true] {
+            let output = check_fixture(&fixture, reverse).unwrap();
+            assert!(
+                output
+                    .program()
+                    .types()
+                    .iter()
+                    .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 0, .. }) })
+            );
+        }
+    }
+}
+
+#[test]
+fn body_array_lengths_reject_lexical_runtime_values() {
+    let error = check(
+        "func value(): void {\n\
+             let width: usize = 0\n\
+             let values: [i32; width] = []\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        error.constant_expression_rule(),
+        Some(ConstantExpressionRule::NonConstantExpression)
+    );
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0322");
+}
+
+#[test]
+fn body_array_lengths_report_shared_constant_expression_rules() {
+    for (expression, expected) in [
+        ("true", ConstantExpressionRule::TypeMismatch),
+        ("1 / 0", ConstantExpressionRule::ArithmeticFailure),
+    ] {
+        let source = format!(
+            "func value(): void {{\n    let values: [i32; {expression}] = []\n    return\n}}\n"
+        );
+        let error = check(&source).unwrap_err();
+        assert_eq!(error.constant_expression_rule(), Some(expected));
+        assert_eq!(error.source_diagnostic().unwrap().code(), expected.code());
+    }
+}
+
+#[test]
+fn body_array_length_conversions_share_normal_type_resolution() {
+    let output =
+        check("func value(): void {\n    let values: [i32; 0 as usize] = []\n    return\n}\n")
+            .unwrap();
+
+    assert!(
+        output
+            .program()
+            .types()
+            .iter()
+            .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 0, .. }) })
+    );
 }
 
 #[test]

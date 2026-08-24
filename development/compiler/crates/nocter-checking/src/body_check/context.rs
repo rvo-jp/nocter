@@ -1,14 +1,12 @@
-use nocter_declarations::{BodyOwner, DeclarationGraph};
-use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
-use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
-use nocter_source_index::SourceIndex;
-use nocter_syntax::NodeId;
-
 use super::error::BodyCheckInternalError;
 use crate::{
     BodySource, ConformanceTable, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     StandardSemanticTable,
 };
+use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
+use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_source_index::SourceIndex;
 
 /// Immutable program-wide authorities shared by every body checker.
 #[derive(Clone, Copy)]
@@ -21,7 +19,6 @@ pub(super) struct BodyProgramFacts<'program> {
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
     source_access: &'program SourceAccessTable,
-    constant_array_lengths: &'program std::collections::HashMap<NodeId, u64>,
     source_index: &'program SourceIndex,
 }
 
@@ -80,7 +77,6 @@ impl<'program> BodyProgramFacts<'program> {
             standard_semantics: &prepared.standard_semantics,
             source_namespaces: &prepared.source_namespaces,
             source_access: &prepared.source_access,
-            constant_array_lengths: &prepared.constant_array_lengths,
             source_index: &prepared.source_index,
         }
     }
@@ -115,12 +111,6 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn source_access(self) -> &'program SourceAccessTable {
         self.source_access
-    }
-
-    pub(super) const fn constant_array_lengths(
-        self,
-    ) -> &'program std::collections::HashMap<NodeId, u64> {
-        self.constant_array_lengths
     }
 
     pub(super) const fn source_index(self) -> &'program SourceIndex {

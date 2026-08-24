@@ -85,7 +85,6 @@ pub struct FrontendBindings {
     block_imports: HashMap<NodeId, ModuleId>,
     source_namespaces: SourceNamespaceTable,
     source_access: SourceAccessTable,
-    constant_array_lengths: HashMap<NodeId, u64>,
 }
 
 impl FrontendBindings {
@@ -143,19 +142,6 @@ impl FrontendBindings {
         &self.source_access
     }
 
-    /// Returns a fixed-array length evaluated by declaration lowering.
-    ///
-    /// Body checking consumes this value instead of interpreting constant-expression syntax.
-    #[must_use]
-    pub fn constant_array_length(&self, expression: NodeId) -> Option<u64> {
-        self.constant_array_lengths.get(&expression).copied()
-    }
-
-    #[must_use]
-    pub const fn constant_array_lengths(&self) -> &HashMap<NodeId, u64> {
-        &self.constant_array_lengths
-    }
-
     #[must_use]
     pub fn with_block_imports(
         mut self,
@@ -175,7 +161,6 @@ pub struct FrontendBindingsBuilder {
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
     source_namespaces: HashMap<SourceId, SourceNamespaceBuilder>,
     source_access: SourceAccessTableBuilder,
-    constant_array_lengths: HashMap<NodeId, u64>,
 }
 
 #[derive(Debug, Default)]
@@ -254,10 +239,6 @@ impl FrontendBindingsBuilder {
             .define_representation(nominal, source, contract_private);
     }
 
-    pub fn define_constant_array_length(&mut self, expression: NodeId, length: u64) {
-        self.constant_array_lengths.insert(expression, length);
-    }
-
     #[must_use]
     pub fn finish(self) -> FrontendBindings {
         FrontendBindings {
@@ -311,7 +292,6 @@ impl FrontendBindingsBuilder {
                     .collect(),
             },
             source_access: self.source_access.finish(),
-            constant_array_lengths: self.constant_array_lengths,
             block_imports: HashMap::new(),
         }
     }

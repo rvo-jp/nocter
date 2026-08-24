@@ -220,11 +220,13 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             NodeKind::ReferenceExpression | NodeKind::NamedPlace | NodeKind::DropStatement => {
                 self.resolve_node_name(node)?;
             }
-            NodeKind::Type
-            | NodeKind::TypeAnnotation
-            | NodeKind::ClosureResult
-            | NodeKind::EnumPattern
-            | NodeKind::BlockUseDeclaration => {}
+            NodeKind::NamedType => {
+                self.resolve_type_override(node)?;
+                for child in direct_nodes(self.tree(), node).into_iter().rev() {
+                    actions.push(Action::Visit(child));
+                }
+            }
+            NodeKind::BlockUseDeclaration => {}
             _ => {
                 for child in direct_nodes(self.tree(), node).into_iter().rev() {
                     actions.push(Action::Visit(child));
@@ -259,6 +261,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             kind,
             documentation: Some(node),
         }));
+        if let Some(annotation) = direct_child(self.tree(), node, NodeKind::TypeAnnotation) {
+            actions.push(Action::Visit(annotation));
+        }
         let expression = direct_child(self.tree(), node, NodeKind::Expression)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::Visit(expression));
@@ -483,6 +488,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
         actions.push(Action::ExitClosure { outer_scope_count });
         self.schedule_block_contents(block, actions)?;
+        actions.push(Action::Visit(head));
         Ok(())
     }
 
@@ -760,6 +766,23 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             return Ok(());
         }
         Err(diagnostic::unknown_name(self.spelling(name)?, self.origin(token)?).into())
+    }
+
+    /// Records only a lexical override for a type path's first segment.
+    ///
+    /// Generic parameters, `Self`, builtins, and source-level types remain owned by body type
+    /// resolution. A block import is different: its binding exists only in this exact lexical
+    /// scope, so name resolution must freeze that selection before typed body construction.
+    fn resolve_type_override(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
+        let token = identifier_tokens(self.tree(), node)
+            .first()
+            .copied()
+            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let name = self.symbol(token)?;
+        if let Some(binding) = self.lookup_all_scopes(name) {
+            self.record_use(token, binding.target)?;
+        }
+        Ok(())
     }
 
     fn record_use(

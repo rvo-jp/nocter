@@ -539,10 +539,14 @@ fn rejects_invalid_constant_contracts_without_runtime_fallback() {
         ),
     ];
     for (source, rule) in cases {
-        assert!(matches!(
-            definition_error(source),
-            super::HeaderDefinitionError::Rule(violation) if violation.rule() == rule
-        ));
+        let actual = definition_error(source);
+        assert!(
+            matches!(
+                &actual,
+                super::HeaderDefinitionError::Rule(violation) if violation.rule() == rule
+            ),
+            "{source}: expected {rule:?}, received {actual:?}"
+        );
     }
 }
 

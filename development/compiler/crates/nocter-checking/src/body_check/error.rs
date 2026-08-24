@@ -9,7 +9,10 @@ use nocter_syntax::{NodeId, NodeKind};
 
 use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;
-use crate::{BodyRule, CopyabilityError, ExpectedTypeError, NameTarget, TypeValidityRule};
+use crate::{
+    BodyRule, ConstantExpressionRule, CopyabilityError, ExpectedTypeError, NameTarget,
+    TypeValidityRule,
+};
 
 /// Internal result of constructing one body before program-level recovery is assembled.
 pub(super) struct BodyConstructionFailure {
@@ -82,6 +85,10 @@ pub enum BodyCheckError {
         rule: TypeValidityRule,
         diagnostic: SourceDiagnostic,
     },
+    ConstantExpression {
+        rule: ConstantExpressionRule,
+        diagnostic: SourceDiagnostic,
+    },
     Internal(BodyCheckInternalError),
 }
 
@@ -89,9 +96,9 @@ impl BodyCheckError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
-            Self::Rule { diagnostic, .. } | Self::TypeValidity { diagnostic, .. } => {
-                Some(diagnostic)
-            }
+            Self::Rule { diagnostic, .. }
+            | Self::TypeValidity { diagnostic, .. }
+            | Self::ConstantExpression { diagnostic, .. } => Some(diagnostic),
             Self::Internal(_) => None,
         }
     }
@@ -100,7 +107,7 @@ impl BodyCheckError {
     pub const fn rule(&self) -> Option<BodyRule> {
         match self {
             Self::Rule { rule, .. } => Some(*rule),
-            Self::TypeValidity { .. } | Self::Internal(_) => None,
+            Self::TypeValidity { .. } | Self::ConstantExpression { .. } | Self::Internal(_) => None,
         }
     }
 
@@ -108,7 +115,15 @@ impl BodyCheckError {
     pub const fn type_validity_rule(&self) -> Option<TypeValidityRule> {
         match self {
             Self::TypeValidity { rule, .. } => Some(*rule),
-            Self::Rule { .. } | Self::Internal(_) => None,
+            Self::Rule { .. } | Self::ConstantExpression { .. } | Self::Internal(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn constant_expression_rule(&self) -> Option<ConstantExpressionRule> {
+        match self {
+            Self::ConstantExpression { rule, .. } => Some(*rule),
+            Self::Rule { .. } | Self::TypeValidity { .. } | Self::Internal(_) => None,
         }
     }
 
@@ -122,12 +137,21 @@ impl BodyCheckError {
     ) -> Self {
         Self::TypeValidity { rule, diagnostic }
     }
+
+    pub(crate) const fn from_constant_expression(
+        rule: ConstantExpressionRule,
+        diagnostic: SourceDiagnostic,
+    ) -> Self {
+        Self::ConstantExpression { rule, diagnostic }
+    }
 }
 
 impl fmt::Display for BodyCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Rule { diagnostic, .. } | Self::TypeValidity { diagnostic, .. } => {
+            Self::Rule { diagnostic, .. }
+            | Self::TypeValidity { diagnostic, .. }
+            | Self::ConstantExpression { diagnostic, .. } => {
                 write!(formatter, "{}: {}", diagnostic.code(), diagnostic.message())
             }
             Self::Internal(error) => error.fmt(formatter),

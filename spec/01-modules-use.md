@@ -88,7 +88,9 @@ func greet(debug: bool): void {
 ```
 
 A block import is a compile-time dependency even when its block is not executed. It cannot use
-`pub`. Imports cannot shadow or collide with another visible name; aliases resolve collisions.
+`pub`. Its bindings apply uniformly to value expressions, type positions, and constant
+subexpressions inside body type annotations. Imports cannot shadow or collide with another visible
+name; aliases resolve collisions.
 
 Unsupported forms include wildcard imports, dotted module paths, explicit `.nct` suffixes, and
 namespace alias re-exports:

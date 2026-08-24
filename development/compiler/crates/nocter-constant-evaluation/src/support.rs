@@ -4,20 +4,20 @@ use nocter_syntax::{
 };
 
 #[derive(Clone, Copy)]
-pub(super) struct IntegerSpec {
-    pub(super) signed: bool,
-    pub(super) bits: u32,
-    minimum: i128,
-    pub(super) maximum: i128,
+pub(crate) struct IntegerSpec {
+    pub(crate) signed: bool,
+    pub(crate) bits: u32,
+    pub(crate) minimum: i128,
+    pub(crate) maximum: i128,
 }
 
 impl IntegerSpec {
-    pub(super) const fn contains(self, value: i128) -> bool {
+    pub(crate) const fn contains(self, value: i128) -> bool {
         value >= self.minimum && value <= self.maximum
     }
 }
 
-pub(super) fn integer_spec(builtin: BuiltinType) -> Option<IntegerSpec> {
+pub(crate) fn integer_spec(builtin: BuiltinType) -> Option<IntegerSpec> {
     let (signed, bits) = match builtin {
         BuiltinType::I8 => (true, 8),
         BuiltinType::I16 => (true, 16),
@@ -42,7 +42,7 @@ pub(super) fn integer_spec(builtin: BuiltinType) -> Option<IntegerSpec> {
     })
 }
 
-pub(super) fn parse_integer(text: &str) -> Option<u64> {
+pub(crate) fn parse_integer(text: &str) -> Option<u64> {
     let compact = text
         .chars()
         .filter(|character| *character != '_')
@@ -56,7 +56,7 @@ pub(super) fn parse_integer(text: &str) -> Option<u64> {
     }
 }
 
-pub(super) fn shift(
+pub(crate) fn shift(
     left: i128,
     right: i128,
     operator: Punctuation,
@@ -82,7 +82,7 @@ pub(super) fn shift(
     }
 }
 
-pub(super) fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
+pub(crate) fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
@@ -95,7 +95,7 @@ pub(super) fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Op
         })
 }
 
-pub(super) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
+pub(crate) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
     tree.children(node)
         .iter()
         .filter_map(|element| match element {
@@ -105,7 +105,7 @@ pub(super) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
         .collect()
 }
 
-pub(super) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
+pub(crate) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
     direct_nodes(tree, node)
         .into_iter()
         .filter(|node| {
@@ -116,12 +116,12 @@ pub(super) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId
         .collect()
 }
 
-pub(super) fn one_expression_child(tree: &SyntaxTree, node: NodeId) -> Option<NodeId> {
+pub(crate) fn one_expression_child(tree: &SyntaxTree, node: NodeId) -> Option<NodeId> {
     let children = expression_children(tree, node);
     (children.len() == 1).then_some(children[0])
 }
 
-pub(super) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
+pub(crate) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
@@ -130,7 +130,7 @@ pub(super) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToke
         })
 }
 
-pub(super) fn direct_punctuation(tree: &SyntaxTree, node: NodeId) -> Option<Punctuation> {
+pub(crate) fn direct_punctuation(tree: &SyntaxTree, node: NodeId) -> Option<Punctuation> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {

@@ -88,9 +88,23 @@ const block_count: usize = 2
 type Block = [u8; lane_count * block_count]
 ```
 
-Declaration lowering evaluates the expression once. Header type normalization and body type
-annotations consume that exact result; checking and code generation do not interpret the source
-expression again.
+Each fixed-array length is evaluated once by the semantic context that owns its name scope. A
+declaration-header length uses header imports and bound header types. A body annotation uses the
+exact lexical scope at that annotation, including block imports:
+
+```nct
+func receive(): void {
+    use ./protocol.{Byte, frame_width}
+
+    let frame: [Byte; frame_width] = []
+    return
+}
+```
+
+Both contexts use the same constant-expression typing, arithmetic, conversion, short-circuit, and
+failure rules. Declaration lowering does not inspect body blocks, and body checking does not retry
+name lookup in a header namespace. Later lowering and code generation consume only the normalized
+fixed-array type.
 
 ## Tooling
 

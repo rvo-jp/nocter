@@ -661,15 +661,25 @@ The facade performs no semantic work of its own. It prevents tools and later com
 assembling a partial or differently ordered declaration graph while keeping each pass independently
 testable.
 
-Header-constant evaluation is the only compiler component that interprets constant-expression
-syntax. It runs after names and type heads are bound but before structural types are normalized,
-builds the complete constant dependency graph, and publishes immutable scalar values plus evaluated
-fixed-array lengths. Declaration freezing stores those values without retaining initializer syntax.
-Header normalization consumes the array-length table, while `FrontendBindings` carries lengths for
-body-local type annotations. Body checking, MIR, target specialization, machine lowering, and
-editor presentation may consume the evaluated values but cannot invoke or reproduce the evaluator.
-This keeps constant declarations and `[T; expression]` under one arithmetic, cycle, and overflow
-authority.
+The phase-neutral constant-expression component owns typed expression plans, scalar operation
+rules, conversions, short-circuit evaluation, dependency ordering, cycle detection, and arithmetic
+failure. It owns no namespace, lexical scope, declaration storage, or body representation. A
+caller must resolve every referenced constant and conversion type through a narrow resolver
+contract before evaluation can produce a value.
+
+Declaration lowering adapts header-bound names and types to that contract. It builds the complete
+named-constant dependency graph, freezes immutable scalar declaration values, and evaluates only
+fixed-array lengths present in bound declaration headers before structural type normalization.
+Declaration lowering treats blocks as opaque and publishes no body expression result through
+`FrontendBindings`.
+
+Body name resolution traverses body type annotations along with value expressions. It freezes an
+exact lexical target when a type path or constant subexpression uses a block import or runtime
+binding. Body type checking resolves conversion target types through its ordinary type authority,
+then adapts those frozen targets to the same constant planner and evaluates each body fixed-array
+length once. It cannot retry source-namespace lookup after a lexical target was selected. MIR,
+target specialization, machine lowering, and editor presentation consume normalized types and
+frozen constant values only; they cannot inspect or evaluate constant-expression syntax.
 
 Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
 associated types, callables, construction surfaces, instances, conformances, variants, drops,

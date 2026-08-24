@@ -123,6 +123,7 @@ pub use names::{
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,
     resolve_body_names,
 };
+pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
     PreparationError, PreparationFailure, PreparedChecking, PreparedSemanticProgram,

@@ -118,7 +118,6 @@ pub struct PreparedTypes<'syntax> {
     pub(crate) callable_results: Box<[Option<TypeId>]>,
     pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
     pub(crate) constant_values: HashMap<nocter_model::ConstantId, super::PreparedConstantValue>,
-    pub(crate) array_lengths: HashMap<NodeId, u64>,
 }
 
 impl PreparedTypes<'_> {
@@ -927,7 +926,6 @@ pub fn normalize_header_types(
         callable_results,
         requirements: requirements.into_boxed_slice(),
         constant_values,
-        array_lengths,
     })
 }
 

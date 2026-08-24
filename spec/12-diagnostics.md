@@ -199,16 +199,19 @@ Source-backed declaration-definition diagnostics:
   the first is related.
 - `E0321`: a constant uses a type outside `bool`, the built-in integers, and readonly `&str`.
 - `E0322`: a constant expression contains an operation unavailable during compile-time evaluation.
-- `E0323`: a constant expression does not produce its explicitly declared type.
+- `E0323`: a constant expression does not produce the type required by its declaration or type
+  context.
 - `E0324`: the complete authored constant dependency graph contains a cycle.
 - `E0325`: evaluated constant arithmetic overflows, divides by zero, uses an invalid shift count, or
   performs an integer conversion whose result is not representable.
 - `E0326`: an argument pack is not the one final parameter of a supported callable, or a sequence
   literal does not declare exactly its one required pack.
 
-These rules are selected while normalized header information is converted into declaration
-definitions. Their exact syntax subjects are retained in the failure value; the production
-diagnostic adapter does not reconstruct them from a rendered declaration.
+`E0321` and `E0326` are selected while normalized header information is converted into declaration
+definitions. `E0322` through `E0325` are the shared constant-expression family and may also be
+selected for a fixed-array length in a body annotation. Their exact syntax subjects are retained in
+the failure value; the production diagnostic adapter does not reconstruct them from a rendered
+declaration.
 
 Source-backed body-name diagnostics:
 

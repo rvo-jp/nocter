@@ -236,10 +236,12 @@ fn declaration_token(
 fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {
     let mut pending = vec![tree.root_id()];
     while let Some(node) = pending.pop() {
-        if tree
-            .node(node)
-            .is_some_and(|node| node.kind() == NodeKind::UseDeclaration)
-        {
+        if tree.node(node).is_some_and(|node| {
+            matches!(
+                node.kind(),
+                NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
+            )
+        }) {
             return node;
         }
         for child in tree.children(node).iter().rev() {

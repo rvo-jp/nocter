@@ -1,3 +1,4 @@
+use nocter_constant_evaluation::ConstantExpressionRule;
 use nocter_source_index::SyntaxOrigin;
 
 /// Stable source-level rule selected while completing declaration definitions.
@@ -37,10 +38,10 @@ impl DefinitionRule {
     pub const fn code(self) -> &'static str {
         match self {
             Self::InvalidConstantType => "E0321",
-            Self::NonConstantExpression => "E0322",
-            Self::ConstantTypeMismatch => "E0323",
-            Self::ConstantCycle => "E0324",
-            Self::ConstantArithmeticFailure => "E0325",
+            Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.code(),
+            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
+            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.code(),
+            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
             Self::DuplicateConstructionDefault => "E0314",
             Self::UnknownResultProvenanceOrigin => "E0315",
             Self::DuplicateResultProvenanceOrigin => "E0316",
@@ -57,12 +58,10 @@ impl DefinitionRule {
             Self::InvalidConstantType => {
                 "constant type is not supported by compile-time value semantics"
             }
-            Self::NonConstantExpression => {
-                "constant initializer contains an operation unavailable at compile time"
-            }
-            Self::ConstantTypeMismatch => "constant initializer does not produce its declared type",
-            Self::ConstantCycle => "constant dependency graph contains a cycle",
-            Self::ConstantArithmeticFailure => "constant arithmetic has no valid typed value",
+            Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.message(),
+            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.message(),
+            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.message(),
+            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.message(),
             Self::DuplicateConstructionDefault => {
                 "construction surface declares more than one default member"
             }
@@ -89,14 +88,10 @@ impl DefinitionRule {
     pub const fn help(self) -> &'static str {
         match self {
             Self::InvalidConstantType => "use bool, an integer type, or readonly &str",
-            Self::NonConstantExpression => {
-                "use literals, constants, grouping, built-in operators, or a representable integer conversion"
-            }
-            Self::ConstantTypeMismatch => "make the initializer and explicit constant type agree",
-            Self::ConstantCycle => "remove one reference in the constant dependency cycle",
-            Self::ConstantArithmeticFailure => {
-                "change the expression so it cannot overflow, divide by zero, or use an invalid shift"
-            }
+            Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.help(),
+            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.help(),
+            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.help(),
+            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.help(),
             Self::DuplicateConstructionDefault => {
                 "remove one default modifier so the construction surface has at most one default"
             }

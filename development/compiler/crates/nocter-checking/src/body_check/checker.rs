@@ -43,6 +43,7 @@ mod callable_values;
 mod calls;
 mod closure_results;
 mod closures;
+mod constants;
 mod construction_planning;
 mod constructions;
 mod conversions;
@@ -139,7 +140,6 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     source_namespaces: &'input SourceNamespaceTable,
     source_access: crate::SourceAccessContext<'input>,
     source_index: &'input SourceIndex,
-    constant_array_lengths: &'input HashMap<NodeId, u64>,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     builder: CheckedBodyBuilder,
@@ -268,7 +268,6 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             source_namespaces,
             source_access,
             source_index,
-            constant_array_lengths: facts.constant_array_lengths(),
             source,
             names,
             builder: CheckedBodyBuilder::new(names),

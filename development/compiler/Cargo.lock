@@ -1720,6 +1720,7 @@ name = "nocter-checking"
 version = "0.0.0"
 dependencies = [
  "nocter-compile-input",
+ "nocter-constant-evaluation",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
@@ -1777,10 +1778,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-constant-evaluation"
+version = "0.0.0"
+dependencies = [
+ "nocter-model",
+ "nocter-source",
+ "nocter-source-index",
+ "nocter-syntax",
+]
+
+[[package]]
 name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [
  "nocter-compile-input",
+ "nocter-constant-evaluation",
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-frontend-bindings",

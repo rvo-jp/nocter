@@ -343,9 +343,7 @@ impl BodyChecker<'_, '_> {
             NodeKind::FixedArrayType => {
                 let expression = direct_child(self.tree(), node, NodeKind::Expression)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                let Some(length) = self.constant_array_lengths.get(&expression).copied() else {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-                };
+                let length = self.evaluate_array_length(expression)?;
                 TypeKind::FixedArray {
                     element: inner,
                     length,
@@ -559,13 +557,7 @@ impl BodyChecker<'_, '_> {
 
         let first = segments.remove(0);
         let first_name = self.segment_symbol(first.token)?;
-        let Some(mut entity) = self
-            .source_namespaces
-            .lookup(self.tree().source(), first_name)
-        else {
-            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-        };
-        self.project_exported(first.token, entity)?;
+        let mut entity = self.resolve_type_base(node, first.token, first_name)?;
         if !first.arguments.is_empty() {
             if !segments.is_empty() {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -695,13 +687,7 @@ impl BodyChecker<'_, '_> {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
         let first_name = self.segment_symbol(first.token)?;
-        let Some(mut entity) = self
-            .source_namespaces
-            .lookup(self.tree().source(), first_name)
-        else {
-            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-        };
-        self.project_exported(first.token, entity)?;
+        let mut entity = self.resolve_type_base(node, first.token, first_name)?;
         for segment in &segments[1..] {
             let ExportedEntity::Module(module) = entity else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -718,6 +704,27 @@ impl BodyChecker<'_, '_> {
             ExportedEntity::NominalType(definition) => Ok(definition),
             _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
+    }
+
+    fn resolve_type_base(
+        &mut self,
+        node: NodeId,
+        token: SyntaxToken,
+        name: Symbol,
+    ) -> Result<ExportedEntity, BodyCheckError> {
+        let origin = nocter_source_index::SyntaxOrigin::Token(token);
+        if let Some(target) = self.uses.get(&origin).copied() {
+            self.consumed_uses.insert(origin);
+            let NameTarget::Exported(entity) = target else {
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+            };
+            return Ok(entity);
+        }
+        let Some(entity) = self.source_namespaces.lookup(self.tree().source(), name) else {
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+        };
+        self.project_exported(token, entity)?;
+        Ok(entity)
     }
 
     fn resolve_type_entity(

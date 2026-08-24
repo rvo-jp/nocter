@@ -113,12 +113,7 @@ pub(super) fn finish(
     _allocated: AllocatedHeaders,
 ) -> Result<LoweredDeclarations, HeaderDefinitionError> {
     types.namespaces.define_program_namespaces()?;
-    let mut reserved = types.namespaces.imports.generics.headers.reserved;
-    for (expression, length) in types.array_lengths {
-        reserved
-            .source_index
-            .define_constant_array_length(expression, length);
-    }
+    let reserved = types.namespaces.imports.generics.headers.reserved;
     let (source_index, frontend_bindings) = reserved.source_index.finish();
     match reserved.program.finish() {
         Ok(program) => Ok(LoweredDeclarations::new(

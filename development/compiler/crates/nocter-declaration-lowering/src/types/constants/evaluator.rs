@@ -1,13 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
+use nocter_constant_evaluation::{
+    ConstantEvaluationError, ConstantEvaluationRule, ConstantExpressionPlan, ConstantPlanError,
+    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType,
+    evaluate_constant_plans, evaluate_expression_plan, plan_expression,
+};
 use nocter_declarations::ExportedEntity;
 use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
-use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxToken, SyntaxTree, TokenKind,
-    decode_plain_string_expression,
-};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
 
 use crate::{
     DefinitionRule, DefinitionViolation, HeaderDefinitionError, ReservedEntity,
@@ -16,108 +18,96 @@ use crate::{
 
 use super::super::{BoundTypeId, BoundTypeKind, PreparedConstantValue, PreparedTypeBindings};
 
-use super::support::{
-    direct_node, direct_nodes, direct_punctuation, direct_token, expression_children, integer_spec,
-    one_expression_child, parse_integer, shift,
-};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ScalarType {
-    Bool,
-    Integer(BuiltinType),
-    Text,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct TypedValue {
-    ty: ScalarType,
-    value: ConstantValue,
-}
-
 #[derive(Clone, Copy)]
-pub(super) struct ConstantSource {
-    pub(super) declaration: SurfaceDeclarationId,
-    pub(super) initializer: NodeId,
-    pub(super) ty: BoundTypeId,
+struct ConstantSource {
+    declaration: SurfaceDeclarationId,
+    initializer: NodeId,
+    ty: BoundTypeId,
 }
 
-pub(super) struct Evaluator<'a, 'syntax> {
-    pub(super) bindings: &'a PreparedTypeBindings<'syntax>,
-    pub(super) sources: HashMap<ConstantId, ConstantSource>,
-    values: HashMap<ConstantId, TypedValue>,
-    active: HashSet<ConstantId>,
-    source_ids: HashMap<SourceId, crate::SurfaceSourceId>,
-    pub(super) expression_types: HashMap<NodeId, ScalarType>,
-    pub(super) references: HashMap<NodeId, ConstantId>,
-    pub(super) dependencies: HashMap<ConstantId, Vec<(ConstantId, NodeId)>>,
-    pub(super) reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
+struct HeaderResolver<'a, 'syntax> {
+    bindings: &'a PreparedTypeBindings<'syntax>,
+    sources: &'a HashMap<ConstantId, ConstantSource>,
+    source_ids: &'a HashMap<SourceId, crate::SurfaceSourceId>,
+    references: HashMap<NodeId, ConstantReference>,
+    reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
 }
 
-/// Evaluates every header constant before structural type normalization.
+/// Plans and evaluates every header constant before structural type normalization.
 ///
-/// The resulting values are the sole constant-expression authority shared by declaration
-/// freezing and fixed-array normalization. Neither later phase reads initializer syntax again.
+/// The shared constant-evaluation crate owns expression typing, arithmetic, short-circuiting, and
+/// dependency cycles. This adapter owns only declaration namespaces, bound header types, and
+/// source projection.
 ///
 /// # Errors
 ///
-/// Returns the exact constant rule violation or an internal declaration-graph inconsistency.
+/// Returns a source-backed declaration rule or an internal header-contract failure when a bound
+/// name, type, source, or projection is inconsistent.
 pub fn evaluate(
     mut bindings: PreparedTypeBindings<'_>,
 ) -> Result<PreparedTypeBindings<'_>, HeaderDefinitionError> {
     let sources = collect_sources(&bindings)?;
-    let ids = sources.keys().copied().collect::<Vec<_>>();
-    let mut evaluator = Evaluator {
+    let source_ids = bindings
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            (
+                source.syntax().source(),
+                crate::SurfaceSourceId::from_index(index),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut resolver = HeaderResolver {
         bindings: &bindings,
-        sources,
-        values: HashMap::new(),
-        active: HashSet::new(),
-        source_ids: bindings
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .sources
-            .iter()
-            .enumerate()
-            .map(|(index, source)| {
-                (
-                    source.syntax().source(),
-                    crate::SurfaceSourceId::from_index(index),
-                )
-            })
-            .collect(),
-        expression_types: HashMap::new(),
+        sources: &sources,
+        source_ids: &source_ids,
         references: HashMap::new(),
-        dependencies: HashMap::new(),
         reference_projections: HashMap::new(),
     };
 
-    let array_expressions = collect_array_expressions(&bindings);
-    let usize_ty = ScalarType::Integer(BuiltinType::Usize);
-
-    for id in &ids {
-        evaluator.analyze_constant(*id)?;
-    }
-    for expression in &array_expressions {
-        evaluator.analyze_expression(*expression, Some(usize_ty), None)?;
-    }
-    evaluator.ensure_acyclic()?;
+    let mut plans = HashMap::<ConstantId, ConstantExpressionPlan>::new();
+    let mut ids = sources.keys().copied().collect::<Vec<_>>();
+    ids.sort_unstable();
     for id in ids {
-        evaluator.evaluate_constant(id)?;
+        let source = sources[&id];
+        let expected = resolver
+            .scalar_type(source.ty, &mut HashSet::new())
+            .ok_or_else(|| {
+                rule_at(
+                    DefinitionRule::InvalidConstantType,
+                    SyntaxOrigin::Node(source.initializer),
+                )
+            })?;
+        let (file, tree) = syntax_input(&bindings, &source_ids, source.initializer)?;
+        let plan = plan_expression(file, tree, source.initializer, expected, &mut resolver)
+            .map_err(|error| plan_error(&resolver, error))?;
+        plans.insert(id, plan);
     }
+    let values =
+        evaluate_constant_plans(&plans).map_err(|error| evaluation_error(&resolver, error))?;
 
-    let mut array_lengths = HashMap::with_capacity(array_expressions.len());
-    for expression in array_expressions {
-        let value = evaluator.evaluate_expression(expression, Some(usize_ty))?;
-        let ConstantValue::Integer(value) = value.value else {
-            return Err(Evaluator::rule_at(
+    let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
+    let mut array_lengths = HashMap::new();
+    for expression in collect_array_expressions(&bindings) {
+        let (file, tree) = syntax_input(&bindings, &source_ids, expression)?;
+        let plan = plan_expression(file, tree, expression, usize_ty, &mut resolver)
+            .map_err(|error| plan_error(&resolver, error))?;
+        let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
+            .map_err(|error| evaluation_error(&resolver, error))?;
+        let ConstantValue::Integer(value) = value else {
+            return Err(rule_at(
                 DefinitionRule::ConstantTypeMismatch,
                 SyntaxOrigin::Node(expression),
             ));
         };
         let length = u64::try_from(value).map_err(|_| {
-            Evaluator::rule_at(
+            rule_at(
                 DefinitionRule::ConstantArithmeticFailure,
                 SyntaxOrigin::Node(expression),
             )
@@ -125,69 +115,38 @@ pub fn evaluate(
         array_lengths.insert(expression, length);
     }
 
-    let Evaluator {
-        values,
-        sources,
-        reference_projections,
-        ..
-    } = evaluator;
-    let values = values
+    let constant_values = values
         .into_iter()
-        .map(|(id, typed)| {
-            let declaration = sources[&id].declaration;
+        .map(|(id, value)| {
             (
                 id,
                 PreparedConstantValue {
-                    declaration,
-                    value: typed.value,
+                    declaration: sources[&id].declaration,
+                    value,
                 },
             )
         })
         .collect();
-    project_references(&mut bindings, reference_projections)?;
-    bindings.constant_values = values;
+    let projections = std::mem::take(&mut resolver.reference_projections);
+    drop(resolver);
+    project_references(&mut bindings, projections)?;
+    bindings.constant_values = constant_values;
     bindings.array_lengths = array_lengths;
     Ok(bindings)
 }
 
 fn collect_array_expressions(bindings: &PreparedTypeBindings<'_>) -> Vec<NodeId> {
-    let reserved = &bindings.namespaces.imports.generics.headers.reserved;
-    let mut expressions = reserved
-        .sources
+    let mut expressions = bindings
+        .kinds
         .iter()
-        .flat_map(|source| {
-            let tree = source.syntax();
-            tree.nodes().filter_map(move |(node, syntax)| {
-                (syntax.kind() == NodeKind::FixedArrayType)
-                    .then(|| direct_node(tree, node, NodeKind::Expression))
-                    .flatten()
-            })
+        .filter_map(|kind| match kind {
+            BoundTypeKind::FixedArray { length, .. } => Some(*length),
+            _ => None,
         })
         .collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|node| (node.source(), node.index()));
     expressions.dedup();
     expressions
-}
-
-fn project_references(
-    bindings: &mut PreparedTypeBindings<'_>,
-    references: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
-) -> Result<(), HeaderDefinitionError> {
-    let mut references = references.into_iter().collect::<Vec<_>>();
-    references.sort_unstable_by_key(|(token, _)| {
-        (token.source(), token.range().start(), token.range().end())
-    });
-    for (_, (entity, origin)) in references {
-        bindings
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .source_index
-            .insert(semantic_entity(entity), SourceRole::Reference, origin)?;
-    }
-    Ok(())
 }
 
 fn collect_sources(
@@ -249,405 +208,63 @@ fn collect_sources(
     Ok(result)
 }
 
-impl Evaluator<'_, '_> {
-    fn evaluate_constant(&mut self, id: ConstantId) -> Result<TypedValue, HeaderDefinitionError> {
-        if let Some(value) = self.values.get(&id) {
-            return Ok(value.clone());
+impl ConstantResolver for HeaderResolver<'_, '_> {
+    type Error = HeaderDefinitionError;
+
+    fn resolve_constant(&mut self, node: NodeId) -> Result<ConstantReference, Self::Error> {
+        if let Some(reference) = self.references.get(&node) {
+            return Ok(*reference);
         }
-        let source = self
-            .sources
-            .get(&id)
-            .copied()
-            .ok_or_else(|| self.rule(DefinitionRule::NonConstantExpression, id))?;
-        let expected = self
+        let mut projections = Vec::new();
+        let ExportedEntity::Constant(id) = self.resolve_entity(node, &mut projections)? else {
+            return Err(rule_at(
+                DefinitionRule::NonConstantExpression,
+                SyntaxOrigin::Node(node),
+            ));
+        };
+        let source = self.sources.get(&id).ok_or_else(|| self.internal(node))?;
+        let ty = self
             .scalar_type(source.ty, &mut HashSet::new())
             .ok_or_else(|| {
-                Self::rule_at(
+                rule_at(
                     DefinitionRule::InvalidConstantType,
-                    SyntaxOrigin::Node(source.initializer),
+                    SyntaxOrigin::Node(node),
                 )
             })?;
-        if !self.active.insert(id) {
-            return Err(self.rule(DefinitionRule::ConstantCycle, id));
+        for (token, entity) in projections {
+            let origin = SourceOrigin::from_token(self.tree(node)?, token)
+                .map_err(|_| HeaderDefinitionError::InconsistentSource(token.source()))?;
+            if self
+                .reference_projections
+                .insert(token, (entity, origin))
+                .is_some_and(|(existing, _)| existing != entity)
+            {
+                return Err(self.internal(node));
+            }
         }
-        let value = self.evaluate_expression(source.initializer, Some(expected));
-        self.active.remove(&id);
-        let value = value?;
-        if value.ty != expected {
-            return Err(Self::rule_at(
-                DefinitionRule::ConstantTypeMismatch,
-                SyntaxOrigin::Node(source.initializer),
-            ));
-        }
-        self.values.insert(id, value.clone());
-        Ok(value)
+        let reference = ConstantReference::new(id, ty);
+        self.references.insert(node, reference);
+        Ok(reference)
     }
 
-    fn evaluate_expression(
-        &mut self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let planned = self
-            .expression_types
-            .get(&node)
-            .copied()
-            .ok_or_else(|| self.internal(node))?;
-        if expected.is_some_and(|expected| expected != planned) {
-            return Err(Self::mismatch_node(node));
-        }
-        let expected = Some(planned);
-        let tree = self.tree(node)?;
-        let kind = tree
-            .node(node)
-            .map(nocter_syntax::SyntaxNode::kind)
-            .ok_or_else(|| self.internal(node))?;
-        match kind {
-            NodeKind::Expression | NodeKind::GroupedExpression => {
-                let child = one_expression_child(tree, node).ok_or_else(|| {
-                    Self::rule_at(
-                        DefinitionRule::NonConstantExpression,
-                        SyntaxOrigin::Node(node),
-                    )
-                })?;
-                self.evaluate_expression(child, expected)
-            }
-            NodeKind::ScalarLiteral => self.evaluate_scalar(node, expected),
-            NodeKind::StringExpression => self.evaluate_text(node, expected),
-            NodeKind::ReferenceExpression | NodeKind::PostfixExpression => {
-                let id = self
-                    .references
-                    .get(&node)
-                    .copied()
-                    .ok_or_else(|| self.internal(node))?;
-                let value = self.evaluate_constant(id)?;
-                if expected.is_some_and(|expected| expected != value.ty) {
-                    return Err(Self::rule_at(
-                        DefinitionRule::ConstantTypeMismatch,
-                        SyntaxOrigin::Node(node),
-                    ));
-                }
-                Ok(value)
-            }
-            NodeKind::UnaryExpression => self.evaluate_unary(node, expected),
-            NodeKind::LogicalAndExpression
-            | NodeKind::LogicalOrExpression
-            | NodeKind::EqualityExpression
-            | NodeKind::OrderingExpression
-            | NodeKind::ShiftExpression
-            | NodeKind::AdditiveExpression
-            | NodeKind::MultiplicativeExpression => self.evaluate_binary(node, expected),
-            NodeKind::ConversionExpression => self.evaluate_conversion(node, expected),
-            _ => Err(Self::rule_at(
-                DefinitionRule::NonConstantExpression,
-                SyntaxOrigin::Node(node),
-            )),
-        }
-    }
-
-    fn evaluate_scalar(
-        &self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let tree = self.tree(node)?;
-        let token = direct_token(tree, node).ok_or_else(|| self.internal(node))?;
-        match token.kind() {
-            TokenKind::Keyword(Keyword::True | Keyword::False) => {
-                if expected.is_some_and(|expected| expected != ScalarType::Bool) {
-                    return Err(Self::mismatch(token));
-                }
-                Ok(TypedValue {
-                    ty: ScalarType::Bool,
-                    value: ConstantValue::Bool(token.kind() == TokenKind::Keyword(Keyword::True)),
-                })
-            }
-            TokenKind::IntegerLiteral => {
-                let ty = expected.unwrap_or(ScalarType::Integer(BuiltinType::I32));
-                let ScalarType::Integer(builtin) = ty else {
-                    return Err(Self::mismatch(token));
-                };
-                let value = i128::from(
-                    parse_integer(self.token_text(token)?)
-                        .ok_or_else(|| Self::arithmetic(SyntaxOrigin::Token(token)))?,
-                );
-                if !integer_spec(builtin).is_some_and(|spec| spec.contains(value)) {
-                    return Err(Self::arithmetic(SyntaxOrigin::Token(token)));
-                }
-                Ok(TypedValue {
-                    ty,
-                    value: ConstantValue::Integer(value),
-                })
-            }
-            _ => Err(Self::rule_at(
-                DefinitionRule::NonConstantExpression,
-                SyntaxOrigin::Token(token),
-            )),
-        }
-    }
-
-    fn evaluate_text(
-        &self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        if expected.is_some_and(|expected| expected != ScalarType::Text) {
-            return Err(Self::rule_at(
-                DefinitionRule::ConstantTypeMismatch,
-                SyntaxOrigin::Node(node),
-            ));
-        }
-        let tree = self.tree(node)?;
-        let source = self
-            .bindings
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .source_map
-            .get(node.source())
-            .ok_or(HeaderDefinitionError::InconsistentSource(node.source()))?;
-        let text = decode_plain_string_expression(source, tree, node).ok_or_else(|| {
-            Self::rule_at(
-                DefinitionRule::NonConstantExpression,
-                SyntaxOrigin::Node(node),
-            )
-        })?;
-        Ok(TypedValue {
-            ty: ScalarType::Text,
-            value: ConstantValue::Text(text),
-        })
-    }
-
-    fn evaluate_unary(
-        &mut self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let tree = self.tree(node)?;
-        let operator = direct_punctuation(tree, node).ok_or_else(|| self.internal(node))?;
-        let operand = one_expression_child(tree, node).ok_or_else(|| self.internal(node))?;
-        match operator {
-            Punctuation::Bang => {
-                if expected.is_some_and(|expected| expected != ScalarType::Bool) {
-                    return Err(Self::mismatch_node(node));
-                }
-                let value = self.evaluate_expression(operand, Some(ScalarType::Bool))?;
-                let ConstantValue::Bool(value) = value.value else {
-                    return Err(Self::mismatch_node(node));
-                };
-                Ok(TypedValue {
-                    ty: ScalarType::Bool,
-                    value: ConstantValue::Bool(!value),
-                })
-            }
-            Punctuation::Minus => {
-                let ty = expected.unwrap_or(ScalarType::Integer(BuiltinType::I32));
-                let ScalarType::Integer(builtin) = ty else {
-                    return Err(Self::mismatch_node(node));
-                };
-                let Some(spec) = integer_spec(builtin).filter(|spec| spec.signed) else {
-                    return Err(Self::mismatch_node(node));
-                };
-                let value = if let Some(magnitude) = self.integer_literal(operand)? {
-                    let maximum_magnitude = spec.maximum + 1;
-                    if i128::from(magnitude) > maximum_magnitude {
-                        return Err(Self::arithmetic(SyntaxOrigin::Node(node)));
-                    }
-                    -i128::from(magnitude)
-                } else {
-                    let value = self.evaluate_expression(operand, Some(ty))?;
-                    let ConstantValue::Integer(value) = value.value else {
-                        return Err(Self::mismatch_node(node));
-                    };
-                    value
-                        .checked_neg()
-                        .ok_or_else(|| Self::arithmetic(SyntaxOrigin::Node(node)))?
-                };
-                if !spec.contains(value) {
-                    return Err(Self::arithmetic(SyntaxOrigin::Node(node)));
-                }
-                Ok(TypedValue {
-                    ty,
-                    value: ConstantValue::Integer(value),
-                })
-            }
-            _ => Err(Self::rule_at(
-                DefinitionRule::NonConstantExpression,
-                SyntaxOrigin::Node(node),
-            )),
-        }
-    }
-
-    fn evaluate_binary(
-        &mut self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let tree = self.tree(node)?;
-        let operands = expression_children(tree, node);
-        if operands.len() != 2 {
-            return Err(self.internal(node));
-        }
-        let operator = direct_punctuation(tree, node).ok_or_else(|| self.internal(node))?;
-        match operator {
-            Punctuation::LogicalAnd | Punctuation::LogicalOr => {
-                if expected.is_some_and(|expected| expected != ScalarType::Bool) {
-                    return Err(Self::mismatch_node(node));
-                }
-                let left = self.evaluate_expression(operands[0], Some(ScalarType::Bool))?;
-                let ConstantValue::Bool(left) = left.value else {
-                    return Err(Self::mismatch_node(node));
-                };
-                let value = if operator == Punctuation::LogicalAnd {
-                    left && self.boolean_expression(operands[1])?
-                } else {
-                    left || self.boolean_expression(operands[1])?
-                };
-                Ok(TypedValue {
-                    ty: ScalarType::Bool,
-                    value: ConstantValue::Bool(value),
-                })
-            }
-            Punctuation::EqualEqual | Punctuation::BangEqual => {
-                if expected.is_some_and(|expected| expected != ScalarType::Bool) {
-                    return Err(Self::mismatch_node(node));
-                }
-                let left = self.evaluate_expression(operands[0], None)?;
-                let right = self.evaluate_expression(operands[1], Some(left.ty))?;
-                let equal = left.value == right.value;
-                Ok(TypedValue {
-                    ty: ScalarType::Bool,
-                    value: ConstantValue::Bool(if operator == Punctuation::EqualEqual {
-                        equal
-                    } else {
-                        !equal
-                    }),
-                })
-            }
-            Punctuation::Less
-            | Punctuation::LessEqual
-            | Punctuation::Greater
-            | Punctuation::GreaterEqual => {
-                if expected.is_some_and(|expected| expected != ScalarType::Bool) {
-                    return Err(Self::mismatch_node(node));
-                }
-                let left = self.evaluate_expression(operands[0], None)?;
-                let right = self.evaluate_expression(operands[1], Some(left.ty))?;
-                let (ConstantValue::Integer(left), ConstantValue::Integer(right)) =
-                    (left.value, right.value)
-                else {
-                    return Err(Self::mismatch_node(node));
-                };
-                let value = match operator {
-                    Punctuation::Less => left < right,
-                    Punctuation::LessEqual => left <= right,
-                    Punctuation::Greater => left > right,
-                    Punctuation::GreaterEqual => left >= right,
-                    _ => unreachable!(),
-                };
-                Ok(TypedValue {
-                    ty: ScalarType::Bool,
-                    value: ConstantValue::Bool(value),
-                })
-            }
-            _ => self.evaluate_integer_binary(node, operands[0], operands[1], operator, expected),
-        }
-    }
-
-    fn evaluate_integer_binary(
-        &mut self,
-        node: NodeId,
-        left_node: NodeId,
-        right_node: NodeId,
-        operator: Punctuation,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let left = self.evaluate_expression(left_node, expected)?;
-        let ScalarType::Integer(builtin) = left.ty else {
-            return Err(Self::mismatch_node(node));
+    fn resolve_type(&mut self, node: NodeId) -> Result<Option<ConstantScalarType>, Self::Error> {
+        let Some(bound) = self.bindings.roots.get(&node).copied() else {
+            return Err(HeaderDefinitionError::MissingType(node));
         };
-        let spec = integer_spec(builtin).ok_or_else(|| Self::mismatch_node(node))?;
-        let right = self.evaluate_expression(right_node, Some(left.ty))?;
-        let (ConstantValue::Integer(left_value), ConstantValue::Integer(right_value)) =
-            (left.value, right.value)
-        else {
-            return Err(Self::mismatch_node(node));
-        };
-        let result = match operator {
-            Punctuation::Plus => left_value.checked_add(right_value),
-            Punctuation::Minus => left_value.checked_sub(right_value),
-            Punctuation::Star => left_value.checked_mul(right_value),
-            Punctuation::Slash => left_value.checked_div(right_value),
-            Punctuation::Percent => left_value.checked_rem(right_value),
-            Punctuation::ShiftLeft | Punctuation::ShiftRight => {
-                shift(left_value, right_value, operator, spec)
-            }
-            _ => None,
-        }
-        .filter(|value| spec.contains(*value))
-        .ok_or_else(|| Self::arithmetic(SyntaxOrigin::Node(node)))?;
-        Ok(TypedValue {
-            ty: left.ty,
-            value: ConstantValue::Integer(result),
-        })
+        Ok(self.scalar_type(bound, &mut HashSet::new()))
     }
+}
 
-    fn evaluate_conversion(
-        &mut self,
-        node: NodeId,
-        expected: Option<ScalarType>,
-    ) -> Result<TypedValue, HeaderDefinitionError> {
-        let tree = self.tree(node)?;
-        let operand = one_expression_child(tree, node).ok_or_else(|| self.internal(node))?;
-        let ty_node = direct_node(tree, node, NodeKind::Type)
-            .ok_or(HeaderDefinitionError::MissingType(node))?;
-        let bound = self
-            .bindings
-            .roots
-            .get(&ty_node)
-            .copied()
-            .ok_or(HeaderDefinitionError::MissingType(ty_node))?;
-        let target = self
-            .scalar_type(bound, &mut HashSet::new())
-            .ok_or_else(|| Self::non_constant(node))?;
-        let ScalarType::Integer(target_builtin) = target else {
-            return Err(Self::non_constant(node));
-        };
-        if expected.is_some_and(|expected| expected != target) {
-            return Err(Self::mismatch_node(node));
-        }
-        let value = self.evaluate_expression(operand, None)?;
-        let ConstantValue::Integer(value) = value.value else {
-            return Err(Self::non_constant(node));
-        };
-        if !integer_spec(target_builtin).is_some_and(|spec| spec.contains(value)) {
-            return Err(Self::arithmetic(SyntaxOrigin::Node(node)));
-        }
-        Ok(TypedValue {
-            ty: target,
-            value: ConstantValue::Integer(value),
-        })
-    }
-
-    fn boolean_expression(&mut self, node: NodeId) -> Result<bool, HeaderDefinitionError> {
-        let value = self.evaluate_expression(node, Some(ScalarType::Bool))?;
-        let ConstantValue::Bool(value) = value.value else {
-            return Err(Self::mismatch_node(node));
-        };
-        Ok(value)
-    }
-
-    pub(super) fn scalar_type(
+impl HeaderResolver<'_, '_> {
+    fn scalar_type(
         &self,
         ty: BoundTypeId,
         active_aliases: &mut HashSet<nocter_model::TypeAliasId>,
-    ) -> Option<ScalarType> {
+    ) -> Option<ConstantScalarType> {
         match self.bindings.kinds.get(ty.index())? {
-            BoundTypeKind::Builtin(BuiltinType::Bool) => Some(ScalarType::Bool),
-            BoundTypeKind::Builtin(builtin) if integer_spec(*builtin).is_some() => {
-                Some(ScalarType::Integer(*builtin))
+            BoundTypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
+            BoundTypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
+                Some(ConstantScalarType::Integer(*builtin))
             }
             BoundTypeKind::Borrow {
                 capability: BorrowCapability::Readonly,
@@ -657,7 +274,7 @@ impl Evaluator<'_, '_> {
                 Some(BoundTypeKind::Builtin(BuiltinType::Str))
             ) =>
             {
-                Some(ScalarType::Text)
+                Some(ConstantScalarType::Text)
             }
             BoundTypeKind::Alias {
                 definition,
@@ -672,7 +289,7 @@ impl Evaluator<'_, '_> {
         }
     }
 
-    pub(super) fn resolve_entity(
+    fn resolve_entity(
         &self,
         node: NodeId,
         projections: &mut Vec<(SyntaxToken, ExportedEntity)>,
@@ -687,7 +304,7 @@ impl Evaluator<'_, '_> {
                     .bindings
                     .namespaces
                     .lookup_local(source, symbol)
-                    .ok_or_else(|| Self::non_constant(node))?;
+                    .ok_or_else(|| non_constant(node))?;
                 projections.push((token, entity));
                 Ok(entity)
             }
@@ -697,30 +314,28 @@ impl Evaluator<'_, '_> {
                     || tree.node(nodes[1]).map(nocter_syntax::SyntaxNode::kind)
                         != Some(NodeKind::MemberSuffix)
                 {
-                    return Err(Self::non_constant(node));
+                    return Err(non_constant(node));
                 }
                 let ExportedEntity::Module(module) = self.resolve_entity(nodes[0], projections)?
                 else {
-                    return Err(Self::non_constant(node));
+                    return Err(non_constant(node));
                 };
                 let token = direct_token(tree, nodes[1])
                     .filter(|token| token.kind() == TokenKind::Identifier)
                     .ok_or_else(|| self.internal(node))?;
-                let symbol = self.symbol(token)?;
-                let from = self.current_module(node)?;
                 let entity = self
                     .bindings
                     .namespaces
-                    .lookup_export(from, module, symbol)
-                    .ok_or_else(|| Self::non_constant(node))?;
+                    .lookup_export(self.current_module(node)?, module, self.symbol(token)?)
+                    .ok_or_else(|| non_constant(node))?;
                 projections.push((token, entity));
                 Ok(entity)
             }
-            _ => Err(Self::non_constant(node)),
+            _ => Err(non_constant(node)),
         }
     }
 
-    pub(super) fn tree(&self, node: NodeId) -> Result<&SyntaxTree, HeaderDefinitionError> {
+    fn tree(&self, node: NodeId) -> Result<&SyntaxTree, HeaderDefinitionError> {
         let reserved = &self.bindings.namespaces.imports.generics.headers.reserved;
         self.source_ids
             .get(&node.source())
@@ -740,14 +355,13 @@ impl Evaluator<'_, '_> {
     }
 
     fn current_module(&self, node: NodeId) -> Result<ModuleId, HeaderDefinitionError> {
-        let source = self.surface_source(node)?;
         self.bindings
             .namespaces
             .imports
             .generics
             .headers
             .reserved
-            .module_for_source(source)
+            .module_for_source(self.surface_source(node)?)
             .ok_or_else(|| self.internal(node))
     }
 
@@ -776,79 +390,14 @@ impl Evaluator<'_, '_> {
             .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))
     }
 
-    fn integer_literal(&self, node: NodeId) -> Result<Option<u64>, HeaderDefinitionError> {
-        let tree = self.tree(node)?;
-        let node = if tree.node(node).is_some_and(|node| {
-            matches!(
-                node.kind(),
-                NodeKind::Expression | NodeKind::GroupedExpression
-            )
-        }) {
-            let Some(child) = one_expression_child(tree, node) else {
-                return Ok(None);
-            };
-            child
-        } else {
-            node
-        };
-        if tree
-            .node(node)
-            .is_none_or(|node| node.kind() != NodeKind::ScalarLiteral)
-        {
-            return Ok(None);
-        }
-        let Some(token) =
-            direct_token(tree, node).filter(|token| token.kind() == TokenKind::IntegerLiteral)
-        else {
-            return Ok(None);
-        };
-        Ok(parse_integer(self.token_text(token)?))
-    }
-
-    pub(super) fn rule(&self, rule: DefinitionRule, id: ConstantId) -> HeaderDefinitionError {
-        Self::rule_at(rule, SyntaxOrigin::Node(self.sources[&id].initializer))
-    }
-
-    pub(super) const fn rule_at(
-        rule: DefinitionRule,
-        origin: SyntaxOrigin,
-    ) -> HeaderDefinitionError {
-        HeaderDefinitionError::Rule(DefinitionViolation::new(rule, origin))
-    }
-
-    pub(super) const fn non_constant(node: NodeId) -> HeaderDefinitionError {
-        Self::rule_at(
-            DefinitionRule::NonConstantExpression,
-            SyntaxOrigin::Node(node),
-        )
-    }
-
-    const fn arithmetic(origin: SyntaxOrigin) -> HeaderDefinitionError {
-        Self::rule_at(DefinitionRule::ConstantArithmeticFailure, origin)
-    }
-
-    const fn mismatch(token: SyntaxToken) -> HeaderDefinitionError {
-        Self::rule_at(
-            DefinitionRule::ConstantTypeMismatch,
-            SyntaxOrigin::Token(token),
-        )
-    }
-
-    pub(super) const fn mismatch_node(node: NodeId) -> HeaderDefinitionError {
-        Self::rule_at(
-            DefinitionRule::ConstantTypeMismatch,
-            SyntaxOrigin::Node(node),
-        )
-    }
-
-    pub(super) fn internal(&self, node: NodeId) -> HeaderDefinitionError {
+    fn internal(&self, node: NodeId) -> HeaderDefinitionError {
         self.declaration_for_source(node.source()).map_or(
             HeaderDefinitionError::InconsistentSource(node.source()),
             HeaderDefinitionError::InvalidSurface,
         )
     }
 
-    pub(super) fn internal_token(&self, token: SyntaxToken) -> HeaderDefinitionError {
+    fn internal_token(&self, token: SyntaxToken) -> HeaderDefinitionError {
         self.declaration_for_source(token.source()).map_or(
             HeaderDefinitionError::InconsistentSource(token.source()),
             HeaderDefinitionError::InvalidSurface,
@@ -868,6 +417,141 @@ impl Evaluator<'_, '_> {
             })
             .map(SurfaceDeclarationId::from_index)
     }
+}
+
+fn syntax_input<'a>(
+    bindings: &'a PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
+    node: NodeId,
+) -> Result<(&'a nocter_source::SourceFile, &'a SyntaxTree), HeaderDefinitionError> {
+    let reserved = &bindings.namespaces.imports.generics.headers.reserved;
+    let file = reserved
+        .source_map
+        .get(node.source())
+        .ok_or(HeaderDefinitionError::InconsistentSource(node.source()))?;
+    let tree = source_ids
+        .get(&node.source())
+        .and_then(|source| reserved.sources.get(source.index()))
+        .map(crate::SurfaceSource::syntax)
+        .ok_or(HeaderDefinitionError::InconsistentSource(node.source()))?;
+    Ok((file, tree))
+}
+
+fn plan_error(
+    resolver: &HeaderResolver<'_, '_>,
+    error: ConstantPlanError<HeaderDefinitionError>,
+) -> HeaderDefinitionError {
+    match error {
+        ConstantPlanError::Context(error) => error,
+        ConstantPlanError::Rule { rule, origin } => rule_at(
+            match rule {
+                ConstantPlanRule::NonConstantExpression => DefinitionRule::NonConstantExpression,
+                ConstantPlanRule::TypeMismatch => DefinitionRule::ConstantTypeMismatch,
+            },
+            origin,
+        ),
+        ConstantPlanError::InvalidSyntax(node) => resolver.internal(node),
+    }
+}
+
+fn evaluation_error(
+    resolver: &HeaderResolver<'_, '_>,
+    error: ConstantEvaluationError,
+) -> HeaderDefinitionError {
+    match error.rule() {
+        ConstantEvaluationRule::ArithmeticFailure => {
+            rule_at(DefinitionRule::ConstantArithmeticFailure, error.origin())
+        }
+        ConstantEvaluationRule::DependencyCycle => {
+            rule_at(DefinitionRule::ConstantCycle, error.origin())
+        }
+        ConstantEvaluationRule::MissingConstant | ConstantEvaluationRule::InvalidPlan => {
+            match error.origin() {
+                SyntaxOrigin::Node(node) => resolver.internal(node),
+                SyntaxOrigin::Token(token) => resolver.internal_token(token),
+            }
+        }
+    }
+}
+
+fn project_references(
+    bindings: &mut PreparedTypeBindings<'_>,
+    references: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
+) -> Result<(), HeaderDefinitionError> {
+    let mut references = references.into_iter().collect::<Vec<_>>();
+    references.sort_unstable_by_key(|(token, _)| {
+        (token.source(), token.range().start(), token.range().end())
+    });
+    for (_, (entity, origin)) in references {
+        bindings
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .source_index
+            .insert(semantic_entity(entity), SourceRole::Reference, origin)?;
+    }
+    Ok(())
+}
+
+const fn rule_at(rule: DefinitionRule, origin: SyntaxOrigin) -> HeaderDefinitionError {
+    HeaderDefinitionError::Rule(DefinitionViolation::new(rule, origin))
+}
+
+const fn non_constant(node: NodeId) -> HeaderDefinitionError {
+    rule_at(
+        DefinitionRule::NonConstantExpression,
+        SyntaxOrigin::Node(node),
+    )
+}
+
+const fn integer_builtin(builtin: BuiltinType) -> bool {
+    matches!(
+        builtin,
+        BuiltinType::I8
+            | BuiltinType::I16
+            | BuiltinType::I32
+            | BuiltinType::I64
+            | BuiltinType::Isize
+            | BuiltinType::U8
+            | BuiltinType::U16
+            | BuiltinType::U32
+            | BuiltinType::U64
+            | BuiltinType::Usize
+    )
+}
+
+fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
+    tree.children(node)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Node(child)
+                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
+            {
+                Some(*child)
+            }
+            _ => None,
+        })
+}
+
+fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
+    tree.children(node)
+        .iter()
+        .filter_map(|element| match element {
+            SyntaxElement::Node(node) => Some(*node),
+            _ => None,
+        })
+        .collect()
+}
+
+fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
+    tree.children(node)
+        .iter()
+        .find_map(|element| match element {
+            SyntaxElement::Token(token) => Some(*token),
+            _ => None,
+        })
 }
 
 const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {

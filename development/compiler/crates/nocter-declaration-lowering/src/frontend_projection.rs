@@ -108,11 +108,6 @@ impl FrontendProjectionBuilder {
             .define_nominal_representation_source(nominal, source, contract_private);
     }
 
-    pub(crate) fn define_constant_array_length(&mut self, expression: NodeId, length: u64) {
-        self.bindings
-            .define_constant_array_length(expression, length);
-    }
-
     pub(crate) fn insert_documentation(
         &mut self,
         entity: SemanticEntity,
