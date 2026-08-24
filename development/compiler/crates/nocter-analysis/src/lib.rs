@@ -10,7 +10,8 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
 use nocter_session::{
-    CompileSessionError, CompiledTarget, analyze_incomplete_syntax, analyze_target,
+    CompileSessionError, CompiledTarget, SemanticAnalysis, analyze_incomplete_syntax,
+    analyze_target,
 };
 use nocter_source::SourceMap;
 use nocter_source_index::SourceIndex;
@@ -78,19 +79,61 @@ pub enum AnalysisStatus {
 #[derive(Debug)]
 enum AnalysisState {
     DiscoveryFailed(DiscoveryFailure),
-    SyntaxFailed {
-        unit: DiscoveredUnit,
-        recovery: Option<Box<nocter_checking::SemanticAnalysisRecovery>>,
-    },
-    CompilationFailed {
+    Current(CurrentAnalysis),
+}
+
+#[derive(Debug)]
+struct CurrentAnalysis {
+    unit: Box<DiscoveredUnit>,
+    failure: Option<CurrentAnalysisFailure>,
+    authority: CurrentSemanticAuthority,
+}
+
+#[derive(Debug)]
+enum CurrentAnalysisFailure {
+    Syntax,
+    Compilation(CompileSessionError),
+}
+
+#[derive(Debug)]
+enum CurrentSemanticAuthority {
+    None,
+    Semantic(Box<SemanticAnalysis>),
+    Target(Box<CompiledTarget>),
+}
+
+impl CurrentAnalysis {
+    fn syntax(unit: DiscoveredUnit, semantic: Option<SemanticAnalysis>) -> Self {
+        Self {
+            unit: Box::new(unit),
+            failure: Some(CurrentAnalysisFailure::Syntax),
+            authority: semantic.map_or(CurrentSemanticAuthority::None, |semantic| {
+                CurrentSemanticAuthority::Semantic(Box::new(semantic))
+            }),
+        }
+    }
+
+    fn compilation(
         unit: DiscoveredUnit,
         error: CompileSessionError,
-        recovery: Option<Box<nocter_checking::SemanticAnalysisRecovery>>,
-    },
-    Complete {
-        unit: DiscoveredUnit,
-        target: Box<CompiledTarget>,
-    },
+        semantic: Option<SemanticAnalysis>,
+    ) -> Self {
+        Self {
+            unit: Box::new(unit),
+            failure: Some(CurrentAnalysisFailure::Compilation(error)),
+            authority: semantic.map_or(CurrentSemanticAuthority::None, |semantic| {
+                CurrentSemanticAuthority::Semantic(Box::new(semantic))
+            }),
+        }
+    }
+
+    fn complete(unit: DiscoveredUnit, target: CompiledTarget) -> Self {
+        Self {
+            unit: Box::new(unit),
+            failure: None,
+            authority: CurrentSemanticAuthority::Target(Box::new(target)),
+        }
+    }
 }
 
 /// One immutable generation shared by diagnostics and every semantic query.
@@ -102,20 +145,9 @@ pub struct AnalysisSnapshot {
 }
 
 impl AnalysisSnapshot {
-    fn discovered_unit(&self) -> Option<&DiscoveredUnit> {
-        match &self.state {
-            AnalysisState::Complete { unit, .. } => Some(unit),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::CompilationFailed { .. } => None,
-        }
-    }
-
     fn current_unit(&self) -> Option<&DiscoveredUnit> {
         match &self.state {
-            AnalysisState::SyntaxFailed { unit, .. }
-            | AnalysisState::CompilationFailed { unit, .. }
-            | AnalysisState::Complete { unit, .. } => Some(unit),
+            AnalysisState::Current(analysis) => Some(&analysis.unit),
             AnalysisState::DiscoveryFailed(_) => None,
         }
     }
@@ -134,28 +166,21 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
-            let recovery = analyze_incomplete_syntax(&unit)
-                .map(|recovery| {
-                    nocter_checking::SemanticAnalysisRecovery::Bodies(Box::new(recovery))
-                })
-                .map(Box::new);
+            let semantic = analyze_incomplete_syntax(&unit);
             return Self {
                 generation,
                 diagnostics: unit.syntax_diagnostics(),
-                state: AnalysisState::SyntaxFailed { unit, recovery },
+                state: AnalysisState::Current(CurrentAnalysis::syntax(unit, semantic)),
             };
         }
         match analyze_target(&unit) {
             Ok(target) => Self {
                 generation,
                 diagnostics: Box::new([]),
-                state: AnalysisState::Complete {
-                    unit,
-                    target: Box::new(target),
-                },
+                state: AnalysisState::Current(CurrentAnalysis::complete(unit, target)),
             },
             Err(failure) => {
-                let (error, recovery) = (*failure).into_parts();
+                let (error, semantic) = (*failure).into_parts();
                 let diagnostics = error
                     .source_diagnostic()
                     .cloned()
@@ -165,11 +190,9 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics,
-                    state: AnalysisState::CompilationFailed {
-                        unit,
-                        error,
-                        recovery: recovery.map(Box::new),
-                    },
+                    state: AnalysisState::Current(CurrentAnalysis::compilation(
+                        unit, error, semantic,
+                    )),
                 }
             }
         }
@@ -184,10 +207,30 @@ impl AnalysisSnapshot {
     pub const fn status(&self) -> AnalysisStatus {
         match self.state {
             AnalysisState::DiscoveryFailed(_) => AnalysisStatus::DiscoveryFailed,
-            AnalysisState::SyntaxFailed { .. } => AnalysisStatus::SyntaxFailed,
-            AnalysisState::CompilationFailed { .. } => AnalysisStatus::CompilationFailed,
-            AnalysisState::Complete { .. } => AnalysisStatus::Complete,
+            AnalysisState::Current(CurrentAnalysis {
+                failure: Some(CurrentAnalysisFailure::Syntax),
+                ..
+            }) => AnalysisStatus::SyntaxFailed,
+            AnalysisState::Current(CurrentAnalysis {
+                failure: Some(CurrentAnalysisFailure::Compilation(_)),
+                ..
+            }) => AnalysisStatus::CompilationFailed,
+            AnalysisState::Current(CurrentAnalysis { failure: None, .. }) => {
+                AnalysisStatus::Complete
+            }
         }
+    }
+
+    /// Reports whether source semantics completed through type and body checking.
+    ///
+    /// Target construction may still have failed for an independent toolchain or ABI reason.
+    /// Semantic mutation validation uses this capability instead of conflating it with executable
+    /// target availability.
+    #[must_use]
+    pub fn has_checked_semantics(&self) -> bool {
+        self.semantic_authority()
+            .and_then(|authority| authority.checked())
+            .is_some()
     }
 
     #[must_use]
@@ -199,9 +242,7 @@ impl AnalysisSnapshot {
     pub const fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.source_overlay(),
-            AnalysisState::SyntaxFailed { unit, .. }
-            | AnalysisState::CompilationFailed { unit, .. }
-            | AnalysisState::Complete { unit, .. } => unit.source_overlay(),
+            AnalysisState::Current(analysis) => analysis.unit.source_overlay(),
         }
     }
 
@@ -216,9 +257,7 @@ impl AnalysisSnapshot {
     pub const fn sources(&self) -> &SourceMap {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.sources(),
-            AnalysisState::SyntaxFailed { unit, .. }
-            | AnalysisState::CompilationFailed { unit, .. }
-            | AnalysisState::Complete { unit, .. } => unit.sources(),
+            AnalysisState::Current(analysis) => analysis.unit.sources(),
         }
     }
 
@@ -226,74 +265,51 @@ impl AnalysisSnapshot {
     pub fn syntax_trees(&self) -> &[SyntaxTree] {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.syntax_trees(),
-            AnalysisState::SyntaxFailed { unit, .. }
-            | AnalysisState::CompilationFailed { unit, .. }
-            | AnalysisState::Complete { unit, .. } => unit.syntax_trees(),
+            AnalysisState::Current(analysis) => analysis.unit.syntax_trees(),
         }
     }
 
     #[must_use]
     pub const fn source_index(&self) -> Option<&SourceIndex> {
         match &self.state {
-            AnalysisState::Complete { target, .. } => Some(target.source_index()),
+            AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::Target(target),
+                ..
+            }) => Some(target.source_index()),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::CompilationFailed { .. } => None,
+            | AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Semantic(_),
+                ..
+            }) => None,
         }
     }
 
     #[must_use]
     pub const fn target(&self) -> Option<&CompiledTarget> {
         match &self.state {
-            AnalysisState::Complete { target, .. } => Some(target),
+            AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::Target(target),
+                ..
+            }) => Some(target),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::CompilationFailed { .. } => None,
+            | AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Semantic(_),
+                ..
+            }) => None,
         }
     }
 
-    pub(crate) fn prepared_semantics(&self) -> Option<&nocter_checking::PreparedSemanticProgram> {
+    pub(crate) fn retained_semantic(&self) -> Option<&SemanticAnalysis> {
         match &self.state {
-            AnalysisState::SyntaxFailed { recovery, .. }
-            | AnalysisState::CompilationFailed { recovery, .. } => recovery
-                .as_deref()
-                .and_then(nocter_checking::SemanticAnalysisRecovery::bodies)
-                .map(nocter_checking::BodyAnalysisRecovery::prepared),
-            AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
-        }
-    }
-
-    pub(crate) fn body_recovery(&self) -> Option<&nocter_checking::BodyAnalysisRecovery> {
-        match &self.state {
-            AnalysisState::SyntaxFailed { recovery, .. }
-            | AnalysisState::CompilationFailed { recovery, .. } => recovery
-                .as_deref()
-                .and_then(nocter_checking::SemanticAnalysisRecovery::bodies),
-            AnalysisState::DiscoveryFailed(_) | AnalysisState::Complete { .. } => None,
-        }
-    }
-
-    pub(crate) fn name_recovery(&self) -> Option<&nocter_checking::NameAnalysisRecovery> {
-        match &self.state {
-            AnalysisState::CompilationFailed { recovery, .. } => recovery
-                .as_deref()
-                .and_then(nocter_checking::SemanticAnalysisRecovery::names),
+            AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::Semantic(semantic),
+                ..
+            }) => Some(semantic),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::Complete { .. } => None,
-        }
-    }
-
-    pub(crate) fn declaration_recovery(
-        &self,
-    ) -> Option<&nocter_checking::DeclarationAnalysisRecovery> {
-        match &self.state {
-            AnalysisState::CompilationFailed { recovery, .. } => recovery
-                .as_deref()
-                .and_then(nocter_checking::SemanticAnalysisRecovery::declarations),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::Complete { .. } => None,
+            | AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),
+                ..
+            }) => None,
         }
     }
 
@@ -301,19 +317,22 @@ impl AnalysisSnapshot {
     pub const fn discovery_failure(&self) -> Option<&DiscoveryFailure> {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => Some(failure),
-            AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::CompilationFailed { .. }
-            | AnalysisState::Complete { .. } => None,
+            AnalysisState::Current(_) => None,
         }
     }
 
     #[must_use]
     pub const fn compilation_failure(&self) -> Option<&CompileSessionError> {
         match &self.state {
-            AnalysisState::CompilationFailed { error, .. } => Some(error),
+            AnalysisState::Current(CurrentAnalysis {
+                failure: Some(CurrentAnalysisFailure::Compilation(error)),
+                ..
+            }) => Some(error),
             AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::SyntaxFailed { .. }
-            | AnalysisState::Complete { .. } => None,
+            | AnalysisState::Current(CurrentAnalysis {
+                failure: None | Some(CurrentAnalysisFailure::Syntax),
+                ..
+            }) => None,
         }
     }
 }

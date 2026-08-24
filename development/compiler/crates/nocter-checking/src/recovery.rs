@@ -1,4 +1,4 @@
-use nocter_declarations::{DeclarationGraph, DeclarationProgram};
+use nocter_declarations::DeclarationGraph;
 use nocter_model::TypeStore;
 use nocter_source_index::SourceIndex;
 
@@ -9,20 +9,19 @@ use crate::{
     PreparedSemanticProgram, TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
-/// The exact semantic stage retained by one failed editor analysis generation.
+/// The deepest semantic stage retained when checking preparation rejects source.
 #[derive(Debug)]
-pub enum SemanticAnalysisRecovery {
+pub enum PreparationRecovery {
     Declarations(Box<DeclarationAnalysisRecovery>),
     Names(Box<crate::NameAnalysisRecovery>),
-    Bodies(Box<BodyAnalysisRecovery>),
 }
 
-impl SemanticAnalysisRecovery {
+impl PreparationRecovery {
     #[must_use]
     pub fn names(&self) -> Option<&crate::NameAnalysisRecovery> {
         match self {
             Self::Names(recovery) => Some(recovery.as_ref()),
-            Self::Declarations(_) | Self::Bodies(_) => None,
+            Self::Declarations(_) => None,
         }
     }
 
@@ -30,15 +29,7 @@ impl SemanticAnalysisRecovery {
     pub fn declarations(&self) -> Option<&DeclarationAnalysisRecovery> {
         match self {
             Self::Declarations(recovery) => Some(recovery.as_ref()),
-            Self::Names(_) | Self::Bodies(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn bodies(&self) -> Option<&BodyAnalysisRecovery> {
-        match self {
-            Self::Bodies(recovery) => Some(recovery.as_ref()),
-            Self::Declarations(_) | Self::Names(_) => None,
+            Self::Names(_) => None,
         }
     }
 }
@@ -68,11 +59,13 @@ impl DeclarationAnalysisRecovery {
         }
     }
 
-    /// Converts a structurally valid declaration program rejected by an authored language rule
-    /// into the declaration-only editor authority.
+    /// Creates declaration-only analysis from the exact facts retained by the rejecting phase.
     #[must_use]
-    pub fn from_program(program: DeclarationProgram, source_index: SourceIndex) -> Self {
-        let (graph, types) = program.into_parts();
+    pub fn from_parts(
+        graph: DeclarationGraph,
+        types: TypeStore,
+        source_index: SourceIndex,
+    ) -> Self {
         Self::new(graph, types, source_index)
     }
 

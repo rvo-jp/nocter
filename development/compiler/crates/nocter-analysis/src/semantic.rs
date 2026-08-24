@@ -131,28 +131,38 @@ impl AnalysisSnapshot {
 
     pub(crate) fn semantic_authority(&self) -> Option<SemanticAuthority<'_>> {
         if let Some(target) = self.target() {
-            return Some(SemanticAuthority::Complete {
+            return Some(SemanticAuthority::Checked {
                 checked: target.program().checked(),
                 source_index: target.source_index(),
             });
         }
-        if let Some(recovery) = self.body_recovery() {
-            return Some(SemanticAuthority::Bodies(recovery.prepared()));
+        match self.retained_semantic()? {
+            nocter_session::SemanticAnalysis::Checked(checked) => {
+                Some(SemanticAuthority::Checked {
+                    checked: checked.program(),
+                    source_index: checked.source_index(),
+                })
+            }
+            nocter_session::SemanticAnalysis::Bodies(analysis) => {
+                Some(SemanticAuthority::Bodies(analysis))
+            }
+            nocter_session::SemanticAnalysis::Names(analysis) => {
+                Some(SemanticAuthority::Names(analysis))
+            }
+            nocter_session::SemanticAnalysis::Declarations(analysis) => {
+                Some(SemanticAuthority::Declarations(analysis))
+            }
         }
-        if let Some(recovery) = self.name_recovery() {
-            return Some(SemanticAuthority::Names(recovery));
-        }
-        self.declaration_recovery()
-            .map(SemanticAuthority::Declarations)
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum SemanticAuthority<'a> {
-    Complete {
+    Checked {
         checked: &'a nocter_checking::CheckedProgram,
         source_index: &'a nocter_source_index::SourceIndex,
     },
-    Bodies(&'a nocter_checking::PreparedSemanticProgram),
+    Bodies(&'a nocter_checking::BodyAnalysisRecovery),
     Names(&'a nocter_checking::NameAnalysisRecovery),
     Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
 }
@@ -160,8 +170,8 @@ pub(crate) enum SemanticAuthority<'a> {
 impl<'a> SemanticAuthority<'a> {
     pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
         match self {
-            Self::Complete { source_index, .. } => source_index,
-            Self::Bodies(prepared) => prepared.source_index(),
+            Self::Checked { source_index, .. } => source_index,
+            Self::Bodies(analysis) => analysis.prepared().source_index(),
             Self::Names(recovery) => recovery.source_index(),
             Self::Declarations(recovery) => recovery.source_index(),
         }
@@ -169,8 +179,8 @@ impl<'a> SemanticAuthority<'a> {
 
     pub(crate) fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
         match self {
-            Self::Complete { checked, .. } => checked.graph(),
-            Self::Bodies(prepared) => prepared.graph(),
+            Self::Checked { checked, .. } => checked.graph(),
+            Self::Bodies(analysis) => analysis.prepared().graph(),
             Self::Names(recovery) => recovery.graph(),
             Self::Declarations(recovery) => recovery.graph(),
         }
@@ -178,9 +188,59 @@ impl<'a> SemanticAuthority<'a> {
 
     pub(crate) fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
         match self {
-            Self::Complete { checked, .. } => Some(checked),
+            Self::Checked { checked, .. } => Some(checked),
             Self::Bodies(_) | Self::Names(_) | Self::Declarations(_) => None,
         }
+    }
+
+    pub(crate) const fn body_analysis(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
+        match self {
+            Self::Bodies(analysis) => Some(analysis),
+            Self::Checked { .. } | Self::Names(_) | Self::Declarations(_) => None,
+        }
+    }
+
+    pub(crate) const fn declaration_analysis(
+        &self,
+    ) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
+        match self {
+            Self::Declarations(analysis) => Some(analysis),
+            Self::Checked { .. } | Self::Bodies(_) | Self::Names(_) => None,
+        }
+    }
+
+    pub(crate) fn scope(
+        &self,
+        body: nocter_model::BodyId,
+        scope: nocter_model::BodyScopeId,
+    ) -> Option<&'a nocter_checking::BodyScope> {
+        match self {
+            Self::Checked { checked, .. } => checked.bodies().get(body)?.scopes().get(scope),
+            Self::Bodies(analysis) => analysis
+                .prepared()
+                .body_names()
+                .get(body)?
+                .scopes()
+                .get(scope),
+            Self::Names(analysis) => analysis.body_names().get(body)?.scopes().get(scope),
+            Self::Declarations(_) => None,
+        }
+    }
+
+    pub(crate) fn completion_detail(
+        &self,
+        entity: SemanticEntity,
+        spellings: &crate::presentation::visible_spelling::VisibleSpellings,
+    ) -> Option<Box<str>> {
+        match self {
+            Self::Checked { checked, .. } => {
+                crate::presentation::presentation(checked, entity, spellings)
+            }
+            Self::Bodies(analysis) => prepared_presentation(analysis.prepared(), entity, spellings),
+            Self::Names(analysis) => name_recovery_presentation(analysis, entity, spellings),
+            Self::Declarations(analysis) => declaration_presentation(analysis, entity, spellings),
+        }
+        .map(|presentation| Box::<str>::from(presentation.code()))
     }
 
     fn presentation(
@@ -191,10 +251,11 @@ impl<'a> SemanticAuthority<'a> {
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, PresentationError> {
         match self {
-            Self::Complete { checked, .. } => {
+            Self::Checked { checked, .. } => {
                 hover_presentation(checked, entity, from, source_index, source).map(Some)
             }
-            Self::Bodies(prepared) => {
+            Self::Bodies(analysis) => {
+                let prepared = analysis.prepared();
                 let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
                     prepared.graph(),
                     from,

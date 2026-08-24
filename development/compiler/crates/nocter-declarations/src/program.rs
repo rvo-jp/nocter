@@ -661,7 +661,7 @@ impl DeclarationProgramBuilder {
             return match error {
                 ProgramValidationError::Declaration(_) => Err(ProgramBuildFailure::new(
                     ProgramBuildError::InvalidProgram(error),
-                    Some(program),
+                    Some(RejectedDeclarationProgram::new(program)),
                 )),
                 ProgramValidationError::Integrity(_) => Err(ProgramBuildFailure::new(
                     ProgramBuildError::InvalidProgram(error),
@@ -692,18 +692,39 @@ impl DeclarationProgramBuilder {
     }
 }
 
-/// A failed declaration-program freeze and the optional structurally valid editor snapshot.
+/// A structurally valid declaration graph rejected by an authored language rule.
+///
+/// This value deliberately exposes only destructive projection into declaration facts. It cannot
+/// enter checking or any other production transition that requires an accepted
+/// [`DeclarationProgram`].
+#[derive(Debug)]
+pub struct RejectedDeclarationProgram {
+    program: DeclarationProgram,
+}
+
+impl RejectedDeclarationProgram {
+    const fn new(program: DeclarationProgram) -> Self {
+        Self { program }
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
+        self.program.into_parts()
+    }
+}
+
+/// A failed declaration-program freeze and its optional rejected declaration facts.
 #[derive(Debug)]
 pub struct ProgramBuildFailure {
     error: ProgramBuildError,
-    program: Option<Box<DeclarationProgram>>,
+    rejected: Option<Box<RejectedDeclarationProgram>>,
 }
 
 impl ProgramBuildFailure {
-    fn new(error: ProgramBuildError, program: Option<DeclarationProgram>) -> Self {
+    fn new(error: ProgramBuildError, rejected: Option<RejectedDeclarationProgram>) -> Self {
         Self {
             error,
-            program: program.map(Box::new),
+            rejected: rejected.map(Box::new),
         }
     }
 
@@ -712,13 +733,8 @@ impl ProgramBuildFailure {
     }
 
     #[must_use]
-    pub const fn error(&self) -> &ProgramBuildError {
-        &self.error
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (ProgramBuildError, Option<DeclarationProgram>) {
-        (self.error, self.program.map(|program| *program))
+    pub fn into_parts(self) -> (ProgramBuildError, Option<RejectedDeclarationProgram>) {
+        (self.error, self.rejected.map(|rejected| *rejected))
     }
 
     #[must_use]

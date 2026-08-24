@@ -3,13 +3,13 @@ use std::fmt;
 use crate::surface::collect_incomplete_body_declaration_surface;
 use crate::{
     CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
-    DeclarationDiagnostic, DefinitionDiagnostic, GenericDiagnostic, GenericError,
-    HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
-    NamespaceDiagnostic, PreparedImports, PreparedNamespaces, PreparedTypeBindings, PreparedTypes,
-    ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError, ToolchainError,
-    TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
-    TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
-    bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
+    DeclarationDiagnostic, DeclarationLoweringRecovery, DefinitionDiagnostic, GenericDiagnostic,
+    GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
+    LoweredDeclarations, NamespaceDiagnostic, PreparedImports, PreparedNamespaces,
+    PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic, SurfaceDiagnostic,
+    SurfaceError, ToolchainError, TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError,
+    TypeNormalizationDiagnostic, TypeNormalizationError, analyze_declaration_contracts,
+    apply_toolchain_profile, bind_header_type_syntax, collect_declaration_surface,
     define_declaration_headers_recovering, evaluate_header_constants, normalize_header_types,
     prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
 };
@@ -102,11 +102,11 @@ impl std::error::Error for DeclarationLoweringError {}
 #[derive(Debug)]
 pub struct DeclarationLoweringFailure {
     error: Box<DeclarationLoweringError>,
-    recovery: Option<Box<LoweredDeclarations>>,
+    recovery: Option<Box<DeclarationLoweringRecovery>>,
 }
 
 impl DeclarationLoweringFailure {
-    fn new(error: DeclarationLoweringError, recovery: Option<LoweredDeclarations>) -> Self {
+    fn new(error: DeclarationLoweringError, recovery: Option<DeclarationLoweringRecovery>) -> Self {
         Self {
             error: Box::new(error),
             recovery: recovery.map(Box::new),
@@ -118,12 +118,12 @@ impl DeclarationLoweringFailure {
     }
 
     #[must_use]
-    pub fn error(&self) -> &DeclarationLoweringError {
-        self.error.as_ref()
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (DeclarationLoweringError, Option<LoweredDeclarations>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        DeclarationLoweringError,
+        Option<DeclarationLoweringRecovery>,
+    ) {
         (*self.error, self.recovery.map(|recovery| *recovery))
     }
 
@@ -163,6 +163,31 @@ pub fn lower_compile_unit_declarations_recovering(
     let normalized =
         prepare_compile_unit_declarations_from(input, collect_declaration_surface(input))
             .map_err(DeclarationLoweringFailure::without_recovery)?;
+    finish_declarations_recovering(input, normalized)
+}
+
+/// Lowers declarations from an incomplete-body source while retaining declaration-only facts
+/// rejected by an independent authored declaration rule.
+///
+/// # Errors
+///
+/// Returns the ordinary declaration failure. A recovery snapshot is present only when the
+/// declaration graph and its source projection are both internally consistent.
+pub fn lower_incomplete_body_declarations_recovering(
+    input: &CompileUnitInput<'_>,
+) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {
+    let normalized = prepare_compile_unit_declarations_from(
+        input,
+        collect_incomplete_body_declaration_surface(input),
+    )
+    .map_err(DeclarationLoweringFailure::without_recovery)?;
+    finish_declarations_recovering(input, normalized)
+}
+
+fn finish_declarations_recovering(
+    input: &CompileUnitInput<'_>,
+    normalized: PreparedTypes<'_>,
+) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {
     match define_declaration_headers_recovering(normalized) {
         Ok(lowered) => Ok(lowered),
         Err(failure) => {
@@ -186,11 +211,8 @@ pub fn lower_compile_unit_declarations_recovering(
 pub fn lower_incomplete_body_declarations(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    let normalized = prepare_compile_unit_declarations_from(
-        input,
-        collect_incomplete_body_declaration_surface(input),
-    )?;
-    define_headers(normalized, input)
+    lower_incomplete_body_declarations_recovering(input)
+        .map_err(DeclarationLoweringFailure::into_error)
 }
 
 fn prepare_compile_unit_declarations_from<'syntax>(
@@ -329,27 +351,6 @@ fn bind_types<'syntax>(
             }
         }
         Err(internal) => Err(DeclarationLoweringError::InternalTypeBinding(internal)),
-    }
-}
-
-fn define_headers<'syntax>(
-    normalized: PreparedTypes<'syntax>,
-    input: &CompileUnitInput<'syntax>,
-) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    match define_declaration_headers(normalized) {
-        Ok(lowered) => Ok(lowered),
-        Err(HeaderDefinitionError::Rule(violation)) => {
-            match DefinitionDiagnostic::project(violation, input) {
-                Ok(diagnostic) => Err(DeclarationLoweringError::Definition(diagnostic)),
-                Err(internal) => Err(DeclarationLoweringError::InternalDefinition(
-                    HeaderDefinitionError::Rule(internal),
-                )),
-            }
-        }
-        Err(HeaderDefinitionError::Declaration(diagnostic)) => {
-            Err(DeclarationLoweringError::Declaration(diagnostic))
-        }
-        Err(internal) => Err(DeclarationLoweringError::InternalDefinition(internal)),
     }
 }
 

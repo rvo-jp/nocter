@@ -28,25 +28,23 @@ impl TargetProgram {
         checked: CheckedProgram,
         toolchain: ToolchainSnapshot,
     ) -> Result<Self, TargetProgramError> {
-        let graph = checked.graph();
-        if graph.target() != toolchain.target() {
-            return Err(TargetProgramError::TargetMismatch {
-                checked: graph.target(),
-                toolchain: toolchain.target(),
-            });
+        validate_target_program(&checked, &toolchain)?;
+        Ok(Self { checked, toolchain })
+    }
+
+    /// Validates and freezes a checked program while returning the unchanged semantic input when
+    /// only the target boundary rejects it.
+    ///
+    /// # Errors
+    ///
+    /// Returns the target-program error together with the still-valid checked semantic program.
+    pub fn build_retaining_checked(
+        checked: CheckedProgram,
+        toolchain: ToolchainSnapshot,
+    ) -> Result<Self, Box<TargetProgramFailure>> {
+        if let Err(error) = validate_target_program(&checked, &toolchain) {
+            return Err(Box::new(TargetProgramFailure { error, checked }));
         }
-        let Some(standard_package) = graph.standard_package() else {
-            return Err(TargetProgramError::MissingStandardPackage);
-        };
-        if standard_package != toolchain.standard_package() {
-            return Err(TargetProgramError::StandardPackageMismatch {
-                checked: standard_package,
-                toolchain: toolchain.standard_package(),
-            });
-        }
-        validate_package_targets(&checked)?;
-        validate_primitive_registry(graph, checked.types(), &toolchain)
-            .map_err(TargetProgramError::PrimitiveRegistry)?;
         Ok(Self { checked, toolchain })
     }
 
@@ -63,6 +61,46 @@ impl TargetProgram {
     #[must_use]
     pub fn into_parts(self) -> (CheckedProgram, ToolchainSnapshot) {
         (self.checked, self.toolchain)
+    }
+}
+
+fn validate_target_program(
+    checked: &CheckedProgram,
+    toolchain: &ToolchainSnapshot,
+) -> Result<(), TargetProgramError> {
+    let graph = checked.graph();
+    if graph.target() != toolchain.target() {
+        return Err(TargetProgramError::TargetMismatch {
+            checked: graph.target(),
+            toolchain: toolchain.target(),
+        });
+    }
+    let Some(standard_package) = graph.standard_package() else {
+        return Err(TargetProgramError::MissingStandardPackage);
+    };
+    if standard_package != toolchain.standard_package() {
+        return Err(TargetProgramError::StandardPackageMismatch {
+            checked: standard_package,
+            toolchain: toolchain.standard_package(),
+        });
+    }
+    validate_package_targets(checked)?;
+    validate_primitive_registry(graph, checked.types(), toolchain)
+        .map_err(TargetProgramError::PrimitiveRegistry)?;
+    Ok(())
+}
+
+/// A target-program rejection that preserves its completed checked semantic input.
+#[derive(Debug)]
+pub struct TargetProgramFailure {
+    error: TargetProgramError,
+    checked: CheckedProgram,
+}
+
+impl TargetProgramFailure {
+    #[must_use]
+    pub fn into_parts(self) -> (TargetProgramError, CheckedProgram) {
+        (self.error, self.checked)
     }
 }
 

@@ -156,7 +156,8 @@ pub struct CheckedProgramOutput {
 }
 
 impl CheckedProgramOutput {
-    pub(crate) const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
+    #[must_use]
+    pub const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
         Self {
             program,
             source_index,

@@ -43,7 +43,7 @@ use nocter_runtime_contract::{
 pub use primitive_contracts::{
     PrimitiveContractError, PrimitiveContractRule, PrimitiveRegistryValidationError,
 };
-pub use program::{TargetProgram, TargetProgramError};
+pub use program::{TargetProgram, TargetProgramError, TargetProgramFailure};
 pub use snapshot::ToolchainSnapshot;
 pub use test_entry::{
     SelectedTest, SelectedTestTarget, TestCaseSelectionError, TestSelectionError, select_test_case,

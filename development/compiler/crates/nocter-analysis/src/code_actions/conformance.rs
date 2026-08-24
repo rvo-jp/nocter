@@ -135,7 +135,8 @@ fn insertion_context<'snapshot>(
     missing: &MissingConformanceMethods,
 ) -> Result<Option<InsertionContext<'snapshot>>, ConformanceActionError> {
     let recovery = snapshot
-        .declaration_recovery()
+        .semantic_authority()
+        .and_then(|authority| authority.declaration_analysis())
         .ok_or(ConformanceActionError::MissingRecovery)?;
     let graph = recovery.graph();
     let conformance = graph

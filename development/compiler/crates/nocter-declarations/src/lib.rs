@@ -40,7 +40,7 @@ pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, Name
 pub use path::ModulePath;
 pub use program::{
     DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,
-    Package, ProgramBuildError, ProgramBuildFailure,
+    Package, ProgramBuildError, ProgramBuildFailure, RejectedDeclarationProgram,
 };
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,

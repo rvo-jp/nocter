@@ -10,6 +10,7 @@ mod executable;
 mod native;
 mod output;
 mod profile;
+mod semantic_analysis;
 mod test;
 
 pub use analysis::{CompileTargetFailure, analyze_incomplete_syntax, analyze_target};
@@ -27,6 +28,7 @@ pub use output::{
     NativeImageEntry,
 };
 pub use profile::bundled_standard_toolchain;
+pub use semantic_analysis::SemanticAnalysis;
 pub use test::{
     CompiledNativeTestSet, NativeTestCompileRequest, NativeTestImage, NativeTestSessionError,
     NativeTestTargetCompilation, NativeTestTargetOutcome, TestCaseIdentity, TestTargetIdentity,

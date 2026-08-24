@@ -1,29 +1,28 @@
 use nocter_checking::{
-    BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparedSemanticProgram,
-    SemanticAnalysisRecovery, check_prepared_program, check_prepared_program_recovering,
+    CheckedProgramOutput, check_prepared_program, check_prepared_program_recovering,
     prepare_program_checking, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
     lower_compile_unit_declarations, lower_compile_unit_declarations_recovering,
-    lower_incomplete_body_declarations, resolve_primitive_bindings,
+    lower_incomplete_body_declarations_recovering, resolve_primitive_bindings,
 };
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
-use crate::{CompileSessionError, CompiledTarget};
+use crate::{CompileSessionError, CompiledTarget, SemanticAnalysis};
 
 /// A failed target analysis and the deepest current-generation semantic stage that remains valid.
 #[derive(Debug)]
 pub struct CompileTargetFailure {
     error: CompileSessionError,
-    recovery: Option<Box<SemanticAnalysisRecovery>>,
+    semantic: Option<Box<SemanticAnalysis>>,
 }
 
 impl CompileTargetFailure {
-    fn new(error: CompileSessionError, recovery: Option<SemanticAnalysisRecovery>) -> Self {
+    fn new(error: CompileSessionError, semantic: Option<SemanticAnalysis>) -> Self {
         Self {
             error,
-            recovery: recovery.map(Box::new),
+            semantic: semantic.map(Box::new),
         }
     }
 
@@ -33,20 +32,13 @@ impl CompileTargetFailure {
     }
 
     #[must_use]
-    pub fn prepared(&self) -> Option<&PreparedSemanticProgram> {
-        self.recovery()
-            .and_then(SemanticAnalysisRecovery::bodies)
-            .map(BodyAnalysisRecovery::prepared)
+    pub fn semantic(&self) -> Option<&SemanticAnalysis> {
+        self.semantic.as_deref()
     }
 
     #[must_use]
-    pub fn recovery(&self) -> Option<&SemanticAnalysisRecovery> {
-        self.recovery.as_deref()
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (CompileSessionError, Option<SemanticAnalysisRecovery>) {
-        (self.error, self.recovery.map(|recovery| *recovery))
+    pub fn into_parts(self) -> (CompileSessionError, Option<SemanticAnalysis>) {
+        (self.error, self.semantic.map(|semantic| *semantic))
     }
 
     #[must_use]
@@ -65,23 +57,43 @@ pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<Compi
     analyze_target_internal(unit, true)
 }
 
-/// Attempts editor-only semantic recovery beneath an authoritative syntax failure.
+/// Attempts editor-only semantic analysis beneath an authoritative syntax failure.
 ///
-/// This path can never return a checked or target program. It preserves only a preparation stage
-/// and an optional typed interruption reached before an explicit missing/error syntax node stopped
-/// the production phases.
+/// This path can never return a target program or claim compilation success. It preserves the
+/// deepest declaration, name, or body stage reached before the explicit missing/error syntax node
+/// or an independent authored rule stopped analysis.
 #[must_use]
-pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<BodyAnalysisRecovery> {
+pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<SemanticAnalysis> {
     if !unit.has_syntax_errors() {
         return None;
     }
     let input = unit.analysis_input().ok()?;
-    let lowered = lower_incomplete_body_declarations(&input).ok()?;
+    let lowered = match lower_incomplete_body_declarations_recovering(&input) {
+        Ok(lowered) => lowered,
+        Err(failure) => {
+            return failure
+                .into_parts()
+                .1
+                .map(SemanticAnalysis::from_declaration_lowering);
+        }
+    };
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).ok()?;
+    let prepared = match prepare_program_checking_recovering(
+        &input,
+        program,
+        &frontend_bindings,
+        source_index,
+    ) {
+        Ok(prepared) => prepared,
+        Err(failure) => {
+            return failure
+                .into_parts()
+                .1
+                .map(SemanticAnalysis::from_preparation);
+        }
+    };
     match check_prepared_program_recovering(&input, prepared) {
-        Err(failure) => failure.into_parts().1,
+        Err(failure) => failure.into_parts().1.map(SemanticAnalysis::from_bodies),
         Ok(_) => None,
     }
 }
@@ -94,7 +106,7 @@ pub(crate) fn compile_target_without_recovery(
 
 fn analyze_target_internal(
     unit: &DiscoveredUnit,
-    retain_prepared: bool,
+    retain_semantic: bool,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let input = unit
         .compile_input()
@@ -108,16 +120,11 @@ fn analyze_target_internal(
         .map_err(Box::new)?
         .primitive_roles()
         .to_vec();
-    let lowered = if retain_prepared {
+    let lowered = if retain_semantic {
         lower_compile_unit_declarations_recovering(&input).map_err(|failure| {
             let (error, recovery) = failure.into_parts();
-            let recovery = recovery.map(|lowered| {
-                let (program, source_index) = lowered.into_parts();
-                SemanticAnalysisRecovery::Declarations(Box::new(
-                    DeclarationAnalysisRecovery::from_program(program, source_index),
-                ))
-            });
-            Box::new(CompileTargetFailure::new(error.into(), recovery))
+            let semantic = recovery.map(SemanticAnalysis::from_declaration_lowering);
+            Box::new(CompileTargetFailure::new(error.into(), semantic))
         })?
     } else {
         lower_compile_unit_declarations(&input)
@@ -126,11 +133,14 @@ fn analyze_target_internal(
             .map_err(Box::new)?
     };
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let prepared = if retain_prepared {
+    let prepared = if retain_semantic {
         prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
             .map_err(|failure| {
                 let (error, recovery) = failure.into_parts();
-                Box::new(CompileTargetFailure::new(error.into(), recovery))
+                Box::new(CompileTargetFailure::new(
+                    error.into(),
+                    recovery.map(SemanticAnalysis::from_preparation),
+                ))
             })?
     } else {
         prepare_program_checking(&input, program, &frontend_bindings, source_index)
@@ -138,12 +148,12 @@ fn analyze_target_internal(
             .map_err(without_prepared)
             .map_err(Box::new)?
     };
-    let checked = if retain_prepared {
+    let checked = if retain_semantic {
         check_prepared_program_recovering(&input, prepared).map_err(|failure| {
             let (error, recovery) = failure.into_parts();
             Box::new(CompileTargetFailure::new(
                 error.into(),
-                recovery.map(|recovery| SemanticAnalysisRecovery::Bodies(Box::new(recovery))),
+                recovery.map(SemanticAnalysis::from_bodies),
             ))
         })?
     } else {
@@ -152,26 +162,73 @@ fn analyze_target_internal(
             .map_err(without_prepared)
             .map_err(Box::new)?
     };
+    finish_checked_target(&input, &primitive_roles, checked, retain_semantic)
+}
+
+fn finish_checked_target(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+    primitive_roles: &[nocter_compile_input::PrimitiveRoleInput],
+    checked: CheckedProgramOutput,
+    retain_semantic: bool,
+) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
+    let Some(standard_package) = checked.program().graph().standard_package() else {
+        return Err(Box::new(failure_with_checked(
+            CompileSessionError::MissingStandardPackage,
+            checked,
+            retain_semantic,
+        )));
+    };
+    let primitives = match resolve_primitive_bindings(primitive_roles, checked.source_index()) {
+        Ok(primitives) => primitives,
+        Err(error) => {
+            return Err(Box::new(failure_with_checked(
+                error.into(),
+                checked,
+                retain_semantic,
+            )));
+        }
+    };
+    let snapshot = match ToolchainSnapshot::select(input.target(), standard_package, primitives) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            return Err(Box::new(failure_with_checked(
+                error.into(),
+                checked,
+                retain_semantic,
+            )));
+        }
+    };
     let (program, source_index) = checked.into_parts();
-    let standard_package = program
-        .graph()
-        .standard_package()
-        .ok_or(CompileSessionError::MissingStandardPackage)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
-    let primitives = resolve_primitive_bindings(&primitive_roles, &source_index)
-        .map_err(CompileSessionError::from)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
-    let snapshot = ToolchainSnapshot::select(input.target(), standard_package, primitives)
-        .map_err(CompileSessionError::from)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
-    let program = TargetProgram::build(program, snapshot)
-        .map_err(CompileSessionError::from)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
+    let program = if retain_semantic {
+        match TargetProgram::build_retaining_checked(program, snapshot) {
+            Ok(program) => program,
+            Err(failure) => {
+                let (error, program) = (*failure).into_parts();
+                let checked = CheckedProgramOutput::new(program, source_index);
+                return Err(Box::new(CompileTargetFailure::new(
+                    error.into(),
+                    Some(SemanticAnalysis::from_checked(checked)),
+                )));
+            }
+        }
+    } else {
+        TargetProgram::build(program, snapshot)
+            .map_err(CompileSessionError::from)
+            .map_err(without_prepared)
+            .map_err(Box::new)?
+    };
     Ok(CompiledTarget::new(program, source_index))
+}
+
+fn failure_with_checked(
+    error: CompileSessionError,
+    checked: CheckedProgramOutput,
+    retain: bool,
+) -> CompileTargetFailure {
+    CompileTargetFailure::new(
+        error,
+        retain.then(|| SemanticAnalysis::from_checked(checked)),
+    )
 }
 
 fn without_prepared(error: CompileSessionError) -> CompileTargetFailure {

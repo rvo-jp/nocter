@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::{AnalysisStatus, SemanticCodeActionError};
+use nocter_analysis::SemanticCodeActionError;
 use nocter_json::Value;
 use nocter_lsp::{CodeAction, CodeActionParams, code_actions_result};
 use nocter_source::{CoordinateError, Utf16Position, Utf16Range};
@@ -55,7 +55,7 @@ pub(crate) fn query_code_actions(
         ) else {
             continue;
         };
-        if candidate.status() != AnalysisStatus::Complete {
+        if !candidate.has_checked_semantics() {
             continue;
         }
         let edit = project_workspace_edit(document.snapshot(), action.edits())

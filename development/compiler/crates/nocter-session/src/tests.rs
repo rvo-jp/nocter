@@ -167,17 +167,12 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
 
     let failure = analyze_target(&unit).unwrap_err();
     assert!(failure.error().source_diagnostic().is_some());
-    let prepared = failure.prepared().unwrap();
+    let body_analysis = failure.semantic().unwrap().bodies().unwrap();
+    let prepared = body_analysis.prepared();
     assert!(!prepared.graph().declarations().callables().is_empty());
     assert!(!prepared.body_names().is_empty());
     assert!(!prepared.source_index().is_empty());
-    let interruption = failure
-        .recovery()
-        .unwrap()
-        .bodies()
-        .unwrap()
-        .interruption()
-        .unwrap();
+    let interruption = body_analysis.interruption().unwrap();
     assert_eq!(
         interruption.origin().span(),
         failure
@@ -213,8 +208,7 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
 
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0340");
-    assert!(failure.prepared().is_none());
-    let recovery = failure.recovery().unwrap().names().unwrap();
+    let recovery = failure.semantic().unwrap().names().unwrap();
     assert!(!recovery.graph().declarations().callables().is_empty());
     assert!(!recovery.body_names().is_empty());
     assert!(!recovery.source_index().is_empty());
@@ -244,11 +238,7 @@ fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
 
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0350");
-    assert!(failure.prepared().is_none());
-    let recovery = failure.recovery().unwrap();
-    assert!(recovery.names().is_none());
-    assert!(recovery.bodies().is_none());
-    let declarations = recovery.declarations().unwrap();
+    let declarations = failure.semantic().unwrap().declarations().unwrap();
     assert!(
         !declarations
             .graph()
@@ -278,7 +268,8 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let recovery = analyze_incomplete_syntax(&unit).expect("typed syntax recovery");
+    let semantic = analyze_incomplete_syntax(&unit).expect("typed syntax recovery");
+    let recovery = semantic.bodies().expect("body analysis");
     assert!(matches!(
         recovery.interruption().unwrap().kind(),
         nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }

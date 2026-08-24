@@ -126,19 +126,26 @@ pub(super) fn finish_recovering(
             source_index,
         )),
         Err(failure) => {
-            let (error, program) = failure.into_parts();
-            let recovery = program.map(|program| {
-                LoweredDeclarations::new(program, frontend_bindings, source_index.clone())
-            });
-            let error = match error {
+            let (error, rejected) = failure.into_parts();
+            let (error, recovery) = match error {
                 nocter_declarations::ProgramBuildError::InvalidProgram(
                     nocter_declarations::ProgramValidationError::Declaration(violation),
-                ) => super::DeclarationDiagnostic::project(violation, &source_index)
-                    .map(HeaderDefinitionError::Declaration)
-                    .map_err(HeaderDefinitionError::MissingDiagnosticSubject)
-                    .unwrap_or_else(|error| error),
-                error => HeaderDefinitionError::Program(error),
+                ) => match super::DeclarationDiagnostic::project(violation, &source_index) {
+                    Ok(diagnostic) => {
+                        let recovery = rejected.map(|rejected| {
+                            let (graph, types) = rejected.into_parts();
+                            crate::DeclarationLoweringRecovery::new(graph, types, source_index)
+                        });
+                        (HeaderDefinitionError::Declaration(diagnostic), recovery)
+                    }
+                    Err(subject) => (
+                        HeaderDefinitionError::MissingDiagnosticSubject(subject),
+                        None,
+                    ),
+                },
+                error => (HeaderDefinitionError::Program(error), None),
             };
+            drop(frontend_bindings);
             Err(HeaderDefinitionFailure::new(error, recovery))
         }
     }

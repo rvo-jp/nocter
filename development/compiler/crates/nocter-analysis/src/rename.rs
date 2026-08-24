@@ -147,12 +147,15 @@ impl AnalysisSnapshot {
         }))
     }
 
-    /// Confirms that an edited successful snapshot preserves the selected identity at every edit.
+    /// Confirms that an edited checked snapshot preserves the selected identity at every edit.
     ///
     /// This is the collision gate: a syntactically valid replacement is accepted only when normal
     /// discovery, lowering, name resolution, and checking rebuild the same semantic bindings.
     #[must_use]
     pub fn validates_rename_candidate(&self, plan: &SemanticRenamePlan, candidate: &Self) -> bool {
+        if !candidate.has_checked_semantics() {
+            return false;
+        }
         let Ok(replacement_len_u32) = u32::try_from(plan.replacement.len()) else {
             return false;
         };
@@ -207,7 +210,7 @@ impl AnalysisSnapshot {
         let Some(file) = self.sources().get(source) else {
             return false;
         };
-        let Some(unit) = self.discovered_unit() else {
+        let Some(unit) = self.current_unit() else {
             return false;
         };
         unit.is_root_package_source(file.name().as_str())
@@ -219,7 +222,10 @@ fn rename_family(
     selected: SemanticEntity,
 ) -> BTreeSet<SemanticEntity> {
     let mut entities = BTreeSet::from([selected]);
-    let Some(checked) = snapshot.target().map(|target| target.program().checked()) else {
+    let Some(checked) = snapshot
+        .semantic_authority()
+        .and_then(|authority| authority.checked())
+    else {
         return entities;
     };
     let mut changed = true;

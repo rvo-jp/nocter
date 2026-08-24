@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_checking::{
-    AssociatedTypeCompletionError, BodyScope, CheckedOperation, CheckedProgram,
-    ConstructionCompletionError, EnumPatternCompletionError, MemberCompletionContext,
-    MemberCompletionError, MemberCompletionTarget, NameTarget, PreparedSemanticProgram,
-    ReceiverPreparation, StructuralFieldCompletionError, TypedBodyInterruptionKind,
+    AssociatedTypeCompletionError, CheckedOperation, CheckedProgram, ConstructionCompletionError,
+    EnumPatternCompletionError, MemberCompletionContext, MemberCompletionError,
+    MemberCompletionTarget, NameTarget, ReceiverPreparation, StructuralFieldCompletionError,
+    TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -14,9 +14,8 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
 use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::presentation::{
-    declaration_presentation, name_recovery_presentation, prepared_presentation, presentation,
-};
+use crate::presentation::{prepared_presentation, presentation};
+use crate::semantic::SemanticAuthority;
 use crate::source_context::{SourceContext, SourceContextError};
 
 mod associated_types;
@@ -222,55 +221,6 @@ struct Candidate {
     kind: SemanticCompletionKind,
 }
 
-enum CompletionProgram<'a> {
-    Checked {
-        program: &'a CheckedProgram,
-        index: &'a SourceIndex,
-    },
-    Prepared(&'a PreparedSemanticProgram),
-    Names(&'a nocter_checking::NameAnalysisRecovery),
-    Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
-}
-
-impl<'a> CompletionProgram<'a> {
-    const fn graph(&self) -> &'a DeclarationGraph {
-        match self {
-            Self::Checked { program, .. } => program.graph(),
-            Self::Prepared(program) => program.graph(),
-            Self::Names(program) => program.graph(),
-            Self::Declarations(program) => program.graph(),
-        }
-    }
-
-    const fn index(&self) -> &'a SourceIndex {
-        match self {
-            Self::Checked { index, .. } => index,
-            Self::Prepared(program) => program.source_index(),
-            Self::Names(program) => program.source_index(),
-            Self::Declarations(program) => program.source_index(),
-        }
-    }
-
-    fn scope(&self, body: BodyId, scope: BodyScopeId) -> Option<&'a BodyScope> {
-        match self {
-            Self::Checked { program, .. } => program.bodies().get(body)?.scopes().get(scope),
-            Self::Prepared(program) => program.body_names().get(body)?.scopes().get(scope),
-            Self::Names(program) => program.body_names().get(body)?.scopes().get(scope),
-            Self::Declarations(_) => None,
-        }
-    }
-
-    fn detail(&self, entity: SemanticEntity, spellings: &VisibleSpellings) -> Option<Box<str>> {
-        match self {
-            Self::Checked { program, .. } => presentation(program, entity, spellings),
-            Self::Prepared(program) => prepared_presentation(program, entity, spellings),
-            Self::Names(program) => name_recovery_presentation(program, entity, spellings),
-            Self::Declarations(program) => declaration_presentation(program, entity, spellings),
-        }
-        .map(|presentation| Box::<str>::from(presentation.code()))
-    }
-}
-
 impl AnalysisSnapshot {
     /// Enumerates names visible in the checked lexical and module scopes at `offset`.
     ///
@@ -288,26 +238,12 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
     ) -> Result<Box<[SemanticCompletion]>, SemanticCompletionError> {
         let keyword_completions = keywords::completions(self, source, offset);
-        let program = if let Some(target) = self.target() {
-            CompletionProgram::Checked {
-                program: target.program().checked(),
-                index: target.source_index(),
-            }
-        } else if let Some(prepared) = self.prepared_semantics() {
-            CompletionProgram::Prepared(prepared)
-        } else if let Some(recovery) = self.name_recovery() {
-            CompletionProgram::Names(recovery)
-        } else if let Some(recovery) = self.declaration_recovery() {
-            CompletionProgram::Declarations(recovery)
-        } else {
+        let Some(program) = self.semantic_authority() else {
             return Ok(keyword_completions);
         };
-        let index = program.index();
+        let index = program.source_index();
         let module = SourceContext::resolve(index, source)?.module();
-        if let CompletionProgram::Checked {
-            program: checked, ..
-        } = program
-        {
+        if let Some(checked) = program.checked() {
             if let Some(completions) =
                 associated_types::checked_completions(checked, index, source, offset, module)?
             {
@@ -344,25 +280,17 @@ impl AnalysisSnapshot {
                 return Ok(completions);
             }
         }
-        if let Some(completions) = interrupted_completions(self, source, offset, module)? {
+        if let Some(completions) = interrupted_completions(program, source, offset, module)? {
             return Ok(completions);
         }
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
         if let Some((body, scope)) = containing_scope(index, source, offset) {
-            add_scope_candidates(
-                &program,
-                index,
-                source,
-                offset,
-                body,
-                scope,
-                &mut candidates,
-            );
+            add_scope_candidates(program, index, source, offset, body, scope, &mut candidates);
         }
         let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
         let automatic_imports =
-            automatic_imports::completions(self, &program, source, module, &candidates)?;
+            automatic_imports::completions(self, program, source, module, &candidates)?;
         let mut completions = candidates
             .into_iter()
             .filter_map(|(name, candidate)| {
@@ -370,7 +298,7 @@ impl AnalysisSnapshot {
                 Some(SemanticCompletion::new(
                     label,
                     candidate.kind,
-                    program.detail(candidate.entity, &spellings),
+                    program.completion_detail(candidate.entity, &spellings),
                 ))
             })
             .collect::<Vec<_>>();
@@ -381,12 +309,12 @@ impl AnalysisSnapshot {
 }
 
 fn interrupted_completions(
-    snapshot: &AnalysisSnapshot,
+    authority: SemanticAuthority<'_>,
     source: SourceId,
     offset: ByteOffset,
     module: nocter_model::ModuleId,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let Some(recovery) = snapshot.body_recovery() else {
+    let Some(recovery) = authority.body_analysis() else {
         return Ok(None);
     };
     let Some(interruption) = recovery.interruption() else {
@@ -620,7 +548,7 @@ fn add_module_candidates(
 }
 
 fn add_scope_candidates(
-    program: &CompletionProgram<'_>,
+    program: SemanticAuthority<'_>,
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,

@@ -29,6 +29,7 @@ mod package_source;
 mod package_targets;
 mod pipeline;
 mod primitive_bindings;
+mod recovery;
 mod representation_contract;
 mod reservation;
 mod surface;
@@ -67,8 +68,10 @@ pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use pipeline::{
     DeclarationLoweringError, DeclarationLoweringFailure, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations,
+    lower_incomplete_body_declarations_recovering,
 };
 pub use primitive_bindings::{PrimitiveResolutionError, resolve_primitive_bindings};
+pub use recovery::DeclarationLoweringRecovery;
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };

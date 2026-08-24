@@ -252,11 +252,11 @@ pub enum PreparationError {
 #[derive(Debug)]
 pub struct PreparationFailure {
     error: PreparationError,
-    recovery: Option<Box<crate::SemanticAnalysisRecovery>>,
+    recovery: Option<Box<crate::PreparationRecovery>>,
 }
 
 impl PreparationFailure {
-    fn new(error: PreparationError, recovery: Option<crate::SemanticAnalysisRecovery>) -> Self {
+    fn new(error: PreparationError, recovery: Option<crate::PreparationRecovery>) -> Self {
         Self {
             error,
             recovery: recovery.map(Box::new),
@@ -269,12 +269,12 @@ impl PreparationFailure {
     }
 
     #[must_use]
-    pub fn recovery(&self) -> Option<&crate::SemanticAnalysisRecovery> {
+    pub fn recovery(&self) -> Option<&crate::PreparationRecovery> {
         self.recovery.as_deref()
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (PreparationError, Option<crate::SemanticAnalysisRecovery>) {
+    pub fn into_parts(self) -> (PreparationError, Option<crate::PreparationRecovery>) {
         (self.error, self.recovery.map(|recovery| *recovery))
     }
 }
@@ -494,7 +494,7 @@ fn prepare_program_checking_internal<'syntax>(
                 });
             return Err(PreparationFailure::new(
                 PreparationError::NameResolution(*failure.error),
-                recovery.map(|recovery| crate::SemanticAnalysisRecovery::Names(Box::new(recovery))),
+                recovery.map(|recovery| crate::PreparationRecovery::Names(Box::new(recovery))),
             ));
         }
     };
@@ -523,11 +523,12 @@ fn declaration_failure(
     types: TypeStore,
     source_index: SourceIndex,
 ) -> PreparationFailure {
-    let recovery = retain_recovery.then(|| {
-        crate::SemanticAnalysisRecovery::Declarations(Box::new(
-            crate::DeclarationAnalysisRecovery::new(graph, types, source_index),
-        ))
-    });
+    let recovery =
+        retain_recovery.then(|| {
+            crate::PreparationRecovery::Declarations(Box::new(
+                crate::DeclarationAnalysisRecovery::new(graph, types, source_index),
+            ))
+        });
     PreparationFailure::new(error, recovery)
 }
 

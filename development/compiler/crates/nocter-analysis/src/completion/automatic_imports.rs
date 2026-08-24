@@ -8,11 +8,10 @@ use nocter_model::{ModuleId, PackageId, PackageIdentity, Symbol};
 use nocter_source::{ByteOffset, SourceFile, SourceId, TextRange};
 use nocter_syntax::{CommentKind, NodeKind, SyntaxElement, SyntaxTree};
 
-use super::{
-    Candidate, CompletionProgram, SemanticCompletion, SemanticCompletionEdit, exported_candidate,
-};
+use super::{Candidate, SemanticCompletion, SemanticCompletionEdit, exported_candidate};
 use crate::AnalysisSnapshot;
 use crate::presentation::visible_spelling::VisibleSpellings;
+use crate::semantic::SemanticAuthority;
 
 /// Inconsistency while deriving an importable name and its source edit.
 #[derive(Debug)]
@@ -60,7 +59,7 @@ impl std::error::Error for AutomaticImportError {}
 
 pub(super) fn completions(
     snapshot: &AnalysisSnapshot,
-    program: &CompletionProgram<'_>,
+    program: SemanticAuthority<'_>,
     source: SourceId,
     module: ModuleId,
     visible: &BTreeMap<Symbol, Candidate>,
@@ -133,7 +132,7 @@ pub(super) fn completions(
                     SemanticCompletion::new(
                         label,
                         candidate.kind,
-                        program.detail(candidate.entity, &spellings),
+                        program.completion_detail(candidate.entity, &spellings),
                     )
                     .with_additional_edit(insertion.edit(&import))
                     .with_automatic_import(import),

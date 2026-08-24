@@ -6,7 +6,9 @@ use nocter_source::SourceId;
 use nocter_source_index::{DuplicateDocumentation, DuplicateSourceBinding};
 use nocter_syntax::NodeId;
 
-use crate::{LoweredDeclarations, PreparedTypes, SurfaceDeclarationId};
+use crate::{
+    DeclarationLoweringRecovery, LoweredDeclarations, PreparedTypes, SurfaceDeclarationId,
+};
 
 mod allocation;
 mod declarations;
@@ -24,11 +26,14 @@ pub use violation::{DefinitionRule, DefinitionViolation};
 #[derive(Debug)]
 pub struct HeaderDefinitionFailure {
     error: Box<HeaderDefinitionError>,
-    recovery: Option<Box<LoweredDeclarations>>,
+    recovery: Option<Box<DeclarationLoweringRecovery>>,
 }
 
 impl HeaderDefinitionFailure {
-    pub(super) fn new(error: HeaderDefinitionError, recovery: Option<LoweredDeclarations>) -> Self {
+    pub(super) fn new(
+        error: HeaderDefinitionError,
+        recovery: Option<DeclarationLoweringRecovery>,
+    ) -> Self {
         Self {
             error: Box::new(error),
             recovery: recovery.map(Box::new),
@@ -40,12 +45,7 @@ impl HeaderDefinitionFailure {
     }
 
     #[must_use]
-    pub fn error(&self) -> &HeaderDefinitionError {
-        self.error.as_ref()
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (HeaderDefinitionError, Option<LoweredDeclarations>) {
+    pub fn into_parts(self) -> (HeaderDefinitionError, Option<DeclarationLoweringRecovery>) {
         (*self.error, self.recovery.map(|recovery| *recovery))
     }
 

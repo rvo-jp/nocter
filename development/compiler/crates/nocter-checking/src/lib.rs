@@ -129,7 +129,7 @@ pub use preparation::{
     PreparationError, PreparationFailure, PreparedChecking, PreparedSemanticProgram,
     prepare_program_checking, prepare_program_checking_recovering,
 };
-pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, SemanticAnalysisRecovery};
+pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparationRecovery};
 pub(crate) use source_visibility::SourceAccessContext;
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{
