@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.17.0 Analysis Authority Reconstruction - Nocter</title>
-    <meta name="description" content="Status: active.">
+    <meta name="description" content="Status: complete.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/reviews/v0.17.0-analysis-authority/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.17.0 Analysis Authority Reconstruction - Nocter">
-    <meta property="og:description" content="Status: active.">
+    <meta property="og:description" content="Status: complete.">
     <meta property="og:url" content="https://nocter.dev/development/reviews/v0.17.0-analysis-authority/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.17.0 Analysis Authority Reconstruction - Nocter">
-    <meta name="twitter:description" content="Status: active.">
+    <meta name="twitter:description" content="Status: complete.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.17.0 Analysis Authority Reconstruction - Nocter","description":"Status: active.","url":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.17.0 Analysis Authority","item":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.17.0 Analysis Authority Reconstruction - Nocter","description":"Status: complete.","url":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.17.0 Analysis Authority","item":"https://nocter.dev/development/reviews/v0.17.0-analysis-authority/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -132,7 +132,7 @@
                 <span class="markdown-path-text">/development/reviews/v0.17.0-analysis-authority.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-17-0-analysis-authority-reconstruction">v0.17.0 Analysis Authority Reconstruction</h1><p><strong>Status: active.</strong></p><p>This review owns the reconstruction of current-generation semantic analysis and editor recovery. It does not change accepted Nocter source, runtime behavior, ABI, or target semantics. Public tooling behavior remains owned by the language specification.</p><h2 id="primary-rule">Primary Rule</h2><p>Each responsibility receives only a complete contract supplied by the responsibility that owns the represented decision. A failure may retain the deepest completed semantic stage, but it must not transport a rejected production-success value, expose a builder, or require a consumer to select among parallel representations of the same stage.</p><p>The failure classification and the completed semantic stage are independent facts:</p><pre><code class="language-text">current source generation
+                <h1 id="v0-17-0-analysis-authority-reconstruction">v0.17.0 Analysis Authority Reconstruction</h1><p><strong>Status: complete.</strong></p><p>This review owns the reconstruction of current-generation semantic analysis and editor recovery. It does not change accepted Nocter source, runtime behavior, ABI, or target semantics. Public tooling behavior remains owned by the language specification.</p><h2 id="primary-rule">Primary Rule</h2><p>Each responsibility receives only a complete contract supplied by the responsibility that owns the represented decision. A failure may retain the deepest completed semantic stage, but it must not transport a rejected production-success value, expose a builder, or require a consumer to select among parallel representations of the same stage.</p><p>The failure classification and the completed semantic stage are independent facts:</p><pre><code class="language-text">current source generation
   -&gt; diagnostic outcome
   -&gt; deepest semantic authority: none | declarations | names | bodies | checked
   -&gt; target outcome: unavailable | failed | ready
@@ -145,7 +145,7 @@ SourceIndex
   published;</li><li>no active production code, diagnostic, handoff, or architecture text uses source <code>include</code>
   terminology;</li><li>no superseded wrapper, re-export, or feature-local authority selector remains;</li><li>focused failure-product tests, complete workspace tests, warnings-denied Clippy, formatting,
   generated documentation, and repository checks pass;</li><li>an adversarial second review finds no duplicate authority, reverse lookup, hidden fallback, or
-  internal-representation reach-through in the reconstructed boundary.</li></ul>
+  internal-representation reach-through in the reconstructed boundary.</li></ul><h2 id="completion-evidence">Completion Evidence</h2><p>The reconstruction replaced rejected declaration success values with a destructive-only rejected contract, introduced declaration-lowering and checked-target retention boundaries, and moved the cross-phase semantic-stage sum into <code>nocter-session</code>. <code>AnalysisSnapshot</code> now stores diagnostic classification and semantic authority independently. One <code>SemanticAuthority</code> capability view is the only stage selector used by hover, completion, navigation, highlights, rename, code actions, signature help, and inlay hints. Completion's parallel adapter and the snapshot's success-only semantic accessors were deleted.</p><p>Syntax recovery now preserves independent declaration and name failures as well as their semantic stages. Non-overlapping semantic diagnostics are published beside authoritative syntax diagnostics; diagnostics caused at the syntax hole are suppressed. Declaration diagnostic-projection failures retain no source-projected authority. Target-program rejection returns the unchanged checked input, and editor-session failures after checking retain <code>CheckedProgramOutput</code>.</p><p>Mutation transactions now request capabilities rather than status labels. Rename validation and semantic quick fixes require checked semantics, while an unrelated target-boundary failure no longer invalidates a source-semantic edit. Failed-generation root ownership uses the current discovery unit rather than a success-only accessor.</p><p>Focused tests cover:</p><ul><li>body syntax plus an independent declaration-rule failure;</li><li>body syntax plus an independent name failure;</li><li>hover, rename planning, and code-action planning from a failed current generation;</li><li>rejection of a rename candidate that did not reach checked semantics;</li><li>unchanged checked-program retention across target rejection;</li><li>absence of recovery when incomplete declaration syntax cannot form declaration facts.</li></ul><p>The final adversarial audit found no feature-local semantic-stage selector, old snapshot target or source-index convenience accessor, rejected-value production transition, target-complete mutation gate, Machine/ARM64 dependency on semantic <code>SourceIndex</code> or <code>TypeStore</code>, or active source-<code>include</code> vocabulary. Recovery-only header-definition APIs and unused convenience accessors were removed from the public crate surface. Complete workspace tests, warnings-denied all-target Clippy, formatting, documentation generation, and repository whitespace validation passed on the completed tree.</p>
             </div>
         </main>
     </div>

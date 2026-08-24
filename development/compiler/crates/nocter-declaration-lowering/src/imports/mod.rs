@@ -167,7 +167,7 @@ impl PreparedImports<'_> {
 
 /// Resolves authored module imports and re-exports after declaration and generic identities exist.
 ///
-/// Source includes do not enter the semantic import arena. Synthetic prelude fallback is a later
+/// Source-visibility edges do not enter the semantic import arena. Synthetic prelude fallback is a later
 /// input-owned layer and is intentionally absent from this authored namespace pass.
 ///
 /// # Errors
@@ -182,7 +182,7 @@ pub fn prepare_authored_imports(
     let mut namespaces = vec![BTreeMap::new(); module_count];
     let mut source_namespaces = vec![BTreeMap::new(); generics.headers.reserved.sources.len()];
     collect_direct_declarations(&generics, &mut namespaces, &mut source_namespaces)?;
-    apply_direct_includes(&generics, &mut source_namespaces)?;
+    apply_source_visibility(&generics, &mut source_namespaces)?;
 
     let import_count = generics.headers.reserved.imports.len();
     let mut import_ids = vec![None; import_count];
@@ -461,12 +461,18 @@ fn collect_direct_declarations(
     Ok(())
 }
 
-fn apply_direct_includes(
+fn apply_source_visibility(
     generics: &PreparedGenerics<'_>,
     namespaces: &mut [BTreeMap<Symbol, NamespaceBinding>],
 ) -> Result<(), ImportError> {
     let direct = namespaces.to_vec();
-    for see in generics.headers.reserved.includes.iter().copied() {
+    for see in generics
+        .headers
+        .reserved
+        .source_visibilities
+        .iter()
+        .copied()
+    {
         let target = direct
             .get(see.target().index())
             .ok_or(ImportError::MissingSource(see.target()))?;

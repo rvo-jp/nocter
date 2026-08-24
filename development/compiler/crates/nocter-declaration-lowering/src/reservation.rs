@@ -166,7 +166,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) module_ids: Box<[ModuleId]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_modules: Box<[ModuleId]>,
-    pub(crate) includes: Box<[SurfaceVisibility]>,
+    pub(crate) source_visibilities: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
     pub(crate) contracts: DeclarationContracts,
@@ -215,8 +215,8 @@ impl ReservedDeclarations<'_> {
     }
 
     #[must_use]
-    pub const fn includes(&self) -> &[SurfaceVisibility] {
-        &self.includes
+    pub const fn source_visibilities(&self) -> &[SurfaceVisibility] {
+        &self.source_visibilities
     }
 
     #[must_use]
@@ -279,7 +279,7 @@ pub(crate) fn reserve_with_contracts(
         root_packages,
         modules,
         sources,
-        includes,
+        source_visibilities,
         imports,
         package_target_resolutions,
         declarations,
@@ -353,7 +353,7 @@ pub(crate) fn reserve_with_contracts(
         module_ids: semantic_modules.into_boxed_slice(),
         sources,
         source_modules: source_modules.into_boxed_slice(),
-        includes,
+        source_visibilities,
         imports,
         declarations,
         contracts,

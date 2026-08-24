@@ -155,15 +155,18 @@ only the disk-backed request type and cannot mistake editor bytes for persistent
 
 `nocter-analysis` is the protocol-independent owner of one editor generation. Its immutable
 `AnalysisSnapshot` retains the accepted generation identity, source overlay, reached source and
-syntax snapshots, diagnostics, and exactly one status: discovery failure, syntax failure, compiler
-failure, or target-validated success. Only the success state exposes a `SourceIndex` and checked
-target; a failed current generation never exposes an older successful semantic program. Discovery
-failures retain their reached syntax trees as well as sources, so invalidation and syntax-aware
-recovery do not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable
-accepted-document boundary. It requires strictly increasing change versions, ignores stale changes
-without advancing generation, applies included save text before analysis, and freezes a new complete
-overlay for every accepted open, change, save, or close. Previously emitted overlays never observe
-later document mutations.
+syntax snapshots, diagnostics, one diagnostic status, and one independent semantic authority. The
+status is discovery failure, syntax failure, compiler failure, or target-validated success. The
+authority is absent or is exactly the deepest completed declaration, name, body, checked, or target
+stage from that same generation. A target failure therefore does not erase checked source
+semantics, while retaining checked semantics does not turn that target failure into success. A
+failed current generation never exposes an older successful semantic program. Discovery failures
+retain their reached syntax trees as well as sources, so invalidation and syntax-aware recovery do
+not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable accepted-
+document boundary. It requires strictly increasing change versions, ignores stale changes without
+advancing generation, applies included save text before analysis, and freezes a new complete overlay
+for every accepted open, change, save, or close. Previously emitted overlays never observe later
+document mutations.
 
 `nocter-source` is the sole coordinate-conversion authority. Compiler phases retain normalized
 UTF-8 byte offsets and never store editor positions. Each immutable `SourceFile` converts those
@@ -1290,13 +1293,14 @@ crate scaffolding is not evidence that a responsibility has been designed.
 
 ## Error-Tolerant Tooling
 
-Editor analysis may retain explicit invalid syntax and error semantic nodes in an immutable
-snapshot. It never converts incomplete source into a second successful semantic model. Hover,
-completion, definition, implementation, references, rename, tokens, diagnostics, and code actions
-consume the same checked IDs
-when they exist and use syntax-only recovery only when no semantic fact is available. Every
-generation first freezes its complete open-document overlay; package resolution, discovery, syntax,
-and semantic analysis all consume that one value.
+Editor analysis may retain explicit invalid syntax and the deepest completed semantic stage in an
+immutable snapshot. It never converts incomplete source into a second successful semantic model.
+The session owns the sole sum of declaration, name, body, and checked stages; analysis exposes one
+borrowed capability view over that sum or the successful target. Hover, completion, definition,
+implementation, references, rename, tokens, signature help, inlay hints, diagnostics, and code
+actions all select through that view rather than maintaining feature-local recovery adapters.
+Every generation first freezes its complete open-document overlay; package resolution, discovery,
+syntax, and semantic analysis all consume that one value.
 
 Full semantic-token results retain that snapshot identity at the protocol boundary. The language
 server passes the exact accepted analysis generation to the neutral LSP encoder as an opaque
@@ -1316,15 +1320,17 @@ Source mutation features share one protocol-independent edit value containing an
 byte range, and replacement. The language-server composition layer groups and validates these
 edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits
 as versioned LSP `documentChanges`. Overlapping edits, missing sources, invalid UTF-8 boundaries,
-and failed speculative compilation cannot reach the client. Automatic-import code actions select
+and a speculative candidate that does not reach checked semantics cannot reach the client. Target
+construction is required only for target-specific mutations. Automatic-import code actions select
 the current compiler diagnostic by stable rule code and exact source subject, reuse the semantic
 import candidate attached to completion, and publish it only when the ordinary compiler accepts
 the candidate overlay. The adapter ignores client diagnostic contents and never derives edits from
 diagnostic messages or help strings.
 
-Preparation failures retain only the deepest completed semantic authority. A conformance-table
-failure owns a declaration recovery value containing the graph, monotonic type store, and source
-index, but no conformance table, construction surface, name result, or checked body. While selecting
+Each phase-specific failure retains only its own deepest completed contract. The session composes
+those contracts into the one semantic-stage sum. A conformance-table failure owns declaration
+analysis containing the graph, monotonic type store, and source index, but no conformance table,
+construction surface, name result, or checked body. While selecting
 required interface methods, the checker captures every missing method after applying the same
 interface, target, associated-type, and callable-generic substitutions used by signature
 compatibility. The code-action layer renders those typed contracts through canonical presentation,
@@ -1332,7 +1338,8 @@ selects the joined implementation occurrence when the conformance is separated, 
 missing methods there with diverging `std/process.abort()` bodies, and obtains the import edit in
 that same source from semantic automatic-import completion. Inline conformances retain their
 declaration as the edit destination. The shared speculative transaction publishes the action only
-when the whole edited program reaches the complete target-validated state.
+when the whole edited program reaches checked semantics; an unrelated target-boundary failure does
+not invalidate a source-semantic repair.
 
 A failed postfix-propagation check may retain a separate `OutcomeContract` interruption only after
 the operand's immediate optional or fallible layer is typed. The interruption owns that layer and a

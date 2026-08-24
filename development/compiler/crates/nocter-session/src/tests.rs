@@ -268,7 +268,8 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let semantic = analyze_incomplete_syntax(&unit).expect("typed syntax recovery");
+    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    let semantic = analysis.semantic().expect("typed syntax recovery");
     let recovery = semantic.bodies().expect("body analysis");
     assert!(matches!(
         recovery.interruption().unwrap().kind(),
@@ -292,7 +293,97 @@ fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    assert!(analyze_incomplete_syntax(&unit).is_none());
+    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    assert!(analysis.semantic().is_none());
+}
+
+#[test]
+fn incomplete_syntax_preserves_an_independent_declaration_failure() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        concat!(
+            "pub interface Readable { pub method &self.read(): i32 }\n",
+            "struct Value {}\n",
+            "conform Readable for Value {}\n",
+            "func inspect(value: &Value): void {\n",
+            "    value.\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    assert_eq!(
+        analysis
+            .failure()
+            .unwrap()
+            .source_diagnostic()
+            .unwrap()
+            .code(),
+        "E0350"
+    );
+    let semantic = analysis.semantic().expect("declaration analysis");
+    let declarations = semantic.declarations().expect("declaration stage");
+    assert!(
+        !declarations
+            .graph()
+            .declarations()
+            .conformances()
+            .is_empty()
+    );
+}
+
+#[test]
+fn incomplete_syntax_preserves_an_earlier_name_failure() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        concat!(
+            "struct Text {}\n",
+            "func inspect(value: &Text): void {\n",
+            "    unknown\n",
+            "    value.\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    assert_eq!(
+        analysis
+            .failure()
+            .unwrap()
+            .source_diagnostic()
+            .unwrap()
+            .code(),
+        "E0340"
+    );
+    let semantic = analysis.semantic().expect("name analysis");
+    let names = semantic.names().expect("name stage");
+    assert!(!names.body_names().is_empty());
 }
 
 #[test]

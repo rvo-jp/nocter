@@ -10,11 +10,11 @@ use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxToken, TokenKind};
 
 use crate::{
-    HeaderDefinitionFailure, LoweredDeclarations, PreparedTypes, ReservedEntity,
-    SurfaceDeclarationId, SurfaceDeclarationKind,
+    LoweredDeclarations, PreparedTypes, ReservedEntity, SurfaceDeclarationId,
+    SurfaceDeclarationKind,
 };
 
-use super::{HeaderDefinitionError, projection, syntax};
+use super::{HeaderDefinitionError, HeaderDefinitionFailure, projection, syntax};
 
 #[derive(Debug)]
 pub(super) struct AllocatedHeaders {

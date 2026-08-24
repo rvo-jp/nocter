@@ -139,13 +139,13 @@ impl AnalysisSnapshot {
         source: SourceId,
         requested: TextRange,
     ) -> Result<Box<[SemanticInlayHint]>, SemanticInlayHintError> {
-        let Some(target) = self.target() else {
+        let Some(authority) = self.semantic_authority() else {
             return Ok(Box::new([]));
         };
-        let Some(index) = self.source_index() else {
+        let Some(checked) = authority.checked() else {
             return Ok(Box::new([]));
         };
-        let checked = target.program().checked();
+        let index = authority.source_index();
         let module = SourceContext::resolve(index, source)?.module();
         let syntax = self
             .syntax_trees()

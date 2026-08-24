@@ -1,8 +1,8 @@
 //! Immutable compiler analysis snapshots independent of any editor protocol.
 //!
-//! One [`AnalysisSnapshot`] owns one generation, its exact discovered source graph, and either the
-//! compiler result or the failure reached by that same graph. Query layers cannot substitute a
-//! previous successful program when the current generation fails.
+//! One [`AnalysisSnapshot`] owns one generation, its exact discovered source graph, its diagnostic
+//! outcome, and its deepest completed semantic authority as independent facts. Query layers cannot
+//! substitute a previous successful program when the current generation fails.
 
 use std::path::Path;
 
@@ -14,7 +14,6 @@ use nocter_session::{
     analyze_target,
 };
 use nocter_source::SourceMap;
-use nocter_source_index::SourceIndex;
 use nocter_syntax::SyntaxTree;
 
 mod callable_source;
@@ -91,7 +90,7 @@ struct CurrentAnalysis {
 
 #[derive(Debug)]
 enum CurrentAnalysisFailure {
-    Syntax,
+    Syntax(Option<CompileSessionError>),
     Compilation(CompileSessionError),
 }
 
@@ -103,10 +102,14 @@ enum CurrentSemanticAuthority {
 }
 
 impl CurrentAnalysis {
-    fn syntax(unit: DiscoveredUnit, semantic: Option<SemanticAnalysis>) -> Self {
+    fn syntax(
+        unit: DiscoveredUnit,
+        failure: Option<CompileSessionError>,
+        semantic: Option<SemanticAnalysis>,
+    ) -> Self {
         Self {
             unit: Box::new(unit),
-            failure: Some(CurrentAnalysisFailure::Syntax),
+            failure: Some(CurrentAnalysisFailure::Syntax(failure)),
             authority: semantic.map_or(CurrentSemanticAuthority::None, |semantic| {
                 CurrentSemanticAuthority::Semantic(Box::new(semantic))
             }),
@@ -166,11 +169,22 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
-            let semantic = analyze_incomplete_syntax(&unit);
+            let (failure, semantic) = analyze_incomplete_syntax(&unit).map_or(
+                (None, None),
+                nocter_session::IncompleteSyntaxAnalysis::into_parts,
+            );
+            let mut diagnostics = unit.syntax_diagnostics().into_vec();
+            if let Some(diagnostic) = failure
+                .as_ref()
+                .and_then(CompileSessionError::source_diagnostic)
+                .filter(|diagnostic| independent_diagnostic(&diagnostics, diagnostic))
+            {
+                diagnostics.push(diagnostic.clone());
+            }
             return Self {
                 generation,
-                diagnostics: unit.syntax_diagnostics(),
-                state: AnalysisState::Current(CurrentAnalysis::syntax(unit, semantic)),
+                diagnostics: diagnostics.into_boxed_slice(),
+                state: AnalysisState::Current(CurrentAnalysis::syntax(unit, failure, semantic)),
             };
         }
         match analyze_target(&unit) {
@@ -208,7 +222,7 @@ impl AnalysisSnapshot {
         match self.state {
             AnalysisState::DiscoveryFailed(_) => AnalysisStatus::DiscoveryFailed,
             AnalysisState::Current(CurrentAnalysis {
-                failure: Some(CurrentAnalysisFailure::Syntax),
+                failure: Some(CurrentAnalysisFailure::Syntax(_)),
                 ..
             }) => AnalysisStatus::SyntaxFailed,
             AnalysisState::Current(CurrentAnalysis {
@@ -269,36 +283,6 @@ impl AnalysisSnapshot {
         }
     }
 
-    #[must_use]
-    pub const fn source_index(&self) -> Option<&SourceIndex> {
-        match &self.state {
-            AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::Target(target),
-                ..
-            }) => Some(target.source_index()),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Semantic(_),
-                ..
-            }) => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn target(&self) -> Option<&CompiledTarget> {
-        match &self.state {
-            AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::Target(target),
-                ..
-            }) => Some(target),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Semantic(_),
-                ..
-            }) => None,
-        }
-    }
-
     pub(crate) fn retained_semantic(&self) -> Option<&SemanticAnalysis> {
         match &self.state {
             AnalysisState::Current(CurrentAnalysis {
@@ -324,17 +308,36 @@ impl AnalysisSnapshot {
     #[must_use]
     pub const fn compilation_failure(&self) -> Option<&CompileSessionError> {
         match &self.state {
-            AnalysisState::Current(CurrentAnalysis {
-                failure: Some(CurrentAnalysisFailure::Compilation(error)),
-                ..
-            }) => Some(error),
+            AnalysisState::Current(
+                CurrentAnalysis {
+                    failure: Some(CurrentAnalysisFailure::Syntax(Some(error))),
+                    ..
+                }
+                | CurrentAnalysis {
+                    failure: Some(CurrentAnalysisFailure::Compilation(error)),
+                    ..
+                },
+            ) => Some(error),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::Current(CurrentAnalysis {
-                failure: None | Some(CurrentAnalysisFailure::Syntax),
+                failure: None | Some(CurrentAnalysisFailure::Syntax(None)),
                 ..
             }) => None,
         }
     }
+}
+
+fn independent_diagnostic(existing: &[SourceDiagnostic], candidate: &SourceDiagnostic) -> bool {
+    existing.iter().all(|diagnostic| {
+        if diagnostic.primary().source() != candidate.primary().source() {
+            return true;
+        }
+        let existing = diagnostic.primary().span().range();
+        let candidate = candidate.primary().span().range();
+        !(existing.overlaps(candidate)
+            || existing.is_empty() && candidate.contains_cursor(existing.start())
+            || candidate.is_empty() && existing.contains_cursor(candidate.start()))
+    })
 }
 
 #[cfg(test)]

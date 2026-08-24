@@ -151,10 +151,9 @@ impl FrontendProjectionBuilder {
     pub(crate) fn define_source_access(
         &mut self,
         source: SourceId,
-        directly_included: impl IntoIterator<Item = SourceId>,
+        directly_visible: impl IntoIterator<Item = SourceId>,
     ) {
-        self.bindings
-            .define_source_access(source, directly_included);
+        self.bindings.define_source_access(source, directly_visible);
     }
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {

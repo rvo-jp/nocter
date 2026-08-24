@@ -81,11 +81,11 @@ fn prepare<'syntax>(
     prepare_authored_imports(generics)
 }
 
-fn prepare_with_includes<'syntax>(
+fn prepare_with_source_visibility<'syntax>(
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::SourceVisibilityResolutionInput>,
+    source_visibilities: Vec<crate::SourceVisibilityResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
@@ -94,7 +94,7 @@ fn prepare_with_includes<'syntax>(
         modules,
         Vec::new(),
     )
-    .with_source_visibility_resolutions(includes);
+    .with_source_visibility_resolutions(source_visibilities);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -479,7 +479,7 @@ fn direct_source_sees_add_no_import_and_do_not_publish_implementation_names() {
     let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
     let identity = ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
 
-    let imports = prepare_with_includes(
+    let imports = prepare_with_source_visibility(
         &sources,
         vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
         vec![module(
@@ -531,7 +531,7 @@ fn source_sees_expose_only_the_direct_target_namespace() {
     let a = parse_source(&sources, a_id, ParseGoal::SourceFile);
     let b = parse_source(&sources, b_id, ParseGoal::SourceFile);
 
-    let imports = prepare_with_includes(
+    let imports = prepare_with_source_visibility(
         &sources,
         vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
         vec![module(

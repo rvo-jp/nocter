@@ -147,10 +147,10 @@ impl SourceAccessTableBuilder {
     pub(crate) fn define_source(
         &mut self,
         source: SourceId,
-        directly_included: impl IntoIterator<Item = SourceId>,
+        directly_visible: impl IntoIterator<Item = SourceId>,
     ) {
         let mut visible = vec![source];
-        visible.extend(directly_included);
+        visible.extend(directly_visible);
         self.visible_sources.insert(source, visible);
     }
 

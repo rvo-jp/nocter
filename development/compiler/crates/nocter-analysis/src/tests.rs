@@ -60,8 +60,7 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     );
     assert!(!snapshot.diagnostics().is_empty());
     assert!(!snapshot.syntax_trees().is_empty());
-    assert!(snapshot.source_index().is_none());
-    assert!(snapshot.target().is_none());
+    assert!(!snapshot.has_checked_semantics());
 }
 
 #[test]
@@ -114,7 +113,7 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     assert!(!snapshot.syntax_trees().is_empty());
     assert_eq!(snapshot.diagnostics()[0].code(), "E0263");
     assert!(snapshot.discovery_failure().is_some());
-    assert!(snapshot.target().is_none());
+    assert!(!snapshot.has_checked_semantics());
 }
 
 #[test]
@@ -171,6 +170,115 @@ fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
     assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
     assert_eq!(snapshot.diagnostics().len(), 1);
     assert_eq!(snapshot.diagnostics()[0].code(), "E0347");
+}
+
+#[test]
+fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "pub interface Readable { pub method &self.read(): i32 }\n",
+        "struct Value {}\n",
+        "conform Readable for Value {}\n",
+        "func inspect(value: &Value): void {\n",
+        "    value.\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(47));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
+    assert!(!snapshot.has_checked_semantics());
+    let conformance_diagnostic = snapshot
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic.code() == "E0350")
+        .expect("independent conformance diagnostic");
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("Readable").unwrap()).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .expect("declaration subject");
+    assert_eq!(subject.presentation().code(), "pub interface Readable");
+    let rename = snapshot
+        .semantic_rename(source.id(), offset, "ReadableValue")
+        .unwrap()
+        .expect("failed-generation rename plan");
+    assert!(!rename.edits().is_empty());
+    let actions = snapshot
+        .semantic_code_actions(source.id(), conformance_diagnostic.primary().span().range())
+        .unwrap();
+    assert!(!actions.is_empty());
+}
+
+#[test]
+fn rename_validation_rejects_a_candidate_without_checked_semantics() {
+    let tree = TempTree::new();
+    let original_text = concat!(
+        "func helper(): i32 { return 1 }\n",
+        "func main(): i32 { return helper() }\n",
+    );
+    let (_, original) = bundled_snapshot(&tree, original_text, GenerationId::new(49));
+    let source = original
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(original_text.find("helper").unwrap()).unwrap());
+    let plan = original
+        .semantic_rename(source.id(), offset, "calculate")
+        .unwrap()
+        .expect("rename plan");
+
+    let candidate_text = concat!(
+        "func calculate(): i32 { return 1 }\n",
+        "func main(): i32 { return calculate() }\n",
+        "func broken(): void {\n",
+        "    unknown\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, candidate) = bundled_snapshot(&tree, candidate_text, GenerationId::new(50));
+    assert_eq!(candidate.status(), AnalysisStatus::CompilationFailed);
+    assert!(!candidate.has_checked_semantics());
+    assert!(!original.validates_rename_candidate(&plan, &candidate));
+}
+
+#[test]
+fn syntax_and_name_failure_share_the_current_name_authority() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "struct Text {}\n",
+        "func inspect(value: &Text): void {\n",
+        "    unknown\n",
+        "    value.\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(48));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
+    assert!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0340")
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("Text").unwrap()).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .expect("name-stage subject");
+    assert_eq!(subject.presentation().code(), "struct Text");
 }
 
 #[test]

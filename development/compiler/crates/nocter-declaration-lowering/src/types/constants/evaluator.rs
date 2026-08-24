@@ -11,9 +11,10 @@ use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
 
+use crate::definitions::HeaderDefinitionError;
 use crate::{
-    DefinitionRule, DefinitionViolation, HeaderDefinitionError, ReservedEntity,
-    SurfaceDeclarationId, SurfaceDeclarationKind,
+    DefinitionRule, DefinitionViolation, ReservedEntity, SurfaceDeclarationId,
+    SurfaceDeclarationKind,
 };
 
 use super::super::{BoundTypeId, BoundTypeKind, PreparedConstantValue, PreparedTypeBindings};

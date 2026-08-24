@@ -130,7 +130,11 @@ impl AnalysisSnapshot {
     }
 
     pub(crate) fn semantic_authority(&self) -> Option<SemanticAuthority<'_>> {
-        if let Some(target) = self.target() {
+        if let crate::AnalysisState::Current(crate::CurrentAnalysis {
+            authority: crate::CurrentSemanticAuthority::Target(target),
+            ..
+        }) = &self.state
+        {
             return Some(SemanticAuthority::Checked {
                 checked: target.program().checked(),
                 source_index: target.source_index(),

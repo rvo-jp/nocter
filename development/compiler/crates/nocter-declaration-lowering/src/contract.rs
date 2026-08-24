@@ -304,7 +304,7 @@ fn join_conformance_contracts(
             .iter()
             .copied()
             .filter(|contract| {
-                reciprocal_include(
+                has_reciprocal_source_visibility(
                     surface,
                     surface.declarations()[contract.index()].source(),
                     declaration.source(),
@@ -451,7 +451,7 @@ fn join_contracts(
             .iter()
             .copied()
             .filter(|body| {
-                reciprocal_include(
+                has_reciprocal_source_visibility(
                     surface,
                     contract.source(),
                     surface.declarations()[body.index()].source(),
@@ -462,7 +462,7 @@ fn join_contracts(
             [] => {
                 if let Some(body) = candidates.loose.get(&loose).and_then(|bodies| {
                     bodies.iter().find(|body| {
-                        reciprocal_include(
+                        has_reciprocal_source_visibility(
                             surface,
                             contract.source(),
                             surface.declarations()[body.index()].source(),
@@ -552,17 +552,17 @@ fn nested_contract_declarations(
         .collect()
 }
 
-pub(super) fn reciprocal_include(
+pub(super) fn has_reciprocal_source_visibility(
     surface: &DeclarationSurface<'_>,
     contract: crate::SurfaceSourceId,
     definition: crate::SurfaceSourceId,
 ) -> bool {
     surface
-        .includes()
+        .source_visibilities()
         .iter()
         .any(|see| see.source() == contract && see.target() == definition)
         && surface
-            .includes()
+            .source_visibilities()
             .iter()
             .any(|see| see.source() == definition && see.target() == contract)
 }

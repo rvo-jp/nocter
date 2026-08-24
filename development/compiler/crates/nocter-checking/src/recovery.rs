@@ -16,24 +16,6 @@ pub enum PreparationRecovery {
     Names(Box<crate::NameAnalysisRecovery>),
 }
 
-impl PreparationRecovery {
-    #[must_use]
-    pub fn names(&self) -> Option<&crate::NameAnalysisRecovery> {
-        match self {
-            Self::Names(recovery) => Some(recovery.as_ref()),
-            Self::Declarations(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn declarations(&self) -> Option<&DeclarationAnalysisRecovery> {
-        match self {
-            Self::Declarations(recovery) => Some(recovery.as_ref()),
-            Self::Names(_) => None,
-        }
-    }
-}
-
 /// The complete declaration graph retained when a program-wide preparation rule rejects source.
 ///
 /// This boundary contains no conformance, construction, instance-operation, name, or body result.

@@ -7,8 +7,8 @@ declaration from source.
 
 ## Query Boundary
 
-One identity-presentation query consumes a successful immutable `AnalysisSnapshot`, a `SourceId`,
-and a normalized byte offset. Selection follows exactly one direction:
+One identity-presentation query consumes an immutable current-generation `AnalysisSnapshot`, a
+`SourceId`, and a normalized byte offset. Selection follows exactly one direction:
 
 ```text
 SourceId + byte offset
@@ -17,12 +17,10 @@ SourceId + byte offset
   -> SemanticSelection
 ```
 
-Hover then renders checked declaration/type data. Definition and references retain the selected
-semantic identity and project its existing `SourceIndex` bindings; they never search source text.
-
-Failed generations expose no checked identity answer. A query never consults an older successful
-snapshot. Completion has a narrower recovery contract described below: it may consume only
-explicit semantic stages retained by the current failed generation.
+Hover renders through the deepest completed semantic authority: checked data when available and
+the exact declaration, name, or prepared-body contract otherwise. Definition and references retain
+the selected semantic identity and project its existing `SourceIndex` bindings; they never search
+source text. A failed generation never consults an older successful snapshot.
 One shared source-context resolver selects the unique declaration or implementation module that
 owns a physical source. Hover, completion, and signature help consume that identity; module-path
 references cannot become source owners. A missing or conflicting owner is an internal query error,
@@ -35,7 +33,8 @@ keeps its complete contiguous path range.
 `SourceMap` owns the exact source-name lookup and every UTF-8/UTF-16 conversion. The LSP adapter
 resolves a URI to its stable canonical path, finds that path in the selected snapshot, converts the
 request position, and wraps the returned presentation and range. Invalid coordinates are invalid
-request parameters; an unanalysed document or failed current generation returns `null`.
+request parameters; an unanalysed document or a generation with no semantic authority returns
+`null`.
 
 ## Canonical Rendering
 
@@ -123,9 +122,10 @@ their exact modifiers or category. Keyword, visibility, brace, whitespace, and s
 whole-file ranges cannot become interactive or colored merely because a broader compiler
 projection overlaps them.
 
-Identity-oriented semantic requests select one current successful snapshot through the shared
-semantic-document boundary. An unopened dependency source may therefore use the same package
-generation as its open root, while a failed current generation returns no stale checked identity.
+Identity-oriented semantic requests select one current snapshot through the shared semantic-
+document boundary. An unopened dependency source may therefore use the same package generation as
+its open root. A failed current generation may answer only from its own retained authority and
+never from a stale checked identity.
 
 Definition prefers an authored declaration binding and falls back to an implementation binding
 only when no separate declaration exists. A module path navigates as one contiguous namespace to
@@ -158,12 +158,14 @@ those names on the module's authored and prelude-fallback namespace. Explicit cl
 no parent edge, so only declared captures cross the closure boundary. Completion details reuse the
 canonical presentation renderer; the protocol layer assigns only LSP item categories.
 
-The production session also has an analysis result that retains the completed, syntax-independent
-pre-body semantic stage when typed-body checking rejects the current generation. This is not a
-partial checked program: it contains declarations, normalized program-wide authorities, resolved
-body names, scopes, and their source index, but no checked nodes, local types, dispatch, ownership,
-or provenance. Name completion may consume that exact failed-generation stage. Ordinary command
-compilation uses the non-retaining path and does not clone the type or copyability stores.
+The production session owns one closed semantic-stage sum. A body-stage value retained when typed-
+body checking rejects the current generation is not a partial checked program: it contains
+declarations, normalized program-wide authorities, resolved body names, scopes, and their source
+index, but no checked nodes, local types, dispatch, ownership, or provenance. A declaration or name
+failure retains an earlier, narrower value; a target-boundary failure retains the already completed
+checked program. Analysis owns one capability view over these alternatives, so a feature cannot
+select a different fallback order. Ordinary command compilation uses the non-retaining path and
+does not clone the type or copyability stores.
 
 Receiver-member completion does not scan declarations or infer a type from source spelling. The
 instance-operation and conformance authorities retain canonical method-name indexes. For each
@@ -181,9 +183,11 @@ The production declaration-lowering and compile-input entries still reject every
 One separate editor-only declaration entry permits an incomplete syntax tree only when it has no
 lexer diagnostics and every parser diagnostic is contained by an executable block. Header,
 declaration, import, and package syntax cannot cross this boundary. Original syntax diagnostics
-remain the snapshot's public failure; ordinary body checking stops on the explicit missing/error
-node and may retain only facts fixed before it. This supports `value.` completion without inserting
-a synthetic identifier or compiling modified source.
+remain authoritative. An independent declaration, name, or body diagnostic from a disjoint source
+range is published beside them; a diagnostic overlapping the syntax hole is suppressed as causal
+noise. Ordinary body checking stops on the explicit missing/error node and may retain only facts
+fixed before it. This supports `value.` completion without inserting a synthetic identifier or
+compiling modified source.
 
 When lexical name resolution rejects authored source, its editor-only entry may freeze one
 `NameAnalysisRecovery`. The value contains the declaration graph and type store together with only

@@ -86,7 +86,7 @@ impl ImportTarget {
 
 /// One resolved top-level module import or re-export.
 ///
-/// Physical-source inclusion is absent: each source-local namespace is prepared before semantic
+/// Physical-source visibility is absent: each source-local namespace is prepared before semantic
 /// imports, and its directed see edges remain in the frontend binding input. Block imports
 /// belong to checked lexical scopes and do not enter this declaration arena.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_syntax::{NodeKind, SyntaxElement, TokenKind};
 
-use crate::contract::{HeaderFingerprint, reciprocal_include, source_kind};
+use crate::contract::{HeaderFingerprint, has_reciprocal_source_visibility, source_kind};
 use crate::{
     DeclarationContractError, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
     SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
@@ -59,7 +59,7 @@ pub(super) fn join_nominal_contracts(
             .flatten()
             .copied()
             .filter(|definition| {
-                reciprocal_include(
+                has_reciprocal_source_visibility(
                     surface,
                     contract.source(),
                     surface.declarations()[definition.index()].source(),
@@ -74,7 +74,7 @@ pub(super) fn join_nominal_contracts(
                     .flatten()
                     .copied()
                     .find(|definition| {
-                        reciprocal_include(
+                        has_reciprocal_source_visibility(
                             surface,
                             contract.source(),
                             surface.declarations()[definition.index()].source(),

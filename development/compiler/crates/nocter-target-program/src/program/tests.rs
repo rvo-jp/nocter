@@ -44,6 +44,42 @@ fn complete_closed_registry_constructs_a_target_program() {
 }
 
 #[test]
+fn target_rejection_returns_the_unchanged_checked_program() {
+    let fixture = Fixture::with_app("func main(): void { return }\n");
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+    let (checked, _) = output.into_parts();
+    let standard_package = checked.graph().standard_package().unwrap();
+    let nonstandard_package = checked
+        .graph()
+        .packages()
+        .iter()
+        .map(|(id, _)| id)
+        .find(|id| *id != standard_package)
+        .unwrap();
+    let registry = registry_for(&checked);
+    let snapshot = ToolchainSnapshot::select(
+        CompilationTarget::Arm64Darwin,
+        nonstandard_package,
+        registry,
+    )
+    .unwrap();
+
+    let failure = TargetProgram::build_retaining_checked(checked, snapshot).unwrap_err();
+    let (error, checked) = (*failure).into_parts();
+    assert!(matches!(
+        error,
+        super::TargetProgramError::StandardPackageMismatch { .. }
+    ));
+    assert_eq!(checked.graph().standard_package(), Some(standard_package));
+    assert!(!checked.bodies().is_empty());
+}
+
+#[test]
 fn executable_entry_accepts_exactly_the_six_process_result_forms() {
     for (source, expected_success, expected_fallible) in [
         (

@@ -2,11 +2,12 @@
 
 ## Current Task
 
-Nocter v0.17.0 Phase 0 and Phase 1 are complete. Before practical API work resumes, the active
-[analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is replacing the
-cross-cutting declaration-recovery, checking-recovery, session, analysis-snapshot, and LSP mutation
-boundary. The review inventory is frozen; implementation must follow its coherent migration order
-and delete every superseded authority in the same boundary change.
+Nocter v0.17.0 Phase 0 and Phase 1 are complete. The
+[analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is also complete.
+Declaration rejection, checking recovery, session composition, analysis snapshots, semantic editor
+queries, and LSP mutation validation now use one staged authority model; the superseded parallel
+adapters and source-`include` vocabulary were deleted. Practical API planning may resume from this
+boundary.
 
 Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
@@ -55,8 +56,9 @@ input.
   source-binding authority; semantic ranges, cursor containment, containment, and overlap belong to
   `nocter-source`.
 - Compiler-owned quick fixes cover imports, required conformance methods, and optional/fallible
-  callable result contracts. Every edit is applied to an isolated overlay and must pass ordinary
-  full-package compilation before publication.
+  callable result contracts. Every edit is applied to an isolated overlay and must reach checked
+  full-package semantics before publication; target-specific completion is not required for a
+  source-semantic edit.
 - Every public single-file example executes as a native process with exact status, stdout, and
   stderr checks. One shared acceptance catalog covers every public package example; `file-summary`
   and `text-report` compile through the target session and execute successful and argument-error

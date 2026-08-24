@@ -18,6 +18,47 @@ pub struct CompileTargetFailure {
     semantic: Option<Box<SemanticAnalysis>>,
 }
 
+/// Best-effort source analysis performed beneath an authoritative syntax failure.
+///
+/// The syntax outcome remains failed. This value independently retains a semantic-stage failure
+/// and the deepest completed semantic authority reached by that attempt.
+#[derive(Debug)]
+pub struct IncompleteSyntaxAnalysis {
+    failure: Option<CompileSessionError>,
+    semantic: Option<Box<SemanticAnalysis>>,
+}
+
+impl IncompleteSyntaxAnalysis {
+    fn empty() -> Self {
+        Self {
+            failure: None,
+            semantic: None,
+        }
+    }
+
+    fn failed(error: CompileSessionError, semantic: Option<SemanticAnalysis>) -> Self {
+        Self {
+            failure: Some(error),
+            semantic: semantic.map(Box::new),
+        }
+    }
+
+    #[must_use]
+    pub const fn failure(&self) -> Option<&CompileSessionError> {
+        self.failure.as_ref()
+    }
+
+    #[must_use]
+    pub fn semantic(&self) -> Option<&SemanticAnalysis> {
+        self.semantic.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (Option<CompileSessionError>, Option<SemanticAnalysis>) {
+        (self.failure, self.semantic.map(|semantic| *semantic))
+    }
+}
+
 impl CompileTargetFailure {
     fn new(error: CompileSessionError, semantic: Option<SemanticAnalysis>) -> Self {
         Self {
@@ -63,18 +104,24 @@ pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<Compi
 /// deepest declaration, name, or body stage reached before the explicit missing/error syntax node
 /// or an independent authored rule stopped analysis.
 #[must_use]
-pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<SemanticAnalysis> {
+pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSyntaxAnalysis> {
     if !unit.has_syntax_errors() {
         return None;
     }
-    let input = unit.analysis_input().ok()?;
+    let input = match unit.analysis_input() {
+        Ok(input) => input,
+        Err(error) => {
+            return Some(IncompleteSyntaxAnalysis::failed(error.into(), None));
+        }
+    };
     let lowered = match lower_incomplete_body_declarations_recovering(&input) {
         Ok(lowered) => lowered,
         Err(failure) => {
-            return failure
-                .into_parts()
-                .1
-                .map(SemanticAnalysis::from_declaration_lowering);
+            let (error, recovery) = failure.into_parts();
+            return Some(IncompleteSyntaxAnalysis::failed(
+                error.into(),
+                recovery.map(SemanticAnalysis::from_declaration_lowering),
+            ));
         }
     };
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
@@ -86,15 +133,22 @@ pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<SemanticAnalys
     ) {
         Ok(prepared) => prepared,
         Err(failure) => {
-            return failure
-                .into_parts()
-                .1
-                .map(SemanticAnalysis::from_preparation);
+            let (error, recovery) = failure.into_parts();
+            return Some(IncompleteSyntaxAnalysis::failed(
+                error.into(),
+                recovery.map(SemanticAnalysis::from_preparation),
+            ));
         }
     };
     match check_prepared_program_recovering(&input, prepared) {
-        Err(failure) => failure.into_parts().1.map(SemanticAnalysis::from_bodies),
-        Ok(_) => None,
+        Err(failure) => {
+            let (error, recovery) = failure.into_parts();
+            Some(IncompleteSyntaxAnalysis::failed(
+                error.into(),
+                recovery.map(SemanticAnalysis::from_bodies),
+            ))
+        }
+        Ok(_) => Some(IncompleteSyntaxAnalysis::empty()),
     }
 }
 

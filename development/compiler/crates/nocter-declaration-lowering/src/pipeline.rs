@@ -1,17 +1,18 @@
 use std::fmt;
 
+use crate::definitions::{HeaderDefinitionError, define_declaration_headers_recovering};
 use crate::surface::collect_incomplete_body_declaration_surface;
 use crate::{
     CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
     DeclarationDiagnostic, DeclarationLoweringRecovery, DefinitionDiagnostic, GenericDiagnostic,
-    GenericError, HeaderDefinitionError, HeaderError, ImportDiagnostic, ImportError,
-    LoweredDeclarations, NamespaceDiagnostic, PreparedImports, PreparedNamespaces,
-    PreparedTypeBindings, PreparedTypes, ReservationError, SourceDiagnostic, SurfaceDiagnostic,
-    SurfaceError, ToolchainError, TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError,
-    TypeNormalizationDiagnostic, TypeNormalizationError, analyze_declaration_contracts,
-    apply_toolchain_profile, bind_header_type_syntax, collect_declaration_surface,
-    define_declaration_headers_recovering, evaluate_header_constants, normalize_header_types,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    GenericError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
+    NamespaceDiagnostic, PreparedImports, PreparedNamespaces, PreparedTypeBindings, PreparedTypes,
+    ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError, ToolchainError,
+    TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
+    TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
+    bind_header_type_syntax, collect_declaration_surface, evaluate_header_constants,
+    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
+    prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -198,21 +199,6 @@ fn finish_declarations_recovering(
             ))
         }
     }
-}
-
-/// Lowers declarations only when every syntax diagnostic is lexically contained by an executable
-/// block. This editor-only boundary never declares the source compilable; it lets later phases
-/// retain facts preceding explicit missing/error body nodes.
-///
-/// # Errors
-///
-/// Returns the ordinary declaration error, including a surface error when any lexical diagnostic
-/// or declaration/header-level parse diagnostic exists.
-pub fn lower_incomplete_body_declarations(
-    input: &CompileUnitInput<'_>,
-) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    lower_incomplete_body_declarations_recovering(input)
-        .map_err(DeclarationLoweringFailure::into_error)
 }
 
 fn prepare_compile_unit_declarations_from<'syntax>(

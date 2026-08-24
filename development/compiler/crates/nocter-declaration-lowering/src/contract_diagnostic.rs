@@ -163,10 +163,10 @@ impl DeclarationContractRule {
                 "keep associated type bindings in index.nct and method bodies in the private source"
             }
             Self::UncontractedInterfaceDefault => {
-                "declare the default method contract in the reciprocally included index.nct interface"
+                "declare the default method contract in an index.nct interface with reciprocal source visibility"
             }
             Self::MissingRepresentation => {
-                "add one reciprocal directly included private representation"
+                "add one private representation source with reciprocal source visibility"
             }
             Self::MismatchedRepresentation => {
                 "make the representation kind, name, modifiers, and generic header match"

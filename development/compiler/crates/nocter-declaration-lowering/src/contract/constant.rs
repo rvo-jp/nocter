@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    DeclarationContractError, HeaderFingerprint, fingerprint, is_eligible_contract,
-    reciprocal_include, source_kind,
+    DeclarationContractError, HeaderFingerprint, fingerprint, has_reciprocal_source_visibility,
+    is_eligible_contract, source_kind,
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -73,7 +73,7 @@ pub(super) fn join(
             .iter()
             .copied()
             .filter(|definition| {
-                reciprocal_include(
+                has_reciprocal_source_visibility(
                     surface,
                     contract.source(),
                     surface.declarations()[definition.index()].source(),
@@ -86,7 +86,7 @@ pub(super) fn join(
                     .get(&loose_constant_key(surface, contract)?)
                     .and_then(|definitions| {
                         definitions.iter().find(|definition| {
-                            reciprocal_include(
+                            has_reciprocal_source_visibility(
                                 surface,
                                 contract.source(),
                                 surface.declarations()[definition.index()].source(),

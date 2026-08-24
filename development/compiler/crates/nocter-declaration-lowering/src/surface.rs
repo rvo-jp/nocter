@@ -229,7 +229,7 @@ pub struct DeclarationSurface<'syntax> {
     root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
     sources: Box<[SurfaceSource<'syntax>]>,
-    includes: Box<[SurfaceVisibility]>,
+    source_visibilities: Box<[SurfaceVisibility]>,
     imports: Box<[SurfaceImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
@@ -267,8 +267,8 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
-    pub const fn includes(&self) -> &[SurfaceVisibility] {
-        &self.includes
+    pub const fn source_visibilities(&self) -> &[SurfaceVisibility] {
+        &self.source_visibilities
     }
 
     #[must_use]
@@ -290,7 +290,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             root_packages: self.root_packages,
             modules: self.modules,
             sources: self.sources,
-            includes: self.includes,
+            source_visibilities: self.source_visibilities,
             imports: self.imports,
             package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
@@ -306,7 +306,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
-    pub(crate) includes: Box<[SurfaceVisibility]>,
+    pub(crate) source_visibilities: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
@@ -428,7 +428,7 @@ fn collect_declaration_surface_with<'syntax>(
         target_selection,
     } = prepared;
     let mut sources = Vec::new();
-    let mut includes = Vec::new();
+    let mut source_visibilities = Vec::new();
     let mut imports = Vec::new();
     let mut declarations = Vec::new();
 
@@ -465,7 +465,7 @@ fn collect_declaration_surface_with<'syntax>(
             SurfaceSourceId(index),
             source,
             &source_collection,
-            &mut includes,
+            &mut source_visibilities,
             &mut imports,
             &mut declarations,
         )?;
@@ -487,7 +487,7 @@ fn collect_declaration_surface_with<'syntax>(
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         sources: sources.into_boxed_slice(),
-        includes: includes.into_boxed_slice(),
+        source_visibilities: source_visibilities.into_boxed_slice(),
         imports: imports.into_boxed_slice(),
         package_target_resolutions: package_target_resolutions
             .into_iter()
@@ -519,7 +519,7 @@ fn collect_source(
     source_id: SurfaceSourceId,
     source: &SurfaceSource<'_>,
     input: &SourceCollectionInput<'_>,
-    includes: &mut Vec<SurfaceVisibility>,
+    source_visibilities: &mut Vec<SurfaceVisibility>,
     imports: &mut Vec<SurfaceImport>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
@@ -539,7 +539,7 @@ fn collect_source(
                     .source_by_path
                     .get(resolution.target_source())
                     .ok_or(SurfaceError::InconsistentSourceVisibilityResolution(child))?;
-                includes.push(SurfaceVisibility {
+                source_visibilities.push(SurfaceVisibility {
                     source: source_id,
                     node: child,
                     target,

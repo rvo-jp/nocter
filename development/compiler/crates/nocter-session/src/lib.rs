@@ -13,7 +13,9 @@ mod profile;
 mod semantic_analysis;
 mod test;
 
-pub use analysis::{CompileTargetFailure, analyze_incomplete_syntax, analyze_target};
+pub use analysis::{
+    CompileTargetFailure, IncompleteSyntaxAnalysis, analyze_incomplete_syntax, analyze_target,
+};
 pub use error::CompileSessionError;
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,

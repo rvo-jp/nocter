@@ -64,10 +64,12 @@ use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
     UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
-    collect_declaration_surface, define_declaration_headers, evaluate_header_constants,
-    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
-    prepare_generic_binders, reserve_declaration_identities,
+    collect_declaration_surface, evaluate_header_constants, normalize_header_types,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
+    reserve_declaration_identities,
 };
+
+use super::define_declaration_headers_recovering;
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
     sources
@@ -109,18 +111,26 @@ fn lower<'syntax>(
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::SourceVisibilityResolutionInput>,
+    source_visibilities: Vec<crate::SourceVisibilityResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> crate::LoweredDeclarations {
-    try_lower(sources, packages, modules, includes, uses, prelude).unwrap()
+    try_lower(
+        sources,
+        packages,
+        modules,
+        source_visibilities,
+        uses,
+        prelude,
+    )
+    .unwrap()
 }
 
 fn try_lower<'syntax>(
     sources: &'syntax SourceMap,
     packages: Vec<PackageInput>,
     modules: Vec<ModuleInput<'syntax>>,
-    includes: Vec<crate::SourceVisibilityResolutionInput>,
+    source_visibilities: Vec<crate::SourceVisibilityResolutionInput>,
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
@@ -131,7 +141,7 @@ fn try_lower<'syntax>(
         modules,
         uses,
     )
-    .with_source_visibility_resolutions(includes);
+    .with_source_visibility_resolutions(source_visibilities);
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
@@ -147,7 +157,7 @@ fn try_lower<'syntax>(
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let bound = evaluate_header_constants(bound)?;
     let normalized = normalize_header_types(bound).unwrap();
-    define_declaration_headers(normalized)
+    define_declaration_headers_recovering(normalized).map_err(|failure| failure.into_parts().0)
 }
 
 fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
@@ -198,7 +208,10 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
         Err(error) => return error,
     };
     let normalized = normalize_header_types(bound).unwrap();
-    define_declaration_headers(normalized).unwrap_err()
+    define_declaration_headers_recovering(normalized)
+        .unwrap_err()
+        .into_parts()
+        .0
 }
 
 #[test]

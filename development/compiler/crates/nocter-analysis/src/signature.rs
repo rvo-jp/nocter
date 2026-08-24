@@ -65,13 +65,13 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSignatureHelp>, SourceContextError> {
-        let Some(target) = self.target() else {
+        let Some(authority) = self.semantic_authority() else {
             return Ok(None);
         };
-        let checked = target.program().checked();
-        let Some(index) = self.source_index() else {
+        let Some(checked) = authority.checked() else {
             return Ok(None);
         };
+        let index = authority.source_index();
         let from = SourceContext::resolve(index, source)?.module();
         let spellings = VisibleSpellings::for_source(checked.graph(), from, index, source);
         let Some((body_id, _node_id, _range, call)) = index
@@ -126,7 +126,7 @@ impl AnalysisSnapshot {
             }))
             .collect::<Vec<_>>();
         let active_parameter =
-            active_parameter(self, source, body_id, &arguments, offset, parameters.len());
+            active_parameter(index, source, body_id, &arguments, offset, parameters.len());
         Ok(Some(SemanticSignatureHelp {
             presentation: rendered.presentation,
             parameters,
@@ -136,7 +136,7 @@ impl AnalysisSnapshot {
 }
 
 fn active_parameter(
-    snapshot: &AnalysisSnapshot,
+    index: &nocter_source_index::SourceIndex,
     source: SourceId,
     body: BodyId,
     arguments: &[BodyNodeId],
@@ -146,7 +146,6 @@ fn active_parameter(
     if parameter_count == 0 {
         return None;
     }
-    let index = snapshot.source_index()?;
     let completed = arguments
         .iter()
         .filter_map(|argument| {

@@ -10,7 +10,7 @@ use crate::{
     WorkspaceAnalysisGeneration,
 };
 
-/// One current successful analysis paired with the exact source requested by an editor query.
+/// One current analysis generation paired with the exact source requested by an editor query.
 pub(crate) struct SemanticDocument<'a> {
     path: PathBuf,
     analysis: &'a WorkspaceAnalysisGeneration,
@@ -36,7 +36,7 @@ impl<'a> SemanticDocument<'a> {
     }
 }
 
-/// Resolves a URI through stable document identity into one current successful source snapshot.
+/// Resolves a URI through stable document identity into one current source snapshot.
 pub(crate) fn semantic_document<'a>(
     documents: &DocumentWorkspace,
     analyses: &'a WorkspaceAnalyses,

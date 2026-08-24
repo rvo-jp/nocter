@@ -145,12 +145,12 @@ impl PreparedNamespaces<'_> {
                 })
                 .map(|(name, binding)| (*name, binding.entity));
             let source_id = source.syntax().source();
-            let directly_included = self
+            let directly_visible = self
                 .imports
                 .generics
                 .headers
                 .reserved
-                .includes
+                .source_visibilities
                 .iter()
                 .copied()
                 .filter(|see| see.source().index() == index)
@@ -174,7 +174,7 @@ impl PreparedNamespaces<'_> {
                 .headers
                 .reserved
                 .source_index
-                .define_source_access(source_id, directly_included);
+                .define_source_access(source_id, directly_visible);
         }
         let namespaces = self
             .imports

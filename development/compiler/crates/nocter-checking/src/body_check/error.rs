@@ -60,11 +60,6 @@ impl BodyCheckFailure {
     }
 
     #[must_use]
-    pub fn prepared(&self) -> Option<&crate::PreparedSemanticProgram> {
-        self.recovery().map(crate::BodyAnalysisRecovery::prepared)
-    }
-
-    #[must_use]
     pub fn recovery(&self) -> Option<&crate::BodyAnalysisRecovery> {
         self.recovery.as_deref()
     }

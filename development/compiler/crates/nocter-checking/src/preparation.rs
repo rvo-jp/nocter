@@ -269,11 +269,6 @@ impl PreparationFailure {
     }
 
     #[must_use]
-    pub fn recovery(&self) -> Option<&crate::PreparationRecovery> {
-        self.recovery.as_deref()
-    }
-
-    #[must_use]
     pub fn into_parts(self) -> (PreparationError, Option<crate::PreparationRecovery>) {
         (self.error, self.recovery.map(|recovery| *recovery))
     }
