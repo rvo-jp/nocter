@@ -152,10 +152,10 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span>try_append_i32<span class="token-operator">,</span> try_append_u8<span class="token-operator">,</span> try_append_usize<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span>try_append_i32<span class="token-operator">,</span> try_append_u8<span class="token-operator">,</span> try_append_usize<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>

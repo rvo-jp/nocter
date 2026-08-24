@@ -110,7 +110,9 @@ impl fmt::Display for ProgramIntegrityError {
 
 impl std::error::Error for ProgramIntegrityError {}
 
-pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
+pub(crate) fn validate_integrity(
+    program: &DeclarationProgram,
+) -> Result<(), ProgramIntegrityError> {
     types::validate_types(program)?;
     graph::validate_packages_modules_sites(program)?;
     types::validate_nominal_types(program)?;
@@ -128,6 +130,12 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValida
     graph::validate_namespaces(program)?;
     graph::validate_imports(program)?;
     graph::validate_package_targets(program)?;
+    Ok(())
+}
+
+pub(crate) fn validate_language_rules(
+    program: &DeclarationProgram,
+) -> Result<(), ProgramValidationError> {
     rules::validate(program)?;
     attachments::validate_rules(program)?;
     Ok(())

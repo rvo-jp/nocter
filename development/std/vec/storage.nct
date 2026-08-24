@@ -3,9 +3,9 @@
 see ./index.nct
 see ./into_iter.nct
 
-use std/internal/ptr.{from_addr, slice_from_raw_parts_value, slice_from_raw_parts_value_mut}
-use std/iter.{MutableViewIter, ViewIter}
-use std/mem.RawBuffer
+use /internal/ptr.{from_addr, slice_from_raw_parts_value, slice_from_raw_parts_value_mut}
+use /iter.{MutableViewIter, ViewIter}
+use /mem.RawBuffer
 
 struct VecIntoIter<T> {
     ptr: *T

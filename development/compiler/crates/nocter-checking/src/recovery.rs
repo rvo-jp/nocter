@@ -1,4 +1,4 @@
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{DeclarationGraph, DeclarationProgram};
 use nocter_model::TypeStore;
 use nocter_source_index::SourceIndex;
 
@@ -66,6 +66,14 @@ impl DeclarationAnalysisRecovery {
             types,
             source_index,
         }
+    }
+
+    /// Converts a structurally valid declaration program rejected by an authored language rule
+    /// into the declaration-only editor authority.
+    #[must_use]
+    pub fn from_program(program: DeclarationProgram, source_index: SourceIndex) -> Self {
+        let (graph, types) = program.into_parts();
+        Self::new(graph, types, source_index)
     }
 
     #[must_use]

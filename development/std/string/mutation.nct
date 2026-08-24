@@ -3,9 +3,9 @@
 see ./index.nct
 see ./storage.nct
 
-use std/internal/mem.allocation_abort
-use std/internal/ptr.copy_str_to_ptr
-use std/mem.try_grow_owned
+use /internal/mem.allocation_abort
+use /internal/ptr.copy_str_to_ptr
+use /mem.try_grow_owned
 
 func try_reserve(text: &+String, additional: usize): void! {
     let text_len: usize = text.len

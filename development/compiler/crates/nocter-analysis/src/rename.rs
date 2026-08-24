@@ -94,7 +94,10 @@ impl AnalysisSnapshot {
         if !is_valid_name(spelling) {
             return Ok(None);
         }
-        let Some(index) = self.source_index() else {
+        let Some(index) = self
+            .semantic_authority()
+            .map(|authority| authority.source_index())
+        else {
             return Ok(None);
         };
         let entities = rename_family(self, selection.entity());

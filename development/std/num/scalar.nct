@@ -2,10 +2,10 @@
 
 see ./index.nct
 
-use std/fmt.{try_append_i32, try_append_u8, try_append_usize}
-use std/mem.TryAllocator
-use std/internal/mem.allocation_abort
-use std/string.String
+use /fmt.{try_append_i32, try_append_u8, try_append_usize}
+use /mem.TryAllocator
+use /internal/mem.allocation_abort
+use /string.String
 
 func parse_usize(text: &str): usize? {
     let raw = text.bytes()

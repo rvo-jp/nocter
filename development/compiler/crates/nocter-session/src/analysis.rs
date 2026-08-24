@@ -1,10 +1,11 @@
 use nocter_checking::{
-    BodyAnalysisRecovery, PreparedSemanticProgram, SemanticAnalysisRecovery,
-    check_prepared_program, check_prepared_program_recovering, prepare_program_checking,
-    prepare_program_checking_recovering,
+    BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparedSemanticProgram,
+    SemanticAnalysisRecovery, check_prepared_program, check_prepared_program_recovering,
+    prepare_program_checking, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    lower_compile_unit_declarations, lower_incomplete_body_declarations, resolve_primitive_bindings,
+    lower_compile_unit_declarations, lower_compile_unit_declarations_recovering,
+    lower_incomplete_body_declarations, resolve_primitive_bindings,
 };
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
@@ -107,10 +108,23 @@ fn analyze_target_internal(
         .map_err(Box::new)?
         .primitive_roles()
         .to_vec();
-    let lowered = lower_compile_unit_declarations(&input)
-        .map_err(CompileSessionError::from)
-        .map_err(without_prepared)
-        .map_err(Box::new)?;
+    let lowered = if retain_prepared {
+        lower_compile_unit_declarations_recovering(&input).map_err(|failure| {
+            let (error, recovery) = failure.into_parts();
+            let recovery = recovery.map(|lowered| {
+                let (program, source_index) = lowered.into_parts();
+                SemanticAnalysisRecovery::Declarations(Box::new(
+                    DeclarationAnalysisRecovery::from_program(program, source_index),
+                ))
+            });
+            Box::new(CompileTargetFailure::new(error.into(), recovery))
+        })?
+    } else {
+        lower_compile_unit_declarations(&input)
+            .map_err(CompileSessionError::from)
+            .map_err(without_prepared)
+            .map_err(Box::new)?
+    };
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let prepared = if retain_prepared {
         prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)

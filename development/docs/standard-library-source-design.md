@@ -43,6 +43,14 @@ The same test freezes the reviewed module-dependency relation from discovery's r
 edges. Adding an edge requires an ownership review and an explicit update to that relation; source
 spelling is never reparsed to infer dependencies.
 
+Every import from one standard-library module to another uses the package-absolute `/module` form.
+The dependency spelling `std/module` means “the package bound to the `std` dependency name”; inside
+an ordinary checkout analysis that name selects the installed toolchain package, not the authored
+package being edited. Package-absolute self imports keep one source tree valid both when selected
+as the toolchain standard package and when opened as an ordinary package for diagnostics and LSP
+queries. The authored-standard-library test checks this source portability rule independently from
+the resolved dependency graph.
+
 Stable error codes are behavioral API; helper functions that construct those errors are not.
 Error factories remain private unless callers must select them independently for a documented
 reason.

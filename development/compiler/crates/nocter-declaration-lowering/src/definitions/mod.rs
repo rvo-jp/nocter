@@ -21,6 +21,40 @@ mod tests;
 pub use diagnostic::DeclarationDiagnostic;
 pub use violation::{DefinitionRule, DefinitionViolation};
 
+#[derive(Debug)]
+pub struct HeaderDefinitionFailure {
+    error: Box<HeaderDefinitionError>,
+    recovery: Option<Box<LoweredDeclarations>>,
+}
+
+impl HeaderDefinitionFailure {
+    pub(super) fn new(error: HeaderDefinitionError, recovery: Option<LoweredDeclarations>) -> Self {
+        Self {
+            error: Box::new(error),
+            recovery: recovery.map(Box::new),
+        }
+    }
+
+    pub(super) fn without_recovery(error: HeaderDefinitionError) -> Self {
+        Self::new(error, None)
+    }
+
+    #[must_use]
+    pub fn error(&self) -> &HeaderDefinitionError {
+        self.error.as_ref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (HeaderDefinitionError, Option<LoweredDeclarations>) {
+        (*self.error, self.recovery.map(|recovery| *recovery))
+    }
+
+    #[must_use]
+    pub fn into_error(self) -> HeaderDefinitionError {
+        *self.error
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HeaderDefinitionError {
     Rule(DefinitionViolation),
@@ -160,9 +194,24 @@ impl From<DefinitionViolation> for HeaderDefinitionError {
 /// Returns [`HeaderDefinitionError`] for an incomplete or inconsistent header, source projection,
 /// provenance contract, associated binding, or declaration-program invariant.
 pub fn define_declaration_headers(
-    mut types: PreparedTypes<'_>,
+    types: PreparedTypes<'_>,
 ) -> Result<LoweredDeclarations, HeaderDefinitionError> {
-    let mut allocation = allocation::allocate(&mut types)?;
-    declarations::define(&mut types, &mut allocation)?;
-    allocation::finish(types, allocation)
+    define_declaration_headers_recovering(types).map_err(HeaderDefinitionFailure::into_error)
+}
+
+/// Completes declaration headers while retaining a structurally valid program rejected only by
+/// an authored declaration rule.
+///
+/// # Errors
+///
+/// Returns the exact production definition error and an optional lowering snapshot suitable for
+/// editor recovery. Internal integrity failures never carry recovery.
+pub fn define_declaration_headers_recovering(
+    mut types: PreparedTypes<'_>,
+) -> Result<LoweredDeclarations, HeaderDefinitionFailure> {
+    let mut allocation =
+        allocation::allocate(&mut types).map_err(HeaderDefinitionFailure::without_recovery)?;
+    declarations::define(&mut types, &mut allocation)
+        .map_err(HeaderDefinitionFailure::without_recovery)?;
+    allocation::finish_recovering(types, allocation)
 }

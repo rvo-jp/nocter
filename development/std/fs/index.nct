@@ -5,8 +5,8 @@
 
 see ./filesystem.nct
 
-use std/string.String
-use std/vec.Vec
+use /string.String
+use /vec.Vec
 
 /// Portable classification of a filesystem entry.
 pub enum FileType {

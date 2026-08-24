@@ -10,8 +10,8 @@ use crate::{
     TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
     TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
     bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
-    evaluate_header_constants, normalize_header_types, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders,
+    define_declaration_headers_recovering, evaluate_header_constants, normalize_header_types,
+    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -99,6 +99,40 @@ impl fmt::Display for DeclarationLoweringError {
 
 impl std::error::Error for DeclarationLoweringError {}
 
+#[derive(Debug)]
+pub struct DeclarationLoweringFailure {
+    error: Box<DeclarationLoweringError>,
+    recovery: Option<Box<LoweredDeclarations>>,
+}
+
+impl DeclarationLoweringFailure {
+    fn new(error: DeclarationLoweringError, recovery: Option<LoweredDeclarations>) -> Self {
+        Self {
+            error: Box::new(error),
+            recovery: recovery.map(Box::new),
+        }
+    }
+
+    fn without_recovery(error: DeclarationLoweringError) -> Self {
+        Self::new(error, None)
+    }
+
+    #[must_use]
+    pub fn error(&self) -> &DeclarationLoweringError {
+        self.error.as_ref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationLoweringError, Option<LoweredDeclarations>) {
+        (*self.error, self.recovery.map(|recovery| *recovery))
+    }
+
+    #[must_use]
+    pub fn into_error(self) -> DeclarationLoweringError {
+        *self.error
+    }
+}
+
 /// Lowers one discovery-owned compile unit through the complete declaration pipeline.
 ///
 /// This is the production entry point. Individual passes remain exposed for focused tests and
@@ -112,7 +146,33 @@ impl std::error::Error for DeclarationLoweringError {}
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    lower_compile_unit_declarations_from(input, collect_declaration_surface(input))
+    lower_compile_unit_declarations_recovering(input)
+        .map_err(DeclarationLoweringFailure::into_error)
+}
+
+/// Lowers declarations while retaining the immutable declaration snapshot reached before an
+/// authored declaration rule rejected the program.
+///
+/// # Errors
+///
+/// Returns the exact production lowering error and optional editor recovery. Earlier-stage and
+/// internal-integrity failures never expose a recovery program.
+pub fn lower_compile_unit_declarations_recovering(
+    input: &CompileUnitInput<'_>,
+) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {
+    let normalized =
+        prepare_compile_unit_declarations_from(input, collect_declaration_surface(input))
+            .map_err(DeclarationLoweringFailure::without_recovery)?;
+    match define_declaration_headers_recovering(normalized) {
+        Ok(lowered) => Ok(lowered),
+        Err(failure) => {
+            let (error, recovery) = failure.into_parts();
+            Err(DeclarationLoweringFailure::new(
+                project_definition_error(error, input),
+                recovery,
+            ))
+        }
+    }
 }
 
 /// Lowers declarations only when every syntax diagnostic is lexically contained by an executable
@@ -126,13 +186,17 @@ pub fn lower_compile_unit_declarations(
 pub fn lower_incomplete_body_declarations(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {
-    lower_compile_unit_declarations_from(input, collect_incomplete_body_declaration_surface(input))
+    let normalized = prepare_compile_unit_declarations_from(
+        input,
+        collect_incomplete_body_declaration_surface(input),
+    )?;
+    define_headers(normalized, input)
 }
 
-fn lower_compile_unit_declarations_from<'syntax>(
+fn prepare_compile_unit_declarations_from<'syntax>(
     input: &CompileUnitInput<'syntax>,
     surface: Result<crate::DeclarationSurface<'syntax>, SurfaceError>,
-) -> Result<LoweredDeclarations, DeclarationLoweringError> {
+) -> Result<PreparedTypes<'syntax>, DeclarationLoweringError> {
     let surface = match surface {
         Ok(surface) => surface,
         Err(SurfaceError::Topology(crate::LoweringError::Rule(violation))) => {
@@ -208,8 +272,7 @@ fn lower_compile_unit_declarations_from<'syntax>(
     let namespaces = prepare_toolchain_namespaces(imports, input)?;
     let bound = bind_types(namespaces, input)?;
     let bound = evaluate_constants(bound, input)?;
-    let normalized = normalize_types(bound, input)?;
-    define_headers(normalized, input)
+    normalize_types(bound, input)
 }
 
 fn evaluate_constants<'syntax>(
@@ -287,6 +350,26 @@ fn define_headers<'syntax>(
             Err(DeclarationLoweringError::Declaration(diagnostic))
         }
         Err(internal) => Err(DeclarationLoweringError::InternalDefinition(internal)),
+    }
+}
+
+fn project_definition_error(
+    error: HeaderDefinitionError,
+    input: &CompileUnitInput<'_>,
+) -> DeclarationLoweringError {
+    match error {
+        HeaderDefinitionError::Rule(violation) => {
+            match DefinitionDiagnostic::project(violation, input) {
+                Ok(diagnostic) => DeclarationLoweringError::Definition(diagnostic),
+                Err(internal) => DeclarationLoweringError::InternalDefinition(
+                    HeaderDefinitionError::Rule(internal),
+                ),
+            }
+        }
+        HeaderDefinitionError::Declaration(diagnostic) => {
+            DeclarationLoweringError::Declaration(diagnostic)
+        }
+        internal => DeclarationLoweringError::InternalDefinition(internal),
     }
 }
 

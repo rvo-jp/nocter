@@ -5,9 +5,9 @@
 //! trusted primitive. Allocating conveniences are isolated from borrowed
 //! algorithms in `owned.nct`.
 
-use std/iter.{Iterator, ViewIter}
-use std/string.String
-use std/vec.Vec
+use /iter.{Iterator, ViewIter}
+use /string.String
+use /vec.Vec
 see ./text.nct
 see ./views.nct
 see ./owned.nct

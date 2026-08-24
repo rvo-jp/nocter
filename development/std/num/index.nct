@@ -1,7 +1,7 @@
 //! Decimal integer parsing and text conversion.
 
-use std/mem.TryAllocator
-use std/string.String
+use /mem.TryAllocator
+use /string.String
 see ./scalar.nct
 
 pub func parse_usize(text: &str): usize?

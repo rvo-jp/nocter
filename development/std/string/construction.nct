@@ -4,8 +4,8 @@ see ./index.nct
 see ./storage.nct
 see ./utf8.nct
 
-use std/mem.{TryAllocator, current_allocator, empty_page_buffer}
-use std/internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
+use /mem.{TryAllocator, current_allocator, empty_page_buffer}
+use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 
 construct String {
     default literal ""(text: &str): Self {

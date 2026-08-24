@@ -5,9 +5,9 @@ see ./allocation.nct
 see ./layout.nct
 see ./storage.nct
 
-use std/internal/mem.allocation_abort
-use std/internal/ptr.{from_addr, slice_from_raw_parts, slice_from_raw_parts_mut}
-use std/ptr.addr
+use /internal/mem.allocation_abort
+use /internal/ptr.{from_addr, slice_from_raw_parts, slice_from_raw_parts_mut}
+use /ptr.addr
 
 func bytes(buffer: &RawBuffer): &[u8] {
     return slice_from_raw_parts(buffer.ptr, buffer.len)

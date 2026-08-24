@@ -10,8 +10,8 @@ use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxToken, TokenKind};
 
 use crate::{
-    LoweredDeclarations, PreparedTypes, ReservedEntity, SurfaceDeclarationId,
-    SurfaceDeclarationKind,
+    HeaderDefinitionFailure, LoweredDeclarations, PreparedTypes, ReservedEntity,
+    SurfaceDeclarationId, SurfaceDeclarationKind,
 };
 
 use super::{HeaderDefinitionError, projection, syntax};
@@ -108,27 +108,39 @@ pub(super) fn allocate(
     })
 }
 
-pub(super) fn finish(
+pub(super) fn finish_recovering(
     mut types: PreparedTypes<'_>,
     _allocated: AllocatedHeaders,
-) -> Result<LoweredDeclarations, HeaderDefinitionError> {
-    types.namespaces.define_program_namespaces()?;
+) -> Result<LoweredDeclarations, HeaderDefinitionFailure> {
+    types
+        .namespaces
+        .define_program_namespaces()
+        .map_err(HeaderDefinitionError::Program)
+        .map_err(HeaderDefinitionFailure::without_recovery)?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
     let (source_index, frontend_bindings) = reserved.source_index.finish();
-    match reserved.program.finish() {
+    match reserved.program.finish_recovering() {
         Ok(program) => Ok(LoweredDeclarations::new(
             program,
             frontend_bindings,
             source_index,
         )),
-        Err(nocter_declarations::ProgramBuildError::InvalidProgram(
-            nocter_declarations::ProgramValidationError::Declaration(violation),
-        )) => {
-            let diagnostic = super::DeclarationDiagnostic::project(violation, &source_index)
-                .map_err(HeaderDefinitionError::MissingDiagnosticSubject)?;
-            Err(HeaderDefinitionError::Declaration(diagnostic))
+        Err(failure) => {
+            let (error, program) = failure.into_parts();
+            let recovery = program.map(|program| {
+                LoweredDeclarations::new(program, frontend_bindings, source_index.clone())
+            });
+            let error = match error {
+                nocter_declarations::ProgramBuildError::InvalidProgram(
+                    nocter_declarations::ProgramValidationError::Declaration(violation),
+                ) => super::DeclarationDiagnostic::project(violation, &source_index)
+                    .map(HeaderDefinitionError::Declaration)
+                    .map_err(HeaderDefinitionError::MissingDiagnosticSubject)
+                    .unwrap_or_else(|error| error),
+                error => HeaderDefinitionError::Program(error),
+            };
+            Err(HeaderDefinitionFailure::new(error, recovery))
         }
-        Err(error) => Err(HeaderDefinitionError::Program(error)),
     }
 }
 

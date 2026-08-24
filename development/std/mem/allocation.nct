@@ -4,10 +4,10 @@ see ./index.nct
 see ./layout.nct
 see ./storage.nct
 
-use std/internal/mem.allocation_abort
-use std/internal/os/darwin.{mmap_no_file, mmap_private_anonymous, mmap_read_write}
-use std/internal/os/darwin.{sys_mmap, sys_munmap, syscall2, syscall6}
-use std/internal/ptr.{copy_ptr_to_ptr, from_addr, slice_from_raw_parts_value, store_value_to_ptr}
+use /internal/mem.allocation_abort
+use /internal/os/darwin.{mmap_no_file, mmap_private_anonymous, mmap_read_write}
+use /internal/os/darwin.{sys_mmap, sys_munmap, syscall2, syscall6}
+use /internal/ptr.{copy_ptr_to_ptr, from_addr, slice_from_raw_parts_value, store_value_to_ptr}
 
 #target: "arm64-darwin"
 func alloc_pages(size: usize): usize! {

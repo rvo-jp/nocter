@@ -3,17 +3,17 @@
 see ./index.nct
 see ./filesystem.nct
 
-use std/internal/io.io_error_from_os
-use std/internal/os.OSErrorKind
-use std/internal/os/darwin.{SyscallResult, errno_interrupted}
-use std/internal/os/darwin.{stat_buffer_size, stat_mode_directory, stat_mode_offset}
-use std/internal/os/darwin.{stat_mode_regular, stat_size_offset}
-use std/internal/os/darwin.{sys_rename, sys_stat64, sys_unlink}
-use std/internal/os/darwin.{errno, error_from_errno, syscall1, syscall2}
-use std/internal/path.{target_path_address, target_path_argument}
-use std/mem.{RawBuffer, page_try_allocator}
-use std/ptr.addr
-use std/internal/ptr.{from_addr, take_value_at_ptr}
+use /internal/io.io_error_from_os
+use /internal/os.OSErrorKind
+use /internal/os/darwin.{SyscallResult, errno_interrupted}
+use /internal/os/darwin.{stat_buffer_size, stat_mode_directory, stat_mode_offset}
+use /internal/os/darwin.{stat_mode_regular, stat_size_offset}
+use /internal/os/darwin.{sys_rename, sys_stat64, sys_unlink}
+use /internal/os/darwin.{errno, error_from_errno, syscall1, syscall2}
+use /internal/path.{target_path_address, target_path_argument}
+use /mem.{RawBuffer, page_try_allocator}
+use /ptr.addr
+use /internal/ptr.{from_addr, take_value_at_ptr}
 
 #target: "arm64-darwin"
 struct DarwinStatQuery {

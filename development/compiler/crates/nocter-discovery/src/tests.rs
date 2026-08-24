@@ -696,6 +696,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     );
     standard_contract::assert_standard_root_visibility_boundaries(&unit);
     let input = unit.compile_input().unwrap();
+    standard_contract::assert_standard_self_uses_are_package_absolute(&input);
     standard_contract::assert_reviewed_standard_dependencies(&input);
     let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);

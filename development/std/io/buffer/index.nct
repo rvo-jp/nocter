@@ -3,7 +3,7 @@
 //! Fallible flushes are always explicit. Dropping a writer discards an
 //! unflushed buffer instead of hiding an I/O failure in destruction.
 
-use std/io.{File, Reader, Writer}
+use /io.{File, Reader, Writer}
 see ./buffering.nct
 
 pub struct BufReader

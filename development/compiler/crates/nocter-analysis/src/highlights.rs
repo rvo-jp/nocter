@@ -57,20 +57,19 @@ pub enum SemanticHighlightKind {
 }
 
 impl AnalysisSnapshot {
-    /// Classifies every exact semantic binding in one source of the current successful snapshot.
+    /// Classifies every exact semantic binding available from the deepest current authority.
     #[must_use]
     pub fn semantic_highlights(&self, source: SourceId) -> Box<[SemanticHighlight]> {
-        let Some(target) = self.target() else {
+        let Some(authority) = self.semantic_authority() else {
             return Box::new([]);
         };
-        let checked = target.program().checked();
-        let Some(index) = self.source_index() else {
-            return Box::new([]);
-        };
+        let graph = authority.graph();
+        let checked = authority.checked();
+        let index = authority.source_index();
         let mut candidates = index
             .bindings_in(source)
             .filter_map(|binding| {
-                highlight(checked, binding)
+                highlight(graph, checked, binding)
                     .map(|highlight| (source_binding_key(binding), highlight))
             })
             .collect::<Vec<_>>();
@@ -90,8 +89,12 @@ impl AnalysisSnapshot {
     }
 }
 
-fn highlight(checked: &CheckedProgram, binding: &SourceBinding) -> Option<SemanticHighlight> {
-    let (kind, readonly) = classify(checked, binding)?;
+fn highlight(
+    graph: &nocter_declarations::DeclarationGraph,
+    checked: Option<&CheckedProgram>,
+    binding: &SourceBinding,
+) -> Option<SemanticHighlight> {
+    let (kind, readonly) = classify(graph, checked, binding)?;
     if matches!(binding.entity(), SemanticEntity::Module(_))
         && binding.role() != SourceRole::Reference
     {
@@ -110,11 +113,12 @@ fn highlight(checked: &CheckedProgram, binding: &SourceBinding) -> Option<Semant
 }
 
 fn classify(
-    checked: &CheckedProgram,
+    graph: &nocter_declarations::DeclarationGraph,
+    checked: Option<&CheckedProgram>,
     binding: &SourceBinding,
 ) -> Option<(SemanticHighlightKind, bool)> {
     let entity = binding.entity();
-    let declarations = checked.graph().declarations();
+    let declarations = graph.declarations();
     let kind = match entity {
         SemanticEntity::Module(_) => SemanticHighlightKind::Namespace,
         SemanticEntity::NominalType(id) => match declarations.nominal_types().get(id)?.shape() {
@@ -138,12 +142,12 @@ fn classify(
             return Some((SemanticHighlightKind::Parameter, readonly));
         }
         SemanticEntity::LocalBinding(body, id) => {
-            let local = checked.bodies().get(body)?.locals().get(id)?;
+            let local = checked?.bodies().get(body)?.locals().get(id)?;
             let readonly = local.declaration().kind() != LocalBindingKind::Mutable;
             return Some((SemanticHighlightKind::Variable, readonly));
         }
         SemanticEntity::Capture(body, id) => {
-            let capture = checked.bodies().get(body)?.captures().get(id)?;
+            let capture = checked?.bodies().get(body)?.captures().get(id)?;
             let readonly = capture.declaration().mode() == CaptureMode::Readonly;
             return Some((SemanticHighlightKind::Variable, readonly));
         }

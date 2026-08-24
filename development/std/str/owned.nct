@@ -4,8 +4,8 @@ see ./index.nct
 see ./search.nct
 see ./views.nct
 
-use std/string.String
-use std/vec.Vec
+use /string.String
+use /vec.Vec
 
 func split(text: &str, separator: &str): Vec<String>! {
     if separator.len() == 0 { return empty_separator_error() }

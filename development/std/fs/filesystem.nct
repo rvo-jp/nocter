@@ -3,9 +3,9 @@
 see ./index.nct
 see ./darwin.nct
 
-use std/io.{File, Reader, Writer}
-use std/string.String
-use std/vec.Vec
+use /io.{File, Reader, Writer}
+use /string.String
+use /vec.Vec
 
 copy struct Metadata {
     file_type: FileType

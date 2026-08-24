@@ -3,15 +3,15 @@
 see ./index.nct
 see ./core.nct
 
-use std/internal/os/darwin.{SyscallResult, create_mode, errno_interrupted}
-use std/internal/os/darwin.{open_create_append, open_create_truncate, open_read_only}
-use std/internal/os/darwin.{sys_close, sys_open, sys_read, sys_write}
-use std/internal/io.io_error_from_os
-use std/internal/os/darwin.{errno, error_from_errno, syscall1, syscall3}
-use std/internal/path.{target_path_address, target_path_argument}
-use std/ptr.addr
-use std/string.String
-use std/vec.Vec
+use /internal/os/darwin.{SyscallResult, create_mode, errno_interrupted}
+use /internal/os/darwin.{open_create_append, open_create_truncate, open_read_only}
+use /internal/os/darwin.{sys_close, sys_open, sys_read, sys_write}
+use /internal/io.io_error_from_os
+use /internal/os/darwin.{errno, error_from_errno, syscall1, syscall3}
+use /internal/path.{target_path_address, target_path_argument}
+use /ptr.addr
+use /string.String
+use /vec.Vec
 
 #target: "arm64-darwin"
 const stdout_fd: usize = 1

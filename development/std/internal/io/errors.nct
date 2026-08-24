@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use std/internal/os.{OSError, OSErrorKind}
+use /internal/os.{OSError, OSErrorKind}
 
 func io_error_from_os(os_error: OSError): error {
     if os_error.kind is OSErrorKind.interrupted {

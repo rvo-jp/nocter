@@ -152,10 +152,10 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> page_try_allocator<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>path<span class="token-operator">.</span>validate
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_str_to_ptr<span class="token-operator">,</span> store_u8_to_ptr<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> page_try_allocator<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>path<span class="token-operator">.</span>validate
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_str_to_ptr<span class="token-operator">,</span> store_u8_to_ptr<span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">struct</span> <span class="token-type">TargetPathArgument</span> <span class="token-operator">{</span>

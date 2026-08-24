@@ -4,8 +4,8 @@
 //! destination collection. Keeping that dependency here preserves an acyclic
 //! graph between `std/iter` and collection modules.
 
-use std/iter.Iterator
-use std/vec.Vec
+use /iter.Iterator
+use /vec.Vec
 see ./collection.nct
 
 /// Consumes `source` into a newly allocated Vec.

@@ -1,6 +1,6 @@
 //! Darwin ARM64 ABI contract shared by standard-library target adapters.
 
-use std/internal/os.{OSError, OSErrorKind, Platform}
+use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
 
 #target: "arm64-darwin"

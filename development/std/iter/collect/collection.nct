@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use std/iter.Iterator
-use std/vec.Vec
+use /iter.Iterator
+use /vec.Vec
 
 func to_vec<I>(source: I): Vec<I.Item> from source where I: Iterator {
     var iterator = move source

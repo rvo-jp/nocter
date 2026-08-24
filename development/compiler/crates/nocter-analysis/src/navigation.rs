@@ -33,7 +33,10 @@ impl AnalysisSnapshot {
         let Some(selection) = self.semantic_selection(source, offset) else {
             return Box::new([]);
         };
-        let Some(index) = self.source_index() else {
+        let Some(index) = self
+            .semantic_authority()
+            .map(|authority| authority.source_index())
+        else {
             return Box::new([]);
         };
         let bindings = index.bindings_for(selection.entity());
@@ -63,7 +66,10 @@ impl AnalysisSnapshot {
         let Some(selection) = self.semantic_selection(source, offset) else {
             return Box::new([]);
         };
-        let Some(index) = self.source_index() else {
+        let Some(index) = self
+            .semantic_authority()
+            .map(|authority| authority.source_index())
+        else {
             return Box::new([]);
         };
         let bindings = index.bindings_for(selection.entity());
@@ -94,7 +100,10 @@ impl AnalysisSnapshot {
         let Some(selection) = self.semantic_selection(source, offset) else {
             return Box::new([]);
         };
-        let Some(index) = self.source_index() else {
+        let Some(index) = self
+            .semantic_authority()
+            .map(|authority| authority.source_index())
+        else {
             return Box::new([]);
         };
         locations(

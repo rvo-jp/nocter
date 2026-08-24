@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use std/internal/mem.allocation_abort
-use std/string.String
+use /internal/mem.allocation_abort
+use /string.String
 
 func try_append_str(out: &+String, value: &str): void! {
     out.try_push_str(value)?

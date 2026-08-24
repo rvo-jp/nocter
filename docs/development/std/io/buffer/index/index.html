@@ -153,7 +153,7 @@
 <span class="token-comment">//! Fallible flushes are always explicit. Dropping a writer discards an</span>
 <span class="token-comment">//! unflushed buffer instead of hiding an I/O failure in destruction.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>buffering<span class="token-operator">.</span>nct
 
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BufReader</span>

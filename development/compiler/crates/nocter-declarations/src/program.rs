@@ -603,17 +603,34 @@ impl DeclarationProgramBuilder {
         Ok(self.package_targets.insert(target))
     }
 
-    /// Freezes the complete declaration program.
+    /// Freezes and validates the complete declaration program.
     ///
     /// # Errors
     ///
     /// Returns an error when an identity reservation was not completed.
     pub fn finish(self) -> Result<DeclarationProgram, ProgramBuildError> {
+        self.finish_recovering()
+            .map_err(ProgramBuildFailure::into_error)
+    }
+
+    /// Freezes and validates the complete declaration program while retaining a structurally
+    /// valid graph when an authored language rule rejects it.
+    ///
+    /// This is the declaration authority for editor recovery. Integrity failures never expose a
+    /// program, and callers must continue to report the returned error rather than treating the
+    /// recovery graph as accepted source.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact production build error and, only for an authored declaration-rule
+    /// violation, the structurally valid declaration program reached before that rule failed.
+    pub fn finish_recovering(self) -> Result<DeclarationProgram, ProgramBuildFailure> {
         let module_namespaces = self
             .module_namespaces
             .try_finish_with(|module, namespace| {
                 namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
-            })?;
+            })
+            .map_err(ProgramBuildFailure::without_program)?;
         let program = DeclarationProgram {
             graph: DeclarationGraph {
                 target: self.target,
@@ -628,11 +645,30 @@ impl DeclarationProgramBuilder {
                 declaration_sites: self.declaration_sites.finish(),
                 imports: self.imports.finish(),
                 package_targets: self.package_targets.finish(),
-                declarations: self.declarations.finish()?,
+                declarations: self
+                    .declarations
+                    .finish()
+                    .map_err(ProgramBuildError::from)
+                    .map_err(ProgramBuildFailure::without_program)?,
             },
             types: self.types,
         };
-        crate::validate::validate(&program)?;
+        crate::validate::validate_integrity(&program)
+            .map_err(ProgramValidationError::from)
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::without_program)?;
+        if let Err(error) = crate::validate::validate_language_rules(&program) {
+            return match error {
+                ProgramValidationError::Declaration(_) => Err(ProgramBuildFailure::new(
+                    ProgramBuildError::InvalidProgram(error),
+                    Some(program),
+                )),
+                ProgramValidationError::Integrity(_) => Err(ProgramBuildFailure::new(
+                    ProgramBuildError::InvalidProgram(error),
+                    None,
+                )),
+            };
+        }
         Ok(program)
     }
 
@@ -653,6 +689,41 @@ impl DeclarationProgramBuilder {
         self.modules
             .get(module)
             .ok_or(ProgramBuildError::UnknownModule)
+    }
+}
+
+/// A failed declaration-program freeze and the optional structurally valid editor snapshot.
+#[derive(Debug)]
+pub struct ProgramBuildFailure {
+    error: ProgramBuildError,
+    program: Option<Box<DeclarationProgram>>,
+}
+
+impl ProgramBuildFailure {
+    fn new(error: ProgramBuildError, program: Option<DeclarationProgram>) -> Self {
+        Self {
+            error,
+            program: program.map(Box::new),
+        }
+    }
+
+    fn without_program(error: ProgramBuildError) -> Self {
+        Self::new(error, None)
+    }
+
+    #[must_use]
+    pub const fn error(&self) -> &ProgramBuildError {
+        &self.error
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (ProgramBuildError, Option<DeclarationProgram>) {
+        (self.error, self.program.map(|program| *program))
+    }
+
+    #[must_use]
+    pub fn into_error(self) -> ProgramBuildError {
+        self.error
     }
 }
 

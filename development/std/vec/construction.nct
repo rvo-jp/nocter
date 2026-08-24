@@ -4,11 +4,11 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use std/internal/mem.allocation_abort
-use std/internal/ptr.{from_addr, pointee_align, pointee_size}
-use std/iter.{ExactSizeIterator, Iterator}
-use std/mem.{TryAllocator, current_allocator, empty_page_buffer}
-use std/ptr.addr
+use /internal/mem.allocation_abort
+use /internal/ptr.{from_addr, pointee_align, pointee_size}
+use /iter.{ExactSizeIterator, Iterator}
+use /mem.{TryAllocator, current_allocator, empty_page_buffer}
+use /ptr.addr
 
 construct Vec<T> {
     default literal [](...items: T): Self {

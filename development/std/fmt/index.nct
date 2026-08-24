@@ -3,7 +3,7 @@
 //! Normal operations abort on allocation failure. Explicit `try_*` operations
 //! return allocation errors. Both surfaces share the same formatting core.
 
-use std/string.String
+use /string.String
 see ./conformances.nct
 see ./formatting.nct
 

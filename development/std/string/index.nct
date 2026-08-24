@@ -12,7 +12,7 @@
 //! byte-slice view construction, and release are implemented in Nocter code
 //! through restricted runtime pointer primitives.
 
-use std/mem.TryAllocator
+use /mem.TryAllocator
 see ./construction.nct
 see ./mutation.nct
 see ./storage.nct

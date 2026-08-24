@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use std/mem.RawBuffer
-use std/internal/ptr.str_from_raw_parts
+use /mem.RawBuffer
+use /internal/ptr.str_from_raw_parts
 
 struct String {
     storage: RawBuffer

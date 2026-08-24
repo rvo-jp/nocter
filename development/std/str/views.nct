@@ -3,7 +3,7 @@
 see ./index.nct
 see ./search.nct
 
-use std/iter.Iterator
+use /iter.Iterator
 
 primitive bytes_from_str(value: &str): &[u8] from value
 

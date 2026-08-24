@@ -1,6 +1,6 @@
 see ./index.nct
-use std/string.String
-use std/vec.Vec
+use /string.String
+use /vec.Vec
 
 //! Portable byte-stream implementation bodies.
 

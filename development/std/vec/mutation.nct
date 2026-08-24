@@ -4,11 +4,11 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use std/internal/mem.allocation_abort
-use std/internal/ptr.{drop_value_at_ptr, from_addr, pointee_size}
-use std/internal/ptr.{slice_from_raw_parts_value, store_value_to_ptr, take_value_at_ptr}
-use std/mem.try_grow_owned
-use std/ptr.addr
+use /internal/mem.allocation_abort
+use /internal/ptr.{drop_value_at_ptr, from_addr, pointee_size}
+use /internal/ptr.{slice_from_raw_parts_value, store_value_to_ptr, take_value_at_ptr}
+use /mem.try_grow_owned
+use /ptr.addr
 
 func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if additional == 0 {

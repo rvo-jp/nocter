@@ -50,7 +50,7 @@ pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContract
 pub use definition_diagnostic::DefinitionDiagnostic;
 pub use definitions::{
     DeclarationDiagnostic, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
-    define_declaration_headers,
+    HeaderDefinitionFailure, define_declaration_headers, define_declaration_headers_recovering,
 };
 pub use generic_diagnostic::GenericDiagnostic;
 pub use generics::{
@@ -65,7 +65,8 @@ pub use imports::{
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use pipeline::{
-    DeclarationLoweringError, lower_compile_unit_declarations, lower_incomplete_body_declarations,
+    DeclarationLoweringError, DeclarationLoweringFailure, lower_compile_unit_declarations,
+    lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations,
 };
 pub use primitive_bindings::{PrimitiveResolutionError, resolve_primitive_bindings};
 pub use reservation::{

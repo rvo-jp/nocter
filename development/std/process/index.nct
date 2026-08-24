@@ -3,9 +3,9 @@
 //! exit is a standard-library API, not a compiler primitive. The target-specific
 //! implementation calls the active target boundary.
 
-use std/mem.TryAllocator
-use std/string.String
-use std/vec.Vec
+use /mem.TryAllocator
+use /string.String
+use /vec.Vec
 see ./darwin.nct
 
 pub copy struct EnvironmentEntry {

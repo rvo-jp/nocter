@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use std/io.{File, Reader, Writer}
-use std/vec.Vec
+use /io.{File, Reader, Writer}
+use /vec.Vec
 
 struct BufReader {
     source: File

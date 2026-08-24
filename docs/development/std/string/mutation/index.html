@@ -153,9 +153,9 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_str_to_ptr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>try_grow_owned
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_str_to_ptr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span>try_grow_owned
 
 <span class="token-keyword">func</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> text_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>len

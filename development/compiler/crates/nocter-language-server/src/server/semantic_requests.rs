@@ -2695,17 +2695,18 @@ mod tests {
             "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
         ));
 
-        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+        let standard =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/process/darwin.nct");
         let text = std::fs::read_to_string(&standard).unwrap();
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.starts_with("use std/iter."))
+            .find(|(_, line)| line.starts_with("use /internal/os/darwin."))
             .unwrap();
-        let start = source_line.find("std/iter").unwrap();
+        let start = source_line.find("/internal/os/darwin").unwrap();
         let document_uri = format!("file://{}", standard.display());
         let mut responses = Vec::new();
-        for character in [start + 1, start + 5] {
+        for character in [start + 2, start + 11] {
             let response = server.receive(&format!(
                 "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{document_uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
             ));
@@ -2713,7 +2714,7 @@ mod tests {
             responses.push(response.response().unwrap().to_owned());
         }
         assert_eq!(responses[0], responses[1]);
-        assert!(responses[0].contains("/std/iter/index.nct"));
+        assert!(responses[0].contains("/std/internal/os/darwin/index.nct"));
         assert!(
             responses[0].contains(concat!(
                 "\"start\":{\"line\":0,\"character\":0},",
@@ -2728,9 +2729,13 @@ mod tests {
             start + 1
         ));
         let response = hover.response().unwrap();
-        assert!(response.contains("module std/iter"), "{response}");
         assert!(
-            response.contains("Core iteration contracts, source iterators, and lazy adapters."),
+            response.contains("module std/internal/os/darwin"),
+            "{response}"
+        );
+        assert!(
+            response
+                .contains("Darwin ARM64 ABI contract shared by standard-library target adapters."),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

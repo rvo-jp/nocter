@@ -5,10 +5,10 @@ see ./search.nct
 see ./views.nct
 see ./owned.nct
 
-use std/iter.{Iterator, ViewIter}
-use std/internal/ptr.from_addr
-use std/string.String
-use std/vec.Vec
+use /iter.{Iterator, ViewIter}
+use /internal/ptr.from_addr
+use /string.String
+use /vec.Vec
 
 primitive str_len_raw(value: &str): usize
 

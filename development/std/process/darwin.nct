@@ -2,16 +2,16 @@
 
 see ./index.nct
 
-use std/mem.RawBuffer
-use std/mem.TryAllocator
-use std/mem.page_allocator
-use std/internal/os/darwin.{f_getpath, max_path_len, sys_close, sys_fcntl, sys_open}
-use std/internal/os/darwin.{syscall1, syscall3, trap}
-use std/internal/path.{target_path_address, target_path_argument}
-use std/ptr.addr
-use std/internal/ptr.str_from_raw_parts
-use std/string.{String, is_valid_utf8}
-use std/vec.Vec
+use /mem.RawBuffer
+use /mem.TryAllocator
+use /mem.page_allocator
+use /internal/os/darwin.{f_getpath, max_path_len, sys_close, sys_fcntl, sys_open}
+use /internal/os/darwin.{syscall1, syscall3, trap}
+use /internal/path.{target_path_address, target_path_argument}
+use /ptr.addr
+use /internal/ptr.str_from_raw_parts
+use /string.{String, is_valid_utf8}
+use /vec.Vec
 
 #target: "arm64-darwin"
 primitive exit_raw(code: i32): never

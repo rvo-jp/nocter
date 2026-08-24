@@ -163,6 +163,60 @@ pub(super) fn assert_reviewed_standard_dependencies(
     );
 }
 
+pub(super) fn assert_standard_self_uses_are_package_absolute(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+) {
+    let source_modules = input
+        .modules()
+        .iter()
+        .flat_map(|module| {
+            module
+                .sources()
+                .iter()
+                .map(move |source| (source.syntax().source(), module.identity()))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let source_trees = input
+        .modules()
+        .iter()
+        .flat_map(nocter_compile_input::ModuleInput::sources)
+        .map(|source| (source.syntax().source(), source.syntax()))
+        .collect::<BTreeMap<_, _>>();
+    let mut non_absolute = Vec::new();
+    for resolution in input.use_resolutions() {
+        let declaration = resolution.declaration();
+        let Some(source_module) = source_modules.get(&declaration.source()) else {
+            continue;
+        };
+        if source_module.package() != resolution.target_module().package() {
+            continue;
+        }
+        let tree = source_trees
+            .get(&declaration.source())
+            .expect("resolved standard use has no syntax tree");
+        let node = tree
+            .node(declaration)
+            .expect("resolved standard use has no syntax node");
+        let source = input
+            .sources()
+            .get(declaration.source())
+            .expect("resolved standard use has no source file");
+        let spelling = source
+            .text_at(node.range())
+            .expect("resolved standard use range is outside its source");
+        let path = spelling
+            .find("use")
+            .map(|offset| spelling[offset + "use".len()..].trim_start());
+        if !path.is_some_and(|path| path.starts_with('/')) {
+            non_absolute.push(format!("{}: {spelling}", source.name()));
+        }
+    }
+    assert!(
+        non_absolute.is_empty(),
+        "standard self imports must use package-absolute / paths so the authored tree remains analyzable as an ordinary package: {non_absolute:#?}"
+    );
+}
+
 fn module_path(path: &[Box<str>]) -> String {
     path.iter()
         .map(AsRef::as_ref)

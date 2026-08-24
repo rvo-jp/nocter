@@ -153,9 +153,9 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>into_iter<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">,</span> slice_from_raw_parts_value_mut<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">MutableViewIter</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">,</span> slice_from_raw_parts_value_mut<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">MutableViewIter</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
 
 <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     ptr<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>

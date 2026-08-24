@@ -4,8 +4,8 @@
 //! This module must remain small: core aliases and ubiquitous standard-library
 //! types only.
 
-use std/fmt
+use /fmt
 
-pub use std/string.String
-pub use std/vec.Vec
-pub use std/iter.Iterator
+pub use /string.String
+pub use /vec.Vec
+pub use /iter.Iterator

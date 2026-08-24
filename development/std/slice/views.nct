@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use std/internal/ptr.from_addr
+use /internal/ptr.from_addr
 
 primitive slice_len_raw<T>(value: &[T]): usize
 

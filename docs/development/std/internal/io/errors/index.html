@@ -152,7 +152,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span>

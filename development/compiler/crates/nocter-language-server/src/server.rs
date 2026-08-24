@@ -619,6 +619,58 @@ mod tests {
     }
 
     #[test]
+    fn declaration_rule_diagnostic_preserves_unrelated_hover_authority() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = "primitive forbidden(): void\n\nstruct Value {\n    number: i32\n}\n";
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert!(
+            snapshot
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.code() == "E0208")
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":8}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("```nocter\\nstruct Value"), "{response}");
+        assert!(response.contains("\"start\":{\"line\":2,\"character\":7}"));
+        assert!(response.contains("\"end\":{\"line\":2,\"character\":12}"));
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":8}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/main.nct"), "{response}");
+        assert!(response.contains("\"start\":{\"line\":2,\"character\":7}"));
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        let response = tokens.response().unwrap();
+        assert!(response.contains("\"data\":["), "{response}");
+        assert!(!response.contains("\"data\":[]"), "{response}");
+    }
+
+    #[test]
     fn mutable_binding_hover_uses_the_checked_var_introducer() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

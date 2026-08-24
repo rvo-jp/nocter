@@ -155,9 +155,9 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>layout<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts<span class="token-operator">,</span> slice_from_raw_parts_mut<span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts<span class="token-operator">,</span> slice_from_raw_parts_mut<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
 
 <span class="token-keyword">func</span> <span class="token-function">bytes</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>

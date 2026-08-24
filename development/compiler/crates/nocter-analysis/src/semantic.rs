@@ -4,7 +4,10 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::presentation::{PresentationError, SemanticPresentation, hover_presentation};
+use crate::presentation::{
+    PresentationError, SemanticPresentation, declaration_presentation, hover_presentation,
+    name_recovery_presentation, prepared_presentation,
+};
 use crate::source_context::{SourceContext, SourceContextError};
 use crate::source_selection::select_source_binding;
 
@@ -78,19 +81,22 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Option<SemanticSelection> {
-        self.target()?;
-        selected_binding(self.source_index()?, source, offset).map(|binding| SemanticSelection {
-            entity: binding.entity(),
-            role: binding.role(),
-            range: binding.origin().span().range(),
+        selected_binding(self.semantic_authority()?.source_index(), source, offset).map(|binding| {
+            SemanticSelection {
+                entity: binding.entity(),
+                role: binding.role(),
+                range: binding.origin().span().range(),
+            }
         })
     }
 
-    /// Resolves one exact source position through the current successful semantic snapshot.
+    /// Resolves one exact source position through the deepest current semantic authority.
     ///
-    /// Failed generations deliberately answer no semantic query. When projections overlap, the
-    /// narrowest displayable source range wins; ties prefer references, then declarations, then
-    /// implementation sites. This keeps keywords and declaration bodies outside editor ranges.
+    /// Failed generations use only the immutable recovery stage retained by the production
+    /// pipeline; this query never reruns lowering or invents missing bindings. When projections
+    /// overlap, the narrowest displayable source range wins; ties prefer references, then
+    /// declarations, then implementation sites. This keeps keywords and declaration bodies
+    /// outside editor ranges.
     ///
     /// # Errors
     ///
@@ -101,19 +107,19 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSubject>, SemanticQueryError> {
-        let Some(target) = self.target() else {
+        let Some(authority) = self.semantic_authority() else {
             return Ok(None);
         };
-        let checked = target.program().checked();
-        let Some(index) = self.source_index() else {
-            return Ok(None);
-        };
+        let index = authority.source_index();
         let Some(binding) = selected_binding(index, source, offset) else {
             return Ok(None);
         };
         let context = SourceContext::resolve(index, source)?;
-        let presentation =
-            hover_presentation(checked, binding.entity(), context.module(), index, source)?;
+        let Some(presentation) =
+            authority.presentation(binding.entity(), context.module(), index, source)?
+        else {
+            return Ok(None);
+        };
         Ok(Some(SemanticSubject {
             entity: binding.entity(),
             role: binding.role(),
@@ -121,6 +127,101 @@ impl AnalysisSnapshot {
             presentation,
             documentation: index.documentation_for(binding).map(Box::from),
         }))
+    }
+
+    pub(crate) fn semantic_authority(&self) -> Option<SemanticAuthority<'_>> {
+        if let Some(target) = self.target() {
+            return Some(SemanticAuthority::Complete {
+                checked: target.program().checked(),
+                source_index: target.source_index(),
+            });
+        }
+        if let Some(recovery) = self.body_recovery() {
+            return Some(SemanticAuthority::Bodies(recovery.prepared()));
+        }
+        if let Some(recovery) = self.name_recovery() {
+            return Some(SemanticAuthority::Names(recovery));
+        }
+        self.declaration_recovery()
+            .map(SemanticAuthority::Declarations)
+    }
+}
+
+pub(crate) enum SemanticAuthority<'a> {
+    Complete {
+        checked: &'a nocter_checking::CheckedProgram,
+        source_index: &'a nocter_source_index::SourceIndex,
+    },
+    Bodies(&'a nocter_checking::PreparedSemanticProgram),
+    Names(&'a nocter_checking::NameAnalysisRecovery),
+    Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
+}
+
+impl<'a> SemanticAuthority<'a> {
+    pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
+        match self {
+            Self::Complete { source_index, .. } => source_index,
+            Self::Bodies(prepared) => prepared.source_index(),
+            Self::Names(recovery) => recovery.source_index(),
+            Self::Declarations(recovery) => recovery.source_index(),
+        }
+    }
+
+    pub(crate) fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
+        match self {
+            Self::Complete { checked, .. } => checked.graph(),
+            Self::Bodies(prepared) => prepared.graph(),
+            Self::Names(recovery) => recovery.graph(),
+            Self::Declarations(recovery) => recovery.graph(),
+        }
+    }
+
+    pub(crate) fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
+        match self {
+            Self::Complete { checked, .. } => Some(checked),
+            Self::Bodies(_) | Self::Names(_) | Self::Declarations(_) => None,
+        }
+    }
+
+    fn presentation(
+        &self,
+        entity: SemanticEntity,
+        from: nocter_model::ModuleId,
+        source_index: &nocter_source_index::SourceIndex,
+        source: SourceId,
+    ) -> Result<Option<SemanticPresentation>, PresentationError> {
+        match self {
+            Self::Complete { checked, .. } => {
+                hover_presentation(checked, entity, from, source_index, source).map(Some)
+            }
+            Self::Bodies(prepared) => {
+                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
+                    prepared.graph(),
+                    from,
+                    source_index,
+                    source,
+                );
+                Ok(prepared_presentation(prepared, entity, &spellings))
+            }
+            Self::Names(recovery) => {
+                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
+                    recovery.graph(),
+                    from,
+                    source_index,
+                    source,
+                );
+                Ok(name_recovery_presentation(recovery, entity, &spellings))
+            }
+            Self::Declarations(recovery) => {
+                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
+                    recovery.graph(),
+                    from,
+                    source_index,
+                    source,
+                );
+                Ok(declaration_presentation(recovery, entity, &spellings))
+            }
+        }
     }
 }
 
