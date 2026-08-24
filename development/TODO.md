@@ -2,19 +2,19 @@
 
 ## Current Task
 
-Nocter v0.16.0 Phase 0 and Phase 1 are complete. The release candidate is fully prepared and
-qualified without publication. Release-content commit
+Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
 Clippy from reusable and clean targets, explicit public-HTTPS acquisition, deterministic double
-packaging, and the complete fresh-install smoke matrix. Candidate evidence is recorded in
-`development/milestones/v0.16.0-release-preparation.md`; completed implementation scope is in
-`development/milestones/v0.16.0.md`.
+packaging, and the complete fresh-install smoke matrix. Annotated tag `v0.16.0` resolves to
+publication commit `2d9aaf806f5f927b5e63732b0a2323dc54feee87`, and the public asset matches the
+qualified archive byte for byte. Complete evidence is recorded in
+`development/releases/v0.16.0.md`.
 
-Publication is authorized. The qualified archive is frozen while the publication commit, annotated
-tag, GitHub release, asset upload, and public re-download audit are completed. Preserve the closed
-Phase 0 and Phase 1 contracts. Do not introduce user-defined failure types, dynamic interfaces,
-vtables, reference counting, implicit error conversion, synthetic editor fields, a second numeric
-error-layout authority, or a visibility lookup in Machine or ARM64.
+The v0.16.0 tag and release asset are frozen. No release-preparation or publication operation
+remains active. Preserve the closed Phase 0 and Phase 1 contracts. Do not introduce user-defined
+failure types, dynamic interfaces, vtables, reference counting, implicit error conversion,
+synthetic editor fields, a second numeric error-layout authority, or a visibility lookup in Machine
+or ARM64.
 
 Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,

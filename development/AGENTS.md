@@ -78,7 +78,7 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
 - `development/milestones/v0.16.0.md`: active scope and completion records
-- `development/milestones/v0.16.0-release-preparation.md`: active candidate qualification and
+- `development/milestones/v0.16.0-release-preparation.md`: completed candidate qualification and
   publication boundary
 - `development/milestones/v0.15.0.md`: completed release history only
 - `development/milestones/v0.14.0.md`: completed rewrite history only

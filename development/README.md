@@ -11,7 +11,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 - [Current handoff](TODO.md)
 - [v0.16.0 practical failure values](milestones/v0.16.0.md)
 - [v0.16.0 release preparation](milestones/v0.16.0-release-preparation.md)
-- [v0.15.0 publication and audit](releases/v0.15.0.md)
+- [v0.16.0 publication and audit](releases/v0.16.0.md)
 - [Compiler architecture](docs/architecture.md)
 - [Checked program design](docs/checked-program-design.md)
 - [Target and executable program design](docs/target-program-design.md)
