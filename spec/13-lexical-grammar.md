@@ -113,6 +113,7 @@ Reserved keyword tokens:
 as
 break
 catch
+const
 continue
 construct
 conform

@@ -126,6 +126,9 @@ fn classify(
         }
         SemanticEntity::Interface(_) => SemanticHighlightKind::Interface,
         SemanticEntity::GenericParameter(_) => SemanticHighlightKind::TypeParameter,
+        SemanticEntity::Constant(_) => {
+            return Some((SemanticHighlightKind::Variable, true));
+        }
         SemanticEntity::Parameter(id) => {
             let parameter = declarations.parameters().get(id)?;
             let readonly = match parameter.role() {

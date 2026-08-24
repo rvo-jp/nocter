@@ -546,6 +546,161 @@ mod tests {
     }
 
     #[test]
+    fn constants_share_one_editor_identity_and_canonical_value_presentation() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let result_uri = format!(
+            "file://{}/main.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = "pub const base: i32 = 40\npub const answer: i32 = base + 2\nfunc main(): i32 {\n    answer\n}\n";
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":7}}}}}}"
+        ));
+        let hover_response = hover.response().unwrap();
+        assert!(
+            hover_response.contains("```nocter\\npub const answer: i32 = 42\\n```"),
+            "{hover_response}"
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":7}}}}}}"
+        ));
+        assert_eq!(
+            definition.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[{{\"uri\":\"{result_uri}\",\"range\":{{\"start\":{{\"line\":1,\"character\":10}},\"end\":{{\"line\":1,\"character\":16}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+
+        let completion = request_completion(&mut server, &uri, 4, 3, 4);
+        let response = completion.response().unwrap();
+        assert!(response.contains("\"label\":\"answer\""));
+        assert!(response.contains("\"kind\":21"));
+
+        let rename = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":7}},\"newName\":\"result\"}}}}"
+        ));
+        let response = rename.response().unwrap();
+        assert!(response.contains("\"newText\":\"result\""), "{response}");
+        assert!(response.matches("newText").count() >= 2);
+
+        let initializer_reference = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":11}},\"context\":{{\"includeDeclaration\":false}}}}}}"
+        ));
+        let response = initializer_reference.response().unwrap();
+        assert!(
+            response.contains("\"line\":1,\"character\":24"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none());
+        assert!(definition.issue().is_none());
+        assert!(completion.issue().is_none());
+        assert!(rename.issue().is_none());
+        assert!(initializer_reference.issue().is_none());
+    }
+
+    #[test]
+    fn separated_constant_selects_its_contract_and_initializer() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let contract = temporary.path().join("index.nct");
+        let implementation = temporary.path().join("limits.nct");
+        let contract_text = concat!(
+            "include ./limits.nct\n",
+            "\n",
+            "pub const answer: i32\n",
+            "func main(): i32 {\n",
+            "    answer\n",
+            "}\n",
+        );
+        std::fs::write(&contract, contract_text).unwrap();
+        std::fs::write(
+            &implementation,
+            concat!("include ./index.nct\n", "\n", "const answer: i32 = 42\n",),
+        )
+        .unwrap();
+        let contract_uri = format!("file://{}", contract.display());
+        let canonical_contract_uri = format!(
+            "file://{}/index.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let canonical_implementation_uri = format!(
+            "file://{}/limits.nct",
+            std::fs::canonicalize(temporary.path()).unwrap().display()
+        );
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let mut source_json = String::new();
+        nocter_json::write_string(&mut source_json, contract_text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":7}}}}}}"
+        ));
+        assert_eq!(
+            definition.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{{\"uri\":\"{canonical_contract_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":10}},\"end\":{{\"line\":2,\"character\":16}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+
+        let initializer = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{contract_uri}\"}},\"position\":{{\"line\":4,\"character\":7}}}}}}"
+        ));
+        assert_eq!(
+            initializer.response(),
+            Some(
+                format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[{{\"uri\":\"{canonical_implementation_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":6}},\"end\":{{\"line\":2,\"character\":12}}}}}}]}}"
+                )
+                .as_str()
+            )
+        );
+        assert!(definition.issue().is_none());
+        assert!(initializer.issue().is_none());
+    }
+
+    #[test]
     fn definition_selects_the_contract_and_implementation_selects_the_body() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();

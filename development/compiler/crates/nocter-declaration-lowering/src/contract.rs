@@ -8,6 +8,8 @@ use crate::{
     SurfaceDeclarationKind,
 };
 
+mod constant;
+
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct HeaderFingerprint(pub(super) Box<[Box<str>]>);
 
@@ -69,6 +71,16 @@ impl DeclarationContracts {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationContractError {
+    MissingConstantInitializer(NodeId),
+    MismatchedConstantInitializer {
+        contract: NodeId,
+        definition: NodeId,
+    },
+    DuplicateConstantInitializer {
+        contract: NodeId,
+        definition: NodeId,
+    },
+    InvalidConstantOmission(NodeId),
     MissingBody(NodeId),
     MismatchedBody {
         contract: NodeId,
@@ -109,6 +121,28 @@ pub enum DeclarationContractError {
 impl fmt::Display for DeclarationContractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingConstantInitializer(contract) => write!(
+                formatter,
+                "constant contract {contract:?} has no initializer definition"
+            ),
+            Self::MismatchedConstantInitializer {
+                contract,
+                definition,
+            } => write!(
+                formatter,
+                "constant initializer {definition:?} does not match contract {contract:?}"
+            ),
+            Self::DuplicateConstantInitializer {
+                contract,
+                definition,
+            } => write!(
+                formatter,
+                "constant contract {contract:?} has duplicate initializer {definition:?}"
+            ),
+            Self::InvalidConstantOmission(node) => write!(
+                formatter,
+                "constant {node:?} omits its initializer outside an eligible public root contract"
+            ),
             Self::MissingBody(contract) => {
                 write!(
                     formatter,
@@ -210,6 +244,7 @@ pub fn analyze_declaration_contracts(
         &mut representatives,
         &mut representations,
     )?;
+    constant::join(surface, &mut representatives)?;
     join_conformance_contracts(surface, &mut representatives)?;
     let candidates = collect_body_candidates(surface)?;
     let joined = join_contracts(surface, &candidates, &mut representatives)?;
@@ -652,7 +687,7 @@ fn callable_keys(
     ))
 }
 
-fn fingerprint(
+pub(super) fn fingerprint(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
 ) -> Result<HeaderFingerprint, DeclarationContractError> {
@@ -685,6 +720,8 @@ fn fingerprint(
                     .kind();
                 if kind == NodeKind::Visibility
                     || kind == NodeKind::Block
+                    || declaration.kind() == SurfaceDeclarationKind::Constant
+                        && kind == NodeKind::Expression
                     || is_member_declaration(kind)
                 {
                     continue;
@@ -703,6 +740,12 @@ fn fingerprint(
                 let spelling = source.text_at(token.range()).ok_or(
                     DeclarationContractError::InconsistentSurface(declaration.node()),
                 )?;
+                if declaration.kind() == SurfaceDeclarationKind::Constant
+                    && depth == 0
+                    && spelling == "="
+                {
+                    continue;
+                }
                 tokens.push(Box::<str>::from(spelling));
             }
             SyntaxElement::Missing(_) => {
@@ -822,7 +865,7 @@ fn is_separable_callable(declaration: SurfaceDeclaration) -> bool {
         && declaration.is_interface_default()
 }
 
-fn is_eligible_contract(
+pub(super) fn is_eligible_contract(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
 ) -> Result<bool, DeclarationContractError> {
@@ -839,6 +882,7 @@ const fn is_member_declaration(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::FunctionDeclaration
+            | NodeKind::ConstantDeclaration
             | NodeKind::PrimitiveDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration

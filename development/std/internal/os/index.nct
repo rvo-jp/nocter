@@ -49,40 +49,40 @@ pub(/) func errno(code: i32): Errno
 pub(/) func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_read(): usize
+pub(/) const darwin_sys_read: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_write(): usize
+pub(/) const darwin_sys_write: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_open(): usize
+pub(/) const darwin_sys_open: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_close(): usize
+pub(/) const darwin_sys_close: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_read_only(): usize
+pub(/) const darwin_open_read_only: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_create_truncate(): usize
+pub(/) const darwin_open_create_truncate: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_open_create_append(): usize
+pub(/) const darwin_open_create_append: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_create_mode(): usize
+pub(/) const darwin_create_mode: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_errno_interrupted(): i32
+pub(/) const darwin_errno_interrupted: i32
 
 #target: "arm64-darwin"
-pub(/) func darwin_sys_fcntl(): usize
+pub(/) const darwin_sys_fcntl: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_f_getpath(): usize
+pub(/) const darwin_f_getpath: usize
 
 #target: "arm64-darwin"
-pub(/) func darwin_max_path_len(): usize
+pub(/) const darwin_max_path_len: usize
 
 #target: "arm64-darwin"
 pub(/) primitive syscall0(number: usize): SyscallResult

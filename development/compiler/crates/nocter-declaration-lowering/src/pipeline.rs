@@ -10,8 +10,8 @@ use crate::{
     TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
     TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
     bind_header_type_syntax, collect_declaration_surface, define_declaration_headers,
-    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
-    prepare_generic_binders,
+    evaluate_header_constants, normalize_header_types, prepare_authored_imports,
+    prepare_declaration_headers, prepare_generic_binders,
 };
 
 #[derive(Debug)]
@@ -207,8 +207,27 @@ fn lower_compile_unit_declarations_from<'syntax>(
     };
     let namespaces = prepare_toolchain_namespaces(imports, input)?;
     let bound = bind_types(namespaces, input)?;
+    let bound = evaluate_constants(bound, input)?;
     let normalized = normalize_types(bound, input)?;
     define_headers(normalized, input)
+}
+
+fn evaluate_constants<'syntax>(
+    bound: PreparedTypeBindings<'syntax>,
+    input: &CompileUnitInput<'syntax>,
+) -> Result<PreparedTypeBindings<'syntax>, DeclarationLoweringError> {
+    match evaluate_header_constants(bound) {
+        Ok(bound) => Ok(bound),
+        Err(HeaderDefinitionError::Rule(violation)) => {
+            match DefinitionDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::Definition(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalDefinition(
+                    HeaderDefinitionError::Rule(internal),
+                )),
+            }
+        }
+        Err(internal) => Err(DeclarationLoweringError::InternalDefinition(internal)),
+    }
 }
 
 fn prepare_toolchain_namespaces<'syntax>(

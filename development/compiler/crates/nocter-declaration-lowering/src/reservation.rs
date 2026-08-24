@@ -3,8 +3,8 @@ use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
 use nocter_model::{
-    AssociatedTypeId, CallableId, ConformanceId, ConstructionId, DropId, InstanceId, InterfaceId,
-    ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId, VariantId,
+    AssociatedTypeId, CallableId, ConformanceId, ConstantId, ConstructionId, DropId, InstanceId,
+    InterfaceId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId, VariantId,
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
@@ -28,6 +28,7 @@ pub enum ReservedEntity {
     TypeAlias(TypeAliasId),
     Interface(InterfaceId),
     AssociatedType(AssociatedTypeId),
+    Constant(ConstantId),
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),
@@ -46,6 +47,7 @@ impl ReservedEntity {
             Self::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             Self::Interface(id) => SemanticEntity::Interface(id),
             Self::AssociatedType(id) => SemanticEntity::AssociatedType(id),
+            Self::Constant(id) => SemanticEntity::Constant(id),
             Self::Callable(id) => SemanticEntity::Callable(id),
             Self::Construction(id) => SemanticEntity::Construction(id),
             Self::Instance(id) => SemanticEntity::Instance(id),
@@ -532,6 +534,9 @@ fn reserve_entity(
         SurfaceDeclarationKind::AssociatedType => Some(ReservedEntity::AssociatedType(
             declarations.reserve_associated_type(),
         )),
+        SurfaceDeclarationKind::Constant => {
+            Some(ReservedEntity::Constant(declarations.reserve_constant()))
+        }
         SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::Primitive
         | SurfaceDeclarationKind::InterfaceMethod
@@ -614,7 +619,8 @@ fn validate_owner(
                 )
             })
         }),
-        SurfaceDeclarationKind::Function
+        SurfaceDeclarationKind::Constant
+        | SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::Primitive
         | SurfaceDeclarationKind::TypeAlias
         | SurfaceDeclarationKind::Struct

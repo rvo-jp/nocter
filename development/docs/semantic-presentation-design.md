@@ -51,6 +51,7 @@ The renderer owns:
 - complete generic parameter, parameter, result, and `where` contracts;
 - canonical structural type spelling and required grouping;
 - explicit result-provenance clauses only.
+- canonical evaluated constant values rather than authored initializer text.
 
 For a module-relative query, the renderer finds the shortest visible type or module spelling by
 walking the immutable authored and prelude namespace layers. Import aliases therefore remain

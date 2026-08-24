@@ -2,7 +2,7 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 3 are complete. Phase 0 removed
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 4 are complete. Phase 0 removed
 semantic authority from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the
 backend-visible semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one
 owner. Phase 1 separated direct-only physical-source `include` from directory-module `use`, made
@@ -10,7 +10,9 @@ owner. Phase 1 separated direct-only physical-source `include` from directory-mo
 explicit, separable interface defaults and migrated the standard library to contract-first module
 roots. Phase 3 generalized the compiler-owned sequence pack into typed callable argument packs,
 preserving one ownership, provenance, cleanup, and hidden-ABI pipeline. The exact scope and
-completion records are in `development/milestones/v0.15.0.md`.
+completion records are in `development/milestones/v0.15.0.md`. Phase 4 added typed compile-time
+constants and made one header evaluator authoritative for both declaration values and fixed-array
+lengths; standard platform numbers now use that surface.
 
 The active specification-first compiler is under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use

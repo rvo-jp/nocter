@@ -42,6 +42,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Borrow Coercions](22-borrow-coercions.md)
 - [Expansion Operators](23-expansion-operators.md)
 - [Strict Ordering Operators](24-ordering-operators.md)
+- [Compile-Time Constants](26-constants.md)
 
 ## Supporting Material
 

@@ -8,6 +8,15 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 use crate::test_support::source_include;
 
 const FULL_HEADER_SOURCE: &str = r#"
+pub const base: usize = 40
+const answer: usize = base + 2
+const stable: bool = false && (1 / 0 == 0)
+const wide: u64 = 1
+const equal: bool = 1 == wide
+const minimum: i8 = -128
+const label: &str = "nocter"
+type Bytes = [u8; answer]
+
 #target: "arm64-darwin"
 pub struct Box<T> where copy T {
     pub value: T
@@ -55,9 +64,9 @@ use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageDeclarationInput, PackageIdentity, PackageInput, PackageMode,
     ToolchainInput, UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
-    collect_declaration_surface, define_declaration_headers, normalize_header_types,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
-    reserve_declaration_identities,
+    collect_declaration_surface, define_declaration_headers, evaluate_header_constants,
+    normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
+    prepare_generic_binders, reserve_declaration_identities,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -146,6 +155,7 @@ fn try_lower<'syntax>(
     );
     let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
+    let bound = evaluate_header_constants(bound)?;
     let normalized = normalize_header_types(bound).unwrap();
     define_declaration_headers(normalized)
 }
@@ -193,6 +203,10 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     )
     .unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
+    let bound = match evaluate_header_constants(bound) {
+        Ok(bound) => bound,
+        Err(error) => return error,
+    };
     let normalized = normalize_header_types(bound).unwrap();
     define_declaration_headers(normalized).unwrap_err()
 }
@@ -237,6 +251,8 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     );
     let program = lowered.program();
     let declarations = program.declarations();
+
+    assert_header_constants(program);
 
     assert_eq!(declarations.nominal_types().len(), 2);
     assert_eq!(declarations.fields().len(), 1);
@@ -299,6 +315,33 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     assert_provenance_annotations(declarations);
     assert!(lowered.source_index().len() > declarations.callables().len());
     assert_exact_unnamed_origins(&sources, &lowered);
+}
+
+fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
+    let values = program
+        .declarations()
+        .constants()
+        .iter()
+        .map(|(_, constant)| constant.value().clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        values,
+        vec![
+            nocter_model::ConstantValue::Integer(40),
+            nocter_model::ConstantValue::Integer(42),
+            nocter_model::ConstantValue::Bool(false),
+            nocter_model::ConstantValue::Integer(1),
+            nocter_model::ConstantValue::Bool(true),
+            nocter_model::ConstantValue::Integer(-128),
+            nocter_model::ConstantValue::Text("nocter".into()),
+        ]
+    );
+    assert!(
+        program
+            .types()
+            .iter()
+            .any(|(_, ty)| matches!(ty, nocter_model::TypeKind::FixedArray { length: 42, .. }))
+    );
 }
 
 fn assert_exact_unnamed_origins(sources: &SourceMap, lowered: &crate::LoweredDeclarations) {
@@ -459,6 +502,46 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
             definition_error(source),
             super::HeaderDefinitionError::Rule(violation)
                 if violation.rule() == DefinitionRule::InvalidArgumentPackParameter
+        ));
+    }
+}
+
+#[test]
+fn rejects_invalid_constant_contracts_without_runtime_fallback() {
+    let cases = [
+        (
+            "const invalid: str = \"value\"\n",
+            DefinitionRule::InvalidConstantType,
+        ),
+        (
+            "func make(): i32 { return 1 }\nconst invalid: i32 = make()\n",
+            DefinitionRule::NonConstantExpression,
+        ),
+        (
+            "const invalid: bool = 1\n",
+            DefinitionRule::ConstantTypeMismatch,
+        ),
+        (
+            "const first: i32 = second\nconst second: i32 = first\n",
+            DefinitionRule::ConstantCycle,
+        ),
+        (
+            "const invalid: bool = false && 1\n",
+            DefinitionRule::ConstantTypeMismatch,
+        ),
+        (
+            "const invalid: bool = false && invalid\n",
+            DefinitionRule::ConstantCycle,
+        ),
+        (
+            "const invalid: u8 = 255 + 1\n",
+            DefinitionRule::ConstantArithmeticFailure,
+        ),
+    ];
+    for (source, rule) in cases {
+        assert!(matches!(
+            definition_error(source),
+            super::HeaderDefinitionError::Rule(violation) if violation.rule() == rule
         ));
     }
 }

@@ -1,4 +1,6 @@
-use nocter_model::{CallableId, InterfaceId, ModuleId, NominalTypeId, Symbol, TypeAliasId};
+use nocter_model::{
+    CallableId, ConstantId, InterfaceId, ModuleId, NominalTypeId, Symbol, TypeAliasId,
+};
 
 use crate::Visibility;
 
@@ -9,6 +11,7 @@ pub enum ExportedEntity {
     TypeAlias(TypeAliasId),
     Interface(InterfaceId),
     Callable(CallableId),
+    Constant(ConstantId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

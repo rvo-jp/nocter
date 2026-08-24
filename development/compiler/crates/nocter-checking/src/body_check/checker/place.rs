@@ -74,6 +74,9 @@ impl BodyChecker<'_, '_> {
                 return Err(BodyCheckInternalError::InvalidSyntax(invalid).into());
             }
         };
+        if self.is_constant_reference(syntax.root) {
+            return Err(self.rule(invalid_rule, diagnostic_node)?);
+        }
         self.resolve_place_syntax(syntax, BorrowCapability::ReadWrite)
     }
 

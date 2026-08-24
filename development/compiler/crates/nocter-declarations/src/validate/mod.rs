@@ -1,6 +1,9 @@
 use std::{collections::HashSet, fmt, hash::Hash};
 
-use nocter_model::{CallableCapability, GenericParameterId, ModuleId, Symbol, TypeId};
+use nocter_model::{
+    BorrowCapability, BuiltinType, CallableCapability, ConstantValue, GenericParameterId, ModuleId,
+    Symbol, TypeId, TypeKind,
+};
 
 use crate::{
     BodyOwner, CallableKind, CallableOwner, DeclarationProgram, GenericOwner, ParameterOwner,
@@ -32,6 +35,7 @@ pub enum DeclarationDomain {
     TypeAlias,
     Interface,
     AssociatedType,
+    Constant,
     Callable,
     Construction,
     Instance,
@@ -111,6 +115,7 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValida
     graph::validate_packages_modules_sites(program)?;
     types::validate_nominal_types(program)?;
     types::validate_aliases_interfaces(program)?;
+    validate_constants(program)?;
     callables::validate(program)?;
     validate_constructions_instances_conformances(program)?;
     validate_drops_tests(program)?;
@@ -126,6 +131,53 @@ pub(crate) fn validate(program: &DeclarationProgram) -> Result<(), ProgramValida
     rules::validate(program)?;
     attachments::validate_rules(program)?;
     Ok(())
+}
+
+fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+    for (_, constant) in program.declarations().constants().iter() {
+        require_site(program, constant.site(), DeclarationDomain::Constant)?;
+        require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
+        require_optional_symbol(program, constant.target_gate(), DeclarationDomain::Constant)?;
+        require_type(program, constant.ty(), DeclarationDomain::Constant)?;
+        let valid = match constant.value() {
+            ConstantValue::Bool(_) => constant.ty() == program.types().builtin(BuiltinType::Bool),
+            ConstantValue::Integer(value) => program
+                .types()
+                .get(constant.ty())
+                .and_then(|ty| match ty {
+                    TypeKind::Builtin(builtin) => Some(*builtin),
+                    _ => None,
+                })
+                .is_some_and(|builtin| constant_integer_fits(*value, builtin)),
+            ConstantValue::Text(_) => matches!(
+                program.types().get(constant.ty()),
+                Some(TypeKind::Borrow {
+                    capability: BorrowCapability::Readonly,
+                    referent,
+                }) if *referent == program.types().builtin(BuiltinType::Str)
+            ),
+        };
+        if !valid {
+            return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::Constant,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn constant_integer_fits(value: i128, builtin: BuiltinType) -> bool {
+    match builtin {
+        BuiltinType::I8 => i8::try_from(value).is_ok(),
+        BuiltinType::I16 => i16::try_from(value).is_ok(),
+        BuiltinType::I32 => i32::try_from(value).is_ok(),
+        BuiltinType::I64 | BuiltinType::Isize => i64::try_from(value).is_ok(),
+        BuiltinType::U8 => u8::try_from(value).is_ok(),
+        BuiltinType::U16 => u16::try_from(value).is_ok(),
+        BuiltinType::U32 => u32::try_from(value).is_ok(),
+        BuiltinType::U64 | BuiltinType::Usize => u64::try_from(value).is_ok(),
+        _ => false,
+    }
 }
 
 fn validate_constructions_instances_conformances(

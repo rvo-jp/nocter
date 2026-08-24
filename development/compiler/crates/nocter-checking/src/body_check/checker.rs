@@ -139,6 +139,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     source_namespaces: &'input SourceNamespaceTable,
     source_access: crate::SourceAccessContext<'input>,
     source_index: &'input SourceIndex,
+    constant_array_lengths: &'input HashMap<NodeId, u64>,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     builder: CheckedBodyBuilder,
@@ -267,6 +268,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             source_namespaces,
             source_access,
             source_index,
+            constant_array_lengths: facts.constant_array_lengths(),
             source,
             names,
             builder: CheckedBodyBuilder::new(names),
@@ -852,6 +854,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((ty, value)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
+            return expected.map_or(Ok(checked), |expected| {
+                self.apply_expected(node, checked, expected)
+            });
+        }
         let place = self.named_place(node)?;
         if let Some(expected) = expected {
             self.apply_expected_place(node, place.id, place.ty, expected)
@@ -865,12 +873,63 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((ty, value)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
+            return expected.map_or(Ok(checked), |expected| {
+                self.apply_expected(node, checked, expected)
+            });
+        }
         let place = self.postfix_place(node, BorrowCapability::Readonly)?;
         if let Some(expected) = expected {
             self.apply_expected_place(node, place.id, place.ty, expected)
         } else {
             self.add_node(node, place.ty, CheckedOperation::Copy(place.id))
         }
+    }
+
+    fn constant_reference(
+        &mut self,
+        node: NodeId,
+    ) -> Result<Option<(TypeId, ConstantValue)>, BodyCheckError> {
+        let tokens = identifier_tokens(self.tree(), node);
+        let Some(last) = tokens.last().copied() else {
+            return Ok(None);
+        };
+        let Some(NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(id))) =
+            self.uses.get(&SyntaxOrigin::Token(last)).copied()
+        else {
+            return Ok(None);
+        };
+        for token in tokens {
+            let origin = SyntaxOrigin::Token(token);
+            if self.uses.contains_key(&origin) {
+                self.consumed_uses.insert(origin);
+            }
+        }
+        self.graph
+            .declarations()
+            .constants()
+            .get(id)
+            .map(|constant| Some((constant.ty(), constant.value().clone())))
+            .ok_or(
+                BodyCheckInternalError::UnsupportedNameTarget(
+                    node,
+                    NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(id)),
+                )
+                .into(),
+            )
+    }
+
+    fn is_constant_reference(&self, node: NodeId) -> bool {
+        identifier_tokens(self.tree(), node)
+            .last()
+            .and_then(|token| self.uses.get(&SyntaxOrigin::Token(*token)))
+            .is_some_and(|target| {
+                matches!(
+                    target,
+                    NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(_))
+                )
+            })
     }
 
     fn check_move(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
@@ -891,6 +950,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     fn check_move_place(&mut self, node: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         let operand = self.required_child(node, NodeKind::NamedPlace)?;
+        if self.is_constant_reference(operand) {
+            return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
+        }
         let place = self.named_place(operand)?;
         if self.is_region_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidMoveSource, node)?);

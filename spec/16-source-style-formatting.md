@@ -30,6 +30,7 @@ Keep these forms in `index.nct`:
 - public and restricted-public type contracts;
 - fields or variants intentionally exposed as stable data representation;
 - bodyless callable, construction, instance-operation, and interface-default contracts;
+- bodyless constant contracts when their initializer belongs in an implementation source;
 - conformance heads, conditional requirements, and associated type bindings, without repeated
   interface method signatures;
 - short inline behavior whose implementation is itself the clearest contract.
@@ -131,6 +132,7 @@ Rules:
 - Generic type arguments are attached to the type name: `Buffer<T>`.
 - Unsized array data type syntax is formatted as `[T]`; array slices are formatted as `&[T]` and `&+[T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
+- A fixed-array length uses ordinary expression spacing, as in `[T; width * 2]`.
 - Parentheses used for type grouping do not add internal padding: `(T)!`.
 - Outcome elimination of an existing move-only place is formatted without redundant grouping:
   `move value?`, `move value!`, `move value catch error { ... }`, and

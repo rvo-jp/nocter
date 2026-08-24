@@ -76,6 +76,7 @@ const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {
         ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
         ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
         ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
+        ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
         ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
 }

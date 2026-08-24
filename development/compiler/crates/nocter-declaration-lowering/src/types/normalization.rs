@@ -117,6 +117,8 @@ pub struct PreparedTypes<'syntax> {
     pub(crate) opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
     pub(crate) callable_results: Box<[Option<TypeId>]>,
     pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
+    pub(crate) constant_values: HashMap<nocter_model::ConstantId, super::PreparedConstantValue>,
+    pub(crate) array_lengths: HashMap<NodeId, u64>,
 }
 
 impl PreparedTypes<'_> {
@@ -234,6 +236,7 @@ struct Evaluator<'a> {
     memo: HashMap<EvaluationKey, TypeId>,
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,
+    array_lengths: &'a HashMap<NodeId, u64>,
 }
 
 impl Evaluator<'_> {
@@ -445,7 +448,11 @@ impl Evaluator<'_> {
             BoundTypeKind::Slice(element) => TypeKind::Slice(self.result(&key, element)?),
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
-                length,
+                length: self
+                    .array_lengths
+                    .get(&length)
+                    .copied()
+                    .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
             },
             BoundTypeKind::Callable(callable) => {
                 let mut parameters = self.results(&key, callable.parameters())?.into_vec();
@@ -807,6 +814,7 @@ fn pattern_matches(
 /// Returns an error for recursive aliases, invalid `Self`, unknown or ambiguous associated
 /// selections, inconsistent bound graphs, or a bodyless structural callable whose omitted
 /// provenance cannot be inferred uniquely.
+#[allow(clippy::too_many_lines)] // One deterministic arena-freezing pass is clearer kept together.
 pub fn normalize_header_types(
     bindings: PreparedTypeBindings<'_>,
 ) -> Result<PreparedTypes<'_>, TypeNormalizationError> {
@@ -823,6 +831,8 @@ pub fn normalize_header_types(
         callable_results: bound_callable_results,
         requirements: bound_requirements,
         normalization_origins,
+        constant_values,
+        array_lengths,
     } = bindings;
     let context = prepare_context(
         &mut namespaces,
@@ -845,6 +855,7 @@ pub fn normalize_header_types(
         memo: HashMap::new(),
         active: HashSet::new(),
         alias_stack: Vec::new(),
+        array_lengths: &array_lengths,
     };
 
     let mut ordered_roots: Vec<_> = bound_roots.into_iter().collect();
@@ -915,6 +926,8 @@ pub fn normalize_header_types(
         opaque_results,
         callable_results,
         requirements: requirements.into_boxed_slice(),
+        constant_values,
+        array_lengths,
     })
 }
 

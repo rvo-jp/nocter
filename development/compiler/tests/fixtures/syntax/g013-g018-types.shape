@@ -17,6 +17,8 @@ SourceFile
             FixedArrayType
               Type
                 NamedType
+              Expression
+                ScalarLiteral
   Item
     FunctionDeclaration
       GenericParameters

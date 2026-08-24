@@ -88,5 +88,5 @@ pub use types::{
     BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypeBindings,
     PreparedTypes, TypeBindingError, TypeBindingRule, TypeBindingViolation, TypeNormalizationError,
     TypeNormalizationRule, TypeNormalizationViolation, bind_header_type_syntax,
-    normalize_header_types,
+    evaluate_header_constants, normalize_header_types,
 };

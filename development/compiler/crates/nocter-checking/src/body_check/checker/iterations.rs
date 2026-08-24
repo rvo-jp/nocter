@@ -199,6 +199,9 @@ impl BodyChecker<'_, '_> {
         modifier: NodeId,
     ) -> Result<AcquiredIterator, BodyCheckError> {
         let operand_syntax = modifier_operand(self, modifier)?;
+        if self.is_constant_reference(operand_syntax) {
+            return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operand_syntax)?);
+        }
         let place = self.postfix_place(operand_syntax, BorrowCapability::ReadWrite)?;
         if !self.is_writable_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operand_syntax)?);

@@ -144,13 +144,14 @@ impl BodyChecker<'_, '_> {
     ) -> Result<PatternSubjectPlan, BodyCheckError> {
         let syntax = self.transparent_expression(root);
         let (value, place, explicit_move) = match self.kind(syntax)? {
-            NodeKind::ReferenceExpression => {
+            NodeKind::ReferenceExpression if !self.is_constant_reference(syntax) => {
                 let place = self.named_place(syntax)?;
                 let value = self.add_node(syntax, place.ty, CheckedOperation::Place(place.id))?;
                 (value, true, false)
             }
             NodeKind::PostfixExpression
-                if direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
+                if !self.is_constant_reference(syntax)
+                    && direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
             {
                 let place = self.postfix_place(syntax, BorrowCapability::Readonly)?;
                 let value = self.add_node(syntax, place.ty, CheckedOperation::Place(place.id))?;

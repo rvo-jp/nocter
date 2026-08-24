@@ -689,6 +689,7 @@ const fn exported_entity(entity: ReservedEntity) -> Option<ExportedEntity> {
         ReservedEntity::NominalType(id) => Some(ExportedEntity::NominalType(id)),
         ReservedEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
         ReservedEntity::Interface(id) => Some(ExportedEntity::Interface(id)),
+        ReservedEntity::Constant(id) => Some(ExportedEntity::Constant(id)),
         ReservedEntity::Callable(id) => Some(ExportedEntity::Callable(id)),
         ReservedEntity::AssociatedType(_)
         | ReservedEntity::Construction(_)

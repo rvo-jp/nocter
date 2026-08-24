@@ -316,7 +316,13 @@ impl BodyChecker<'_, '_> {
     }
 
     fn resolve_type_wrapper(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
-        let children = direct_nodes(self.tree(), node);
+        let children = direct_nodes(self.tree(), node)
+            .into_iter()
+            .filter(|child| {
+                self.kind(*child)
+                    .is_ok_and(|kind| kind != NodeKind::Expression)
+            })
+            .collect::<Vec<_>>();
         let [child] = children.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
@@ -335,21 +341,9 @@ impl BodyChecker<'_, '_> {
             },
             NodeKind::SliceType => TypeKind::Slice(inner),
             NodeKind::FixedArrayType => {
-                let length = self
-                    .tree()
-                    .children(node)
-                    .iter()
-                    .find_map(|element| match element {
-                        SyntaxElement::Token(token)
-                            if token.kind() == TokenKind::IntegerLiteral =>
-                        {
-                            Some(*token)
-                        }
-                        _ => None,
-                    })
-                    .and_then(|token| self.token_text(token).ok())
-                    .and_then(super::super::literal::parse_integer);
-                let Some(length) = length else {
+                let expression = direct_child(self.tree(), node, NodeKind::Expression)
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                let Some(length) = self.constant_array_lengths.get(&expression).copied() else {
                     return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 };
                 TypeKind::FixedArray {
@@ -938,6 +932,7 @@ impl BodyChecker<'_, '_> {
             ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
             ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
+            ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
             ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
         };
         self.project_type_entity(token, entity)

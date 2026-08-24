@@ -7,7 +7,6 @@ pub enum TypeBindingRule {
     InvalidTypeEntity,
     InvalidTypeArguments,
     InvalidSelfType,
-    InvalidArrayLength,
     DuplicateCallableParameter,
     UnknownProvenanceOrigin,
     DuplicateProvenanceOrigin,
@@ -19,12 +18,11 @@ pub enum TypeBindingRule {
 }
 
 impl TypeBindingRule {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 12] = [
         Self::UnknownTypeContextName,
         Self::InvalidTypeEntity,
         Self::InvalidTypeArguments,
         Self::InvalidSelfType,
-        Self::InvalidArrayLength,
         Self::DuplicateCallableParameter,
         Self::UnknownProvenanceOrigin,
         Self::DuplicateProvenanceOrigin,
@@ -42,7 +40,6 @@ impl TypeBindingRule {
             Self::InvalidTypeEntity => "E0291",
             Self::InvalidTypeArguments => "E0292",
             Self::InvalidSelfType => "E0293",
-            Self::InvalidArrayLength => "E0294",
             Self::DuplicateCallableParameter => "E0295",
             Self::UnknownProvenanceOrigin => "E0296",
             Self::DuplicateProvenanceOrigin => "E0297",
@@ -61,7 +58,6 @@ impl TypeBindingRule {
             Self::InvalidTypeEntity => "name does not denote the required kind of type entity",
             Self::InvalidTypeArguments => "type application has invalid generic arguments",
             Self::InvalidSelfType => "Self is used outside a type-owning context",
-            Self::InvalidArrayLength => "fixed-array length is outside the supported range",
             Self::DuplicateCallableParameter => "callable type repeats a parameter name",
             Self::UnknownProvenanceOrigin => "result provenance names no callable parameter",
             Self::DuplicateProvenanceOrigin => "result provenance repeats an origin",
@@ -84,7 +80,6 @@ impl TypeBindingRule {
                 "supply exactly the declared generic arguments, or remove arguments where forbidden"
             }
             Self::InvalidSelfType => "use Self only inside a type-owned declaration",
-            Self::InvalidArrayLength => "use a fixed-array length representable as u64",
             Self::DuplicateCallableParameter => "give each named callable parameter a unique name",
             Self::UnknownProvenanceOrigin => "name one of this callable type's named parameters",
             Self::DuplicateProvenanceOrigin => "remove the repeated provenance origin",
@@ -112,7 +107,6 @@ impl TypeBindingRule {
             | Self::InvalidTypeEntity
             | Self::InvalidTypeArguments
             | Self::InvalidSelfType
-            | Self::InvalidArrayLength
             | Self::UnknownProvenanceOrigin
             | Self::UnknownOpaqueBinding
             | Self::OpaqueArgumentOrder

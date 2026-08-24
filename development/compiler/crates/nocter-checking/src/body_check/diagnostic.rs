@@ -19,6 +19,7 @@ pub enum BodyRule {
     InvalidAssignmentTarget,
     InvalidReinitialization,
     InvalidCompoundAssignment,
+    InvalidBorrowSource,
     InvalidReadWriteBorrow,
     InvalidIndexOperation,
     InvalidComparisonOperation,
@@ -62,6 +63,7 @@ impl BodyRule {
         Self::InvalidAssignmentTarget,
         Self::InvalidReinitialization,
         Self::InvalidCompoundAssignment,
+        Self::InvalidBorrowSource,
         Self::InvalidReadWriteBorrow,
         Self::InvalidIndexOperation,
         Self::InvalidComparisonOperation,
@@ -106,6 +108,7 @@ impl BodyRule {
             Self::InvalidAssignmentTarget => "E0384",
             Self::InvalidReinitialization => "E0385",
             Self::InvalidCompoundAssignment => "E0386",
+            Self::InvalidBorrowSource => "E0410",
             Self::InvalidReadWriteBorrow => "E0387",
             Self::InvalidIndexOperation => "E0388",
             Self::InvalidComparisonOperation => "E0389",
@@ -243,6 +246,10 @@ impl BodyRule {
             Self::InvalidCompoundAssignment => (
                 "compound assignment requires a writable initialized integer place and matching RHS",
                 "use a mutable integer destination and a right-hand side of the same integer type",
+            ),
+            Self::InvalidBorrowSource => (
+                "readonly borrow requires an addressable place",
+                "borrow a local, parameter, capture, field, or index place; use constants and produced values directly",
             ),
             Self::InvalidReadWriteBorrow => (
                 "readwrite borrow requires a writable place",

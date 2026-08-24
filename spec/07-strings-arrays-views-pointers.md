@@ -172,8 +172,8 @@ Rules:
 - Without an expected type, the compiler infers the element type from the elements.
 - Integer-only array literals use `i32` unless context provides another integer type.
 - The inferred length is part of the array type.
-- The length `N` in `[T; N]` is a compile-time integer literal value that must
-  fit in `usize`.
+- The length `N` in `[T; N]` is a compile-time constant expression of type `usize`, as specified in
+  [Compile-Time Constants](26-constants.md).
 - `[T; 0]` is valid and contains no initialized elements.
 - A fixed array of a zero-sized element type still contains its declared number of logical
   elements even though its stored size is zero. Element evaluation, bounds, ownership, and drop

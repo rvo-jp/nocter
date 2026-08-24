@@ -87,12 +87,13 @@ fn bind(
                 arguments: arguments.into_boxed_slice(),
             })
         }
-        ExportedEntity::Module(_) | ExportedEntity::TypeAlias(_) | ExportedEntity::Callable(_) => {
-            Err(TypeBindingError::rule(
-                TypeBindingRule::InvalidTypeEntity,
-                SyntaxOrigin::Token(head),
-            ))
-        }
+        ExportedEntity::Module(_)
+        | ExportedEntity::TypeAlias(_)
+        | ExportedEntity::Constant(_)
+        | ExportedEntity::Callable(_) => Err(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeEntity,
+            SyntaxOrigin::Token(head),
+        )),
     }
 }
 

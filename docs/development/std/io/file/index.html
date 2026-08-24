@@ -167,28 +167,24 @@
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">stdout_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-number">1</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">const</span> stdout_fd<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">stderr_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-number">2</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">const</span> stderr_fd<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">2</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">open_read_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> <span class="token-function">darwin_open_read_only</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin_open_read_only<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">create_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> <span class="token-function">darwin_open_create_truncate</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin_open_create_truncate<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">append_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> <span class="token-function">darwin_open_create_append</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin_open_create_append<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -200,13 +196,13 @@
     <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span><span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span> allocation_size - <span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
 
     <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-        <span class="token-function">darwin_sys_open</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin_sys_open<span class="token-operator">,</span>
         address<span class="token-operator">,</span>
         flags<span class="token-operator">,</span>
-        <span class="token-function">darwin_create_mode</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin_create_mode<span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-function">darwin_errno_interrupted</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span><span class="token-function">darwin_sys_open</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> address<span class="token-operator">,</span> flags<span class="token-operator">,</span> <span class="token-function">darwin_create_mode</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin_errno_interrupted <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>darwin_sys_open<span class="token-operator">,</span> address<span class="token-operator">,</span> flags<span class="token-operator">,</span> darwin_create_mode<span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-function">free_pages</span><span class="token-operator">(</span>address<span class="token-operator">,</span> allocation_size<span class="token-operator">)</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
@@ -218,13 +214,13 @@
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-        <span class="token-function">darwin_sys_read</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin_sys_read<span class="token-operator">,</span>
         fd<span class="token-operator">,</span>
         <span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
         buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-function">darwin_errno_interrupted</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span><span class="token-function">darwin_sys_read</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> fd<span class="token-operator">,</span> <span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin_errno_interrupted <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>darwin_sys_read<span class="token-operator">,</span> fd<span class="token-operator">,</span> <span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
@@ -241,14 +237,14 @@
     <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> remaining<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - offset
         <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-            <span class="token-function">darwin_sys_write</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            darwin_sys_write<span class="token-operator">,</span>
             fd<span class="token-operator">,</span>
             <span class="token-function">addr</span><span class="token-operator">(</span>bytes<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">+</span> offset<span class="token-operator">,</span>
             remaining<span class="token-operator">,</span>
         <span class="token-operator">)</span>
-        <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-function">darwin_errno_interrupted</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin_errno_interrupted <span class="token-operator">{</span>
             result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-                <span class="token-function">darwin_sys_write</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                darwin_sys_write<span class="token-operator">,</span>
                 fd<span class="token-operator">,</span>
                 <span class="token-function">addr</span><span class="token-operator">(</span>bytes<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">+</span> offset<span class="token-operator">,</span>
                 remaining<span class="token-operator">,</span>
@@ -279,7 +275,7 @@
     <span class="token-comment">// A failed close is deliberately not retried: Darwin may have consumed the</span>
     <span class="token-comment">// descriptor even when reporting an interruption, and retrying could close</span>
     <span class="token-comment">// an unrelated descriptor that another operation has reused.</span>
-    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">syscall1</span><span class="token-operator">(</span><span class="token-function">darwin_sys_close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> fd<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">syscall1</span><span class="token-operator">(</span>darwin_sys_close<span class="token-operator">,</span> fd<span class="token-operator">)</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -320,11 +316,11 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> <span class="token-function">stdout_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> close_on_drop<span class="token-operator">:</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> stdout_fd<span class="token-operator">,</span> close_on_drop<span class="token-operator">:</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> <span class="token-function">stderr_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> close_on_drop<span class="token-operator">:</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> stderr_fd<span class="token-operator">,</span> close_on_drop<span class="token-operator">:</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">File</span> <span class="token-operator">{</span>

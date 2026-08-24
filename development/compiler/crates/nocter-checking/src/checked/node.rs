@@ -1,3 +1,4 @@
+pub use nocter_model::ConstantValue;
 use nocter_model::{
     BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, FieldId,
     LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
@@ -122,13 +123,6 @@ impl CheckedBorrowConversion {
     pub const fn implementation(&self) -> &BorrowConversionImplementation {
         &self.implementation
     }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ConstantValue {
-    Bool(bool),
-    Integer(i128),
-    Text(Box<str>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

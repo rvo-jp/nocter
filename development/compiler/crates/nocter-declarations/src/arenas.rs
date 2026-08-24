@@ -1,16 +1,17 @@
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstructionId,
-    DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId, OpaqueTypeId,
-    ParameterId, RequirementId, TestId, TypeAliasId, VariantId,
+    Arena, ArenaBuilder, AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstantId,
+    ConstructionId, DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId,
+    OpaqueTypeId, ParameterId, RequirementId, TestId, TypeAliasId, VariantId,
 };
 
 use crate::{
     AssociatedTypeDeclaration, Body, CallableDeclaration, ConformanceDeclaration,
-    ConstructionDeclaration, DropDeclaration, FieldDeclaration, GenericParameter,
-    InstanceDeclaration, InterfaceDeclaration, NominalTypeDeclaration, OpaqueTypeDeclaration,
-    Parameter, Requirement, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
+    ConstantDeclaration, ConstructionDeclaration, DropDeclaration, FieldDeclaration,
+    GenericParameter, InstanceDeclaration, InterfaceDeclaration, NominalTypeDeclaration,
+    OpaqueTypeDeclaration, Parameter, Requirement, TestDeclaration, TypeAliasDeclaration,
+    VariantDeclaration,
 };
 
 #[derive(Debug)]
@@ -54,6 +55,7 @@ definition_slots!(NominalTypeId);
 definition_slots!(TypeAliasId);
 definition_slots!(InterfaceId);
 definition_slots!(AssociatedTypeId);
+definition_slots!(ConstantId);
 definition_slots!(CallableId);
 definition_slots!(ConstructionId);
 definition_slots!(InstanceId);
@@ -115,6 +117,7 @@ pub struct DeclarationArenas {
     type_aliases: Arena<TypeAliasId, TypeAliasDeclaration>,
     interfaces: Arena<InterfaceId, InterfaceDeclaration>,
     associated_types: Arena<AssociatedTypeId, AssociatedTypeDeclaration>,
+    constants: Arena<ConstantId, ConstantDeclaration>,
     callables: Arena<CallableId, CallableDeclaration>,
     constructions: Arena<ConstructionId, ConstructionDeclaration>,
     instances: Arena<InstanceId, InstanceDeclaration>,
@@ -147,6 +150,7 @@ impl DeclarationArenas {
         type_aliases: TypeAliasId => TypeAliasDeclaration,
         interfaces: InterfaceId => InterfaceDeclaration,
         associated_types: AssociatedTypeId => AssociatedTypeDeclaration,
+        constants: ConstantId => ConstantDeclaration,
         callables: CallableId => CallableDeclaration,
         constructions: ConstructionId => ConstructionDeclaration,
         instances: InstanceId => InstanceDeclaration,
@@ -215,6 +219,7 @@ pub struct DeclarationArenaBuilder {
     type_aliases: DefinitionSlots<TypeAliasId, TypeAliasDeclaration>,
     interfaces: DefinitionSlots<InterfaceId, InterfaceDeclaration>,
     associated_types: DefinitionSlots<AssociatedTypeId, AssociatedTypeDeclaration>,
+    constants: DefinitionSlots<ConstantId, ConstantDeclaration>,
     callables: DefinitionSlots<CallableId, CallableDeclaration>,
     constructions: DefinitionSlots<ConstructionId, ConstructionDeclaration>,
     instances: DefinitionSlots<InstanceId, InstanceDeclaration>,
@@ -280,6 +285,13 @@ impl DeclarationArenaBuilder {
         associated_types,
         AssociatedTypeId,
         AssociatedTypeDeclaration
+    );
+    reservation_methods!(
+        reserve_constant,
+        define_constant,
+        constants,
+        ConstantId,
+        ConstantDeclaration
     );
     reservation_methods!(
         reserve_callable,
@@ -362,6 +374,7 @@ impl DeclarationArenaBuilder {
             type_aliases: self.type_aliases.finish("type alias")?,
             interfaces: self.interfaces.finish("interface")?,
             associated_types: self.associated_types.finish("associated type")?,
+            constants: self.constants.finish("constant")?,
             callables: self.callables.finish("callable")?,
             constructions: self.constructions.finish("construction")?,
             instances: self.instances.finish("instance")?,

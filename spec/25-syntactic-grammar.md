@@ -175,6 +175,7 @@ Item = TargetDirective? TargetableItem
      | TestDeclaration
 
 TargetableItem = FunctionDeclaration
+               | ConstantDeclaration
                | PrimitiveDeclaration
                | TypeAliasDeclaration
                | StructDeclaration
@@ -183,6 +184,13 @@ TargetableItem = FunctionDeclaration
 
 TargetDirective = "#" "target" ":" StringLiteral newline+
 ```
+
+```text
+ConstantDeclaration = Visibility? "const" Name ":" Type ("=" Expression)?
+```
+
+A constant without an initializer is a module-root contract and must join exactly one private
+initializer definition. Every other constant declaration has an initializer.
 
 The grammar makes the `#target` attachment structural: it prefixes exactly one targetable item.
 It cannot prefix a `use`, `construct`, `instance`, `conform`, `drop`, or `test`, and it cannot occur
@@ -480,7 +488,7 @@ TypeArguments = "<" NonEmptyList(Type) ">"
 TypeSelectionSuffix = "." Name TypeArguments?
 
 SliceType = "[" Type "]"
-FixedArrayType = "[" Type ";" integer_literal "]"
+FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
 
 CallableType = CallableCapability "func" "(" List(CallableParameter) ")"
@@ -528,8 +536,9 @@ are present in that type position. Otherwise the enclosing expression grammar re
 ordering token. This bounded syntactic lookahead never asks whether the name denotes a generic
 type. Nested closing `>>` follows the token-subdivision rule below.
 
-The fixed-array length is an integer-literal token. General constant expressions and const generic
-parameters have no type production.
+The fixed-array length is an `Expression` parsed without name or type information. Semantic
+constant evaluation requires it to produce a `usize`; constant generic parameters remain
+unsupported.
 
 The lexer emits `>>` as one punctuation token. While parsing type arguments, that token supplies
 two consecutive `>` closers only when two currently open type-argument lists require them. Thus

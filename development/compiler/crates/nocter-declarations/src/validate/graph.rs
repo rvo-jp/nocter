@@ -148,6 +148,12 @@ fn exported_entity_module(
             DeclarationDomain::Interface,
         )?
         .site(),
+        ExportedEntity::Constant(id) => require(
+            declarations.constants().get(id),
+            owner,
+            DeclarationDomain::Constant,
+        )?
+        .site(),
         ExportedEntity::Callable(id) => {
             let callable = require(
                 declarations.callables().get(id),

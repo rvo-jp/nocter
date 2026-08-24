@@ -571,6 +571,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_constant_declarations_and_array_length_expressions_canonically() {
+        let formatted = format(
+            "pub const width:usize=2+2\ntype Bytes=[u8;width*2]\nfunc f():i32 { return 1 }\n",
+        );
+        assert_eq!(
+            formatted,
+            "pub const width: usize = 2 + 2\n\ntype Bytes = [u8; width * 2]\n\nfunc f(): i32 { return 1 }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn distinguishes_attached_parentheses_from_grouping_and_closure_heads() {
         assert_eq!(
             format(

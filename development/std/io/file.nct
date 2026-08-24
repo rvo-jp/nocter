@@ -20,28 +20,24 @@ use std/string.bytes as string_bytes
 use std/vec.Vec
 
 #target: "arm64-darwin"
-func stdout_fd(): usize {
-    return 1
-}
+const stdout_fd: usize = 1
 
 #target: "arm64-darwin"
-func stderr_fd(): usize {
-    return 2
-}
+const stderr_fd: usize = 2
 
 #target: "arm64-darwin"
 func open_read_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_read_only())?
+    return open_fd(path, darwin_open_read_only)?
 }
 
 #target: "arm64-darwin"
 func create_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_create_truncate())?
+    return open_fd(path, darwin_open_create_truncate)?
 }
 
 #target: "arm64-darwin"
 func append_fd(path: &str): usize! {
-    return open_fd(path, darwin_open_create_append())?
+    return open_fd(path, darwin_open_create_append)?
 }
 
 #target: "arm64-darwin"
@@ -53,13 +49,13 @@ func open_fd(path: &str, flags: usize): usize! {
     store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
 
     var result: SyscallResult = syscall3(
-        darwin_sys_open(),
+        darwin_sys_open,
         address,
         flags,
-        darwin_create_mode(),
+        darwin_create_mode,
     )
-    while result.errno == darwin_errno_interrupted() {
-        result = syscall3(darwin_sys_open(), address, flags, darwin_create_mode())
+    while result.errno == darwin_errno_interrupted {
+        result = syscall3(darwin_sys_open, address, flags, darwin_create_mode)
     }
     free_pages(address, allocation_size)
     if result.errno != 0 {
@@ -71,13 +67,13 @@ func open_fd(path: &str, flags: usize): usize! {
 #target: "arm64-darwin"
 func read_fd(fd: usize, buffer: &+[u8]): usize! {
     var result: SyscallResult = syscall3(
-        darwin_sys_read(),
+        darwin_sys_read,
         fd,
         addr(buffer.ptr()),
         buffer.len(),
     )
-    while result.errno == darwin_errno_interrupted() {
-        result = syscall3(darwin_sys_read(), fd, addr(buffer.ptr()), buffer.len())
+    while result.errno == darwin_errno_interrupted {
+        result = syscall3(darwin_sys_read, fd, addr(buffer.ptr()), buffer.len())
     }
     if result.errno != 0 {
         return from_os_error(error_from_errno(errno(result.errno)))
@@ -94,14 +90,14 @@ func write_fd(fd: usize, bytes: &[u8]): void! {
     while offset < bytes.len() {
         let remaining: usize = bytes.len() - offset
         var result: SyscallResult = syscall3(
-            darwin_sys_write(),
+            darwin_sys_write,
             fd,
             addr(bytes.ptr()) + offset,
             remaining,
         )
-        while result.errno == darwin_errno_interrupted() {
+        while result.errno == darwin_errno_interrupted {
             result = syscall3(
-                darwin_sys_write(),
+                darwin_sys_write,
                 fd,
                 addr(bytes.ptr()) + offset,
                 remaining,
@@ -132,7 +128,7 @@ func close_fd(fd: usize): void {
     // A failed close is deliberately not retried: Darwin may have consumed the
     // descriptor even when reporting an interruption, and retrying could close
     // an unrelated descriptor that another operation has reused.
-    let _ = syscall1(darwin_sys_close(), fd)
+    let _ = syscall1(darwin_sys_close, fd)
     return
 }
 
@@ -173,11 +169,11 @@ func from_os_error(os_error: OSError): error {
 }
 
 func stdout(): File {
-    return File { fd: stdout_fd(), close_on_drop: false }
+    return File { fd: stdout_fd, close_on_drop: false }
 }
 
 func stderr(): File {
-    return File { fd: stderr_fd(), close_on_drop: false }
+    return File { fd: stderr_fd, close_on_drop: false }
 }
 
 construct File {

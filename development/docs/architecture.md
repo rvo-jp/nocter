@@ -655,10 +655,21 @@ merge already-distinct semantic IDs or search for a representation by name.
 
 One production declaration-lowering facade owns the pass sequence: surface collection, declaration-
 contract joining, identity reservation, header preparation, generic preparation, authored imports,
-compiler-selected prelude composition, type binding, type normalization, and header definition.
+compiler-selected prelude composition, type binding, header-constant evaluation, type normalization,
+and header definition.
 The facade performs no semantic work of its own. It prevents tools and later compiler stages from
 assembling a partial or differently ordered declaration graph while keeping each pass independently
 testable.
+
+Header-constant evaluation is the only compiler component that interprets constant-expression
+syntax. It runs after names and type heads are bound but before structural types are normalized,
+builds the complete constant dependency graph, and publishes immutable scalar values plus evaluated
+fixed-array lengths. Declaration freezing stores those values without retaining initializer syntax.
+Header normalization consumes the array-length table, while `FrontendBindings` carries lengths for
+body-local type annotations. Body checking, MIR, target specialization, machine lowering, and
+editor presentation may consume the evaluated values but cannot invoke or reproduce the evaluator.
+This keeps constant declarations and `[T; expression]` under one arithmetic, cycle, and overflow
+authority.
 
 Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
 associated types, callables, construction surfaces, instances, conformances, variants, drops,

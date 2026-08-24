@@ -231,6 +231,7 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::BuiltinField(_)
             | SemanticEntity::Variant(_) => self.member_entity(entity)?,
             SemanticEntity::GenericParameter(_)
+            | SemanticEntity::Constant(_)
             | SemanticEntity::Parameter(_)
             | SemanticEntity::LocalBinding(..)
             | SemanticEntity::Capture(..)
@@ -351,6 +352,26 @@ impl<'a> Renderer<'a> {
     ) -> Option<()> {
         let declarations = self.graph.declarations();
         match entity {
+            SemanticEntity::Constant(id) => {
+                let declaration = declarations.constants().get(id)?;
+                self.visibility(declaration.site())?;
+                self.output.push_str("const ");
+                self.output.push_str(self.symbol(declaration.name())?);
+                self.output.push_str(": ");
+                self.ty(declaration.ty())?;
+                self.output.push_str(" = ");
+                match declaration.value() {
+                    nocter_model::ConstantValue::Bool(value) => {
+                        self.output.push_str(if *value { "true" } else { "false" });
+                    }
+                    nocter_model::ConstantValue::Integer(value) => {
+                        write!(self.output, "{value}").ok()?;
+                    }
+                    nocter_model::ConstantValue::Text(value) => {
+                        write_string_literal(&mut self.output, value).ok()?;
+                    }
+                }
+            }
             SemanticEntity::GenericParameter(id) => {
                 let parameter = declarations.generic_parameters().get(id)?;
                 write!(
@@ -1299,6 +1320,27 @@ impl<'a> Renderer<'a> {
     }
 }
 
+fn write_string_literal(output: &mut String, value: &str) -> fmt::Result {
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\0' => output.push_str("\\0"),
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '$' => output.push_str("\\$"),
+            character if character.is_ascii_control() => {
+                write!(output, "\\x{:02X}", u32::from(character))?;
+            }
+            character => output.write_char(character)?,
+        }
+    }
+    output.push('"');
+    Ok(())
+}
+
 const fn builtin_spelling(builtin: BuiltinType) -> &'static str {
     match builtin {
         BuiltinType::Bool => "bool",
@@ -1316,5 +1358,15 @@ const fn builtin_spelling(builtin: BuiltinType) -> &'static str {
         BuiltinType::Error => "error",
         BuiltinType::Void => "void",
         BuiltinType::Never => "never",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn constant_text_presentation_is_valid_nocter_source() {
+        let mut output = String::new();
+        super::write_string_literal(&mut output, "line\n\u{7f}\"${値}").unwrap();
+        assert_eq!(output, "\"line\\n\\x7F\\\"\\${値}\"");
     }
 }

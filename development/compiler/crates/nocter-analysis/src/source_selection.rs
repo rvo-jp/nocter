@@ -51,6 +51,7 @@ const fn entity_family_rank(entity: SemanticEntity) -> u8 {
             2
         }
         SemanticEntity::Callable(_)
+        | SemanticEntity::Constant(_)
         | SemanticEntity::NominalType(_)
         | SemanticEntity::TypeAlias(_)
         | SemanticEntity::Interface(_)

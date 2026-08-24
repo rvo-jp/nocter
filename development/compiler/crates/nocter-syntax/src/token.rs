@@ -205,6 +205,7 @@ keywords! {
     Break => "break",
     Catch => "catch",
     Continue => "continue",
+    Const => "const",
     Construct => "construct",
     Conform => "conform",
     Else => "else",

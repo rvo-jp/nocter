@@ -302,6 +302,9 @@ impl BodyChecker<'_, '_> {
             };
             syntax = *child;
         }
+        if self.is_constant_reference(syntax) {
+            return Ok(None);
+        }
         match self.kind(syntax)? {
             NodeKind::ReferenceExpression => self.named_place(syntax).map(Some),
             NodeKind::PostfixExpression

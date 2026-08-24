@@ -3,7 +3,7 @@ mod construct;
 mod instance;
 mod nominal;
 
-use super::{Parser, block, requirements, root, types};
+use super::{Parser, block, expression, requirements, root, types};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn item(parser: &mut Parser<'_>) {
@@ -19,6 +19,7 @@ pub(super) fn item(parser: &mut Parser<'_>) {
 
 fn declaration(parser: &mut Parser<'_>) {
     match declaration_kind(parser) {
+        Some(DeclarationKind::Constant) => constant(parser),
         Some(DeclarationKind::Function) => function(parser),
         Some(DeclarationKind::Primitive) => primitive(parser),
         Some(DeclarationKind::TypeAlias) => type_alias(parser),
@@ -52,6 +53,7 @@ fn target_directive(parser: &mut Parser<'_>) {
 
 fn targetable_item(parser: &mut Parser<'_>) {
     match targetable_kind(parser) {
+        Some(DeclarationKind::Constant) => constant(parser),
         Some(DeclarationKind::Function) => function(parser),
         Some(DeclarationKind::Primitive) => primitive(parser),
         Some(DeclarationKind::TypeAlias) => type_alias(parser),
@@ -64,6 +66,7 @@ fn targetable_item(parser: &mut Parser<'_>) {
 
 #[derive(Clone, Copy)]
 enum DeclarationKind {
+    Constant,
     Function,
     Primitive,
     TypeAlias,
@@ -102,6 +105,7 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     }
 
     match parser.tokens[cursor].kind() {
+        TokenKind::Keyword(Keyword::Const) => Some(DeclarationKind::Constant),
         TokenKind::Keyword(Keyword::Func) => Some(DeclarationKind::Function),
         TokenKind::Keyword(Keyword::Primitive) => Some(DeclarationKind::Primitive),
         TokenKind::Keyword(Keyword::Type) => Some(DeclarationKind::TypeAlias),
@@ -110,6 +114,19 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
         TokenKind::Keyword(Keyword::Interface) => Some(DeclarationKind::Interface),
         _ => None,
     }
+}
+
+fn constant(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    optional_visibility(parser);
+    parser.expect_keyword(Keyword::Const);
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Colon);
+    types::type_(parser);
+    if parser.eat_punctuation(Punctuation::Equal) {
+        expression::expression(parser, expression::ExpressionMode::Header);
+    }
+    parser.complete(marker, NodeKind::ConstantDeclaration);
 }
 
 fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {

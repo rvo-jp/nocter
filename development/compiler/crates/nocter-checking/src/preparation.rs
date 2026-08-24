@@ -6,6 +6,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
+use nocter_syntax::NodeId;
 
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::{
@@ -36,6 +37,7 @@ pub struct PreparedChecking<'syntax> {
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_namespaces: SourceNamespaceTable,
     source_access: SourceAccessTable,
+    constant_array_lengths: std::collections::HashMap<NodeId, u64>,
     source_index: SourceIndex,
 }
 
@@ -191,6 +193,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             body_names: self.body_names,
             source_namespaces: self.source_namespaces,
             source_access: self.source_access,
+            constant_array_lengths: self.constant_array_lengths,
             source_index: self.source_index,
         }
     }
@@ -209,6 +212,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
     pub(crate) source_access: SourceAccessTable,
+    pub(crate) constant_array_lengths: std::collections::HashMap<NodeId, u64>,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -512,6 +516,7 @@ fn prepare_program_checking_internal<'syntax>(
         body_names,
         source_namespaces: bindings.source_namespaces().clone(),
         source_access: bindings.source_access().clone(),
+        constant_array_lengths: bindings.constant_array_lengths().clone(),
         source_index,
     })
 }

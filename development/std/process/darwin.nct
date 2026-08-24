@@ -38,7 +38,7 @@ func open_current_directory(): usize! {
     copy_str_to_ptr(from_addr(address), 0, ".")
     store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
 
-    let result = syscall3(darwin_sys_open(), address, 0, 0)
+    let result = syscall3(darwin_sys_open, address, 0, 0)
     free_pages(address, allocation_size)
     if result.errno != 0 {
         return cwd_failed()
@@ -54,7 +54,7 @@ func open_current_directory_aborting(): usize! {
     copy_str_to_ptr(raw_buffer_ptr(&path), 0, ".")
     store_u8_to_ptr(raw_buffer_ptr(&path), allocation_size - 1, 0)
 
-    let result = syscall3(darwin_sys_open(), addr(raw_buffer_ptr(&path)), 0, 0)
+    let result = syscall3(darwin_sys_open, addr(raw_buffer_ptr(&path)), 0, 0)
     free(&+allocator, move path)
     if result.errno != 0 {
         return cwd_failed()
@@ -64,7 +64,7 @@ func open_current_directory_aborting(): usize! {
 
 #target: "arm64-darwin"
 func close_fd_word(fd: usize): void {
-    let result = syscall1(darwin_sys_close(), fd)
+    let result = syscall1(darwin_sys_close, fd)
     return
 }
 
@@ -85,9 +85,9 @@ func cwd_path_len(buffer: &+RawBuffer): usize! {
 #target: "arm64-darwin"
 func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     let result = syscall3(
-        darwin_sys_fcntl(),
+        darwin_sys_fcntl,
         fd,
-        darwin_f_getpath(),
+        darwin_f_getpath,
         addr(raw_buffer_ptr(buffer)),
     )
     if result.errno != 0 {
@@ -159,7 +159,7 @@ func env(name: &str): &str?! {
 func cwd(): String! {
     let fd = open_current_directory_aborting()?
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, darwin_max_path_len(), 1)
+    var buffer = alloc(&+allocator, darwin_max_path_len, 1)
     let len = fill_cwd_path(fd, &+buffer) catch failure {
         free(&+allocator, move buffer)
         close_fd_word(fd)
@@ -176,7 +176,7 @@ func try_cwd(allocator: &+TryAllocator): String! {
     let fd = open_current_directory() catch failure {
         return failure
     }
-    var buffer = try_alloc(allocator, darwin_max_path_len(), 1) catch failure {
+    var buffer = try_alloc(allocator, darwin_max_path_len, 1) catch failure {
         close_fd_word(fd)
         return failure
     }

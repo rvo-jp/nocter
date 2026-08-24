@@ -47,6 +47,7 @@ impl SurfaceSourceId {
 /// The semantic declaration domain selected solely from closed syntax shape.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SurfaceDeclarationKind {
+    Constant,
     Function,
     Primitive,
     TypeAlias,
@@ -788,6 +789,7 @@ fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeI
 
 fn top_level_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
     match kind {
+        NodeKind::ConstantDeclaration => Some(SurfaceDeclarationKind::Constant),
         NodeKind::FunctionDeclaration => Some(SurfaceDeclarationKind::Function),
         NodeKind::PrimitiveDeclaration => Some(SurfaceDeclarationKind::Primitive),
         NodeKind::TypeAliasDeclaration => Some(SurfaceDeclarationKind::TypeAlias),

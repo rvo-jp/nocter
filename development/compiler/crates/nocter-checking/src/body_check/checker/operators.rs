@@ -46,6 +46,14 @@ impl BodyChecker<'_, '_> {
         capability: BorrowCapability,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let operand = unary_operand(self, node)?;
+        if self.is_constant_reference(operand) {
+            let rule = if capability == BorrowCapability::ReadWrite {
+                BodyRule::InvalidReadWriteBorrow
+            } else {
+                BodyRule::InvalidBorrowSource
+            };
+            return Err(self.rule(rule, operand)?);
+        }
         let place = self.postfix_place(operand, capability)?;
         if capability == BorrowCapability::ReadWrite && !self.is_writable_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operand)?);

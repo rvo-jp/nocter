@@ -22,6 +22,7 @@ use super::allocation::{
 use super::{DefinitionRule, DefinitionViolation, HeaderDefinitionError, projection, syntax};
 
 mod callable;
+mod constant;
 mod provenance;
 mod target;
 
@@ -29,6 +30,7 @@ pub(super) fn define(
     types: &mut PreparedTypes<'_>,
     allocated: &mut AllocatedHeaders,
 ) -> Result<(), HeaderDefinitionError> {
+    constant::define_all(types)?;
     for index in 0..surface_count(types) {
         let declaration = SurfaceDeclarationId::from_index(index);
         if representative(types, declaration) != declaration {
@@ -45,6 +47,7 @@ pub(super) fn define(
             Some(ReservedEntity::AssociatedType(id)) => {
                 define_associated(types, allocated, declaration, id)?;
             }
+            Some(ReservedEntity::Constant(_)) => {}
             Some(ReservedEntity::Callable(id)) => {
                 callable::define(types, allocated, declaration, id)?;
             }

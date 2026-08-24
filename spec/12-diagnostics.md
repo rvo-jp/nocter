@@ -152,7 +152,6 @@ Source-backed declaration-header type diagnostics:
 - `E0292`: a type application supplies the wrong number of generic arguments, supplies arguments
   to `Self` or a generic parameter, or supplies arguments to an associated selection.
 - `E0293`: `Self` appears outside a type-owning declaration.
-- `E0294`: a fixed-array length integer cannot be represented as `u64`.
 - `E0295`: a structural callable type repeats a named parameter. The later parameter is primary
   and the first parameter is related.
 - `E0296`: a structural callable result-provenance clause names no parameter of that callable.
@@ -198,7 +197,13 @@ Source-backed declaration-definition diagnostics:
 - `E0318`: a conformance binding names no associated type declared by its selected interface.
 - `E0319`: a conformance repeats an associated-type binding. The later binding name is primary and
   the first is related.
-- `E0320`: an argument pack is not the one final parameter of a supported callable, or a sequence
+- `E0321`: a constant uses a type outside `bool`, the built-in integers, and readonly `&str`.
+- `E0322`: a constant expression contains an operation unavailable during compile-time evaluation.
+- `E0323`: a constant expression does not produce its explicitly declared type.
+- `E0324`: the complete authored constant dependency graph contains a cycle.
+- `E0325`: evaluated constant arithmetic overflows, divides by zero, uses an invalid shift count, or
+  performs an integer conversion whose result is not representable.
+- `E0326`: an argument pack is not the one final parameter of a supported callable, or a sequence
   literal does not declare exactly its one required pack.
 
 These rules are selected while normalized header information is converted into declaration
@@ -321,6 +326,8 @@ Source-backed checked-body diagnostics:
 - `E0409`: an argument pack is used as an ordinary value or mixed with other pack contributions
   during forwarding. A pack is compiler-owned, non-escaping input and supports `items.len()`,
   consuming `for item in items`, and sole tail forwarding as `target(...items)`.
+- `E0410`: a readonly borrow does not target an addressable place. Constants and produced values
+  must be used directly.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and
@@ -348,6 +355,10 @@ Source-backed declaration contract diagnostics:
 - `E0265`: a private implementation conformance matches more than one identical root contract.
 - `E0266`: a separated conformance repeats method declarations in `index.nct` or associated type
   bindings in its private implementation source.
+- `E0272`: a bodyless public constant contract has no private initializer definition.
+- `E0273`: a private constant initializer does not exactly match its public contract.
+- `E0274`: more than one private initializer matches the same public constant contract.
+- `E0275`: a constant omits its initializer outside a visible root contract in `index.nct`.
 
 Source-backed declaration-header diagnostics:
 

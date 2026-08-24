@@ -3,6 +3,11 @@ use nocter_source_index::SyntaxOrigin;
 /// Stable source-level rule selected while completing declaration definitions.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DefinitionRule {
+    InvalidConstantType,
+    NonConstantExpression,
+    ConstantTypeMismatch,
+    ConstantCycle,
+    ConstantArithmeticFailure,
     DuplicateConstructionDefault,
     UnknownResultProvenanceOrigin,
     DuplicateResultProvenanceOrigin,
@@ -13,7 +18,12 @@ pub enum DefinitionRule {
 }
 
 impl DefinitionRule {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 12] = [
+        Self::InvalidConstantType,
+        Self::NonConstantExpression,
+        Self::ConstantTypeMismatch,
+        Self::ConstantCycle,
+        Self::ConstantArithmeticFailure,
         Self::DuplicateConstructionDefault,
         Self::UnknownResultProvenanceOrigin,
         Self::DuplicateResultProvenanceOrigin,
@@ -26,19 +36,33 @@ impl DefinitionRule {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::InvalidConstantType => "E0321",
+            Self::NonConstantExpression => "E0322",
+            Self::ConstantTypeMismatch => "E0323",
+            Self::ConstantCycle => "E0324",
+            Self::ConstantArithmeticFailure => "E0325",
             Self::DuplicateConstructionDefault => "E0314",
             Self::UnknownResultProvenanceOrigin => "E0315",
             Self::DuplicateResultProvenanceOrigin => "E0316",
             Self::AmbiguousBodylessResultProvenance => "E0317",
             Self::UnknownAssociatedTypeBinding => "E0318",
             Self::DuplicateAssociatedTypeBinding => "E0319",
-            Self::InvalidArgumentPackParameter => "E0320",
+            Self::InvalidArgumentPackParameter => "E0326",
         }
     }
 
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
+            Self::InvalidConstantType => {
+                "constant type is not supported by compile-time value semantics"
+            }
+            Self::NonConstantExpression => {
+                "constant initializer contains an operation unavailable at compile time"
+            }
+            Self::ConstantTypeMismatch => "constant initializer does not produce its declared type",
+            Self::ConstantCycle => "constant dependency graph contains a cycle",
+            Self::ConstantArithmeticFailure => "constant arithmetic has no valid typed value",
             Self::DuplicateConstructionDefault => {
                 "construction surface declares more than one default member"
             }
@@ -64,6 +88,15 @@ impl DefinitionRule {
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
+            Self::InvalidConstantType => "use bool, an integer type, or readonly &str",
+            Self::NonConstantExpression => {
+                "use literals, constants, grouping, built-in operators, or a representable integer conversion"
+            }
+            Self::ConstantTypeMismatch => "make the initializer and explicit constant type agree",
+            Self::ConstantCycle => "remove one reference in the constant dependency cycle",
+            Self::ConstantArithmeticFailure => {
+                "change the expression so it cannot overflow, divide by zero, or use an invalid shift"
+            }
             Self::DuplicateConstructionDefault => {
                 "remove one default modifier so the construction surface has at most one default"
             }
@@ -93,6 +126,11 @@ impl DefinitionRule {
                 Some("the first associated type binding is declared here")
             }
             Self::UnknownResultProvenanceOrigin
+            | Self::InvalidConstantType
+            | Self::NonConstantExpression
+            | Self::ConstantTypeMismatch
+            | Self::ConstantCycle
+            | Self::ConstantArithmeticFailure
             | Self::AmbiguousBodylessResultProvenance
             | Self::UnknownAssociatedTypeBinding
             | Self::InvalidArgumentPackParameter => None,

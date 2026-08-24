@@ -65,64 +65,40 @@ func kind_from_errno(value: Errno): OSErrorKind {
 }
 
 #target: "arm64-darwin"
-func darwin_sys_read(): usize {
-    return 0x02000003
-}
+const darwin_sys_read: usize = 0x02000003
 
 #target: "arm64-darwin"
-func darwin_sys_write(): usize {
-    return 0x02000004
-}
+const darwin_sys_write: usize = 0x02000004
 
 #target: "arm64-darwin"
-func darwin_sys_open(): usize {
-    return 0x02000005
-}
+const darwin_sys_open: usize = 0x02000005
 
 #target: "arm64-darwin"
-func darwin_sys_close(): usize {
-    return 0x02000006
-}
+const darwin_sys_close: usize = 0x02000006
 
 #target: "arm64-darwin"
-func darwin_open_read_only(): usize {
-    return 0
-}
+const darwin_open_read_only: usize = 0
 
 #target: "arm64-darwin"
-func darwin_open_create_truncate(): usize {
-    // O_WRONLY | O_CREAT | O_TRUNC
-    return 0x0601
-}
+// O_WRONLY | O_CREAT | O_TRUNC
+const darwin_open_create_truncate: usize = 0x0601
 
 #target: "arm64-darwin"
-func darwin_open_create_append(): usize {
-    // O_WRONLY | O_CREAT | O_APPEND
-    return 0x0209
-}
+// O_WRONLY | O_CREAT | O_APPEND
+const darwin_open_create_append: usize = 0x0209
 
 #target: "arm64-darwin"
-func darwin_create_mode(): usize {
-    // 0666, filtered by the process umask.
-    return 438
-}
+// 0666, filtered by the process umask.
+const darwin_create_mode: usize = 438
 
 #target: "arm64-darwin"
-func darwin_errno_interrupted(): i32 {
-    return 4
-}
+const darwin_errno_interrupted: i32 = 4
 
 #target: "arm64-darwin"
-func darwin_sys_fcntl(): usize {
-    return 0x0200005c
-}
+const darwin_sys_fcntl: usize = 0x0200005c
 
 #target: "arm64-darwin"
-func darwin_f_getpath(): usize {
-    return 50
-}
+const darwin_f_getpath: usize = 50
 
 #target: "arm64-darwin"
-func darwin_max_path_len(): usize {
-    return 1024
-}
+const darwin_max_path_len: usize = 1024

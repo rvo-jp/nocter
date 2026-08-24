@@ -1,5 +1,6 @@
 mod binding_arena;
 mod capability;
+mod constants;
 mod context;
 mod names;
 mod normalization;
@@ -81,6 +82,7 @@ impl BoundCallableType {
     }
 }
 
+pub use constants::evaluate as evaluate_header_constants;
 pub use normalization::{
     NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypes, TypeNormalizationError,
     TypeNormalizationRule, TypeNormalizationViolation, normalize_header_types,
@@ -125,7 +127,9 @@ pub enum BoundTypeKind {
     Slice(BoundTypeId),
     FixedArray {
         element: BoundTypeId,
-        length: u64,
+        /// The syntax identity of a bound constant expression. It is evaluated exactly once by
+        /// the header-constant pass before structural type normalization begins.
+        length: NodeId,
     },
     Callable(BoundCallableType),
     Optional(BoundTypeId),
@@ -270,6 +274,14 @@ pub struct PreparedTypeBindings<'syntax> {
     callable_results: Box<[Option<BoundTypeId>]>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
     normalization_origins: normalization_origins::NormalizationOrigins,
+    constant_values: HashMap<nocter_model::ConstantId, PreparedConstantValue>,
+    array_lengths: HashMap<NodeId, u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PreparedConstantValue {
+    pub(crate) declaration: SurfaceDeclarationId,
+    pub(crate) value: nocter_model::ConstantValue,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -425,6 +437,8 @@ pub fn bind_header_type_syntax(
         callable_results,
         requirements: requirements.into_boxed_slice(),
         normalization_origins: arena.origins,
+        constant_values: HashMap::new(),
+        array_lengths: HashMap::new(),
     })
 }
 

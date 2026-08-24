@@ -108,7 +108,7 @@ fn bind_node(
             kinds,
             BoundTypeKind::FixedArray {
                 element: child_value(tree, node, values)?,
-                length: array_length(namespaces, tree, node)?,
+                length: array_length(tree, node)?,
             },
         ),
         NodeKind::GroupedType => child_value(tree, node, values)?,
@@ -246,12 +246,13 @@ fn bind_entity(
                 },
             ))
         }
-        ExportedEntity::Module(_) | ExportedEntity::Interface(_) | ExportedEntity::Callable(_) => {
-            Err(TypeBindingError::rule(
-                TypeBindingRule::InvalidTypeEntity,
-                SyntaxOrigin::Token(token),
-            ))
-        }
+        ExportedEntity::Module(_)
+        | ExportedEntity::Interface(_)
+        | ExportedEntity::Constant(_)
+        | ExportedEntity::Callable(_) => Err(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeEntity,
+            SyntaxOrigin::Token(token),
+        )),
     }
 }
 
@@ -466,35 +467,20 @@ fn borrow_capability(
     }
 }
 
-fn array_length(
-    namespaces: &PreparedNamespaces<'_>,
-    tree: &SyntaxTree,
-    node: NodeId,
-) -> Result<u64, TypeBindingError> {
-    let token = tree
-        .children(node)
+fn array_length(tree: &SyntaxTree, node: NodeId) -> Result<NodeId, TypeBindingError> {
+    tree.children(node)
         .iter()
         .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::IntegerLiteral => {
-                Some(*token)
+            SyntaxElement::Node(child)
+                if tree
+                    .node(*child)
+                    .is_some_and(|node| node.kind() == NodeKind::Expression) =>
+            {
+                Some(*child)
             }
             _ => None,
         })
-        .ok_or(TypeBindingError::InvalidSyntax(node))?;
-    let text = token_text(namespaces, tree, token)?.replace('_', "");
-    let parsed = if let Some(digits) = text.strip_prefix("0x") {
-        u64::from_str_radix(digits, 16)
-    } else if let Some(digits) = text.strip_prefix("0b") {
-        u64::from_str_radix(digits, 2)
-    } else {
-        text.parse()
-    };
-    parsed.map_err(|_| {
-        TypeBindingError::rule(
-            TypeBindingRule::InvalidArrayLength,
-            SyntaxOrigin::Token(token),
-        )
-    })
+        .ok_or(TypeBindingError::InvalidSyntax(node))
 }
 
 fn invalid_arguments(segment: &super::names::NameSegment) -> TypeBindingError {

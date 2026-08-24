@@ -1,4 +1,4 @@
-use super::{CompletedMarker, Parser};
+use super::{CompletedMarker, Parser, expression};
 use crate::{BuiltinType, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn type_(parser: &mut Parser<'_>) {
@@ -356,7 +356,7 @@ fn bracket_type(parser: &mut Parser<'_>) {
     }
     type_(parser);
     let kind = if parser.eat_punctuation(Punctuation::Semicolon) {
-        parser.expect(TokenKind::IntegerLiteral);
+        expression::expression(parser, expression::ExpressionMode::Delimited);
         NodeKind::FixedArrayType
     } else {
         NodeKind::SliceType

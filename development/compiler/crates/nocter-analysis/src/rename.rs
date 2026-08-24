@@ -249,6 +249,7 @@ const fn renameable_entity(entity: SemanticEntity) -> bool {
             | SemanticEntity::Interface(_)
             | SemanticEntity::AssociatedType(_)
             | SemanticEntity::Callable(_)
+            | SemanticEntity::Constant(_)
             | SemanticEntity::Field(_)
             | SemanticEntity::Variant(_)
             | SemanticEntity::GenericParameter(_)

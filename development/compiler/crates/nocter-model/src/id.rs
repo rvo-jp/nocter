@@ -40,6 +40,7 @@ semantic_ids! {
     TypeAliasId,
     InterfaceId,
     AssociatedTypeId,
+    ConstantId,
     CallableId,
     ConstructionId,
     InstanceId,

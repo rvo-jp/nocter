@@ -31,7 +31,9 @@ impl BodyChecker<'_, '_> {
             };
             syntax = *child;
         }
+        let constant = self.is_constant_reference(syntax);
         let place = match self.kind(syntax)? {
+            _ if constant => None,
             NodeKind::ReferenceExpression => Some(self.named_place(syntax)?),
             NodeKind::PostfixExpression
                 if direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>

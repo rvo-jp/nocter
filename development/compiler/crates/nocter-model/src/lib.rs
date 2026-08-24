@@ -5,6 +5,7 @@
 //! source ranges, or rendered type spellings.
 
 mod arena;
+mod constant;
 mod field;
 mod id;
 mod origin;
@@ -14,14 +15,15 @@ mod target;
 mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
+pub use constant::ConstantValue;
 pub use field::{BuiltinField, FieldIdentity};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
-    ConformanceId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
-    GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, LoopId, MirBlockId,
-    MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId,
-    OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId, TestId,
-    TypeAliasId, TypeId, VariantId,
+    ConformanceId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,
+    FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, LoopId,
+    MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId,
+    NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId,
+    TestId, TypeAliasId, TypeId, VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;

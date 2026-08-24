@@ -99,6 +99,87 @@ fn exact_contracts_and_bodies_share_the_contract_identity() {
 }
 
 #[test]
+fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./limits.nct\npub const buffer_size: usize\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/limits.nct",
+        "include ./index.nct\nconst buffer_size: usize = 4096\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/limits.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/limits.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(1)),
+        SurfaceDeclarationId::from_index(0)
+    );
+}
+
+#[test]
+fn constant_contract_rejects_a_different_initializer_header() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "include ./limits.nct\npub const buffer_size: usize\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/limits.nct",
+        "include ./index.nct\nconst buffer_size: u32 = 4096\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::PackageFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/limits.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_include(&root, 0, "/app/limits.nct"),
+            source_include(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    assert!(matches!(
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::MismatchedConstantInitializer { .. })
+    ));
+}
+
+#[test]
 fn nested_opaque_results_share_their_callable_contract_identity() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/nocter.nct", "");

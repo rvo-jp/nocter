@@ -85,6 +85,7 @@ const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {
         SemanticCompletionKind::Parameter | SemanticCompletionKind::Variable => {
             CompletionItemKind::Variable
         }
+        SemanticCompletionKind::Constant => CompletionItemKind::Constant,
         SemanticCompletionKind::Keyword => CompletionItemKind::Keyword,
     }
 }

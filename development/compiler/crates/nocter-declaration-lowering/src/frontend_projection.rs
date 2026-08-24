@@ -108,6 +108,11 @@ impl FrontendProjectionBuilder {
             .define_nominal_representation_source(nominal, source, contract_private);
     }
 
+    pub(crate) fn define_constant_array_length(&mut self, expression: NodeId, length: u64) {
+        self.bindings
+            .define_constant_array_length(expression, length);
+    }
+
     pub(crate) fn insert_documentation(
         &mut self,
         entity: SemanticEntity,
@@ -168,6 +173,7 @@ const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticE
         nocter_declarations::ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
         nocter_declarations::ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
         nocter_declarations::ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
+        nocter_declarations::ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
         nocter_declarations::ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
 }

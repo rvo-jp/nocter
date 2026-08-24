@@ -346,7 +346,6 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
 #[test]
 fn rejects_closed_type_shapes_without_semantic_assistance() {
     for source in [
-        "type Dynamic = [u8; size]\n",
         "type Reversed = i32!?\n",
         "type BuiltinSelection = str.Item\n",
         "type GenericSelf = Self<T>\n",
@@ -354,6 +353,14 @@ fn rejects_closed_type_shapes_without_semantic_assistance() {
     ] {
         assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
+}
+
+#[test]
+fn parses_fixed_array_lengths_as_constant_expressions() {
+    assert_syntax_ok(
+        "const width: usize = 4\ntype Buffer = [u8; width * 2]\n",
+        ParseGoal::SourceFile,
+    );
 }
 
 #[test]

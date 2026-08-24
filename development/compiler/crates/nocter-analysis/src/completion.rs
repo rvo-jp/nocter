@@ -130,6 +130,7 @@ pub enum SemanticCompletionKind {
     Method,
     Parameter,
     Variable,
+    Constant,
     Keyword,
 }
 
@@ -715,6 +716,10 @@ fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Opt
         ExportedEntity::Interface(interface) => (
             SemanticEntity::Interface(interface),
             SemanticCompletionKind::Interface,
+        ),
+        ExportedEntity::Constant(constant) => (
+            SemanticEntity::Constant(constant),
+            SemanticCompletionKind::Constant,
         ),
         ExportedEntity::Callable(callable) => (
             SemanticEntity::Callable(callable),

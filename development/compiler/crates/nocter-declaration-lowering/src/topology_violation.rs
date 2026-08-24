@@ -9,6 +9,8 @@ pub enum TopologyRule {
 }
 
 impl TopologyRule {
+    pub const ALL: [Self; 2] = [Self::InvalidSourceInclude, Self::ModuleImportCycle];
+
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {

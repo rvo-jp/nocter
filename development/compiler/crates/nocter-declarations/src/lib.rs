@@ -7,6 +7,7 @@
 
 mod arenas;
 mod callable;
+mod constant;
 mod declaration;
 mod import;
 mod namespace;
@@ -26,6 +27,7 @@ pub use callable::{
     CallableProvenanceContract, DuplicateCallableOrigin, LiteralShape, Parameter, ParameterOwner,
     ParameterRole, ProvenanceAnnotation, ProvenanceOrigin,
 };
+pub use constant::ConstantDeclaration;
 pub use declaration::{
     AssociatedTypeBinding, AssociatedTypeDeclaration, ConformanceDeclaration,
     ConstructionDeclaration, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,

@@ -184,6 +184,7 @@ const fn interactive_entity(entity: SemanticEntity) -> bool {
             | SemanticEntity::Interface(_)
             | SemanticEntity::AssociatedType(_)
             | SemanticEntity::Callable(_)
+            | SemanticEntity::Constant(_)
             | SemanticEntity::Field(_)
             | SemanticEntity::BuiltinField(_)
             | SemanticEntity::Variant(_)

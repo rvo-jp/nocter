@@ -71,6 +71,56 @@ fn annotations_supply_context_for_absence_and_empty_aggregate_literals() {
 }
 
 #[test]
+fn constants_share_values_between_expressions_and_body_array_annotations() {
+    let output = check(
+        "const width: usize = 2\n\
+         const answer: i32 = 40 + 2\n\
+         func value(): i32 {\n\
+             let values: [i32; width * 2] = [answer, answer, answer, answer]\n\
+             answer\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(
+        output
+            .program()
+            .types()
+            .iter()
+            .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 4, .. }) })
+    );
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            matches!(
+                node.operation(),
+                CheckedOperation::Constant(nocter_model::ConstantValue::Integer(42))
+            )
+        })
+    }));
+}
+
+#[test]
+fn constants_remain_values_in_place_only_contexts() {
+    let cases = [
+        (
+            "const answer: i32 = 42\nfunc invalid(): void {\n    let value = &answer\n    return\n}\n",
+            BodyRule::InvalidBorrowSource,
+        ),
+        (
+            "const answer: i32 = 42\nfunc invalid(): void {\n    let value = move answer\n    return\n}\n",
+            BodyRule::InvalidMoveSource,
+        ),
+        (
+            "const answer: i32 = 42\nfunc invalid(): void {\n    answer = 1\n    return\n}\n",
+            BodyRule::InvalidAssignmentTarget,
+        ),
+    ];
+    for (source, rule) in cases {
+        assert_eq!(check(source).unwrap_err().rule(), Some(rule));
+    }
+}
+
+#[test]
 fn annotation_uses_the_common_one_step_expected_conversion_boundary() {
     let output = check(
         "struct Box<T> { value: T }\n\

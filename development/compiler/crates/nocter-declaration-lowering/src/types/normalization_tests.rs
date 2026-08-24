@@ -4,7 +4,7 @@ use nocter_syntax::{NodeKind, ParseGoal};
 
 use super::test_support::{add_source, all_nodes, bind, module, package, parse_source};
 use super::{TypeNormalizationError, TypeNormalizationRule, normalize_header_types};
-use crate::{ModuleIdentity, PackageIdentity};
+use crate::{ModuleIdentity, PackageIdentity, evaluate_header_constants};
 
 fn normalized_app<'syntax>(
     sources: &'syntax SourceMap,
@@ -35,7 +35,7 @@ fn normalized_app<'syntax>(
         &prelude_identity,
     )
     .unwrap();
-    normalize_header_types(bound)
+    normalize_header_types(evaluate_header_constants(bound).unwrap())
 }
 
 fn fixture(

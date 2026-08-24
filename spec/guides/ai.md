@@ -49,6 +49,9 @@ Rules for generated code:
 - Never use string-literal addresses as identity. Distinct occurrences may share pooled static
   bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
+- Use `const name: Type = expression` only for storage-independent `bool`, integer, or static
+  readonly `&str` values. A constant is a value, not a place; do not borrow, assign, move, or drop
+  it. Fixed-array lengths may use the same constant-expression subset.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Move only from owned bindings, owned parameters, owned closure captures, or their named struct
   fields. `&+` permits mutation but never permits moving ownership out of the borrowed value.

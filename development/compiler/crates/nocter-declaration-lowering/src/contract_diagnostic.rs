@@ -11,6 +11,10 @@ use crate::{
 /// Stable source-level rule for public contract and private body joining.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeclarationContractRule {
+    MissingConstantInitializer,
+    MismatchedConstantInitializer,
+    DuplicateConstantInitializer,
+    InvalidConstantOmission,
     MissingBody,
     MismatchedBody,
     DuplicateBody,
@@ -27,7 +31,11 @@ pub enum DeclarationContractRule {
 }
 
 impl DeclarationContractRule {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 17] = [
+        Self::MissingConstantInitializer,
+        Self::MismatchedConstantInitializer,
+        Self::DuplicateConstantInitializer,
+        Self::InvalidConstantOmission,
         Self::MissingBody,
         Self::MismatchedBody,
         Self::DuplicateBody,
@@ -46,6 +54,10 @@ impl DeclarationContractRule {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::MissingConstantInitializer => "E0272",
+            Self::MismatchedConstantInitializer => "E0273",
+            Self::DuplicateConstantInitializer => "E0274",
+            Self::InvalidConstantOmission => "E0275",
             Self::MissingBody => "E0250",
             Self::MismatchedBody => "E0251",
             Self::DuplicateBody => "E0252",
@@ -65,6 +77,18 @@ impl DeclarationContractRule {
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
+            Self::MissingConstantInitializer => {
+                "public constant contract has no initializer definition"
+            }
+            Self::MismatchedConstantInitializer => {
+                "private constant initializer does not match its public contract"
+            }
+            Self::DuplicateConstantInitializer => {
+                "public constant contract has more than one initializer definition"
+            }
+            Self::InvalidConstantOmission => {
+                "constant omits its initializer outside an eligible public contract"
+            }
             Self::MissingBody => "public callable contract has no implementation body",
             Self::MismatchedBody => {
                 "private implementation body does not match its public contract"
@@ -106,6 +130,18 @@ impl DeclarationContractRule {
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
+            Self::MissingConstantInitializer => {
+                "add one exact private initializer in the same module"
+            }
+            Self::MismatchedConstantInitializer => {
+                "make the private constant name and type exactly match the public contract"
+            }
+            Self::DuplicateConstantInitializer => {
+                "keep exactly one matching private constant initializer"
+            }
+            Self::InvalidConstantOmission => {
+                "write the initializer inline or declare an eligible public root contract"
+            }
             Self::MissingBody => "add one exact private implementation body in the same module",
             Self::MismatchedBody => {
                 "make the private body header exactly match the public contract"
@@ -145,14 +181,18 @@ impl DeclarationContractRule {
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::MismatchedBody
+            Self::MismatchedConstantInitializer
+            | Self::DuplicateConstantInitializer
+            | Self::MismatchedBody
             | Self::DuplicateBody
             | Self::DuplicateConformanceDefinition
             | Self::AmbiguousConformanceContract
             | Self::MismatchedRepresentation
             | Self::DuplicateRepresentation
             | Self::RepresentationCompletedAgain => Some("public contract is declared here"),
-            Self::MissingBody
+            Self::MissingConstantInitializer
+            | Self::InvalidConstantOmission
+            | Self::MissingBody
             | Self::InvalidBodyOmission
             | Self::UncontractedConformance
             | Self::UncontractedInterfaceDefault
@@ -225,6 +265,18 @@ impl std::error::Error for DeclarationContractDiagnostic {}
 
 const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule> {
     match error {
+        DeclarationContractError::MissingConstantInitializer(_) => {
+            Some(DeclarationContractRule::MissingConstantInitializer)
+        }
+        DeclarationContractError::MismatchedConstantInitializer { .. } => {
+            Some(DeclarationContractRule::MismatchedConstantInitializer)
+        }
+        DeclarationContractError::DuplicateConstantInitializer { .. } => {
+            Some(DeclarationContractRule::DuplicateConstantInitializer)
+        }
+        DeclarationContractError::InvalidConstantOmission(_) => {
+            Some(DeclarationContractRule::InvalidConstantOmission)
+        }
         DeclarationContractError::MissingBody(_) => Some(DeclarationContractRule::MissingBody),
         DeclarationContractError::MismatchedBody { .. } => {
             Some(DeclarationContractRule::MismatchedBody)
@@ -268,14 +320,22 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
 
 const fn primary_node(error: DeclarationContractError) -> NodeId {
     match error {
-        DeclarationContractError::MissingBody(node)
+        DeclarationContractError::MissingConstantInitializer(node)
+        | DeclarationContractError::InvalidConstantOmission(node)
+        | DeclarationContractError::MissingBody(node)
         | DeclarationContractError::InvalidBodyOmission(node)
         | DeclarationContractError::UncontractedConformance(node)
         | DeclarationContractError::UncontractedInterfaceDefault(node)
         | DeclarationContractError::InvalidConformanceSplit(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
-        DeclarationContractError::MismatchedBody { body, .. }
+        DeclarationContractError::MismatchedConstantInitializer {
+            definition: body, ..
+        }
+        | DeclarationContractError::DuplicateConstantInitializer {
+            definition: body, ..
+        }
+        | DeclarationContractError::MismatchedBody { body, .. }
         | DeclarationContractError::DuplicateBody { body, .. } => body,
         DeclarationContractError::DuplicateConformanceDefinition { definition, .. }
         | DeclarationContractError::MismatchedRepresentation { definition, .. }
@@ -287,14 +347,18 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
 
 const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
     match error {
-        DeclarationContractError::MismatchedBody { contract, .. }
+        DeclarationContractError::MismatchedConstantInitializer { contract, .. }
+        | DeclarationContractError::DuplicateConstantInitializer { contract, .. }
+        | DeclarationContractError::MismatchedBody { contract, .. }
         | DeclarationContractError::DuplicateBody { contract, .. }
         | DeclarationContractError::DuplicateConformanceDefinition { contract, .. }
         | DeclarationContractError::AmbiguousConformanceContract { contract, .. }
         | DeclarationContractError::MismatchedRepresentation { contract, .. }
         | DeclarationContractError::DuplicateRepresentation { contract, .. }
         | DeclarationContractError::RepresentationCompletedAgain { contract, .. } => Some(contract),
-        DeclarationContractError::MissingBody(_)
+        DeclarationContractError::MissingConstantInitializer(_)
+        | DeclarationContractError::InvalidConstantOmission(_)
+        | DeclarationContractError::MissingBody(_)
         | DeclarationContractError::InvalidBodyOmission(_)
         | DeclarationContractError::UncontractedConformance(_)
         | DeclarationContractError::UncontractedInterfaceDefault(_)
@@ -333,6 +397,40 @@ mod tests {
             .map(DeclarationContractRule::code)
             .collect();
         assert_eq!(codes.len(), DeclarationContractRule::ALL.len());
+    }
+
+    #[test]
+    fn adjacent_lowering_rule_families_do_not_share_diagnostic_codes() {
+        let mut codes = BTreeSet::new();
+        for code in DeclarationContractRule::ALL
+            .into_iter()
+            .map(DeclarationContractRule::code)
+            .chain(
+                crate::TopologyRule::ALL
+                    .into_iter()
+                    .map(crate::TopologyRule::code),
+            )
+            .chain(
+                crate::TypeBindingRule::ALL
+                    .into_iter()
+                    .map(crate::TypeBindingRule::code),
+            )
+            .chain(
+                crate::TypeNormalizationRule::ALL
+                    .into_iter()
+                    .map(crate::TypeNormalizationRule::code),
+            )
+            .chain(
+                crate::DefinitionRule::ALL
+                    .into_iter()
+                    .map(crate::DefinitionRule::code),
+            )
+        {
+            assert!(
+                codes.insert(code),
+                "duplicate lowering diagnostic code {code}"
+            );
+        }
     }
 
     #[test]

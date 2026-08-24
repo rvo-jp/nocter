@@ -47,6 +47,7 @@ pub enum CompletionItemKind {
     Enum = 13,
     Keyword = 14,
     EnumMember = 20,
+    Constant = 21,
     Struct = 22,
     TypeParameter = 25,
 }

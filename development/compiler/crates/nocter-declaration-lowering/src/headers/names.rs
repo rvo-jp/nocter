@@ -167,7 +167,8 @@ fn insert_unique<K: Ord>(
 const fn occupies_module_namespace(kind: SurfaceDeclarationKind) -> bool {
     matches!(
         kind,
-        SurfaceDeclarationKind::Function
+        SurfaceDeclarationKind::Constant
+            | SurfaceDeclarationKind::Function
             | SurfaceDeclarationKind::Primitive
             | SurfaceDeclarationKind::TypeAlias
             | SurfaceDeclarationKind::Struct
@@ -179,7 +180,8 @@ const fn occupies_module_namespace(kind: SurfaceDeclarationKind) -> bool {
 const fn requires_name(kind: SurfaceDeclarationKind) -> bool {
     matches!(
         kind,
-        SurfaceDeclarationKind::Function
+        SurfaceDeclarationKind::Constant
+            | SurfaceDeclarationKind::Function
             | SurfaceDeclarationKind::Primitive
             | SurfaceDeclarationKind::TypeAlias
             | SurfaceDeclarationKind::Struct

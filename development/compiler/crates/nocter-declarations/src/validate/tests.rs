@@ -1,16 +1,52 @@
 use nocter_model::{
-    BuiltinType, CallableCapability, PackageIdentity, PackageTargetKind, SymbolTable, TypeKind,
+    BuiltinType, CallableCapability, ConstantValue, PackageIdentity, PackageTargetKind,
+    SymbolTable, TypeKind,
 };
 
 use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
-    CallableProvenance, CallableProvenanceContract, ConstructionDeclaration, DeclarationDomain,
-    DeclarationProgramBuilder, DeclarationRule, DeclarationViolation, DropDeclaration,
-    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, ModuleNamespace,
-    ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter, ParameterOwner,
-    ParameterRole, ProgramBuildError, ProgramIntegrityError, ProgramValidationError,
-    ProvenanceOrigin, VariantDeclaration, Visibility,
+    CallableProvenance, CallableProvenanceContract, ConstantDeclaration, ConstructionDeclaration,
+    DeclarationDomain, DeclarationProgramBuilder, DeclarationRule, DeclarationViolation,
+    DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration,
+    ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter,
+    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError,
+    ProgramValidationError, ProvenanceOrigin, VariantDeclaration, Visibility,
 };
+
+#[test]
+fn constant_storage_rejects_integer_values_outside_their_declared_range() {
+    let symbols = SymbolTable::from_spellings(["app", "invalid"]);
+    let app_name = symbols.get("app").unwrap();
+    let constant_name = symbols.get("invalid").unwrap();
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
+    let site = program
+        .add_declaration_site(module, Visibility::Private)
+        .unwrap();
+    let ty = program.types().builtin(BuiltinType::U8);
+    let constant = program.declarations_mut().reserve_constant();
+    program
+        .declarations_mut()
+        .define_constant(
+            constant,
+            ConstantDeclaration::new(site, constant_name, ty, ConstantValue::Integer(256), None),
+        )
+        .unwrap();
+
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Integrity(
+            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Constant)
+        ))
+    );
+}
 
 #[test]
 fn package_target_names_and_positions_are_unique_within_their_typed_domains() {

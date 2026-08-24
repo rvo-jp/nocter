@@ -12,6 +12,9 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
     let kind = tree.node(declaration)?.kind();
     let tokens = descendant_tokens(tree, declaration);
     match kind {
+        NodeKind::ConstantDeclaration => identifier_after(&tokens, |token| {
+            token.kind() == TokenKind::Keyword(Keyword::Const)
+        }),
         NodeKind::FunctionDeclaration | NodeKind::ConstructionFunction => {
             identifier_after(&tokens, |token| {
                 token.kind() == TokenKind::Keyword(Keyword::Func)
