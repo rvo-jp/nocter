@@ -1278,9 +1278,11 @@ index, but no conformance table, construction surface, name result, or checked b
 required interface methods, the checker captures every missing method after applying the same
 interface, target, associated-type, and callable-generic substitutions used by signature
 compatibility. The code-action layer renders those typed contracts through canonical presentation,
-inserts all missing methods with diverging `std/process.abort()` bodies, and obtains the import edit
-from semantic automatic-import completion. The shared speculative transaction publishes the action
-only when the whole edited program reaches the complete target-validated state.
+selects the joined implementation occurrence when the conformance is separated, inserts all
+missing methods there with diverging `std/process.abort()` bodies, and obtains the import edit in
+that same source from semantic automatic-import completion. Inline conformances retain their
+declaration as the edit destination. The shared speculative transaction publishes the action only
+when the whole edited program reaches the complete target-validated state.
 
 A failed postfix-propagation check may retain a separate `OutcomeContract` interruption only after
 the operand's immediate optional or fallible layer is typed. The interruption owns that layer and a

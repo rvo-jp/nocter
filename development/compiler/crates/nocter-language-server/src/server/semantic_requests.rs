@@ -2215,6 +2215,70 @@ mod tests {
     }
 
     #[test]
+    fn separated_conformance_code_action_edits_the_private_definition() {
+        let temporary = TemporaryDirectory::new();
+        std::fs::write(temporary.path().join("nocter.nct"), "#name: \"app\"\n").unwrap();
+        let contract = concat!(
+            "include ./value.nct\n",
+            "pub interface Readable {\n",
+            "    pub method &self.read(): i32\n",
+            "}\n",
+            "pub struct Value {}\n",
+            "conform Readable for Value {}\n",
+        );
+        let contract_path = temporary.path().join("index.nct");
+        let implementation_path = temporary.path().join("value.nct");
+        std::fs::write(&contract_path, contract).unwrap();
+        std::fs::write(
+            &implementation_path,
+            "include ./index.nct\nconform Readable for Value {}\n",
+        )
+        .unwrap();
+        let contract_uri = format!("file://{}", contract_path.display());
+        let implementation_uri = format!(
+            "file://{}",
+            std::fs::canonicalize(&implementation_path)
+                .unwrap()
+                .display()
+        );
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &contract_uri, contract, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0350");
+
+        let action = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/codeAction\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":5,\"character\":0}},",
+                "\"end\":{{\"line\":5,\"character\":29}}}},",
+                "\"context\":{{\"diagnostics\":[]}}}}}}"
+            ),
+            uri = contract_uri,
+        ));
+        let response = action.response().unwrap();
+        assert!(
+            response.contains("Implement required method `read`"),
+            "{response}"
+        );
+        assert!(response.contains(&implementation_uri), "{response}");
+        assert!(response.contains("method &self.read(): i32"), "{response}");
+        assert!(response.contains("use std/process.abort"), "{response}");
+        assert!(response.contains("\"version\":null"), "{response}");
+        assert!(action.issue().is_none(), "{:?}", action.issue());
+    }
+
+    #[test]
     fn code_actions_add_missing_callable_outcome_contracts() {
         for (source, expected) in [
             (

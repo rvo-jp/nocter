@@ -109,7 +109,7 @@ pub(super) fn missing_method_action(
     }
     let method_edit = method_insertion(context.source, context.closing, &signatures)?;
     let Some(mut edits) =
-        abort_import_edits(snapshot, requested_source, method_edit.range().start())?
+        abort_import_edits(snapshot, context.source.id(), method_edit.range().start())?
     else {
         return Ok(None);
     };
@@ -152,26 +152,32 @@ fn insertion_context<'snapshot>(
         .ok_or(ConformanceActionError::MissingDeclarationSite(
             conformance.site(),
         ))?;
-    let origin = recovery
+    let bindings = recovery
         .source_index()
-        .bindings_for(SemanticEntity::Conformance(missing.conformance()))
+        .bindings_for(SemanticEntity::Conformance(missing.conformance()));
+    let declaration = bindings
         .iter()
         .find(|binding| binding.role() == SourceRole::Declaration)
         .map(|binding| binding.origin())
         .ok_or(ConformanceActionError::MissingSourceBinding(
             missing.conformance(),
         ))?;
-    if origin.source() != requested_source {
+    if declaration.source() != requested_source {
         return Ok(None);
     }
+    let origin = bindings
+        .iter()
+        .find(|binding| binding.role() == SourceRole::Implementation)
+        .map_or(declaration, |binding| binding.origin());
     let SyntaxOrigin::Node(node) = origin.syntax() else {
         return Err(ConformanceActionError::InvalidConformanceNode);
     };
+    let insertion_source = origin.source();
     let syntax = snapshot
         .syntax_trees()
         .iter()
-        .find(|tree| tree.source() == requested_source)
-        .ok_or(ConformanceActionError::MissingSyntax(requested_source))?;
+        .find(|tree| tree.source() == insertion_source)
+        .ok_or(ConformanceActionError::MissingSyntax(insertion_source))?;
     if syntax.node(node).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::ConformDeclaration)
     {
         return Err(ConformanceActionError::InvalidConformanceNode);
@@ -191,8 +197,8 @@ fn insertion_context<'snapshot>(
         .ok_or(ConformanceActionError::MissingClosingBrace)?;
     let source = snapshot
         .sources()
-        .get(requested_source)
-        .ok_or(ConformanceActionError::MissingSyntax(requested_source))?;
+        .get(insertion_source)
+        .ok_or(ConformanceActionError::MissingSyntax(insertion_source))?;
     Ok(Some(InsertionContext {
         recovery,
         module,

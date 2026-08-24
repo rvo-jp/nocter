@@ -216,7 +216,11 @@ All currently generated actions have the `quickfix` kind. A client `context.only
 not include `quickfix` receives no actions and does not trigger speculative compilation.
 
 A required-interface-method action implements every missing required method in the selected
-`conform` declaration as one atomic edit. Each generated signature uses the conformance-specialized
+`conform` declaration as one atomic edit. For a separated directory-module conformance, the
+diagnostic remains on the public conformance fact in `index.nct`, while the edit targets its joined
+private implementation conformance. An inline conformance is edited in place. The source index's
+declaration and implementation roles select this destination; the server does not infer it from a
+file name or include path. Each generated signature uses the conformance-specialized
 associated types, callable generics, parameter and result types, and `where` predicates. Generated
 method bodies call `std/process.abort()`; the action adds that import when it is not already visible.
 The server offers no action unless the complete edited package passes ordinary compilation, so a
