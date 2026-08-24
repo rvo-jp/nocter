@@ -136,6 +136,11 @@ fn lower_machine_entry(
             }
         }
     }
+    let runtime = machine.layouts().target().runtime_schema();
+    let allocation_failure_error = builder.add_data(
+        runtime.allocation_failure_error_node(),
+        runtime.error().alignment(),
+    )?;
     let mut data = Vec::with_capacity(machine.data().len());
     for (source, definition) in machine.data().iter() {
         if source.index() != data.len() {
@@ -150,7 +155,7 @@ fn lower_machine_entry(
             .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
         builder.define_function(
             target,
-            function.materialize(&functions, &data, &pack_callbacks)?,
+            function.materialize(&functions, &data, &pack_callbacks, allocation_failure_error)?,
         )?;
     }
     for (key, target) in &pack_callbacks {

@@ -44,6 +44,70 @@ fn independent_test_roots_cross_the_complete_native_pipeline() {
 }
 
 #[test]
+fn owned_error_context_and_borrowed_accessors_cross_the_native_pipeline() {
+    let context_machine = lower_machine(
+        "func main(): void! {\n\
+             let failure = error.new(\"app.failure\", \"leaf\")\n\
+             return failure.context(\"outer\")\n\
+         }\n",
+    );
+    let access_machine = lower_machine(
+        "func main(): i32 {\n\
+             let value = fail_for_access() catch failure {\n\
+                 return failure.message()[0] as i32\n\
+             }\n\
+             return value\n\
+         }\n\
+         func fail_for_access(): i32! {\n\
+             return error.new(\"app.access\", \"failure\")\n\
+         }\n",
+    );
+    let classification_machine = lower_machine(
+        "func main(): i32 {\n\
+             let value = fail_for_classification() catch failure {\n\
+                 if failure.has_code(\"app.classified\") { return 42 }\n\
+                 return 1\n\
+             }\n\
+             return value\n\
+         }\n\
+         func fail_for_classification(): i32! {\n\
+             return error.new(\"app.classified\", \"failure\")\n\
+         }\n",
+    );
+    let context = nocter_macho::MachOImage::build(
+        &nocter_arm64::Arm64Program::lower_machine(&context_machine).unwrap(),
+    )
+    .unwrap();
+    let access = nocter_macho::MachOImage::build(
+        &nocter_arm64::Arm64Program::lower_machine(&access_machine).unwrap(),
+    )
+    .unwrap();
+    let classification = nocter_macho::MachOImage::build(
+        &nocter_arm64::Arm64Program::lower_machine(&classification_machine).unwrap(),
+    )
+    .unwrap();
+
+    execute_and_assert_output(&context, 1, b"app.failure: outer: leaf\n");
+    execute_and_assert_output(&access, i32::from(b'f'), b"");
+    execute_and_assert_output(&classification, 42, b"");
+}
+
+#[test]
+fn static_allocation_failure_crosses_reporting_and_release_without_allocating() {
+    let machine = lower_machine(
+        "func main(): void! {\n\
+             return error.allocation_failure_for_test()\n\
+         }\n",
+    );
+    let image = nocter_macho::MachOImage::build(
+        &nocter_arm64::Arm64Program::lower_machine(&machine).unwrap(),
+    )
+    .unwrap();
+
+    execute_and_assert_output(&image, 1, b"std.mem.out_of_memory: allocation failed\n");
+}
+
+#[test]
 fn scalar_call_and_arithmetic_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func double(value: i32): i32 { value * 2 }\n\
@@ -1181,17 +1245,25 @@ fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_assert_output(image: &nocter_macho::MachOImage, expected: i32, stderr: &[u8]) {
     use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
-        "nocter-conformance-output-{}-{}",
+        "nocter-conformance-output-{}-{artifact}",
         std::process::id(),
-        expected
     ));
     std::fs::write(&path, image.bytes()).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     let output = std::process::Command::new(&path).output().unwrap();
     std::fs::remove_file(&path).unwrap();
-    assert_eq!(output.status.code(), Some(expected));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "native image terminated with {:?}; stderr={:?}",
+        output.status,
+        output.stderr
+    );
     assert_eq!(output.stdout, b"");
     assert_eq!(output.stderr, stderr);
 }

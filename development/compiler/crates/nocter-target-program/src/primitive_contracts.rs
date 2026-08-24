@@ -450,7 +450,31 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             builtin(BuiltinType::Error),
             package,
             None,
-            vec![0, 1],
+            vec![],
+        ),
+        PrimitiveRole::ErrorContext => make(
+            0,
+            vec![builtin(BuiltinType::Error), str_ref()],
+            builtin(BuiltinType::Error),
+            package,
+            None,
+            vec![],
+        ),
+        PrimitiveRole::ErrorCode | PrimitiveRole::ErrorMessage => make(
+            0,
+            vec![TypeContract::readonly(builtin(BuiltinType::Error))],
+            str_ref(),
+            package,
+            None,
+            vec![0],
+        ),
+        PrimitiveRole::AllocationFailureError => make(
+            0,
+            vec![],
+            builtin(BuiltinType::Error),
+            package,
+            None,
+            vec![],
         ),
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
             make(0, vec![], usize(), package, None, vec![])

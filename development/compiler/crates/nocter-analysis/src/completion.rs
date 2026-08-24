@@ -557,13 +557,9 @@ const fn completion_target(
     target: MemberCompletionTarget,
 ) -> (SemanticCompletionKind, Option<SemanticEntity>) {
     match target {
-        MemberCompletionTarget::Field(nocter_model::FieldIdentity::Declared(field)) => (
+        MemberCompletionTarget::Field(field) => (
             SemanticCompletionKind::Field,
             Some(SemanticEntity::Field(field)),
-        ),
-        MemberCompletionTarget::Field(nocter_model::FieldIdentity::Builtin(field)) => (
-            SemanticCompletionKind::Field,
-            Some(SemanticEntity::BuiltinField(field)),
         ),
         MemberCompletionTarget::Method { surface } => (
             SemanticCompletionKind::Method,

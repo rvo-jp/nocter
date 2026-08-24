@@ -172,7 +172,7 @@ impl Analyzer<'_, '_> {
                     if !reaches {
                         return Ok((ValueProvenance::independent(), false));
                     }
-                    result.insert_projection(ProvenanceProjection::Field((*field).into()), value);
+                    result.insert_projection(ProvenanceProjection::Field(*field), value);
                 }
             }
             AggregateConstruction::Enum { variant, payload } => {

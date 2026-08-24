@@ -625,9 +625,12 @@ Required diagnostic families:
 - Existing move-only optional or fallible place eliminated by `?`, `!`, `catch`, or `otherwise`
   without `move`. The diagnostic should suggest `move place?`, `move place!`,
   `move place catch ...`, or `move place otherwise ...` as appropriate.
-- Implicit copy of an optional, fallible, or mixed outcome whose eventual payload is move-only. The
-  diagnostic must identify the complete outcome type and the move-only payload; an inactive
-  absence or failure tag does not make that value copyable.
+- Implicit copy of an optional whose present payload is move-only. The diagnostic must identify the
+  complete optional type and the move-only payload; an inactive absence tag does not make that
+  value copyable.
+- Implicit copy of any fallible value or mixed outcome containing a fallible layer. The diagnostic
+  must identify the complete outcome type and the owned `error` failure branch; a currently active
+  success or absence tag does not make that value copyable.
 - Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
   diagnostic must identify the first source capture that prevents copying and must not describe
   callable capability as the cause.

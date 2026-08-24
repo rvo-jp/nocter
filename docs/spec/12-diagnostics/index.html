@@ -327,9 +327,11 @@ ByteSpan { source, start, end }
   a fictional desugared assignment.</li><li>Explicit <code>drop</code> while borrowed.</li><li>Use after <code>move</code>.</li><li>Use after explicit <code>drop</code>.</li><li>Existing move-only iterator place used as a bare collection-loop source without <code>move</code>.</li><li>Newly produced value, call result, or other non-place expression used as the operand of <code>move</code> in
   a collection-loop source or sequence spread.</li><li>Existing move-only optional or fallible place eliminated by <code>?</code>, <code>!</code>, <code>catch</code>, or <code>otherwise</code>
   without <code>move</code>. The diagnostic should suggest <code>move place?</code>, <code>move place!</code>,
-  <code>move place catch ...</code>, or <code>move place otherwise ...</code> as appropriate.</li><li>Implicit copy of an optional, fallible, or mixed outcome whose eventual payload is move-only. The
-  diagnostic must identify the complete outcome type and the move-only payload; an inactive
-  absence or failure tag does not make that value copyable.</li><li>Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
+  <code>move place catch ...</code>, or <code>move place otherwise ...</code> as appropriate.</li><li>Implicit copy of an optional whose present payload is move-only. The diagnostic must identify the
+  complete optional type and the move-only payload; an inactive absence tag does not make that
+  value copyable.</li><li>Implicit copy of any fallible value or mixed outcome containing a fallible layer. The diagnostic
+  must identify the complete outcome type and the owned <code>error</code> failure branch; a currently active
+  success or absence tag does not make that value copyable.</li><li>Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
   diagnostic must identify the first source capture that prevents copying and must not describe
   callable capability as the cause.</li><li>Implicit use of an outer callable binding from a closure without an explicit capture; duplicate
   capture names; a collision between a capture and parameter name; or a capture target that is not

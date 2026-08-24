@@ -320,8 +320,9 @@ future per-item incremental validation without giving MIR access to source or pa
 
 One process root calls the selected entry exactly once and turns all six accepted result contracts
 into explicit process exits. Fallible results are stored once and switched in place. Success exits
-with zero or the returned `i32`/`usize`; failure copies the built-in borrowed `error`, performs one
-allocation-free `ReportError` boundary effect, and exits with status one. `void!` success has no
+with zero or the returned `i32`/`usize`; failure moves the owned error handle, performs one
+allocation-free `ReportError` boundary effect, releases the complete node chain, and exits with
+status one. `void!` success has no
 fictional SSA payload. Test targets retain one independent root body per declaration-order case,
 so the native runner can launch separate processes without a synthetic source `main`; an empty
 target has no invented root case. `Exit` and `ReportError` are valid only in root bodies, while
@@ -329,9 +330,9 @@ target has no invented root case. `Exit` and `ReportError` are valid only in roo
 
 The ARM64 boundary materializes the shared closed function/data payload once for a test target and
 projects each retained root into a separate executable entry. It does not synthesize a source
-callable or a combined in-process dispatcher. A failing root reports `error.code` and
-`error.message` through allocation-free target code and exits with status one, so one process
-failure cannot suppress a later declaration-order run.
+callable or a combined in-process dispatcher. A failing root reports the root code and
+outer-to-inner messages through allocation-free target code, releases the handle, and exits with
+status one, so one process failure cannot suppress a later declaration-order run.
 
 Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
 must supply the witness pattern selected during checking after substituting the opaque

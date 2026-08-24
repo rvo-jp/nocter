@@ -23,14 +23,8 @@ func open(path: &str): File! {
 T! = fallible T with built-in error
 ```
 
-The failure type is not written at each call site. All fallible values use the same failure payload type, `error`.
-
-Payload fields:
-
-```text
-code: &str
-message: &str
-```
+The failure type is not written at each call site. All fallible values use the same failure payload
+type, `error`. An `error` is an owned, move-only handle; it is not a pair of borrowed fields.
 
 Rules:
 
@@ -50,16 +44,18 @@ Rules:
   `"package.module.reason"`.
 - The current standard library does not define `Error` or `ErrorCode` aliases. `error` is the sole
   public spelling of the failure payload type.
-- Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
-- `error.code` and `error.message` are the direct user-facing fields for reporting.
-- `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
-- `error.message` is a human-readable diagnostic message string.
-- The built-in `error` payload is copyable, non-owning, and carries borrow-like
-  provenance from its `&str` fields. Returning or storing an `error` follows the
-  same escape rules as other aggregates containing borrow-like values.
-- A fallible type's copyability is structural: `T!` is copyable exactly when `T` is copyable, and
-  `void!` is copyable. The failure branch does not make a move-only success type copyable merely
-  because `error` itself is copyable.
+- Domain detail is represented through the open classification code, human-readable messages, and
+  context frames, not by writing a different failure type in the signature.
+- `error.new` snapshots both input strings into storage owned independently of their source
+  lifetimes. Its result has no input provenance.
+- `failure.context(message)` consumes `failure`, snapshots `message`, and returns a new error whose
+  root classification code is unchanged.
+- `failure.code()` and `failure.message()` return readonly views tied to `failure`.
+  `failure.has_code(code)` performs exact code comparison without exposing a borrowed result.
+- `error` is move-only and owns cleanup. It cannot be copied, and a returned view cannot outlive
+  the handle.
+- Every fallible type `T!`, including `i32!` and `void!`, is move-only because its failure branch
+  may own an error node. Mixed outcomes containing a fallible layer are move-only as well.
 - The ABI layout of `error` is specified in [ABI and Layout](09-abi-layout.md#built-in-error-layout).
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity. This rule is checked after type aliases and through optional success layers such as `error?!`.
 
@@ -67,20 +63,32 @@ The constructor is declared in ordinary Nocter source:
 
 ```nct
 construct error {
-    pub default func new(code: &str, message: &str): Self from code | message {
+    pub default func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }
+
+instance error {
+    pub method self.context(message: &str): Self
+    pub method &self.code(): &str from self
+    pub method &self.message(): &str from self
+    pub method &self.has_code(code: &str): bool
+}
 ```
 
-Its package-visible representation primitive preserves the same two input origins:
+Its package-visible representation primitive accepts the same two inputs but returns an owned
+error with no input provenance:
 
 ```nct
 pub(/) primitive new_error(
     code: &str,
     message: &str,
-): error from code | message
+): error
 ```
+
+Dynamic construction is infallible at the source boundary. If private error-storage allocation
+fails, execution terminates. The recoverable allocation-failure path instead uses a prebuilt
+static error and cannot recursively allocate another error.
 
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
@@ -125,8 +133,8 @@ Rules:
 - Applying `?` to an existing move-only outcome place requires `move place?`. This canonical form
   moves the complete outcome first and then unwraps it. The source place is uninitialized on every
   continuation, including success, propagated failure, and propagated absence paths.
-- A newly produced outcome temporary needs no `move`. A copyable outcome place may be used without
-  `move`; it is copied and the original remains initialized.
+- A newly produced outcome temporary needs no `move`. Every stored fallible outcome requires
+  `move`; optional outcomes remain structurally copyable when their payload is copyable.
 - Postfix `?` does not perform stack unwinding.
 - Postfix `?` on `T!` can be used only when the current function, method, or closure result type
   contains a fallible layer.
@@ -164,8 +172,8 @@ Rules:
 - For `T!`, `expr!` evaluates to the success value when `expr` succeeds.
 - For `T?`, `expr!` evaluates to the present value when `expr` is present.
 - Applying `!` to an existing move-only outcome place requires `move place!`. The complete source
-  outcome is moved before its tag is checked. A newly produced temporary or copyable outcome does
-  not require `move`.
+  outcome is moved before its tag is checked. A newly produced temporary does not require `move`;
+  a copyable optional place may also be eliminated without `move`.
 - If `expr!` sees failure or `none`, execution terminates immediately through the ordinary
   non-recoverable Nocter safety trap.
 - That path is exactly the ordinary Nocter safety trap used for bounds, arithmetic, and other
@@ -215,7 +223,7 @@ Rules:
 
 ```nct
 let file = File.open(path) catch failure {
-    return error.new("std.io.open_failed", failure.message)
+    return failure.context("while opening the file")
 }
 ```
 
@@ -255,7 +263,7 @@ Rules:
 - The catch block is evaluated only on failure.
 - Applying `catch` to an existing move-only fallible place requires
   `move place catch name { ... }`. The complete fallible value is moved before selecting success
-  or failure. A new temporary or copyable fallible value does not require `move`.
+  or failure. A new temporary does not require `move`; there are no copyable fallible values.
 - A reachable catch block end must produce a value assignable to the fallible success type `T`.
 - A catch block may instead leave the current control path with `return`, `break`, `continue`, a
   call returning `never`, or another terminating construct.
@@ -378,8 +386,8 @@ Rules:
 - `never` must not be the eventual payload of any optional or fallible composition.
 - Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
-- Mixed outcome copyability applies the same rule from the inside out. Consequently `T?!` and
-  `(T!)?` are copyable exactly when `T` is copyable.
+- Every mixed outcome containing a fallible layer is move-only. Consequently `T?!` and `(T!)?`
+  are move-only regardless of `T`; an outer optional does not make an owned failure copyable.
 
 ### Recursive Outcome Injection
 

@@ -21,9 +21,8 @@ use crate::{
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_declarations::{NominalShape, ParameterOwner};
 use nocter_model::{
-    BorrowCapability, BuiltinField, BuiltinType, ExecutableItemId, FieldId, FieldIdentity,
-    MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId,
-    TypeId, TypeKind, TypeStore,
+    BorrowCapability, BuiltinType, ExecutableItemId, FieldId, MirBlockId, MirDropFlagId,
+    MirLocalId, MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
 };
 
 /// Validates every body-local reference, type relation, CFG edge, and SSA use.
@@ -238,13 +237,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         result: TypeId,
     ) -> Result<(), MirValidationError> {
         match projection {
-            MirProjectionKind::Field(FieldIdentity::Declared(field)) => {
+            MirProjectionKind::Field(field) => {
                 self.validate_declared_field_projection(place, source, field, result)?;
-            }
-            MirProjectionKind::Field(FieldIdentity::Builtin(field)) => {
-                if !builtin_field_projection_matches(self.types, source, field, result) {
-                    return Err(MirValidationError::InvalidProjection { place });
-                }
             }
             MirProjectionKind::ClosureCapture(capture) => {
                 if self.environment.closure_capture_type(source, capture) != Some(result) {
@@ -699,10 +693,17 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
-            MirOperationKind::ReportError { error } => {
+            MirOperationKind::ReportError { place } => {
                 if !matches!(self.contract, BodyContract::Root)
                     || result.is_some()
-                    || self.value_type(*error)? != self.types.builtin(BuiltinType::Error)
+                    || self.require_place(*place)?.ty() != self.types.builtin(BuiltinType::Error)
+                {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::ReleaseError { place } => {
+                if result.is_some()
+                    || self.require_place(*place)?.ty() != self.types.builtin(BuiltinType::Error)
                 {
                     return Err(mismatch());
                 }
@@ -1010,10 +1011,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::DestroyPack
             | MirOperationKind::ReleaseRegion { .. } => {}
             MirOperationKind::CreateRegion { parent, .. } => values.push(*parent),
-            MirOperationKind::ReportError { error } => values.push(*error),
             MirOperationKind::Read { place, .. }
             | MirOperationKind::Borrow { place, .. }
-            | MirOperationKind::InvokeDrop { place, .. } => {
+            | MirOperationKind::InvokeDrop { place, .. }
+            | MirOperationKind::ReportError { place }
+            | MirOperationKind::ReleaseError { place } => {
                 values.extend(place_values(self.require_place(*place)?));
             }
             MirOperationKind::Store { destination, value }
@@ -1140,22 +1142,4 @@ fn is_non_storable(types: &TypeStore, ty: TypeId) -> bool {
         types.get(ty),
         Some(TypeKind::Builtin(BuiltinType::Void | BuiltinType::Never))
     )
-}
-
-fn builtin_field_projection_matches(
-    types: &TypeStore,
-    source: TypeId,
-    field: BuiltinField,
-    result: TypeId,
-) -> bool {
-    let text = types.builtin(BuiltinType::Str);
-    types.get(source) == Some(&TypeKind::Builtin(BuiltinType::Error))
-        && matches!(field, BuiltinField::ErrorCode | BuiltinField::ErrorMessage)
-        && matches!(
-            types.get(result),
-            Some(TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
-                referent,
-            }) if *referent == text
-        )
 }

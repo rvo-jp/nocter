@@ -226,10 +226,9 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::TypeAlias(_)
             | SemanticEntity::Interface(_)
             | SemanticEntity::AssociatedType(_) => self.type_entity(entity)?,
-            SemanticEntity::Callable(_)
-            | SemanticEntity::Field(_)
-            | SemanticEntity::BuiltinField(_)
-            | SemanticEntity::Variant(_) => self.member_entity(entity)?,
+            SemanticEntity::Callable(_) | SemanticEntity::Field(_) | SemanticEntity::Variant(_) => {
+                self.member_entity(entity)?;
+            }
             SemanticEntity::GenericParameter(_)
             | SemanticEntity::Constant(_)
             | SemanticEntity::Parameter(_)
@@ -326,10 +325,6 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(": ");
                 self.ty(field.ty())?;
             }
-            SemanticEntity::BuiltinField(field) => self.output.push_str(match field {
-                nocter_model::BuiltinField::ErrorCode => "field error.code: &str",
-                nocter_model::BuiltinField::ErrorMessage => "field error.message: &str",
-            }),
             SemanticEntity::Variant(id) => {
                 let variant = declarations.variants().get(id)?;
                 let owner = declarations.nominal_types().get(variant.owner())?;

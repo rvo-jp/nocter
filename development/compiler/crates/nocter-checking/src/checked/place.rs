@@ -1,5 +1,5 @@
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CaptureId, FieldIdentity, LocalBindingId, ParameterId, TypeId,
+    BodyNodeId, BorrowCapability, CaptureId, FieldId, LocalBindingId, ParameterId, TypeId,
 };
 
 use super::StaticSelection;
@@ -22,7 +22,7 @@ pub enum PlaceAccess {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaceProjection {
-    Field(FieldIdentity),
+    Field(FieldId),
     /// An implicit dereference required to continue projecting through a borrow value.
     BorrowDeref {
         capability: BorrowCapability,
@@ -150,7 +150,7 @@ mod tests {
         let types = TypeStore::new();
         let owned = CheckedPlace {
             root: PlaceRoot::Local(local),
-            projections: Box::new([PlaceProjection::Field(field.into())]),
+            projections: Box::new([PlaceProjection::Field(field)]),
             projection_types: Box::new([types.builtin(BuiltinType::I32)]),
             ty: types.builtin(BuiltinType::I32),
             access: PlaceAccess::Owned,

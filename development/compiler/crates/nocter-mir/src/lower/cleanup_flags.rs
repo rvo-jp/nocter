@@ -154,11 +154,8 @@ impl FunctionLowerer<'_> {
             .projections()
             .iter()
             .map(|projection| match projection {
-                PlaceProjection::Field(nocter_model::FieldIdentity::Declared(field)) => {
-                    Some(*field)
-                }
-                PlaceProjection::Field(nocter_model::FieldIdentity::Builtin(_))
-                | PlaceProjection::BorrowDeref { .. }
+                PlaceProjection::Field(field) => Some(*field),
+                PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }
                 | PlaceProjection::SelectedIndex { .. } => None,

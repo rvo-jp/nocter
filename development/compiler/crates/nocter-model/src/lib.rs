@@ -6,7 +6,6 @@
 
 mod arena;
 mod constant;
-mod field;
 mod id;
 mod origin;
 mod package;
@@ -16,7 +15,6 @@ mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
 pub use constant::ConstantValue;
-pub use field::{BuiltinField, FieldIdentity};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
     ConformanceId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,

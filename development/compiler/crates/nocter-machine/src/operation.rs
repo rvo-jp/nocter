@@ -118,7 +118,10 @@ pub enum MachineOperationKind {
         allocation: crate::MachineCallAllocation,
     },
     ReportError {
-        error: MachineValueId,
+        place: MachineAddressId,
+    },
+    ReleaseError {
+        place: MachineAddressId,
     },
     CreateRegion {
         parent: MachineValueId,
@@ -150,6 +153,7 @@ impl MachineOperationKind {
             Self::Call(_)
                 | Self::InvokeDrop { .. }
                 | Self::ReportError { .. }
+                | Self::ReleaseError { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext
                 | Self::DestroyPack

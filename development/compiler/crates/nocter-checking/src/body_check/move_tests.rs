@@ -57,6 +57,36 @@ fn second_use_after_move_reports_uninitialized_place() {
 }
 
 #[test]
+fn builtin_error_is_move_only() {
+    let fixture = Fixture::new(
+        "func invalid(value: error): void {\n    let first = move value\n    let _ = move value\n    drop first\n    return\n}\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0378");
+}
+
+#[test]
+fn fallible_value_is_move_only_even_when_its_success_payload_is_copyable() {
+    let fixture = Fixture::new(
+        "func invalid(value: i32!): void {\n    let first = move value\n    let _ = move value\n    drop first\n    return\n}\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0378");
+}
+
+#[test]
 fn explicit_move_rejects_copy_and_borrow_values_separately() {
     let copy = Fixture::new("func invalid(value: i32): i32 {\n    move value\n}\n");
     let input = copy.input(false);
@@ -103,9 +133,6 @@ fn generic_named_field_move_uses_the_substituted_field_type() {
         panic!("named field move must retain its semantic field projection");
     };
 
-    let nocter_model::FieldIdentity::Declared(field) = field else {
-        panic!("authored named field must retain its declaration identity");
-    };
     assert!(place.is_move_source());
     assert!(
         output

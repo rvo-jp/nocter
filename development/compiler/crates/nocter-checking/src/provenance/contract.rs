@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_model::{GenericParameterId, TypeId, TypeKind, TypeStore};
 
 /// Reports whether a callable's declared result shape can retain the place loan created only for
 /// this invocation.
@@ -33,14 +33,11 @@ pub(crate) fn invocation_place_can_reach_result(
         match types.get(ty) {
             // Hidden values may contain declaration-invisible borrow slots. Treating them as
             // retaining the invocation place is the only sound choice until their witnesses are
-            // part of the callable boundary contract. Error is likewise a built-in aggregate
-            // whose representation can retain borrowed text.
-            Some(
-                TypeKind::Borrow { .. }
-                | TypeKind::Opaque { .. }
-                | TypeKind::Closure { .. }
-                | TypeKind::Builtin(BuiltinType::Error),
-            ) => return true,
+            // part of the callable boundary contract. Built-in errors own text snapshots and do
+            // not retain constructor loans.
+            Some(TypeKind::Borrow { .. } | TypeKind::Opaque { .. } | TypeKind::Closure { .. }) => {
+                return true;
+            }
             Some(TypeKind::GenericParameter(parameter)) => {
                 if let Some(replacement) = bindings.get(parameter) {
                     pending.push((*replacement, bindings));
@@ -208,8 +205,7 @@ pub(crate) fn type_can_carry_loan(
                 | TypeKind::AssociatedProjection { .. }
                 | TypeKind::Opaque { .. }
                 | TypeKind::Closure { .. }
-                | TypeKind::Callable(_)
-                | TypeKind::Builtin(BuiltinType::Error),
+                | TypeKind::Callable(_),
             ) => return true,
             Some(TypeKind::Builtin(_) | TypeKind::Pointer(_) | TypeKind::Slice(_)) | None => {}
         }

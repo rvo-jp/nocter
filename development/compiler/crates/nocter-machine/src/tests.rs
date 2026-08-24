@@ -185,7 +185,7 @@ fn assert_scalar_view_and_outcome_layouts(
         })
         .unwrap();
     let outcome = layouts.get(fallible_i32).unwrap();
-    assert_eq!((outcome.size(), outcome.alignment()), (40, 8));
+    assert_eq!((outcome.size(), outcome.alignment()), (16, 8));
     assert!(matches!(
         outcome.kind(),
         MachineLayoutKind::Outcome {
@@ -200,14 +200,8 @@ fn assert_scalar_view_and_outcome_layouts(
     let error = layouts
         .get(runtime_primitive(types, RuntimePrimitive::Error))
         .unwrap();
-    assert_eq!((error.size(), error.alignment()), (32, 8));
-    assert!(matches!(
-        error.kind(),
-        MachineLayoutKind::Error {
-            code_offset: 0,
-            message_offset: 16,
-        }
-    ));
+    assert_eq!((error.size(), error.alignment()), (8, 8));
+    assert!(matches!(error.kind(), MachineLayoutKind::ErrorHandle));
     assert!(matches!(
         layouts
             .get(runtime_primitive(types, RuntimePrimitive::Signed(32)))
@@ -227,7 +221,7 @@ fn assert_scalar_view_and_outcome_layouts(
         })
         .unwrap();
     let completion = layouts.get(fallible_void).unwrap();
-    assert_eq!((completion.size(), completion.alignment()), (40, 8));
+    assert_eq!((completion.size(), completion.alignment()), (16, 8));
     assert!(matches!(
         completion.kind(),
         MachineLayoutKind::Outcome {
@@ -1049,6 +1043,11 @@ fn process_error_reporting_and_user_drop_are_closed_machine_operations() {
     assert!(fallible.functions().any(|(_, function)| {
         function.body().operations().any(|(_, operation)| {
             matches!(operation.kind(), MachineOperationKind::ReportError { .. })
+        })
+    }));
+    assert!(fallible.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(operation.kind(), MachineOperationKind::ReleaseError { .. })
         })
     }));
 

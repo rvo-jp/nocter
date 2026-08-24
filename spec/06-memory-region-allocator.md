@@ -124,9 +124,11 @@ Stable memory error codes include:
 - `"std.mem.invalid_argument"`
 - `"std.mem.capacity_overflow"`
 
-Constructing these errors must not allocate. A fixed-capacity arena, per-request budget, speculative
-large operation, compiler, or server may use this path even when exhaustion of the process allocator
-would be fatal.
+The `std.mem.out_of_memory` failure uses a prebuilt static error node and must not allocate.
+Validation failures such as invalid alignment may use ordinary owned error construction; failure
+of that private construction terminates rather than recursively returning another error. A
+fixed-capacity arena, per-request budget, speculative large operation, compiler, or server may use
+the recoverable path even when exhaustion of the process allocator would be fatal.
 
 The two policies share layout validation, backend calls, buffer publication, provenance, and cleanup
 logic. Conceptually, `Allocator` is an abort-on-error adapter over the `TryAllocator` core. They are

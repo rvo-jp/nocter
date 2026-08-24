@@ -2,16 +2,14 @@
 
 ## Current Task
 
-Nocter v0.16.0 Phase 0 is active. The adopted design keeps the built-in `error` type and `T!`
-surface, but replaces the borrowed four-word payload with one move-only owned error-handle
-contract. The exact scope and completion gate are recorded in
+Nocter v0.16.0 Phase 0 is complete. The built-in `error` type and `T!` surface retain one common
+failure type, while the runtime value is now one move-only owned error handle. Exact scope,
+implementation evidence, and the completed authority review are recorded in
 `development/milestones/v0.16.0.md`.
 
-Implementation starts by making `nocter-runtime-contract` the sole error ABI authority. It then
-closes semantic move-only behavior, node construction and access, deferred destruction, process
-reporting, the source-backed standard API, tooling, and native qualification in that order. Do not
-introduce user-defined failure types, dynamic interfaces, vtables, reference counting, or implicit
-error conversion as part of this phase.
+No later phase has been adopted. Preserve the closed Phase 0 contract: do not introduce
+user-defined failure types, dynamic interfaces, vtables, reference counting, implicit error
+conversion, synthetic editor fields, or a second numeric error-layout authority.
 
 Nocter v0.15.0 is published and externally audited. Release-content commit
 `d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,
@@ -33,6 +31,11 @@ input.
 - The source, syntax, declaration, checked-program, MIR, machine, ARM64, Mach-O, package, command,
   formatter, standard-library, and editor phases are implemented through the production boundaries
   described in `development/milestones/v0.14.0.md`.
+- The built-in `error` is a one-word move-only handle to immutable owned or static runtime nodes.
+  Every `T!` is move-only; construction snapshots source text, context consumes its cause, access
+  borrows the handle, cleanup is iterative, and process reporting uses the same runtime schema.
+- `nocter-runtime-contract` is the sole numeric error ABI authority. Standard error members are
+  ordinary source-backed methods, and the editor has no synthetic error-field lookup.
 - Source discovery, declaration namespaces, private semantic access, and editor recovery now keep
   exact-source includes separate from module imports. Public contracts and private definitions join
   under reciprocal direct includes without widening implementation visibility.

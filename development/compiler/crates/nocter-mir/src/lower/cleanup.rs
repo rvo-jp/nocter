@@ -144,7 +144,7 @@ impl FunctionLowerer<'_> {
             .zip(path.projection_types().iter().copied())
         {
             lowered.push(
-                MirProjectionKind::Field(field.into()),
+                MirProjectionKind::Field(field),
                 self.concrete_type(source_ty)?,
             );
         }
@@ -199,7 +199,7 @@ impl FunctionLowerer<'_> {
                     let child = self.project_cleanup_place(
                         owner,
                         place,
-                        MirProjectionKind::Field(field.field().into()),
+                        MirProjectionKind::Field(field.field()),
                         field.plan().ty(),
                     )?;
                     self.lower_destruction(owner, child, field.plan())?;
@@ -231,14 +231,26 @@ impl FunctionLowerer<'_> {
                     payload,
                 )?;
             }
-            ConcreteDestructionKind::Fallible(payload) => {
+            ConcreteDestructionKind::Fallible { success, failure } => {
+                if let Some(success) = success {
+                    self.lower_single_payload_destruction(
+                        owner,
+                        place,
+                        MirSwitchValue::FallibleSuccess,
+                        MirProjectionKind::FallibleSuccess,
+                        success,
+                    )?;
+                }
                 self.lower_single_payload_destruction(
                     owner,
                     place,
-                    MirSwitchValue::FallibleSuccess,
-                    MirProjectionKind::FallibleSuccess,
-                    payload,
+                    MirSwitchValue::FallibleFailure,
+                    MirProjectionKind::FallibleFailure,
+                    failure,
                 )?;
+            }
+            ConcreteDestructionKind::Error => {
+                self.append_effect(MirOperationKind::ReleaseError { place })?;
             }
             ConcreteDestructionKind::Opaque {
                 definition, plan, ..

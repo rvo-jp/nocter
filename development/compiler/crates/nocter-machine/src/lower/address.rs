@@ -1,5 +1,5 @@
 use nocter_mir::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind};
-use nocter_model::{BuiltinField, FieldIdentity, MirPlaceId, TypeId};
+use nocter_model::{MirPlaceId, TypeId};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::body::BodyIdentities;
@@ -240,18 +240,8 @@ fn static_projection_offset(
     let offset = match (projection, layout_kind(context.layouts, source)?) {
         (MirProjectionKind::Field(field), MachineLayoutKind::Struct { fields }) => fields
             .iter()
-            .find(|member| field == FieldIdentity::Declared(member.field()))
+            .find(|member| field == member.field())
             .map(|member| member.offset()),
-        (
-            MirProjectionKind::Field(FieldIdentity::Builtin(field)),
-            MachineLayoutKind::Error {
-                code_offset,
-                message_offset,
-            },
-        ) => Some(match field {
-            BuiltinField::ErrorCode => *code_offset,
-            BuiltinField::ErrorMessage => *message_offset,
-        }),
         (MirProjectionKind::ClosureCapture(capture), MachineLayoutKind::Closure { captures }) => {
             captures
                 .iter()

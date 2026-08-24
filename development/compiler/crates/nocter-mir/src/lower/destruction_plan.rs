@@ -67,9 +67,16 @@ impl FunctionLowerer<'_> {
             ConcreteDestructionKind::Optional(payload) => MirDestructionKind::Optional(Box::new(
                 self.lower_deferred_destruction(owner, payload)?,
             )),
-            ConcreteDestructionKind::Fallible(payload) => MirDestructionKind::Fallible(Box::new(
-                self.lower_deferred_destruction(owner, payload)?,
-            )),
+            ConcreteDestructionKind::Fallible { success, failure } => {
+                MirDestructionKind::Fallible {
+                    success: success
+                        .as_deref()
+                        .map(|plan| self.lower_deferred_destruction(owner, plan).map(Box::new))
+                        .transpose()?,
+                    failure: Box::new(self.lower_deferred_destruction(owner, failure)?),
+                }
+            }
+            ConcreteDestructionKind::Error => MirDestructionKind::Error,
             ConcreteDestructionKind::Closure(captures) => MirDestructionKind::Closure(
                 captures
                     .iter()

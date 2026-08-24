@@ -143,6 +143,35 @@ fn enum_glue_retains_only_active_payload_work_in_reverse_order() {
 }
 
 #[test]
+fn error_and_every_fallible_type_retain_owned_failure_destruction() {
+    let output = check("func hold(failure: error, outcome: i32!): void {\n    return\n}\n");
+    let program = output.program();
+    let error = program.types().builtin(BuiltinType::Error);
+    let fallible = program
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| matches!(kind, TypeKind::Fallible(_)).then_some(ty))
+        .expect("fixture must intern its fallible parameter type");
+    let mut resolver = ConcreteDispatchResolver::new(program);
+
+    let error_plan = resolver
+        .resolve_destruction(error, &TypeSubstitution::default())
+        .unwrap()
+        .expect("error owns compiler-defined destruction");
+    assert!(matches!(error_plan.kind(), ConcreteDestructionKind::Error));
+
+    let fallible_plan = resolver
+        .resolve_destruction(fallible, &TypeSubstitution::default())
+        .unwrap()
+        .expect("fallible storage always owns its failure branch");
+    let ConcreteDestructionKind::Fallible { success, failure } = fallible_plan.kind() else {
+        panic!("fallible storage must select its active branch before destruction")
+    };
+    assert!(success.is_none());
+    assert!(matches!(failure.kind(), ConcreteDestructionKind::Error));
+}
+
+#[test]
 fn enum_residual_excludes_the_already_run_owner_drop_and_moved_payload() {
     let output = check(
         "struct Owned { value: i32 }\n\

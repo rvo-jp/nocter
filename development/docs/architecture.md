@@ -891,11 +891,13 @@ Initialization dataflow is keyed by those semantic places. Joins merge each name
 initialized, uninitialized, or maybe initialized. Assignment consumes that one state to select no
 drop, unconditional drop, or conditional drop before storing and marking the place initialized;
 scope cleanup and whole-parent replacement consume the same state instead of recomputing liveness.
-The program-wide copyability table derives optional and fallible copyability structurally from
-their success or present payload and the built-in copyable `error` type. It memoizes the result by
-canonical `TypeId` and closes over the complete semantic type store before checked-program
-construction finishes. Flow analysis never reclassifies an outcome from its active tag, and MIR
-consumes the same type fact instead of deciding whether a particular tagged value may be copied.
+The program-wide copyability table derives optional copyability structurally from its present
+payload. The built-in `error` and every fallible type are unconditionally move-only because the
+failure branch owns a runtime node; a mixed outcome containing a fallible layer is therefore
+move-only as well. The table memoizes the result by canonical `TypeId` and closes over the complete
+semantic type store before checked-program construction finishes. Flow analysis never reclassifies
+an outcome from its active tag, and MIR consumes the same type fact instead of deciding whether a
+particular tagged value may be copied.
 Generic `copy struct` validation builds one normalized conjunction of field-copy requirements. A
 concrete specialization substitutes its arguments and evaluates its field types once through the
 same copyability table. An unconditional move-only field rejects the declaration, while a generic-

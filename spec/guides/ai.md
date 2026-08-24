@@ -66,10 +66,10 @@ Rules for generated code:
 - Use `expr otherwise { ... }` for optional fallback values and optional-side early exits.
 - Existing move-only outcome places require `move` before elimination: `move value?`,
   `move value!`, `move value catch error { ... }`, or `move value otherwise { ... }`. New
-  temporaries and copyable outcomes omit `move`.
-- Outcome copyability follows the payload recursively: `T?`, `T!`, `T?!`, and `(T!)?` are copyable
-  exactly when `T` is copyable, while `void!` is copyable. The currently active tag does not change
-  that property.
+  temporaries and copyable optional outcomes omit `move`.
+- Optional copyability follows its payload recursively. Every `T!`, including `void!`, and every
+  mixed outcome containing a fallible layer is move-only because failure owns an error node. The
+  currently active tag does not change that property.
 - Closure copyability follows stored captures: no captures and readonly captures are copyable;
   readwrite captures and move-only owned captures make the closure move-only. Callable capability
   controls invocation only and does not decide copyability.
@@ -153,7 +153,7 @@ Handle a failure locally with `catch`.
 
 ```nct
 run() catch failure {
-    return error.new("app.run_failed", failure.message)
+    return failure.context("while running the application")
 }
 ```
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.16.0: Practical Failure Values - Nocter</title>
-    <meta name="description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta name="description" content="Status: Phase 0 complete. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single com">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.16.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.16.0: Practical Failure Values - Nocter">
-    <meta property="og:description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta property="og:description" content="Status: Phase 0 complete. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single com">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.16.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.16.0: Practical Failure Values - Nocter">
-    <meta name="twitter:description" content="Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo">
+    <meta name="twitter:description" content="Status: Phase 0 complete. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single com">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.16.0: Practical Failure Values - Nocter","description":"Status: in development. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single commo","url":"https://nocter.dev/development/milestones/v0.16.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.16.0/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.16.0","item":"https://nocter.dev/development/milestones/v0.16.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.16.0: Practical Failure Values - Nocter","description":"Status: Phase 0 complete. Phase 0 replaces only the representation and practical API of the existing built-in error type. The T! surface and its single com","url":"https://nocter.dev/development/milestones/v0.16.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.16.0/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.16.0","item":"https://nocter.dev/development/milestones/v0.16.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -137,9 +137,9 @@
                 <span class="markdown-path-text">/development/milestones/v0.16.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-16-0-practical-failure-values">v0.16.0: Practical Failure Values</h1><p><strong>Status: in development.</strong> Phase 0 replaces only the representation and practical API of the existing built-in <code>error</code> type. The <code>T!</code> surface and its single common failure type remain intact.</p><h2 id="goal">Goal</h2><p>Keep error propagation uniform across packages while making a recovered failure safe to retain, enrich, classify, and report without preserving the storage lifetime of constructor arguments. Failure transport must remain statically laid out and must not introduce interface objects, vtables, reference counting, implicit error conversion, or user-defined failure payload types.</p><h2 id="phase-0-owned-error-handles">Phase 0: Owned Error Handles</h2><p>The built-in <code>error</code> type becomes a move-only handle to one immutable runtime error node. A leaf node owns a snapshot of its open dotted code and UTF-8 message. A context node owns one additional message and the previously constructed error. Literal-only standard failures may use immutable compiler data, while runtime text is copied into independently owned error storage.</p><p>The public surface remains one common failure channel:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">load</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Config</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+                <h1 id="v0-16-0-practical-failure-values">v0.16.0: Practical Failure Values</h1><p><strong>Status: Phase 0 complete.</strong> Phase 0 replaces only the representation and practical API of the existing built-in <code>error</code> type. The <code>T!</code> surface and its single common failure type remain intact.</p><h2 id="goal">Goal</h2><p>Keep error propagation uniform across packages while making a recovered failure safe to retain, enrich, classify, and report without preserving the storage lifetime of constructor arguments. Failure transport must remain statically laid out and must not introduce interface objects, vtables, reference counting, implicit error conversion, or user-defined failure payload types.</p><h2 id="phase-0-owned-error-handles">Phase 0: Owned Error Handles</h2><p>The built-in <code>error</code> type becomes a move-only handle to one immutable runtime error node. A leaf node owns a snapshot of its open dotted code and UTF-8 message. A context node owns one additional message and the previously constructed error. Literal-only standard failures may use immutable compiler data, while runtime text is copied into independently owned error storage.</p><p>The public surface remains one common failure channel:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">load</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Config</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-function">read</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-string">"while reading the configuration"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-string">"while reading the configuration"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">parse</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>text<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
@@ -151,7 +151,18 @@
   source-backed <code>std/error</code> surface rather than reconstructing built-in members;</li><li>focused semantic, ownership, layout, destruction, reporting, standard-library, and public-example
   tests pass together with the complete workspace, warnings-denied Clippy, formatting, generated
   documentation, and repository-integrity gates;</li><li>a final authority review finds no borrowed constructor lifetime, leaked recovered node, hidden
-  reference count, duplicated runtime schema, or error-specific semantic lookup in a backend.</li></ul>
+  reference count, duplicated runtime schema, or error-specific semantic lookup in a backend.</li></ul><h2 id="completion-evidence">Completion Evidence</h2><p>Phase 0 completed on 2026-08-24.</p><ul><li><code>nocter-runtime-contract</code> owns the complete numeric handle, node-kind, node-field, static-leaf,
+  and report-scratch schema. Machine layout and ARM64 lowering consume that schema; the former
+  ARM64-local layout table was removed.</li><li>Checking makes <code>error</code> and every <code>T!</code> unconditionally move-only. Concrete destruction gives the
+  failure branch its own error cleanup, and MIR plus Machine lower that cleanup to one consuming
+  <code>ReleaseError</code> operation.</li><li>The compiler entry wrapper reports through a borrowed initialized error place and releases that
+  same place afterward. It never copies the handle or reads a moved-from value.</li><li>ARM64 native cases cover dynamic leaf construction, context order, code and message access,
+  exact classification, static allocation failure, reporting, and iterative release. The static
+  allocation-failure node executes without entering dynamic error construction.</li><li>The standard surface is ordinary <code>std/error</code> source. Completion, hover, definition, references,
+  rename, signature help, and semantic tokens use the same general callable identities; no
+  synthetic built-in field identity remains.</li><li>The final authority review found no constructor-input origin on owned errors, no backend access
+  to semantic lookup, no duplicated numeric error layout, and no vtable or reference-count path.</li><li><code>cargo test --workspace --quiet</code> passed the complete compiler workspace.</li><li><code>cargo clippy --workspace --all-targets -- -D warnings</code>, <code>cargo fmt --all --check</code>, documentation
+  regeneration, and <code>git diff --check</code> passed.</li></ul>
             </div>
         </main>
     </div>

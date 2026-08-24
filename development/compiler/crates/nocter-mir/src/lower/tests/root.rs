@@ -62,6 +62,15 @@ fn materializes_all_six_process_result_contracts() {
             })
             .count();
         assert_eq!(reports, usize::from(fallible));
+        let releases = root
+            .body()
+            .operations()
+            .iter()
+            .filter(|(_, operation)| {
+                matches!(operation.kind(), MirOperationKind::ReleaseError { .. })
+            })
+            .count();
+        assert_eq!(releases, usize::from(fallible));
         assert!(
             root.body()
                 .blocks()
@@ -116,6 +125,17 @@ fn materializes_one_isolated_root_per_test_in_declaration_order() {
                 .filter(|(_, operation)| matches!(
                     operation.kind(),
                     MirOperationKind::ReportError { .. }
+                ))
+                .count(),
+            1
+        );
+        assert_eq!(
+            case.body()
+                .operations()
+                .iter()
+                .filter(|(_, operation)| matches!(
+                    operation.kind(),
+                    MirOperationKind::ReleaseError { .. }
                 ))
                 .count(),
             1

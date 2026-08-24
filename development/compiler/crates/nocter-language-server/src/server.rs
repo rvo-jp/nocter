@@ -673,7 +673,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = "func recover(input: i32!): i32 { input catch failure { 0 } }\n";
+        let text = "func recover(input: i32!): i32 { move input catch failure { 0 } }\n";
         let failure_start = u32::try_from(text.find("failure").unwrap()).unwrap();
         let mut text_json = String::new();
         nocter_json::write_string(&mut text_json, text);

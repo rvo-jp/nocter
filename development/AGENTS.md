@@ -12,7 +12,7 @@ Before compiler work, read:
 - `TODO.md`
 - `compiler/README.md`
 - `milestones/README.md`
-- `milestones/v0.15.0.md`
+- `milestones/v0.16.0.md`
 - `docs/README.md`
 - `docs/architecture.md`
 - `docs/maintenance.md`
@@ -76,7 +76,8 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
-- `development/milestones/v0.15.0.md`: active scope and completion records
+- `development/milestones/v0.16.0.md`: active scope and completion records
+- `development/milestones/v0.15.0.md`: completed release history only
 - `development/milestones/v0.14.0.md`: completed rewrite history only
 - `development/docs/architecture.md`: compiler dependency and authority boundaries
 - `development/TODO.md`: short-lived handoff and unresolved work

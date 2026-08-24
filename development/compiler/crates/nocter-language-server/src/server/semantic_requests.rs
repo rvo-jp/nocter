@@ -1611,6 +1611,78 @@ mod tests {
     }
 
     #[test]
+    fn builtin_error_members_are_ordinary_source_backed_methods() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let incomplete = concat!(
+            "func main(): void {\n",
+            "    let failure = error.new(\"app.failure\", \"failed\")\n",
+            "    failure.\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, incomplete, 1);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 2, 2, 12);
+        let response = completion.response().unwrap();
+        for method in ["context", "code", "message", "has_code"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("\"kind\":5"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let complete = concat!(
+            "func main(): usize {\n",
+            "    let failure = error.new(\"app.failure\", \"failed\")\n",
+            "    let enriched = failure.context(\"outer\")\n",
+            "    let first = enriched.message()[0]\n",
+            "    return first as usize\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, complete, 2);
+        let snapshot = changed.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.compilation_failure()
+        );
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":26}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("pub method &error.message(): &str from self"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":26}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/error/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let references = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":26}},\"context\":{{\"includeDeclaration\":true}}}}}}"
+        ));
+        let response = references.response().unwrap();
+        assert!(response.contains("/std/error/index.nct"), "{response}");
+        assert!(
+            response.contains("/std/error/construction.nct"),
+            "{response}"
+        );
+        assert!(response.contains("/main.nct"), "{response}");
+        assert!(references.issue().is_none(), "{:?}", references.issue());
+    }
+
+    #[test]
     fn completion_recovers_a_generic_construction_owner_before_the_missing_member() {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);
@@ -2437,7 +2509,7 @@ mod tests {
     fn code_actions_add_missing_callable_outcome_contracts() {
         for (source, expected) in [
             (
-                "func load(value: i32!): i32 { value? }\n",
+                "func load(value: i32!): i32 { move value? }\n",
                 "Make callable result fallible: `i32!`",
             ),
             (
@@ -2464,10 +2536,10 @@ mod tests {
         let source = concat!(
             "func load(value: i32!): i32 {\n",
             "    let closure = (): bool { true }\n",
-            "    value?\n",
+            "    move value?\n",
             "}\n",
         );
-        let action = request_outcome_code_action(source, (2, 4), (2, 10));
+        let action = request_outcome_code_action(source, (2, 4), (2, 15));
         let response = action.response().unwrap();
         assert!(
             response.contains("Make callable result fallible: `i32!`"),
@@ -2481,10 +2553,10 @@ mod tests {
         let source = concat!(
             "struct Loader {}\n",
             "instance Loader {\n",
-            "    pub method &self.load(value: i32!): i32 { value? }\n",
+            "    pub method &self.load(value: i32!): i32 { move value? }\n",
             "}\n",
         );
-        let action = request_outcome_code_action(source, (2, 48), (2, 54));
+        let action = request_outcome_code_action(source, (2, 48), (2, 59));
         let response = action.response().unwrap();
         assert!(
             response.contains("Make callable result fallible: `i32!`"),

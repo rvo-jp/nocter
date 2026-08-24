@@ -112,20 +112,33 @@ fn lower_kind(
             payload: Box::new(lower_plan(payload, context)?),
         }),
         (
-            MirDestructionKind::Fallible(payload),
+            MirDestructionKind::Fallible { success, failure },
             MachineLayoutKind::Outcome {
                 kind: MachineOutcomeKind::Fallible,
                 tag_offset,
                 payload_offset,
-                primary: Some(primary),
+                primary,
                 ..
             },
-        ) if payload.ty() == *primary => Ok(MachineDestructionKind::Outcome {
-            tag_offset: *tag_offset,
-            payload_offset: *payload_offset,
-            active_tag: MachineOutcomeKind::Fallible.primary_tag(),
-            payload: Box::new(lower_plan(payload, context)?),
-        }),
+        ) if match (success.as_deref(), primary) {
+            (Some(payload), Some(primary)) => payload.ty() == *primary,
+            (None, None) => true,
+            _ => false,
+        } =>
+        {
+            Ok(MachineDestructionKind::Fallible {
+                tag_offset: *tag_offset,
+                payload_offset: *payload_offset,
+                success: success
+                    .as_deref()
+                    .map(|plan| lower_plan(plan, context).map(Box::new))
+                    .transpose()?,
+                failure: Box::new(lower_plan(failure, context)?),
+            })
+        }
+        (MirDestructionKind::Error, MachineLayoutKind::ErrorHandle) => {
+            Ok(MachineDestructionKind::Error)
+        }
         (
             MirDestructionKind::Closure(captures),
             MachineLayoutKind::Closure { captures: members },

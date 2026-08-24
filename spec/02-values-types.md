@@ -361,10 +361,12 @@ Self
 
 Supported optional and fallible compositions are ordinary sized
 values. They may be stored in bindings and sized aggregates, moved, assigned, passed as arguments,
-returned, and consumed later. They are copyable exactly when their recursively contained payload
-types are copyable under the [outcome copyability](05-ownership-borrowing-drop.md#copy-and-move)
-rules. Only the selected tag branch is initialized. Absence never initializes a success payload,
-and failure initializes the `error` payload instead of the success payload.
+returned, and consumed later. An optional with no fallible layer is copyable exactly when its
+recursively contained payload is copyable. Every fallible value and every mixed outcome containing
+a fallible layer is move-only because its failure branch owns an `error`. Only the selected tag
+branch is initialized. Absence never initializes a success payload, and failure initializes the
+`error` payload instead of the success payload. The complete rules are defined in
+[outcome copyability](05-ownership-borrowing-drop.md#copy-and-move).
 
 Outcome construction at a callable return boundary is contextual, not a subtype conversion. The
 checker records each presence or success injection required by the complete declared result type;

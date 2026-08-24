@@ -152,6 +152,7 @@
 <span class="token-keyword">include</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span>syscall2<span class="token-operator">,</span> syscall6<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span>allocation_failure_error
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_ptr_to_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
@@ -261,7 +262,7 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Layout</
 <span class="token-keyword">func</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">syscall6</span><span class="token-operator">(</span>0x020000c5<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> size<span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">,</span> 0x1002<span class="token-operator">,</span> 0xffffffffffffffff<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.mem.out_of_memory"</span><span class="token-operator">,</span> <span class="token-string">"allocation failed"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
 <span class="token-operator">}</span>
@@ -562,7 +563,7 @@ drop <span class="token-type">RawBuffer</span><span class="token-operator">(</sp
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">out_of_memory</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.mem.out_of_memory"</span><span class="token-operator">,</span> <span class="token-string">"allocation failed"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>

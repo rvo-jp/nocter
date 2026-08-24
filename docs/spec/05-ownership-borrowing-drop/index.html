@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-17">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ownership, Borrowing, and Drop - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Ownership, Borrowing, and Drop - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/05-ownership-borrowing-drop/","mainEntityOfPage":"https://nocter.dev/spec/05-ownership-borrowing-drop/","dateModified":"2026-08-17","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"05 Ownership Borrowing Drop","item":"https://nocter.dev/spec/05-ownership-borrowing-drop/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Ownership, Borrowing, and Drop - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/05-ownership-borrowing-drop/","mainEntityOfPage":"https://nocter.dev/spec/05-ownership-borrowing-drop/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"05 Ownership Borrowing Drop","item":"https://nocter.dev/spec/05-ownership-borrowing-drop/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -333,14 +333,14 @@ drop <span class="token-function">make_value</span><span class="token-operator">
   when every substituted field type is copyable. For example, <code>copy struct Box&lt;T&gt; { value: T }</code> is
   copyable as <code>Box&lt;i32&gt;</code> but move-only as <code>Box&lt;String&gt;</code>, while a field such as <code>&amp;T</code> remains copyable
   for every <code>T</code>.</li><li>No copyable type can own or acquire a drop declaration. This includes primitive numeric types,
-  <code>bool</code>, raw pointers, the built-in <code>error</code> type, payloadless enums, copyable fixed arrays,
+  <code>bool</code>, raw pointers, payloadless enums, copyable fixed arrays,
   copyable <code>copy struct</code> specializations, copyable borrows, and aliases to any of these types.</li><li>Because one drop declaration covers a complete nominal type family, every <code>copy struct</code> family is
   ineligible even when a particular specialization is move-only. A drop declaration never changes
   a type from copyable to move-only.</li><li>A copyable <code>copy struct</code> specialization cannot own a field that requires destruction. A
   conditional specialization such as <code>Box&lt;String&gt;</code> is move-only and runs ordinary structural field
-  cleanup; the <code>copy struct</code> family itself still cannot declare a type-owned drop body.</li><li>Primitive numeric types, <code>bool</code>, and raw pointers are copyable.</li><li>The built-in <code>error</code> type is copyable.</li><li>Payloadless enum values are copyable.</li><li>Fixed-size arrays <code>[T; N]</code> are copyable when <code>T</code> is copyable.</li><li>An optional <code>T?</code> is copyable exactly when <code>T</code> is copyable.</li><li>A fallible <code>T!</code> is copyable exactly when its success payload <code>T</code> is copyable. Its alternate
-  <code>error</code> payload is always copyable. The special payloadless-success type <code>void!</code> is copyable.</li><li>Supported mixed outcomes apply those rules recursively. <code>T?!</code> and <code>(T!)?</code> are therefore copyable
-  exactly when <code>T</code> is copyable.</li><li>Copyability is a property of the complete outcome type, not its currently active tag. An absent
+  cleanup; the <code>copy struct</code> family itself still cannot declare a type-owned drop body.</li><li>Primitive numeric types, <code>bool</code>, and raw pointers are copyable.</li><li>The built-in <code>error</code> type is move-only and has compiler-defined destruction.</li><li>Payloadless enum values are copyable.</li><li>Fixed-size arrays <code>[T; N]</code> are copyable when <code>T</code> is copyable.</li><li>An optional <code>T?</code> is copyable exactly when <code>T</code> is copyable.</li><li>Every fallible <code>T!</code> is move-only, regardless of its success payload. The special
+  payloadless-success type <code>void!</code> is also move-only.</li><li>Supported mixed outcomes containing a fallible layer are move-only. An optional <code>T?</code> remains
+  copyable exactly when <code>T</code> is copyable.</li><li>Copyability is a property of the complete outcome type, not its currently active tag. An absent
   <code>String?</code> and a failed <code>String!</code> remain move-only because another value of the same type may own a
   <code>String</code> payload.</li><li>A closure's anonymous environment is copyable exactly when every stored capture is copyable. A
   capture-free closure and a closure containing only readonly-borrow captures are copyable. A
@@ -365,23 +365,21 @@ drop <span class="token-function">make_value</span><span class="token-operator">
     text<span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-comment">// error: move-only for every T</span>
     marker<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span>
 <span class="token-operator">}</span>
-</code></pre><p>Copyable outcomes copy like other copy types:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><p>Copyable optionals copy like other copy types:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-keyword">let</span> copied <span class="token-operator">=</span> maybe
 <span class="token-function">inspect</span><span class="token-operator">(</span>maybe<span class="token-operator">)</span> <span class="token-comment">// valid: maybe remains initialized</span>
 
-<span class="token-keyword">let</span> result<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
-<span class="token-keyword">let</span> copied_result <span class="token-operator">=</span> result
-<span class="token-function">inspect_result</span><span class="token-operator">(</span>result<span class="token-operator">)</span> <span class="token-comment">// valid</span>
-</code></pre><p>Payloadless fallible completion is the boundary case:</p><pre><code class="language-nct"><span class="token-keyword">let</span> completion<span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span>
-<span class="token-keyword">let</span> copied_completion <span class="token-operator">=</span> completion
-<span class="token-function">inspect_completion</span><span class="token-operator">(</span>completion<span class="token-operator">)</span> <span class="token-comment">// valid</span>
-</code></pre><p>An outcome that can contain a move-only payload is move-only even when its current tag contains no payload or contains only <code>error</code>:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe_name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_name</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><p>An optional that can contain a move-only payload is move-only even when absent. Every fallible outcome is move-only because failure owns an <code>error</code>:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe_name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_name</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-keyword">let</span> copied_name <span class="token-operator">=</span> maybe_name <span class="token-comment">// error: String? is move-only</span>
 <span class="token-keyword">let</span> moved_name <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe_name
 
 <span class="token-keyword">let</span> read_name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">load_name</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-keyword">let</span> copied_read <span class="token-operator">=</span> read_name <span class="token-comment">// error: String! is move-only</span>
 <span class="token-keyword">let</span> moved_read <span class="token-operator">=</span> <span class="token-keyword">move</span> read_name
+
+<span class="token-keyword">let</span> completion<span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> copied_completion <span class="token-operator">=</span> completion <span class="token-comment">// error: void! is move-only</span>
+<span class="token-keyword">let</span> moved_completion <span class="token-operator">=</span> <span class="token-keyword">move</span> completion
 </code></pre><p>Function calls follow the same rule.</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-operator">...</span>
 <span class="token-operator">}</span>

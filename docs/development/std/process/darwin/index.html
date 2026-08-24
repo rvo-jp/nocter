@@ -312,7 +312,7 @@
     <span class="token-keyword">let</span> len <span class="token-operator">=</span> <span class="token-function">fill_cwd_path</span><span class="token-operator">(</span>fd<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>buffer<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">free</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
         <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> failure
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> view <span class="token-operator">=</span> <span class="token-function">str_from_raw_parts</span><span class="token-operator">(</span><span class="token-function">raw_buffer_ptr</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">)</span><span class="token-operator">,</span> len<span class="token-operator">)</span>
     <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span>view<span class="token-operator">)</span>
@@ -323,22 +323,22 @@
 
 <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">open_current_directory</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> failure
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
     <span class="token-operator">}</span>
     <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> darwin_max_path_len<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> failure
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> len <span class="token-operator">=</span> <span class="token-function">fill_cwd_path</span><span class="token-operator">(</span>fd<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>buffer<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">try_free</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
         <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> failure
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> view <span class="token-operator">=</span> <span class="token-function">str_from_raw_parts</span><span class="token-operator">(</span><span class="token-function">raw_buffer_ptr</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">)</span><span class="token-operator">,</span> len<span class="token-operator">)</span>
     <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> view<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">try_free</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
         <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">)</span>
-        <span class="token-keyword">return</span> failure
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
     <span class="token-operator">}</span>
     <span class="token-function">try_free</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
     <span class="token-function">close_fd_word</span><span class="token-operator">(</span>fd<span class="token-operator">)</span>

@@ -147,7 +147,7 @@ fn classify(
             let readonly = capture.declaration().mode() == CaptureMode::Readonly;
             return Some((SemanticHighlightKind::Variable, readonly));
         }
-        SemanticEntity::Field(_) | SemanticEntity::BuiltinField(_) => {
+        SemanticEntity::Field(_) => {
             return Some((
                 SemanticHighlightKind::Property,
                 binding.access() == Some(SourceAccess::Readonly),

@@ -279,9 +279,14 @@ pub enum MirOperationKind {
         place: MirPlaceId,
         allocation: MirCallAllocation,
     },
-    /// Reports one built-in error at a compiler-owned process boundary without allocation.
+    /// Borrows and reports one initialized built-in error place at a compiler-owned process
+    /// boundary without allocation.
     ReportError {
-        error: MirValueId,
+        place: MirPlaceId,
+    },
+    /// Releases one initialized built-in error handle and its owned node chain.
+    ReleaseError {
+        place: MirPlaceId,
     },
     CreateRegion {
         parent: MirValueId,

@@ -163,7 +163,7 @@ func cwd(): String! {
     let len = fill_cwd_path(fd, &+buffer) catch failure {
         free(&+allocator, move buffer)
         close_fd_word(fd)
-        return failure
+        return move failure
     }
     let view = str_from_raw_parts(raw_buffer_ptr(&buffer), len)
     let value = String.copy(view)
@@ -174,22 +174,22 @@ func cwd(): String! {
 
 func try_cwd(allocator: &+TryAllocator): String! {
     let fd = open_current_directory() catch failure {
-        return failure
+        return move failure
     }
     var buffer = try_alloc(allocator, darwin_max_path_len, 1) catch failure {
         close_fd_word(fd)
-        return failure
+        return move failure
     }
     let len = fill_cwd_path(fd, &+buffer) catch failure {
         try_free(allocator, move buffer)
         close_fd_word(fd)
-        return failure
+        return move failure
     }
     let view = str_from_raw_parts(raw_buffer_ptr(&buffer), len)
     let value = String.try_copy(allocator, view) catch failure {
         try_free(allocator, move buffer)
         close_fd_word(fd)
-        return failure
+        return move failure
     }
     try_free(allocator, move buffer)
     close_fd_word(fd)

@@ -450,7 +450,7 @@ Rules:
   copyable as `Box<i32>` but move-only as `Box<String>`, while a field such as `&T` remains copyable
   for every `T`.
 - No copyable type can own or acquire a drop declaration. This includes primitive numeric types,
-  `bool`, raw pointers, the built-in `error` type, payloadless enums, copyable fixed arrays,
+  `bool`, raw pointers, payloadless enums, copyable fixed arrays,
   copyable `copy struct` specializations, copyable borrows, and aliases to any of these types.
 - Because one drop declaration covers a complete nominal type family, every `copy struct` family is
   ineligible even when a particular specialization is move-only. A drop declaration never changes
@@ -459,14 +459,14 @@ Rules:
   conditional specialization such as `Box<String>` is move-only and runs ordinary structural field
   cleanup; the `copy struct` family itself still cannot declare a type-owned drop body.
 - Primitive numeric types, `bool`, and raw pointers are copyable.
-- The built-in `error` type is copyable.
+- The built-in `error` type is move-only and has compiler-defined destruction.
 - Payloadless enum values are copyable.
 - Fixed-size arrays `[T; N]` are copyable when `T` is copyable.
 - An optional `T?` is copyable exactly when `T` is copyable.
-- A fallible `T!` is copyable exactly when its success payload `T` is copyable. Its alternate
-  `error` payload is always copyable. The special payloadless-success type `void!` is copyable.
-- Supported mixed outcomes apply those rules recursively. `T?!` and `(T!)?` are therefore copyable
-  exactly when `T` is copyable.
+- Every fallible `T!` is move-only, regardless of its success payload. The special
+  payloadless-success type `void!` is also move-only.
+- Supported mixed outcomes containing a fallible layer are move-only. An optional `T?` remains
+  copyable exactly when `T` is copyable.
 - Copyability is a property of the complete outcome type, not its currently active tag. An absent
   `String?` and a failed `String!` remain move-only because another value of the same type may own a
   `String` payload.
@@ -519,28 +519,17 @@ copy struct Invalid<T> {
 }
 ```
 
-Copyable outcomes copy like other copy types:
+Copyable optionals copy like other copy types:
 
 ```nct
 let maybe: i32? = find_count()
 let copied = maybe
 inspect(maybe) // valid: maybe remains initialized
 
-let result: i32! = read_count()
-let copied_result = result
-inspect_result(result) // valid
 ```
 
-Payloadless fallible completion is the boundary case:
-
-```nct
-let completion: void! = flush()
-let copied_completion = completion
-inspect_completion(completion) // valid
-```
-
-An outcome that can contain a move-only payload is move-only even when its current tag contains no
-payload or contains only `error`:
+An optional that can contain a move-only payload is move-only even when absent. Every fallible
+outcome is move-only because failure owns an `error`:
 
 ```nct
 let maybe_name: String? = find_name()
@@ -550,6 +539,10 @@ let moved_name = move maybe_name
 let read_name: String! = load_name()
 let copied_read = read_name // error: String! is move-only
 let moved_read = move read_name
+
+let completion: void! = flush()
+let copied_completion = completion // error: void! is move-only
+let moved_completion = move completion
 ```
 
 Function calls follow the same rule.

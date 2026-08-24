@@ -24,6 +24,7 @@ impl Arm64SelectedFunction {
         functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
         data: &[(MachineDataId, crate::Arm64DataId)],
         pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+        allocation_failure_error: crate::Arm64DataId,
     ) -> Result<Arm64Code, Arm64MaterializationError> {
         let mut code = Arm64CodeBuilder::new();
         let labels = self
@@ -36,6 +37,7 @@ impl Arm64SelectedFunction {
             functions,
             data,
             pack_callbacks,
+            allocation_failure_error,
         };
         for instruction in self.entry_instructions() {
             emit_instruction(context, instruction, &mut code)?;
@@ -58,6 +60,7 @@ struct InstructionMaterialization<'selected> {
     functions: &'selected [(MachineFunctionId, crate::Arm64FunctionId)],
     data: &'selected [(MachineDataId, crate::Arm64DataId)],
     pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+    allocation_failure_error: crate::Arm64DataId,
 }
 
 #[expect(
@@ -70,7 +73,12 @@ fn emit_instruction(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let function = context.function;
-    if let Some(result) = emit_target_instruction(function, instruction, code) {
+    if let Some(result) = emit_target_instruction(
+        function,
+        instruction,
+        context.allocation_failure_error,
+        code,
+    ) {
         return result;
     }
     match *instruction {
@@ -177,7 +185,13 @@ fn emit_instruction(
         | Arm64SelectedInstruction::Break { .. }
         | Arm64SelectedInstruction::CreateRegion { .. }
         | Arm64SelectedInstruction::ReleaseRegion { .. }
+        | Arm64SelectedInstruction::ReleaseError { .. }
         | Arm64SelectedInstruction::ReportError { .. }
+        | Arm64SelectedInstruction::ConstructErrorLeaf { .. }
+        | Arm64SelectedInstruction::ConstructErrorContext { .. }
+        | Arm64SelectedInstruction::ReadErrorCode
+        | Arm64SelectedInstruction::ReadErrorMessage
+        | Arm64SelectedInstruction::LoadAllocationFailureError
         | Arm64SelectedInstruction::InitializeProcessContext { .. }
         | Arm64SelectedInstruction::ReadProcessArgumentCount
         | Arm64SelectedInstruction::ReadProcessArgument
@@ -192,6 +206,7 @@ fn emit_instruction(
 fn emit_target_instruction(
     function: &Arm64SelectedFunction,
     instruction: &Arm64SelectedInstruction,
+    allocation_failure_error: crate::Arm64DataId,
     code: &mut Arm64CodeBuilder,
 ) -> Option<Result<(), Arm64MaterializationError>> {
     match instruction {
@@ -204,11 +219,15 @@ fn emit_target_instruction(
         | Arm64SelectedInstruction::ReleaseRegion { .. } => Some(
             crate::region_code::emit_selected(function, instruction, code),
         ),
-        Arm64SelectedInstruction::ReportError { .. } => Some(crate::error_code::emit_selected(
-            function,
-            instruction,
-            code,
-        )),
+        Arm64SelectedInstruction::ReportError { .. }
+        | Arm64SelectedInstruction::ReleaseError { .. }
+        | Arm64SelectedInstruction::ConstructErrorLeaf { .. }
+        | Arm64SelectedInstruction::ConstructErrorContext { .. }
+        | Arm64SelectedInstruction::ReadErrorCode
+        | Arm64SelectedInstruction::ReadErrorMessage
+        | Arm64SelectedInstruction::LoadAllocationFailureError => Some(
+            crate::error_code::emit_selected(function, instruction, allocation_failure_error, code),
+        ),
         Arm64SelectedInstruction::InitializeProcessContext { .. }
         | Arm64SelectedInstruction::ReadProcessArgumentCount
         | Arm64SelectedInstruction::ReadProcessArgument

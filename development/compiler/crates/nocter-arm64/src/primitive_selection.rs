@@ -13,13 +13,18 @@ use crate::{
 /// Expands one closed primitive role while preserving its ordinary Nocter ABI boundary.
 pub(crate) fn select(
     program: &nocter_machine::MachineProgram,
+    frame: &crate::Arm64FunctionFrame,
     operation: MachineOperationId,
     target: &MachinePrimitiveTarget,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
-        PrimitiveRole::NewError => {
-            crate::error_selection::select_new_error(operation, target, selected)
+        PrimitiveRole::NewError
+        | PrimitiveRole::ErrorContext
+        | PrimitiveRole::ErrorCode
+        | PrimitiveRole::ErrorMessage
+        | PrimitiveRole::AllocationFailureError => {
+            crate::error_selection::select_primitive(operation, target, frame, selected)
         }
         PrimitiveRole::ProcessArgumentCount
         | PrimitiveRole::ProcessArgument

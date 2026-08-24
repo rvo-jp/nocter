@@ -313,7 +313,7 @@ Examples:
 
 ```nct
 let file = File.open(path) catch failure {
-    return error.new("std.io.open_failed", failure.message)
+    return failure.context("while opening the file")
 }
 
 match error {

@@ -2,8 +2,7 @@ use std::fmt;
 
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    BodyId, BorrowCapability, BuiltinType, CallableId, FieldIdentity, Symbol, TypeId, TypeKind,
-    TypeStore,
+    BodyId, BorrowCapability, CallableId, FieldId, Symbol, TypeId, TypeKind, TypeStore,
 };
 use nocter_source::SourceId;
 
@@ -39,7 +38,7 @@ impl MemberCompletionCandidate {
 /// The canonical semantic identity represented by a member completion item.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MemberCompletionTarget {
-    Field(FieldIdentity),
+    Field(FieldId),
     Method { surface: Option<CallableId> },
 }
 
@@ -243,10 +242,6 @@ fn field_completions(
                 })
                 .collect::<Vec<_>>()
         }
-        Some(TypeKind::Builtin(BuiltinType::Error)) => ["code", "message"]
-            .into_iter()
-            .filter_map(|name| graph.symbols().get(name))
-            .collect(),
         Some(_) => return Ok(Vec::new()),
         None => return Err(MemberCompletionError::UnknownReceiver(receiver)),
     };
@@ -273,7 +268,6 @@ fn field_completions(
                 | FieldSelectionError::AmbiguousField(_)
                 | FieldSelectionError::GenericArity(_)
                 | FieldSelectionError::Substitution(_)
-                | FieldSelectionError::UnknownBorrowType(_)
                 | FieldSelectionError::SourceAccess(_),
             ) => return Err(MemberCompletionError::FieldSelection),
         }

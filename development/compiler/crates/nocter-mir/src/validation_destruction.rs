@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use nocter_declarations::{NominalShape, ParameterOwner};
-use nocter_model::{TypeKind, TypeStore};
+use nocter_model::{BuiltinType, TypeKind, TypeStore};
 
 use crate::validation_types::{matches_nominal_member, matches_opaque_projection};
 use crate::{MirDestructionKind, MirDestructionPlan, MirValidationEnvironment, MirValidationError};
@@ -42,12 +42,21 @@ pub(crate) fn validate_destruction_plan(
             }
             validate_destruction_plan(environment, payload)?;
         }
-        MirDestructionKind::Fallible(payload) => {
-            if !matches!(types.get(plan.ty()), Some(TypeKind::Fallible(actual)) if actual == &payload.ty())
+        MirDestructionKind::Fallible { success, failure } => {
+            if !matches!(types.get(plan.ty()), Some(TypeKind::Fallible(actual)) if success.as_deref().is_none_or(|payload| actual == &payload.ty()))
+                || types.get(failure.ty()) != Some(&TypeKind::Builtin(BuiltinType::Error))
             {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
-            validate_destruction_plan(environment, payload)?;
+            if let Some(success) = success {
+                validate_destruction_plan(environment, success)?;
+            }
+            validate_destruction_plan(environment, failure)?;
+        }
+        MirDestructionKind::Error => {
+            if types.get(plan.ty()) != Some(&TypeKind::Builtin(BuiltinType::Error)) {
+                return Err(MirValidationError::InvalidDestruction(plan.ty()));
+            }
         }
         MirDestructionKind::Closure(captures) => {
             validate_closure(environment, types, plan, captures)?;

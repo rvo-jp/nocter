@@ -333,7 +333,6 @@ impl CopyabilityTable {
                 | BuiltinType::U64
                 | BuiltinType::Usize
                 | BuiltinType::Isize
-                | BuiltinType::Error
                 | BuiltinType::Void,
             )
             | TypeKind::Pointer(_)
@@ -341,7 +340,7 @@ impl CopyabilityTable {
                 capability: BorrowCapability::Readonly,
                 ..
             } => Some(CopyCondition::Always),
-            TypeKind::Builtin(BuiltinType::Never | BuiltinType::Str)
+            TypeKind::Builtin(BuiltinType::Never | BuiltinType::Str | BuiltinType::Error)
             | TypeKind::Borrow {
                 capability: BorrowCapability::ReadWrite,
                 ..
@@ -350,7 +349,8 @@ impl CopyabilityTable {
             | TypeKind::Callable(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Opaque { .. } => Some(CopyCondition::Impossible),
+            | TypeKind::Opaque { .. }
+            | TypeKind::Fallible(_) => Some(CopyCondition::Impossible),
             TypeKind::Closure {
                 definition,
                 arguments,
@@ -362,9 +362,7 @@ impl CopyabilityTable {
                 None => Some(CopyCondition::Impossible),
             },
             TypeKind::GenericParameter(parameter) => Some(CopyCondition::requiring(parameter)),
-            TypeKind::FixedArray { element, .. }
-            | TypeKind::Optional(element)
-            | TypeKind::Fallible(element) => {
+            TypeKind::FixedArray { element, .. } | TypeKind::Optional(element) => {
                 schedule_dependencies(ty, [element], &self.conditions, pending);
                 None
             }

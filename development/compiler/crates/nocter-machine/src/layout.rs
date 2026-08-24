@@ -137,10 +137,7 @@ pub enum MachineLayoutKind {
         pointer_offset: u64,
         length_offset: u64,
     },
-    Error {
-        code_offset: u64,
-        message_offset: u64,
-    },
+    ErrorHandle,
     Struct {
         fields: Box<[MachineFieldLayout]>,
     },
@@ -405,10 +402,7 @@ impl LayoutBuilder<'_> {
             RuntimePrimitive::Error => (
                 self.target.error().size(),
                 self.target.error().alignment(),
-                MachineLayoutKind::Error {
-                    code_offset: self.target.error().code_offset(),
-                    message_offset: self.target.error().message_offset(),
-                },
+                MachineLayoutKind::ErrorHandle,
             ),
             RuntimePrimitive::Text | RuntimePrimitive::Void | RuntimePrimitive::Never => {
                 return Err(MachineLayoutError::UnsizedOrSymbolicType(ty));

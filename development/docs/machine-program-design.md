@@ -52,10 +52,11 @@ every runtime type referenced by validated MIR. The implementation follows
 `Arm64DarwinV1` ABI identity.
 
 Each stored layout records its byte size, byte alignment, representation class, and every offset a
-later stage needs. This includes view pointer and length offsets, built-in error member offsets,
-enum and outcome tag and payload offsets, nominal fields, variant payload parameters, fixed-array
+later stage needs. This includes view pointer and length offsets, the one-word error handle, enum
+and outcome tag and payload offsets, nominal fields, variant payload parameters, fixed-array
 stride, closure captures, and opaque witnesses. Downstream lowering must query this table; it may
-not repeat padding arithmetic or embed an independently remembered offset.
+not repeat padding arithmetic or embed an independently remembered offset. Runtime error-node
+offsets and tags belong only to `nocter-runtime-contract`, not to stored semantic type layout.
 
 The builder starts from function signatures and all local, place, value, pack, process-root, and
 test-root types in `MirProgram`, then closes recursively over stored children. `void` and `never`
@@ -454,7 +455,7 @@ order, section order, or final bytes.
 The executable concrete-representation closure, immutable ARM64-Darwin stored-layout authority,
 callable ABI planner, semantic linkage and static-data inventories, and the first complete
 MachineProgram ownership spine are implemented. Conformance tests cover specialized generic struct
-and enum members, scalar and pointer sizes, view and built-in error offsets, enum and recursive
+and enum members, scalar and pointer sizes, views and the one-word error handle, enum and recursive
 outcome layout, `void!`, ordinary and zero-sized fixed arrays, closure capture order, exact opaque
 witness representation, register-window closure, aligned stack placement, direct and indirect
 results, the compiler-owned argument-pack lane, ordered test roots, static-text deduplication, dense
@@ -507,11 +508,12 @@ lifetime balance, and release walks the mapping list through the target syscall 
 Test roots now lower to declaration-order `Arm64TestExecutable` values. Their immutable code and
 data payload is materialized once and shared, while every case owns a distinct native entry for an
 independent process image. The machine boundary closes test names to owned UTF-8 metadata and
-dense `MachineTestId` values before target lowering. Fallible roots report the built-in four-word
-`error` directly from its frozen layout as `code: message\n`; a target-owned frame buffer supplies
-the fixed punctuation without allocation, and failed stderr writes do not alter the required exit
-status. `new_error` constructs the same four words through its ordinary indirect-result ABI and
-retains both declared input origins.
+dense `MachineTestId` values before target lowering. Fallible roots traverse the runtime-contract
+error node as root code plus outer-to-inner messages; a target-owned frame buffer supplies fixed
+punctuation without allocation, and failed stderr writes do not alter the required exit status.
+The root then releases dynamic nodes iteratively. `new_error` and context attachment snapshot
+source text into independently owned nodes through ordinary direct one-word result ABI. The
+prebuilt allocation-failure leaf lives in immutable program data.
 
 Process-entry state is complete. The root captures `argc`, `argv`, and `envp` before allocation
 initialization can use platform argument registers, counts the null-terminated environment vector

@@ -242,8 +242,10 @@ directly with `SemanticEntity::BodyNode`; no expression-to-type side map survive
 
 `CopyabilityTable` is the sole copy-proof authority. It collects normalized `copy` requirements by
 `GenericParameterId`, classifies ordinary structs and readwrite borrows as move-only, recognizes
-payloadless enums and readonly borrows directly, and evaluates arrays, outcomes, and `copy struct`
-specializations structurally. Nominal field types use the shared canonical substitution engine.
+payloadless enums and readonly borrows directly, evaluates arrays and optionals structurally, and
+classifies `error` plus every fallible layer as unconditionally move-only. Mixed outcomes inherit
+that fallible result. `copy struct` specializations remain structural, and nominal field types use
+the shared canonical substitution engine.
 Every result is memoized by `TypeId`; finalization closes the table over the complete extended type
 store before moving it into `CheckedProgram`. Body checking and later stages therefore consume one
 fact instead of traversing nominal fields independently. Closure environments remain a checked-

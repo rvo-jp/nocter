@@ -16,6 +16,11 @@ impl MachineTarget {
     }
 
     #[must_use]
+    pub const fn runtime_schema(self) -> RuntimeAbiSchema {
+        self.schema
+    }
+
+    #[must_use]
     pub const fn word_size(self) -> u64 {
         self.schema.word_size()
     }

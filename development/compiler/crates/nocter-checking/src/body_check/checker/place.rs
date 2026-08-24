@@ -337,7 +337,6 @@ impl BodyChecker<'_, '_> {
                 | FieldSelectionError::AmbiguousField(_)
                 | FieldSelectionError::GenericArity(_)
                 | FieldSelectionError::Substitution(_)
-                | FieldSelectionError::UnknownBorrowType(_)
                 | FieldSelectionError::SourceAccess(_),
             ) => return Err(BodyCheckInternalError::FieldSelection.into()),
         };
@@ -348,10 +347,8 @@ impl BodyChecker<'_, '_> {
         }
         let origin = SourceOrigin::from_token(self.tree(), field_token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-        let entity = match selected.field() {
-            nocter_model::FieldIdentity::Declared(field) => SemanticEntity::Field(field),
-            nocter_model::FieldIdentity::Builtin(field) => SemanticEntity::BuiltinField(field),
-        };
+        let field = selected.field();
+        let entity = SemanticEntity::Field(field);
         draft
             .source_projections
             .push(NodeProjection::new(entity, origin));

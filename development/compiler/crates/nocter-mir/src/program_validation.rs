@@ -248,8 +248,16 @@ fn validate_deferred_drop_calls(
         ),
         MirDestructionKind::FixedArray { element, .. }
         | MirDestructionKind::Optional(element)
-        | MirDestructionKind::Fallible(element)
         | MirDestructionKind::Opaque { plan: element, .. } => (None, vec![element]),
+        MirDestructionKind::Fallible { success, failure } => (
+            None,
+            success
+                .iter()
+                .map(AsRef::as_ref)
+                .chain(std::iter::once(failure.as_ref()))
+                .collect(),
+        ),
+        MirDestructionKind::Error => (None, Vec::new()),
         MirDestructionKind::Closure(captures) => (
             None,
             captures

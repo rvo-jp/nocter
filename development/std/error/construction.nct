@@ -3,7 +3,25 @@
 include ./index.nct
 
 construct error {
-    default func new(code: &str, message: &str): Self from code | message {
+    default func new(code: &str, message: &str): Self {
         return new_error(code, message)
+    }
+}
+
+instance error {
+    method self.context(message: &str): Self {
+        return context_error(move self, message)
+    }
+
+    method &self.code(): &str from self {
+        return error_code(self)
+    }
+
+    method &self.message(): &str from self {
+        return error_message(self)
+    }
+
+    method &self.has_code(code: &str): bool {
+        return error_code(self) == code
     }
 }

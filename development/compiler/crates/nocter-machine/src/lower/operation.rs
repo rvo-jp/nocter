@@ -35,7 +35,7 @@ fn lower_operation(
     value: &nocter_mir::MirOperation,
     context: OperationContext<'_>,
 ) -> Result<MachineOperation, MachineProgramError> {
-    let OperationContext { body, program, ids } = context;
+    let OperationContext { program, ids, .. } = context;
     let result = value.result().map(|result| ids.value(result)).transpose()?;
     let kind = match value.kind() {
         MirOperationKind::Constant(constant) => {
@@ -74,30 +74,9 @@ fn lower_operation(
                 operand: ids.value(*operand)?,
             }
         }
-        MirOperationKind::Aggregate(aggregate) => {
-            let result = value
-                .result()
-                .ok_or(MachineProgramError::MissingOperationResult {
-                    owner: ids.owner(),
-                    operation,
-                })?;
-            let ty = body
-                .values()
-                .get(result)
-                .copied()
-                .ok_or(MachineProgramError::MissingOperationResult {
-                    owner: ids.owner(),
-                    operation,
-                })?
-                .ty();
-            MachineOperationKind::Aggregate(lower_aggregate(
-                operation,
-                aggregate,
-                ty,
-                program.layouts,
-                ids,
-            )?)
-        }
+        MirOperationKind::Aggregate(aggregate) => MachineOperationKind::Aggregate(
+            lower_aggregate_operation(operation, value, aggregate, context)?,
+        ),
         MirOperationKind::InvokeDrop {
             body,
             place,
@@ -119,8 +98,11 @@ fn lower_operation(
                 }
             },
         },
-        MirOperationKind::ReportError { error } => MachineOperationKind::ReportError {
-            error: ids.value(*error)?,
+        MirOperationKind::ReportError { place } => MachineOperationKind::ReportError {
+            place: ids.address(*place)?,
+        },
+        MirOperationKind::ReleaseError { place } => MachineOperationKind::ReleaseError {
+            place: ids.address(*place)?,
         },
         MirOperationKind::CreateRegion { parent, region } => MachineOperationKind::CreateRegion {
             parent: ids.value(*parent)?,
@@ -135,6 +117,37 @@ fn lower_operation(
         MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,
     };
     Ok(MachineOperation::new(kind, result))
+}
+
+fn lower_aggregate_operation(
+    operation: MirOperationId,
+    value: &nocter_mir::MirOperation,
+    aggregate: &nocter_mir::MirAggregate,
+    context: OperationContext<'_>,
+) -> Result<crate::MachineAggregate, MachineProgramError> {
+    let result = value
+        .result()
+        .ok_or(MachineProgramError::MissingOperationResult {
+            owner: context.ids.owner(),
+            operation,
+        })?;
+    let ty = context
+        .body
+        .values()
+        .get(result)
+        .copied()
+        .ok_or(MachineProgramError::MissingOperationResult {
+            owner: context.ids.owner(),
+            operation,
+        })?
+        .ty();
+    lower_aggregate(
+        operation,
+        aggregate,
+        ty,
+        context.program.layouts,
+        context.ids,
+    )
 }
 
 fn lower_constant(

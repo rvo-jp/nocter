@@ -57,14 +57,22 @@ construction surface:
 
 ```nct
 construct error {
-    pub default func new(code: &str, message: &str): Self from code | message {
+    pub default func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
+}
+
+instance error {
+    pub method self.context(message: &str): Self
+    pub method &self.code(): &str from self
+    pub method &self.message(): &str from self
+    pub method &self.has_code(code: &str): bool
 }
 ```
 
 The standard library defines no `Error` or `ErrorCode` compatibility alias. Error codes are open
-`&str` values.
+`&str` values. Construction snapshots its text, context consumes the prior handle, and accessors
+borrow the owned immutable node through their receiver.
 
 Standard-library error codes use stable dotted names such as `"std.io.not_found"`,
 `"std.mem.out_of_memory"`, and `"std.process.invalid_encoding"`. Package and application code may
@@ -122,7 +130,7 @@ A primitive declaration has a typed Nocter signature but no Nocter body:
 pub(/) primitive new_error(
     code: &str,
     message: &str,
-): error from code | message
+): error
 ```
 
 After visibility checks, calls are type checked and use the Nocter ABI like ordinary calls. The

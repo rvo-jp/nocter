@@ -158,6 +158,40 @@ impl<'a> DestructionBuilder<'a> {
                     &steps,
                 )?;
             }
+            MachineDestructionKind::Fallible {
+                tag_offset,
+                payload_offset,
+                success,
+                failure,
+            } => {
+                if let Some(success) = success {
+                    self.emit_outcome(
+                        OutcomeEmission {
+                            subject,
+                            tag_offset: *tag_offset,
+                            payload_offset: *payload_offset,
+                            active_tag: crate::MachineOutcomeKind::Fallible.primary_tag(),
+                            payload: success,
+                        },
+                        pointer,
+                        &steps,
+                    )?;
+                }
+                self.emit_outcome(
+                    OutcomeEmission {
+                        subject,
+                        tag_offset: *tag_offset,
+                        payload_offset: *payload_offset,
+                        active_tag: crate::MachineOutcomeKind::Fallible.alternate_tag(),
+                        payload: failure,
+                    },
+                    pointer,
+                    &steps,
+                )?;
+            }
+            MachineDestructionKind::Error => {
+                self.append_effect(MachineOperationKind::ReleaseError { place: subject })?;
+            }
             MachineDestructionKind::Closure(captures) => {
                 self.emit_captures(captures, pointer, &steps)?;
             }

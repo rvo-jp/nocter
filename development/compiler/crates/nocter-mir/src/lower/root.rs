@@ -166,15 +166,14 @@ fn lower_fallible_body(
         )],
         error_type,
     );
-    let error = builder.append_value(
+    builder.append_effect(
         failure,
-        error_type,
-        MirOperationKind::Read {
-            place: error_place,
-            mode: MirReadMode::Copy,
-        },
+        MirOperationKind::ReportError { place: error_place },
     )?;
-    builder.append_effect(failure, MirOperationKind::ReportError { error })?;
+    builder.append_effect(
+        failure,
+        MirOperationKind::ReleaseError { place: error_place },
+    )?;
     let one = builder.append_value(
         failure,
         executable.types().builtin(BuiltinType::I32),

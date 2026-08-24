@@ -18,11 +18,42 @@ use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 const ERROR_SOURCE: &str = "\
-pub(/) primitive new_error(code: &str, message: &str): error from code | message
+pub(/) primitive new_error(code: &str, message: &str): error
+
+pub(/) primitive context_error(value: error, message: &str): error
+
+pub(/) primitive error_code(value: &error): &str from value
+
+pub(/) primitive error_message(value: &error): &str from value
+
+pub(/) primitive allocation_failure_error(): error
+
 construct error {
-    pub default func new(code: &str, message: &str): Self from code | message {
+    pub default func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
+
+    pub func allocation_failure_for_test(): Self {
+        return allocation_failure_error()
+    }
+}
+instance error {
+    pub method self.context(message: &str): Self {
+        return context_error(move self, message)
+    }
+
+    pub method &self.code(): &str from self {
+        return error_code(self)
+    }
+
+    pub method &self.message(): &str from self {
+        return error_message(self)
+    }
+
+    pub method &self.has_code(code: &str): bool {
+        return error_code(self) == code
+    }
+
 }
 ";
 
@@ -35,6 +66,10 @@ pub fn primitive_source_location(
 
     match role {
         Role::NewError => (&["error"], "new_error"),
+        Role::ErrorContext => (&["error"], "context_error"),
+        Role::ErrorCode => (&["error"], "error_code"),
+        Role::ErrorMessage => (&["error"], "error_message"),
+        Role::AllocationFailureError => (&["error"], "allocation_failure_error"),
         Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
         Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
         Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),
@@ -186,6 +221,17 @@ pub func slice_ptr_addr_for_test<T>(value: &[T]): usize { return slice_ptr_addr_
 const STR_SOURCE: &str = "\
 pub(/) primitive str_len_raw(value: &str): usize
 pub(/) primitive str_ptr_addr_raw(value: &str): usize
+instance str {
+    pub operator (&self == other: &Self): bool {
+        if str_len_raw(self) != str_len_raw(other) { return false }
+        var index: usize = 0
+        while index < str_len_raw(self) {
+            if self[index] != other[index] { return false }
+            index += 1
+        }
+        return true
+    }
+}
 pub func str_len_for_test(value: &str): usize { return str_len_raw(value) }
 pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(value) }
 ";

@@ -264,7 +264,7 @@ file<span class="token-operator">.</span><span class="token-function">write_text
   semantic errors reported by checking.</li><li>Enum pattern payload slots use the common comma-list formatting. Keep one <code>_</code> for every ignored
   payload position; the formatter never collapses multiple slots into one wildcard.</li><li>A pattern target keeps its ownership prefix adjacent to the target expression: <code>match &amp;value</code>,
   <code>match &amp;+value</code>, and <code>match move value</code>.</li><li>Range <code>for</code> syntax is formatted as <code>for i in start..&lt;end { ... }</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.open_failed"</span><span class="token-operator">,</span> failure<span class="token-operator">.</span>message<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-string">"while opening the file"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">match</span> error <span class="token-operator">{</span>

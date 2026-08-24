@@ -139,6 +139,10 @@ fn primitive_source_location(role: PrimitiveRole) -> (&'static [&'static str], &
 
     match role {
         Role::NewError => (&["error"], "new_error"),
+        Role::ErrorContext => (&["error"], "context_error"),
+        Role::ErrorCode => (&["error"], "error_code"),
+        Role::ErrorMessage => (&["error"], "error_message"),
+        Role::AllocationFailureError => (&["error"], "allocation_failure_error"),
         Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
         Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
         Role::AllocationAbort => (&["mem"], "allocation_abort_raw"),

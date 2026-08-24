@@ -22,9 +22,9 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
 fn propagation_and_force_select_the_immediate_operand_layer() {
     let output = check(
         "func optional(input: i32?): i32? { input? }\n\
-         func fallible(input: i32!): i32! { input? }\n\
+         func fallible(input: i32!): i32! { move input? }\n\
          func force_optional(input: i32?): i32 { input! }\n\
-         func force_fallible(input: i32!): i32 { input! }\n",
+         func force_fallible(input: i32!): i32 { move input! }\n",
     )
     .unwrap();
     let operations = output
@@ -66,7 +66,7 @@ fn propagation_and_force_select_the_immediate_operand_layer() {
 fn propagation_retains_outer_result_layers_without_reordering() {
     let output = check(
         "func absent(input: i32?): (i32?)! { input? }\n\
-         func failed(input: i32!): (i32!)? { input? }\n",
+         func failed(input: i32!): (i32!)? { move input? }\n",
     )
     .unwrap();
     let outer = output
@@ -129,11 +129,11 @@ fn move_only_outcome_places_require_move_before_elimination() {
 #[test]
 fn catch_and_otherwise_bind_only_the_matching_branch() {
     let output = check(
-        "func recover_error(input: i32!): i32 { input catch failure { 0 } }\n\
-         func discard_error(input: i32!): i32 { input catch _ { 0 } }\n\
+        "func recover_error(input: i32!): i32 { move input catch failure { 0 } }\n\
+         func discard_error(input: i32!): i32 { move input catch _ { 0 } }\n\
          func recover_absence(input: i32?): i32 { input otherwise { 0 } }\n\
          func recover_both(input: i32?!): i32 {\n\
-             input catch _ { none } otherwise { 0 }\n\
+             move input catch _ { none } otherwise { 0 }\n\
          }\n",
     )
     .unwrap();
@@ -177,7 +177,7 @@ fn propagation_failure_retains_the_typed_callable_contract_repair() {
             OutcomeLayer::Optional,
         ),
         (
-            "func invalid(input: i32!): i32 { input? }\n",
+            "func invalid(input: i32!): i32 { move input? }\n",
             OutcomeLayer::Fallible,
         ),
     ] {
@@ -272,7 +272,7 @@ fn recovery_joins_fallback_ownership_with_the_success_path() {
     let error = check(
         "struct Owned { value: i32 }\n\
          func invalid(input: i32!, owned: Owned): i32 {\n\
-             let value = input catch _ {\n\
+             let value = move input catch _ {\n\
                  let _ = move owned\n\
                  0\n\
              }\n\
@@ -422,7 +422,7 @@ fn terminating_recovery_fallback_does_not_invent_unwinding() {
         "struct Owned { value: i32 }\n\
          func stop(): never { loop {} }\n\
          func recover(input: i32!): i32 {\n\
-             input catch _ {\n\
+             move input catch _ {\n\
                  let local = Owned { value: 1 }\n\
                  stop()\n\
              }\n\

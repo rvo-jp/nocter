@@ -47,7 +47,11 @@ pub enum ConcreteDestructionKind {
         element: Box<ConcreteDestructionPlan>,
     },
     Optional(Box<ConcreteDestructionPlan>),
-    Fallible(Box<ConcreteDestructionPlan>),
+    Fallible {
+        success: Option<Box<ConcreteDestructionPlan>>,
+        failure: Box<ConcreteDestructionPlan>,
+    },
+    Error,
     Closure(Box<[ConcreteCaptureDestruction]>),
     Opaque {
         definition: OpaqueTypeId,
@@ -325,12 +329,20 @@ impl ConcreteDispatchResolver<'_> {
                     ConcreteDestructionKind::Optional(Box::new(payload)),
                 )
             }),
-            TypeKind::Fallible(payload) => self.plan_type(payload, active)?.map(|payload| {
-                ConcreteDestructionPlan::new(
+            TypeKind::Fallible(payload) => {
+                let success = self.plan_type(payload, active)?.map(Box::new);
+                let error = self.types.builtin(nocter_model::BuiltinType::Error);
+                let failure = self
+                    .plan_type(error, active)?
+                    .ok_or(ConcreteDestructionError::MissingBuiltinDestruction(error))?;
+                Some(ConcreteDestructionPlan::new(
                     ty,
-                    ConcreteDestructionKind::Fallible(Box::new(payload)),
-                )
-            }),
+                    ConcreteDestructionKind::Fallible {
+                        success,
+                        failure: Box::new(failure),
+                    },
+                ))
+            }
             TypeKind::Closure {
                 definition,
                 arguments,
@@ -339,6 +351,9 @@ impl ConcreteDispatchResolver<'_> {
                 definition,
                 arguments,
             } => self.plan_opaque(ty, definition, &arguments, active)?,
+            TypeKind::Builtin(nocter_model::BuiltinType::Error) => Some(
+                ConcreteDestructionPlan::new(ty, ConcreteDestructionKind::Error),
+            ),
             TypeKind::Builtin(_)
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
@@ -631,6 +646,7 @@ pub enum ConcreteDestructionError {
     InvalidOpaqueDomain(OpaqueTypeId),
     MissingOpaqueWitness(OpaqueTypeId),
     InvalidEnumResidual(TypeId),
+    MissingBuiltinDestruction(TypeId),
     Substitution(SubstitutionError),
     Selection(InstanceSelectionError),
     Copyability(CopyabilityError),

@@ -263,7 +263,7 @@ impl TypeStore {
             }
             match self.get(ty) {
                 Some(
-                    TypeKind::Builtin(BuiltinType::Str | BuiltinType::Error)
+                    TypeKind::Builtin(BuiltinType::Str)
                     | TypeKind::GenericParameter(_)
                     | TypeKind::InterfaceSelf(_)
                     | TypeKind::Nominal { .. }

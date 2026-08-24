@@ -19,7 +19,7 @@ contracts, or milestone status.
   presentation boundary.
 - [`Cargo.toml`](Cargo.toml) is the canonical workspace-member list. Crate manifests and public Rust
   APIs are the canonical dependency and implementation surface.
-- [The active milestone](../milestones/v0.15.0.md) owns completed and planned v0.15.0 scope;
+- [The active milestone](../milestones/v0.16.0.md) owns the completed v0.16.0 Phase 0 scope;
   [the handoff](../TODO.md) owns only the next concrete work and current blockers.
 
 The compiler derives behavior from the current specification. The implementation removed before

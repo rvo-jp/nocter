@@ -7,6 +7,10 @@ use nocter_model::CallableId;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PrimitiveRole {
     NewError,
+    ErrorContext,
+    ErrorCode,
+    ErrorMessage,
+    AllocationFailureError,
     CurrentAllocatorState,
     CurrentAllocatorKind,
     AllocationAbort,
@@ -53,6 +57,10 @@ pub enum PrimitiveRole {
 impl PrimitiveRole {
     pub const ALL: &'static [Self] = &[
         Self::NewError,
+        Self::ErrorContext,
+        Self::ErrorCode,
+        Self::ErrorMessage,
+        Self::AllocationFailureError,
         Self::CurrentAllocatorState,
         Self::CurrentAllocatorKind,
         Self::AllocationAbort,

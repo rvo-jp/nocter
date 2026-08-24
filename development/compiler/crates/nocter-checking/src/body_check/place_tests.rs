@@ -164,29 +164,6 @@ fn named_field_reads_use_the_same_postfix_place_builder() {
 }
 
 #[test]
-fn builtin_error_fields_retain_closed_semantic_identities() {
-    let output =
-        check("func message(failure: error): &str from failure {\n    return failure.message\n}\n")
-            .unwrap();
-    let (_, body) = output.program().bodies().iter().next().unwrap();
-
-    assert!(body.places().iter().any(|(_, place)| matches!(
-        place.projections(),
-        [PlaceProjection::Field(
-            nocter_model::FieldIdentity::Builtin(nocter_model::BuiltinField::ErrorMessage)
-        )]
-    )));
-    assert!(
-        !output
-            .source_index()
-            .bindings_for(nocter_source_index::SemanticEntity::BuiltinField(
-                nocter_model::BuiltinField::ErrorMessage
-            ))
-            .is_empty()
-    );
-}
-
-#[test]
 fn readwrite_slice_index_retains_borrowed_storage_authority() {
     let output = check("func read(values: &+[i32]): i32 {\n    values[0]\n}\n").unwrap();
     let (_, body) = output.program().bodies().iter().next().unwrap();

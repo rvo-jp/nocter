@@ -5,8 +5,26 @@
 
 include ./construction.nct
 
-pub(/) primitive new_error(code: &str, message: &str): error from code | message
+pub(/) primitive new_error(code: &str, message: &str): error
+
+pub(/) primitive context_error(value: error, message: &str): error
+
+pub(/) primitive error_code(value: &error): &str from value
+
+pub(/) primitive error_message(value: &error): &str from value
+
+pub(/) primitive allocation_failure_error(): error
 
 construct error {
-    pub default func new(code: &str, message: &str): Self from code | message
+    pub default func new(code: &str, message: &str): Self
+}
+
+instance error {
+    pub method self.context(message: &str): Self
+
+    pub method &self.code(): &str from self
+
+    pub method &self.message(): &str from self
+
+    pub method &self.has_code(code: &str): bool
 }

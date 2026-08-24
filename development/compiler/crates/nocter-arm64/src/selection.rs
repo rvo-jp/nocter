@@ -180,9 +180,23 @@ pub enum Arm64SelectedInstruction {
     ReleaseRegion {
         region: crate::Arm64FrameObjectId,
     },
-    /// Reports one built-in error without allocation or a fallible library call.
+    /// Releases the owned node chain stored in one initialized error place.
+    ReleaseError {
+        place: Arm64SelectedMemoryAddress,
+    },
+    ConstructErrorLeaf {
+        buffer: crate::Arm64FrameObjectId,
+    },
+    ConstructErrorContext {
+        buffer: crate::Arm64FrameObjectId,
+    },
+    ReadErrorCode,
+    ReadErrorMessage,
+    LoadAllocationFailureError,
+    /// Borrows and reports one initialized built-in error place without allocation or a fallible
+    /// library call.
     ReportError {
-        error: crate::Arm64FrameObjectId,
+        place: Arm64SelectedMemoryAddress,
         buffer: crate::Arm64FrameObjectId,
     },
     /// Captures `argc`, `argv`, and `envp` from the platform entry ABI and counts `envp` once.
@@ -590,8 +604,8 @@ fn select_operation(
         MachineOperationKind::CreateRegion { .. } | MachineOperationKind::ReleaseRegion { .. } => {
             crate::region_selection::select_operation(operation_id, operation, context, selected)
         }
-        MachineOperationKind::ReportError { .. } => {
-            crate::error_selection::select_report(operation_id, operation, context, selected)
+        MachineOperationKind::ReportError { .. } | MachineOperationKind::ReleaseError { .. } => {
+            crate::error_selection::select_operation(operation_id, operation, context, selected)
         }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,

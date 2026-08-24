@@ -101,7 +101,8 @@ Rules:
 - If `func main(): i32!` or `func main(): usize!` succeeds, the returned value is used as the process exit status.
 - If `func main(): void!` succeeds, the process exits with status code `0`.
 - If `func main(): i32!`, `func main(): usize!`, or `func main(): void!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
-- The generated failure report should include `error.code` and `error.message` when both fields are available.
+- The generated failure report includes the root classification code and the outer-to-inner
+  context and leaf messages exposed by the built-in error handle.
 - If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code `1`.
 - The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
 - `func main(): void` exits with status code `0`.

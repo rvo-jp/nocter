@@ -3,6 +3,7 @@
 include ./index.nct
 
 use std/internal/os.{syscall2, syscall6}
+use std/error.allocation_failure_error
 use std/ptr.addr
 use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
@@ -112,7 +113,7 @@ func layout_align(value: &Layout): usize {
 func alloc_pages(size: usize): usize! {
     let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
     if result.errno != 0 {
-        return error.new("std.mem.out_of_memory", "allocation failed")
+        return allocation_failure_error()
     }
     return result.value
 }
@@ -413,7 +414,7 @@ func valid_alignment(align: usize): bool {
 }
 
 func out_of_memory(): error {
-    return error.new("std.mem.out_of_memory", "allocation failed")
+    return allocation_failure_error()
 }
 
 func invalid_argument(): error {

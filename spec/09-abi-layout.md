@@ -288,10 +288,10 @@ Inactive union bytes and padding have unspecified contents. Copy, move, drop, an
 inspect the tag but must not read or destroy an inactive payload. Callable entry and return lowering
 explicitly bridge this one stored layout and the target-specific register ABI.
 
-Copyability follows the recursive source-type rule rather than the active runtime tag. `T?` and
-`T!` are copyable exactly when `T` is copyable, `void!` is copyable, and mixed outcomes apply the
-same rule at each layer. A copy duplicates the tag and the one active payload, if any. A move-only
-outcome remains move-only even while absence or failure is active.
+Copyability follows the source-type rule rather than the active runtime tag. `T?` is copyable
+exactly when `T` is copyable. Every `T!`, including `void!`, is move-only because failure carries
+an owned `error`; mixed outcomes containing a fallible layer are therefore move-only. A move-only
+outcome remains move-only even while success or absence is active.
 
 Nocter source uses contextual outcome injection to construct tags. The ABI does not reserve the
 identifiers `value`, `success`, `none`, or `failure`; the table defines binary representation, not
@@ -300,40 +300,35 @@ the recursively laid-out `T?` layer.
 
 ### Built-In Error Layout
 
-The built-in `error` payload is represented as two borrowed string slices:
+The built-in `error` payload is one pointer-sized handle to an immutable runtime node:
 
 ```text
-error:
-  code:    &str
-  message: &str
+error: *runtime_error_node
 ```
 
 Layout:
 
 ```text
-word 0: code.ptr
-word 1: code.len
-word 2: message.ptr
-word 3: message.len
+word 0: node address
 ```
 
 Rules:
 
-- `error.code` and `error.message` are the user-facing fields of `error`.
-- Both fields have type `&str`.
-- The field order is `code`, then `message`.
-- The built-in `error` type has size 32 bytes and alignment 8 on the current ABI.
-- `error` does not own its string storage and has no drop declaration.
-- `error` is copyable because both fields are copyable borrowed views.
-- An `error` value carries borrow-like provenance from both `&str` fields.
-- Returning or storing an `error` must satisfy the same borrow-like escape rules
-  as any aggregate containing `&str`.
-- The compiler-generated entry wrapper may report `error.code` and
-  `error.message` directly from these fields without allocating or calling a
-  fallible standard-library API.
-- The native wrapper writes the UTF-8 bytes `code`, `: `, `message`, and a trailing newline to
-  stderr in that order. Each write is best-effort; a reporting failure is ignored and the wrapper
-  still exits with status `1`.
+- The built-in `error` type has size 8 bytes and alignment 8 on the current ABI.
+- A dynamic leaf owns snapshots of its code and message. A dynamic context owns its message and a
+  cause handle. A static leaf may point into immutable image data and requires no release.
+- Dynamic node destruction iteratively releases the complete cause chain. It does not recurse on
+  the native call stack.
+- `error` is move-only. Moving transfers the handle; copying it would duplicate ownership and is
+  invalid.
+- `code()`, `message()`, and reporting inspect the node through the handle. The source type exposes
+  no representation fields.
+- The compiler-generated entry wrapper writes the root code, `: `, outer-to-inner context and leaf
+  messages separated by `: `, and a trailing newline. Reporting allocates no storage. Each write is
+  best-effort; a reporting failure is ignored and the wrapper still releases the error and exits
+  with status `1`.
+- The static `std.mem.out_of_memory` leaf is available without dynamic allocation, preventing
+  recursive allocation failure while constructing the failure value.
 
 ### Drop ABI
 

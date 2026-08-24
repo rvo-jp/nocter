@@ -164,7 +164,7 @@ impl Analyzer<'_, '_> {
         Ok(match target {
             CleanupTarget::Path(path) => state.value(&LiveSlot::Place(LivePlace::from_parts(
                 path.root(),
-                path.fields().iter().copied().map(Into::into).collect(),
+                path.fields().to_vec().into(),
             ))),
             CleanupTarget::Place { place, .. } => {
                 let place = self
@@ -196,7 +196,7 @@ impl Analyzer<'_, '_> {
                 path.fields()
                     .iter()
                     .copied()
-                    .map(|field| LoanProjection::Field(field.into()))
+                    .map(LoanProjection::Field)
                     .collect::<Vec<_>>(),
             )],
             CleanupTarget::Place { place, .. } => {

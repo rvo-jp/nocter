@@ -73,6 +73,7 @@ pub struct Arm64FunctionFrame {
     allocation_context: Arm64AllocationContextFrame,
     process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
+    error_construction_buffer: Option<Arm64FrameObjectId>,
 }
 
 impl Arm64FunctionFrame {
@@ -119,6 +120,7 @@ impl Arm64FunctionFrame {
             allocation_context: hidden.allocation_context,
             process_context: hidden.process_context,
             error_report_buffer: hidden.error_report_buffer,
+            error_construction_buffer: hidden.error_construction_buffer,
         })
     }
 
@@ -188,6 +190,11 @@ impl Arm64FunctionFrame {
     pub const fn error_report_buffer(&self) -> Option<Arm64FrameObjectId> {
         self.error_report_buffer
     }
+
+    #[must_use]
+    pub const fn error_construction_buffer(&self) -> Option<Arm64FrameObjectId> {
+        self.error_construction_buffer
+    }
 }
 
 struct PlacedBodyObjects {
@@ -206,6 +213,7 @@ struct HiddenObjects {
     allocation_context: Arm64AllocationContextFrame,
     process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
+    error_construction_buffer: Option<Arm64FrameObjectId>,
 }
 
 fn reserve_outgoing_area(
@@ -453,12 +461,34 @@ fn place_hidden_objects(
             )
         })
         .transpose()?;
+    let error_construction_buffer = program
+        .function(function_id)
+        .is_some_and(|function| {
+            function.body().operations().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MachineOperationKind::Call(call)
+                        if matches!(
+                            call.target(),
+                            MachineCallTarget::Primitive(target)
+                                if matches!(
+                                    target.role(),
+                                    nocter_runtime_contract::PrimitiveRole::NewError
+                                        | nocter_runtime_contract::PrimitiveRole::ErrorContext
+                                )
+                        )
+                )
+            })
+        })
+        .then(|| builder.add_object(5 * Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
+        .transpose()?;
     Ok(HiddenObjects {
         indirect_result_pointer,
         pack_input_pointer,
         allocation_context,
         process_context,
         error_report_buffer,
+        error_construction_buffer,
     })
 }
 

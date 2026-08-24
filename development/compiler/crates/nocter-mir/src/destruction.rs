@@ -44,7 +44,11 @@ pub enum MirDestructionKind {
         element: Box<MirDestructionPlan>,
     },
     Optional(Box<MirDestructionPlan>),
-    Fallible(Box<MirDestructionPlan>),
+    Fallible {
+        success: Option<Box<MirDestructionPlan>>,
+        failure: Box<MirDestructionPlan>,
+    },
+    Error,
     Closure(Box<[MirCaptureDestruction]>),
     Opaque {
         definition: OpaqueTypeId,

@@ -120,6 +120,13 @@ pub enum MachineDestructionKind {
         active_tag: u8,
         payload: Box<MachineDestructionPlan>,
     },
+    Fallible {
+        tag_offset: u64,
+        payload_offset: u64,
+        success: Option<Box<MachineDestructionPlan>>,
+        failure: Box<MachineDestructionPlan>,
+    },
+    Error,
     Closure(Box<[MachineDestructionCapture]>),
     Opaque(Box<MachineDestructionPlan>),
 }

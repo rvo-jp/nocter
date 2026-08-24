@@ -592,7 +592,7 @@ conform ExactSizeIterator for RefIter {
 }
 drop RefIter(&+self) { return }
 func build(source: Source, input: i32!): Vec<i32>! {
-    Vec [0, ...source, input?]
+    Vec [0, ...source, move input?]
 }
 ",
     ))

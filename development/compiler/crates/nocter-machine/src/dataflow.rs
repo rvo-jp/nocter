@@ -365,11 +365,10 @@ fn operation_inputs(
                 }
             }
         }
-        MachineOperationKind::InvokeDrop { place, .. } => {
+        MachineOperationKind::InvokeDrop { place, .. }
+        | MachineOperationKind::ReportError { place }
+        | MachineOperationKind::ReleaseError { place } => {
             add_address_inputs(body, *place, &mut inputs)?;
-        }
-        MachineOperationKind::ReportError { error } => {
-            insert_value(body, *error, &mut inputs)?;
         }
         MachineOperationKind::CreateRegion { parent, .. } => {
             insert_value(body, *parent, &mut inputs)?;

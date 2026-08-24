@@ -758,9 +758,10 @@ conform Iterator for Iter {
 }
 drop Item(&+self) { return }
 drop Iter(&+self) { return }
-func visit(iterator: Iter, input: i32!): void! {
+func produce(): i32! { return 1 }
+func visit(iterator: Iter): void! {
     for item in move iterator {
-        let _ = input?
+        let _ = produce()?
     }
     return
 }
