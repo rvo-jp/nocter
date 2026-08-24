@@ -1,4 +1,11 @@
-//! Shared source fixture for compiler boundary and integration tests.
+//! Shared source fixtures and public-example contracts for compiler tests.
+
+mod public_examples;
+
+pub use public_examples::{
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleInput, PublicExampleRun,
+    PublicPackageExample,
+};
 
 use nocter_compile_input::{
     BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,

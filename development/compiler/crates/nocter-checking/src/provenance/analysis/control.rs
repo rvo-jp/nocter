@@ -357,31 +357,13 @@ impl Analyzer<'_, '_> {
                         | LoopKind::ArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
-            if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
-                iteration.set_value(PlaceRoot::Local(*binding), ValueProvenance::independent());
-            }
-            if condition_reaches
-                && let LoopKind::For {
-                    binding,
-                    iteration: contract,
-                } = definition.kind()
-            {
-                let value = self.iteration_item_provenance(
-                    contract,
-                    iterator
-                        .as_ref()
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
-                    iteration.current_allocation(),
+            if condition_reaches {
+                self.bind_loop_iteration(
+                    definition.kind(),
+                    iterator.as_ref(),
+                    definition.body_scope(),
+                    &mut iteration,
                 )?;
-                iteration.set_value(PlaceRoot::Local(*binding), value);
-            }
-            if condition_reaches
-                && let LoopKind::ArgumentPack {
-                    binding, parameter, ..
-                } = definition.kind()
-            {
-                let value = iteration.value(PlaceRoot::Parameter(*parameter));
-                iteration.set_value(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =
                 condition_reaches && self.evaluate(definition.body(), &mut iteration)?.1;
@@ -410,5 +392,39 @@ impl Analyzer<'_, '_> {
             state.join(&exits);
             return Ok((ValueProvenance::independent(), !exits.is_empty()));
         }
+    }
+
+    fn bind_loop_iteration(
+        &self,
+        kind: &LoopKind,
+        iterator: Option<&ValueProvenance>,
+        body_scope: nocter_model::BodyScopeId,
+        state: &mut ProvenanceState,
+    ) -> Result<(), BodyCheckInternalError> {
+        match kind {
+            LoopKind::Range { binding, .. } => {
+                state.set_value(PlaceRoot::Local(*binding), ValueProvenance::independent());
+            }
+            LoopKind::For { binding, iteration } => {
+                let value = self.iteration_item_provenance(
+                    iteration,
+                    iterator.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    state.current_allocation(),
+                    ProvenanceSource::ScopedTemporary {
+                        value: iteration.iterator(),
+                        scope: body_scope,
+                    },
+                )?;
+                state.set_value(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::ArgumentPack {
+                binding, parameter, ..
+            } => {
+                let value = state.value(PlaceRoot::Parameter(*parameter));
+                state.set_value(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::Infinite | LoopKind::While { .. } => {}
+        }
+        Ok(())
     }
 }

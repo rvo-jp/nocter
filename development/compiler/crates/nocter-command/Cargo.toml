@@ -21,6 +21,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-source-tooling = { path = "../nocter-source-tooling" }
 
 [dev-dependencies]
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

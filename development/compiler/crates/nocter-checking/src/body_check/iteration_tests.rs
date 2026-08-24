@@ -540,6 +540,52 @@ func invalid(iterator: Iter, fallback: &i32): &i32 {
 }
 
 #[test]
+fn loop_owned_iterator_storage_remains_live_through_the_complete_body_scope() {
+    check_iteration(
+        r"
+struct Iter {}
+conform Iterator for Iter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+func valid(iterator: Iter): usize {
+    var visited: usize = 0
+    for item in move iterator {
+        visited = visited + 1
+        let observed = item
+        let _ = observed
+    }
+    return visited
+}
+",
+    )
+    .unwrap();
+}
+
+#[test]
+fn loop_owned_iterator_storage_cannot_enter_an_outer_binding() {
+    let error = check_iteration(
+        r"
+struct Iter {}
+conform Iterator for Iter {
+    type Item = &i32
+    method &+self.next(): &i32? { return none }
+}
+func invalid(iterator: Iter, fallback: &i32): &i32 {
+    var selected = fallback
+    for item in move iterator {
+        selected = item
+    }
+    return selected
+}
+",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::InvalidStorageEscape));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0398");
+}
+
+#[test]
 fn borrowed_iterator_keeps_source_loan_live_through_body() {
     let error = check_iteration(
         r"

@@ -8,6 +8,7 @@ use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
+use nocter_test_support::PUBLIC_PACKAGE_EXAMPLES;
 
 use super::{
     ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,
@@ -321,33 +322,56 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
 }
 
 #[test]
-fn public_package_example_crosses_the_complete_target_session() {
+fn every_public_package_example_crosses_the_complete_target_session() {
     let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler.join("../std");
-    let example_root = compiler.join("../../examples/file-summary");
+    let examples_root = compiler.join("../../examples");
     let standard_package = PackageIdentity::new("toolchain:std");
-    let example_package = PackageIdentity::new("workspace:file-summary");
-    let example = ResolvedPackageSpec::new(example_package.clone(), &example_root)
-        .with_standard_dependency(standard_package.clone());
-    let unit = discover(DiscoveryRequest::declared(
-        CompilationTarget::Arm64Darwin,
-        package_graph(vec![
-            example,
-            resolved_standard(&standard_root, &standard_package),
-        ]),
-        vec![ModuleIdentity::new(
-            example_package.clone(),
-            Vec::<&str>::new(),
-        )],
-        bundled_standard_toolchain(&standard_package),
-    ))
-    .unwrap();
-    let target =
-        compile_native_image(ExecutableCompileRequest::named(&unit, "file-summary")).unwrap();
+    let mut discovered = fs::read_dir(&examples_root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("nocter.nct").is_file())
+        .map(|path| path.file_name().unwrap().to_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    let mut contracted = PUBLIC_PACKAGE_EXAMPLES
+        .iter()
+        .map(|contract| contract.directory().to_owned())
+        .collect::<Vec<_>>();
+    discovered.sort();
+    contracted.sort();
+    assert_eq!(
+        discovered, contracted,
+        "public package contract is incomplete"
+    );
 
-    assert_eq!(target.identity().name(), "file-summary");
-    assert_eq!(target.identity().package(), &example_package);
-    assert!(!target.image().bytes().is_empty());
+    for contract in PUBLIC_PACKAGE_EXAMPLES {
+        let package_root = examples_root.join(contract.directory());
+        let example_package = PackageIdentity::new(contract.package_identity());
+        let example = ResolvedPackageSpec::new(example_package.clone(), &package_root)
+            .with_standard_dependency(standard_package.clone());
+        let unit = discover(DiscoveryRequest::declared(
+            CompilationTarget::Arm64Darwin,
+            package_graph(vec![
+                example,
+                resolved_standard(&standard_root, &standard_package),
+            ]),
+            vec![ModuleIdentity::new(
+                example_package.clone(),
+                Vec::<&str>::new(),
+            )],
+            bundled_standard_toolchain(&standard_package),
+        ))
+        .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", contract.directory()));
+        let target = compile_native_image(ExecutableCompileRequest::named(
+            &unit,
+            contract.executable(),
+        ))
+        .unwrap_or_else(|error| panic!("{} failed compilation: {error:?}", contract.directory()));
+
+        assert_eq!(target.identity().name(), contract.executable());
+        assert_eq!(target.identity().package(), &example_package);
+        assert!(!target.image().bytes().is_empty());
+    }
 }
 
 #[test]

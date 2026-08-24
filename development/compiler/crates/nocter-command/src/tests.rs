@@ -18,6 +18,7 @@ use nocter_session::{
     ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
     bundled_standard_toolchain,
 };
+use nocter_test_support::{PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicPackageExample};
 
 use super::artifact::persist_bytes;
 
@@ -763,40 +764,80 @@ fn expected_example_output(name: &str) -> &'static [u8] {
 }
 
 #[test]
-fn public_package_example_runs_with_process_arguments() {
+fn every_public_package_example_runs_with_its_process_contract() {
     let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let package_root = compiler.join("../../examples/file-summary");
+
+    for contract in PUBLIC_PACKAGE_EXAMPLES {
+        run_public_package_example(&compiler, *contract);
+    }
+}
+
+fn run_public_package_example(compiler: &Path, contract: PublicPackageExample) {
+    let package_root = compiler.join("../../examples").join(contract.directory());
     let unit = discover_package(
         vec![package(
-            "workspace:file-summary",
-            "file-summary",
+            contract.package_identity(),
+            contract.executable(),
             &package_root,
         )],
-        vec![module("workspace:file-summary", &[])],
+        vec![module(contract.package_identity(), &[])],
     );
     let output_directory = unique_test_directory("public-package-example");
-    let input = output_directory.join("input.txt");
-    fs::write(&input, b"first\nsecond\n").unwrap();
-    let executable = output_directory.join("file-summary");
+    let input = contract.input().map(|input| {
+        let path = output_directory.join(input.name());
+        fs::write(&path, input.contents()).unwrap();
+        path
+    });
+    let executable = output_directory.join(contract.executable());
     super::build_executable(
-        ExecutableCompileRequest::named(&unit, "file-summary"),
+        ExecutableCompileRequest::named(&unit, contract.executable()),
         &executable,
     )
-    .unwrap();
+    .unwrap_or_else(|error| panic!("{} failed to build: {error:?}", contract.directory()));
 
-    let executed = Command::new(&executable)
-        .arg(&input)
-        .current_dir(&package_root)
-        .output()
-        .unwrap();
+    for run in contract.runs() {
+        let mut command = Command::new(&executable);
+        command.current_dir(&package_root);
+        for argument in run.arguments() {
+            match argument {
+                PublicExampleArgument::InputPath => {
+                    command.arg(input.as_ref().expect("input-path argument needs a fixture"));
+                }
+                PublicExampleArgument::Text(value) => {
+                    command.arg(value);
+                }
+            }
+        }
+        let executed = command.output().unwrap_or_else(|error| {
+            panic!(
+                "{} {} failed to launch: {error:?}",
+                contract.directory(),
+                run.name()
+            )
+        });
 
-    assert!(
-        executed.status.success(),
-        "exit {:?}",
-        executed.status.code()
-    );
-    assert_eq!(executed.stdout, b"2\n");
-    assert!(executed.stderr.is_empty());
+        assert_eq!(
+            executed.status.code(),
+            Some(run.status()),
+            "unexpected status from {} {}",
+            contract.directory(),
+            run.name()
+        );
+        assert_eq!(
+            executed.stdout,
+            run.stdout(),
+            "unexpected stdout from {} {}",
+            contract.directory(),
+            run.name()
+        );
+        assert_eq!(
+            executed.stderr,
+            run.stderr(),
+            "unexpected stderr from {} {}",
+            contract.directory(),
+            run.name()
+        );
+    }
     fs::remove_dir_all(output_directory).unwrap();
 }
 

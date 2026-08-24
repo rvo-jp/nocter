@@ -1,0 +1,42 @@
+use ./report.{Report, analyze}
+
+use std/io.{File, Reader, print}
+
+use std/num.usize_to_string
+
+use std/path.Utf8Path
+
+use std/process.arg
+
+use std/string.String
+
+func main(): i32! {
+    let requested: &str = arg(1)? otherwise {
+        print("usage: text-report PATH NEEDLE\n")?
+        return 2
+    }
+    let needle: &str = arg(2)? otherwise {
+        print("usage: text-report PATH NEEDLE\n")?
+        return 2
+    }
+    let path = Utf8Path.new(requested)?
+    var file = File.open(&path)?
+    let text = file.read_to_string()?
+    let report = analyze(&text, needle)
+    print_report(&report)?
+    return 0
+}
+
+func print_report(report: &Report): void! {
+    let lines = usize_to_string(report.lines())
+    let matching = usize_to_string(report.matching())
+    let output = String.concat(
+        "lines: ",
+        (&lines) as &str,
+        "\nmatching: ",
+        (&matching) as &str,
+        "\n",
+    )
+    print((&output) as &str)?
+    return
+}

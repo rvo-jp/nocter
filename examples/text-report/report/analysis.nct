@@ -1,0 +1,31 @@
+include ./index.nct
+
+struct Report {
+    lines: usize
+    matching: usize
+}
+
+instance Report {
+    method &self.lines(): usize {
+        return self.lines
+    }
+
+    method &self.matching(): usize {
+        return self.matching
+    }
+}
+
+func analyze(text: &str, needle: &str): Report {
+    var lines: usize = 0
+    var matching: usize = 0
+    for line in text.lines() {
+        lines = lines + 1
+        if line.contains(needle) {
+            matching = matching + 1
+        }
+    }
+    return Report {
+        lines: lines,
+        matching: matching,
+    }
+}

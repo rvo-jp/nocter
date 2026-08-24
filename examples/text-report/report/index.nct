@@ -1,0 +1,11 @@
+include ./analysis.nct
+
+pub struct Report
+
+instance Report {
+    pub method &self.lines(): usize
+
+    pub method &self.matching(): usize
+}
+
+pub func analyze(text: &str, needle: &str): Report

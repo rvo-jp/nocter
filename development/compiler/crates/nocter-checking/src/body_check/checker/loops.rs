@@ -33,6 +33,10 @@ impl BodyChecker<'_, '_> {
             kind => return Err(BodyCheckInternalError::UnsupportedSyntax(statement, kind).into()),
         };
         let block = self.required_child(statement, NodeKind::Block)?;
+        let body_scope = self
+            .names
+            .block_scope(block)
+            .ok_or(BodyCheckInternalError::MissingBlockScope(block))?;
         let body = self.check_block(
             block,
             BlockExpectation::Value(Some(self.types.builtin(BuiltinType::Void))),
@@ -50,7 +54,7 @@ impl BodyChecker<'_, '_> {
             | LoopKind::ArgumentPack { .. } => self.types.builtin(BuiltinType::Void),
         };
         self.builder
-            .define_loop(loop_, CheckedLoop::new(kind, body))?;
+            .define_loop(loop_, CheckedLoop::new(kind, body, body_scope))?;
         self.add_node(
             statement,
             ty,

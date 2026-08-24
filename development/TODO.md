@@ -2,7 +2,7 @@
 
 ## Current Task
 
-Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 5 are complete. Phase 0 removed
+Nocter v0.14.0 is published and frozen. v0.15.0 Phase 0 through Phase 6 are complete. Phase 0 removed
 semantic authority from `SourceIndex`, closed concrete dispatch over checked evidence, replaced the
 backend-visible semantic `TypeStore` with a runtime type contract, and gave shared ABI facts one
 owner. Phase 1 separated direct-only physical-source `include` from directory-module `use`, made
@@ -14,7 +14,11 @@ completion records are in `development/milestones/v0.15.0.md`. Phase 4 added typ
 constants and migrated standard platform numbers to that surface. Phase 5 separated shared
 constant-expression semantics from context-owned name resolution: headers and bodies now provide
 their own frozen targets to one typed planner and evaluator, and no body array-length table crosses
-`FrontendBindings`.
+`FrontendBindings`. Phase 6 qualified those foundations with the public `text-report` application,
+centralized package-example process contracts, and aligned provenance with the loop-owned iterator
+lifetime already published by ownership. v0.15.0 implementation work is ready for a separately
+authorized release-preparation and clean qualification pass; release identity, packaging, tagging,
+pushing, and publication have not started.
 
 The active specification-first compiler is under `development/compiler/`. The previous
 compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
@@ -36,7 +40,9 @@ input.
   callable result contracts. Every edit is applied to an isolated overlay and must pass ordinary
   full-package compilation before publication.
 - Every public single-file example executes as a native process with exact status, stdout, and
-  stderr checks. The public `file-summary` package executes with a real file argument.
+  stderr checks. One shared acceptance catalog covers every public package example; `file-summary`
+  and `text-report` compile through the target session and execute successful and argument-error
+  scenarios as native processes.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
 - Every completed v0.15.0 phase passed its focused tests and complete workspace, Clippy, formatting,

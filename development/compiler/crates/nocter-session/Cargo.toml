@@ -25,6 +25,7 @@ nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 
 [dev-dependencies]
 nocter-package = { path = "../nocter-package" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

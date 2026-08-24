@@ -112,6 +112,7 @@ impl Analyzer<'_, '_> {
         iteration: &crate::TypedIteration,
         iterator: &ValueProvenance,
         current_allocation: &ValueProvenance,
+        owned_iterator_storage: ProvenanceSource,
     ) -> Result<ValueProvenance, BodyCheckInternalError> {
         let acquisition = self
             .body
@@ -128,9 +129,7 @@ impl Analyzer<'_, '_> {
                 Some(nocter_model::TypeKind::Borrow { .. })
             )
         {
-            return Ok(ValueProvenance::from_source(ProvenanceSource::Temporary(
-                iteration.iterator(),
-            )));
+            return Ok(ValueProvenance::from_source(owned_iterator_storage));
         }
         let callable = match iteration.next().dispatch() {
             StaticDispatch::Direct(callable)
@@ -423,6 +422,7 @@ impl Analyzer<'_, '_> {
                             iteration,
                             &iterator,
                             state.current_allocation(),
+                            ProvenanceSource::StatementTemporary(iteration.iterator()),
                         )?);
                     }
                 }
@@ -549,9 +549,9 @@ impl Analyzer<'_, '_> {
             | ReceiverPreparation::WeakenReadwriteBorrow => ReceiverProvenance::carried(value),
             ReceiverPreparation::BorrowTemporary(_) => ReceiverProvenance {
                 carried: value,
-                place: Some(ValueProvenance::from_source(ProvenanceSource::Temporary(
-                    receiver.value(),
-                ))),
+                place: Some(ValueProvenance::from_source(
+                    ProvenanceSource::StatementTemporary(receiver.value()),
+                )),
             },
             ReceiverPreparation::BorrowPlace(_) => {
                 let checked = self
@@ -667,6 +667,7 @@ impl Analyzer<'_, '_> {
                         iteration,
                         &iterator,
                         state.current_allocation(),
+                        ProvenanceSource::StatementTemporary(iteration.iterator()),
                     )?;
                     elements.union_with(&value);
                 }

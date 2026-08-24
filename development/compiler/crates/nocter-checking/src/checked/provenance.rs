@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_declarations::{CallableProvenance, ProvenanceOrigin};
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, CallableId, CaptureId, ClosureId, FieldIdentity, LocalBindingId,
-    ParameterId, ParameterOrigin, ResultProvenance, VariantId,
+    Arena, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId, FieldIdentity,
+    LocalBindingId, ParameterId, ParameterOrigin, ResultProvenance, VariantId,
 };
 
 /// One storage authority carried by a checked value.
@@ -17,7 +17,13 @@ pub enum ProvenanceSource {
     Local(LocalBindingId),
     OwnedParameter(ParameterId),
     Region(LocalBindingId),
-    Temporary(BodyNodeId),
+    /// Storage owned by an ordinary expression temporary until statement end.
+    StatementTemporary(BodyNodeId),
+    /// Storage owned by a retained expression temporary until its lexical scope ends.
+    ScopedTemporary {
+        value: BodyNodeId,
+        scope: BodyScopeId,
+    },
     ClosureParameter {
         closure: ClosureId,
         origin: ParameterOrigin,

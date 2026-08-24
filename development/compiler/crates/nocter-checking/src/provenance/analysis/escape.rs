@@ -61,7 +61,7 @@ impl Analyzer<'_, '_> {
             value
                 .all_sources()
                 .iter()
-                .any(|source| matches!(source, ProvenanceSource::Temporary(_)))
+                .any(|source| matches!(source, ProvenanceSource::StatementTemporary(_)))
         });
         self.reject_escape(node, escapes)
     }
@@ -84,6 +84,10 @@ impl Analyzer<'_, '_> {
             ProvenanceSource::Region(region) => self
                 .local_scope(*region)
                 .is_ok_and(|source_scope| self.scope_contains(scope, source_scope)),
+            ProvenanceSource::ScopedTemporary {
+                scope: source_scope,
+                ..
+            } => self.scope_contains(scope, *source_scope),
             _ => false,
         });
         self.reject_escape(node, escapes)
@@ -125,7 +129,10 @@ impl Analyzer<'_, '_> {
                 ProvenanceSource::Local(local) => self
                     .local_scope(local)
                     .is_ok_and(|source| self.scope_contains(source, destination)),
-                ProvenanceSource::Temporary(_) => false,
+                ProvenanceSource::StatementTemporary(_) => false,
+                ProvenanceSource::ScopedTemporary { scope: source, .. } => {
+                    self.scope_contains(source, destination)
+                }
                 ProvenanceSource::Callable(_)
                 | ProvenanceSource::CurrentAllocation
                 | ProvenanceSource::OwnedParameter(_)

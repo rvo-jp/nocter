@@ -67,7 +67,7 @@ nocter check examples/ordering.nct
 nocter run examples/ordering.nct
 ```
 
-## Package Example
+## Package Examples
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line
 argument and reports the number of newline bytes. Its private
@@ -80,6 +80,21 @@ cd examples/file-summary
 nocter check
 nocter build
 ./file-summary ../../README.md
+```
+
+[text-report/index.nct](text-report/index.nct) is a larger command-line application. It reads a
+UTF-8 file, counts logical lines and lines containing a requested string, and renders a small
+report. Its [report/index.nct](text-report/report/index.nct) child module is a short public API
+contract; [analysis.nct](text-report/report/analysis.nct) contains the reciprocal private
+representation and implementation. The example combines directory-module imports, direct source
+includes, opaque public types, borrowed line iteration, string search, owned string construction,
+numeric formatting, process arguments, and fallible file I/O.
+
+```sh
+cd examples/text-report
+nocter check
+nocter build
+./text-report ../../README.md Nocter
 ```
 
 ## Contract

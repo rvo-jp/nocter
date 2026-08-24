@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-23">
+    <meta property="article:modified_time" content="2026-08-24">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Examples">
     <meta name="twitter:description" content="Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Examples","description":"Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.","url":"https://nocter.dev/examples/","mainEntityOfPage":"https://nocter.dev/examples/","dateModified":"2026-08-23","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Examples","description":"Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.","url":"https://nocter.dev/examples/","mainEntityOfPage":"https://nocter.dev/examples/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"}]}]</script>
 
     <link rel="stylesheet" href="../style.css">
 </head>
@@ -131,8 +131,12 @@
                 <li><a href="./ordering/index.html#content">ordering.nct</a></li>
                 <li><a href="./file-summary/index/index.html#content">file-summary/index.nct</a></li>
                 <li><a href="./file-summary/summary/index.html#content">summary.nct</a></li>
+                <li><a href="./text-report/index/index.html#content">text-report/index.nct</a></li>
+                <li><a href="./text-report/report/index/index.html#content">report/index.nct</a></li>
+                <li><a href="./text-report/report/analysis/index.html#content">analysis.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
                 <li><a href="./file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
+                <li><a href="./text-report/nocter/index.html#content">text-report/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -154,10 +158,14 @@
 <span class="token-function">nocter</span> run examples/mutable-iteration.nct
 </code></pre><p><a href="./ordering/index.html#content">ordering.nct</a> defines strict ordering for a project type, uses the same structural requirement from generic code, and compares <code>String</code> plus <code>Vec</code> values through standard source declarations and readonly coercions.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/ordering.nct
 <span class="token-function">nocter</span> run examples/ordering.nct
-</code></pre><h2 id="package-example">Package Example</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a direct source include without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a direct source include without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./file-summary ../../README.md
+</code></pre><p><a href="./text-report/index/index.html#content">text-report/index.nct</a> is a larger command-line application. It reads a UTF-8 file, counts logical lines and lines containing a requested string, and renders a small report. Its <a href="./text-report/report/index/index.html#content">report/index.nct</a> child module is a short public API contract; <a href="./text-report/report/analysis/index.html#content">analysis.nct</a> contains the reciprocal private representation and implementation. The example combines directory-module imports, direct source includes, opaque public types, borrowed line iteration, string search, owned string construction, numeric formatting, process arguments, and fallible file I/O.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/text-report
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> build
+./text-report ../../README.md Nocter
 </code></pre><h2 id="contract">Contract</h2><ul><li>Examples are complete user programs, not compiler fixtures.</li><li>Single-file examples must pass explicit file-mode <code>nocter check</code>; package examples must pass
   package-mode <code>nocter check</code> with the distributed standard library.</li><li>Runnable examples must remain buildable and executable on the implemented target.</li><li>Source uses the canonical formatter style.</li><li>Examples demonstrate behavior defined by the <a href="../spec/index.html#content">language specification</a>; they do
   not define additional language rules.</li><li>Deliberately invalid compiler inputs belong under

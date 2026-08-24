@@ -719,7 +719,7 @@ impl OwnershipAnalyzer<'_> {
         } else {
             None
         };
-        let body_scope = self.block_scope(definition.body())?;
+        let body_scope = definition.body_scope();
         let preheader = state.clone();
         let retained_temporaries = preheader.temporary_identities();
         let mut header = preheader.clone();

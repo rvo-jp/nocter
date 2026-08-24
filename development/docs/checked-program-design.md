@@ -561,7 +561,11 @@ retained temporary lifetime rather than an ordinary body temporary: `continue` p
 whereas normal exhaustion and outward transfers clean the current item before the iterator. Nested
 loops interleave those lifetimes by body scope. Provenance and loans map the per-step binding
 through the selected `next` result, and liveness keeps a borrowed acquisition's source loan active
-through every body execution.
+through every body execution. `CheckedLoop` publishes that body scope as part of the loop contract;
+later analyses do not recover it by reopening the block operation. Provenance distinguishes an
+ordinary statement temporary from a scoped retained temporary. A yielded borrow from loop-owned
+iterator storage may therefore survive every statement in the body and enter nested scopes, but it
+cannot enter an outer binding or a callable result.
 
 Authored local and closure annotations enter one body type-use authority. It resolves lexical
 generics, `Self`, imports, aliases, nominal arguments, callable types, and requirements into the

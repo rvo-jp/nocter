@@ -920,11 +920,16 @@ pub enum LoopKind {
 pub struct CheckedLoop {
     kind: LoopKind,
     body: BodyNodeId,
+    body_scope: BodyScopeId,
 }
 
 impl CheckedLoop {
-    pub(crate) const fn new(kind: LoopKind, body: BodyNodeId) -> Self {
-        Self { kind, body }
+    pub(crate) const fn new(kind: LoopKind, body: BodyNodeId, body_scope: BodyScopeId) -> Self {
+        Self {
+            kind,
+            body,
+            body_scope,
+        }
     }
 
     #[must_use]
@@ -935,6 +940,11 @@ impl CheckedLoop {
     #[must_use]
     pub const fn body(&self) -> BodyNodeId {
         self.body
+    }
+
+    #[must_use]
+    pub const fn body_scope(&self) -> BodyScopeId {
+        self.body_scope
     }
 }
 

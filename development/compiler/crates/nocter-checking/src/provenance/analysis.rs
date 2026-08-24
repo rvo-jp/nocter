@@ -448,7 +448,8 @@ fn validate_callable_returns(
                 ProvenanceSource::Local(_)
                 | ProvenanceSource::OwnedParameter(_)
                 | ProvenanceSource::Region(_)
-                | ProvenanceSource::Temporary(_)
+                | ProvenanceSource::StatementTemporary(_)
+                | ProvenanceSource::ScopedTemporary { .. }
                 | ProvenanceSource::ClosureParameter { .. }
                 | ProvenanceSource::ClosureCaptureValue { .. }
                 | ProvenanceSource::ClosureEnvironment(_)
@@ -503,7 +504,8 @@ fn validate_closure_returns(
                 | ProvenanceSource::Local(_)
                 | ProvenanceSource::OwnedParameter(_)
                 | ProvenanceSource::Region(_)
-                | ProvenanceSource::Temporary(_)
+                | ProvenanceSource::StatementTemporary(_)
+                | ProvenanceSource::ScopedTemporary { .. }
                 | ProvenanceSource::Unknown => true,
             });
         if invalid || event.ty != definition.signature().result() {
