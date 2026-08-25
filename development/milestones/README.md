@@ -4,7 +4,9 @@ This directory contains the active development milestone and historical mileston
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
 
-The [v0.16.0 milestone](v0.16.0.md) and its
+The [v0.17.0 milestone](v0.17.0.md) and its
+[release preparation](v0.17.0-release-preparation.md) are complete, and the release candidate is
+qualified. Publication remains separate. The [v0.16.0 milestone](v0.16.0.md) and its
 [release preparation](v0.16.0-release-preparation.md) are complete, and v0.16.0 is published. The
 [v0.15.0 milestone](v0.15.0.md) and its
 [release preparation](v0.15.0-release-preparation.md) are complete, and v0.15.0 is published. The
