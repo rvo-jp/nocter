@@ -38,7 +38,7 @@ pub enum RuntimeType {
     Opaque,
 }
 
-/// Dense semantic IDs paired only with concrete runtime shapes.
+/// Closed semantic IDs paired only with concrete runtime shapes.
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeTypeTable {
     entries: BTreeMap<TypeId, RuntimeType>,
@@ -74,18 +74,121 @@ impl RuntimeTypeTableBuilder {
         Self::default()
     }
 
-    pub fn insert(&mut self, ty: TypeId, kind: RuntimeType) -> Option<RuntimeType> {
+    /// Adds one concrete type identity without replacing an existing contract.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a repeated semantic type identity or primitive role.
+    pub fn insert(
+        &mut self,
+        ty: TypeId,
+        kind: RuntimeType,
+    ) -> Result<(), RuntimeTypeTableBuildError> {
+        if self.entries.contains_key(&ty) {
+            return Err(RuntimeTypeTableBuildError::DuplicateType(ty));
+        }
+        if let RuntimeType::Primitive(primitive) = kind
+            && self.primitives.contains_key(&primitive)
+        {
+            return Err(RuntimeTypeTableBuildError::DuplicatePrimitive(primitive));
+        }
         if let RuntimeType::Primitive(primitive) = kind {
             self.primitives.insert(primitive, ty);
         }
-        self.entries.insert(ty, kind)
+        self.entries.insert(ty, kind);
+        Ok(())
     }
 
-    #[must_use]
-    pub fn finish(self) -> RuntimeTypeTable {
-        RuntimeTypeTable {
+    /// Freezes a closed table after validating every referenced runtime type.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a type whose concrete runtime shape refers to an absent identity.
+    pub fn finish(self) -> Result<RuntimeTypeTable, RuntimeTypeTableBuildError> {
+        for (owner, kind) in &self.entries {
+            let referenced = match kind {
+                RuntimeType::Pointer(ty)
+                | RuntimeType::Slice(ty)
+                | RuntimeType::Optional(ty)
+                | RuntimeType::Fallible(ty) => Some(*ty),
+                RuntimeType::Borrow { referent, .. } => Some(*referent),
+                RuntimeType::FixedArray { element, .. } => Some(*element),
+                RuntimeType::Primitive(_)
+                | RuntimeType::Aggregate
+                | RuntimeType::Closure
+                | RuntimeType::Callable
+                | RuntimeType::Opaque => None,
+            };
+            if let Some(referenced) = referenced
+                && !self.entries.contains_key(&referenced)
+            {
+                return Err(RuntimeTypeTableBuildError::UnknownReference {
+                    owner: *owner,
+                    referenced,
+                });
+            }
+        }
+        Ok(RuntimeTypeTable {
             entries: self.entries,
             primitives: self.primitives,
-        }
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeTypeTableBuildError {
+    DuplicateType(TypeId),
+    DuplicatePrimitive(RuntimePrimitive),
+    UnknownReference { owner: TypeId, referenced: TypeId },
+}
+
+impl std::fmt::Display for RuntimeTypeTableBuildError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid runtime type table: {self:?}")
+    }
+}
+
+impl std::error::Error for RuntimeTypeTableBuildError {}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::{BuiltinType, TypeStore};
+
+    use super::{
+        RuntimePrimitive, RuntimeType, RuntimeTypeTableBuildError, RuntimeTypeTableBuilder,
+    };
+
+    #[test]
+    fn builder_rejects_duplicate_primitive_authority() {
+        let mut builder = RuntimeTypeTableBuilder::new();
+        let semantic = TypeStore::new();
+        let first = semantic.builtin(BuiltinType::Bool);
+        let second = semantic.builtin(BuiltinType::I8);
+        builder
+            .insert(first, RuntimeType::Primitive(RuntimePrimitive::Bool))
+            .unwrap();
+
+        assert_eq!(
+            builder
+                .insert(second, RuntimeType::Primitive(RuntimePrimitive::Bool))
+                .unwrap_err(),
+            RuntimeTypeTableBuildError::DuplicatePrimitive(RuntimePrimitive::Bool)
+        );
+    }
+
+    #[test]
+    fn finish_rejects_dangling_concrete_type_references() {
+        let mut builder = RuntimeTypeTableBuilder::new();
+        let semantic = TypeStore::new();
+        let owner = semantic.builtin(BuiltinType::Bool);
+        let referenced = semantic.builtin(BuiltinType::I8);
+        builder
+            .insert(owner, RuntimeType::Pointer(referenced))
+            .unwrap();
+
+        assert_eq!(
+            builder.finish().unwrap_err(),
+            RuntimeTypeTableBuildError::UnknownReference { owner, referenced }
+        );
     }
 }

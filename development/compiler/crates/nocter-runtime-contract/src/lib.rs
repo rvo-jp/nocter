@@ -9,12 +9,15 @@ mod primitive;
 mod representation;
 mod target;
 
-pub use environment::RuntimeEnvironment;
+pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use primitive::{PrimitiveBinding, PrimitiveBindingError, PrimitiveRegistry, PrimitiveRole};
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
 };
-pub use types::{RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuilder};
+pub use types::{
+    RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuildError,
+    RuntimeTypeTableBuilder,
+};
 mod types;
 pub use target::{RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeEndianness, RuntimeErrorAbiSchema};

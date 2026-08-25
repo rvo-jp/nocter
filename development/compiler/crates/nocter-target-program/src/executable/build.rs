@@ -33,13 +33,18 @@ pub(super) fn build_executable(
     let entry_key = ExecutableItemKey::Callable(CallableInstanceKey::for_entry(&target, entry)?);
     let frozen = ExecutableClosureBuilder::new(&target).close([entry_key.clone()])?;
     let entry_item = frozen.item_id(&entry_key)?;
+    let runtime = super::build_runtime_environment(
+        &frozen.types,
+        frozen.type_representations,
+        target.toolchain().abi(),
+    )?;
     Ok(ExecutableProgram {
         target,
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
         closure_layouts: frozen.closure_layouts,
-        type_representations: frozen.type_representations,
+        runtime,
         root: ExecutableRoot::Process {
             target: selected,
             entry: entry_item,
@@ -84,13 +89,18 @@ pub(super) fn build_selected_tests(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    let runtime = super::build_runtime_environment(
+        &frozen.types,
+        frozen.type_representations,
+        target.toolchain().abi(),
+    )?;
     Ok(ExecutableProgram {
         target,
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
         closure_layouts: frozen.closure_layouts,
-        type_representations: frozen.type_representations,
+        runtime,
         root: ExecutableRoot::Tests {
             target: selection.target(),
             cases: cases.into_boxed_slice(),

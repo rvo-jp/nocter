@@ -4,13 +4,15 @@ use std::sync::Arc;
 
 use nocter_checking::{
     ConcreteDestructionError, ConcreteDestructionPlan, ConcreteDispatchError, GenericArguments,
-    ResolvedPrimitiveDispatch, StaticSelection,
+    ResolvedPrimitiveDispatch, StaticSelection, is_concrete_type,
 };
 use nocter_model::{
     Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, PackageTargetId,
     TestId, TypeId, TypeStore,
 };
-use nocter_runtime_contract::RuntimeEnvironment;
+use nocter_runtime_contract::{
+    RuntimeEnvironment, RuntimeEnvironmentError, RuntimeTypeTableBuildError,
+};
 
 use crate::{
     BodyDependencyError, CallableInstanceKey, CallableInstanceKeyError, CheckedDestruction,
@@ -446,7 +448,7 @@ pub struct ExecutableProgram {
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     closure_layouts: BTreeMap<TypeId, ExecutableItemId>,
-    type_representations: RuntimeTypeRepresentationTable,
+    runtime: RuntimeEnvironment,
     root: ExecutableRoot,
 }
 
@@ -533,7 +535,7 @@ impl ExecutableProgram {
 
     #[must_use]
     pub const fn type_representations(&self) -> &RuntimeTypeRepresentationTable {
-        &self.type_representations
+        self.runtime.type_representations()
     }
 
     #[must_use]
@@ -544,18 +546,33 @@ impl ExecutableProgram {
     /// Consumes the executable closure and retains only the facts admitted past the MIR boundary.
     #[must_use]
     pub fn into_runtime_environment(self) -> RuntimeEnvironment {
-        let abi = self.target.toolchain().abi();
-        let runtime_types = runtime_type_table(&self.types);
-        RuntimeEnvironment::new(runtime_types, self.type_representations, abi)
+        self.runtime
     }
 }
 
-fn runtime_type_table(types: &TypeStore) -> nocter_runtime_contract::RuntimeTypeTable {
+fn build_runtime_environment(
+    types: &TypeStore,
+    representations: RuntimeTypeRepresentationTable,
+    abi: nocter_runtime_contract::RuntimeAbiIdentity,
+) -> Result<RuntimeEnvironment, ExecutableProgramError> {
+    let runtime_types = runtime_type_table(types)?;
+    RuntimeEnvironment::new(runtime_types, representations, abi)
+        .map_err(ExecutableProgramError::RuntimeEnvironment)
+}
+
+fn runtime_type_table(
+    types: &TypeStore,
+) -> Result<nocter_runtime_contract::RuntimeTypeTable, ExecutableProgramError> {
     use nocter_model::{BuiltinType, TypeKind};
     use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTableBuilder};
 
     let mut table = RuntimeTypeTableBuilder::new();
     for (ty, kind) in types.iter() {
+        if !is_concrete_type(types, ty)
+            .map_err(|_| ExecutableProgramError::InvalidTypeRepresentation(ty))?
+        {
+            continue;
+        }
         let runtime = match kind {
             TypeKind::Builtin(builtin) => RuntimeType::Primitive(match builtin {
                 BuiltinType::Bool => RuntimePrimitive::Bool,
@@ -595,11 +612,15 @@ fn runtime_type_table(types: &TypeStore) -> nocter_runtime_contract::RuntimeType
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. } => continue,
+            | TypeKind::AssociatedProjection { .. } => {
+                return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
+            }
         };
-        table.insert(ty, runtime);
+        table
+            .insert(ty, runtime)
+            .map_err(ExecutableProgramError::RuntimeTypes)?;
     }
-    table.finish()
+    table.finish().map_err(ExecutableProgramError::RuntimeTypes)
 }
 
 /// Failure to construct one closed executable program.
@@ -626,6 +647,8 @@ pub enum ExecutableProgramError {
     InvalidSequencePlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
     InvalidPrimitiveDependency(PrimitiveRole),
+    RuntimeTypes(RuntimeTypeTableBuildError),
+    RuntimeEnvironment(RuntimeEnvironmentError),
     DuplicateClosureLayout(TypeId),
     InvalidTypeRepresentation(TypeId),
     MissingRepresentationField(nocter_model::FieldId),
@@ -655,6 +678,8 @@ impl std::error::Error for ExecutableProgramError {
             Self::Dependencies(error) => Some(error),
             Self::Dispatch(error) => Some(error),
             Self::Destruction(error) => Some(error),
+            Self::RuntimeTypes(error) => Some(error),
+            Self::RuntimeEnvironment(error) => Some(error),
             Self::DuplicateGeneric(_)
             | Self::UnknownBody(_)
             | Self::UnknownItem(_)
