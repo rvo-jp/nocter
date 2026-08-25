@@ -25,7 +25,7 @@ pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefi
             name(types, declaration)?,
             ty,
             prepared.value,
-            target::gate(types, declaration)?,
+            target::gate(types, declaration),
         );
         types
             .namespaces

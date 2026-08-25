@@ -116,18 +116,23 @@ pub(super) fn missing_method_action(
         return Ok(None);
     };
     let probe_offset = context.closing;
-    let Some((terminator, mut edits)) =
+    let Some(mut terminator) =
         terminator_import_edits(snapshot, context.source.id(), probe_offset, abort)?
     else {
         return Ok(None);
     };
-    let method_edit = method_insertion(context.source, context.closing, &signatures, &terminator)?;
-    edits.push(method_edit);
+    let method_edit = method_insertion(
+        context.source,
+        context.closing,
+        &signatures,
+        &terminator.name,
+    )?;
+    terminator.edits.push(method_edit);
     Ok(Some(SemanticCodeAction {
         title: action_title(context.recovery, missing)?.into(),
         diagnostic_code: diagnostic_code.into(),
         diagnostic_range,
-        edits: edits.into_boxed_slice(),
+        edits: terminator.edits.into_boxed_slice(),
     }))
 }
 
@@ -217,12 +222,17 @@ fn insertion_context<'snapshot>(
     }))
 }
 
+struct TerminatorEditPlan {
+    name: Box<str>,
+    edits: Vec<SemanticSourceEdit>,
+}
+
 fn terminator_import_edits(
     snapshot: &AnalysisSnapshot,
     source: SourceId,
     offset: ByteOffset,
     terminator: nocter_model::CallableId,
-) -> Result<Option<(Box<str>, Vec<SemanticSourceEdit>)>, ConformanceActionError> {
+) -> Result<Option<TerminatorEditPlan>, ConformanceActionError> {
     let completions = snapshot
         .semantic_completions(source, offset)
         .map_err(ConformanceActionError::Completion)?;
@@ -232,16 +242,21 @@ fn terminator_import_edits(
         }
         match completion.automatic_import() {
             Some(_) => {
-                return Ok(Some((
-                    completion.label().into(),
-                    completion
+                return Ok(Some(TerminatorEditPlan {
+                    name: completion.label().into(),
+                    edits: completion
                         .additional_edits()
                         .iter()
                         .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
                         .collect(),
-                )));
+                }));
             }
-            None => return Ok(Some((completion.label().into(), Vec::new()))),
+            None => {
+                return Ok(Some(TerminatorEditPlan {
+                    name: completion.label().into(),
+                    edits: Vec::new(),
+                }));
+            }
         }
     }
     Ok(None)

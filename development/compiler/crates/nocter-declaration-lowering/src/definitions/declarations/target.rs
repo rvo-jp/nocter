@@ -1,11 +1,9 @@
 use crate::{PreparedTypes, SurfaceDeclarationId};
 
-use super::super::HeaderDefinitionError;
-
 pub(super) fn gate(
     types: &PreparedTypes<'_>,
     declaration: SurfaceDeclarationId,
-) -> Result<Option<nocter_model::CompilationTarget>, HeaderDefinitionError> {
+) -> Option<nocter_model::CompilationTarget> {
     let surface = types
         .namespaces
         .imports
@@ -13,5 +11,5 @@ pub(super) fn gate(
         .headers
         .reserved
         .declarations[declaration.index()];
-    Ok(surface.target_gate())
+    surface.target_gate()
 }

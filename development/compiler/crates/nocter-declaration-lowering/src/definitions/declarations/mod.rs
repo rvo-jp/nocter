@@ -87,7 +87,7 @@ fn define_alias(
             .copied()
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
         allocated.requirements[declaration.index()].clone(),
-        target::gate(types, declaration)?,
+        target::gate(types, declaration),
     );
     types
         .namespaces
@@ -287,7 +287,7 @@ fn define_nominal(
         own_generics(types, declaration),
         allocated.requirements[declaration.index()].clone(),
         shape,
-        target::gate(types, declaration)?,
+        target::gate(types, declaration),
     );
     types
         .namespaces
@@ -314,7 +314,7 @@ fn define_interface(
         allocated.requirements[declaration.index()].clone(),
         child_associated_types(types, declaration),
         child_callables(types, declaration),
-        target::gate(types, declaration)?,
+        target::gate(types, declaration),
     );
     types
         .namespaces

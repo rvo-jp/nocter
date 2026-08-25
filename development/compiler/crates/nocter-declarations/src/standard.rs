@@ -105,6 +105,7 @@ impl StandardLibrary {
     }
 
     /// Enumerates every role selected by the active toolchain in stable role order.
+    #[must_use]
     pub fn declarations(
         &self,
     ) -> impl ExactSizeIterator<Item = (StandardDeclarationRole, StandardDeclaration)> + '_ {

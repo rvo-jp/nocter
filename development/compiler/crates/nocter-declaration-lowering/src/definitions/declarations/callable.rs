@@ -53,7 +53,7 @@ pub(super) fn define(
         provenance_annotation,
         allocated.requirements[declaration.index()].clone(),
         allocated.bodies[declaration.index()],
-        target::gate(types, declaration)?,
+        target::gate(types, declaration),
     );
     types
         .namespaces

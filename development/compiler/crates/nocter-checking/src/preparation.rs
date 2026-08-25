@@ -522,11 +522,7 @@ fn prepare_program_checking_internal<'syntax>(
         }
         .into());
     }
-    let body_sources = match catalog_body_sources(input, &graph, bindings)
-        .map_err(NameResolutionInternalError::from)
-        .map_err(NameResolutionError::from)
-        .map_err(PreparationError::from)
-    {
+    let body_sources = match prepare_body_sources(input, &graph, bindings) {
         Ok(body_sources) => body_sources,
         Err(error) => {
             return Err(declaration_failure(
@@ -615,6 +611,17 @@ fn prepare_program_checking_internal<'syntax>(
         source_access: bindings.source_access().clone(),
         source_index,
     })
+}
+
+fn prepare_body_sources<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
+) -> Result<BodySourceCatalog<'syntax>, PreparationError> {
+    catalog_body_sources(input, graph, bindings)
+        .map_err(NameResolutionInternalError::from)
+        .map_err(NameResolutionError::from)
+        .map_err(PreparationError::from)
 }
 
 fn build_program_authorities(
