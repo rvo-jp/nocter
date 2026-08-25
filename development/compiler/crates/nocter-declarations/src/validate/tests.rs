@@ -1,6 +1,6 @@
 use nocter_model::{
-    BuiltinType, CallableCapability, ConstantValue, PackageIdentity, PackageTargetKind,
-    SymbolTable, TypeKind,
+    BuiltinType, CallableCapability, ConstantValue, ConstructionId, DeclarationSiteId,
+    NominalTypeId, PackageIdentity, PackageTargetKind, Symbol, SymbolTable, TypeKind,
 };
 
 use crate::{
@@ -251,6 +251,65 @@ fn empty_enums_cannot_enter_the_immutable_program() {
 }
 
 #[test]
+fn empty_construction_surfaces_cannot_enter_the_immutable_program() {
+    let symbols = SymbolTable::from_spellings(["app", "Value"]);
+    let app_name = symbols.get("app").unwrap();
+    let value_name = symbols.get("Value").unwrap();
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
+    let site = program
+        .add_declaration_site(module, Visibility::Private)
+        .unwrap();
+    let nominal = program.declarations_mut().reserve_nominal_type();
+    let target = program
+        .types_mut()
+        .intern(TypeKind::Nominal {
+            definition: nominal,
+            arguments: Box::new([]),
+        })
+        .unwrap();
+    program
+        .declarations_mut()
+        .define_nominal_type(
+            nominal,
+            NominalTypeDeclaration::new(
+                site,
+                value_name,
+                [],
+                [],
+                NominalShape::Struct {
+                    copy_declared: false,
+                    fields: Box::new([]),
+                },
+                None,
+            ),
+        )
+        .unwrap();
+    let construction = program.declarations_mut().reserve_construction();
+    program
+        .declarations_mut()
+        .define_construction(
+            construction,
+            ConstructionDeclaration::new(site, target, [], []),
+        )
+        .unwrap();
+
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Integrity(
+            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Construction)
+        ))
+    );
+}
+
+#[test]
 fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position() {
     let symbols = SymbolTable::from_spellings(["app", "Buffer", "self", "view"]);
     let app_name = symbols.get("app").unwrap();
@@ -444,36 +503,8 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
         )
         .unwrap();
 
-    let mut constructions = Vec::new();
-    for name in [t_name, u_name] {
-        let construction = program.declarations_mut().reserve_construction();
-        constructions.push(construction);
-        let parameter = program
-            .declarations_mut()
-            .add_generic_parameter(GenericParameter::new(
-                GenericOwner::Construction(construction),
-                name,
-                0,
-            ));
-        let argument = program
-            .types_mut()
-            .intern(TypeKind::GenericParameter(parameter))
-            .unwrap();
-        let target = program
-            .types_mut()
-            .intern(TypeKind::Nominal {
-                definition: nominal,
-                arguments: Box::new([argument]),
-            })
-            .unwrap();
-        program
-            .declarations_mut()
-            .define_construction(
-                construction,
-                ConstructionDeclaration::new(site, target, [parameter], [], None),
-            )
-            .unwrap();
-    }
+    let constructions = [t_name, u_name]
+        .map(|name| define_nonempty_generic_construction(&mut program, site, nominal, name));
 
     let failure = program.finish_recovering().unwrap_err();
     let ProgramBuildFailure::Rejected(rejected) = failure else {
@@ -497,6 +528,66 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
             .iter()
             .all(|construction| !admission.admits_construction(*construction))
     );
+}
+
+fn define_nonempty_generic_construction(
+    program: &mut DeclarationProgramBuilder,
+    site: DeclarationSiteId,
+    nominal: NominalTypeId,
+    name: Symbol,
+) -> ConstructionId {
+    let construction = program.declarations_mut().reserve_construction();
+    let parameter = program
+        .declarations_mut()
+        .add_generic_parameter(GenericParameter::new(
+            GenericOwner::Construction(construction),
+            name,
+            0,
+        ));
+    let argument = program
+        .types_mut()
+        .intern(TypeKind::GenericParameter(parameter))
+        .unwrap();
+    let target = program
+        .types_mut()
+        .intern(TypeKind::Nominal {
+            definition: nominal,
+            arguments: Box::new([argument]),
+        })
+        .unwrap();
+    let callable = program.declarations_mut().reserve_callable();
+    let body = program
+        .declarations_mut()
+        .add_body(Body::new(BodyOwner::Callable(callable)));
+    program
+        .declarations_mut()
+        .define_callable(
+            callable,
+            CallableDeclaration::new(
+                site,
+                CallableOwner::Construction(construction),
+                CallableKind::ConstructionFunction,
+                Some(name),
+                None,
+                [],
+                [],
+                target,
+                CallableProvenanceContract::inferred(),
+                crate::ProvenanceAnnotation::Elided,
+                [],
+                Some(body),
+                None,
+            ),
+        )
+        .unwrap();
+    program
+        .declarations_mut()
+        .define_construction(
+            construction,
+            ConstructionDeclaration::new(site, target, [parameter], [callable]),
+        )
+        .unwrap();
+    construction
 }
 
 #[test]

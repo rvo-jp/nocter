@@ -27,7 +27,7 @@ primitive error_code(value: &error): &str from value
 primitive error_message(value: &error): &str from value
 
 construct error {
-    pub default func new(code: &str, message: &str): Self {
+    pub func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }

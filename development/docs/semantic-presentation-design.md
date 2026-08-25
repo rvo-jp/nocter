@@ -59,17 +59,22 @@ absent. Nominal declaration heads retain their authored declaration names. A con
 position uses a direct one-segment alias when available and otherwise retains the declaration name,
 because a qualified path is not valid `DeclarationTypePattern` syntax.
 
-Nominal hover additionally consumes `ConstructionSurfaceTable::public_surface` with the module that
-owns the hovered source occurrence. The table retains one canonical ordered surface and derives a
-separate `accessible_surface` for use-site tools. The latter follows ordinary language visibility,
-including direct-source private access, while the public presentation view removes raw private
-construction. A contract-sealed empty representation remains absent from both external use-site
-and public-presentation views; presentation never infers exposure from an empty field list. Both
-views preserve the same structural, variant, member, source-order, and default identities.
-Presentation does not scan nominal or construct declarations to decide membership. It renders the
-selected structural or variant subset in the nominal declaration and selected authored members in
-a bodyless, unqualified `construct Type { ... }` block. Exact construction-target occurrences
-become `Self` recursively in member results.
+Nominal hover renders the nominal declaration only; it does not consume the construction-surface
+table or append factory APIs to the type. A struct body is rendered only when its complete
+representation and every field are visible at the exact source occurrence. An opaque contract or
+partially visible representation renders only the nominal header. An enum body likewise requires
+visibility of every variant, so presentation never emits a syntactically complete declaration that
+silently omits hidden members. This decision reads the declaration graph and source-access contract
+directly and never treats the presence of a `construct` declaration as a representation-visibility
+switch.
+The checking-owned `SourceAccessContext` answers both representation and declaration-site
+visibility for the exact requesting source; presentation does not reproduce those rules from a
+module ID.
+
+Construction-member hover starts from the selected member identity and renders that callable's own
+contract. Construction completion consumes `ConstructionSurfaceTable::accessible_surface`, which
+follows ordinary source and module visibility. Presentation and construction selection therefore
+share declaration identities without either one importing the other's private representation.
 
 Semantic presentation distinguishes absence from failure. No binding at the requested coordinate
 returns no result. A source-context conflict, construction-table disagreement, or invalid checked

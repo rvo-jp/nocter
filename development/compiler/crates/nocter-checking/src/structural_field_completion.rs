@@ -7,7 +7,7 @@ use nocter_source::SourceId;
 
 use crate::{
     CheckedProgram, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
-    PreparedSemanticProgram, SelectedConstructionEntry,
+    PreparedSemanticProgram,
 };
 
 /// One still-uninitialized field offered inside a structural construction expression.
@@ -33,7 +33,6 @@ impl StructuralFieldCompletionCandidate {
 #[derive(Debug)]
 pub enum StructuralFieldCompletionError {
     Surface(ConstructionSurfaceSelectionError),
-    MissingStructuralEntry(NominalTypeId),
     MissingField(FieldId),
     InvalidField(FieldId),
     DuplicateInitializedField(FieldId),
@@ -43,10 +42,6 @@ impl fmt::Display for StructuralFieldCompletionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Surface(error) => error.fmt(formatter),
-            Self::MissingStructuralEntry(definition) => write!(
-                formatter,
-                "structural completion type {definition:?} has no structural field entry"
-            ),
             Self::MissingField(field) => {
                 write!(formatter, "structural completion field {field:?} is absent")
             }
@@ -66,10 +61,9 @@ impl std::error::Error for StructuralFieldCompletionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Surface(error) => Some(error),
-            Self::MissingStructuralEntry(_)
-            | Self::MissingField(_)
-            | Self::InvalidField(_)
-            | Self::DuplicateInitializedField(_) => None,
+            Self::MissingField(_) | Self::InvalidField(_) | Self::DuplicateInitializedField(_) => {
+                None
+            }
         }
     }
 }
@@ -137,18 +131,9 @@ fn select_structural_field_completions(
     access: crate::SourceAccessContext<'_>,
     initialized: &[FieldId],
 ) -> Result<Box<[StructuralFieldCompletionCandidate]>, StructuralFieldCompletionError> {
-    let surface = surfaces.accessible_surface(graph, definition, access)?;
-    if !surface
-        .entries()
-        .contains(&SelectedConstructionEntry::Structural)
-    {
+    let Some(declared) = surfaces.accessible_structural_fields(graph, definition, access)? else {
         return Ok(Box::new([]));
-    }
-    let declared = surfaces
-        .structural_fields(graph, definition, access)?
-        .ok_or(StructuralFieldCompletionError::MissingStructuralEntry(
-            definition,
-        ))?;
+    };
     let mut used = BTreeSet::new();
     for field in initialized.iter().copied() {
         let declaration = graph
@@ -241,7 +226,7 @@ mod tests {
             crate::SourceAccessContext::for_source(prepared.source_access(), root_source).unwrap();
         let fields = prepared
             .construction_surfaces()
-            .structural_fields(graph, record, child_access)
+            .accessible_structural_fields(graph, record, child_access)
             .unwrap()
             .unwrap();
 

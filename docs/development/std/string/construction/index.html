@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-25">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string/construction.nct - Nocter">
@@ -89,7 +89,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
             id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
             user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
@@ -103,7 +103,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
         <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
         <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.18.0/index.html#content">v0.18.0 construction surface simplification</a></li>
+                <li><a href="../../../reviews/v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
                 <li><a href="../../../milestones/v0.17.0/index.html#content">v0.17.0 practical application foundations</a></li>
                 <li><a href="../../../milestones/v0.17.0-release-preparation/index.html#content">v0.17.0 release preparation</a></li>
                 <li><a href="../../../releases/v0.17.0/index.html#content">v0.17.0 publication and audit</a></li>
@@ -159,7 +161,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_str_to_ptr<span class="token-operator">,</span> store_u8_to_ptr<span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-    default <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 

@@ -9,7 +9,7 @@ struct Utf8Path {
 }
 
 construct Utf8Path {
-    default func new(value: &str): Self! {
+    func new(value: &str): Self! {
         validate(value)?
         return Utf8Path { text: String.copy(value) }
     }

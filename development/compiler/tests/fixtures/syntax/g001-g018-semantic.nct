@@ -1,5 +1,5 @@
 func missing_body(): i32
 enum Empty {}
-construct External {}
+construct External { func new(): Self { loop {} } }
 instance Pair<T, T> {}
 func equality<T, U>(): T where T = U

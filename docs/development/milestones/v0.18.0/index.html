@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.18.0: Construction Surface Simplification - Nocter</title>
+    <meta name="description" content="Status: Phase 0 complete (2026-08-25). v0.17.0 remains the latest published release. The working tree adopts the Phase 0 language contract below without a ">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.18.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.18.0: Construction Surface Simplification - Nocter">
+    <meta property="og:description" content="Status: Phase 0 complete (2026-08-25). v0.17.0 remains the latest published release. The working tree adopts the Phase 0 language contract below without a ">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.18.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-25">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.18.0: Construction Surface Simplification - Nocter">
+    <meta name="twitter:description" content="Status: Phase 0 complete (2026-08-25). v0.17.0 remains the latest published release. The working tree adopts the Phase 0 language contract below without a ">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.18.0: Construction Surface Simplification - Nocter","description":"Status: Phase 0 complete (2026-08-25). v0.17.0 remains the latest published release. The working tree adopts the Phase 0 language contract below without a ","url":"https://nocter.dev/development/milestones/v0.18.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.18.0/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.18.0","item":"https://nocter.dev/development/milestones/v0.18.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span><span class="token-operator">:</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
+                <li><a href="../v0.17.0/index.html#content">v0.17.0 milestone</a></li>
+                <li><a href="../v0.17.0-release-preparation/index.html#content">release preparation</a></li>
+                <li><a href="../v0.16.0/index.html#content">v0.16.0 milestone</a></li>
+                <li><a href="../v0.16.0-release-preparation/index.html#content">release preparation</a></li>
+                <li><a href="../v0.15.0/index.html#content">v0.15.0 milestone</a></li>
+                <li><a href="../v0.15.0-release-preparation/index.html#content">release preparation</a></li>
+                <li><a href="../v0.14.0/index.html#content">v0.14.0 milestone</a></li>
+                <li><a href="../v0.14.0-qualification/index.html#content">implementation qualification</a></li>
+                <li><a href="../../reviews/v0.14.0-final-design/index.html#content">final design review</a></li>
+                <li><a href="../v0.14.0-release-preparation/index.html#content">release preparation</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.18.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-18-0-construction-surface-simplification">v0.18.0: Construction Surface Simplification</h1><p><strong>Status: Phase 0 complete (2026-08-25).</strong> v0.17.0 remains the latest published release. The working tree adopts the Phase 0 language contract below without a compatibility mode. The <a href="../../reviews/v0.18.0-phase-0/index.html#content">final review</a> records the boundary audit and remediation.</p><h2 id="phase-0-construction-independence">Phase 0: Construction Independence</h2><p>Phase 0 removes the <code>default</code> construct-member modifier and separates three responsibilities that previously overlapped:</p><ul><li>nominal representation and field visibility alone decide whether <code>Type { ... }</code> is legal;</li><li>a nonempty <code>construct Type { ... }</code> declares named construction functions and typed literals;</li><li>nominal type hover presents the nominal declaration, while each construction member presents its
+  own contract at its own source identity.</li></ul><p>The declaration graph stores construction membership but no selected primary member. The checking layer owns one canonical use-site construction surface and one explicit representation-access contract for diagnostics that need field-level visibility. Completion, checking, and navigation consume those contracts instead of reconstructing member or visibility lists. Presentation does not depend on a checking-only construction view.</p><h3 id="completion-gate">Completion Gate</h3><p>Phase 0 is complete only when:</p><ul><li>the parser rejects <code>default</code> in <code>construct</code> and rejects empty construct declarations;</li><li>construction declarations, lowering, validation, checking, and presentation retain no default
+  member state or duplicate-default diagnostic;</li><li>public-field structs remain structurally constructible regardless of an authored construct
+  declaration, while opaque or private representations remain inaccessible;</li><li>nominal hover never appends a construct block and never exposes a partial private representation;</li><li>the standard library and current examples use the new syntax;</li><li>active specification and development documents contain no superseded construction-default or
+  public-construction-hover design;</li><li>focused and complete workspace tests, warnings-denied Clippy, formatting, generated
+  documentation, and repository whitespace gates pass;</li><li>the final review finds no compatibility parser, duplicate construction authority, repeated
+  visibility decision, reverse dependency from presentation to checking internals, or obsolete
+  wrapper retained solely for the removed feature.</li></ul><h3 id="non-goals">Non-goals</h3><p>Phase 0 does not choose a single conventional factory name, change typed-literal call syntax, change interface default methods, or remove construction-member completion and navigation.</p><h2 id="completion-evidence">Completion Evidence</h2><ul><li><code>default</code> is absent from construct parsing, declaration identity, lowering, validation, checking,
+  presentation, current standard source, and active documentation. The only active occurrences are
+  negative conformance examples; interface default methods remain independent.</li><li>empty construct syntax is rejected, and an empty construction declaration cannot enter the
+  immutable semantic graph.</li><li>structural construction reads representation and field visibility only. One exact-source
+  visibility contract is shared by body checking, construction queries, completion, and nominal
+  hover.</li><li>nominal hover presents complete visible nominal shapes or a header, never a construct block or a
+  partial hidden representation.</li><li>the complete workspace test suite, warnings-denied Clippy, Rust formatting, generated docs, and
+  repository whitespace gates passed from an external Cargo target.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

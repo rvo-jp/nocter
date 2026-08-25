@@ -213,15 +213,12 @@ fn validate_constructions_instances_conformances(
             construction.generic_parameters(),
             DeclarationDomain::Construction,
         )?;
-        unique(construction.members(), DeclarationDomain::Construction)?;
-        if construction
-            .default_member()
-            .is_some_and(|default| !construction.members().contains(&default))
-        {
-            return Err(ProgramIntegrityError::OwnerMismatch(
-                DeclarationDomain::Callable,
+        if construction.members().is_empty() {
+            return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::Construction,
             ));
         }
+        unique(construction.members(), DeclarationDomain::Construction)?;
         for member in construction.members() {
             let member = require(
                 declarations.callables().get(*member),

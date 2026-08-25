@@ -303,10 +303,13 @@ member production.
 
 ```text
 ConstructDeclaration = "construct" DeclarationTypePattern
-                       "{" LineSequence(ConstructMember) "}"
+                       ConstructBody
 
-ConstructMember = Visibility? "default"? ConstructionFunction
-                | Visibility? "default"? LiteralDeclaration
+ConstructBody = "{" newline* ConstructMember
+                (newline+ ConstructMember)* newline* "}"
+
+ConstructMember = Visibility? ConstructionFunction
+                | Visibility? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
                        CallableTail CallableBody
@@ -324,12 +327,8 @@ decoded contents are both empty (`""`). In this position it denotes a literal sh
 decoded runtime string value. Semantic validation pairs the sequence shape with its one element
 pack and the string shape with its one ordinary parameter. The parser retains optional
 `Visibility`; module-source semantics require it on a public `index.nct` construction contract and
-require its omission on the matching private definition. `default` is contextual only between
-that optional visibility and `func` or `literal`, and a separated definition repeats the
-contract's `default` marker.
-
-An empty construction body is syntactically valid and explicitly declares no direct construction
-entry.
+require its omission on the matching private definition. A construction body is nonempty because
+a type with no named or literal construction API has no `construct` declaration.
 
 ## Instances
 
@@ -448,7 +447,7 @@ func missing_body(): i32
 
 enum Empty {}
 
-construct ExternalType {}
+construct ExternalType { func new(): Self { loop {} } }
 ```
 
 The first is invalid unless it is an eligible public contract with one matching private definition
@@ -1029,7 +1028,7 @@ special role only at the listed boundary:
 | `where` | the requirement-clause position of an eligible declaration |
 | `some` | the start of an opaque callable result |
 | `from` | immediately after a callable result type |
-| `default` | between construction-member visibility and `func` or `literal` |
+| `default` | before an interface default `method` |
 | `coerce` | the start of an `instance` member |
 | `drop` | the start of a top-level drop declaration or a `drop Name` statement |
 | `self` | the fixed receiver position of methods, operators, coercions, and drop declarations |

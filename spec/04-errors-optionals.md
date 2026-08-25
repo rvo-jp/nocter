@@ -63,7 +63,7 @@ The constructor is declared in ordinary Nocter source:
 
 ```nct
 construct error {
-    pub default func new(code: &str, message: &str): Self {
+    pub func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }

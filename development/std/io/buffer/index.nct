@@ -9,7 +9,7 @@ see ./buffering.nct
 pub struct BufReader
 
 construct BufReader {
-    pub default func new(source: File): Self
+    pub func new(source: File): Self
 
     pub func with_capacity(source: File, requested_capacity: usize): Self
 }
@@ -19,7 +19,7 @@ conform Reader for BufReader {}
 pub struct BufWriter
 
 construct BufWriter {
-    pub default func new(destination: File): Self
+    pub func new(destination: File): Self
 
     pub func with_capacity(destination: File, requested_capacity: usize): Self
 }

@@ -11,7 +11,7 @@ func mutable_from_view<T>(view: &+[T]): MutableViewIter<T> {
 }
 
 construct MutableViewIter<T> {
-    default func from_view(view: &+[T]): Self {
+    func from_view(view: &+[T]): Self {
         return mutable_from_view(view)
     }
 }

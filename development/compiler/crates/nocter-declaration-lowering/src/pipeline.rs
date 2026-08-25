@@ -1399,12 +1399,6 @@ mod tests {
     fn production_pipeline_projects_declaration_definition_rules() {
         let cases = [
             (
-                "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
-                DefinitionRule::DuplicateConstructionDefault,
-                "default func second",
-                Some("default func first"),
-            ),
-            (
                 "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
                 DefinitionRule::UnknownResultProvenanceOrigin,
                 "missing",
@@ -1512,12 +1506,6 @@ mod tests {
                 "interface Source {\n    pub type Item\n    pub type Item\n}\n",
                 "namespace",
                 "E0241",
-            ),
-            (
-                "G009",
-                "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
-                "definition",
-                "E0314",
             ),
             ("G010", "instance str {}\n", "declaration", "E0201"),
             ("G012", "drop str(&+self) {}\n", "declaration", "E0204"),

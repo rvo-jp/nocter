@@ -120,7 +120,7 @@ one row have the same classification and boundary reason.
 
 | Definition/freeze error | Class | Reason |
 |---|---|---|
-| `HeaderDefinitionError::Rule` | authored rule | `E0314`-`E0319` retain exact `default`, provenance, result-type, or associated-binding subjects. |
+| `HeaderDefinitionError::Rule` | authored rule | `E0315`-`E0319`, `E0321`-`E0326`, and constant-expression rules retain exact provenance, result-type, associated-binding, argument-pack, or constant subjects. |
 | `HeaderDefinitionError::Declaration` | authored rule | `E0200`-`E0213` collect syntax-independent semantic declaration sites and project the complete report through the frozen source index. |
 | `MissingSource`, `MissingName`, `MissingSite`, `MissingType`, `MissingCallableResult`, `InvalidOwner`, `InvalidSurface`, `InvalidTypePattern`, `InvalidTargetGate`, `InvalidProvenance`, `InconsistentType`, `InconsistentSource`, `MissingDiagnosticSubject`, `Definition`, `Program`, `DuplicateSourceBinding` | compiler integrity | All are absent normalized state, an invalid semantic relationship, a failed exact source projection, or rejected builder authority after the responsible authored rule has already been separated. |
 

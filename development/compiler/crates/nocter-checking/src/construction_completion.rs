@@ -202,7 +202,7 @@ fn select_construction_completions(
         }
     };
     let mut candidates = Vec::new();
-    for entry in surface.entries().iter().copied() {
+    for entry in surface.iter().copied() {
         match entry {
             SelectedConstructionEntry::Structural => {}
             SelectedConstructionEntry::Variant(variant) => {

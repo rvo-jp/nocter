@@ -37,7 +37,7 @@ pub func stdout(): File
 pub func stderr(): File
 
 construct File {
-    pub default func open(path: &str): Self!
+    pub func open(path: &str): Self!
 
     pub func create(path: &str): Self!
 

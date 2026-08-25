@@ -166,12 +166,12 @@ conform Iterator for MutableViewIter<T> {
 
 construct MutableViewIter<T> {
     /// Creates an allocation-free mutable iterator over `view`.
-    pub default func from_view(view: &+[T]): Self
+    pub func from_view(view: &+[T]): Self
 }
 
 construct ViewIter<T> {
     /// Creates an allocation-free readonly iterator over `view`.
-    pub default func from_view(view: &[T]): Self
+    pub func from_view(view: &[T]): Self
 }
 
 conform ExactSizeIterator for ViewIter<T> {}

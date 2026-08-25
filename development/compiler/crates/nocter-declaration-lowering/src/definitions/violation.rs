@@ -9,7 +9,6 @@ pub enum DefinitionRule {
     ConstantTypeMismatch,
     ConstantCycle,
     ConstantArithmeticFailure,
-    DuplicateConstructionDefault,
     UnknownResultProvenanceOrigin,
     DuplicateResultProvenanceOrigin,
     AmbiguousBodylessResultProvenance,
@@ -19,13 +18,12 @@ pub enum DefinitionRule {
 }
 
 impl DefinitionRule {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 11] = [
         Self::InvalidConstantType,
         Self::NonConstantExpression,
         Self::ConstantTypeMismatch,
         Self::ConstantCycle,
         Self::ConstantArithmeticFailure,
-        Self::DuplicateConstructionDefault,
         Self::UnknownResultProvenanceOrigin,
         Self::DuplicateResultProvenanceOrigin,
         Self::AmbiguousBodylessResultProvenance,
@@ -42,7 +40,6 @@ impl DefinitionRule {
             Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
             Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.code(),
             Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
-            Self::DuplicateConstructionDefault => "E0314",
             Self::UnknownResultProvenanceOrigin => "E0315",
             Self::DuplicateResultProvenanceOrigin => "E0316",
             Self::AmbiguousBodylessResultProvenance => "E0317",
@@ -62,9 +59,6 @@ impl DefinitionRule {
             Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.message(),
             Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.message(),
             Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.message(),
-            Self::DuplicateConstructionDefault => {
-                "construction surface declares more than one default member"
-            }
             Self::UnknownResultProvenanceOrigin => {
                 "result provenance names no receiver or parameter of this callable"
             }
@@ -92,9 +86,6 @@ impl DefinitionRule {
             Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.help(),
             Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.help(),
             Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.help(),
-            Self::DuplicateConstructionDefault => {
-                "remove one default modifier so the construction surface has at most one default"
-            }
             Self::UnknownResultProvenanceOrigin => {
                 "name self, a parameter of this callable, or static"
             }
@@ -115,7 +106,6 @@ impl DefinitionRule {
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::DuplicateConstructionDefault => Some("the first default member is marked here"),
             Self::DuplicateResultProvenanceOrigin => Some("the first origin is named here"),
             Self::DuplicateAssociatedTypeBinding => {
                 Some("the first associated type binding is declared here")

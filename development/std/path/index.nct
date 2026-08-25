@@ -8,7 +8,7 @@ see ./utf8_path.nct
 pub struct Utf8Path
 
 construct Utf8Path {
-    pub default func new(value: &str): Self!
+    pub func new(value: &str): Self!
 }
 
 instance Utf8Path {

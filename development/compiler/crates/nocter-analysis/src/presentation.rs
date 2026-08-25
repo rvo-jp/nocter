@@ -1,8 +1,7 @@
 use std::fmt::{self, Write};
 
 use nocter_checking::{
-    CheckedPredicate, CheckedProgram, GenericArguments, LocalBindingKind,
-    RequiredConformanceMethod, SelectedConstructionEntry, SelectedConstructionSurface,
+    CheckedPredicate, CheckedProgram, GenericArguments, LocalBindingKind, RequiredConformanceMethod,
 };
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, ExportedEntity,
@@ -29,8 +28,8 @@ pub struct SemanticPresentation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PresentationError {
     InvalidEntity(SemanticEntity),
-    InvalidConstruction(nocter_model::NominalTypeId),
-    ConstructionSurface(nocter_checking::ConstructionSurfaceSelectionError),
+    InvalidNominalPresentation(nocter_model::NominalTypeId),
+    SourceVisibility(nocter_checking::SourceVisibilityError),
 }
 
 impl fmt::Display for PresentationError {
@@ -39,13 +38,13 @@ impl fmt::Display for PresentationError {
             Self::InvalidEntity(entity) => {
                 write!(formatter, "cannot render semantic entity {entity:?}")
             }
-            Self::InvalidConstruction(nominal) => {
+            Self::InvalidNominalPresentation(nominal) => {
                 write!(
                     formatter,
-                    "cannot render construction surface for {nominal:?}"
+                    "cannot render nominal hover presentation for {nominal:?}"
                 )
             }
-            Self::ConstructionSurface(error) => error.fmt(formatter),
+            Self::SourceVisibility(error) => error.fmt(formatter),
         }
     }
 }
@@ -53,15 +52,15 @@ impl fmt::Display for PresentationError {
 impl std::error::Error for PresentationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::ConstructionSurface(error) => Some(error),
-            Self::InvalidEntity(_) | Self::InvalidConstruction(_) => None,
+            Self::SourceVisibility(error) => Some(error),
+            Self::InvalidEntity(_) | Self::InvalidNominalPresentation(_) => None,
         }
     }
 }
 
-impl From<nocter_checking::ConstructionSurfaceSelectionError> for PresentationError {
-    fn from(error: nocter_checking::ConstructionSurfaceSelectionError) -> Self {
-        Self::ConstructionSurface(error)
+impl From<nocter_checking::SourceVisibilityError> for PresentationError {
+    fn from(error: nocter_checking::SourceVisibilityError) -> Self {
+        Self::SourceVisibility(error)
     }
 }
 
@@ -121,17 +120,15 @@ pub(super) fn hover_presentation(
     let graph = checked.graph();
     let spellings =
         visible_spelling::VisibleSpellings::for_source(graph, from, source_index, source);
+    let source_access = checked.source_access_context(source)?;
     let mut renderer = Renderer::new(graph, checked.types(), &spellings);
     renderer
         .entity(Some(checked), entity)
         .ok_or(PresentationError::InvalidEntity(entity))?;
     if let SemanticEntity::NominalType(nominal) = entity {
-        let surface = checked
-            .construction_surfaces()
-            .public_surface(graph, nominal, from)?;
         renderer
-            .nominal_construction_surface(nominal, &surface)
-            .ok_or(PresentationError::InvalidConstruction(nominal))?;
+            .nominal_hover_shape(nominal, source_access)?
+            .ok_or(PresentationError::InvalidNominalPresentation(nominal))?;
     }
     Ok(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -495,11 +492,6 @@ impl<'a> Renderer<'a> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(id)?;
         self.visibility(callable.site())?;
-        if let CallableOwner::Construction(owner) = callable.owner()
-            && declarations.constructions().get(owner)?.default_member() == Some(id)
-        {
-            self.output.push_str("default ");
-        }
         if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
             self.output.push_str("default ");
         }
@@ -672,110 +664,77 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
-    fn nominal_construction_surface(
+    fn nominal_hover_shape(
         &mut self,
         nominal: nocter_model::NominalTypeId,
-        surface: &SelectedConstructionSurface,
-    ) -> Option<()> {
+        from: nocter_checking::SourceAccessContext<'_>,
+    ) -> Result<Option<()>, nocter_checking::SourceVisibilityError> {
         let declarations = self.graph.declarations();
-        let nominal_declaration = declarations.nominal_types().get(nominal)?;
-        let structural = surface
-            .entries()
-            .contains(&SelectedConstructionEntry::Structural);
-        let has_variants = surface
-            .entries()
-            .iter()
-            .any(|entry| matches!(entry, SelectedConstructionEntry::Variant(_)));
-        if structural {
-            let NominalShape::Struct { fields, .. } = nominal_declaration.shape() else {
-                return None;
-            };
-            self.output.push_str(" {\n");
-            for field in fields.iter().copied() {
-                let declaration = declarations.fields().get(field)?;
-                self.output.push_str("    ");
-                self.visibility(declaration.site())?;
-                self.output.push_str(self.symbol(declaration.name())?);
-                self.output.push_str(": ");
-                self.ty(declaration.ty())?;
-                self.output.push('\n');
-            }
-            self.output.push('}');
-        } else if has_variants {
-            self.output.push_str(" {\n");
-            for entry in surface.entries() {
-                let SelectedConstructionEntry::Variant(variant) = *entry else {
-                    continue;
-                };
-                let declaration = declarations.variants().get(variant)?;
-                self.output.push_str("    ");
-                self.output.push_str(self.symbol(declaration.name())?);
-                if !declaration.payload().is_empty() {
-                    self.parameters(declaration.payload())?;
-                }
-                self.output.push('\n');
-            }
-            self.output.push('}');
-        }
-
-        let Some(construction_id) = surface.declaration() else {
-            return Some(());
+        let Some(nominal_declaration) = declarations.nominal_types().get(nominal) else {
+            return Ok(None);
         };
-        let construction = declarations.constructions().get(construction_id)?;
-        self.output.push_str("\n\nconstruct ");
-        self.declaration_type_pattern(construction.target())?;
-        self.output.push_str(" {");
-        let has_members = surface
-            .entries()
-            .iter()
-            .any(|entry| matches!(entry, SelectedConstructionEntry::Callable(_)));
-        if !has_members {
-            self.output.push('}');
-            return Some(());
+        if !from.representation_is_visible(nominal)? {
+            return Ok(Some(()));
         }
-        self.self_type = Some(construction.target());
-        for (index, entry) in surface.entries().iter().enumerate() {
-            let SelectedConstructionEntry::Callable(member) = *entry else {
-                continue;
-            };
-            self.output.push_str("\n    ");
-            self.construction_member(member, surface.is_default(index))?;
-        }
-        self.self_type = None;
-        self.output.push_str("\n}");
-        Some(())
-    }
-
-    fn construction_member(
-        &mut self,
-        id: nocter_model::CallableId,
-        is_default: bool,
-    ) -> Option<()> {
-        let callable = self.graph.declarations().callables().get(id)?;
-        self.visibility(callable.site())?;
-        if is_default {
-            self.output.push_str("default ");
-        }
-        match callable.kind() {
-            CallableKind::ConstructionFunction => {
-                self.output.push_str("func ");
-                self.output.push_str(self.symbol(callable.name()?)?);
+        match nominal_declaration.shape() {
+            NominalShape::Struct { fields, .. } => {
+                let mut field_declarations = Vec::with_capacity(fields.len());
+                for field in fields.iter().copied() {
+                    let Some(declaration) = declarations.fields().get(field) else {
+                        return Ok(None);
+                    };
+                    if !from.site_is_visible(self.graph, declaration.site())? {
+                        return Ok(Some(()));
+                    }
+                    field_declarations.push(declaration);
+                }
+                self.output.push_str(" {\n");
+                for declaration in field_declarations {
+                    self.output.push_str("    ");
+                    if self.visibility(declaration.site()).is_none() {
+                        return Ok(None);
+                    }
+                    let Some(name) = self.symbol(declaration.name()) else {
+                        return Ok(None);
+                    };
+                    self.output.push_str(name);
+                    self.output.push_str(": ");
+                    if self.ty(declaration.ty()).is_none() {
+                        return Ok(None);
+                    }
+                    self.output.push('\n');
+                }
+                self.output.push('}');
             }
-            CallableKind::Literal(shape) => {
-                self.output.push_str("literal ");
-                self.output.push_str(match shape {
-                    nocter_declarations::LiteralShape::Sequence => "[]",
-                    nocter_declarations::LiteralShape::String => "\"\"",
-                });
+            NominalShape::Enum { variants } => {
+                let mut variant_declarations = Vec::with_capacity(variants.len());
+                for variant in variants.iter().copied() {
+                    let Some(declaration) = declarations.variants().get(variant) else {
+                        return Ok(None);
+                    };
+                    if !from.site_is_visible(self.graph, declaration.site())? {
+                        return Ok(Some(()));
+                    }
+                    variant_declarations.push(declaration);
+                }
+                self.output.push_str(" {\n");
+                for declaration in variant_declarations {
+                    self.output.push_str("    ");
+                    let Some(name) = self.symbol(declaration.name()) else {
+                        return Ok(None);
+                    };
+                    self.output.push_str(name);
+                    if !declaration.payload().is_empty()
+                        && self.parameters(declaration.payload()).is_none()
+                    {
+                        return Ok(None);
+                    }
+                    self.output.push('\n');
+                }
+                self.output.push('}');
             }
-            _ => return None,
         }
-        self.generic_parameters(callable.generic_parameters())?;
-        self.parameters(callable.parameters())?;
-        self.output.push_str(": ");
-        self.ty(callable.result())?;
-        self.provenance(callable)?;
-        self.requirements(callable.requirements())
+        Ok(Some(()))
     }
 
     fn operator(&mut self, callable: &nocter_declarations::CallableDeclaration) -> Option<()> {
@@ -1326,31 +1285,6 @@ impl<'a> Renderer<'a> {
         }
         self.output.push_str(self.symbol(fallback)?);
         Some(())
-    }
-
-    fn declaration_pattern_name(&mut self, entity: ExportedEntity, fallback: Symbol) -> Option<()> {
-        if let Some([name]) = self.spellings.get(entity) {
-            self.output.push_str(self.graph.symbols().spelling(*name)?);
-        } else {
-            self.output.push_str(self.symbol(fallback)?);
-        }
-        Some(())
-    }
-
-    fn declaration_type_pattern(&mut self, ty: TypeId) -> Option<()> {
-        let TypeKind::Nominal {
-            definition,
-            arguments,
-        } = self.types.get(ty)?
-        else {
-            return None;
-        };
-        let declaration = self.graph.declarations().nominal_types().get(*definition)?;
-        self.declaration_pattern_name(
-            ExportedEntity::NominalType(*definition),
-            declaration.name(),
-        )?;
-        self.type_arguments(arguments)
     }
 
     fn visible_name(&mut self, entity: ExportedEntity) -> Option<bool> {

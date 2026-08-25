@@ -13,9 +13,9 @@ implementation sources or reading package plumbing.
 
 The root owns documentation, required signature imports, re-exports, public data representation,
 opaque nominal contracts, bodyless public callable contracts, interface requirements, explicit
-default contracts, construction selection, instance-operation contracts, and public conformance
-heads with their associated type bindings. Required conformance method signatures remain solely in
-their interface.
+interface default contracts, construction contracts, instance-operation contracts, and public
+conformance heads with their associated type bindings. Required conformance method signatures
+remain solely in their interface.
 
 A package-only subsystem that does not require another module's private representation owns an
 explicit module below `std/internal`. No implementation source may add restricted-visible

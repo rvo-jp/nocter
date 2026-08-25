@@ -1195,7 +1195,7 @@ mod tests {
             concat!(
                 "pub struct Widget {\n    pub value: i32\n}\n\n",
                 "construct Widget {\n",
-                "    pub default func new(): Self { return Widget { value: 1 } }\n",
+                "    pub func new(): Self { return Widget { value: 1 } }\n",
                 "}\n",
             ),
         )

@@ -117,20 +117,19 @@ intrinsic `copy` requirements, callable `where` clauses, and source-visible resu
 supplied by analysis. Compiler-owned execution allocation and
 fresh-result storage do not appear as signature prose.
 
-Declaration owners are shown when they disambiguate a member. Construction hover presents the
-type-owned public construction surface, including its default entry. Raw private construction and
-inaccessible members are absent.
+Declaration owners are shown when they disambiguate a member. Type hover presents the nominal type
+declaration and its documentation; it does not append the type's construction functions or typed
+literals. A struct body is shown only when the complete representation and every field are visible
+at the requesting source. Otherwise the presentation is the declaration head. An enum body is
+shown only when the representation and every variant are visible at the requesting source;
+otherwise it also remains header-only. This nominal presentation is independent of the presence
+or contents of a `construct` declaration.
 
-When type hover expands a construction surface, it uses Nocter declaration syntax rather than an
-invented surface language. An accessible structural entry is represented by the nominal `struct`
-declaration with every required visible field. Intrinsic enum entries are represented by the
-nominal `enum` declaration with its visible variants. An authored surface is represented by a
-bodyless `construct Type { ... }` declaration;
-its members remain unqualified inside the block, use `Self` in their result contracts, preserve
-declaration order, and retain the explicit `default` modifier. The compiler does not invent a
-`fields` declaration, revive removed top-level literal or qualified-function forms, or include
-member bodies. A struct whose structural entry is unavailable remains a header-only type
-presentation unless it has another visible construction entry.
+Construction-function, typed-literal, field, and variant hover presents the selected declaration
+itself. `Type.` completion exposes accessible named construction functions and enum variants;
+typed-literal syntax, signature help, go-to-definition, and the public `index.nct` contract expose
+the remaining construction API. The compiler does not reconstruct a documentation-only
+construction surface for type hover.
 
 Associated type hover uses the interface-owned declaration identity. A declaration or projection
 is shown as `associated type Interface.Name`; a conformance binding is shown as
@@ -155,9 +154,9 @@ The v0.14.0 compiler-owned keyword set is deliberately contextual and closed:
 Ordinary unconditional keyword lists and snippets are lexical editor conveniences, not semantic
 completion results. This avoids presenting `break`, `continue`, visibility, or declaration forms in
 grammar contexts where they cannot be used.
-Construction completion uses the use-site construction view, not hover's public-presentation view,
-so private construction remains available in its authored source and direct seers without
-leaking to unrelated sources in the same module.
+Construction completion uses the use-site construction view, so private construction remains
+available in its authored source and direct seers without leaking to unrelated sources in the same
+module.
 After a construction owner followed by `.`, completion offers only named entries expressible in
 that position: accessible enum variants and construction functions. Structural construction and
 typed literals use their own delimiters and are not invented as dot members. Explicit generic

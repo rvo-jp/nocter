@@ -88,7 +88,7 @@ func ends_with(text: &str, suffix: &str): bool {
 }
 
 construct SplitIter {
-    default func new(
+    func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator {
@@ -131,7 +131,7 @@ conform Iterator for SplitIter {
 }
 
 construct LinesIter {
-    default func new(text: &str): Self {
+    func new(text: &str): Self {
         return LinesIter {
             text: text,
             next_start: 0,

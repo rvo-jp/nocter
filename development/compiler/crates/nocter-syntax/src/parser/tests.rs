@@ -460,7 +460,7 @@ fn interface_members_require_bare_public_visibility() {
 #[test]
 fn parses_construction_functions_and_both_literal_shapes() {
     let tree = assert_syntax_ok(
-        "construct Vec<T> {\n    pub default literal [](...items: T): Self {}\n    pub literal \"\"(text: &str): Self\n    pub func with_capacity(capacity: usize): Self {}\n}\n",
+        "construct Vec<T> {\n    pub literal [](...items: T): Self {}\n    pub literal \"\"(text: &str): Self\n    pub func with_capacity(capacity: usize): Self {}\n}\n",
         ParseGoal::SourceFile,
     );
 
@@ -481,15 +481,21 @@ fn callable_argument_packs_and_call_spreads_share_the_general_expression_grammar
 }
 
 #[test]
-fn construction_visibility_and_defaults_remain_semantic() {
+fn construction_visibility_remains_semantic() {
     assert_syntax_ok(
         "construct Value { func new(): Self {} }\n",
         ParseGoal::SourceFile,
     );
-    assert_syntax_ok(
-        "construct Value { pub default func first(): Self {}\npub default func second(): Self {} }\nconstruct External {}\n",
-        ParseGoal::SourceFile,
-    );
+}
+
+#[test]
+fn rejects_construction_default_and_empty_surfaces() {
+    for source in [
+        "construct Value { pub default func new(): Self {} }\n",
+        "construct Value {}\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
+    }
 }
 
 #[test]

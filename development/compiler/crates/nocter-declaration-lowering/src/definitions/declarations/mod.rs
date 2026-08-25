@@ -363,37 +363,11 @@ fn define_construction(
     id: nocter_model::ConstructionId,
 ) -> Result<(), HeaderDefinitionError> {
     let members = child_callables(types, declaration);
-    let mut default = None;
-    let mut default_origin = None;
-    for child in child_surfaces(types, declaration) {
-        if !matches!(
-            surface_kind(types, child)?,
-            SurfaceDeclarationKind::ConstructionFunction | SurfaceDeclarationKind::Literal
-        ) {
-            continue;
-        }
-        let Some(default_token) = target::contextual_word(types, child, "default")? else {
-            continue;
-        };
-        let Some(ReservedEntity::Callable(member)) = entity(types, child) else {
-            return Err(HeaderDefinitionError::InvalidSurface(child));
-        };
-        if let Some(first) = default_origin.replace(default_token) {
-            return Err(DefinitionViolation::duplicate(
-                DefinitionRule::DuplicateConstructionDefault,
-                SyntaxOrigin::Token(first),
-                SyntaxOrigin::Token(default_token),
-            )
-            .into());
-        }
-        default = Some(member);
-    }
     let definition = ConstructionDeclaration::new(
         site(types, declaration)?,
         pattern_type(types, declaration, 0)?,
         own_generics(types, declaration),
         members,
-        default,
     );
     types
         .namespaces

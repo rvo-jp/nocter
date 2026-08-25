@@ -665,7 +665,7 @@ not filter declarations or reinterpret target strings.
 
 Before allocating declaration IDs, contract joining compares canonical header token sequences. It
 excludes visibility, bodies, and newlines while retaining names, owner patterns, generic
-requirements, parameter names and types, results, authored provenance, and construction `default`.
+requirements, parameter names and types, results, and authored provenance.
 One eligible public bodyless root callable must match exactly one private implementation body.
 Source-defined operators use the same callable rule. Conformance definitions instead join once by
 their exact interface, target, generic, and requirement header; their method bodies remain owned by
@@ -674,9 +674,9 @@ representation pass matches each public opaque struct or enum contract to one pr
 representation. The definition occurrence and its implementation container map to the public
 representative; private members in that container retain their own identities under the shared
 owner. Header definition enumerates only canonical child representatives, so a modifier repeated
-by a matching implementation—such as construction `default`—cannot be counted as a second semantic
-member. Missing, mismatched, and duplicate definitions fail before reservation. Later stages never
-merge already-distinct semantic IDs or search for a representation by name.
+by a matching implementation cannot be counted as a second semantic member. Missing, mismatched,
+and duplicate definitions fail before reservation. Later stages never merge already-distinct
+semantic IDs or search for a representation by name.
 
 One production declaration-lowering facade owns the pass sequence: surface collection, declaration-
 contract joining, identity reservation, header preparation, generic preparation, authored imports,
@@ -758,6 +758,13 @@ private field, method, operator, coercion, variant, and raw structural-construct
 `SourceIndex`. The explicit representation entry is required for empty opaque structs, where no
 field declaration exists from which a consumer could infer the private source boundary.
 
+Checking exposes this authority to semantic analysis only through an immutable
+`SourceAccessContext` for one exact source. Its declaration-site query combines ordinary module
+visibility with direct-source private access; its representation query combines direct-source
+access with the explicit opaque-contract bit. Body checking, construction selection, completion,
+and nominal hover consume those queries. Analysis cannot inspect the table or independently infer
+private access from a module ID.
+
 Import preparation retains the exact module-path node for every semantic module import. Prelude
 composition consumes that retained origin instead of reading the syntax tree again. An authored
 import of the compiler-selected standard prelude is therefore the shared import rule `E0262`, while
@@ -813,10 +820,10 @@ are stored as declarations, while elided body-owned provenance remains explicitl
 than being guessed from a header.
 
 Rule selection at this final syntax-consuming boundary retains exact subjects for declaration
-facts that do not exist in canonical type identity: construction `default` markers, declaration
-provenance origins, the result type of an ambiguous bodyless callable, and conformance associated-
-type binding names. These rules project as `E0314`-`E0319`. Duplicate rules store both authored
-tokens when the second occurrence is observed. `HeaderDefinitionError` separately carries
+facts that do not exist in canonical type identity: declaration provenance origins, the result type
+of an ambiguous bodyless callable, and conformance associated-type binding names. These rules
+project as `E0315`-`E0319`. Duplicate rules store both authored tokens when the second occurrence
+is observed. `HeaderDefinitionError` separately carries
 malformed normalized state and program-builder failures; the production facade cannot expose those
 failures through the source-diagnostic variant.
 

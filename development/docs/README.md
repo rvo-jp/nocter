@@ -18,6 +18,8 @@ and standard-library behavior belongs exclusively in
 - [Maintenance](maintenance.md)
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
+- [v0.18.0 Construction Surface Simplification](../milestones/v0.18.0.md)
+- [v0.18.0 Phase 0 Construction Review](../reviews/v0.18.0-phase-0.md)
 - [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
 - [v0.17.0 Release Preparation](../milestones/v0.17.0-release-preparation.md)
 - [v0.17.0 Publication and Audit](../releases/v0.17.0.md)
@@ -46,6 +48,7 @@ language behavior. Git history and published release records preserve chronology
 | Declaration validation authority, diagnostic cardinality, and lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
 | Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
+| Active v0.18.0 construction-surface contract and completion gate | `../milestones/v0.18.0.md` |
 | Completed v0.17.0 scope and release qualification | `../milestones/v0.17.0.md` and `../milestones/v0.17.0-release-preparation.md` |
 | Grammar-gate inventory and closure progress | `grammar-audit.md` |
 | Parser test derivation from the grammar | `grammar-conformance.md` |

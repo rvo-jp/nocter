@@ -885,7 +885,7 @@ mod tests {
     }
 
     #[test]
-    fn type_hover_uses_the_visible_compiler_owned_construction_surface() {
+    fn type_hover_is_independent_of_the_construction_surface() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
         let uri = format!("file://{}", source.display());
@@ -896,7 +896,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let opened = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"pub struct Widget<T> {{\\n    pub visible: T\\n    hidden: T\\n}}\\n\\nconstruct Widget<T> {{\\n    pub func alternate(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n    pub default func new(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n}}\\n\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"pub struct Widget<T> {{\\n    pub visible: T\\n    pub hidden: T\\n}}\\n\\nconstruct Widget<T> {{\\n    pub func alternate(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n    pub func new(visible: T, hidden: T): Self {{ return Self {{ visible: move visible, hidden: move hidden }} }}\\n}}\\n\\nfunc main(): void {{ return }}\\n\"}}}}}}"
         ));
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
@@ -911,20 +911,18 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains(concat!(
-                "pub struct Widget<T>\\n\\nconstruct Widget<T> {\\n",
-                "    pub func alternate(visible: T, hidden: T): Self\\n",
-                "    pub default func new(visible: T, hidden: T): Self\\n}"
-            )),
+            response
+                .contains("pub struct Widget<T> {\\n    pub visible: T\\n    pub hidden: T\\n}"),
             "{response}"
         );
-        assert!(!response.contains("\\n    pub visible: T"), "{response}");
-        assert!(!response.contains("\\n    hidden: T"), "{response}");
+        assert!(!response.contains("construct Widget"), "{response}");
+        assert!(!response.contains("func alternate"), "{response}");
+        assert!(!response.contains("func new"), "{response}");
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 
     #[test]
-    fn type_hover_presents_structural_and_variant_construction_in_valid_syntax() {
+    fn type_hover_presents_complete_visible_nominal_shapes() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
         let uri = format!("file://{}", source.display());
@@ -956,11 +954,9 @@ mod tests {
         ));
         let response = sealed.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub struct Sealed\\n```"),
+            response.contains("pub struct Sealed {\\n    pub visible: i32\\n    hidden: i32\\n}"),
             "{response}"
         );
-        assert!(!response.contains("visible: i32"), "{response}");
-
         let choice = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":10,\"character\":11}}}}}}"
         ));
@@ -973,7 +969,56 @@ mod tests {
     }
 
     #[test]
-    fn type_hover_uses_the_shortest_visible_import_alias() {
+    fn type_hover_does_not_expose_an_opaque_representation() {
+        let temporary = TemporaryDirectory::new();
+        let widgets = temporary.path().join("widgets");
+        fs::create_dir(&widgets).unwrap();
+        fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"hover-opaque\", version: \"0.1.0\", }\n#executable: {\n    name: \"hover-opaque\",\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            widgets.join("index.nct"),
+            "see ./representation.nct\n\npub struct Widget\n",
+        )
+        .unwrap();
+        fs::write(
+            widgets.join("representation.nct"),
+            "see ./index.nct\n\nstruct Widget {\n    visible: i32\n    hidden: i32\n}\n",
+        )
+        .unwrap();
+        let source = temporary.path().join("app.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use ./widgets.Widget\\n\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":16}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct Widget\\n"), "{response}");
+        assert!(!response.contains("visible: i32"), "{response}");
+        assert!(!response.contains("hidden: i32"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
+    #[test]
+    fn type_hover_keeps_the_authored_nominal_identity() {
         let temporary = TemporaryDirectory::new();
         let widgets = temporary.path().join("widgets");
         fs::create_dir(&widgets).unwrap();
@@ -984,7 +1029,7 @@ mod tests {
         .unwrap();
         fs::write(
             widgets.join("index.nct"),
-            "pub struct Widget {\n    pub value: i32\n}\n\nconstruct Widget {\n    pub default func new(): Self { return Widget { value: 1 } }\n}\n",
+            "pub struct Widget {\n    pub value: i32\n}\n\nconstruct Widget {\n    pub func new(): Self { return Widget { value: 1 } }\n}\n",
         )
         .unwrap();
         let source = temporary.path().join("app.nct");
@@ -1011,7 +1056,9 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(response.contains("pub struct Widget"), "{response}");
-        assert!(response.contains("construct LocalWidget {"), "{response}");
+        assert!(response.contains("pub value: i32"), "{response}");
+        assert!(!response.contains("construct"), "{response}");
+        assert!(!response.contains("LocalWidget"), "{response}");
         assert!(!response.contains("widgets.Widget"), "{response}");
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }

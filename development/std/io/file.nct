@@ -140,7 +140,7 @@ func stderr(): File {
 }
 
 construct File {
-    default func open(path: &str): Self! {
+    func open(path: &str): Self! {
         let fd = open_read_fd(path)?
         return File { fd: fd, close_on_drop: true }
     }

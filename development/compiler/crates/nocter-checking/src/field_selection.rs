@@ -83,7 +83,7 @@ pub(crate) fn select_field(
         .fields()
         .get(field)
         .ok_or(FieldSelectionError::UnknownField(field))?;
-    let visible = match crate::source_visibility::site_is_visible(graph, declaration.site(), from) {
+    let visible = match from.site_is_visible(graph, declaration.site()) {
         Ok(visible) => visible,
         Err(crate::source_visibility::SourceVisibilityError::MissingSite(_)) => {
             return Err(FieldSelectionError::UnknownFieldSite(field));
@@ -135,7 +135,7 @@ pub(crate) fn select_structural_field(
     if declaration.owner() != owner {
         return Err(FieldSelectionError::UnknownField(field));
     }
-    let visible = match crate::source_visibility::site_is_visible(graph, declaration.site(), from) {
+    let visible = match from.site_is_visible(graph, declaration.site()) {
         Ok(visible) => visible,
         Err(crate::source_visibility::SourceVisibilityError::MissingSite(_)) => {
             return Err(FieldSelectionError::UnknownFieldSite(field));

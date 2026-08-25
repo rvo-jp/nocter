@@ -57,7 +57,7 @@ construction surface:
 
 ```nct
 construct error {
-    pub default func new(code: &str, message: &str): Self {
+    pub func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }

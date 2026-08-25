@@ -35,7 +35,7 @@ pub interface Source<T> where copy T {
 }
 
 construct Box<T> {
-    pub default func new(value: T): Self { return }
+    pub func new(value: T): Self { return }
     pub literal [](...items: T): Self from items { return }
     pub literal ""(text: &str): Self from text { return }
 }
@@ -556,12 +556,6 @@ fn rejects_invalid_constant_contracts_without_runtime_fallback() {
 fn definition_rules_retain_exact_authored_subjects() {
     let cases = [
         (
-            "struct Value {}\nconstruct Value {\n    pub default func first(): Self {}\n    pub default func second(): Self {}\n}\n",
-            DefinitionRule::DuplicateConstructionDefault,
-            "default func second",
-            Some("default func first"),
-        ),
-        (
             "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
             DefinitionRule::UnknownResultProvenanceOrigin,
             "missing",
@@ -828,7 +822,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "see ./record.nct\n",
             "pub struct Box<T>\n",
             "construct Box<T> {\n",
-            "    pub default func new(value: T): Self\n",
+            "    pub func new(value: T): Self\n",
             "}\n",
             "instance Box<T> {\n",
             "    pub operator (&self == other: &Self): bool\n",
@@ -846,7 +840,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "see ./index.nct\n",
             "struct Box<T> { value: T }\n",
             "construct Box<T> {\n",
-            "    default func new(value: T): Self { return Box<T> { value: value } }\n",
+            "    func new(value: T): Self { return Box<T> { value: value } }\n",
             "    func hidden(value: T): Self { return Box<T> { value: value } }\n",
             "}\n",
             "instance Box<T> {\n",

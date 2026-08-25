@@ -118,7 +118,6 @@ fn select_enum_pattern_completions(
 ) -> Result<Box<[EnumPatternCompletionCandidate]>, EnumPatternCompletionError> {
     surfaces
         .accessible_surface(graph, definition, access)?
-        .entries()
         .iter()
         .filter_map(|entry| match entry {
             SelectedConstructionEntry::Variant(variant) => Some(*variant),

@@ -37,7 +37,7 @@ pub(/) func empty_page_buffer(align: usize): RawBuffer
 pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
 construct Layout {
-    pub default func new(size: usize, align: usize): Self!
+    pub func new(size: usize, align: usize): Self!
 }
 
 pub func try_alloc_layout(

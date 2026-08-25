@@ -849,8 +849,8 @@ Rules:
 - Construction entries cannot be overloaded.
 - Field default values, struct update syntax, positional structs, and tuple structs are not supported.
 - A `construct` declaration groups type-owned construction functions and typed literals. Each
-  member has its own visibility, and the declaration may make structural construction
-  source-private. See [Construction Surfaces](19-construction-surfaces.md).
+  member has its own visibility. The declaration does not change structural construction
+  visibility. See [Construction Surfaces](19-construction-surfaces.md).
 - Names such as `new`, `init`, and `create` are ordinary construction-function names when declared
   inside `construct`. The compiler does not special-case them.
 
@@ -859,7 +859,7 @@ type's `construct` declaration.
 
 ```nct
 construct User {
-    pub default func create(id: u64, name: String): Self {
+    pub func create(id: u64, name: String): Self {
         return User {
             id: id,
             name: move name,

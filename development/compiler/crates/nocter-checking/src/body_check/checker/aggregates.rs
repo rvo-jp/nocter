@@ -94,7 +94,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<Vec<StructFieldDraft>, BodyCheckError> {
         let structural_fields = self
             .construction_surfaces
-            .structural_fields(self.graph, definition, self.source_access_context())
+            .representation_fields(definition, self.source_access_context())
             .map_err(BodyCheckInternalError::from)?;
         let Some(declared_fields) = structural_fields.map(<[nocter_model::FieldId]>::to_vec) else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);

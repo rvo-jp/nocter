@@ -43,7 +43,7 @@ those results.
 | G006 | functions, primitives, aliases, parameters, callable tails, provenance | `func choose<T>(left: &T, right: &T): &T from left | right` | a function without `: Result` | an ineligible bodyless private function |
 | G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) missing }` with newline-separated variants | comma-separated struct fields | an empty enum body |
 | G008 | interfaces and associated declarations | `interface Source { pub type Item pub method &+self.next(): Self.Item? }` with member newlines | a non-public interface member | a duplicate associated name |
-| G009 | construction declarations, functions, and literals | `construct Vec<T> { default func new(): Self { ... } }` | a bodyless public contract member without visibility | two default members |
+| G009 | construction declarations, functions, and literals | `construct Vec<T> { func new(): Self { ... } }` | an empty construct declaration | a construction member targeting a foreign nominal type |
 | G010 | instances, methods, coercions, and the four operator families | an instance containing a method, coercion, equality, ordering, index, and expansion member | `operator (&self != other: &Self): bool { ... }` | an instance for a type outside its ownership boundary |
 | G011 | conformances and associated bindings | `conform Source for Input { type Item = u8 method &+self.next(): Self.Item? { ... } }` | `pub method` inside a conformance | a method signature that disagrees with the interface |
 | G012 | drop and native test declarations | `drop Buffer(&+self) {}` and `test empty {}` as separate items | visibility on either declaration | drop for a non-owning or foreign type |

@@ -22,7 +22,7 @@ pub struct String
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.
-    pub default literal ""(text: &str): Self
+    pub literal ""(text: &str): Self
 
     pub func empty(): Self
 

@@ -187,8 +187,6 @@ normalization diagnostics do not recover subjects by scanning source or renderin
 
 Source-backed declaration-definition diagnostics:
 
-- `E0314`: a construction surface marks more than one member as `default`. The later `default`
-  token is primary and the first is related.
 - `E0315`: a callable declaration result-provenance clause names neither its receiver nor one of
   its parameters, and does not name `static`.
 - `E0316`: a callable declaration result-provenance clause repeats an origin. The later origin is

@@ -5,7 +5,7 @@ pub(super) fn declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Construct);
     types::declaration_type_pattern(parser);
-    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, member);
+    parser.braced_nonempty_line_sequence(ExpectedSyntax::DeclarationMember, member);
     parser.complete(marker, NodeKind::ConstructDeclaration);
 }
 
@@ -14,10 +14,6 @@ fn member(parser: &mut Parser<'_>) {
     if parser.at_keyword(Keyword::Pub) {
         root::visibility(parser);
     }
-    if parser.at_identifier_text("default") {
-        parser.bump();
-    }
-
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Func) => {
             construction_function(parser);

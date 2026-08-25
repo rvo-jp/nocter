@@ -11,7 +11,7 @@ use /mem.{TryAllocator, current_allocator, empty_page_buffer}
 use /ptr.addr
 
 construct Vec<T> {
-    default literal [](...items: T): Self {
+    literal [](...items: T): Self {
         let item_count: usize = items.len()
         if item_count == 0 {
             return Vec.empty()

@@ -441,18 +441,18 @@ fn coercion_bodies_use_the_same_contract_joining_rule() {
 }
 
 #[test]
-fn construction_body_omits_visibility_but_repeats_default_and_keeps_one_identity() {
+fn construction_body_omits_visibility_and_keeps_one_identity() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "see ./value.nct\n\nstruct Value { value: usize }\n\nconstruct Value {\n    pub default func new(): Self\n}\n",
+        "see ./value.nct\n\nstruct Value { value: usize }\n\nconstruct Value {\n    pub func new(): Self\n}\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/value.nct",
-        "see ./index.nct\n\nconstruct Value {\n    default func new(): Self { Value { value: 0 } }\n}\n",
+        "see ./index.nct\n\nconstruct Value {\n    func new(): Self { Value { value: 0 } }\n}\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);

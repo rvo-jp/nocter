@@ -10,6 +10,16 @@ SourceFile
   Item
     ConstructDeclaration
       DeclarationTypePattern
+      ConstructionFunction
+        Parameters
+        CallableTail
+          Type
+            NamedType
+              SelfType
+        Block
+          ExecutableSequence
+            LoopStatement
+              Block
   Item
     InstanceDeclaration
       DeclarationTypePattern

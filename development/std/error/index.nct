@@ -6,7 +6,7 @@
 see ./construction.nct
 
 construct error {
-    pub default func new(code: &str, message: &str): Self
+    pub func new(code: &str, message: &str): Self
 }
 
 instance error {

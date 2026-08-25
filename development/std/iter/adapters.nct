@@ -53,7 +53,7 @@ struct MutableViewIter<T> {
 }
 
 construct ViewIter<T> {
-    default func from_view(view: &[T]): Self {
+    func from_view(view: &[T]): Self {
         return ViewIter<T> {
             view: view,
             next_index: 0,

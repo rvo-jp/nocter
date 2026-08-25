@@ -4,7 +4,7 @@ This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
 This chapter defines the construction-surface model. A construction surface
-groups the public operations that directly create one nominal type so source readers and editor
+groups the operations that directly create one nominal type so source readers and editor
 tooling do not have to discover field literals, typed literals, and construction functions
 independently.
 
@@ -14,7 +14,7 @@ A `construct` declaration belongs to one nominal type in the same module:
 
 ```nct
 construct Vec<T> {
-    pub default literal [](...items: T): Self {
+    pub literal [](...items: T): Self {
         ...
     }
 
@@ -47,10 +47,11 @@ Rules:
 - A nominal type may have at most one `construct` declaration.
 - Every public construction contract member in `index.nct` must carry an explicit non-private
   visibility: `pub(./)`, an ancestor scope, `pub(/)`, or bare `pub`. A matching private definition
-  in a directly seen source omits visibility, repeats the contract's `default` marker when
-  present, and joins that contract under the source body-matching rule; it does not define another
-  construction entry. A private construction surface that is defined entirely within one source
-  does not require `pub`.
+  in a directly seen source omits visibility and joins that contract under the source
+  body-matching rule; it does not define another construction entry. A private construction
+  surface that is defined entirely within one source does not require `pub`.
+- A `construct` declaration contains at least one member. A type with no construction function or
+  typed literal omits the declaration instead of spelling an empty surface.
 - A construction function must produce `Self` as its direct result or as the success/present payload
   of a supported outcome type.
 - A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules
@@ -96,8 +97,8 @@ Rules:
 - Omitted owner arguments are inferred only from ordinary parameter/argument matching, field and
   element matching, and the expected result type.
 - A generic requirement validates an inferred or explicit substitution but never chooses one.
-- Return provenance, allocation context, declaration order, default-entry status, and body contents
-  do not infer owner arguments.
+- Return provenance, allocation context, declaration order, and body contents do not infer owner
+  arguments.
 - If a parameter remains unknown or multiple substitutions remain viable, construction is an error.
 - Nocter does not define default generic arguments.
 
@@ -106,44 +107,23 @@ These rules concern the generic parameters of the constructed owner. In
 `from_iter` itself are inferred and cannot be written at the call site, as specified by
 [Callable Type-Argument Inference](08-generics-interfaces-embedding-methods.md#callable-type-argument-inference).
 
-## Default Construction Entry
+## Structural Construction Independence
 
-At most one member may carry the contextual `default` modifier:
+`construct` does not select a primary entry and does not change whether `Type { ... }` is legal.
+Structural construction is determined only by the nominal representation and field visibility:
 
-```nct
-construct Vec<T> {
-    pub literal [](...items: T): Self {
-        ...
-    }
+- the source that owns a representation and sources that directly see it may initialize its
+  private fields;
+- every other source requires a visible nominal type, a complete non-opaque representation, and
+  visibility of every required field;
+- a bodyless public nominal contract remains structurally opaque even when its private
+  representation has no fields.
 
-    pub default func new(): Self {
-        ...
-    }
-}
-```
-
-`default` identifies the primary construction entry for documentation, completion ordering, and
-type hover. It does not introduce an implicit conversion, change a member's call syntax, or rewrite
-`Type { ... }` into a function or typed-literal call. `default` is contextual inside a `construct`
-member and remains available as an identifier elsewhere.
-
-Without an explicit default member, an externally accessible named-field struct literal is the
-implicit default. Its availability continues to follow field visibility. If that structural form
-is not externally accessible and the construct declaration exposes members, one member must be
-marked `default`.
-
-With an explicit default member, named-field `Type { ... }` construction is restricted to the
-source that owns the representation and sources that directly see it directly, even when every field is
-public. This restriction hides raw initialization, not field access after a value exists. A
-bodyless public nominal contract also seals an empty private representation; the absence of fields
-does not make `Type {}` public.
-
-An empty construct declaration explicitly states that the type has no direct public construction
-entry:
-
-```nct
-construct RuntimeToken {}
-```
+Authors that must preserve an invariant keep at least one representation field private or expose
+an opaque nominal contract. Named construction functions and typed literals are additional public
+APIs, not switches for raw representation access. A struct whose complete field representation is
+public may therefore expose both `Type { ... }` and named construction functions without an
+indirect modifier.
 
 ## Construction Surface
 
@@ -153,27 +133,19 @@ The effective construction surface of a nominal type contains:
 - typed-literal members
 - associated construction functions
 - enum variants
-- the optional default entry
 
-The compiler owns this surface as resolved type information. Diagnostics, hover, completion,
-signature help, and go-to-definition must query that information rather than scan source text or
-reconstruct a list independently. Entries shown at a use site must respect type and member
-visibility and must use the visible type spelling rather than an internal canonical module path.
+The compiler owns this surface as resolved type information. Body checking and construction-aware
+completion, signature help, and go-to-definition must query that information rather than scan
+source text or reconstruct a list independently. Entries shown at a use site must respect type and
+member visibility and must use the visible type spelling rather than an internal canonical module
+path.
 
-The canonical surface has two derived views. The use-site view contains every entry ordinary source
-may access from the requesting source and module. Private structural construction and private enum
-variants appear only in their authored source and sources that directly see it directly. The
-public-presentation view used by type hover removes raw private construction and private entries
-even when the requesting source can access them. Both views preserve the same semantic entry and
-default identities; they are not separate indexes.
-
-Declaration-shaped hover keeps the nominal declaration head's authored name because that head
-describes the declaration identity rather than a use-site alias. A bodyless `construct` head uses a
-direct one-segment import alias when one resolves to the type. If the type is reachable only through
-a namespace path, that head keeps the defining declaration name because `DeclarationTypePattern`
-does not admit a qualified path. Type references inside member signatures still use the shortest
-complete visible path. Presentation never emits an invalid qualified declaration or an internal
-canonical path.
+The canonical use-site view contains every entry ordinary source may access from the requesting
+source and module. Private entries appear only in their authored source and sources that directly
+see it. Checking, completion, signature help, and go-to-definition consume this view. Type hover
+does not consume or reproduce the construction surface; its nominal declaration presentation is
+defined by
+[Tooling and Editor Integration](14-tooling-editor-integration.md#hover-and-signature-help).
 
 Enum variants are intrinsic construction entries and are not duplicated inside `construct`.
 Interfaces and type aliases do not own construction surfaces. Interfaces are not values. An alias
@@ -187,11 +159,14 @@ The earlier top-level forms place construction behavior outside its owner and ha
 ```nct
 literal Vec<T> [](...items: T): Self { ... }
 pub func Vec.new<T>(): Vec<T> { ... }
+construct Vec<T> { default func new(): Self { ... } }
 ```
 
 The compiler diagnoses a top-level literal directly. Every qualified top-level function is also
 invalid. When its result, present payload, or success payload is the named owner, the diagnostic
 directs it into `construct Vec<T> { ... }`; otherwise it directs the declaration to an unqualified
-module function or a receiver method. Factories for aliases of builtin representations are module
-functions because aliases cannot own construction surfaces. The compiler does not maintain a
-second compatibility AST or silently synthesize a construct declaration.
+module function or a receiver method. A `default` modifier is not part of construct-member syntax;
+construct declarations expose all visible members without selecting a primary entry. Factories for
+aliases of builtin representations are module functions because aliases cannot own construction
+surfaces. The compiler does not maintain a second compatibility AST or silently synthesize a
+construct declaration.

@@ -226,9 +226,8 @@ impl std::error::Error for DeclarationContractError {}
 
 /// Joins eligible public root contracts to exact private implementation bodies.
 ///
-/// Header equality uses canonical token spelling: newlines, visibility, and bodies are excluded;
-/// construction `default` remains part of the contract. No name or type is resolved during this
-/// pass.
+/// Header equality uses canonical token spelling: newlines, visibility, and bodies are excluded.
+/// No name or type is resolved during this pass.
 ///
 /// # Errors
 ///

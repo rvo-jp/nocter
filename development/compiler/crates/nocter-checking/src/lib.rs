@@ -97,10 +97,8 @@ pub use construction_completion::{
     ConstructionCompletionCandidate, ConstructionCompletionError, ConstructionCompletionOwner,
     ConstructionCompletionTarget,
 };
-pub use construction_surfaces::{
-    ConstructionSurfaceBuildError, ConstructionSurfaceSelectionError, ConstructionSurfaceTable,
-    SelectedConstructionEntry, SelectedConstructionSurface,
-};
+pub use construction_surfaces::{ConstructionSurfaceBuildError, ConstructionSurfaceSelectionError};
+pub(crate) use construction_surfaces::{ConstructionSurfaceTable, SelectedConstructionEntry};
 pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,
     CopyabilityTable,
@@ -134,7 +132,7 @@ pub use preparation::{
     prepare_program_checking, prepare_program_checking_recovering,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparationRecovery};
-pub(crate) use source_visibility::SourceAccessContext;
+pub use source_visibility::{SourceAccessContext, SourceVisibilityError};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{
     StructuralFieldCompletionCandidate, StructuralFieldCompletionError,

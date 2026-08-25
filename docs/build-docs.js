@@ -72,7 +72,7 @@ func save_log<W>(output: &+W, events: &[Event]): void! where W: Writer {
 }
 
 construct Session {
-    pub default func start(user: User, clock: &Clock): Self {
+    pub func start(user: User, clock: &Clock): Self {
         return Self {
             id: SessionId.new(),
             user: move user,
@@ -85,8 +85,8 @@ construct Session {
         print(&value as &str)?
     }
 }`,
-    construction: `construct NonEmptyList<T> {
-    pub default literal [](...items: T): Self from items {
+construction: `construct NonEmptyList<T> {
+    pub literal [](...items: T): Self from items {
         var list = Self.new()
 
         for item in items {

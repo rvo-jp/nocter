@@ -427,12 +427,35 @@ impl<'source> Parser<'source> {
         expected_element: ExpectedSyntax,
         parse_element: fn(&mut Self),
     ) {
+        self.braced_line_sequence_with_minimum(expected_element, parse_element, false);
+    }
+
+    fn braced_nonempty_line_sequence(
+        &mut self,
+        expected_element: ExpectedSyntax,
+        parse_element: fn(&mut Self),
+    ) {
+        self.braced_line_sequence_with_minimum(expected_element, parse_element, true);
+    }
+
+    fn braced_line_sequence_with_minimum(
+        &mut self,
+        expected_element: ExpectedSyntax,
+        parse_element: fn(&mut Self),
+        require_element: bool,
+    ) {
         if !self.expect_punctuation(Punctuation::LeftBrace) {
             return;
         }
         if !self.enter_nesting() {
             self.recover_balanced(Punctuation::LeftBrace, Punctuation::RightBrace);
             return;
+        }
+        if require_element {
+            self.eat_newlines();
+            if self.at_punctuation(Punctuation::RightBrace) {
+                self.missing(expected_element);
+            }
         }
         self.line_sequence(Punctuation::RightBrace, expected_element, parse_element);
         self.expect_punctuation(Punctuation::RightBrace);

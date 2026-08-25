@@ -2,60 +2,20 @@
 
 ## Current Task
 
-Nocter v0.17.0 is published and externally audited. The
-[analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is also complete.
-Declaration rejection, checking recovery, session composition, analysis snapshots, semantic editor
-queries, and LSP mutation validation now use one staged authority model; the superseded parallel
-adapters and source-`include` vocabulary were deleted.
+Nocter v0.17.0 is published and externally audited. Exact source, artifact, and fresh-install
+evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
+remain under `development/releases/` and are not repeated here.
 
-Release-content commit `2c2c01d6879984c3dc856a1b1989f31d19870a35` passed two independent
-workspace test runs, two strict Clippy runs, explicit public-HTTPS acquisition, deterministic
-double packaging, and the complete fresh-install smoke matrix. The retained 7,242,633-byte archive
-has SHA-256 `7933950c520367e3af21ee19121069aee73815f0ba56691c063786fd530b499c`.
-Annotated tag `v0.17.0` resolves to publication commit
-`002e47148778b7acbd0ba76fe46e63188eea08eb`, and the public asset matches the qualified archive
-byte for byte. Complete evidence is recorded in `development/releases/v0.17.0.md`.
+The [v0.18.0 Phase 0 construction surface simplification](milestones/v0.18.0.md) and its
+[adversarial review](reviews/v0.18.0-phase-0.md) are complete. The adopted source contract removes
+construction `default`, makes structural construction depend only on nominal representation and
+field visibility, and removes construction-surface aggregation from nominal type hover. No
+compatibility syntax or retained default-member state remains. No subsequent v0.18.0 phase is
+currently selected.
 
-The v0.17.0 tag and release asset are frozen. No release-preparation or publication operation
-remains active. Practical API planning may resume from this boundary.
-
-The follow-up adversarial boundary review is complete. Declaration rejection now exposes distinct
-declaration-only and body-analysis types instead of a caller-checked capability flag. One
-`AdmittedOperations` value is the only checking-side interpreter of recovery admission, one
-`DeclarationPatternTable` supplies normalized container facts to body assumptions and admitted
-global tables, and one model-owned `AttachmentFamily` defines type-family identity. Rejected
-operation entries are physically absent from dispatch tables, projected declaration diagnostics no
-longer retain a parallel semantic report, and strict workspace Clippy protects the resulting API
-surface.
-
-Nocter v0.16.0 is published and externally audited. Release-content commit
-`1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
-Clippy from reusable and clean targets, explicit public-HTTPS acquisition, deterministic double
-packaging, and the complete fresh-install smoke matrix. Annotated tag `v0.16.0` resolves to
-publication commit `2d9aaf806f5f927b5e63732b0a2323dc54feee87`, and the public asset matches the
-qualified archive byte for byte. Complete evidence is recorded in
-`development/releases/v0.16.0.md`.
-
-The v0.16.0 tag and release asset are frozen. No release-preparation or publication operation
-remains active. Preserve the closed Phase 0 and Phase 1 contracts. Do not introduce user-defined
-failure types, dynamic interfaces, vtables, reference counting, implicit error conversion,
-synthetic editor fields, a second numeric error-layout authority, or a visibility lookup in Machine
-or ARM64.
-
-Nocter v0.15.0 is published and externally audited. Release-content commit
-`d19c6951b79a58e0dc39bbfff4f36bcd869c6a74` passed incremental and clean source gates,
-deterministic double packaging, and the complete fresh-install smoke matrix. Annotated tag
-`v0.15.0` resolves to publication commit `a4f2f418d25d4600de3cfe2bab55e239752311d6`, and the public
-asset matches the qualified archive byte for byte. Complete evidence is recorded in
-`development/releases/v0.15.0.md`.
-
-The v0.15.0 tag and release asset are frozen. No release-preparation or publication operation
-remains active.
-
-The active specification-first compiler is under `development/compiler/`. The previous
-compiler was preserved by commit `f6c08da3` and removed from the active tree. Do not inspect or use
-the archived implementation, its tests, released binaries, or historical output as implementation
-input.
+The active specification-first compiler is under `development/compiler/`. The implementation
+removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
+behavioral oracle or implementation reference.
 
 ## Current Baseline
 

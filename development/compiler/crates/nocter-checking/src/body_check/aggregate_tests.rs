@@ -101,17 +101,16 @@ fn struct_literals_reject_incomplete_duplicate_and_unknown_fields() {
 }
 
 #[test]
-fn construction_surface_restricts_raw_external_initialization() {
+fn construction_surface_does_not_restrict_raw_external_initialization() {
     let fixture = Fixture::with_child(
         "use ./child\nfunc invalid(): child.Value { child.Value { value: 1 } }\n",
         "pub struct Value { pub value: i32 }\n\
          construct Value {\n\
-             pub default func create(value: i32): Self { Value { value: value } }\n\
+             pub func create(value: i32): Self { Value { value: value } }\n\
          }\n",
     );
     for reverse in [false, true] {
-        let error = check_fixture(&fixture, reverse).unwrap_err();
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0391");
+        check_fixture(&fixture, reverse).unwrap();
     }
 }
 

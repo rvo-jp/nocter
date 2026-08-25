@@ -1,9 +1,8 @@
 use nocter_model::Symbol;
-use nocter_syntax::{NodeKind, SyntaxToken, TokenKind};
+use nocter_syntax::NodeKind;
 
 use crate::{PreparedTypes, SurfaceDeclarationId};
 
-use super::super::allocation::surface_node;
 use super::super::{HeaderDefinitionError, projection, syntax};
 
 pub(super) fn gate(
@@ -45,27 +44,4 @@ pub(super) fn gate(
         .get(&decoded)
         .map(Some)
         .ok_or(HeaderDefinitionError::InvalidTargetGate(declaration))
-}
-
-pub(super) fn contextual_word(
-    types: &PreparedTypes<'_>,
-    declaration: SurfaceDeclarationId,
-    word: &str,
-) -> Result<Option<SyntaxToken>, HeaderDefinitionError> {
-    let tree = projection::tree(types, declaration)?;
-    let source = types
-        .namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .source_map
-        .get(tree.source())
-        .ok_or(HeaderDefinitionError::MissingSource(declaration))?;
-    Ok(
-        syntax::direct_tokens(tree, surface_node(types, declaration)?)
-            .into_iter()
-            .filter(|token| token.kind() == TokenKind::Identifier)
-            .find(|token| source.text_at(token.range()) == Some(word)),
-    )
 }

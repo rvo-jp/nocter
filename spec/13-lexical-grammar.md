@@ -333,8 +333,8 @@ Keyword rules:
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
   The parser recognizes `some` contextually only in the opaque result type form defined by
   [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#static-opaque-results).
-- `default` is emitted as an identifier token and recognized only in its construction-member
-  position.
+- `default` is emitted as an identifier token and recognized only before an interface default
+  `method`.
 - `alloc` is emitted as an identifier token and has no contextual keyword classification.
 
 Newline rules:

@@ -12,7 +12,7 @@ struct BufReader {
 }
 
 construct BufReader {
-    default func new(source: File): Self {
+    func new(source: File): Self {
         return BufReader.with_capacity(move source, 8192)
     }
 
@@ -64,7 +64,7 @@ struct BufWriter {
 }
 
 construct BufWriter {
-    default func new(destination: File): Self {
+    func new(destination: File): Self {
         return BufWriter.with_capacity(move destination, 8192)
     }
 

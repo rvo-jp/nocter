@@ -696,7 +696,7 @@ pub(super) fn visible_callable(
     from: crate::SourceAccessContext<'_>,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<bool, InstanceSelectionError> {
-    match crate::source_visibility::site_is_visible(graph, site, from) {
+    match from.site_is_visible(graph, site) {
         Ok(visible) => Ok(visible),
         Err(crate::source_visibility::SourceVisibilityError::MissingSite(site)) => {
             Err(InstanceSelectionError::MissingSite(site))

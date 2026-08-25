@@ -92,7 +92,7 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         &self.construction_surfaces
     }
 
@@ -126,7 +126,7 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn source_access(&self) -> &SourceAccessTable {
+    pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
 
@@ -152,8 +152,9 @@ impl<'syntax> PreparedChecking<'syntax> {
         &self.conformances
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         &self.construction_surfaces
     }
 
@@ -192,8 +193,9 @@ impl<'syntax> PreparedChecking<'syntax> {
         &self.source_index
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub const fn source_access(&self) -> &SourceAccessTable {
+    pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
 
@@ -631,12 +633,8 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.conformances(),
     )?;
-    let construction_surfaces = ConstructionSurfaceTable::build_from_ids(
-        graph,
-        types,
-        bindings.source_access(),
-        operations.constructions(),
-    )?;
+    let construction_surfaces =
+        ConstructionSurfaceTable::build_from_ids(graph, types, operations.constructions())?;
     let instance_operations = build_instance_operation_table_from_ids(
         graph,
         types,

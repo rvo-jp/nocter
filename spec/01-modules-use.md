@@ -224,8 +224,7 @@ Visibility is written only on the public contract. Missing, mismatched, and dupl
 are errors independent of source traversal order.
 
 This rule applies to top-level functions, inherent methods, construction functions, typed literals,
-coercion entries, and source-defined operators. A construction definition repeats `default` when
-the public contract carries it; `default` is part of the contract even though visibility is not.
+coercion entries, and source-defined operators.
 Conformance is split at the declaration boundary rather than at each method. The root conformance
 contract owns the conformance head, its `where` clause, and associated type bindings. Its matching
 private conformance definition owns all method implementations. The interface is the sole source
@@ -288,7 +287,7 @@ pub struct String
 
 construct String {
     /// Copies a static string view into owned storage.
-    pub default literal ""(text: &str): Self
+    pub literal ""(text: &str): Self
     pub func empty(): Self
 }
 
@@ -310,7 +309,7 @@ struct String {
 }
 
 construct String {
-    default literal ""(text: &str): Self {
+    literal ""(text: &str): Self {
         return String.copy(text)
     }
 
@@ -596,7 +595,7 @@ pub struct File {
 }
 
 construct File {
-    pub default func open(path: &str): Self! {
+    pub func open(path: &str): Self! {
         ...
     }
 }

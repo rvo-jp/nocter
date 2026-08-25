@@ -243,7 +243,7 @@ func read_all(
 pub method &self.get(index: usize): &T?
 func choose<T>(left: &T, right: &T): &T from left | right
 construct String {
-    pub default literal ""(text: &str): Self { ... }
+    pub literal ""(text: &str): Self { ... }
 }
 ```
 

@@ -419,7 +419,6 @@ pub struct ConstructionDeclaration {
     target: TypeId,
     generic_parameters: Box<[GenericParameterId]>,
     members: Box<[CallableId]>,
-    default_member: Option<CallableId>,
 }
 
 impl ConstructionDeclaration {
@@ -429,14 +428,12 @@ impl ConstructionDeclaration {
         target: TypeId,
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         members: impl Into<Box<[CallableId]>>,
-        default_member: Option<CallableId>,
     ) -> Self {
         Self {
             site,
             target,
             generic_parameters: generic_parameters.into(),
             members: members.into(),
-            default_member,
         }
     }
 
@@ -458,11 +455,6 @@ impl ConstructionDeclaration {
     #[must_use]
     pub const fn members(&self) -> &[CallableId] {
         &self.members
-    }
-
-    #[must_use]
-    pub const fn default_member(&self) -> Option<CallableId> {
-        self.default_member
     }
 }
 

@@ -57,7 +57,7 @@ ordinary parameter:
 
 ```nct
 construct Vec<T> {
-    pub default literal [](...items: T): Self {
+    pub literal [](...items: T): Self {
         var result = Self.with_capacity(items.len())
         for item in items { result.push(move item) }
         return move result

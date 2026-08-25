@@ -28,7 +28,7 @@ pub struct Vec<T>
 
 construct Vec<T> {
     /// Constructs a Vec from owned elements evaluated from left to right.
-    pub default literal [](...items: T): Self
+    pub literal [](...items: T): Self
 
     pub func empty(): Self
 

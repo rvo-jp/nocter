@@ -4,7 +4,7 @@ see ./index.nct
 see ./storage.nct
 
 construct Layout {
-    default func new(size: usize, align: usize): Self! {
+    func new(size: usize, align: usize): Self! {
         if !valid_alignment(align) {
             return invalid_argument()
         }

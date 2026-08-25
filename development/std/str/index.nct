@@ -19,14 +19,14 @@ pub struct SplitIter
 pub struct LinesIter
 
 construct SplitIter {
-    pub default func new(
+    pub func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator
 }
 
 construct LinesIter {
-    pub default func new(text: &str): Self
+    pub func new(text: &str): Self
 }
 
 conform Iterator for SplitIter {

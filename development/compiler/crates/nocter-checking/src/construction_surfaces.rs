@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape, Visibility,
+    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape,
 };
-use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{
-    AttachmentFamily, BuiltinType, CallableId, ConstructionId, FieldId, ModuleId, NominalTypeId,
-    Symbol, TypeId, TypeStore, VariantId,
+    AttachmentFamily, BuiltinType, CallableId, ConstructionId, FieldId, NominalTypeId, Symbol,
+    TypeId, TypeStore, VariantId,
 };
 
 /// The source-independent entries owned by one constructible type family.
@@ -23,7 +22,6 @@ struct ConstructionSurface {
 struct StructuralSurface {
     fields: Box<[FieldId]>,
     by_name: BTreeMap<Symbol, FieldId>,
-    contract_private: bool,
 }
 
 /// One selected entry in the compiler-owned construction surface of a nominal type.
@@ -32,31 +30,6 @@ pub enum SelectedConstructionEntry {
     Structural,
     Variant(VariantId),
     Callable(CallableId),
-}
-
-/// One ordered view derived from the canonical construction surface.
-#[derive(Debug, Eq, PartialEq)]
-pub struct SelectedConstructionSurface {
-    declaration: Option<ConstructionId>,
-    entries: Box<[SelectedConstructionEntry]>,
-    default: Option<usize>,
-}
-
-impl SelectedConstructionSurface {
-    #[must_use]
-    pub const fn declaration(&self) -> Option<ConstructionId> {
-        self.declaration
-    }
-
-    #[must_use]
-    pub const fn entries(&self) -> &[SelectedConstructionEntry] {
-        &self.entries
-    }
-
-    #[must_use]
-    pub fn is_default(&self, index: usize) -> bool {
-        self.default == Some(index)
-    }
 }
 
 impl ConstructionSurface {
@@ -86,10 +59,9 @@ impl ConstructionSurfaceTable {
     pub(crate) fn build_from_ids(
         graph: &DeclarationGraph,
         types: &TypeStore,
-        source_access: &SourceAccessTable,
         constructions: &[ConstructionId],
     ) -> Result<Self, ConstructionSurfaceBuildError> {
-        let mut by_family = nominal_surfaces(graph, source_access)?;
+        let mut by_family = nominal_surfaces(graph)?;
         let mut by_construction = BTreeMap::new();
         for construction in constructions {
             let construction = *construction;
@@ -131,7 +103,7 @@ impl ConstructionSurfaceTable {
     }
 
     #[must_use]
-    pub fn for_nominal(&self, nominal: NominalTypeId) -> Option<ConstructionId> {
+    pub(crate) fn for_nominal(&self, nominal: NominalTypeId) -> Option<ConstructionId> {
         self.by_family
             .get(&AttachmentFamily::Nominal(nominal))
             .and_then(|surface| surface.declaration)
@@ -143,30 +115,10 @@ impl ConstructionSurfaceTable {
             .and_then(|surface| surface.declaration)
     }
 
-    /// Selects the public construction surface presented at one module.
-    ///
-    /// The result preserves declaration order. Structural construction is first, followed by
-    /// intrinsic variants and authored construct members. The default is an explicit fact rather
-    /// than an ordering convention, so hover and completion can choose their own layout without
-    /// reconstructing the surface.
-    ///
-    /// # Errors
-    ///
-    /// Returns an internal selection error when the prepared table and declaration graph disagree.
-    pub fn public_surface(
-        &self,
-        graph: &DeclarationGraph,
-        nominal: NominalTypeId,
-        from: ModuleId,
-    ) -> Result<SelectedConstructionSurface, ConstructionSurfaceSelectionError> {
-        self.select_surface(graph, nominal, SurfaceAudience::PublicPresentation(from))
-    }
-
     /// Selects every construction entry accessible to one exact source and module.
     ///
-    /// Unlike [`Self::public_surface`], this includes source-private structural construction and
-    /// intrinsic variants when direct-source access permits their use. Completion and other
-    /// use-site tools must consume this view rather than the public documentation view.
+    /// This includes source-private structural construction and intrinsic variants when
+    /// direct-source access permits their use.
     ///
     /// # Errors
     ///
@@ -176,15 +128,15 @@ impl ConstructionSurfaceTable {
         graph: &DeclarationGraph,
         nominal: NominalTypeId,
         from: crate::SourceAccessContext<'_>,
-    ) -> Result<SelectedConstructionSurface, ConstructionSurfaceSelectionError> {
-        self.select_surface(graph, nominal, SurfaceAudience::UseSite(from))
+    ) -> Result<Box<[SelectedConstructionEntry]>, ConstructionSurfaceSelectionError> {
+        self.select_surface(graph, nominal, from)
     }
 
     /// Selects the use-site construction surface attached to one built-in type family.
     ///
     /// Built-ins have no structural or intrinsic-variant entry. Their named functions and typed
-    /// literals still pass through the same construction declaration, source order, default, and
-    /// visibility authority as nominal types.
+    /// literals still pass through the same construction declaration, source order, and visibility
+    /// authority as nominal types.
     ///
     /// # Errors
     ///
@@ -194,32 +146,23 @@ impl ConstructionSurfaceTable {
         graph: &DeclarationGraph,
         builtin: BuiltinType,
         from: crate::SourceAccessContext<'_>,
-    ) -> Result<SelectedConstructionSurface, ConstructionSurfaceSelectionError> {
+    ) -> Result<Box<[SelectedConstructionEntry]>, ConstructionSurfaceSelectionError> {
         let Some(surface) = self.by_family.get(&AttachmentFamily::Builtin(builtin)) else {
-            return Ok(SelectedConstructionSurface {
-                declaration: None,
-                entries: Box::new([]),
-                default: None,
-            });
+            return Ok(Box::new([]));
         };
         let construction = surface
             .declaration
             .ok_or(ConstructionSurfaceSelectionError::MissingBuiltinConstruction(builtin))?;
-        let (entries, default) =
-            select_authored_entries(graph, surface, construction, SurfaceAudience::UseSite(from))?;
-        Ok(SelectedConstructionSurface {
-            declaration: Some(construction),
-            entries: entries.into_boxed_slice(),
-            default,
-        })
+        let entries = select_authored_entries(graph, surface, construction, from)?;
+        Ok(entries.into_boxed_slice())
     }
 
     fn select_surface(
         &self,
         graph: &DeclarationGraph,
         nominal: NominalTypeId,
-        audience: SurfaceAudience<'_>,
-    ) -> Result<SelectedConstructionSurface, ConstructionSurfaceSelectionError> {
+        from: crate::SourceAccessContext<'_>,
+    ) -> Result<Box<[SelectedConstructionEntry]>, ConstructionSurfaceSelectionError> {
         let surface = self
             .by_family
             .get(&AttachmentFamily::Nominal(nominal))
@@ -229,46 +172,23 @@ impl ConstructionSurfaceTable {
             .nominal_types()
             .get(nominal)
             .ok_or(ConstructionSurfaceSelectionError::MissingNominal(nominal))?;
-        let construction = surface
-            .declaration
-            .map(|id| {
-                graph
-                    .declarations()
-                    .constructions()
-                    .get(id)
-                    .map(|declaration| (id, declaration))
-                    .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(id))
-            })
-            .transpose()?;
-        let structural_enabled = construction.is_none_or(|(_, declaration)| {
-            declaration.default_member().is_none() && !declaration.members().is_empty()
-        });
+        let construction = surface.declaration;
+        if let Some(construction) = construction {
+            graph
+                .declarations()
+                .constructions()
+                .get(construction)
+                .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(
+                    construction,
+                ))?;
+        }
         let mut entries = Vec::new();
-        let mut default = None;
 
-        let structural_accessible = match audience {
-            SurfaceAudience::PublicPresentation(_) => {
-                structural_enabled
-                    && surface
-                        .structural
-                        .as_ref()
-                        .is_some_and(|structural| !structural.contract_private)
-            }
-            SurfaceAudience::UseSite(from) => {
-                self.structural_fields(graph, nominal, from)?.is_some()
-            }
-        };
-        if structural_accessible && let Some(structural) = surface.structural.as_ref() {
-            let mut visible = true;
-            for field in structural.fields.iter().copied() {
-                visible &= field_is_visible(graph, nominal, field, audience)?;
-            }
-            if visible {
-                if structural_enabled {
-                    default = Some(entries.len());
-                }
-                entries.push(SelectedConstructionEntry::Structural);
-            }
+        if self
+            .accessible_structural_fields(graph, nominal, from)?
+            .is_some()
+        {
+            entries.push(SelectedConstructionEntry::Structural);
         }
 
         if let NominalShape::Enum { variants } = nominal_declaration.shape() {
@@ -283,47 +203,33 @@ impl ConstructionSurfaceTable {
                 {
                     return Err(ConstructionSurfaceSelectionError::InvalidVariant(variant));
                 }
-                if site_is_visible(graph, declaration.site(), audience).map_err(|error| {
-                    map_visibility_error(
-                        error,
-                        ConstructionSurfaceSelectionError::MissingVariantSite(variant),
-                    )
-                })? {
+                if from
+                    .site_is_visible(graph, declaration.site())
+                    .map_err(ConstructionSurfaceSelectionError::Visibility)?
+                {
                     entries.push(SelectedConstructionEntry::Variant(variant));
                 }
             }
         }
 
-        if let Some((construction, declaration)) = construction {
-            let offset = entries.len();
-            let (authored, authored_default) =
-                select_authored_entries(graph, surface, construction, audience)?;
+        if let Some(construction) = construction {
+            let authored = select_authored_entries(graph, surface, construction, from)?;
             entries.extend(authored);
-            if let Some(authored_default) = authored_default {
-                debug_assert!(declaration.default_member().is_some());
-                default = Some(offset + authored_default);
-            }
         }
 
-        Ok(SelectedConstructionSurface {
-            declaration: construction.map(|(id, _)| id),
-            entries: entries.into_boxed_slice(),
-            default,
-        })
+        Ok(entries.into_boxed_slice())
     }
 
-    /// Returns the declared field identities when structural construction is accessible here.
+    /// Returns the declared field identities when the complete representation is accessible here.
     ///
-    /// Field-level visibility remains the field selector's responsibility. This query owns the
-    /// independent construction-surface restriction introduced by `default` and empty `construct`
-    /// declarations.
+    /// Field-level visibility remains the field selector's responsibility. This query owns only
+    /// representation access; authored construction APIs do not affect structural construction.
     ///
     /// # Errors
     ///
     /// Returns an internal selection error when the surface and declaration graph disagree.
-    pub(crate) fn structural_fields<'a>(
+    pub(crate) fn representation_fields<'a>(
         &'a self,
-        graph: &DeclarationGraph,
         nominal: NominalTypeId,
         from: crate::SourceAccessContext<'_>,
     ) -> Result<Option<&'a [FieldId]>, ConstructionSurfaceSelectionError> {
@@ -334,34 +240,40 @@ impl ConstructionSurfaceTable {
         let Some(structural) = surface.structural.as_ref() else {
             return Ok(None);
         };
-        let private_representation_access = crate::source_visibility::representation_is_visible(
-            nominal, from,
-        )
-        .map_err(|error| {
-            map_visibility_error(
-                error,
-                ConstructionSurfaceSelectionError::MissingNominalSite(nominal),
-            )
-        })?;
-        if private_representation_access {
-            return Ok(Some(&structural.fields));
-        }
-        if structural.contract_private {
+        let representation_access = from
+            .representation_is_visible(nominal)
+            .map_err(ConstructionSurfaceSelectionError::Visibility)?;
+        if !representation_access {
             return Ok(None);
         }
-        if let Some(construction) = surface.declaration {
-            let declaration = graph
-                .declarations()
-                .constructions()
-                .get(construction)
-                .ok_or(ConstructionSurfaceSelectionError::MissingConstruction(
-                    construction,
-                ))?;
-            if declaration.default_member().is_some() || declaration.members().is_empty() {
+        Ok(Some(&structural.fields))
+    }
+
+    /// Returns all fields when structural construction is valid at this exact use site.
+    ///
+    /// Unlike [`Self::representation_fields`], this query owns the complete structural-entry
+    /// decision: the representation and every field must be visible. Consumers that only need to
+    /// know whether the structural entry exists should use this contract rather than reconstructing
+    /// field visibility themselves.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal selection error when the surface and declaration graph disagree.
+    pub(crate) fn accessible_structural_fields<'a>(
+        &'a self,
+        graph: &DeclarationGraph,
+        nominal: NominalTypeId,
+        from: crate::SourceAccessContext<'_>,
+    ) -> Result<Option<&'a [FieldId]>, ConstructionSurfaceSelectionError> {
+        let Some(fields) = self.representation_fields(nominal, from)? else {
+            return Ok(None);
+        };
+        for field in fields.iter().copied() {
+            if !field_is_visible(graph, nominal, field, from)? {
                 return Ok(None);
             }
         }
-        Ok(Some(&structural.fields))
+        Ok(Some(fields))
     }
 
     /// Selects one named field from the already-authorized structural entry.
@@ -369,7 +281,7 @@ impl ConstructionSurfaceTable {
     /// # Errors
     ///
     /// Returns an internal selection error when the nominal surface is missing.
-    pub fn structural_field(
+    pub(crate) fn structural_field(
         &self,
         nominal: NominalTypeId,
         name: Symbol,
@@ -411,14 +323,9 @@ impl ConstructionSurfaceTable {
         if declaration.owner() != nominal {
             return Err(ConstructionSurfaceSelectionError::InvalidVariant(variant));
         }
-        site_is_visible(graph, declaration.site(), SurfaceAudience::UseSite(from))
+        from.site_is_visible(graph, declaration.site())
             .map(|visible| visible.then_some(variant))
-            .map_err(|error| {
-                map_visibility_error(
-                    error,
-                    ConstructionSurfaceSelectionError::MissingVariantSite(variant),
-                )
-            })
+            .map_err(ConstructionSurfaceSelectionError::Visibility)
     }
 
     /// Selects one accessible named construction function from an already resolved owner family.
@@ -506,28 +413,19 @@ impl ConstructionSurfaceTable {
         if callable.owner() != CallableOwner::Construction(construction) {
             return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
         }
-        site_is_visible(graph, callable.site(), SurfaceAudience::UseSite(from)).map_err(|error| {
-            map_visibility_error(
-                error,
-                ConstructionSurfaceSelectionError::MissingCallableSite(member),
-            )
-        })
+        from.site_is_visible(graph, callable.site())
+            .map_err(ConstructionSurfaceSelectionError::Visibility)
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.by_family.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.by_family.is_empty()
     }
 }
 
 fn nominal_surfaces(
     graph: &DeclarationGraph,
-    source_access: &SourceAccessTable,
 ) -> Result<BTreeMap<AttachmentFamily, ConstructionSurface>, ConstructionSurfaceBuildError> {
     let mut surfaces = BTreeMap::new();
     for (nominal, declaration) in graph.declarations().nominal_types().iter() {
@@ -554,9 +452,6 @@ fn nominal_surfaces(
                     Some(StructuralSurface {
                         fields: fields.clone(),
                         by_name,
-                        contract_private: source_access
-                            .representation_is_contract_private(nominal)
-                            .map_err(ConstructionSurfaceBuildError::SourceAccess)?,
                     }),
                     BTreeMap::new(),
                 )
@@ -596,18 +491,12 @@ fn nominal_surfaces(
     Ok(surfaces)
 }
 
-#[derive(Clone, Copy)]
-enum SurfaceAudience<'program> {
-    UseSite(crate::SourceAccessContext<'program>),
-    PublicPresentation(ModuleId),
-}
-
 fn select_authored_entries(
     graph: &DeclarationGraph,
     surface: &ConstructionSurface,
     construction: ConstructionId,
-    audience: SurfaceAudience<'_>,
-) -> Result<(Vec<SelectedConstructionEntry>, Option<usize>), ConstructionSurfaceSelectionError> {
+    from: crate::SourceAccessContext<'_>,
+) -> Result<Vec<SelectedConstructionEntry>, ConstructionSurfaceSelectionError> {
     let declaration = graph
         .declarations()
         .constructions()
@@ -616,26 +505,22 @@ fn select_authored_entries(
             construction,
         ))?;
     let mut entries = Vec::new();
-    let mut default = None;
     for member in declaration.members().iter().copied() {
         if !surface_member_is_indexed(graph, surface, construction, member)? {
             return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
         }
-        if member_is_visible(graph, construction, member, audience)? {
-            if declaration.default_member() == Some(member) {
-                default = Some(entries.len());
-            }
+        if member_is_visible(graph, construction, member, from)? {
             entries.push(SelectedConstructionEntry::Callable(member));
         }
     }
-    Ok((entries, default))
+    Ok(entries)
 }
 
 fn field_is_visible(
     graph: &DeclarationGraph,
     nominal: NominalTypeId,
     field: FieldId,
-    audience: SurfaceAudience<'_>,
+    from: crate::SourceAccessContext<'_>,
 ) -> Result<bool, ConstructionSurfaceSelectionError> {
     let declaration = graph
         .declarations()
@@ -645,12 +530,8 @@ fn field_is_visible(
     if declaration.owner() != nominal {
         return Err(ConstructionSurfaceSelectionError::InvalidField(field));
     }
-    site_is_visible(graph, declaration.site(), audience).map_err(|error| {
-        map_visibility_error(
-            error,
-            ConstructionSurfaceSelectionError::MissingFieldSite(field),
-        )
-    })
+    from.site_is_visible(graph, declaration.site())
+        .map_err(ConstructionSurfaceSelectionError::Visibility)
 }
 
 fn surface_member_is_indexed(
@@ -680,7 +561,7 @@ fn member_is_visible(
     graph: &DeclarationGraph,
     construction: ConstructionId,
     member: CallableId,
-    audience: SurfaceAudience<'_>,
+    from: crate::SourceAccessContext<'_>,
 ) -> Result<bool, ConstructionSurfaceSelectionError> {
     let callable = graph
         .declarations()
@@ -690,45 +571,8 @@ fn member_is_visible(
     if callable.owner() != CallableOwner::Construction(construction) {
         return Err(ConstructionSurfaceSelectionError::InvalidMember(member));
     }
-    site_is_visible(graph, callable.site(), audience).map_err(|error| {
-        map_visibility_error(
-            error,
-            ConstructionSurfaceSelectionError::MissingCallableSite(member),
-        )
-    })
-}
-
-fn site_is_visible(
-    graph: &DeclarationGraph,
-    site: nocter_model::DeclarationSiteId,
-    audience: SurfaceAudience<'_>,
-) -> Result<bool, crate::source_visibility::SourceVisibilityError> {
-    match audience {
-        SurfaceAudience::UseSite(from) => {
-            crate::source_visibility::site_is_visible(graph, site, from)
-        }
-        SurfaceAudience::PublicPresentation(from) => {
-            let site = graph
-                .declaration_sites()
-                .get(site)
-                .copied()
-                .ok_or(crate::source_visibility::SourceVisibilityError::MissingSite(site))?;
-            Ok(site.visibility() != Visibility::Private
-                && graph.is_visible_from(site.visibility(), from, site.module()))
-        }
-    }
-}
-
-fn map_visibility_error(
-    error: crate::source_visibility::SourceVisibilityError,
-    missing_site: ConstructionSurfaceSelectionError,
-) -> ConstructionSurfaceSelectionError {
-    match error {
-        crate::source_visibility::SourceVisibilityError::MissingSite(_) => missing_site,
-        crate::source_visibility::SourceVisibilityError::Access(error) => {
-            ConstructionSurfaceSelectionError::SourceAccess(error)
-        }
-    }
+    from.site_is_visible(graph, callable.site())
+        .map_err(ConstructionSurfaceSelectionError::Visibility)
 }
 
 fn index_construction_members(
@@ -787,7 +631,6 @@ pub enum ConstructionSurfaceBuildError {
     InvalidMember(CallableId),
     DuplicateFunction(ConstructionId, Symbol),
     DuplicateLiteral(ConstructionId, LiteralShape),
-    SourceAccess(nocter_frontend_bindings::SourceAccessError),
 }
 
 impl std::fmt::Display for ConstructionSurfaceBuildError {
@@ -827,7 +670,6 @@ impl std::fmt::Display for ConstructionSurfaceBuildError {
             Self::DuplicateLiteral(construction, shape) => {
                 write!(formatter, "duplicate {shape:?} literal in {construction:?}")
             }
-            Self::SourceAccess(error) => error.fmt(formatter),
         }
     }
 }
@@ -838,18 +680,14 @@ impl std::error::Error for ConstructionSurfaceBuildError {}
 pub enum ConstructionSurfaceSelectionError {
     MissingBuiltinConstruction(BuiltinType),
     MissingNominal(NominalTypeId),
-    MissingNominalSite(NominalTypeId),
     MissingField(FieldId),
-    MissingFieldSite(FieldId),
     InvalidField(FieldId),
     MissingVariant(VariantId),
-    MissingVariantSite(VariantId),
     InvalidVariant(VariantId),
     MissingConstruction(ConstructionId),
     MissingCallable(CallableId),
-    MissingCallableSite(CallableId),
     InvalidMember(CallableId),
-    AmbiguousMember(ConstructionId, Symbol),
+    Visibility(crate::SourceVisibilityError),
     SourceAccess(nocter_frontend_bindings::SourceAccessError),
 }
 
@@ -862,7 +700,15 @@ impl std::fmt::Display for ConstructionSurfaceSelectionError {
     }
 }
 
-impl std::error::Error for ConstructionSurfaceSelectionError {}
+impl std::error::Error for ConstructionSurfaceSelectionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Visibility(error) => Some(error),
+            Self::SourceAccess(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -874,7 +720,7 @@ mod tests {
     use crate::test_support::Fixture;
 
     #[test]
-    fn public_and_use_site_views_do_not_conflate_private_construction() {
+    fn private_entries_are_available_in_their_owning_source() {
         let fixture = Fixture::with_child(
             "use ./child\n",
             "struct Hidden {\n    value: i32\n}\n\nenum Choice {\n    only\n}\n",
@@ -907,32 +753,18 @@ mod tests {
         let child_source = frontend_bindings.module_sources(child).unwrap()[0];
         let child_access =
             crate::SourceAccessContext::for_source(prepared.source_access(), child_source).unwrap();
-        assert!(
-            surfaces
-                .public_surface(graph, hidden, child)
-                .unwrap()
-                .entries()
-                .is_empty()
-        );
         assert_eq!(
             surfaces
                 .accessible_surface(graph, hidden, child_access)
                 .unwrap()
-                .entries(),
+                .as_ref(),
             &[SelectedConstructionEntry::Structural]
-        );
-        assert!(
-            surfaces
-                .public_surface(graph, choice, child)
-                .unwrap()
-                .entries()
-                .is_empty()
         );
         assert!(matches!(
             surfaces
                 .accessible_surface(graph, choice, child_access)
                 .unwrap()
-                .entries(),
+                .as_ref(),
             [SelectedConstructionEntry::Variant(_)]
         ));
     }
@@ -990,20 +822,12 @@ mod tests {
                 .unwrap()
         };
 
-        assert!(
-            prepared
-                .construction_surfaces()
-                .public_surface(graph, choice, module)
-                .unwrap()
-                .entries()
-                .is_empty()
-        );
         assert!(matches!(
             prepared
                 .construction_surfaces()
                 .accessible_surface(graph, choice, access("index.nct"))
                 .unwrap()
-                .entries(),
+                .as_ref(),
             [SelectedConstructionEntry::Variant(_)]
         ));
         assert!(
@@ -1011,7 +835,6 @@ mod tests {
                 .construction_surfaces()
                 .accessible_surface(graph, choice, access("consumer.nct"))
                 .unwrap()
-                .entries()
                 .is_empty()
         );
     }
@@ -1074,23 +897,14 @@ mod tests {
                 .construction_surfaces()
                 .accessible_surface(graph, empty, access("index.nct"))
                 .unwrap()
-                .entries(),
+                .as_ref(),
             &[SelectedConstructionEntry::Structural]
-        );
-        assert!(
-            prepared
-                .construction_surfaces()
-                .public_surface(graph, empty, module)
-                .unwrap()
-                .entries()
-                .is_empty()
         );
         assert!(
             prepared
                 .construction_surfaces()
                 .accessible_surface(graph, empty, access("consumer.nct"))
                 .unwrap()
-                .entries()
                 .is_empty()
         );
     }

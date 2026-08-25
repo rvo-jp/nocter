@@ -1,6 +1,7 @@
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{Arena, BodyId, TypeStore};
+use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
 use crate::declaration_patterns::DeclarationPatternTable;
@@ -92,7 +93,7 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         &self.construction_surfaces
     }
 
@@ -136,8 +137,21 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn source_access(&self) -> &SourceAccessTable {
+    pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
+    }
+
+    /// Creates the semantic visibility contract for one exact source in this checked program.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when declaration lowering did not publish the source's semantic module.
+    pub fn source_access_context(
+        &self,
+        source: SourceId,
+    ) -> Result<crate::SourceAccessContext<'_>, crate::SourceVisibilityError> {
+        crate::SourceAccessContext::for_source(&self.source_access, source)
+            .map_err(crate::SourceVisibilityError::Access)
     }
 
     #[must_use]
