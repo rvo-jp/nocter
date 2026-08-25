@@ -1,10 +1,10 @@
 use std::fmt;
 
 use nocter_compile_input::PrimitiveRoleInput;
+use nocter_frontend_bindings::{FrontendBindings, FrontendDeclaration};
 use nocter_runtime_contract::{
     PrimitiveBinding, PrimitiveBindingError, PrimitiveRegistry, PrimitiveRole,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin};
 
 /// Resolves discovery-selected primitive declaration tokens while declaration lowering owns the
 /// exact syntax-to-semantic projection.
@@ -14,38 +14,32 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole, SyntaxOrigin}
 /// Returns an exact projection failure or an incomplete/ambiguous registry failure.
 pub fn resolve_primitive_bindings(
     inputs: &[PrimitiveRoleInput],
-    source_index: &SourceIndex,
+    frontend_bindings: &FrontendBindings,
 ) -> Result<PrimitiveRegistry, PrimitiveResolutionError> {
     let bindings = inputs
         .iter()
         .copied()
-        .map(|input| resolve_binding(input, source_index))
+        .map(|input| resolve_binding(input, frontend_bindings))
         .collect::<Result<Vec<_>, _>>()?;
     PrimitiveRegistry::new(bindings).map_err(PrimitiveResolutionError::Registry)
 }
 
 fn resolve_binding(
     input: PrimitiveRoleInput,
-    source_index: &SourceIndex,
+    frontend_bindings: &FrontendBindings,
 ) -> Result<PrimitiveBinding, PrimitiveResolutionError> {
-    let token = input.declaration();
-    let mut matches = source_index
-        .bindings_at(token.source(), token.range().start())
-        .filter(|binding| {
-            binding.role() == SourceRole::Declaration
-                && binding.origin().syntax() == SyntaxOrigin::Token(token)
-        })
-        .map(|binding| binding.entity());
-    let Some(entity) = matches.next() else {
-        return Err(PrimitiveResolutionError::MissingDeclaration(input.role()));
+    let matches = frontend_bindings.declarations(input.declaration());
+    let [declaration] = matches else {
+        return Err(if matches.is_empty() {
+            PrimitiveResolutionError::MissingDeclaration(input.role())
+        } else {
+            PrimitiveResolutionError::AmbiguousDeclaration(input.role())
+        });
     };
-    if matches.next().is_some() {
-        return Err(PrimitiveResolutionError::AmbiguousDeclaration(input.role()));
-    }
-    let SemanticEntity::Callable(callable) = entity else {
+    let FrontendDeclaration::Callable(callable) = declaration else {
         return Err(PrimitiveResolutionError::NotCallable(input.role()));
     };
-    Ok(PrimitiveBinding::new(input.role(), callable))
+    Ok(PrimitiveBinding::new(input.role(), *callable))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

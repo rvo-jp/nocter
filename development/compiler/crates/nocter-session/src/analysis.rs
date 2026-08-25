@@ -222,7 +222,17 @@ fn analyze_target_internal(
             .map_err(without_prepared)
             .map_err(Box::new)?
     };
-    finish_checked_target(&input, &primitive_roles, checked, retain_semantic)
+    let primitives = match resolve_primitive_bindings(&primitive_roles, &frontend_bindings) {
+        Ok(primitives) => primitives,
+        Err(error) => {
+            return Err(Box::new(failure_with_checked(
+                error.into(),
+                checked,
+                retain_semantic,
+            )));
+        }
+    };
+    finish_checked_target(&input, primitives, checked, retain_semantic)
 }
 
 fn analyze_rejected_declarations(
@@ -259,7 +269,7 @@ fn analyze_rejected_declarations(
 
 fn finish_checked_target(
     input: &nocter_compile_input::CompileUnitInput<'_>,
-    primitive_roles: &[nocter_compile_input::PrimitiveRoleInput],
+    primitives: nocter_runtime_contract::PrimitiveRegistry,
     checked: CheckedProgramOutput,
     retain_semantic: bool,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
@@ -269,16 +279,6 @@ fn finish_checked_target(
             checked,
             retain_semantic,
         )));
-    };
-    let primitives = match resolve_primitive_bindings(primitive_roles, checked.source_index()) {
-        Ok(primitives) => primitives,
-        Err(error) => {
-            return Err(Box::new(failure_with_checked(
-                error.into(),
-                checked,
-                retain_semantic,
-            )));
-        }
     };
     let snapshot = match ToolchainSnapshot::select(input.target(), standard_package, primitives) {
         Ok(snapshot) => snapshot,
