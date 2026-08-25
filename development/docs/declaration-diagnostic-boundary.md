@@ -23,6 +23,48 @@ relabeled as an internal compiler error by the complete compiler, but the declar
 not manufacture a second semantic diagnostic for it. Discovery and compiler-integrity failures
 never receive a public language code.
 
+## Validation Authority
+
+Declaration validation is one semantic decision, not an error probe followed by a recovery scan.
+After graph integrity succeeds, the validation pass produces one immutable outcome containing:
+
+- every declaration-rule violation found in the structurally valid graph;
+- exact declaration-site subjects for source projection;
+- admission facts for construction, instance, conformance, and destruction containers; and
+- an explicit editor-analysis capability that states whether the rejected graph can safely enter
+  body analysis after inadmissible containers have been quarantined.
+
+The validation pass is the sole owner of those decisions. Recovery code must consume its admission
+facts and capability; it must not infer them from diagnostic codes or traverse declarations to
+repeat authorization, duplicate, target-shape, or signature rules. Production checking accepts
+only a validation outcome with no violations. Editor-only checking receives a distinct rejected
+program type carrying the frozen admission facts and cannot be converted into a production
+program.
+
+Structural integrity remains fail-fast. An unknown identity, owner mismatch, malformed arena, or
+other broken compiler invariant makes further semantic validation untrustworthy and yields no
+authored diagnostic report. Authored declaration mistakes are independent: validation collects all
+of them from a structurally sound graph even when one error disables editor body analysis.
+
+## Diagnostic Cardinality and Ownership
+
+A rejected declaration program owns an ordered, duplicate-free `DeclarationValidationReport`.
+Declaration lowering projects the entire report through the frozen `SourceIndex` exactly once. A
+missing projection subject is a compiler-integrity failure for the whole projection; consumers must
+not publish a partial subset that depends on where projection stopped.
+
+The session failure then owns the projected `SourceDiagnostic` collection alongside its typed
+failure and optional semantic recovery. CLI and LSP consumers read that same collection. They do
+not call a singular diagnostic accessor on the typed error and do not recreate diagnostics from
+display text or rule identities. This gives one diagnostic authority for batch and editor entry
+points while retaining typed failures for orchestration and debugging.
+
+Diagnostic order is canonical and independent of the first failing validation loop. Validation
+orders semantic violations by their declaration subjects and rule code, then removes identical
+rule/subject tuples. Source projection applies a final source/path/range order before the collection
+crosses the session boundary. Adding a new validator therefore cannot change which earlier error is
+visible merely by changing traversal order.
+
 ## Exhaustive Stage Classification
 
 The following tables cover every error variant reachable through the facade. Variants grouped in

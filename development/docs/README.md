@@ -41,7 +41,7 @@ language behavior. Git history and published release records preserve chronology
 | Checked-program responsibilities and construction order | `checked-program-design.md` |
 | Target validation, executable specialization, and MIR ownership | `target-program-design.md` |
 | Machine layout, machine program, ARM64, and Mach-O ownership | `machine-program-design.md` |
-| Declaration-lowering failure classification | `declaration-diagnostic-boundary.md` |
+| Declaration validation authority, diagnostic cardinality, and lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
 | Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
 | Completed v0.17.0 Phase 0 scope and qualification | `../milestones/v0.17.0.md` |
