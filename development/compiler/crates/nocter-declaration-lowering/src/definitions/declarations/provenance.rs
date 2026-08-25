@@ -46,8 +46,7 @@ pub(super) fn contract(
         ));
     }
     if kind == CallableKind::Coercion {
-        let receiver = receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
-        let _ = receiver;
+        receiver.ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
         return declared([ProvenanceOrigin::Receiver], declaration)
             .map(|contract| (contract, ProvenanceAnnotation::Elided));
     }
@@ -153,7 +152,6 @@ fn explicit(
                     SyntaxOrigin::Token(token),
                 ))
             })?;
-            let _ = receiver;
             origins.push(ProvenanceOrigin::Receiver);
             project(
                 types,

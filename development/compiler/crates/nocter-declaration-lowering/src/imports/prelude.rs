@@ -229,7 +229,7 @@ fn resolve_standard_declarations(
             return Err(ToolchainError::DuplicateStandardDeclaration(input.role()));
         }
         let index = input.declaration().index();
-        let _ = reserved
+        reserved
             .declarations
             .get(index)
             .ok_or(ToolchainError::MissingStandardDeclaration(input.role()))?;

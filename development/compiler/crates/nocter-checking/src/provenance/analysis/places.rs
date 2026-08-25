@@ -60,10 +60,9 @@ impl Analyzer<'_, '_> {
             PlaceRoot::Parameter(parameter) => {
                 ValueProvenance::from_source(ProvenanceSource::OwnedParameter(parameter))
             }
-            PlaceRoot::Capture(capture) => self.closure.map_or_else(
+            PlaceRoot::Capture(_) => self.closure.map_or_else(
                 || ValueProvenance::from_source(ProvenanceSource::Unknown),
                 |(closure, _)| {
-                    let _ = capture;
                     ValueProvenance::from_source(ProvenanceSource::ClosureEnvironment(closure))
                 },
             ),
