@@ -2,12 +2,13 @@
 
 ## Current Task
 
-Nocter v0.17.0 Phase 0 and Phase 1 are complete. The
+Nocter v0.17.0 Phase 0 and Phase 1 are complete, and
+[release preparation](milestones/v0.17.0-release-preparation.md) is active. The
 [analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is also complete.
 Declaration rejection, checking recovery, session composition, analysis snapshots, semantic editor
 queries, and LSP mutation validation now use one staged authority model; the superseded parallel
 adapters and source-`include` vocabulary were deleted. Practical API planning may resume from this
-boundary.
+boundary. Do not start another practical API phase before the v0.17.0 candidate is qualified.
 
 The follow-up adversarial boundary review is complete. Declaration rejection now exposes distinct
 declaration-only and body-analysis types instead of a caller-checked capability flag. One
