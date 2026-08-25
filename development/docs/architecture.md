@@ -850,6 +850,13 @@ the complete semantic shape and required public surface; it does not receive rol
 a toolchain integrity failure; an authored `using` place whose resolved type is not one of the
 validated allocator/context families is a source rule.
 
+Standard contract validation completes before other program-wide preparation authorities. If a
+later authority rejects source, declaration recovery may retain that validated capability beside
+the graph. Editor mutations that require a standard operation, such as required-method scaffolding,
+must query the retained capability and compare semantic callable IDs. They cannot trust a raw graph
+role merely because it was selected, depend on preparation ordinal numbers, or match a completion
+label or import path.
+
 Primitive runtime roles remain a separate target contract. Declaration lowering projects their
 selected tokens through `FrontendBindings` to exact callable IDs, and the session freezes one
 `PrimitiveRegistry` before target validation. It never searches editor bindings in `SourceIndex`.

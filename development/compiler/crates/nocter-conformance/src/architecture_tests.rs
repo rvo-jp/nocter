@@ -106,6 +106,7 @@ fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings
     assert!(!action.contains("std/process.abort"));
     assert!(!action.contains("completion.label() != \"abort\""));
     assert!(action.contains("StandardDeclarationRole::ProcessAbort"));
+    assert!(action.contains(".standard_semantics()"));
     assert!(action.contains("SemanticEntity::Callable(terminator)"));
 }
 

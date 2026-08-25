@@ -502,7 +502,6 @@ struct PreparedProgramAuthorities {
     declaration_patterns: DeclarationPatternTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
-    standard_semantics: StandardSemanticTable,
 }
 
 fn prepare_program_checking_internal<'syntax>(
@@ -523,29 +522,36 @@ fn prepare_program_checking_internal<'syntax>(
         }
         .into());
     }
-    macro_rules! declaration_stage {
-        ($operation:expr) => {
-            match $operation {
-                Ok(value) => value,
-                Err(error) => {
-                    return Err(declaration_failure(
-                        error.into(),
-                        retain_names,
-                        graph,
-                        types,
-                        source_index,
-                    ));
-                }
-            }
-        };
-    }
-
-    let body_sources = declaration_stage!(
-        catalog_body_sources(input, &graph, bindings)
-            .map_err(NameResolutionInternalError::from)
-            .map_err(NameResolutionError::from)
-            .map_err(PreparationError::from)
-    );
+    let body_sources = match catalog_body_sources(input, &graph, bindings)
+        .map_err(NameResolutionInternalError::from)
+        .map_err(NameResolutionError::from)
+        .map_err(PreparationError::from)
+    {
+        Ok(body_sources) => body_sources,
+        Err(error) => {
+            return Err(declaration_failure(
+                error,
+                retain_names,
+                graph,
+                types,
+                source_index,
+                None,
+            ));
+        }
+    };
+    let standard_semantics = match StandardSemanticTable::build(&graph, &types) {
+        Ok(semantics) => semantics,
+        Err(error) => {
+            return Err(declaration_failure(
+                error.into(),
+                retain_names,
+                graph,
+                types,
+                source_index,
+                None,
+            ));
+        }
+    };
     let PreparedProgramAuthorities {
         conformances,
         construction_surfaces,
@@ -553,13 +559,19 @@ fn prepare_program_checking_internal<'syntax>(
         declaration_patterns,
         copyabilities,
         drops,
-        standard_semantics,
-    } = declaration_stage!(build_program_authorities(
-        &graph,
-        &mut types,
-        &source_index,
-        admission.as_ref(),
-    ));
+    } = match build_program_authorities(&graph, &mut types, &source_index, admission.as_ref()) {
+        Ok(authorities) => authorities,
+        Err(error) => {
+            return Err(declaration_failure(
+                error,
+                retain_names,
+                graph,
+                types,
+                source_index,
+                Some(standard_semantics),
+            ));
+        }
+    };
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -632,7 +644,6 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.instances(),
     )?;
-    let standard_semantics = StandardSemanticTable::build(graph, types)?;
     Ok(PreparedProgramAuthorities {
         conformances,
         construction_surfaces,
@@ -640,7 +651,6 @@ fn build_program_authorities(
         declaration_patterns,
         copyabilities,
         drops,
-        standard_semantics,
     })
 }
 
@@ -650,13 +660,16 @@ fn declaration_failure(
     graph: DeclarationGraph,
     types: TypeStore,
     source_index: SourceIndex,
+    standard_semantics: Option<StandardSemanticTable>,
 ) -> PreparationFailure {
-    let recovery =
-        retain_recovery.then(|| {
-            crate::PreparationRecovery::Declarations(Box::new(
-                crate::DeclarationAnalysisRecovery::new(graph, types, source_index),
-            ))
-        });
+    let recovery = retain_recovery.then(|| {
+        crate::PreparationRecovery::Declarations(Box::new(crate::DeclarationAnalysisRecovery::new(
+            graph,
+            types,
+            source_index,
+            standard_semantics,
+        )))
+    });
     PreparationFailure::new(error, recovery)
 }
 

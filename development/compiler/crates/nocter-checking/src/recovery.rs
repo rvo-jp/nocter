@@ -20,13 +20,15 @@ pub enum PreparationRecovery {
 /// The complete declaration graph retained when a program-wide preparation rule rejects source.
 ///
 /// This boundary contains no conformance, construction, instance-operation, name, or body result.
-/// It exists so tooling can inspect the exact declaration identities involved in the failure
-/// without rerunning lowering or pretending that a later semantic authority was completed.
+/// It may retain the independently completed standard contract capability when a later preparation
+/// authority rejects source. Tooling can inspect these exact facts without rerunning lowering or
+/// pretending that the rejecting authority completed.
 #[derive(Debug)]
 pub struct DeclarationAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
     source_index: SourceIndex,
+    standard_semantics: Option<crate::StandardSemanticTable>,
 }
 
 impl DeclarationAnalysisRecovery {
@@ -34,11 +36,13 @@ impl DeclarationAnalysisRecovery {
         graph: DeclarationGraph,
         types: TypeStore,
         source_index: SourceIndex,
+        standard_semantics: Option<crate::StandardSemanticTable>,
     ) -> Self {
         Self {
             graph,
             types,
             source_index,
+            standard_semantics,
         }
     }
 
@@ -49,7 +53,7 @@ impl DeclarationAnalysisRecovery {
         types: TypeStore,
         source_index: SourceIndex,
     ) -> Self {
-        Self::new(graph, types, source_index)
+        Self::new(graph, types, source_index, None)
     }
 
     #[must_use]
@@ -65,6 +69,12 @@ impl DeclarationAnalysisRecovery {
     #[must_use]
     pub const fn source_index(&self) -> &SourceIndex {
         &self.source_index
+    }
+
+    /// Returns the validated standard capability completed before a later preparation failure.
+    #[must_use]
+    pub const fn standard_semantics(&self) -> Option<&crate::StandardSemanticTable> {
+        self.standard_semantics.as_ref()
     }
 }
 

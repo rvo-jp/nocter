@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_checking::MissingConformanceMethods;
-use nocter_declarations::{StandardDeclaration, StandardDeclarationRole};
+use nocter_declarations::StandardDeclarationRole;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, TokenKind};
@@ -108,11 +108,10 @@ pub(super) fn missing_method_action(
                 ))?;
         signatures.push(presentation.code().to_owned());
     }
-    let Some(StandardDeclaration::Callable(abort)) = context
+    let Some(abort) = context
         .recovery
-        .graph()
-        .standard_library()
-        .and_then(|standard| standard.declaration(StandardDeclarationRole::ProcessAbort))
+        .standard_semantics()
+        .and_then(|standard| standard.callable(StandardDeclarationRole::ProcessAbort))
     else {
         return Ok(None);
     };
