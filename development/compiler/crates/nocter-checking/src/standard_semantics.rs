@@ -35,7 +35,6 @@ impl StandardSemanticTable {
         let mut entries = BTreeMap::new();
         for (role, declaration) in standard.declarations() {
             validate_role_domain(role, declaration)?;
-            validate_standard_owner(graph, role, declaration)?;
             entries.insert(role, declaration);
         }
         let table = Self { entries };
@@ -243,52 +242,6 @@ fn validate_role_domain(
         Ok(())
     } else {
         Err(StandardSemanticError::WrongDeclarationKind(role))
-    }
-}
-
-fn validate_standard_owner(
-    graph: &DeclarationGraph,
-    role: StandardDeclarationRole,
-    entity: StandardDeclaration,
-) -> Result<(), StandardSemanticError> {
-    let standard = graph
-        .standard_library()
-        .ok_or(StandardSemanticError::MissingStandardPackage)?;
-    let site = entity_site(graph, entity).ok_or(StandardSemanticError::MissingSite(role))?;
-    let module = graph
-        .declaration_sites()
-        .get(site)
-        .and_then(|site| graph.modules().get(site.module()))
-        .ok_or(StandardSemanticError::MissingSite(role))?;
-    if module.package() != standard.package() {
-        return Err(StandardSemanticError::OutsideStandardPackage(role));
-    }
-    Ok(())
-}
-
-fn entity_site(graph: &DeclarationGraph, entity: StandardDeclaration) -> Option<DeclarationSiteId> {
-    match entity {
-        StandardDeclaration::NominalType(id) => graph
-            .declarations()
-            .nominal_types()
-            .get(id)
-            .map(nocter_declarations::NominalTypeDeclaration::site),
-        StandardDeclaration::Interface(id) => graph
-            .declarations()
-            .interfaces()
-            .get(id)
-            .map(nocter_declarations::InterfaceDeclaration::site),
-        StandardDeclaration::AssociatedType(id) => graph
-            .declarations()
-            .associated_types()
-            .get(id)
-            .map(nocter_declarations::AssociatedTypeDeclaration::site),
-        StandardDeclaration::Callable(id) => graph
-            .declarations()
-            .callables()
-            .get(id)
-            .map(nocter_declarations::CallableDeclaration::site),
-        StandardDeclaration::BuiltinType(_) => None,
     }
 }
 
@@ -518,8 +471,6 @@ fn is_public(graph: &DeclarationGraph, site: DeclarationSiteId) -> bool {
 pub enum StandardSemanticError {
     WrongDeclarationKind(StandardDeclarationRole),
     MissingStandardPackage,
-    MissingSite(StandardDeclarationRole),
-    OutsideStandardPackage(StandardDeclarationRole),
     MissingDependency {
         role: StandardDeclarationRole,
         dependency: StandardDeclarationRole,
