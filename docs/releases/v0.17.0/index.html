@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.17.0 Release Notes - Nocter</title>
-    <meta name="description" content="Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library aro">
+    <meta name="description" content="Download nocter-v0.17.0-arm64-darwin.tar.gz">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/releases/v0.17.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.17.0 Release Notes - Nocter">
-    <meta property="og:description" content="Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library aro">
+    <meta property="og:description" content="Download nocter-v0.17.0-arm64-darwin.tar.gz">
     <meta property="og:url" content="https://nocter.dev/releases/v0.17.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.17.0 Release Notes - Nocter">
-    <meta name="twitter:description" content="Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library aro">
+    <meta name="twitter:description" content="Download nocter-v0.17.0-arm64-darwin.tar.gz">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.17.0 Release Notes - Nocter","description":"Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library aro","url":"https://nocter.dev/releases/v0.17.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.17.0/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.17.0","item":"https://nocter.dev/releases/v0.17.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.17.0 Release Notes - Nocter","description":"Download nocter-v0.17.0-arm64-darwin.tar.gz","url":"https://nocter.dev/releases/v0.17.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.17.0/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.17.0","item":"https://nocter.dev/releases/v0.17.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -123,7 +123,8 @@
             <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.16.0/index.html#content">Read the v0.16.0 release notes</a></li>
+                <li><a href="./index.html#content" aria-current="page">Read the v0.17.0 release notes</a></li>
+                <li><a href="../v0.16.0/index.html#content">Nocter v0.16.0</a></li>
                 <li><a href="../v0.15.0/index.html#content">Nocter v0.15.0</a></li>
                 <li><a href="../v0.14.0/index.html#content">Nocter v0.14.0</a></li>
                 <li><a href="../v0.13.0/index.html#content">Nocter v0.13.0</a></li>
@@ -145,7 +146,7 @@
                 <span class="markdown-path-text">/releases/v0.17.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-17-0-release-notes">Nocter v0.17.0 Release Notes</h1><p>Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library around readable public contracts.</p><p>The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="package-and-source-layout">Package and Source Layout</h2><p>A package now has one root: an <code>index.nct</code> containing <code>#package</code>. The same file declares the package and defines its root module. The separate <code>nocter.nct</code> manifest and its overlapping entry rules have been removed.</p><p>Every <code>.nct</code> file physically below a module root belongs to that module until a descendant <code>index.nct</code> starts a child module. Physical membership does not make declarations mutually visible. The new <code>see ./implementation.nct</code> declaration grants direct, directional visibility between exact sources in the same module. It replaces <code>include</code>; visibility is not transitive and never creates a namespace or loads a source.</p><p>Module roots remain the public contract. Nontrivial bodies may live in ordinary sources joined by reciprocal <code>see</code> declarations, so <code>index.nct</code> can describe the complete public API without exposing private representations or implementation helpers.</p><h2 id="practical-filesystem-apis">Practical Filesystem APIs</h2><p>The new <code>std/fs</code> module provides whole-file operations and portable metadata:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs
+                <h1 id="nocter-v0-17-0-release-notes">Nocter v0.17.0 Release Notes</h1><p><a href="https://github.com/rvo-jp/nocter/releases/download/v0.17.0/nocter-v0.17.0-arm64-darwin.tar.gz">Download nocter-v0.17.0-arm64-darwin.tar.gz</a></p><p>Nocter v0.17.0 makes local file-processing applications practical, gives physical source layout a single meaning, and reconstructs the standard library around readable public contracts.</p><p>The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="package-and-source-layout">Package and Source Layout</h2><p>A package now has one root: an <code>index.nct</code> containing <code>#package</code>. The same file declares the package and defines its root module. The separate <code>nocter.nct</code> manifest and its overlapping entry rules have been removed.</p><p>Every <code>.nct</code> file physically below a module root belongs to that module until a descendant <code>index.nct</code> starts a child module. Physical membership does not make declarations mutually visible. The new <code>see ./implementation.nct</code> declaration grants direct, directional visibility between exact sources in the same module. It replaces <code>include</code>; visibility is not transitive and never creates a namespace or loads a source.</p><p>Module roots remain the public contract. Nontrivial bodies may live in ordinary sources joined by reciprocal <code>see</code> declarations, so <code>index.nct</code> can describe the complete public API without exposing private representations or implementation helpers.</p><h2 id="practical-filesystem-apis">Practical Filesystem APIs</h2><p>The new <code>std/fs</code> module provides whole-file operations and portable metadata:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs
 
 <span class="token-keyword">let</span> text <span class="token-operator">=</span> fs<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-string">"input.txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
 fs<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"copy.txt"</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>text<span class="token-operator">)</span><span class="token-operator">?</span>

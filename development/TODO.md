@@ -7,15 +7,15 @@ Nocter v0.17.0 Phase 0 and Phase 1 are complete, and the
 [analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is also complete.
 Declaration rejection, checking recovery, session composition, analysis snapshots, semantic editor
 queries, and LSP mutation validation now use one staged authority model; the superseded parallel
-adapters and source-`include` vocabulary were deleted. Practical API planning may resume from this
-boundary after the publication decision. Do not mutate the qualified v0.17.0 release content or
-start another practical API phase before that decision.
+adapters and source-`include` vocabulary were deleted. Publication is authorized. Do not mutate the
+qualified v0.17.0 release content while the publication commit, annotated tag, GitHub release,
+asset upload, and public re-download audit are completed.
 
 Release-content commit `2c2c01d6879984c3dc856a1b1989f31d19870a35` passed two independent
 workspace test runs, two strict Clippy runs, explicit public-HTTPS acquisition, deterministic
 double packaging, and the complete fresh-install smoke matrix. The retained 7,242,633-byte archive
 has SHA-256 `7933950c520367e3af21ee19121069aee73815f0ba56691c063786fd530b499c`.
-Publication remains separately authorized work.
+The qualified archive is frozen throughout publication.
 
 The follow-up adversarial boundary review is complete. Declaration rejection now exposes distinct
 declaration-only and body-analysis types instead of a caller-checked capability flag. One

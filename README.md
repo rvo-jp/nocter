@@ -21,7 +21,7 @@ See the [language specification](spec/README.md) and
 
 ## One Directory Install
 
-[Download nocter-v0.16.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.16.0/nocter-v0.16.0-arm64-darwin.tar.gz)
+[Download nocter-v0.17.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.17.0/nocter-v0.17.0-arm64-darwin.tar.gz)
 
 Nocter compiles source directly to native executables without requiring LLVM,
 `clang`, `as`, `ld`, Xcode Command Line Tools, or an external runtime library
@@ -47,7 +47,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.16.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.17.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -116,12 +116,12 @@ module, use package mode as demonstrated by
 
 ## Current Status
 
-The v0.16.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
+The v0.17.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
 emits ARM64 Mach-O executables directly. Unsupported runtime forms are rejected with source-backed
 diagnostics before machine code is emitted.
 
-The [language specification](spec/README.md) describes the published v0.16.0 language. The
-`v0.16.0` repository tag preserves the exact compiler, standard library, specification, packaging
+The [language specification](spec/README.md) describes the published v0.17.0 language. The
+`v0.17.0` repository tag preserves the exact compiler, standard library, specification, packaging
 inputs, and public release documentation.
 
 ## Learn More
