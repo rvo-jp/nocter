@@ -760,7 +760,7 @@ struct DraftCallableInvocation {
 }
 
 fn freeze_items(
-    drafts: BTreeMap<ExecutableItemKey, DraftItem>,
+    mut drafts: BTreeMap<ExecutableItemKey, DraftItem>,
     types: nocter_model::TypeStore,
     type_representations: super::RuntimeTypeRepresentationTable,
 ) -> Result<FrozenClosure, ExecutableProgramError> {
@@ -770,34 +770,27 @@ fn freeze_items(
         let id = key_arena.insert(key.clone());
         item_ids.insert(key.clone(), id);
     }
-    let _ = key_arena.finish();
-    let mut items = ArenaBuilder::new();
     let mut closure_layouts = BTreeMap::new();
-    for (key, draft) in drafts {
-        let expected = item_ids
-            .get(&key)
-            .copied()
+    let items = key_arena.try_finish_with(|item, key| {
+        let draft = drafts
+            .remove(&key)
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
         let (signature, closure, body) = freeze_body(draft, &item_ids)?;
-        let closure_ty = closure.as_ref().map(super::ExecutableClosureLayout::ty);
-        let actual = items.insert(ExecutableItem {
-            key: key.clone(),
-            signature,
-            closure,
-            body,
-        });
-        if actual != expected {
-            return Err(ExecutableProgramError::DuplicateItem(key));
-        }
-        if let Some(closure_ty) = closure_ty
-            && closure_layouts.insert(closure_ty, actual).is_some()
+        if let Some(closure_ty) = closure.as_ref().map(super::ExecutableClosureLayout::ty)
+            && closure_layouts.insert(closure_ty, item).is_some()
         {
             return Err(ExecutableProgramError::DuplicateClosureLayout(closure_ty));
         }
-    }
+        Ok(ExecutableItem {
+            key,
+            signature,
+            closure,
+            body,
+        })
+    })?;
     Ok(FrozenClosure {
         types,
-        items: items.finish(),
+        items,
         item_ids,
         closure_layouts,
         type_representations,

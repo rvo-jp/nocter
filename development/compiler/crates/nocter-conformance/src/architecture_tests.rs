@@ -243,6 +243,21 @@ fn named_associated_types_are_indexed_once_at_header_resolution() {
 }
 
 #[test]
+fn executable_freezing_preserves_reserved_item_identities() {
+    let build = source("crates/nocter-target-program/src/executable/build.rs");
+    let freeze = build
+        .split_once("fn freeze_items(")
+        .expect("executable item freeze exists")
+        .1
+        .split_once("fn freeze_body(")
+        .expect("item freeze ends before body freeze")
+        .0;
+    assert!(freeze.contains("key_arena.try_finish_with"));
+    assert!(!freeze.contains("let _ = key_arena.finish()"));
+    assert!(!freeze.contains("let mut items = ArenaBuilder::new()"));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));
