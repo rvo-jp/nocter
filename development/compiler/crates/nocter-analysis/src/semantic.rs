@@ -240,12 +240,7 @@ impl<'a> SemanticAuthority<'a> {
     ) -> Option<&'a nocter_checking::BodyScope> {
         match self {
             Self::Checked { checked, .. } => checked.bodies().get(body)?.scopes().get(scope),
-            Self::Bodies(analysis) => analysis
-                .prepared()
-                .body_names()
-                .get(body)?
-                .scopes()
-                .get(scope),
+            Self::Bodies(analysis) => analysis.body_names().get(body)?.scopes().get(scope),
             Self::Names(analysis) => analysis.body_names().get(body)?.scopes().get(scope),
             Self::Declarations(_) => None,
         }

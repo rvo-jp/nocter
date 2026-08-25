@@ -173,7 +173,7 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     let body_analysis = failure.semantic().unwrap().bodies().unwrap();
     let prepared = body_analysis.prepared();
     assert!(!prepared.graph().declarations().callables().is_empty());
-    assert!(!prepared.body_names().is_empty());
+    assert!(!body_analysis.body_names().is_empty());
     assert!(!body_analysis.source_index().is_empty());
     let interruption = body_analysis.interruptions().next().unwrap();
     assert_eq!(

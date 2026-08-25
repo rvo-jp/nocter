@@ -184,6 +184,29 @@ fn body_recovery_promotes_or_discards_one_isolated_transaction() {
 }
 
 #[test]
+fn prepared_semantic_program_excludes_syntax_owned_body_state() {
+    let preparation = source("crates/nocter-checking/src/preparation.rs");
+    let semantic_contract = preparation
+        .split_once("pub struct PreparedSemanticProgram")
+        .expect("prepared semantic program exists")
+        .1
+        .split_once("impl PreparedSemanticProgram")
+        .expect("prepared semantic fields precede its implementation")
+        .0;
+    assert!(!semantic_contract.contains("ResolvedBodyNames"));
+    assert!(!semantic_contract.contains("BodySourceCatalog"));
+
+    let prepared_checking = preparation
+        .split_once("pub struct PreparedChecking<'syntax>")
+        .expect("prepared checking exists")
+        .1
+        .split_once("pub struct PreparedBodyAnalysis")
+        .expect("prepared checking fields precede analysis wrapper")
+        .0;
+    assert!(prepared_checking.contains("semantic: PreparedSemanticProgram"));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));

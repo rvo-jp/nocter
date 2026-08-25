@@ -299,9 +299,10 @@ fn build_body_analysis_recovery(
     if let Some((body, _)) = checked_bodies.next() {
         return Err(BodyCheckInternalError::NonCanonicalBody(body));
     }
-    let (prepared, source_index) = prepared.into_semantic_parts();
+    let (prepared, body_names, source_index) = prepared.into_semantic_parts();
     Ok(crate::BodyAnalysisRecovery::new(
         prepared,
+        body_names,
         source_index,
         interruptions,
         recovered.finish(),

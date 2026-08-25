@@ -26,19 +26,10 @@ use crate::{
 /// conformance authority that the final checked program will consume.
 #[derive(Debug)]
 pub struct PreparedChecking<'syntax> {
-    graph: DeclarationGraph,
-    types: TypeStore,
-    conformances: ConformanceTable,
-    construction_surfaces: ConstructionSurfaceTable,
-    instance_operations: InstanceOperationTable,
-    declaration_patterns: DeclarationPatternTable,
-    copyabilities: CopyabilityTable,
-    drops: DropTable,
-    standard_semantics: StandardSemanticTable,
+    semantic: PreparedSemanticProgram,
     body_sources: BodySourceCatalog<'syntax>,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_namespaces: SourceNamespaceTable,
-    source_access: SourceAccessTable,
     source_index: SourceIndex,
 }
 
@@ -70,11 +61,31 @@ pub struct PreparedSemanticProgram {
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
-    body_names: Arena<BodyId, ResolvedBodyNames>,
     source_access: SourceAccessTable,
 }
 
 impl PreparedSemanticProgram {
+    fn new(
+        graph: DeclarationGraph,
+        types: TypeStore,
+        standard_semantics: StandardSemanticTable,
+        authorities: PreparedProgramAuthorities,
+        source_access: SourceAccessTable,
+    ) -> Self {
+        Self {
+            graph,
+            types,
+            conformances: authorities.conformances,
+            construction_surfaces: authorities.construction_surfaces,
+            instance_operations: authorities.instance_operations,
+            declaration_patterns: authorities.declaration_patterns,
+            copyabilities: authorities.copyabilities,
+            drops: authorities.drops,
+            standard_semantics,
+            source_access,
+        }
+    }
+
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
         &self.graph
@@ -120,11 +131,6 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn body_names(&self) -> &Arena<BodyId, ResolvedBodyNames> {
-        &self.body_names
-    }
-
-    #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
@@ -133,43 +139,43 @@ impl PreparedSemanticProgram {
 impl<'syntax> PreparedChecking<'syntax> {
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
-        &self.graph
+        self.semantic.graph()
     }
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
-        &self.types
+        self.semantic.types()
     }
 
     #[must_use]
     pub const fn conformances(&self) -> &ConformanceTable {
-        &self.conformances
+        self.semantic.conformances()
     }
 
     #[cfg(test)]
     #[must_use]
     pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
-        &self.construction_surfaces
+        self.semantic.construction_surfaces()
     }
 
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
-        &self.instance_operations
+        self.semantic.instance_operations()
     }
 
     #[must_use]
     pub const fn copyabilities(&self) -> &CopyabilityTable {
-        &self.copyabilities
+        self.semantic.copyabilities()
     }
 
     #[must_use]
     pub const fn drops(&self) -> &DropTable {
-        &self.drops
+        self.semantic.drops()
     }
 
     #[must_use]
     pub const fn standard_semantics(&self) -> &StandardSemanticTable {
-        &self.standard_semantics
+        self.semantic.standard_semantics()
     }
 
     #[must_use]
@@ -190,24 +196,36 @@ impl<'syntax> PreparedChecking<'syntax> {
     #[cfg(test)]
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
-        &self.source_access
+        self.semantic.source_access()
     }
 
     pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
+        let PreparedSemanticProgram {
+            graph,
+            types,
+            conformances,
+            construction_surfaces,
+            instance_operations,
+            declaration_patterns,
+            copyabilities,
+            drops,
+            standard_semantics,
+            source_access,
+        } = self.semantic;
         PreparedCheckingParts {
-            graph: self.graph,
-            types: self.types,
-            conformances: self.conformances,
-            construction_surfaces: self.construction_surfaces,
-            instance_operations: self.instance_operations,
-            declaration_patterns: self.declaration_patterns,
-            copyabilities: self.copyabilities,
-            drops: self.drops,
-            standard_semantics: self.standard_semantics,
+            graph,
+            types,
+            conformances,
+            construction_surfaces,
+            instance_operations,
+            declaration_patterns,
+            copyabilities,
+            drops,
+            standard_semantics,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_namespaces: self.source_namespaces,
-            source_access: self.source_access,
+            source_access,
             source_index: self.source_index,
         }
     }
@@ -231,7 +249,13 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 }
 
 impl PreparedCheckingParts<'_> {
-    pub(crate) fn into_semantic_parts(self) -> (PreparedSemanticProgram, SourceIndex) {
+    pub(crate) fn into_semantic_parts(
+        self,
+    ) -> (
+        PreparedSemanticProgram,
+        Arena<BodyId, ResolvedBodyNames>,
+        SourceIndex,
+    ) {
         let program = PreparedSemanticProgram {
             graph: self.graph,
             types: self.types,
@@ -242,10 +266,9 @@ impl PreparedCheckingParts<'_> {
             copyabilities: self.copyabilities,
             drops: self.drops,
             standard_semantics: self.standard_semantics,
-            body_names: self.body_names,
             source_access: self.source_access,
         };
-        (program, self.source_index)
+        (program, self.body_names, self.source_index)
     }
 }
 
@@ -548,26 +571,20 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let PreparedProgramAuthorities {
-        conformances,
-        construction_surfaces,
-        instance_operations,
-        declaration_patterns,
-        copyabilities,
-        drops,
-    } = match build_program_authorities(&graph, &mut types, &source_index, admission.as_ref()) {
-        Ok(authorities) => authorities,
-        Err(error) => {
-            return Err(declaration_failure(
-                error,
-                retain_names,
-                graph,
-                types,
-                source_index,
-                Some(standard_semantics),
-            ));
-        }
-    };
+    let authorities =
+        match build_program_authorities(&graph, &mut types, &source_index, admission.as_ref()) {
+            Ok(authorities) => authorities,
+            Err(error) => {
+                return Err(declaration_failure(
+                    error,
+                    retain_names,
+                    graph,
+                    types,
+                    source_index,
+                    Some(standard_semantics),
+                ));
+            }
+        };
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -596,19 +613,16 @@ fn prepare_program_checking_internal<'syntax>(
     };
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
-        graph,
-        types,
-        conformances,
-        construction_surfaces,
-        instance_operations,
-        declaration_patterns,
-        copyabilities,
-        drops,
-        standard_semantics,
+        semantic: PreparedSemanticProgram::new(
+            graph,
+            types,
+            standard_semantics,
+            authorities,
+            bindings.source_access().clone(),
+        ),
         body_sources,
         body_names,
         source_namespaces: bindings.source_namespaces().clone(),
-        source_access: bindings.source_access().clone(),
         source_index,
     })
 }

@@ -87,14 +87,15 @@ struct TypedInterruptionSnapshot {
 
 /// Immutable current-generation semantic authority retained after typed-body failure.
 ///
-/// The prepared program remains the authority for declarations, names, and scopes. Every authored
-/// body failure may add one typed interruption backed by a private transactional type/copyability
-/// snapshot. Independently successful bodies are retained sparsely for local editor queries, but
-/// they have not passed whole-program ownership, provenance, or target closure and therefore
-/// cannot be promoted to a checked program.
+/// The prepared program remains the syntax-independent authority for program-wide semantics.
+/// Lexical body names stay in this editor recovery layer. Every authored body failure may add one
+/// typed interruption backed by a private transactional type/copyability snapshot. Independently
+/// successful bodies are retained sparsely for local editor queries, but they have not passed
+/// whole-program ownership, provenance, or target closure and cannot become a checked program.
 #[derive(Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
+    body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,
     source_index: SourceIndex,
     typed: Box<[TypedInterruptionSnapshot]>,
     bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
@@ -103,12 +104,14 @@ pub struct BodyAnalysisRecovery {
 impl BodyAnalysisRecovery {
     pub(crate) fn new(
         prepared: PreparedSemanticProgram,
+        body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,
         source_index: SourceIndex,
         typed: Vec<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
         bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
     ) -> Self {
         Self {
             prepared,
+            body_names,
             source_index,
             typed: typed
                 .into_iter()
@@ -128,6 +131,12 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub const fn prepared(&self) -> &PreparedSemanticProgram {
         &self.prepared
+    }
+
+    /// Returns the lexical body result retained by the editor recovery layer.
+    #[must_use]
+    pub const fn body_names(&self) -> &Arena<nocter_model::BodyId, crate::ResolvedBodyNames> {
+        &self.body_names
     }
 
     /// Returns the independent source projection retained alongside prepared semantics.
