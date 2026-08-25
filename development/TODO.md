@@ -2,20 +2,22 @@
 
 ## Current Task
 
-Nocter v0.17.0 Phase 0 and Phase 1 are complete, and the
-[release candidate](milestones/v0.17.0-release-preparation.md) is qualified. The
+Nocter v0.17.0 is published and externally audited. The
 [analysis authority reconstruction](reviews/v0.17.0-analysis-authority.md) is also complete.
 Declaration rejection, checking recovery, session composition, analysis snapshots, semantic editor
 queries, and LSP mutation validation now use one staged authority model; the superseded parallel
-adapters and source-`include` vocabulary were deleted. Publication is authorized. Do not mutate the
-qualified v0.17.0 release content while the publication commit, annotated tag, GitHub release,
-asset upload, and public re-download audit are completed.
+adapters and source-`include` vocabulary were deleted.
 
 Release-content commit `2c2c01d6879984c3dc856a1b1989f31d19870a35` passed two independent
 workspace test runs, two strict Clippy runs, explicit public-HTTPS acquisition, deterministic
 double packaging, and the complete fresh-install smoke matrix. The retained 7,242,633-byte archive
 has SHA-256 `7933950c520367e3af21ee19121069aee73815f0ba56691c063786fd530b499c`.
-The qualified archive is frozen throughout publication.
+Annotated tag `v0.17.0` resolves to publication commit
+`002e47148778b7acbd0ba76fe46e63188eea08eb`, and the public asset matches the qualified archive
+byte for byte. Complete evidence is recorded in `development/releases/v0.17.0.md`.
+
+The v0.17.0 tag and release asset are frozen. No release-preparation or publication operation
+remains active. Practical API planning may resume from this boundary.
 
 The follow-up adversarial boundary review is complete. Declaration rejection now exposes distinct
 declaration-only and body-analysis types instead of a caller-checked capability flag. One

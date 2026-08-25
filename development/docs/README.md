@@ -20,6 +20,7 @@ and standard-library behavior belongs exclusively in
 - [Current Handoff](../TODO.md)
 - [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
 - [v0.17.0 Release Preparation](../milestones/v0.17.0-release-preparation.md)
+- [v0.17.0 Publication and Audit](../releases/v0.17.0.md)
 - [v0.16.0 Practical Failure Values](../milestones/v0.16.0.md)
 - [v0.16.0 Release Preparation](../milestones/v0.16.0-release-preparation.md)
 
