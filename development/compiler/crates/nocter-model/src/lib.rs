@@ -11,6 +11,7 @@ mod origin;
 mod package;
 mod symbol;
 mod target;
+mod type_projection;
 mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
@@ -27,6 +28,7 @@ pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};
+pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
     TypeKind, TypeStore, UnknownTypeId,

@@ -175,9 +175,12 @@ one-step coercion fallback used by call checking. Visible fields come from the e
 and pass through the ordinary field selector. A completed call supplies its exact
 `CheckedReceiver`. If body checking rejects an unknown, ambiguous, or missing member, it may retain
 a typed interruption containing the failed operation's body identity, source origin, receiver
-type, available borrow capability, and consumability together with the monotonic type state reached
-at that point. The interruption is not a partial `CheckedBody`, does not manufacture a dispatch,
-and is usable only at its exact source range in that failed generation.
+type, available borrow capability, and consumability. Recovery-mode checking treats each body as a
+transaction: a failed body's type, copyability, and closure-identity mutations do not enter the next
+body, while its private typed snapshot remains available only to checker-owned recovery queries.
+All independently recoverable body interruptions are retained, regardless of which body supplied
+the first canonical diagnostic. An interruption is not a partial `CheckedBody`, does not
+manufacture a dispatch, and is usable only at its exact source range in that failed generation.
 
 The production declaration-lowering and compile-input entries still reject every syntax error.
 One separate editor-only declaration entry permits an incomplete syntax tree only when it has no
@@ -190,12 +193,14 @@ fixed before it. This supports `value.` completion without inserting a synthetic
 compiling modified source.
 
 When lexical name resolution rejects authored source, its editor-only entry may freeze one
-`NameAnalysisRecovery`. The value contains the declaration graph and type store together with only
-the body scopes, bindings, and source projections completed before the rule failed. The unresolved
-spelling receives no synthetic target, later statements are absent, and the value cannot enter body
-checking. Name completion can therefore use the exact current generation without editor-side token
-lookup or a stale successful snapshot. This recovery stage is distinct from the complete pre-body
-stage retained after a typed-body failure.
+`NameAnalysisRecovery`. The value contains the declaration graph and type store together with a
+sparse slot for every declared body. A failing body's slot contains only scopes, bindings, and
+source projections fixed before that body's rule failure; independently resolved later bodies keep
+their complete lexical slots. Unresolved spellings receive no synthetic targets, and the sparse
+table cannot enter body checking. Name completion can therefore use the exact current generation
+without making unrelated bodies depend on traversal order, editor-side token lookup, or a stale
+successful snapshot. This recovery stage is distinct from the complete pre-body stage retained
+after a typed-body failure.
 
 Construction-member completion is a separate type-owned query rather than a special case of value
 receiver completion. One `ConstructionCompletionOwner` identifies a nominal or built-in type

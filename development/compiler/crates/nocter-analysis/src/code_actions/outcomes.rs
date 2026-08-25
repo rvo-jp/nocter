@@ -65,7 +65,8 @@ pub(super) fn callable_contract_action(
     else {
         return Ok(None);
     };
-    let Some(interruption) = recovery.interruption() else {
+    let Some(interruption) = recovery.interruption_overlapping(requested_source, diagnostic_range)
+    else {
         return Ok(None);
     };
     let nocter_checking::TypedBodyInterruptionKind::OutcomeContract {
@@ -75,9 +76,6 @@ pub(super) fn callable_contract_action(
     else {
         return Ok(None);
     };
-    if interruption.origin().source() != requested_source {
-        return Ok(None);
-    }
     let graph = recovery.prepared().graph();
     let body = graph
         .declarations()
@@ -121,7 +119,12 @@ pub(super) fn callable_contract_action(
         .node(result)
         .map(nocter_syntax::SyntaxNode::range)
         .ok_or(OutcomeActionError::MissingResultType(callable_id))?;
-    let presentation = recovery_type_presentation(recovery, *proposed_result, module)
+    let projection = recovery
+        .interrupted_outcome_type(interruption)
+        .transpose()
+        .map_err(|_| OutcomeActionError::UnrenderableResult(*proposed_result))?
+        .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
+    let presentation = recovery_type_presentation(&projection, graph, module)
         .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
     let layer_name = match layer {
         nocter_checking::OutcomeLayer::Optional => "optional",

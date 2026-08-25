@@ -349,6 +349,10 @@ impl TypeStore {
 pub struct UnknownTypeId(TypeId);
 
 impl UnknownTypeId {
+    pub(crate) const fn new(id: TypeId) -> Self {
+        Self(id)
+    }
+
     #[must_use]
     pub const fn id(self) -> TypeId {
         self.0

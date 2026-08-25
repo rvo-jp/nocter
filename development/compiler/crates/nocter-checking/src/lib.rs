@@ -117,7 +117,7 @@ pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
     MemberCompletionTarget,
 };
-pub use name_recovery::NameAnalysisRecovery;
+pub use name_recovery::{NameAnalysisRecovery, PartialBodyNames};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,

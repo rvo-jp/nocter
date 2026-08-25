@@ -1,5 +1,6 @@
 use nocter_declarations::DeclarationGraph;
-use nocter_model::TypeStore;
+use nocter_model::{TypeProjection, TypeProjectionError, TypeStore};
+use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
 
 use crate::member_completion::select_member_completions;
@@ -74,31 +75,36 @@ struct TypedInterruptionSnapshot {
     copyabilities: CopyabilityTable,
 }
 
-/// The deepest immutable current-generation semantic state retained after typed-body failure.
+/// Immutable current-generation semantic authority retained after typed-body failure.
 ///
-/// The prepared program remains the authority for declarations, names, and scopes. A typed
-/// interruption additionally owns the monotonic type/copyability stores used at the exact failed
-/// operation; it never masquerades as a checked body or supplies dispatch for invalid source.
+/// The prepared program remains the authority for declarations, names, and scopes. Every authored
+/// body failure may add one typed interruption backed by a private transactional type/copyability
+/// snapshot. Consumers can select interruptions and invoke explicit recovery queries, but cannot
+/// observe those checker stores or treat them as checked bodies.
 #[derive(Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
-    typed: Option<TypedInterruptionSnapshot>,
+    typed: Box<[TypedInterruptionSnapshot]>,
 }
 
 impl BodyAnalysisRecovery {
     pub(crate) fn new(
         prepared: PreparedSemanticProgram,
-        typed: Option<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+        typed: Vec<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
     ) -> Self {
         Self {
             prepared,
-            typed: typed.map(
-                |(interruption, types, copyabilities)| TypedInterruptionSnapshot {
-                    interruption,
-                    types,
-                    copyabilities,
-                },
-            ),
+            typed: typed
+                .into_iter()
+                .map(
+                    |(interruption, types, copyabilities)| TypedInterruptionSnapshot {
+                        interruption,
+                        types,
+                        copyabilities,
+                    },
+                )
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
         }
     }
 
@@ -108,25 +114,62 @@ impl BodyAnalysisRecovery {
     }
 
     #[must_use]
-    pub fn interruption(&self) -> Option<&TypedBodyInterruption> {
-        self.typed.as_ref().map(|typed| &typed.interruption)
+    pub fn interruptions(&self) -> impl ExactSizeIterator<Item = &TypedBodyInterruption> {
+        self.typed.iter().map(|typed| &typed.interruption)
     }
 
-    /// Returns the exact monotonic type store reached by this failed generation.
+    /// Selects the narrowest typed interruption containing one editor position.
     #[must_use]
-    pub fn types(&self) -> &TypeStore {
+    pub fn interruption_at(
+        &self,
+        source: SourceId,
+        offset: ByteOffset,
+    ) -> Option<&TypedBodyInterruption> {
         self.typed
-            .as_ref()
-            .map_or_else(|| self.prepared.types(), |typed| &typed.types)
+            .iter()
+            .filter(|typed| {
+                let origin = typed.interruption.origin();
+                origin.source() == source && origin.span().range().contains_cursor(offset)
+            })
+            .min_by_key(|typed| typed.interruption.origin().span().range().len())
+            .map(|typed| &typed.interruption)
+    }
+
+    /// Selects the narrowest typed interruption associated with one diagnostic range.
+    #[must_use]
+    pub fn interruption_overlapping(
+        &self,
+        source: SourceId,
+        range: TextRange,
+    ) -> Option<&TypedBodyInterruption> {
+        self.typed
+            .iter()
+            .filter(|typed| {
+                let origin = typed.interruption.origin();
+                let interruption = origin.span().range();
+                origin.source() == source
+                    && (interruption.overlaps(range)
+                        || interruption.contains_range(range)
+                        || range.contains_range(interruption))
+            })
+            .min_by_key(|typed| typed.interruption.origin().span().range().len())
+            .map(|typed| &typed.interruption)
+    }
+
+    fn snapshot(&self, interruption: &TypedBodyInterruption) -> Option<&TypedInterruptionSnapshot> {
+        self.typed
+            .iter()
+            .find(|typed| typed.interruption == *interruption)
     }
 
     /// Applies the normal member selector to an exact failed member-selection context.
     #[must_use]
     pub fn interrupted_member_completions(
         &self,
-        source: nocter_source::SourceId,
+        interruption: &TypedBodyInterruption,
+        source: SourceId,
     ) -> Option<Result<Box<[MemberCompletionCandidate]>, MemberCompletionError>> {
-        let typed = self.typed.as_ref()?;
+        let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::MemberSelection {
             receiver,
             available,
@@ -155,9 +198,10 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_construction_completions(
         &self,
-        source: nocter_source::SourceId,
+        interruption: &TypedBodyInterruption,
+        source: SourceId,
     ) -> Option<Result<Box<[ConstructionCompletionCandidate]>, ConstructionCompletionError>> {
-        let typed = self.typed.as_ref()?;
+        let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::ConstructionSelection { owner } = typed.interruption.kind()
         else {
             return None;
@@ -169,14 +213,15 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_structural_field_completions(
         &self,
-        source: nocter_source::SourceId,
+        interruption: &TypedBodyInterruption,
+        source: SourceId,
     ) -> Option<
         Result<
             Box<[crate::StructuralFieldCompletionCandidate]>,
             crate::StructuralFieldCompletionError,
         >,
     > {
-        let typed = self.typed.as_ref()?;
+        let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::StructuralConstruction {
             definition,
             initialized,
@@ -194,11 +239,12 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_enum_pattern_completions(
         &self,
-        source: nocter_source::SourceId,
+        interruption: &TypedBodyInterruption,
+        source: SourceId,
     ) -> Option<
         Result<Box<[crate::EnumPatternCompletionCandidate]>, crate::EnumPatternCompletionError>,
     > {
-        let typed = self.typed.as_ref()?;
+        let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::EnumPattern { definition } = typed.interruption.kind()
         else {
             return None;
@@ -210,18 +256,35 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_associated_type_completions(
         &self,
+        interruption: &TypedBodyInterruption,
     ) -> Option<
         Result<
             Box<[crate::AssociatedTypeCompletionCandidate]>,
             crate::AssociatedTypeCompletionError,
         >,
     > {
-        let typed = self.typed.as_ref()?;
+        let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::AssociatedTypeProjection { candidates } =
             typed.interruption.kind()
         else {
             return None;
         };
         Some(self.prepared.associated_type_completions(candidates))
+    }
+
+    /// Projects an outcome repair type without exposing the checker store that produced it.
+    #[must_use]
+    pub fn interrupted_outcome_type(
+        &self,
+        interruption: &TypedBodyInterruption,
+    ) -> Option<Result<TypeProjection, TypeProjectionError>> {
+        let typed = self.snapshot(interruption)?;
+        let TypedBodyInterruptionKind::OutcomeContract {
+            proposed_result, ..
+        } = typed.interruption.kind()
+        else {
+            return None;
+        };
+        Some(typed.types.project(*proposed_result))
     }
 }

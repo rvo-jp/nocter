@@ -51,7 +51,7 @@ impl<I: SemanticId, T> Arena<I, T> {
 /// The single mutable construction path for an [`Arena`].
 ///
 /// Finishing consumes the builder so an arena cannot be mutated after it enters a program.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ArenaBuilder<I, T> {
     values: Vec<T>,
     identity: PhantomData<fn() -> I>,

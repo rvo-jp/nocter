@@ -166,6 +166,7 @@ impl ClosureTable {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ClosureTableBuilder {
     slots: ArenaBuilder<ClosureId, ClosureSlot>,
 }
@@ -234,6 +235,7 @@ impl ClosureTableBuilder {
     }
 }
 
+#[derive(Clone)]
 enum ClosureSlot {
     Reserved(BodyId),
     Defined(ClosureDefinition),

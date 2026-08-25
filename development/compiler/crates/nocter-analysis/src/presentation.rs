@@ -98,14 +98,13 @@ pub(super) fn type_presentation_with_spellings(
 }
 
 pub(super) fn recovery_type_presentation(
-    recovery: &nocter_checking::BodyAnalysisRecovery,
-    ty: TypeId,
+    projection: &nocter_model::TypeProjection,
+    graph: &DeclarationGraph,
     from: nocter_model::ModuleId,
 ) -> Option<SemanticPresentation> {
-    let graph = recovery.prepared().graph();
     let spellings = visible_spelling::VisibleSpellings::new(graph, from);
-    let mut renderer = Renderer::new(graph, recovery.types(), &spellings);
-    renderer.ty(ty)?;
+    let mut renderer = Renderer::new(graph, projection.types(), &spellings);
+    renderer.ty(projection.root())?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
     })

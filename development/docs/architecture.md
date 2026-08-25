@@ -1343,12 +1343,14 @@ not invalidate a source-semantic repair.
 
 A failed postfix-propagation check may retain a separate `OutcomeContract` interruption only after
 the operand's immediate optional or fallible layer is typed. The interruption owns that layer and a
-proposed canonical result `TypeId` interned in the exact monotonic type store reached by the failed
-generation. Analysis renders through that retained store and locates the editable result annotation
-by the declaration kind's direct CST path; it does not search the declaration range for a nested
-`CallableTail`. Fixed-result and grammar-restricted operators are explicitly non-editable. The
-shared speculative transaction remains the final authority, so a contract change that creates a
-public-call, conformance, provenance, or body error is not exposed.
+proposed canonical result identity. Before that type crosses the checking boundary, recovery
+projects it and its transitive structural dependencies into a self-contained `TypeProjection`.
+Analysis renders through that projection rather than observing the monotonic checker store reached
+by the failed body. It locates the editable result annotation by the declaration kind's direct CST
+path; it does not search the declaration range for a nested `CallableTail`. Fixed-result and
+grammar-restricted operators are explicitly non-editable. The shared speculative transaction
+remains the final authority, so a contract change that creates a public-call, conformance,
+provenance, or body error is not exposed.
 Callable inference distinguishes a complete-result context from a postfix-propagation payload
 context. The latter projects exactly one statically declared optional or fallible layer from a call
 result and constrains its payload without materializing the enclosing callable's result type on the

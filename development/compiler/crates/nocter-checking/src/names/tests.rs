@@ -112,7 +112,18 @@ fn binding_initializer_cannot_see_the_binding_being_declared() {
 #[test]
 fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
     let fixture = Fixture::new(
-        "func main(input: i32): void {\n    let before = input\n    unknown\n    let after = input\n    return\n}\n",
+        concat!(
+            "func main(input: i32): void {\n",
+            "    let before = input\n",
+            "    unknown\n",
+            "    let after = input\n",
+            "    return\n",
+            "}\n",
+            "func later(input: i32): void {\n",
+            "    let retained = input\n",
+            "    return\n",
+            "}\n",
+        ),
         "",
     );
     let input = fixture.input(false, Vec::new());
@@ -131,6 +142,7 @@ fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
     assert_eq!(failure.error.source_diagnostic().unwrap().code(), "E0340");
     let recovery = failure.recovery.unwrap();
     let (_, body) = recovery.bodies.iter().next().unwrap();
+    let body = body.as_ref().expect("failing body recovery");
     let names = body
         .scopes()
         .iter()
@@ -146,6 +158,20 @@ fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
             .bindings_for(SemanticEntity::BodyScope(body.body(), scope))
             .is_empty()
     }));
+    assert_eq!(recovery.bodies.iter().count(), 2);
+    let later = recovery
+        .bodies
+        .iter()
+        .filter_map(|(_, body)| body.as_ref())
+        .find(|body| {
+            body.locals().iter().any(|(_, local)| {
+                program.graph().symbols().spelling(local.name()) == Some("retained")
+            })
+        });
+    assert!(
+        later.is_some(),
+        "a prior name failure must not hide later bodies"
+    );
 }
 
 #[test]

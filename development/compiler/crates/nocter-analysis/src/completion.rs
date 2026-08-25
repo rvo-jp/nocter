@@ -317,19 +317,16 @@ fn interrupted_completions(
     let Some(recovery) = authority.body_analysis() else {
         return Ok(None);
     };
-    let Some(interruption) = recovery.interruption() else {
+    let Some(interruption) = recovery.interruption_at(source, offset) else {
         return Ok(None);
     };
-    let origin = interruption.origin();
-    if origin.source() != source || !origin.span().range().contains_cursor(offset) {
-        return Ok(None);
-    }
     let index = recovery.prepared().source_index();
     let spellings =
         VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
-            let Some(candidates) = recovery.interrupted_member_completions(source) else {
+            let Some(candidates) = recovery.interrupted_member_completions(interruption, source)
+            else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -355,7 +352,9 @@ fn interrupted_completions(
             ))
         }
         TypedBodyInterruptionKind::ConstructionSelection { .. } => {
-            let Some(candidates) = recovery.interrupted_construction_completions(source) else {
+            let Some(candidates) =
+                recovery.interrupted_construction_completions(interruption, source)
+            else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -366,7 +365,9 @@ fn interrupted_completions(
             )))
         }
         TypedBodyInterruptionKind::StructuralConstruction { .. } => {
-            let Some(candidates) = recovery.interrupted_structural_field_completions(source) else {
+            let Some(candidates) =
+                recovery.interrupted_structural_field_completions(interruption, source)
+            else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -377,7 +378,9 @@ fn interrupted_completions(
             )))
         }
         TypedBodyInterruptionKind::EnumPattern { .. } => {
-            let Some(candidates) = recovery.interrupted_enum_pattern_completions(source) else {
+            let Some(candidates) =
+                recovery.interrupted_enum_pattern_completions(interruption, source)
+            else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -388,7 +391,8 @@ fn interrupted_completions(
             )))
         }
         TypedBodyInterruptionKind::AssociatedTypeProjection { .. } => {
-            let Some(candidates) = recovery.interrupted_associated_type_completions() else {
+            let Some(candidates) = recovery.interrupted_associated_type_completions(interruption)
+            else {
                 return Ok(None);
             };
             let candidates = candidates?;

@@ -31,7 +31,7 @@ pub use model::{
 use resolver::BodyNameResolver;
 
 pub(crate) struct PartialNameResolution {
-    pub(crate) bodies: Arena<BodyId, ResolvedBodyNames>,
+    pub(crate) bodies: Arena<BodyId, Option<ResolvedBodyNames>>,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -270,6 +270,7 @@ fn resolve_cataloged_body_names_active<'syntax>(
         })?;
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
+    let mut first_error = None;
 
     for source in catalog.iter() {
         let expected = source.body();
@@ -278,36 +279,32 @@ fn resolve_cataloged_body_names_active<'syntax>(
         {
             Ok(resolved) => resolved,
             Err(failure) => {
-                let recovery = if let Some(partial) = failure.partial {
-                    let actual = bodies.insert(partial.body);
-                    if actual != expected {
-                        return Err(RecoveringNameResolutionError {
-                            error: Box::new(
-                                NameResolutionInternalError::InvalidBodyOwner(expected).into(),
-                            ),
-                            recovery: None,
-                        });
-                    }
+                if failure.error.source_diagnostic().is_none() {
+                    return Err(RecoveringNameResolutionError {
+                        error: failure.error,
+                        recovery: None,
+                    });
+                }
+                let partial = failure.partial.map(|partial| {
                     projections.extend(partial.projections);
-                    let source_index = extend_name_source_index(source_index, projections)
-                        .map_err(|error| RecoveringNameResolutionError {
-                            error: Box::new(error.into()),
-                            recovery: None,
-                        })?;
-                    Some(Box::new(PartialNameResolution {
-                        bodies: bodies.finish(),
-                        source_index,
-                    }))
-                } else {
-                    None
-                };
-                return Err(RecoveringNameResolutionError {
-                    error: failure.error,
-                    recovery,
+                    partial.body
                 });
+                let actual = bodies.insert(partial);
+                if actual != expected {
+                    return Err(RecoveringNameResolutionError {
+                        error: Box::new(
+                            NameResolutionInternalError::InvalidBodyOwner(expected).into(),
+                        ),
+                        recovery: None,
+                    });
+                }
+                if first_error.is_none() {
+                    first_error = Some(failure.error);
+                }
+                continue;
             }
         };
-        let actual = bodies.insert(resolved.body);
+        let actual = bodies.insert(Some(resolved.body));
         if actual != expected {
             return Err(RecoveringNameResolutionError {
                 error: Box::new(NameResolutionInternalError::InvalidBodyOwner(expected).into()),
@@ -324,9 +321,28 @@ fn resolve_cataloged_body_names_active<'syntax>(
         }
     })?;
 
+    if let Some(error) = first_error {
+        return Err(RecoveringNameResolutionError {
+            error,
+            recovery: Some(Box::new(PartialNameResolution {
+                bodies: bodies.finish(),
+                source_index,
+            })),
+        });
+    }
+
+    let bodies = bodies
+        .try_finish_with(|body, names| {
+            names.ok_or(NameResolutionInternalError::InvalidBodyOwner(body))
+        })
+        .map_err(|error| RecoveringNameResolutionError {
+            error: Box::new(error.into()),
+            recovery: None,
+        })?;
+
     Ok(NameResolution {
         body_sources: catalog,
-        bodies: bodies.finish(),
+        bodies,
         source_index,
     })
 }

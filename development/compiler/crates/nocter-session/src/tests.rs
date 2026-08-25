@@ -172,7 +172,7 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     assert!(!prepared.graph().declarations().callables().is_empty());
     assert!(!prepared.body_names().is_empty());
     assert!(!prepared.source_index().is_empty());
-    let interruption = body_analysis.interruption().unwrap();
+    let interruption = body_analysis.interruptions().next().unwrap();
     assert_eq!(
         interruption.origin().span(),
         failure
@@ -272,7 +272,7 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
     let semantic = analysis.semantic().expect("typed syntax recovery");
     let recovery = semantic.bodies().expect("body analysis");
     assert!(matches!(
-        recovery.interruption().unwrap().kind(),
+        recovery.interruptions().next().unwrap().kind(),
         nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
     ));
 }

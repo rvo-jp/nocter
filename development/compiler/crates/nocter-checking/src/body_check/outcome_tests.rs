@@ -189,19 +189,23 @@ fn propagation_failure_retains_the_typed_callable_contract_repair() {
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
         let recovery = failure.recovery().expect("body recovery");
-        let interruption = recovery.interruption().expect("typed interruption");
+        let interruption = recovery.interruptions().next().expect("typed interruption");
         let crate::TypedBodyInterruptionKind::OutcomeContract {
             layer,
-            proposed_result,
+            proposed_result: _,
         } = interruption.kind()
         else {
             panic!("unexpected interruption: {:?}", interruption.kind());
         };
         assert_eq!(*layer, expected_layer);
-        match (expected_layer, recovery.types().get(*proposed_result)) {
+        let projection = recovery
+            .interrupted_outcome_type(interruption)
+            .expect("outcome projection")
+            .unwrap();
+        match (expected_layer, projection.types().get(projection.root())) {
             (OutcomeLayer::Optional, Some(TypeKind::Optional(payload)))
             | (OutcomeLayer::Fallible, Some(TypeKind::Fallible(payload))) => {
-                assert_eq!(*payload, recovery.types().builtin(BuiltinType::I32));
+                assert_eq!(*payload, projection.types().builtin(BuiltinType::I32));
             }
             (_, actual) => panic!("unexpected proposed result: {actual:?}"),
         }
@@ -221,22 +225,26 @@ fn propagation_contract_recovery_selects_a_missing_inner_optional_layer() {
     let diagnostic = failure.error().source_diagnostic().unwrap();
     assert_eq!(diagnostic.code(), "E0392");
     let recovery = failure.recovery().expect("body recovery");
-    let interruption = recovery.interruption().expect("typed interruption");
+    let interruption = recovery.interruptions().next().expect("typed interruption");
     let crate::TypedBodyInterruptionKind::OutcomeContract {
         layer,
-        proposed_result,
+        proposed_result: _,
     } = interruption.kind()
     else {
         panic!("unexpected interruption: {:?}", interruption.kind());
     };
     assert_eq!(*layer, OutcomeLayer::Optional);
-    let Some(TypeKind::Fallible(optional)) = recovery.types().get(*proposed_result) else {
+    let projection = recovery
+        .interrupted_outcome_type(interruption)
+        .expect("outcome projection")
+        .unwrap();
+    let Some(TypeKind::Fallible(optional)) = projection.types().get(projection.root()) else {
         panic!("expected canonical fallible optional result")
     };
     assert!(matches!(
-        recovery.types().get(*optional),
+        projection.types().get(*optional),
         Some(TypeKind::Optional(payload))
-            if *payload == recovery.types().builtin(BuiltinType::I32)
+            if *payload == projection.types().builtin(BuiltinType::I32)
     ));
 }
 
@@ -256,7 +264,7 @@ fn propagation_contract_recovery_types_a_generic_operand_by_its_payload() {
     assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0392");
     let interruption = failure
         .recovery()
-        .and_then(|recovery| recovery.interruption())
+        .and_then(|recovery| recovery.interruptions().next())
         .expect("typed outcome interruption");
     assert!(matches!(
         interruption.kind(),
@@ -265,6 +273,54 @@ fn propagation_contract_recovery_types_a_generic_operand_by_its_payload() {
             ..
         }
     ));
+}
+
+#[test]
+fn recovery_collects_body_interruptions_independently_of_declaration_order() {
+    fn layers(source: &str) -> Vec<OutcomeLayer> {
+        let fixture = Fixture::new(source);
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
+        let recovery = failure.recovery().expect("body recovery");
+        let interruptions = recovery.interruptions().collect::<Vec<_>>();
+        assert_eq!(interruptions.len(), 2);
+        for interruption in &interruptions {
+            let origin = interruption.origin();
+            assert_eq!(
+                recovery.interruption_at(origin.source(), origin.span().range().start()),
+                Some(*interruption)
+            );
+        }
+        interruptions
+            .into_iter()
+            .filter_map(|interruption| match interruption.kind() {
+                crate::TypedBodyInterruptionKind::OutcomeContract { layer, .. } => Some(*layer),
+                _ => None,
+            })
+            .collect()
+    }
+
+    let optional_first = concat!(
+        "func optional(input: i32?): i32 { input? }\n",
+        "func fallible(input: i32!): i32 { move input? }\n",
+    );
+    let fallible_first = concat!(
+        "func fallible(input: i32!): i32 { move input? }\n",
+        "func optional(input: i32?): i32 { input? }\n",
+    );
+
+    assert_eq!(
+        layers(optional_first),
+        vec![OutcomeLayer::Optional, OutcomeLayer::Fallible]
+    );
+    assert_eq!(
+        layers(fallible_first),
+        vec![OutcomeLayer::Fallible, OutcomeLayer::Optional]
+    );
 }
 
 #[test]

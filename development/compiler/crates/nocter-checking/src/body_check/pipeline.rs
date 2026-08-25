@@ -7,7 +7,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
 
 use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyOutput, NodeProjection};
 use super::context::BodyProgramFacts;
-use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
+use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureTableBuilder,
@@ -37,9 +37,10 @@ pub fn check_prepared_program<'syntax>(
 ///
 /// # Errors
 ///
-/// Returns the body error and, when typed-body construction was the rejecting boundary, the exact
-/// current-generation [`crate::BodyAnalysisRecovery`]. Recovery always contains the completed
-/// preparation stage and may additionally contain a phase-owned typed interruption.
+/// Returns the first canonical body error and, when typed-body construction was the rejecting
+/// boundary, the current-generation [`crate::BodyAnalysisRecovery`]. Recovery always contains the
+/// completed preparation stage and may additionally contain independent phase-owned typed
+/// interruptions from every authored body failure.
 pub fn check_prepared_program_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     prepared: PreparedChecking<'syntax>,
@@ -77,8 +78,11 @@ fn check_prepared_program_internal<'syntax>(
         &mut checked_types,
         &mut checked_copyabilities,
         &mut closures,
-        &prepared.body_sources,
-        &prepared.body_names,
+        BodyConstructionInput {
+            sources: &prepared.body_sources,
+            names: &prepared.body_names,
+            retain_recovery: retain_prepared,
+        },
     ) {
         Ok(checked) => checked,
         Err(failure) => {
@@ -86,8 +90,6 @@ fn check_prepared_program_internal<'syntax>(
                 failure,
                 retain_prepared,
                 prepared,
-                checked_types,
-                checked_copyabilities,
             ));
         }
     };
@@ -108,8 +110,9 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         return Err(crate::BodyCheckFailure::new(
             error,
-            retain_prepared
-                .then(|| crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), None)),
+            retain_prepared.then(|| {
+                crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), Vec::new())
+            }),
         ));
     }
 
@@ -127,7 +130,7 @@ fn check_prepared_program_internal<'syntax>(
             return Err(crate::BodyCheckFailure::new(
                 error,
                 retain_prepared.then(|| {
-                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), None)
+                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), Vec::new())
                 }),
             ));
         }
@@ -151,18 +154,18 @@ fn check_prepared_program_internal<'syntax>(
 }
 
 fn recover_body_construction_failure(
-    failure: BodyConstructionFailure,
+    failure: RecoveringBodyConstructionFailure,
     retain_prepared: bool,
     prepared: PreparedCheckingParts<'_>,
-    types: TypeStore,
-    copyabilities: CopyabilityTable,
 ) -> crate::BodyCheckFailure {
-    let (error, interruption) = failure.into_parts();
-    let recovery_state = interruption.map(|interruption| (interruption, types, copyabilities));
-    crate::BodyCheckFailure::new(
+    let RecoveringBodyConstructionFailure {
         error,
+        interruptions,
+    } = failure;
+    crate::BodyCheckFailure::new(
+        *error,
         retain_prepared.then(|| {
-            crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), recovery_state)
+            crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), interruptions)
         }),
     )
 }
@@ -310,26 +313,33 @@ fn check_declared_bodies<'input, 'syntax>(
     types: &'input mut TypeStore,
     copyabilities: &'input mut CopyabilityTable,
     closures: &'input mut ClosureTableBuilder,
-    body_sources: &BodySourceCatalog<'syntax>,
-    body_names: &'input Arena<BodyId, ResolvedBodyNames>,
-) -> Result<CheckedBodiesOutput, BodyConstructionFailure> {
+    construction: BodyConstructionInput<'input, 'syntax>,
+) -> Result<CheckedBodiesOutput, RecoveringBodyConstructionFailure> {
+    let BodyConstructionInput {
+        sources: body_sources,
+        names: body_names,
+        retain_recovery,
+    } = construction;
     let mut checked_bodies = Vec::new();
     let mut projections = Vec::new();
     let mut opaque_witnesses = Vec::new();
     let mut associated_type_completion_contexts = Vec::new();
+    let mut first_error = None;
+    let mut interruptions = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
+        let checkpoint =
+            retain_recovery.then(|| (types.clone(), copyabilities.clone(), closures.clone()));
         let source = body_sources
             .get(body)
             .ok_or(BodyCheckInternalError::MissingBodySource(body))
-            .map_err(|error| BodyConstructionFailure::new(error.into(), None))?;
+            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
         let names = body_names
             .get(body)
             .ok_or(BodyCheckInternalError::MissingBodyNames(body))
-            .map_err(|error| BodyConstructionFailure::new(error.into(), None))?;
+            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
         if names.body() != body {
-            return Err(BodyConstructionFailure::new(
+            return Err(RecoveringBodyConstructionFailure::single(
                 BodyCheckInternalError::BodyIdentityMismatch(body).into(),
-                None,
             ));
         }
         let unit = BodyUnitInput {
@@ -338,8 +348,41 @@ fn check_declared_bodies<'input, 'syntax>(
             closure_ids: reserve_body_closures(closures, source),
         };
         let body_checker = BodyChecker::new(input, facts, types, copyabilities, closures, unit)
-            .map_err(|error| BodyConstructionFailure::new(error, None))?;
-        let mut body_output = body_checker.check()?;
+            .map_err(RecoveringBodyConstructionFailure::single)?;
+        let mut body_output = match body_checker.check() {
+            Ok(output) => output,
+            Err(failure) => {
+                let (error, interruption) = failure.into_parts();
+                if !retain_recovery {
+                    return Err(RecoveringBodyConstructionFailure {
+                        error: Box::new(error),
+                        interruptions: Vec::new(),
+                    });
+                }
+                let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
+                if let Some(interruption) = interruption {
+                    interruptions.push((interruption, types.clone(), copyabilities.clone()));
+                }
+                if !recoverable {
+                    return Err(RecoveringBodyConstructionFailure {
+                        error: Box::new(error),
+                        interruptions,
+                    });
+                }
+                let Some((type_checkpoint, copyability_checkpoint, closure_checkpoint)) =
+                    checkpoint
+                else {
+                    return Err(RecoveringBodyConstructionFailure::single(error));
+                };
+                *types = type_checkpoint;
+                *copyabilities = copyability_checkpoint;
+                *closures = closure_checkpoint;
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+                continue;
+            }
+        };
         projections.append(&mut body_output.projections);
         associated_type_completion_contexts
             .append(&mut body_output.associated_type_completion_contexts);
@@ -348,12 +391,39 @@ fn check_declared_bodies<'input, 'syntax>(
         }
         checked_bodies.push((body, body_output));
     }
+    if let Some(error) = first_error {
+        return Err(RecoveringBodyConstructionFailure {
+            error: Box::new(error),
+            interruptions,
+        });
+    }
     Ok(CheckedBodiesOutput {
         bodies: checked_bodies,
         projections,
         opaque_witnesses,
         associated_type_completion_contexts,
     })
+}
+
+#[derive(Clone, Copy)]
+struct BodyConstructionInput<'input, 'syntax> {
+    sources: &'input BodySourceCatalog<'syntax>,
+    names: &'input Arena<BodyId, ResolvedBodyNames>,
+    retain_recovery: bool,
+}
+
+struct RecoveringBodyConstructionFailure {
+    error: Box<BodyCheckError>,
+    interruptions: Vec<(crate::TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+}
+
+impl RecoveringBodyConstructionFailure {
+    fn single(error: BodyCheckError) -> Self {
+        Self {
+            error: Box::new(error),
+            interruptions: Vec::new(),
+        }
+    }
 }
 
 struct CheckedBodiesOutput {
