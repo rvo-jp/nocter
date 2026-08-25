@@ -1,8 +1,7 @@
-use std::collections::BTreeSet;
 use std::fmt;
 
 use nocter_checking::CheckedProgram;
-use nocter_model::{CompilationTarget, PackageId, PackageTargetId};
+use nocter_model::{CompilationTarget, PackageId};
 
 use crate::primitive_contracts::validate_primitive_registry;
 use crate::{PrimitiveRegistryValidationError, ToolchainSnapshot};
@@ -23,7 +22,7 @@ impl TargetProgram {
     /// # Errors
     ///
     /// Returns a typed boundary failure when target capability, standard-package authority,
-    /// primitive contracts, or package-target identities are incomplete.
+    /// or primitive contracts are incomplete.
     pub fn build(
         checked: CheckedProgram,
         toolchain: ToolchainSnapshot,
@@ -84,7 +83,6 @@ fn validate_target_program(
             toolchain: toolchain.standard_package(),
         });
     }
-    validate_package_targets(checked)?;
     validate_primitive_registry(graph, checked.types(), toolchain)
         .map_err(TargetProgramError::PrimitiveRegistry)?;
     Ok(())
@@ -104,26 +102,6 @@ impl TargetProgramFailure {
     }
 }
 
-fn validate_package_targets(checked: &CheckedProgram) -> Result<(), TargetProgramError> {
-    let graph = checked.graph();
-    let mut names = BTreeSet::new();
-    let mut orders = BTreeSet::new();
-    for (id, target) in graph.package_targets().iter() {
-        let valid = graph.packages().get(target.package()).is_some()
-            && graph
-                .modules()
-                .get(target.module())
-                .is_some_and(|module| module.package() == target.package())
-            && graph.symbols().spelling(target.name()).is_some()
-            && names.insert((target.package(), target.kind(), target.name()))
-            && orders.insert((target.package(), target.declaration_order()));
-        if !valid {
-            return Err(TargetProgramError::InvalidPackageTarget(id));
-        }
-    }
-    Ok(())
-}
-
 /// Failure to cross the selected-target buildability boundary.
 #[derive(Debug)]
 pub enum TargetProgramError {
@@ -136,7 +114,6 @@ pub enum TargetProgramError {
         checked: PackageId,
         toolchain: PackageId,
     },
-    InvalidPackageTarget(PackageTargetId),
     PrimitiveRegistry(PrimitiveRegistryValidationError),
 }
 
@@ -153,9 +130,6 @@ impl fmt::Display for TargetProgramError {
             Self::StandardPackageMismatch { .. } => formatter.write_str(
                 "checked standard package does not match the toolchain standard package",
             ),
-            Self::InvalidPackageTarget(_) => {
-                formatter.write_str("checked program contains an invalid package target")
-            }
             Self::PrimitiveRegistry(error) => error.fmt(formatter),
         }
     }
@@ -167,8 +141,7 @@ impl std::error::Error for TargetProgramError {
             Self::PrimitiveRegistry(error) => Some(error),
             Self::TargetMismatch { .. }
             | Self::MissingStandardPackage
-            | Self::StandardPackageMismatch { .. }
-            | Self::InvalidPackageTarget(_) => None,
+            | Self::StandardPackageMismatch { .. } => None,
         }
     }
 }
