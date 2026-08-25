@@ -6,11 +6,12 @@ use nocter_model::{
 use crate::{
     Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
     CallableProvenance, CallableProvenanceContract, ConstantDeclaration, ConstructionDeclaration,
-    DeclarationDomain, DeclarationProgramBuilder, DeclarationRule, DeclarationViolation,
-    DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration,
-    ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter,
-    ParameterOwner, ParameterRole, ProgramBuildError, ProgramIntegrityError,
-    ProgramValidationError, ProvenanceOrigin, VariantDeclaration, Visibility,
+    DeclarationDomain, DeclarationProgramBuilder, DeclarationRule, DeclarationValidationReport,
+    DeclarationViolation, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
+    InstanceDeclaration, ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration,
+    PackageTarget, Parameter, ParameterOwner, ParameterRole, ProgramBuildError,
+    ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin, VariantDeclaration,
+    Visibility,
 };
 
 #[test]
@@ -241,7 +242,10 @@ fn empty_enums_cannot_enter_the_immutable_program() {
     assert_eq!(
         program.finish().unwrap_err(),
         ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
-            DeclarationViolation::new(DeclarationRule::EmptyEnum, site)
+            DeclarationValidationReport::new(vec![DeclarationViolation::new(
+                DeclarationRule::EmptyEnum,
+                site,
+            )])
         ))
     );
 }
@@ -387,8 +391,10 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
     assert!(build(true).is_ok());
     assert!(matches!(
         build(false).unwrap_err(),
-        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(error))
-            if error.rule() == DeclarationRule::InvalidInherentAttachment
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(report))
+            if report.violations().iter().any(|error| {
+                error.rule() == DeclarationRule::InvalidInherentAttachment
+            })
     ));
 }
 
@@ -438,8 +444,10 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
         )
         .unwrap();
 
+    let mut constructions = Vec::new();
     for name in [t_name, u_name] {
         let construction = program.declarations_mut().reserve_construction();
+        constructions.push(construction);
         let parameter = program
             .declarations_mut()
             .add_generic_parameter(GenericParameter::new(
@@ -467,11 +475,26 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
             .unwrap();
     }
 
+    let failure = program.finish_recovering().unwrap_err();
+    let (error, rejected) = failure.into_parts();
     assert_eq!(
-        program.finish().unwrap_err(),
+        error,
         ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
-            DeclarationViolation::with_related(DeclarationRule::DuplicateConstruction, site, site,)
+            DeclarationValidationReport::new(vec![DeclarationViolation::with_related(
+                DeclarationRule::DuplicateConstruction,
+                site,
+                site,
+            )])
         ))
+    );
+    let (_, _, admission) = rejected
+        .expect("authored declaration rejection lost analysis facts")
+        .into_analysis_program()
+        .into_parts();
+    assert!(
+        constructions
+            .iter()
+            .all(|construction| !admission.admits_construction(*construction))
     );
 }
 
@@ -546,7 +569,7 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         assert_eq!(
             program.finish().unwrap_err(),
             ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
-                DeclarationViolation::with_related(
+                DeclarationValidationReport::new(vec![DeclarationViolation::with_related(
                     if nominal_shape == 0 {
                         DeclarationRule::CopyDrop
                     } else {
@@ -554,7 +577,7 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
                     },
                     site,
                     site,
-                )
+                )])
             ))
         );
     }

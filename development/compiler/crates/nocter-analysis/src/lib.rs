@@ -174,12 +174,14 @@ impl AnalysisSnapshot {
                 nocter_session::IncompleteSyntaxAnalysis::into_parts,
             );
             let mut diagnostics = unit.syntax_diagnostics().into_vec();
-            if let Some(diagnostic) = failure
-                .as_ref()
-                .and_then(CompileSessionError::source_diagnostic)
-                .filter(|diagnostic| independent_diagnostic(&diagnostics, diagnostic))
-            {
-                diagnostics.push(diagnostic.clone());
+            if let Some(failure) = failure.as_ref() {
+                let independent = failure
+                    .source_diagnostics()
+                    .iter()
+                    .filter(|diagnostic| independent_diagnostic(&diagnostics, diagnostic))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                diagnostics.extend(independent);
             }
             return Self {
                 generation,
@@ -195,12 +197,7 @@ impl AnalysisSnapshot {
             },
             Err(failure) => {
                 let (error, semantic) = (*failure).into_parts();
-                let diagnostics = error
-                    .source_diagnostic()
-                    .cloned()
-                    .into_iter()
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice();
+                let diagnostics = error.source_diagnostics().into();
                 Self {
                     generation,
                     diagnostics,

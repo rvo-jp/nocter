@@ -116,11 +116,11 @@ one row have the same classification and boundary reason.
 | Definition/freeze error | Class | Reason |
 |---|---|---|
 | `HeaderDefinitionError::Rule` | authored rule | `E0314`-`E0319` retain exact `default`, provenance, result-type, or associated-binding subjects. |
-| `HeaderDefinitionError::Declaration` | authored rule | `E0200`-`E0212` select syntax-independent semantic declaration sites and project them through the frozen source index. |
+| `HeaderDefinitionError::Declaration` | authored rule | `E0200`-`E0213` collect syntax-independent semantic declaration sites and project the complete report through the frozen source index. |
 | `MissingSource`, `MissingName`, `MissingSite`, `MissingType`, `MissingCallableResult`, `InvalidOwner`, `InvalidSurface`, `InvalidTypePattern`, `InvalidTargetGate`, `InvalidProvenance`, `InconsistentType`, `InconsistentSource`, `MissingDiagnosticSubject`, `Definition`, `Program`, `DuplicateSourceBinding` | compiler integrity | All are absent normalized state, an invalid semantic relationship, a failed exact source projection, or rejected builder authority after the responsible authored rule has already been separated. |
 
 `ProgramBuildError::InvalidProgram(Declaration)` is the only nested builder failure converted to a
-public declaration diagnostic. `InvalidProgram(Integrity)`, all other `ProgramBuildError` variants,
+public declaration-diagnostic collection. `InvalidProgram(Integrity)`, all other `ProgramBuildError` variants,
 and both `DefinitionError` variants (`UnknownId`, `AlreadyDefined`) are compiler-integrity failures.
 
 ## Facade Enforcement
@@ -130,8 +130,8 @@ The outer `DeclarationLoweringError` prevents categories from being confused:
 - `Topology`, `Surface`, `CallableContract`, `Namespace`, `Generic`, `Import`, `TypeBinding`,
   `TypeNormalization`, `Definition`, and `Declaration` contain projected authored diagnostics;
 - every `Internal*`, `Reservation`, and non-rule `Prelude` variant contains no public diagnostic;
-- `source_diagnostic()` is exhaustive over the outer enum and returns `Some` only for projected
-  authored variants.
+- `source_diagnostics()` is exhaustive over the outer enum and returns a nonempty slice only for
+  projected authored variants.
 
 Each stage adapter must return the original typed failure when projection cannot find its retained
 subject. The facade then exposes that failure through the matching internal variant. This makes a

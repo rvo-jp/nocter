@@ -629,7 +629,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = "primitive forbidden(): void\n\nstruct Value {\n    number: i32\n}\n";
+        let text = "primitive forbidden(): void\nprimitive also_forbidden(): void\n\nstruct Value {\n    number: i32\n}\n";
         let mut text_json = String::new();
         nocter_json::write_string(&mut text_json, text);
         let opened = server.receive(&format!(
@@ -640,27 +640,29 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::CompilationFailed
         );
-        assert!(
+        assert_eq!(
             snapshot
                 .diagnostics()
                 .iter()
-                .any(|diagnostic| diagnostic.code() == "E0208")
+                .filter(|diagnostic| diagnostic.code() == "E0208")
+                .count(),
+            2
         );
 
         let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":8}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":8}}}}}}"
         ));
         let response = hover.response().unwrap();
         assert!(response.contains("```nocter\\nstruct Value"), "{response}");
-        assert!(response.contains("\"start\":{\"line\":2,\"character\":7}"));
-        assert!(response.contains("\"end\":{\"line\":2,\"character\":12}"));
+        assert!(response.contains("\"start\":{\"line\":3,\"character\":7}"));
+        assert!(response.contains("\"end\":{\"line\":3,\"character\":12}"));
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":8}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":8}}}}}}"
         ));
         let response = definition.response().unwrap();
         assert!(response.contains("/main.nct"), "{response}");
-        assert!(response.contains("\"start\":{\"line\":2,\"character\":7}"));
+        assert!(response.contains("\"start\":{\"line\":3,\"character\":7}"));
 
         let tokens = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"

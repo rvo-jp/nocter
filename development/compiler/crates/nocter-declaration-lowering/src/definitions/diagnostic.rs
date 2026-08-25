@@ -1,95 +1,89 @@
 use std::fmt;
 
-use nocter_declarations::{DeclarationRule, DeclarationViolation};
+use nocter_declarations::{DeclarationValidationReport, DeclarationViolation};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use crate::{DiagnosticNote, SourceDiagnostic};
-use nocter_diagnostics::DiagnosticOrigin;
 
-/// One source-backed declaration-rule diagnostic produced at the freeze boundary.
+/// Complete source projection of one rejected declaration-validation report.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DeclarationDiagnostic {
-    violation: DeclarationViolation,
-    source: Box<SourceDiagnostic>,
+pub struct DeclarationDiagnostics {
+    report: DeclarationValidationReport,
+    sources: Box<[SourceDiagnostic]>,
 }
 
-impl DeclarationDiagnostic {
+impl DeclarationDiagnostics {
     pub(super) fn project(
-        violation: DeclarationViolation,
+        report: DeclarationValidationReport,
         sources: &SourceIndex,
     ) -> Result<Self, nocter_model::DeclarationSiteId> {
-        let primary =
-            declaration_origin(sources, violation.primary()).ok_or(violation.primary())?;
-        let related = violation
-            .related()
-            .map(|site| declaration_origin(sources, site).ok_or(site))
-            .transpose()?;
-        let notes = related
-            .zip(violation.rule().related_message())
-            .map(|(origin, message)| DiagnosticNote::new(message, origin))
-            .into_iter()
-            .collect::<Vec<_>>();
-        let source = SourceDiagnostic::new(
-            violation.rule().code(),
-            violation.rule().message(),
-            primary,
-            notes,
-            Some(violation.rule().help()),
-        );
+        let mut projected = Vec::with_capacity(report.len());
+        for violation in report.violations() {
+            projected.push(project_violation(*violation, sources)?);
+        }
+        projected.sort_by(|left, right| {
+            let left_origin = left.primary();
+            let right_origin = right.primary();
+            (
+                left_origin.source(),
+                left_origin.span().range().start(),
+                left_origin.span().range().end(),
+                left.code(),
+            )
+                .cmp(&(
+                    right_origin.source(),
+                    right_origin.span().range().start(),
+                    right_origin.span().range().end(),
+                    right.code(),
+                ))
+        });
         Ok(Self {
-            violation,
-            source: Box::new(source),
+            report,
+            sources: projected.into_boxed_slice(),
         })
     }
 
     #[must_use]
-    pub const fn rule(&self) -> DeclarationRule {
-        self.violation.rule()
+    pub const fn report(&self) -> &DeclarationValidationReport {
+        &self.report
     }
 
     #[must_use]
-    pub const fn source(&self) -> &SourceDiagnostic {
-        &self.source
-    }
-
-    #[must_use]
-    pub const fn code(&self) -> &str {
-        self.source.code()
-    }
-
-    #[must_use]
-    pub const fn message(&self) -> &str {
-        self.source.message()
-    }
-
-    #[must_use]
-    pub fn help(&self) -> Option<&str> {
-        self.source.help()
-    }
-
-    #[must_use]
-    pub const fn primary(&self) -> DiagnosticOrigin {
-        self.source.primary()
-    }
-
-    #[must_use]
-    pub fn related(&self) -> Option<DiagnosticOrigin> {
-        self.source.notes().first().map(DiagnosticNote::origin)
-    }
-
-    #[must_use]
-    pub fn related_message(&self) -> Option<&str> {
-        self.source.notes().first().map(DiagnosticNote::message)
+    pub const fn sources(&self) -> &[SourceDiagnostic] {
+        &self.sources
     }
 }
 
-impl fmt::Display for DeclarationDiagnostic {
+impl fmt::Display for DeclarationDiagnostics {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}: {}", self.code(), self.message())
+        self.report.fmt(formatter)
     }
 }
 
-impl std::error::Error for DeclarationDiagnostic {}
+impl std::error::Error for DeclarationDiagnostics {}
+
+fn project_violation(
+    violation: DeclarationViolation,
+    sources: &SourceIndex,
+) -> Result<SourceDiagnostic, nocter_model::DeclarationSiteId> {
+    let primary = declaration_origin(sources, violation.primary()).ok_or(violation.primary())?;
+    let related = violation
+        .related()
+        .map(|site| declaration_origin(sources, site).ok_or(site))
+        .transpose()?;
+    let notes = related
+        .zip(violation.rule().related_message())
+        .map(|(origin, message)| DiagnosticNote::new(message, origin))
+        .into_iter()
+        .collect::<Vec<_>>();
+    Ok(SourceDiagnostic::new(
+        violation.rule().code(),
+        violation.rule().message(),
+        primary,
+        notes,
+        Some(violation.rule().help()),
+    ))
+}
 
 fn declaration_origin(
     sources: &SourceIndex,

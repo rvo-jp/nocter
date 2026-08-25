@@ -624,18 +624,24 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     else {
         panic!("empty enum did not produce a declaration diagnostic");
     };
-    assert_eq!(empty_enum.rule(), DeclarationRule::EmptyEnum);
-    assert_eq!(empty_enum.code(), "E0200");
-    assert!(empty_enum.primary().node().is_some());
-    assert_eq!(empty_enum.primary().span().range().start().get(), 0);
-    assert_eq!(empty_enum.primary().span().range().end().get(), 13);
-    assert_eq!(empty_enum.related(), None);
+    assert_eq!(
+        empty_enum.report().violations()[0].rule(),
+        DeclarationRule::EmptyEnum
+    );
+    let empty_source = &empty_enum.sources()[0];
+    assert_eq!(empty_source.code(), "E0200");
+    assert!(empty_source.primary().node().is_some());
+    assert_eq!(empty_source.primary().span().range().start().get(), 0);
+    assert_eq!(empty_source.primary().span().range().end().get(), 13);
+    assert_eq!(empty_source.notes(), []);
     assert!(matches!(
         definition_error(
             "interface Show { pub method &self.show(): i32 }\ninterface Factory { pub method &self.make(): some Show }\n"
         ),
-        super::HeaderDefinitionError::Declaration(diagnostic)
-            if diagnostic.rule() == DeclarationRule::InvalidOpaqueResult
+        super::HeaderDefinitionError::Declaration(diagnostics)
+            if diagnostics.report().violations().iter().any(|diagnostic| {
+                diagnostic.rule() == DeclarationRule::InvalidOpaqueResult
+            })
     ));
     let super::HeaderDefinitionError::Declaration(invalid_result) =
         definition_error("struct Box {}\nconstruct Box {\n    pub func new(): i32 { return }\n}\n")
@@ -643,29 +649,34 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
         panic!("invalid construction result did not produce a declaration diagnostic");
     };
     assert_eq!(
-        invalid_result.rule(),
+        invalid_result.report().violations()[0].rule(),
         DeclarationRule::InvalidConstructionResult
     );
-    let related = invalid_result.related().unwrap();
-    let primary_range = invalid_result.primary().span().range();
+    let invalid_source = &invalid_result.sources()[0];
+    let related = invalid_source.notes()[0].origin();
+    let primary_range = invalid_source.primary().span().range();
     let related_range = related.span().range();
     assert_eq!(
-        invalid_result.related_message(),
-        Some("owning construction is declared here")
+        invalid_source.notes()[0].message(),
+        "owning construction is declared here"
     );
     assert!(related_range.start() < primary_range.start());
     assert!(primary_range.end() < related_range.end());
     assert!(matches!(
         definition_error("instance str {\n    pub method &self.size(): usize { return 0 }\n}\n"),
-        super::HeaderDefinitionError::Declaration(diagnostic)
-            if diagnostic.rule() == DeclarationRule::InvalidInherentAttachment
+        super::HeaderDefinitionError::Declaration(diagnostics)
+            if diagnostics.report().violations().iter().any(|diagnostic| {
+                diagnostic.rule() == DeclarationRule::InvalidInherentAttachment
+            })
     ));
     assert!(matches!(
         definition_error(
             "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n"
         ),
-        super::HeaderDefinitionError::Declaration(diagnostic)
-            if diagnostic.rule() == DeclarationRule::IncompleteAssociatedTypes
+        super::HeaderDefinitionError::Declaration(diagnostics)
+            if diagnostics.report().violations().iter().any(|diagnostic| {
+                diagnostic.rule() == DeclarationRule::IncompleteAssociatedTypes
+            })
     ));
     for source in [
         "struct Text {}\nconstruct Text {\n    pub literal \"\"(text: i32): Self { return Self {} }\n}\n",
@@ -673,11 +684,42 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     ] {
         assert!(matches!(
             definition_error(source),
-            super::HeaderDefinitionError::Declaration(diagnostic)
-                if diagnostic.rule() == DeclarationRule::InvalidLiteralSignature
-                    && diagnostic.code() == "E0213"
+            super::HeaderDefinitionError::Declaration(diagnostics)
+                if diagnostics.report().violations().iter().any(|diagnostic| {
+                    diagnostic.rule() == DeclarationRule::InvalidLiteralSignature
+                }) && diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0213")
         ));
     }
+}
+
+#[test]
+fn declaration_freeze_projects_every_independent_rule_violation() {
+    let source = concat!(
+        "primitive first(): usize\n",
+        "primitive second(): usize\n",
+        "enum Empty {}\n",
+    );
+    let super::HeaderDefinitionError::Declaration(diagnostics) = definition_error(source) else {
+        panic!("invalid declarations did not produce a validation report");
+    };
+
+    assert_eq!(diagnostics.report().len(), 3);
+    assert_eq!(
+        diagnostics
+            .sources()
+            .iter()
+            .map(crate::SourceDiagnostic::code)
+            .collect::<Vec<_>>(),
+        ["E0208", "E0208", "E0200"]
+    );
+    assert_eq!(
+        diagnostics
+            .sources()
+            .iter()
+            .map(|diagnostic| diagnostic.primary().span().range().start().get())
+            .collect::<Vec<_>>(),
+        [0, 25, 51]
+    );
 }
 
 #[test]

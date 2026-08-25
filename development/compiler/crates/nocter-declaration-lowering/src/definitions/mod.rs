@@ -19,7 +19,7 @@ mod violation;
 #[cfg(test)]
 mod tests;
 
-pub use diagnostic::DeclarationDiagnostic;
+pub use diagnostic::DeclarationDiagnostics;
 pub use violation::{DefinitionRule, DefinitionViolation};
 
 #[derive(Debug)]
@@ -64,7 +64,7 @@ pub enum HeaderDefinitionError {
     InvalidProvenance(SurfaceDeclarationId),
     InconsistentSource(SourceId),
     MissingDiagnosticSubject(nocter_model::DeclarationSiteId),
-    Declaration(DeclarationDiagnostic),
+    Declaration(DeclarationDiagnostics),
     Definition(DefinitionError),
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),

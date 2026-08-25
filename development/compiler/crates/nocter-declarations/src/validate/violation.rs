@@ -24,18 +24,6 @@ pub enum DeclarationRule {
 }
 
 impl DeclarationRule {
-    /// Reports whether a structurally valid rejected graph can continue into editor-only body
-    /// analysis after quarantining unauthorized global operation containers.
-    #[must_use]
-    pub const fn permits_body_analysis(self) -> bool {
-        matches!(
-            self,
-            Self::InvalidInherentAttachment
-                | Self::PrimitiveAuthority
-                | Self::BuiltinConformanceAuthority
-        )
-    }
-
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
@@ -206,10 +194,63 @@ impl fmt::Display for DeclarationViolation {
 
 impl std::error::Error for DeclarationViolation {}
 
+/// Ordered, duplicate-free authored violations from one structurally valid declaration graph.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeclarationValidationReport {
+    violations: Box<[DeclarationViolation]>,
+}
+
+impl DeclarationValidationReport {
+    pub(crate) fn new(mut violations: Vec<DeclarationViolation>) -> Self {
+        violations.sort_by_key(|violation| {
+            (
+                violation.primary(),
+                violation.rule().code(),
+                violation.related(),
+            )
+        });
+        violations.dedup();
+        Self {
+            violations: violations.into_boxed_slice(),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.violations.is_empty()
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.violations.len()
+    }
+
+    #[must_use]
+    pub const fn violations(&self) -> &[DeclarationViolation] {
+        &self.violations
+    }
+}
+
+impl fmt::Display for DeclarationValidationReport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.violations.as_ref() {
+            [] => formatter.write_str("declaration validation succeeded"),
+            [violation] => violation.fmt(formatter),
+            violations => write!(
+                formatter,
+                "declaration validation failed with {} authored errors",
+                violations.len()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DeclarationValidationReport {}
+
 /// Distinguishes an invalid authored declaration from a malformed compiler-produced graph.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProgramValidationError {
-    Declaration(DeclarationViolation),
+    Declaration(DeclarationValidationReport),
     Integrity(ProgramIntegrityError),
 }
 
@@ -224,9 +265,9 @@ impl fmt::Display for ProgramValidationError {
 
 impl std::error::Error for ProgramValidationError {}
 
-impl From<DeclarationViolation> for ProgramValidationError {
-    fn from(error: DeclarationViolation) -> Self {
-        Self::Declaration(error)
+impl From<DeclarationValidationReport> for ProgramValidationError {
+    fn from(report: DeclarationValidationReport) -> Self {
+        Self::Declaration(report)
     }
 }
 

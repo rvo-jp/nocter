@@ -166,7 +166,7 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     .unwrap();
 
     let failure = analyze_target(&unit).unwrap_err();
-    assert!(failure.error().source_diagnostic().is_some());
+    assert!(!failure.error().source_diagnostics().is_empty());
     let body_analysis = failure.semantic().unwrap().bodies().unwrap();
     let prepared = body_analysis.prepared();
     assert!(!prepared.graph().declarations().callables().is_empty());
@@ -177,7 +177,8 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
         interruption.origin().span(),
         failure
             .error()
-            .source_diagnostic()
+            .source_diagnostics()
+            .first()
             .unwrap()
             .primary()
             .span()
@@ -207,7 +208,7 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
     .unwrap();
 
     let failure = analyze_target(&unit).unwrap_err();
-    assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0340");
+    assert_eq!(failure.error().source_diagnostics()[0].code(), "E0340");
     let recovery = failure.semantic().unwrap().names().unwrap();
     assert!(!recovery.graph().declarations().callables().is_empty());
     assert!(!recovery.body_names().is_empty());
@@ -237,7 +238,7 @@ fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
     .unwrap();
 
     let failure = analyze_target(&unit).unwrap_err();
-    assert_eq!(failure.error().source_diagnostic().unwrap().code(), "E0350");
+    assert_eq!(failure.error().source_diagnostics()[0].code(), "E0350");
     let declarations = failure.semantic().unwrap().declarations().unwrap();
     assert!(
         !declarations
@@ -329,7 +330,8 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
         analysis
             .failure()
             .unwrap()
-            .source_diagnostic()
+            .source_diagnostics()
+            .first()
             .unwrap()
             .code(),
         "E0350"
@@ -376,7 +378,8 @@ fn incomplete_syntax_preserves_an_earlier_name_failure() {
         analysis
             .failure()
             .unwrap()
-            .source_diagnostic()
+            .source_diagnostics()
+            .first()
             .unwrap()
             .code(),
         "E0340"

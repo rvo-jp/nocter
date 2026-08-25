@@ -52,7 +52,7 @@ pub use requirement::{
 pub use standard::{BuiltinAttachment, StandardDeclarationRole, StandardLibrary};
 pub use target::PackageTarget;
 pub use validate::{
-    DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,
-    ProgramValidationError,
+    DeclarationDomain, DeclarationRule, DeclarationValidationReport, DeclarationViolation,
+    ProgramIntegrityError, ProgramValidationError,
 };
 pub use visibility::Visibility;

@@ -620,6 +620,30 @@ fn public_check_failure_uses_the_common_source_diagnostic_snapshot() {
 }
 
 #[test]
+fn public_check_renders_every_declaration_validation_diagnostic() {
+    let tree = TempTree::new("check-declaration-diagnostics");
+    let home = tree.installation("arm64-darwin", true);
+    fs::write(
+        tree.0.join("invalid.nct"),
+        "primitive first(): usize\nprimitive second(): usize\n",
+    )
+    .unwrap();
+
+    let error = execute_invocation(invocation(
+        ["check", "invalid.nct"],
+        &tree.0,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_err();
+
+    let rendered = error.render_source_diagnostics().unwrap().unwrap();
+    assert_eq!(rendered.matches("error[E0208]:").count(), 2);
+    assert!(rendered.contains("invalid.nct:1:"));
+    assert!(rendered.contains("invalid.nct:2:"));
+}
+
+#[test]
 fn json_check_success_renders_one_empty_versioned_envelope() {
     let tree = TempTree::new("check-json-success");
     let home = tree.installation("arm64-darwin", true);

@@ -1,29 +1,27 @@
 use crate::{CallableKind, CallableOwner, DeclarationProgram, NominalShape};
 
-use super::{DeclarationRule, DeclarationViolation};
+use super::DeclarationRule;
+use super::outcome::{ValidationCollector, related_violation, violation};
 
-pub(super) fn validate(program: &DeclarationProgram) -> Result<(), DeclarationViolation> {
-    validate_nonempty_enums(program)?;
-    validate_complete_conformances(program)?;
-    validate_opaque_results(program)
+pub(super) fn validate(program: &DeclarationProgram, collector: &mut ValidationCollector) {
+    validate_nonempty_enums(program, collector);
+    validate_complete_conformances(program, collector);
+    validate_opaque_results(program, collector);
 }
 
-fn validate_nonempty_enums(program: &DeclarationProgram) -> Result<(), DeclarationViolation> {
+fn validate_nonempty_enums(program: &DeclarationProgram, collector: &mut ValidationCollector) {
     for (_, nominal) in program.declarations().nominal_types().iter() {
         if matches!(nominal.shape(), NominalShape::Enum { variants } if variants.is_empty()) {
-            return Err(DeclarationViolation::new(
-                DeclarationRule::EmptyEnum,
-                nominal.site(),
-            ));
+            collector.reject_program_fact(violation(DeclarationRule::EmptyEnum, nominal.site()));
         }
     }
-    Ok(())
 }
 
 fn validate_complete_conformances(
     program: &DeclarationProgram,
-) -> Result<(), DeclarationViolation> {
-    for (_, conformance) in program.declarations().conformances().iter() {
+    collector: &mut ValidationCollector,
+) {
+    for (id, conformance) in program.declarations().conformances().iter() {
         let Some(interface) = program
             .declarations()
             .interfaces()
@@ -32,17 +30,19 @@ fn validate_complete_conformances(
             continue;
         };
         if conformance.associated_types().len() != interface.associated_types().len() {
-            return Err(DeclarationViolation::with_related(
-                DeclarationRule::IncompleteAssociatedTypes,
-                conformance.site(),
-                interface.site(),
-            ));
+            collector.reject_conformance(
+                id,
+                related_violation(
+                    DeclarationRule::IncompleteAssociatedTypes,
+                    conformance.site(),
+                    interface.site(),
+                ),
+            );
         }
     }
-    Ok(())
 }
 
-fn validate_opaque_results(program: &DeclarationProgram) -> Result<(), DeclarationViolation> {
+fn validate_opaque_results(program: &DeclarationProgram, collector: &mut ValidationCollector) {
     for (_, opaque) in program.declarations().opaque_types().iter() {
         let Some(callable) = program.declarations().callables().get(opaque.owner()) else {
             continue;
@@ -61,11 +61,10 @@ fn validate_opaque_results(program: &DeclarationProgram) -> Result<(), Declarati
                     )
             );
         if !valid_owner {
-            return Err(DeclarationViolation::new(
+            collector.reject_program_fact(violation(
                 DeclarationRule::InvalidOpaqueResult,
                 callable.site(),
             ));
         }
     }
-    Ok(())
 }

@@ -173,6 +173,41 @@ fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
 }
 
 #[test]
+fn declaration_diagnostics_are_complete_while_safe_body_semantics_remain_available() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "primitive first(): usize\n",
+        "primitive second(): usize\n",
+        "func inspect(value: i32): i32 {\n",
+        "    let local = value\n",
+        "    return local\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(50));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .map(nocter_diagnostics::SourceDiagnostic::code)
+            .collect::<Vec<_>>(),
+        ["E0208", "E0208"]
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let local = source_text.rfind("local").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(local).unwrap()))
+        .unwrap()
+        .expect("safe rejected graph lost local body semantics");
+    assert_eq!(subject.presentation().code(), "let local: i32");
+}
+
+#[test]
 fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
     let tree = TempTree::new();
     let source_text = concat!(

@@ -622,8 +622,8 @@ impl DeclarationProgramBuilder {
     ///
     /// # Errors
     ///
-    /// Returns the exact production build error and, only for an authored declaration-rule
-    /// violation, the structurally valid declaration program reached before that rule failed.
+    /// Returns the exact production build error and, only when the complete declaration report is
+    /// nonempty, the structurally valid declaration program plus its frozen analysis facts.
     pub fn finish_recovering(self) -> Result<DeclarationProgram, ProgramBuildFailure> {
         let module_namespaces = self
             .module_namespaces
@@ -657,17 +657,20 @@ impl DeclarationProgramBuilder {
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)
             .map_err(ProgramBuildFailure::without_program)?;
-        if let Err(error) = crate::validate::validate_language_rules(&program) {
-            return match error {
-                ProgramValidationError::Declaration(_) => Err(ProgramBuildFailure::new(
-                    ProgramBuildError::InvalidProgram(error),
-                    Some(RejectedDeclarationProgram::new(program)),
+        let validation = crate::validate::validate_language_rules(&program)
+            .map_err(ProgramValidationError::from)
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::without_program)?;
+        let (report, admission, body_analysis) = validation.into_parts();
+        if !report.is_empty() {
+            return Err(ProgramBuildFailure::new(
+                ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(report)),
+                Some(RejectedDeclarationProgram::new(
+                    program,
+                    admission,
+                    body_analysis,
                 )),
-                ProgramValidationError::Integrity(_) => Err(ProgramBuildFailure::new(
-                    ProgramBuildError::InvalidProgram(error),
-                    None,
-                )),
-            };
+            ));
         }
         Ok(program)
     }
@@ -700,11 +703,21 @@ impl DeclarationProgramBuilder {
 #[derive(Debug)]
 pub struct RejectedDeclarationProgram {
     program: DeclarationProgram,
+    admission: DeclarationAnalysisAdmission,
+    body_analysis: crate::validate::BodyAnalysisCapability,
 }
 
 impl RejectedDeclarationProgram {
-    const fn new(program: DeclarationProgram) -> Self {
-        Self { program }
+    const fn new(
+        program: DeclarationProgram,
+        admission: DeclarationAnalysisAdmission,
+        body_analysis: crate::validate::BodyAnalysisCapability,
+    ) -> Self {
+        Self {
+            program,
+            admission,
+            body_analysis,
+        }
     }
 
     #[must_use]
@@ -717,7 +730,7 @@ impl RejectedDeclarationProgram {
     /// destroyed, so later analysis cannot accidentally activate an unauthorized extension.
     #[must_use]
     pub fn into_analysis_program(self) -> AnalysisDeclarationProgram {
-        AnalysisDeclarationProgram::new(self.program)
+        AnalysisDeclarationProgram::new(self.program, self.admission, self.body_analysis)
     }
 }
 
@@ -728,17 +741,30 @@ pub struct AnalysisDeclarationProgram {
     graph: DeclarationGraph,
     types: TypeStore,
     admission: DeclarationAnalysisAdmission,
+    body_analysis: crate::validate::BodyAnalysisCapability,
 }
 
 impl AnalysisDeclarationProgram {
-    fn new(program: DeclarationProgram) -> Self {
-        let admission = DeclarationAnalysisAdmission::for_rejected(&program);
+    fn new(
+        program: DeclarationProgram,
+        admission: DeclarationAnalysisAdmission,
+        body_analysis: crate::validate::BodyAnalysisCapability,
+    ) -> Self {
         let (graph, types) = program.into_parts();
         Self {
             graph,
             types,
             admission,
+            body_analysis,
         }
+    }
+
+    #[must_use]
+    pub const fn supports_body_analysis(&self) -> bool {
+        matches!(
+            self.body_analysis,
+            crate::validate::BodyAnalysisCapability::AdmittedBodies
+        )
     }
 
     #[must_use]

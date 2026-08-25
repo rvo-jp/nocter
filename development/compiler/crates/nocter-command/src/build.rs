@@ -162,10 +162,10 @@ pub enum BuildSetCommandError {
 
 impl BuildSetCommandError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
-            Self::Plan(_) | Self::Artifact { .. } => None,
+            Self::Compile(error) => error.source_diagnostics(),
+            Self::Plan(_) | Self::Artifact { .. } => &[],
         }
     }
 
@@ -225,10 +225,10 @@ pub enum BuildCommandError {
 
 impl BuildCommandError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
-            Self::Plan(_) | Self::Artifact(_) => None,
+            Self::Compile(error) => error.source_diagnostics(),
+            Self::Plan(_) | Self::Artifact(_) => &[],
         }
     }
 

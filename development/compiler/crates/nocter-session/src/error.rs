@@ -20,17 +20,17 @@ impl CompileSessionError {
     /// Returns the diagnostic already selected by the phase that rejected authored source.
     /// Internal consistency, toolchain, and target failures deliberately return `None`.
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Declaration(error) => error.source_diagnostic(),
-            Self::Preparation(error) => error.source_diagnostic(),
-            Self::Checking(error) => error.source_diagnostic(),
+            Self::Declaration(error) => error.source_diagnostics(),
+            Self::Preparation(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
+            Self::Checking(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::CompileInput(_)
             | Self::MissingToolchainProfile
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::TargetUnavailable(_)
-            | Self::Target(_) => None,
+            | Self::Target(_) => &[],
         }
     }
 

@@ -187,10 +187,10 @@ pub enum ExecutableSessionError {
 
 impl ExecutableSessionError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
-            Self::Selection(_) | Self::Executable(_) => None,
+            Self::Compile(error) => error.source_diagnostics(),
+            Self::Selection(_) | Self::Executable(_) => &[],
         }
     }
 

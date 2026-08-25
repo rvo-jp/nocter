@@ -50,7 +50,7 @@ pub use contract::{DeclarationContractError, DeclarationContracts, analyze_decla
 pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContractRule};
 pub use definition_diagnostic::DefinitionDiagnostic;
 pub use definitions::{
-    DeclarationDiagnostic, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
+    DeclarationDiagnostics, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
 };
 pub use generic_diagnostic::GenericDiagnostic;
 pub use generics::{

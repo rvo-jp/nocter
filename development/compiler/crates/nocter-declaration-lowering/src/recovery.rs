@@ -36,6 +36,11 @@ impl DeclarationLoweringRecovery {
     }
 
     #[must_use]
+    pub const fn supports_body_analysis(&self) -> bool {
+        self.program.supports_body_analysis()
+    }
+
+    #[must_use]
     pub fn into_declaration_parts(self) -> (DeclarationGraph, TypeStore, SourceIndex) {
         let (graph, types, _) = self.program.into_parts();
         (graph, types, self.source_index)
@@ -48,8 +53,11 @@ impl DeclarationLoweringRecovery {
     pub fn into_checking_parts(
         self,
         input: &CompileUnitInput<'_>,
-    ) -> (AnalysisDeclarationProgram, FrontendBindings, SourceIndex) {
+    ) -> Option<(AnalysisDeclarationProgram, FrontendBindings, SourceIndex)> {
+        if !self.program.supports_body_analysis() {
+            return None;
+        }
         let bindings = crate::frontend_projection::add_block_imports(input, self.frontend_bindings);
-        (self.program, bindings, self.source_index)
+        Some((self.program, bindings, self.source_index))
     }
 }

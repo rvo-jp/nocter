@@ -4,7 +4,7 @@ use nocter_checking::{
     prepare_program_checking, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    DeclarationLoweringError, DeclarationLoweringRecovery, lower_compile_unit_declarations,
+    DeclarationLoweringRecovery, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
     resolve_primitive_bindings,
 };
@@ -182,7 +182,7 @@ fn analyze_target_internal(
             Err(failure) => {
                 let (error, recovery) = failure.into_parts();
                 let semantic = recovery.and_then(|recovery| {
-                    if declaration_failure_permits_body_analysis(&error) {
+                    if recovery.supports_body_analysis() {
                         analyze_rejected_declarations(&input, recovery)
                     } else {
                         Some(SemanticAnalysis::from_declaration_lowering(recovery))
@@ -230,19 +230,11 @@ fn analyze_target_internal(
     finish_checked_target(&input, &primitive_roles, checked, retain_semantic)
 }
 
-fn declaration_failure_permits_body_analysis(error: &DeclarationLoweringError) -> bool {
-    matches!(
-        error,
-        DeclarationLoweringError::Declaration(diagnostic)
-            if diagnostic.rule().permits_body_analysis()
-    )
-}
-
 fn analyze_rejected_declarations(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
 ) -> Option<SemanticAnalysis> {
-    let (program, frontend_bindings, source_index) = recovery.into_checking_parts(input);
+    let (program, frontend_bindings, source_index) = recovery.into_checking_parts(input)?;
     let prepared = match prepare_analysis_program_checking_recovering(
         input,
         program,

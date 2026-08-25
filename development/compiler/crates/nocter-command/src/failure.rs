@@ -6,36 +6,36 @@ use crate::{BuildCommandError, BuildSetCommandError, RunCommandError};
 use nocter_session::{CompileSessionError, NativeTestSessionError};
 
 pub(crate) trait CommandDiagnosticError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic>;
+    fn source_diagnostics(&self) -> &[SourceDiagnostic];
 }
 
 impl CommandDiagnosticError for BuildCommandError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        BuildCommandError::source_diagnostic(self)
+    fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        BuildCommandError::source_diagnostics(self)
     }
 }
 
 impl CommandDiagnosticError for BuildSetCommandError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        BuildSetCommandError::source_diagnostic(self)
+    fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        BuildSetCommandError::source_diagnostics(self)
     }
 }
 
 impl CommandDiagnosticError for RunCommandError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        RunCommandError::source_diagnostic(self)
+    fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        RunCommandError::source_diagnostics(self)
     }
 }
 
 impl CommandDiagnosticError for CompileSessionError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        CompileSessionError::source_diagnostic(self)
+    fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        CompileSessionError::source_diagnostics(self)
     }
 }
 
 impl CommandDiagnosticError for NativeTestSessionError {
-    fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
-        NativeTestSessionError::source_diagnostic(self)
+    fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        NativeTestSessionError::source_diagnostics(self)
     }
 }
 
@@ -56,7 +56,7 @@ pub(crate) fn command_compilation_failure<E: CommandDiagnosticError>(
     unit: DiscoveredUnit,
 ) -> CommandCompilationFailure<E> {
     let mut diagnostics = unit.syntax_diagnostics().into_vec();
-    diagnostics.extend(error.source_diagnostic().cloned());
+    diagnostics.extend_from_slice(error.source_diagnostics());
     CommandCompilationFailure {
         error,
         sources: unit.into_sources(),

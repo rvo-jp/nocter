@@ -4,7 +4,7 @@ use crate::definitions::{HeaderDefinitionError, define_declaration_headers_recov
 use crate::surface::collect_incomplete_body_declaration_surface;
 use crate::{
     CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
-    DeclarationDiagnostic, DeclarationLoweringRecovery, DefinitionDiagnostic, GenericDiagnostic,
+    DeclarationDiagnostics, DeclarationLoweringRecovery, DefinitionDiagnostic, GenericDiagnostic,
     GenericError, HeaderError, ImportDiagnostic, ImportError, LoweredDeclarations,
     NamespaceDiagnostic, PreparedImports, PreparedNamespaces, PreparedTypeBindings, PreparedTypes,
     ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError, ToolchainError,
@@ -35,28 +35,28 @@ pub enum DeclarationLoweringError {
     TypeNormalization(TypeNormalizationDiagnostic),
     InternalTypeNormalization(TypeNormalizationError),
     Definition(DefinitionDiagnostic),
-    Declaration(DeclarationDiagnostic),
+    Declaration(DeclarationDiagnostics),
     InternalDefinition(HeaderDefinitionError),
 }
 
 impl DeclarationLoweringError {
-    /// Returns the common public diagnostic for a source-backed language-rule failure.
+    /// Returns the complete common public diagnostic set selected by the rejecting phase.
     ///
-    /// `None` identifies a stage error that has not yet crossed a public diagnostic boundary or an
-    /// internal compiler inconsistency. Consumers must not manufacture a public code for it.
+    /// An empty slice identifies a stage error that has not crossed a public diagnostic boundary or
+    /// an internal compiler inconsistency. Consumers must not manufacture a public code for it.
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Topology(diagnostic) => Some(diagnostic.source()),
-            Self::Surface(diagnostic) => Some(diagnostic.source()),
-            Self::DeclarationContract(diagnostic) => Some(diagnostic.source()),
-            Self::Namespace(diagnostic) => Some(diagnostic.source()),
-            Self::Generic(diagnostic) => Some(diagnostic.source()),
-            Self::Import(diagnostic) => Some(diagnostic.source()),
-            Self::TypeBinding(diagnostic) => Some(diagnostic.source()),
-            Self::TypeNormalization(diagnostic) => Some(diagnostic.source()),
-            Self::Definition(diagnostic) => Some(diagnostic.source()),
-            Self::Declaration(diagnostic) => Some(diagnostic.source()),
+            Self::Topology(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Surface(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::DeclarationContract(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Namespace(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Generic(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Import(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::TypeBinding(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::TypeNormalization(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Definition(diagnostic) => std::slice::from_ref(diagnostic.source()),
+            Self::Declaration(diagnostics) => diagnostics.sources(),
             Self::InternalSurface(_)
             | Self::InternalContract(_)
             | Self::Reservation(_)
@@ -66,7 +66,7 @@ impl DeclarationLoweringError {
             | Self::Toolchain(_)
             | Self::InternalTypeBinding(_)
             | Self::InternalTypeNormalization(_)
-            | Self::InternalDefinition(_) => None,
+            | Self::InternalDefinition(_) => &[],
         }
     }
 }
@@ -604,7 +604,10 @@ mod tests {
         let error = lower_compile_unit_declarations(&input).unwrap_err();
 
         assert_eq!(
-            error.source_diagnostic().map(crate::SourceDiagnostic::code),
+            error
+                .source_diagnostics()
+                .first()
+                .map(crate::SourceDiagnostic::code),
             Some("E0230")
         );
         assert!(matches!(error, DeclarationLoweringError::Surface(_)));
@@ -1085,7 +1088,10 @@ mod tests {
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         assert_eq!(
-            error.source_diagnostic().map(crate::SourceDiagnostic::code),
+            error
+                .source_diagnostics()
+                .first()
+                .map(crate::SourceDiagnostic::code),
             Some("E0250")
         );
         let DeclarationLoweringError::DeclarationContract(diagnostic) = error else {
@@ -1611,7 +1617,8 @@ mod tests {
             }
         };
         let diagnostic = error
-            .source_diagnostic()
+            .source_diagnostics()
+            .first()
             .expect("projected authored error has no common diagnostic")
             .clone();
         (family, diagnostic)

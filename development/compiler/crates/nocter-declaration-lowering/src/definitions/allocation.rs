@@ -129,9 +129,9 @@ pub(super) fn finish_recovering(
             let (error, rejected) = failure.into_parts();
             let (error, recovery) = match error {
                 nocter_declarations::ProgramBuildError::InvalidProgram(
-                    nocter_declarations::ProgramValidationError::Declaration(violation),
-                ) => match super::DeclarationDiagnostic::project(violation, &source_index) {
-                    Ok(diagnostic) => {
+                    nocter_declarations::ProgramValidationError::Declaration(report),
+                ) => match super::DeclarationDiagnostics::project(report, &source_index) {
+                    Ok(diagnostics) => {
                         let recovery = rejected.map(|rejected| {
                             crate::DeclarationLoweringRecovery::new(
                                 rejected.into_analysis_program(),
@@ -139,7 +139,7 @@ pub(super) fn finish_recovering(
                                 source_index,
                             )
                         });
-                        (HeaderDefinitionError::Declaration(diagnostic), recovery)
+                        (HeaderDefinitionError::Declaration(diagnostics), recovery)
                     }
                     Err(subject) => (
                         HeaderDefinitionError::MissingDiagnosticSubject(subject),

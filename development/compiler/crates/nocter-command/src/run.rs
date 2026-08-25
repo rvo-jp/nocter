@@ -88,13 +88,13 @@ pub enum RunCommandError {
 
 impl RunCommandError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
+            Self::Compile(error) => error.source_diagnostics(),
             Self::Artifact(_)
             | Self::Launch { .. }
             | Self::Cleanup(_)
-            | Self::LaunchAndCleanup { .. } => None,
+            | Self::LaunchAndCleanup { .. } => &[],
         }
     }
 

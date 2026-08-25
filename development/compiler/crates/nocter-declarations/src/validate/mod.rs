@@ -10,15 +10,20 @@ use crate::{
     ParameterRole, Visibility,
 };
 
+mod attachment_rules;
 mod attachments;
 mod callables;
 mod graph;
+mod outcome;
 mod requirements;
 mod rules;
 mod types;
 mod violation;
 
-pub use violation::{DeclarationRule, DeclarationViolation, ProgramValidationError};
+pub(crate) use outcome::BodyAnalysisCapability;
+pub use violation::{
+    DeclarationRule, DeclarationValidationReport, DeclarationViolation, ProgramValidationError,
+};
 
 #[cfg(test)]
 mod tests;
@@ -135,10 +140,11 @@ pub(crate) fn validate_integrity(
 
 pub(crate) fn validate_language_rules(
     program: &DeclarationProgram,
-) -> Result<(), ProgramValidationError> {
-    rules::validate(program)?;
-    attachments::validate_rules(program)?;
-    Ok(())
+) -> Result<outcome::DeclarationValidation, ProgramIntegrityError> {
+    let mut collector = outcome::ValidationCollector::new();
+    rules::validate(program, &mut collector);
+    attachments::validate_rules(program, &mut collector)?;
+    Ok(collector.finish(program))
 }
 
 fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {

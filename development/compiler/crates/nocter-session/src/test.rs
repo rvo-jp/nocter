@@ -345,10 +345,10 @@ pub enum NativeTestSessionError {
 
 impl NativeTestSessionError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
-            Self::Selection(_) | Self::Integrity(_) => None,
+            Self::Compile(error) => error.source_diagnostics(),
+            Self::Selection(_) | Self::Integrity(_) => &[],
         }
     }
 

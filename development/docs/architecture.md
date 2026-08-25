@@ -838,11 +838,16 @@ role is a toolchain integrity failure; an authored `using` place whose resolved 
 the validated allocator/context families is a source rule.
 
 Program validation separates authored declaration-rule violations from malformed compiler graph
-integrity. A declaration rule owns its stable error code, source-level message, correction
-direction, primary declaration-site ID, and optional related declaration-site ID. Only after rule
-selection does declaration lowering project those IDs through the completed `SourceIndex` to exact
-syntax origins. Changing a diagnostic span therefore cannot change rule selection, and adding a
-diagnostic cannot create a second attachment or declaration-shape evaluator.
+integrity. Integrity validation is fail-fast because a malformed graph cannot support trustworthy
+semantic decisions. Rule validation instead produces one ordered, duplicate-free report and one
+set of admission facts for the entire structurally valid graph. A declaration rule owns its stable
+error code, source-level message, correction direction, primary declaration-site ID, and optional
+related declaration-site ID. Only after the report is complete does declaration lowering project
+all IDs through the completed `SourceIndex` to exact syntax origins. The same pass decides which
+construction, instance, conformance, and destruction containers editor analysis may use; recovery
+cannot rescan declarations or infer admission from a diagnostic code. Changing a diagnostic span
+therefore cannot change rule selection, and adding a diagnostic cannot create a second attachment
+or declaration-shape evaluator.
 
 All source-backed compiler diagnostics share one phase-neutral envelope containing a stable code,
 primary source origin, zero or more related source notes, and optional correction guidance. The
@@ -865,7 +870,8 @@ immutable invocation sources and the phase-selected envelopes. Error wrappers ex
 existing envelope, and the public process adapter invokes the common renderer instead of matching
 compiler error variants. `SourceIndex` remains an independent semantic-to-source projection for
 successful compiler clients; human error rendering must not use it to reconstruct a span already
-selected by the rejecting phase.
+selected by the rejecting phase. Public error wrappers expose `source_diagnostics()` as a slice;
+there is no singular outer diagnostic API whose cardinality silently truncates a phase result.
 Freeze-time validation projects semantic declaration-site subjects through
 the completed source index. Stage-specific wrappers preserve the selected rule identity. Errors
 that indicate malformed syntax snapshots, incomplete discovery inputs, or inconsistent compiler

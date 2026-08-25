@@ -138,10 +138,10 @@ pub enum NativeImageSetError {
 
 impl NativeImageSetError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Compile(error) => error.source_diagnostic(),
-            Self::NoExecutable | Self::Image { .. } => None,
+            Self::Compile(error) => error.source_diagnostics(),
+            Self::NoExecutable | Self::Image { .. } => &[],
         }
     }
 
@@ -194,10 +194,10 @@ pub enum NativeSessionError {
 
 impl NativeSessionError {
     #[must_use]
-    pub fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
-            Self::Executable(error) => error.source_diagnostic(),
-            Self::Image(_) => None,
+            Self::Executable(error) => error.source_diagnostics(),
+            Self::Image(_) => &[],
         }
     }
 
