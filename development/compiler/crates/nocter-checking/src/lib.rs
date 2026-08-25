@@ -92,7 +92,7 @@ pub use conformance::{
     CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
     ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
     MethodSelection, MissingConformanceMethods, RequiredConformanceMethod,
-    RequiredConformanceParameter, SubstitutionError, build_conformance_table,
+    RequiredConformanceParameter, SubstitutionError,
 };
 pub use construction_completion::{
     ConstructionCompletionCandidate, ConstructionCompletionError, ConstructionCompletionOwner,
@@ -114,7 +114,7 @@ pub use instance_operations::{
     CheckedInstanceCoercion, CheckedInstanceComparison, CheckedInstanceExpansion,
     CheckedInstanceIndex, CheckedInstanceMember, CheckedInstanceMethod, CheckedInstanceOperations,
     InstanceOperationBuildError, InstanceOperationInternalError, InstanceOperationRule,
-    InstanceOperationTable, InstanceSelectionError, build_instance_operation_table,
+    InstanceOperationTable, InstanceSelectionError,
 };
 pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,

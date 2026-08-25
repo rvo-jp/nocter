@@ -109,7 +109,8 @@ impl std::error::Error for InstanceOperationInternalError {}
 ///
 /// Returns a source-backed error when instance target patterns overlap and an internal error when
 /// the declaration graph, type store, or source index are inconsistent.
-pub fn build_instance_operation_table(
+#[cfg(test)]
+pub(super) fn build_instance_operation_table(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,

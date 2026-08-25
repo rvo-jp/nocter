@@ -10,7 +10,8 @@ use nocter_model::{
 
 mod contracts;
 
-pub(crate) use contracts::CheckedLiteralConstructor;
+use contracts::StructuralFieldEntry;
+pub(crate) use contracts::{CheckedLiteralConstructor, StructuralFields};
 
 #[derive(Clone, Copy, Debug)]
 struct VisibleEntry<I> {
@@ -32,8 +33,7 @@ struct ConstructionSurface {
 
 #[derive(Debug)]
 struct StructuralSurface {
-    fields: Box<[FieldId]>,
-    sites: Box<[DeclarationSiteId]>,
+    fields: Box<[StructuralFieldEntry]>,
     by_name: BTreeMap<Symbol, FieldId>,
 }
 
@@ -224,10 +224,10 @@ impl ConstructionSurfaceTable {
         &'a self,
         nominal: NominalTypeId,
         from: crate::SourceAccessContext<'_>,
-    ) -> Result<Option<&'a [FieldId]>, ConstructionSurfaceSelectionError> {
+    ) -> Result<Option<StructuralFields<'a>>, ConstructionSurfaceSelectionError> {
         Ok(self
             .visible_structural_surface(nominal, from)?
-            .map(|structural| structural.fields.as_ref()))
+            .map(|structural| StructuralFields::new(&structural.fields)))
     }
 
     fn visible_structural_surface<'a>(
@@ -266,11 +266,16 @@ impl ConstructionSurfaceTable {
         graph: &DeclarationGraph,
         nominal: NominalTypeId,
         from: crate::SourceAccessContext<'_>,
-    ) -> Result<Option<&'a [FieldId]>, ConstructionSurfaceSelectionError> {
+    ) -> Result<Option<StructuralFields<'a>>, ConstructionSurfaceSelectionError> {
         let Some(structural) = self.visible_structural_surface(nominal, from)? else {
             return Ok(None);
         };
-        for site in structural.sites.iter().copied() {
+        for site in structural
+            .fields
+            .iter()
+            .copied()
+            .map(StructuralFieldEntry::site)
+        {
             if !from
                 .site_is_visible(graph, site)
                 .map_err(ConstructionSurfaceSelectionError::Visibility)?
@@ -278,7 +283,7 @@ impl ConstructionSurfaceTable {
                 return Ok(None);
             }
         }
-        Ok(Some(&structural.fields))
+        Ok(Some(StructuralFields::new(&structural.fields)))
     }
 
     /// Selects one named field from the already-authorized structural entry.
@@ -408,7 +413,7 @@ fn nominal_surfaces(
         let (structural, variants) = match declaration.shape() {
             NominalShape::Struct { fields, .. } => {
                 let mut by_name = BTreeMap::new();
-                let mut sites = Vec::with_capacity(fields.len());
+                let mut ordered = Vec::with_capacity(fields.len());
                 for field in fields.iter().copied() {
                     let declaration = graph
                         .declarations()
@@ -424,12 +429,11 @@ fn nominal_surfaces(
                             declaration.name(),
                         ));
                     }
-                    sites.push(declaration.site());
+                    ordered.push(StructuralFieldEntry::new(field, declaration.site()));
                 }
                 (
                     Some(StructuralSurface {
-                        fields: fields.clone(),
-                        sites: sites.into_boxed_slice(),
+                        fields: ordered.into_boxed_slice(),
                         by_name,
                     }),
                     (

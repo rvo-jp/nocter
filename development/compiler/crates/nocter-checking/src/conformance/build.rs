@@ -176,7 +176,8 @@ impl std::error::Error for ConformanceInternalError {}
 ///
 /// Returns a source-backed error for missing, extra, incompatible, or overlapping conformance
 /// declarations, and an internal error for an inconsistent declaration/source graph.
-pub fn build_conformance_table(
+#[cfg(test)]
+pub(super) fn build_conformance_table(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,

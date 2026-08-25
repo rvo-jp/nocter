@@ -11,11 +11,10 @@ mod validate;
 mod tests;
 
 pub use crate::type_relations::SubstitutionError;
+#[cfg(test)]
+use build::build_conformance_table;
 pub(crate) use build::build_conformance_table_from_ids;
-pub use build::{
-    ConformanceBuildError, ConformanceInternalError, MissingConformanceMethods,
-    build_conformance_table,
-};
+pub use build::{ConformanceBuildError, ConformanceInternalError, MissingConformanceMethods};
 pub use diagnostic::ConformanceRule;
 pub use model::{CheckedConformance, ConformanceMethod, ConformanceTable, MethodSelection};
 pub(crate) use predicate::normalize_requirements;

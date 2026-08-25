@@ -96,7 +96,9 @@ impl BodyChecker<'_, '_> {
             .construction_surfaces
             .representation_fields(definition, self.source_access_context())
             .map_err(BodyCheckInternalError::from)?;
-        let Some(declared_fields) = structural_fields.map(<[nocter_model::FieldId]>::to_vec) else {
+        let Some(declared_fields) =
+            structural_fields.map(|fields| fields.iter().collect::<Vec<_>>())
+        else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);
         };
         let struct_initializer = direct_child(self.tree(), node, NodeKind::StructInitializer)

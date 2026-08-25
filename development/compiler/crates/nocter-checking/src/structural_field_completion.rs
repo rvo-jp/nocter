@@ -141,7 +141,7 @@ fn select_structural_field_completions(
             .fields()
             .get(field)
             .ok_or(StructuralFieldCompletionError::MissingField(field))?;
-        if declaration.owner() != definition || !declared.contains(&field) {
+        if declaration.owner() != definition || !declared.contains(field) {
             return Err(StructuralFieldCompletionError::InvalidField(field));
         }
         if !used.insert(field) {
@@ -152,7 +152,6 @@ fn select_structural_field_completions(
     }
     declared
         .iter()
-        .copied()
         .filter(|field| !used.contains(field))
         .map(|field| {
             let declaration = graph
@@ -228,7 +227,9 @@ mod tests {
             .construction_surfaces()
             .accessible_structural_fields(graph, record, child_access)
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .iter()
+            .collect::<Vec<_>>();
 
         let candidates = select_structural_field_completions(
             graph,

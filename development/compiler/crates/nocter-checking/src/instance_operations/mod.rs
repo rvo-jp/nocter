@@ -12,10 +12,10 @@ mod selection;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+use build::build_instance_operation_table;
 pub(crate) use build::build_instance_operation_table_from_ids;
-pub use build::{
-    InstanceOperationBuildError, InstanceOperationInternalError, build_instance_operation_table,
-};
+pub use build::{InstanceOperationBuildError, InstanceOperationInternalError};
 pub(crate) use comparison::ComparisonCandidateImplementation;
 pub use contracts::{
     CheckedInstanceCoercion, CheckedInstanceComparison, CheckedInstanceExpansion,

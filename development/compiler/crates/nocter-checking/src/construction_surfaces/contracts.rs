@@ -1,4 +1,49 @@
-use nocter_model::{CallableId, DeclarationSiteId, GenericParameterId, RequirementId, TypeId};
+use nocter_model::{
+    CallableId, DeclarationSiteId, FieldId, GenericParameterId, RequirementId, TypeId,
+};
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct StructuralFieldEntry {
+    field: FieldId,
+    site: DeclarationSiteId,
+}
+
+impl StructuralFieldEntry {
+    pub(super) const fn new(field: FieldId, site: DeclarationSiteId) -> Self {
+        Self { field, site }
+    }
+
+    pub(super) const fn field(self) -> FieldId {
+        self.field
+    }
+
+    pub(super) const fn site(self) -> DeclarationSiteId {
+        self.site
+    }
+}
+
+/// A borrowed view of the one ordered structural-field authority.
+#[derive(Clone, Copy)]
+pub(crate) struct StructuralFields<'a> {
+    entries: &'a [StructuralFieldEntry],
+}
+
+impl<'a> StructuralFields<'a> {
+    pub(super) const fn new(entries: &'a [StructuralFieldEntry]) -> Self {
+        Self { entries }
+    }
+
+    pub(crate) fn iter(self) -> impl ExactSizeIterator<Item = FieldId> + 'a {
+        self.entries
+            .iter()
+            .copied()
+            .map(StructuralFieldEntry::field)
+    }
+
+    pub(crate) fn contains(self, field: FieldId) -> bool {
+        self.entries.iter().any(|entry| entry.field() == field)
+    }
+}
 
 /// One literal constructor whose complete static declaration shape was validated during
 /// preparation.
