@@ -320,7 +320,7 @@ fn interrupted_completions(
     let Some(interruption) = recovery.interruption_at(source, offset) else {
         return Ok(None);
     };
-    let index = recovery.prepared().source_index();
+    let index = recovery.source_index();
     let spellings =
         VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {

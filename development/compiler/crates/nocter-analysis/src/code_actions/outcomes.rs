@@ -96,7 +96,6 @@ pub(super) fn callable_contract_action(
         .map(|site| site.module())
         .ok_or(OutcomeActionError::MissingDeclarationSite(callable.site()))?;
     let binding = recovery
-        .prepared()
         .source_index()
         .bindings_for(SemanticEntity::Callable(callable_id))
         .iter()

@@ -175,7 +175,7 @@ impl<'a> SemanticAuthority<'a> {
     pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
         match self {
             Self::Checked { source_index, .. } => source_index,
-            Self::Bodies(analysis) => analysis.prepared().source_index(),
+            Self::Bodies(analysis) => analysis.source_index(),
             Self::Names(recovery) => recovery.source_index(),
             Self::Declarations(recovery) => recovery.source_index(),
         }

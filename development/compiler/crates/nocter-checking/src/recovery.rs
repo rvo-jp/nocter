@@ -85,6 +85,7 @@ struct TypedInterruptionSnapshot {
 #[derive(Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
+    source_index: SourceIndex,
     typed: Box<[TypedInterruptionSnapshot]>,
     bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
 }
@@ -92,11 +93,13 @@ pub struct BodyAnalysisRecovery {
 impl BodyAnalysisRecovery {
     pub(crate) fn new(
         prepared: PreparedSemanticProgram,
+        source_index: SourceIndex,
         typed: Vec<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
         bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
     ) -> Self {
         Self {
             prepared,
+            source_index,
             typed: typed
                 .into_iter()
                 .map(
@@ -115,6 +118,12 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub const fn prepared(&self) -> &PreparedSemanticProgram {
         &self.prepared
+    }
+
+    /// Returns the independent source projection retained alongside prepared semantics.
+    #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
     }
 
     /// Returns typed facts for one independently successful body. The sparse body is analysis

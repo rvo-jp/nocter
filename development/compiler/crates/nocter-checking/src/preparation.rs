@@ -72,7 +72,6 @@ pub struct PreparedSemanticProgram {
     standard_semantics: StandardSemanticTable,
     body_names: Arena<BodyId, ResolvedBodyNames>,
     source_access: SourceAccessTable,
-    source_index: SourceIndex,
 }
 
 impl PreparedSemanticProgram {
@@ -128,11 +127,6 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
-    }
-
-    #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
     }
 }
 
@@ -237,8 +231,8 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
 }
 
 impl PreparedCheckingParts<'_> {
-    pub(crate) fn into_semantic_program(self) -> PreparedSemanticProgram {
-        PreparedSemanticProgram {
+    pub(crate) fn into_semantic_parts(self) -> (PreparedSemanticProgram, SourceIndex) {
+        let program = PreparedSemanticProgram {
             graph: self.graph,
             types: self.types,
             conformances: self.conformances,
@@ -250,8 +244,8 @@ impl PreparedCheckingParts<'_> {
             standard_semantics: self.standard_semantics,
             body_names: self.body_names,
             source_access: self.source_access,
-            source_index: self.source_index,
-        }
+        };
+        (program, self.source_index)
     }
 }
 
