@@ -9,6 +9,7 @@ use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTarge
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
+use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
 mod dependency;
 mod identity;
@@ -385,6 +386,7 @@ pub struct CompileUnitInput<'syntax> {
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     toolchain: Option<ToolchainInput>,
+    target_selection: Result<TargetSelection, TargetSelectionError>,
 }
 
 impl<'syntax> CompileUnitInput<'syntax> {
@@ -396,6 +398,13 @@ impl<'syntax> CompileUnitInput<'syntax> {
         modules: Vec<ModuleInput<'syntax>>,
         use_resolutions: Vec<UseResolutionInput>,
     ) -> Self {
+        let target_selection = TargetSelection::prepare(
+            target,
+            sources,
+            modules
+                .iter()
+                .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
+        );
         Self {
             target,
             sources,
@@ -406,6 +415,35 @@ impl<'syntax> CompileUnitInput<'syntax> {
             use_resolutions,
             package_target_resolutions: Vec::new(),
             toolchain: None,
+            target_selection,
+        }
+    }
+
+    /// Constructs the immutable lowering input from discovery's already completed target
+    /// selection.
+    ///
+    /// Unlike [`Self::new`], which is a convenience boundary for direct compiler tests and
+    /// embedding clients, this constructor never scans syntax for target gates.
+    #[must_use]
+    pub fn from_target_selection(
+        target: CompilationTarget,
+        sources: &'syntax SourceMap,
+        packages: Vec<PackageInput>,
+        modules: Vec<ModuleInput<'syntax>>,
+        use_resolutions: Vec<UseResolutionInput>,
+        target_selection: TargetSelection,
+    ) -> Self {
+        Self {
+            target,
+            sources,
+            packages,
+            root_packages: Vec::new(),
+            modules,
+            source_visibility_resolutions: Vec::new(),
+            use_resolutions,
+            package_target_resolutions: Vec::new(),
+            toolchain: None,
+            target_selection: Ok(target_selection),
         }
     }
 
@@ -424,9 +462,26 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self.target
     }
 
+    /// Returns discovery's sole syntax-owned target selection.
+    ///
+    /// # Errors
+    ///
+    /// Directly constructed inputs retain the exact target-selection failure for declaration
+    /// diagnostics rather than asking lowering to repeat the scan.
+    pub fn target_selection(&self) -> Result<&TargetSelection, TargetSelectionError> {
+        self.target_selection.as_ref().map_err(|error| *error)
+    }
+
     #[must_use]
     pub fn with_target(mut self, target: CompilationTarget) -> Self {
         self.target = target;
+        self.target_selection = TargetSelection::prepare(
+            target,
+            self.sources,
+            self.modules
+                .iter()
+                .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
+        );
         self
     }
 

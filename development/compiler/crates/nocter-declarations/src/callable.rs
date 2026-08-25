@@ -1,9 +1,9 @@
 use std::fmt;
 
 use nocter_model::{
-    BodyId, CallableCapability, CallableId, ConformanceId, ConstructionId, DeclarationSiteId,
-    DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId, RequirementId,
-    Symbol, TestId, TypeId, VariantId,
+    BodyId, CallableCapability, CallableId, CompilationTarget, ConformanceId, ConstructionId,
+    DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId,
+    RequirementId, Symbol, TestId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -165,7 +165,7 @@ pub struct CallableDeclaration {
     provenance_annotation: ProvenanceAnnotation,
     requirements: Box<[RequirementId]>,
     body: Option<BodyId>,
-    target_gate: Option<Symbol>,
+    target_gate: Option<CompilationTarget>,
 }
 
 impl CallableDeclaration {
@@ -184,7 +184,7 @@ impl CallableDeclaration {
         provenance_annotation: ProvenanceAnnotation,
         requirements: impl Into<Box<[RequirementId]>>,
         body: Option<BodyId>,
-        target_gate: Option<Symbol>,
+        target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
@@ -264,7 +264,7 @@ impl CallableDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(&self) -> Option<Symbol> {
+    pub const fn target_gate(&self) -> Option<CompilationTarget> {
         self.target_gate
     }
 }

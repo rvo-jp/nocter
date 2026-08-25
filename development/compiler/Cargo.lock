@@ -1759,6 +1759,7 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
+ "nocter-target-selection",
 ]
 
 [[package]]

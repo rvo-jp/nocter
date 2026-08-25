@@ -1,6 +1,6 @@
 //! One syntax-owned selection authority for source items gated by `#target`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
@@ -16,10 +16,17 @@ pub enum TargetSelectionError {
 }
 
 /// The immutable item/use activity decision shared by discovery and semantic lowering.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct TargetSelection {
+    item_targets: BTreeMap<SyntaxKey, CompilationTarget>,
     inactive_items: BTreeSet<SyntaxKey>,
     inactive_uses: BTreeSet<SyntaxKey>,
+}
+
+/// Sole incremental construction authority used while discovery closes a package graph.
+#[derive(Debug, Default)]
+pub struct TargetSelectionBuilder {
+    selection: TargetSelection,
 }
 
 impl TargetSelection {
@@ -34,16 +41,22 @@ impl TargetSelection {
         sources: &SourceMap,
         trees: impl IntoIterator<Item = &'tree SyntaxTree>,
     ) -> Result<Self, TargetSelectionError> {
-        let mut selection = Self::default();
+        let mut builder = TargetSelectionBuilder::new();
         for tree in trees {
-            selection.collect_tree(target, sources, tree)?;
+            builder.include_tree(target, sources, tree)?;
         }
-        Ok(selection)
+        Ok(builder.finish())
     }
 
     #[must_use]
     pub fn item_is_active(&self, item: NodeId) -> bool {
         !self.inactive_items.contains(&key(item))
+    }
+
+    /// Returns the normalized target named by one gated item.
+    #[must_use]
+    pub fn item_target(&self, item: NodeId) -> Option<CompilationTarget> {
+        self.item_targets.get(&key(item)).copied()
     }
 
     #[must_use]
@@ -79,6 +92,7 @@ impl TargetSelection {
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
             let selected = CompilationTarget::from_name(&name)
                 .ok_or(TargetSelectionError::UnknownTarget(literal))?;
+            self.item_targets.insert(key(child), selected);
             if selected != target {
                 self.inactive_items.insert(key(child));
                 self.collect_inactive_uses(tree, child)?;
@@ -107,6 +121,39 @@ impl TargetSelection {
             pending.extend(child_nodes(tree, node));
         }
         Ok(())
+    }
+}
+
+impl TargetSelectionBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Extends this authority with one newly discovered syntax tree.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source snapshot is inconsistent or a gate names an unknown
+    /// target.
+    pub fn include_tree(
+        &mut self,
+        target: CompilationTarget,
+        sources: &SourceMap,
+        tree: &SyntaxTree,
+    ) -> Result<(), TargetSelectionError> {
+        self.selection.collect_tree(target, sources, tree)
+    }
+
+    /// Borrows the decisions completed so far for dependency traversal.
+    #[must_use]
+    pub const fn selection(&self) -> &TargetSelection {
+        &self.selection
+    }
+
+    #[must_use]
+    pub fn finish(self) -> TargetSelection {
+        self.selection
     }
 }
 
@@ -155,10 +202,17 @@ mod tests {
         assert!(!tree.has_errors());
 
         let uses = descendants_of_kind(&tree, NodeKind::BlockUseDeclaration);
+        let items = descendants_of_kind(&tree, NodeKind::Item);
         let selection =
             TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
 
         assert_eq!(uses.len(), 2);
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            selection.item_target(items[0]),
+            Some(CompilationTarget::X64Linux)
+        );
+        assert_eq!(selection.item_target(items[1]), None);
         assert!(!selection.use_is_active(uses[0]));
         assert!(selection.use_is_active(uses[1]));
     }

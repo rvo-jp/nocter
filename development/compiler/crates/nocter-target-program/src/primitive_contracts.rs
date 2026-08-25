@@ -221,10 +221,7 @@ fn validate_signature(
     if !provenance_matches(types, declaration, contract) {
         return Err(PrimitiveContractRule::Provenance);
     }
-    let actual_target = declaration
-        .target_gate()
-        .and_then(|symbol| graph.symbols().spelling(symbol));
-    if actual_target != contract.target.map(CompilationTarget::name) {
+    if declaration.target_gate() != contract.target {
         return Err(PrimitiveContractRule::TargetGate);
     }
     if declaration.body().is_some() {
@@ -378,9 +375,6 @@ fn validate_syscall_result(
     let Some(site) = graph.declaration_sites().get(declaration.site()) else {
         return false;
     };
-    let Some(target_symbol) = graph.symbols().get(CompilationTarget::Arm64Darwin.name()) else {
-        return false;
-    };
     let NominalShape::Struct {
         copy_declared: true,
         fields,
@@ -389,7 +383,7 @@ fn validate_syscall_result(
         return false;
     };
     if site.visibility() != Visibility::Package(standard_package)
-        || declaration.target_gate() != Some(target_symbol)
+        || declaration.target_gate() != Some(CompilationTarget::Arm64Darwin)
         || !declaration.generic_parameters().is_empty()
         || !declaration.requirements().is_empty()
         || fields.len() != 2

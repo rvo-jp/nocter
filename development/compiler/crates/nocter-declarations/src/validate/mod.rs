@@ -151,7 +151,6 @@ fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegri
     for (_, constant) in program.declarations().constants().iter() {
         require_site(program, constant.site(), DeclarationDomain::Constant)?;
         require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
-        require_optional_symbol(program, constant.target_gate(), DeclarationDomain::Constant)?;
         require_type(program, constant.ty(), DeclarationDomain::Constant)?;
         let valid = match constant.value() {
             ConstantValue::Bool(_) => constant.ty() == program.types().builtin(BuiltinType::Bool),

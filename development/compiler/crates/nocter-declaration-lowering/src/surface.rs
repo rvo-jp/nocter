@@ -167,7 +167,7 @@ pub struct SurfaceDeclaration {
     name: Option<SyntaxToken>,
     entity_origin: SyntaxOrigin,
     visibility: Option<NodeId>,
-    target_gate: Option<NodeId>,
+    target_gate: Option<nocter_model::CompilationTarget>,
     interface_default: bool,
 }
 
@@ -209,7 +209,7 @@ impl SurfaceDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(self) -> Option<NodeId> {
+    pub const fn target_gate(self) -> Option<nocter_model::CompilationTarget> {
         self.target_gate
     }
 
@@ -468,7 +468,7 @@ fn collect_declaration_surface_with<'syntax>(
     let source_collection = SourceCollectionInput {
         source_visibility_resolutions: &source_visibility_resolutions,
         use_resolutions: &use_resolutions,
-        target_selection: &target_selection,
+        target_selection,
         source_by_path: &source_by_path,
     };
     for (index, source) in sources.iter().enumerate() {
@@ -589,7 +589,14 @@ fn collect_source(
             }
             Some(NodeKind::Item) => {
                 if input.target_selection.item_is_active(child) {
-                    collect_item(source_id, source.kind(), tree, child, declarations)?;
+                    collect_item(
+                        source_id,
+                        source.kind(),
+                        tree,
+                        child,
+                        input.target_selection.item_target(child),
+                        declarations,
+                    )?;
                 }
             }
             Some(_) | None => return Err(SurfaceError::InvalidRootShape(tree.source())),
@@ -632,9 +639,10 @@ fn collect_item(
     source_kind: ModuleSourceKind,
     tree: &SyntaxTree,
     item: NodeId,
+    selected_target: Option<nocter_model::CompilationTarget>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
-    let mut target_gate = None;
+    let mut has_target_gate = false;
     let mut declaration = None;
     for child in child_nodes(tree, item) {
         let kind = tree
@@ -642,7 +650,7 @@ fn collect_item(
             .ok_or(SurfaceError::InvalidItemShape(item))?
             .kind();
         if kind == NodeKind::TargetDirective {
-            target_gate = Some(child);
+            has_target_gate = true;
         } else if top_level_kind(tree, child).is_some() {
             if declaration.replace(child).is_some() {
                 return Err(SurfaceError::InvalidItemShape(item));
@@ -652,12 +660,22 @@ fn collect_item(
         }
     }
     let declaration = declaration.ok_or(SurfaceError::InvalidItemShape(item))?;
+    if has_target_gate != selected_target.is_some() {
+        return Err(SurfaceError::InvalidItemShape(item));
+    }
     if source_kind == ModuleSourceKind::Implementation {
         validate_implementation_item(tree, declaration)?;
     } else {
         validate_root_item(tree, declaration)?;
     }
-    append_declaration(source, tree, declaration, None, target_gate, declarations)
+    append_declaration(
+        source,
+        tree,
+        declaration,
+        None,
+        selected_target,
+        declarations,
+    )
 }
 
 fn append_declaration(
@@ -665,7 +683,7 @@ fn append_declaration(
     tree: &SyntaxTree,
     node: NodeId,
     owner: Option<SurfaceDeclarationId>,
-    target_gate: Option<NodeId>,
+    target_gate: Option<nocter_model::CompilationTarget>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
     let mut pending = vec![(node, owner, target_gate)];

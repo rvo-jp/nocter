@@ -1,4 +1,4 @@
-use nocter_model::{ConstantValue, DeclarationSiteId, Symbol, TypeId};
+use nocter_model::{CompilationTarget, ConstantValue, DeclarationSiteId, Symbol, TypeId};
 
 /// One complete module constant after its contract and initializer have been joined and evaluated.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -7,7 +7,7 @@ pub struct ConstantDeclaration {
     name: Symbol,
     ty: TypeId,
     value: ConstantValue,
-    target_gate: Option<Symbol>,
+    target_gate: Option<CompilationTarget>,
 }
 
 impl ConstantDeclaration {
@@ -17,7 +17,7 @@ impl ConstantDeclaration {
         name: Symbol,
         ty: TypeId,
         value: ConstantValue,
-        target_gate: Option<Symbol>,
+        target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
@@ -49,7 +49,7 @@ impl ConstantDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(&self) -> Option<Symbol> {
+    pub const fn target_gate(&self) -> Option<CompilationTarget> {
         self.target_gate
     }
 }

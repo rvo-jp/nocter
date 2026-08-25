@@ -13,7 +13,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{
     Keyword, ParseGoal, SyntaxElement, SyntaxTree, TokenKind, declaration_name_token, parse,
 };
-use nocter_target_selection::TargetSelection;
+use nocter_target_selection::TargetSelectionBuilder;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
 use crate::module_catalog::{module_sources, toolchain_standard_modules};
@@ -80,6 +80,7 @@ struct Builder {
     source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
     use_resolutions: Vec<UseResolutionInput>,
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
+    target_selection: TargetSelectionBuilder,
     pending: BTreeSet<Work>,
     toolchain: ToolchainRequest,
 }
@@ -179,6 +180,7 @@ impl Builder {
             source_visibility_resolutions: Vec::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
+            target_selection: TargetSelectionBuilder::new(),
             pending,
             toolchain,
         })
@@ -253,6 +255,7 @@ impl Builder {
             source_visibility_resolutions: self.source_visibility_resolutions,
             use_resolutions: self.use_resolutions,
             package_target_resolutions: self.package_target_resolutions,
+            target_selection: self.target_selection.finish(),
             toolchain,
         })
     }
@@ -539,7 +542,8 @@ impl Builder {
         if tree.has_errors() {
             return Ok(());
         }
-        let selection = TargetSelection::prepare(self.target, &self.sources, [tree])
+        self.target_selection
+            .include_tree(self.target, &self.sources, tree)
             .map_err(DiscoveryError::TargetSelection)?;
         let source = self.sources.get(tree.source()).ok_or_else(|| {
             DiscoveryError::TargetSelection(
@@ -558,7 +562,9 @@ impl Builder {
             self.source_visibility_resolutions
                 .push(SourceVisibilityResolutionInput::new(declaration, target));
         }
-        for (declaration, authored_path) in active_use_paths(source, tree, &selection)? {
+        for (declaration, authored_path) in
+            active_use_paths(source, tree, self.target_selection.selection())?
+        {
             let target = self.resolve_use(&module, &path, declaration, &authored_path)?;
             self.module_dependencies
                 .push(DiscoveredModuleDependency::new(

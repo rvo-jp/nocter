@@ -3,8 +3,8 @@ use nocter_model::TypeKind;
 use crate::{CallableOwner, DeclarationProgram, NominalShape};
 
 use super::{
-    DeclarationDomain, ProgramIntegrityError, require, require_optional_symbol, require_site,
-    require_symbol, require_type, unique,
+    DeclarationDomain, ProgramIntegrityError, require, require_site, require_symbol, require_type,
+    unique,
 };
 
 pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
@@ -86,11 +86,6 @@ pub(super) fn validate_nominal_types(
     for (id, nominal) in declarations.nominal_types().iter() {
         require_site(program, nominal.site(), DeclarationDomain::NominalType)?;
         require_symbol(program, nominal.name(), DeclarationDomain::NominalType)?;
-        require_optional_symbol(
-            program,
-            nominal.target_gate(),
-            DeclarationDomain::NominalType,
-        )?;
         unique(nominal.generic_parameters(), DeclarationDomain::NominalType)?;
         unique(nominal.requirements(), DeclarationDomain::NominalType)?;
         match nominal.shape() {
@@ -167,18 +162,12 @@ pub(super) fn validate_aliases_interfaces(
         require_site(program, alias.site(), DeclarationDomain::TypeAlias)?;
         require_symbol(program, alias.name(), DeclarationDomain::TypeAlias)?;
         require_type(program, alias.target(), DeclarationDomain::TypeAlias)?;
-        require_optional_symbol(program, alias.target_gate(), DeclarationDomain::TypeAlias)?;
         unique(alias.generic_parameters(), DeclarationDomain::TypeAlias)?;
         unique(alias.requirements(), DeclarationDomain::TypeAlias)?;
     }
     for (id, interface) in declarations.interfaces().iter() {
         require_site(program, interface.site(), DeclarationDomain::Interface)?;
         require_symbol(program, interface.name(), DeclarationDomain::Interface)?;
-        require_optional_symbol(
-            program,
-            interface.target_gate(),
-            DeclarationDomain::Interface,
-        )?;
         unique(interface.generic_parameters(), DeclarationDomain::Interface)?;
         unique(interface.requirements(), DeclarationDomain::Interface)?;
         unique(interface.associated_types(), DeclarationDomain::Interface)?;

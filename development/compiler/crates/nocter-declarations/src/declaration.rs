@@ -1,7 +1,7 @@
 use nocter_model::{
-    AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstructionId, DeclarationSiteId, DropId,
-    FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId, ParameterId,
-    RequirementId, Symbol, TypeAliasId, TypeId, VariantId,
+    AssociatedTypeId, BodyId, CallableId, CompilationTarget, ConformanceId, ConstructionId,
+    DeclarationSiteId, DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId,
+    ParameterId, RequirementId, Symbol, TypeAliasId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -93,7 +93,7 @@ pub struct NominalTypeDeclaration {
     generic_parameters: Box<[GenericParameterId]>,
     requirements: Box<[RequirementId]>,
     shape: NominalShape,
-    target_gate: Option<Symbol>,
+    target_gate: Option<CompilationTarget>,
 }
 
 impl NominalTypeDeclaration {
@@ -104,7 +104,7 @@ impl NominalTypeDeclaration {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         requirements: impl Into<Box<[RequirementId]>>,
         shape: NominalShape,
-        target_gate: Option<Symbol>,
+        target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
@@ -142,7 +142,7 @@ impl NominalTypeDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(&self) -> Option<Symbol> {
+    pub const fn target_gate(&self) -> Option<CompilationTarget> {
         self.target_gate
     }
 }
@@ -244,7 +244,7 @@ pub struct TypeAliasDeclaration {
     generic_parameters: Box<[GenericParameterId]>,
     target: TypeId,
     requirements: Box<[RequirementId]>,
-    target_gate: Option<Symbol>,
+    target_gate: Option<CompilationTarget>,
 }
 
 impl TypeAliasDeclaration {
@@ -255,7 +255,7 @@ impl TypeAliasDeclaration {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         target: TypeId,
         requirements: impl Into<Box<[RequirementId]>>,
-        target_gate: Option<Symbol>,
+        target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
@@ -293,7 +293,7 @@ impl TypeAliasDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(&self) -> Option<Symbol> {
+    pub const fn target_gate(&self) -> Option<CompilationTarget> {
         self.target_gate
     }
 }
@@ -306,7 +306,7 @@ pub struct InterfaceDeclaration {
     requirements: Box<[RequirementId]>,
     associated_types: Box<[AssociatedTypeId]>,
     methods: Box<[CallableId]>,
-    target_gate: Option<Symbol>,
+    target_gate: Option<CompilationTarget>,
 }
 
 impl InterfaceDeclaration {
@@ -319,7 +319,7 @@ impl InterfaceDeclaration {
         requirements: impl Into<Box<[RequirementId]>>,
         associated_types: impl Into<Box<[AssociatedTypeId]>>,
         methods: impl Into<Box<[CallableId]>>,
-        target_gate: Option<Symbol>,
+        target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
@@ -363,7 +363,7 @@ impl InterfaceDeclaration {
     }
 
     #[must_use]
-    pub const fn target_gate(&self) -> Option<Symbol> {
+    pub const fn target_gate(&self) -> Option<CompilationTarget> {
         self.target_gate
     }
 }

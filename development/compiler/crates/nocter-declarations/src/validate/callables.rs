@@ -15,7 +15,6 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
     for (id, callable) in declarations.callables().iter() {
         require_site(program, callable.site(), DeclarationDomain::Callable)?;
         require_optional_symbol(program, callable.name(), DeclarationDomain::Callable)?;
-        require_optional_symbol(program, callable.target_gate(), DeclarationDomain::Callable)?;
         require_type(program, callable.result(), DeclarationDomain::Callable)?;
         unique(callable.generic_parameters(), DeclarationDomain::Callable)?;
         unique(callable.parameters(), DeclarationDomain::Callable)?;

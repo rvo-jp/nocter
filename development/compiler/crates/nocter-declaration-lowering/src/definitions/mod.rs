@@ -60,7 +60,6 @@ pub enum HeaderDefinitionError {
     InvalidOwner(SurfaceDeclarationId),
     InvalidSurface(SurfaceDeclarationId),
     InvalidTypePattern(SurfaceDeclarationId),
-    InvalidTargetGate(SurfaceDeclarationId),
     InvalidProvenance(SurfaceDeclarationId),
     InconsistentSource(SourceId),
     MissingDiagnosticSubject(nocter_model::DeclarationSiteId),
@@ -116,12 +115,6 @@ impl fmt::Display for HeaderDefinitionError {
                 formatter,
                 "declaration {declaration:?} has an invalid normalized type pattern"
             ),
-            Self::InvalidTargetGate(declaration) => {
-                write!(
-                    formatter,
-                    "declaration {declaration:?} has an invalid target gate"
-                )
-            }
             Self::InvalidProvenance(declaration) => write!(
                 formatter,
                 "callable {declaration:?} has an invalid result provenance contract"

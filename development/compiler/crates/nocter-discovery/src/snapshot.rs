@@ -10,6 +10,7 @@ use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
+use nocter_target_selection::TargetSelection;
 
 #[derive(Clone, Debug)]
 pub struct DiscoveredSource {
@@ -112,6 +113,7 @@ pub struct DiscoveredUnit {
     pub(crate) source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
     pub(crate) use_resolutions: Vec<UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
+    pub(crate) target_selection: TargetSelection,
     pub(crate) toolchain: Option<ToolchainInput>,
 }
 
@@ -267,12 +269,13 @@ impl DiscoveredUnit {
             .toolchain
             .clone()
             .ok_or(CompileInputError::MissingToolchainProfile)?;
-        Ok(CompileUnitInput::new(
+        Ok(CompileUnitInput::from_target_selection(
             self.target,
             &self.sources,
             packages,
             modules,
             self.use_resolutions.clone(),
+            self.target_selection.clone(),
         )
         .with_source_visibility_resolutions(self.source_visibility_resolutions.clone())
         .with_root_packages(self.root_packages.clone())

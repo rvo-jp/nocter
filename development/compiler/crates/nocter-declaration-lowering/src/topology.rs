@@ -368,7 +368,7 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
         BTreeMap<SourceVisibilityResolutionKey, &'input SourceVisibilityResolutionInput>,
     pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
     pub(crate) package_target_resolutions: Vec<&'input crate::PackageTargetResolutionInput>,
-    pub(crate) target_selection: TargetSelection,
+    pub(crate) target_selection: &'input TargetSelection,
 }
 
 pub(crate) fn prepare_compile_unit<'input, 'syntax>(
@@ -377,14 +377,7 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let packages = canonical_packages(input)?;
     let modules = canonical_modules(input, &packages)?;
     validate_sources(input, &packages, &modules)?;
-    let target_selection = TargetSelection::prepare(
-        input.target(),
-        input.sources(),
-        modules
-            .iter()
-            .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
-    )
-    .map_err(|error| match error {
+    let target_selection = input.target_selection().map_err(|error| match error {
         TargetSelectionError::MissingSource(source) => LoweringError::MissingSource(source),
         TargetSelectionError::InconsistentSyntax(source) => {
             LoweringError::InconsistentSyntax(source)
@@ -394,8 +387,8 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     let package_target_resolutions =
         validate_package_target_resolutions(input, &packages, &modules)?;
     let source_visibility_resolutions = validate_source_visibility_resolutions(input, &modules)?;
-    let use_resolutions = validate_use_resolutions(input, &modules, &target_selection)?;
-    let symbols = collect_symbols(input, &packages, &modules, &target_selection)?;
+    let use_resolutions = validate_use_resolutions(input, &modules, target_selection)?;
+    let symbols = collect_symbols(input, &packages, &modules, target_selection)?;
     Ok(PreparedCompileUnit {
         symbols,
         packages,
