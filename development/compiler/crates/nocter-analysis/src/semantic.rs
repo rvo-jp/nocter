@@ -365,6 +365,7 @@ const fn interactive_entity(entity: SemanticEntity) -> bool {
     matches!(
         entity,
         SemanticEntity::Module(_)
+            | SemanticEntity::BuiltinType(_)
             | SemanticEntity::NominalType(_)
             | SemanticEntity::TypeAlias(_)
             | SemanticEntity::Interface(_)

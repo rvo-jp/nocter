@@ -463,7 +463,6 @@ const fn is_declaration(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::FunctionDeclaration
-            | NodeKind::PrimitiveDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::StructField

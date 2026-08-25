@@ -240,7 +240,7 @@ RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment
 
 TargetableItem = FunctionDeclaration
                | ConstantDeclaration
-               | PrimitiveDeclaration
+               | PrimitiveTypeDeclaration
                | TypeAliasDeclaration
                | StructDeclaration
                | EnumDeclaration
@@ -258,15 +258,16 @@ ProvenanceClause = "from" ProvenanceOrigin ("|" ProvenanceOrigin)*
 ProvenanceOrigin = Name
 
 CallableBody = Block?
-</code></pre><p><code>CallableResult</code>, <code>Type</code>, and <code>WhereClause</code> are defined below. A bodyless declaration ends when its enclosing <code>LineSequence</code> reaches a separator or closing brace; later semantic validation permits it only for a source form that owns an external contract/body split or is intrinsically bodyless. At the start of <code>CallableResult</code>, the identifier spelling <code>some</code> commits to <code>OpaqueResult</code>; it is not reconsidered as a <code>NamedType</code> if the opaque form is incomplete. This contextual boundary does not affect value expressions named <code>some</code>.</p><p>Semantic declaration validation permits at most one <code>...</code> parameter in final position on a supported callable. Sequence-literal definitions require exactly one such parameter and no fixed parameter. Other declaration forms reject the modifier.</p><h2 id="functions-primitives-and-aliases">Functions, Primitives, and Aliases</h2><pre><code class="language-text">FunctionDeclaration = Visibility? "func" Name GenericParameters? Parameters
+</code></pre><p><code>CallableResult</code>, <code>Type</code>, and <code>WhereClause</code> are defined below. A bodyless declaration ends when its enclosing <code>LineSequence</code> reaches a separator or closing brace; later semantic validation permits it only for a source form that owns an external contract/body split or is intrinsically bodyless. At the start of <code>CallableResult</code>, the identifier spelling <code>some</code> commits to <code>OpaqueResult</code>; it is not reconsidered as a <code>NamedType</code> if the opaque form is incomplete. This contextual boundary does not affect value expressions named <code>some</code>.</p><p>Semantic declaration validation permits at most one <code>...</code> parameter in final position on a supported callable. Sequence-literal definitions require exactly one such parameter and no fixed parameter. Other declaration forms reject the modifier.</p><h2 id="functions-primitive-types-and-aliases">Functions, Primitive Types, and Aliases</h2><pre><code class="language-text">FunctionDeclaration = Visibility? "primitive"? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
 
-PrimitiveDeclaration = Visibility? "primitive" Name GenericParameters? Parameters
-                       CallableTail
+PrimitiveTypeDeclaration = Visibility? "primitive" "type" PrimitiveTypeName
+
+PrimitiveTypeName = Name | "void" | "never"
 
 TypeAliasDeclaration = Visibility? "type" Name GenericParameters? "=" Type
                        WhereClause?
-</code></pre><p>A primitive never has a source body. An ordinary function is recognized with a body or as a bodyless contract; module composition and visibility rules decide whether the latter is valid.</p><h2 id="structs-and-enums">Structs and Enums</h2><pre><code class="language-text">StructDeclaration = Visibility? "copy"? "struct" Name GenericParameters? WhereClause?
+</code></pre><p>A function carrying <code>primitive</code> never has a source body. A function without that modifier is recognized with a body or as a bodyless contract; module composition and visibility rules decide whether the latter is valid. Semantic toolchain validation restricts <code>PrimitiveTypeName</code> to the exact closed built-in declaration selected for that source token; accepting a syntactic <code>Name</code> here does not create an open user-defined primitive-type facility.</p><h2 id="structs-and-enums">Structs and Enums</h2><pre><code class="language-text">StructDeclaration = Visibility? "copy"? "struct" Name GenericParameters? WhereClause?
                     StructBody?
 
 StructBody = "{" LineSequence(StructField) "}"

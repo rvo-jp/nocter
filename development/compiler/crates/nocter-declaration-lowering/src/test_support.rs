@@ -1,9 +1,66 @@
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_model::BuiltinType;
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, declaration_name_token};
 
 use crate::{
-    ModuleIdentity, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
-    UseResolutionInput,
+    BuiltinTypeInput, ModuleIdentity, PackageTargetResolutionInput,
+    SourceVisibilityResolutionInput, ToolchainInput, UseResolutionInput,
 };
+
+pub(crate) const TEST_BUILTIN_SOURCE: &str = "\
+pub primitive type bool\n\
+pub primitive type i8\n\
+pub primitive type i16\n\
+pub primitive type i32\n\
+pub primitive type i64\n\
+pub primitive type u8\n\
+pub primitive type u16\n\
+pub primitive type u32\n\
+pub primitive type u64\n\
+pub primitive type usize\n\
+pub primitive type isize\n\
+pub primitive type str\n\
+pub primitive type error\n\
+pub primitive type void\n\
+pub primitive type never\n";
+
+pub(crate) fn test_toolchain(
+    prelude: ModuleIdentity,
+    builtin_source: &SyntaxTree,
+) -> ToolchainInput {
+    let mut declarations = Vec::new();
+    let mut pending = vec![builtin_source.root_id()];
+    while let Some(node) = pending.pop() {
+        if builtin_source
+            .node(node)
+            .is_some_and(|node| node.kind() == NodeKind::PrimitiveTypeDeclaration)
+        {
+            declarations.push(
+                declaration_name_token(builtin_source, node)
+                    .expect("test primitive type has no declaration name"),
+            );
+        }
+        pending.extend(child_nodes(builtin_source, node).into_iter().rev());
+    }
+    assert_eq!(declarations.len(), BuiltinType::COUNT);
+    let builtin_types = BuiltinType::ALL
+        .iter()
+        .copied()
+        .zip(declarations)
+        .map(|(builtin, declaration)| BuiltinTypeInput::new(builtin, declaration))
+        .collect();
+    ToolchainInput::new(prelude.package().clone(), prelude, Vec::new(), Vec::new())
+        .with_builtin_types(builtin_types)
+}
+
+fn child_nodes(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {
+    tree.children(root)
+        .iter()
+        .filter_map(|element| match element {
+            SyntaxElement::Node(node) => Some(*node),
+            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+        })
+        .collect()
+}
 
 pub(crate) fn source_see(
     tree: &SyntaxTree,

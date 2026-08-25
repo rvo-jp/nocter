@@ -270,7 +270,7 @@ const fn is_documentable(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::FunctionDeclaration
-            | NodeKind::PrimitiveDeclaration
+            | NodeKind::PrimitiveTypeDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::StructField

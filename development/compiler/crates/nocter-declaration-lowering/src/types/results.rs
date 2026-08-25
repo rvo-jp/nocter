@@ -96,7 +96,7 @@ fn bind_callable_result(
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result_node = match kind {
         SurfaceDeclarationKind::Function
-        | SurfaceDeclarationKind::Primitive
+        | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::InterfaceMethod
         | SurfaceDeclarationKind::ConstructionFunction
         | SurfaceDeclarationKind::Literal

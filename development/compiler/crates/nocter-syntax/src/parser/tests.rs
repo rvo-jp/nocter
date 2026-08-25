@@ -221,7 +221,7 @@ fn recognizes_late_see_after_an_item_shaped_line() {
 #[test]
 fn parses_callable_declarations_and_nested_type_closers() {
     assert_syntax_ok(
-        "pub func choose<T>(left: &T, right: &T): &T from left | right\npub primitive invoke<T>(callback: &+func(input: &T): T, input: &T): T\ntype Nested<T> = parser.Outer<Inner<T>>\ntype DoubleBorrow<T> = &&T\n",
+        "pub func choose<T>(left: &T, right: &T): &T from left | right\npub primitive func invoke<T>(callback: &+func(input: &T): T, input: &T): T\npub primitive type i32\ntype Nested<T> = parser.Outer<Inner<T>>\ntype DoubleBorrow<T> = &&T\n",
         ParseGoal::SourceFile,
     );
 }
@@ -335,7 +335,7 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
     );
 
     for kind in [
-        NodeKind::BuiltinType,
+        NodeKind::NamedType,
         NodeKind::BorrowType,
         NodeKind::PointerType,
         NodeKind::SliceType,
@@ -351,7 +351,6 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
 fn rejects_closed_type_shapes_without_semantic_assistance() {
     for source in [
         "type Reversed = i32!?\n",
-        "type BuiltinSelection = str.Item\n",
         "type GenericSelf = Self<T>\n",
         "type MissingResult = func(value: i32)\n",
     ] {
@@ -370,7 +369,7 @@ fn parses_fixed_array_lengths_as_constant_expressions() {
 #[test]
 fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
     assert_syntax_ok(
-        "type AssociatedArguments<T, U> = T.Item<U>\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source<Item = u8>\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
+        "type AssociatedArguments<T, U> = T.Item<U>\ntype BuiltinSelection = str.Item\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source<Item = u8>\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
         ParseGoal::SourceFile,
     );
 }

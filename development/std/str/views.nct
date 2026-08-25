@@ -5,9 +5,9 @@ see ./search.nct
 
 use /iter.Iterator
 
-primitive bytes_from_str(value: &str): &[u8] from value
+primitive func bytes_from_str(value: &str): &[u8] from value
 
-primitive str_subview_unchecked(
+primitive func str_subview_unchecked(
     text: &str,
     start: usize,
     len: usize,

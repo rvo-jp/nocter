@@ -73,7 +73,9 @@ diagnostic.
 The immutable declaration program retains two namespace layers for every module:
 
 - authored declarations and imports, including effective visibility and re-exports
-- compiler-selected prelude fallback, which is shadowable and never exportable
+- compiler-selected named built-in fallback, which is universal, unshadowable, and never
+  exportable
+- compiler-selected prelude fallback, which is package-external, shadowable, and never exportable
 
 The body checker consumes those layers directly. It does not reconstruct a namespace by iterating
 declarations or imports. Block imports are body-owned because their visibility and collision scope

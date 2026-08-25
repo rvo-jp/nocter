@@ -266,7 +266,7 @@ fn body_module(
 mod tests {
     use nocter_compile_input::{
         CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageInput, PackageMode, ToolchainInput,
+        PackageInput, PackageMode,
     };
     use nocter_declaration_lowering::lower_compile_unit_declarations;
     use nocter_model::PackageIdentity;
@@ -285,7 +285,11 @@ mod tests {
             "/app/index.nct",
             "func first(): void { return }\nfunc second(): void { return }\n",
         );
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::BUILTIN_DECLARATIONS,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -322,11 +326,10 @@ mod tests {
                 modules,
                 Vec::new(),
             )
-            .with_toolchain(ToolchainInput::new(
-                PackageIdentity::new("toolchain:std"),
+            .with_toolchain(crate::test_support::builtin_toolchain(
+                &sources,
+                &standard,
                 prelude_identity.clone(),
-                Vec::new(),
-                Vec::new(),
             ));
             let lowered = lower_compile_unit_declarations(&input).unwrap();
             let (program, bindings, _) = lowered.into_checking_parts(&input);
@@ -369,7 +372,11 @@ mod tests {
             "/app/index.nct",
             "func main(): void { return }\n",
         );
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::BUILTIN_DECLARATIONS,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -397,11 +404,10 @@ mod tests {
             ],
             Vec::new(),
         )
-        .with_toolchain(ToolchainInput::new(
-            PackageIdentity::new("toolchain:std"),
+        .with_toolchain(crate::test_support::builtin_toolchain(
+            &sources,
+            &standard,
             prelude_identity,
-            Vec::new(),
-            Vec::new(),
         ));
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _, _) = lowered.into_checking_parts(&input);

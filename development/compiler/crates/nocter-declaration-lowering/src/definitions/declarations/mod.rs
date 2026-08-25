@@ -37,6 +37,7 @@ pub(super) fn define(
             continue;
         }
         match entity(types, declaration) {
+            Some(ReservedEntity::BuiltinType(_) | ReservedEntity::Constant(_)) => {}
             Some(ReservedEntity::NominalType(id)) => {
                 define_nominal(types, allocated, declaration, id)?;
             }
@@ -47,7 +48,6 @@ pub(super) fn define(
             Some(ReservedEntity::AssociatedType(id)) => {
                 define_associated(types, allocated, declaration, id)?;
             }
-            Some(ReservedEntity::Constant(_)) => {}
             Some(ReservedEntity::Callable(id)) => {
                 callable::define(types, allocated, declaration, id)?;
             }

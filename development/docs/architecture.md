@@ -456,17 +456,20 @@ binder identities through a spelling-keyed projection; repeated pattern tokens p
 references instead of being rejected as ordinary duplicate generic parameters.
 
 The selected toolchain is part of the discovery request and the immutable compile input. It names
-one exact standard package, prelude module, set of built-in attachment modules, and set of standard
-semantic declaration roles, and closed primitive roles. Discovery loads every selected module and
-resolves each role locator to one declaration-name token before semantic lowering. Standard
+one exact standard package, prelude module, the structural slice attachment module, every named
+built-in type declaration, a set of standard semantic declaration roles, and closed primitive
+roles. Discovery loads every selected module and resolves each declaration locator to one exact
+declaration-name token before semantic lowering. Standard
 semantic roles deliberately select visible contract declarations and ignore private implementation
 bodies. Primitive roles deliberately select primitive declarations from the complete authored
 module source set, including private declarations in directly seen ordinary sources. Lowering then
 normalizes each selected declaration's ordinary source visibility. Target validation requires that
 visibility to equal the closed registry's source-private, package-visible, or public exposure.
-Lowering records standard package and built-in authority from those identities; checking resolves
-standard semantic declarations through the same source-index tokens. Target setup resolves
-primitive tokens through that index into a canonical registry. No later stage may recover toolchain
+Lowering binds each named built-in token to its existing canonical semantic type and derives its
+inherent-surface module authority from that declaration. Only the anonymous structural slice
+surface retains a separate attachment authority. Checking consumes the projected frontend
+bindings; target setup consumes the separately projected primitive registry. Neither uses the
+presentation index as semantic input. No later stage may recover toolchain
 authority from a package name, module path, declaration spelling, visibility guess, or
 opportunistic presence in the source graph. The complete authored standard source graph now passes
 declaration lowering and body checking through this boundary as one qualification case.
@@ -700,9 +703,10 @@ Declaration lowering treats blocks as opaque and publishes no body expression re
 
 Body name resolution traverses body type annotations along with value expressions. It freezes each
 source-backed lexical or module-namespace identity used by a value, body type path, or constant
-subexpression. Generic parameters, `Self`, built-in types, and associated projections remain
-type-directed. Body type checking resolves those type-directed forms through its ordinary type
-authority, consumes every source-backed identity selected by name resolution, then adapts constant
+subexpression. Named built-in types use the same source-backed identity path as other declarations;
+generic parameters, `Self`, and associated projections remain type-directed. Body type checking
+resolves those type-directed forms through its ordinary type authority, consumes every
+source-backed identity selected by name resolution, then adapts constant
 targets to the shared planner and evaluates each body fixed-array length once. It cannot repeat a
 module namespace or visibility lookup after name resolution selected an identity. MIR, target
 specialization, machine lowering, and editor presentation consume normalized types and frozen

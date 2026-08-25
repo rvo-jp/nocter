@@ -409,7 +409,11 @@ mod tests {
         let test_id = add_source(&mut sources, "/app/tests/unit/index.nct", "");
         let tool_id = add_source(&mut sources, "/app/tools/tool/index.nct", "");
         let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let tests = parse_source(&sources, test_id, ParseGoal::SourceFile);
@@ -457,7 +461,7 @@ mod tests {
             package_target(&sources, &app_manifest, 0, app_root),
             package_target(&sources, &app_manifest, 1, test_module),
         ])
-        .with_toolchain(standard_toolchain());
+        .with_toolchain(standard_toolchain(&standard));
 
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         assert_package_targets(&sources, &lowered);
@@ -472,7 +476,11 @@ mod tests {
             "func main(): void { return }\n",
         );
         let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
         let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -505,7 +513,7 @@ mod tests {
             ],
             Vec::new(),
         )
-        .with_toolchain(standard_toolchain());
+        .with_toolchain(standard_toolchain(&standard));
 
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let mut targets = lowered.program().package_targets().iter();
@@ -952,7 +960,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(
             &mut sources,
             "/std/prelude/index.nct",
@@ -984,7 +996,7 @@ mod tests {
             ],
             vec![module_use(&app, 0, managed_prelude.clone())],
         )
-        .with_toolchain(standard_toolchain());
+        .with_toolchain(standard_toolchain(&standard));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
@@ -1059,7 +1071,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", "pub func run(): void\n");
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1084,7 +1100,8 @@ mod tests {
                 ),
             ],
             vec![],
-        );
+        )
+        .with_toolchain(standard_toolchain(&standard));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         assert_eq!(
@@ -1111,7 +1128,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1150,7 +1171,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1214,7 +1239,11 @@ mod tests {
             let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
             let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
-            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let standard_id = add_source(
+                &mut sources,
+                "/std/index.nct",
+                crate::test_support::TEST_BUILTIN_SOURCE,
+            );
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
@@ -1267,7 +1296,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1315,7 +1348,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1360,7 +1397,11 @@ mod tests {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", text);
-        let standard_id = add_source(&mut sources, "/std/index.nct", "");
+        let standard_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
         let standard_manifest = parse_source(&sources, standard_manifest_id, ParseGoal::SourceFile);
@@ -1435,7 +1476,11 @@ mod tests {
             let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
             let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
-            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let standard_id = add_source(
+                &mut sources,
+                "/std/index.nct",
+                crate::test_support::TEST_BUILTIN_SOURCE,
+            );
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
@@ -1541,7 +1586,11 @@ mod tests {
             let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
             let standard_manifest_id = add_source(&mut sources, "/std/index.nct", "");
             let app_id = add_source(&mut sources, "/app/index.nct", text);
-            let standard_id = add_source(&mut sources, "/std/index.nct", "");
+            let standard_id = add_source(
+                &mut sources,
+                "/std/index.nct",
+                crate::test_support::TEST_BUILTIN_SOURCE,
+            );
             let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
             let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
             let standard_manifest =
@@ -1680,17 +1729,12 @@ mod tests {
             modules,
             Vec::new(),
         )
-        .with_toolchain(standard_toolchain())
+        .with_toolchain(standard_toolchain(standard))
     }
 
-    fn standard_toolchain() -> ToolchainInput {
+    fn standard_toolchain(standard: &SyntaxTree) -> ToolchainInput {
         let package = PackageIdentity::new("toolchain:std");
-        ToolchainInput::new(
-            package.clone(),
-            ModuleIdentity::new(package, ["prelude"]),
-            Vec::new(),
-            Vec::new(),
-        )
+        crate::test_support::test_toolchain(ModuleIdentity::new(package, ["prelude"]), standard)
     }
 
     fn module<'syntax>(

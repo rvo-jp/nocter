@@ -4,8 +4,8 @@
 //! filesystem policy and performs no semantic work; producers resolve physical topology once and
 //! consumers treat every identity and edge as immutable input.
 
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
-use nocter_model::{CompilationTarget, PackageIdentity, PackageTargetKind};
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
+use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
@@ -147,6 +147,34 @@ pub struct PrimitiveRoleInput {
     declaration: SyntaxToken,
 }
 
+/// One exact source declaration selected as the canonical spelling and attachment authority for
+/// a named compiler-represented type.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BuiltinTypeInput {
+    builtin: BuiltinType,
+    declaration: SyntaxToken,
+}
+
+impl BuiltinTypeInput {
+    #[must_use]
+    pub const fn new(builtin: BuiltinType, declaration: SyntaxToken) -> Self {
+        Self {
+            builtin,
+            declaration,
+        }
+    }
+
+    #[must_use]
+    pub const fn builtin(self) -> BuiltinType {
+        self.builtin
+    }
+
+    #[must_use]
+    pub const fn declaration(self) -> SyntaxToken {
+        self.declaration
+    }
+}
+
 impl PrimitiveRoleInput {
     #[must_use]
     pub const fn new(role: PrimitiveRole, declaration: SyntaxToken) -> Self {
@@ -166,19 +194,19 @@ impl PrimitiveRoleInput {
 
 /// One compiler-owned built-in surface paired with its exact authored module.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct BuiltinAttachmentInput {
-    attachment: BuiltinAttachment,
+pub struct StructuralAttachmentInput {
+    attachment: StructuralAttachment,
     module: ModuleIdentity,
 }
 
-impl BuiltinAttachmentInput {
+impl StructuralAttachmentInput {
     #[must_use]
-    pub const fn new(attachment: BuiltinAttachment, module: ModuleIdentity) -> Self {
+    pub const fn new(attachment: StructuralAttachment, module: ModuleIdentity) -> Self {
         Self { attachment, module }
     }
 
     #[must_use]
-    pub const fn attachment(&self) -> BuiltinAttachment {
+    pub const fn attachment(&self) -> StructuralAttachment {
         self.attachment
     }
 
@@ -196,9 +224,10 @@ impl BuiltinAttachmentInput {
 pub struct ToolchainInput {
     standard_package: PackageIdentity,
     prelude: ModuleIdentity,
-    builtin_attachments: Vec<BuiltinAttachmentInput>,
+    structural_attachments: Vec<StructuralAttachmentInput>,
     standard_roles: Vec<StandardRoleInput>,
     primitive_roles: Vec<PrimitiveRoleInput>,
+    builtin_types: Vec<BuiltinTypeInput>,
 }
 
 impl ToolchainInput {
@@ -206,15 +235,16 @@ impl ToolchainInput {
     pub fn new(
         standard_package: PackageIdentity,
         prelude: ModuleIdentity,
-        builtin_attachments: Vec<BuiltinAttachmentInput>,
+        structural_attachments: Vec<StructuralAttachmentInput>,
         standard_roles: Vec<StandardRoleInput>,
     ) -> Self {
         Self {
             standard_package,
             prelude,
-            builtin_attachments,
+            structural_attachments,
             standard_roles,
             primitive_roles: Vec::new(),
+            builtin_types: Vec::new(),
         }
     }
 
@@ -229,8 +259,8 @@ impl ToolchainInput {
     }
 
     #[must_use]
-    pub fn builtin_attachments(&self) -> &[BuiltinAttachmentInput] {
-        &self.builtin_attachments
+    pub fn structural_attachments(&self) -> &[StructuralAttachmentInput] {
+        &self.structural_attachments
     }
 
     #[must_use]
@@ -244,6 +274,11 @@ impl ToolchainInput {
     }
 
     #[must_use]
+    pub fn builtin_types(&self) -> &[BuiltinTypeInput] {
+        &self.builtin_types
+    }
+
+    #[must_use]
     pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
         self.standard_roles = roles;
         self
@@ -252,6 +287,12 @@ impl ToolchainInput {
     #[must_use]
     pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleInput>) -> Self {
         self.primitive_roles = roles;
+        self
+    }
+
+    #[must_use]
+    pub fn with_builtin_types(mut self, builtins: Vec<BuiltinTypeInput>) -> Self {
+        self.builtin_types = builtins;
         self
     }
 }

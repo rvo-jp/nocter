@@ -13,7 +13,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         BlockUseDeclaration
           ModulePath
@@ -24,7 +24,7 @@ SourceFile
             BindingTarget
             TypeAnnotation
               Type
-                BuiltinType
+                NamedType
             Expression
               ScalarLiteral
           BindingStatement
@@ -201,10 +201,10 @@ SourceFile
       Parameters
         Parameter
           Type
-            BuiltinType
+            NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           ReturnStatement

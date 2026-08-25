@@ -8,23 +8,25 @@ pub use public_examples::{
 };
 
 use nocter_compile_input::{
-    BuiltinAttachmentInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    BuiltinTypeInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleInput,
-    ToolchainInput, UseResolutionInput,
+    StructuralAttachmentInput, ToolchainInput, UseResolutionInput,
 };
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
-use nocter_model::{CompilationTarget, PackageIdentity};
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
+use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 const ERROR_SOURCE: &str = "\
-primitive new_error(code: &str, message: &str): error
+pub primitive type error
 
-primitive context_error(value: error, message: &str): error
+primitive func new_error(code: &str, message: &str): error
 
-primitive error_code(value: &error): &str from value
+primitive func context_error(value: error, message: &str): error
 
-primitive error_message(value: &error): &str from value
+primitive func error_code(value: &error): &str from value
+
+primitive func error_message(value: &error): &str from value
 
 construct error {
     pub func new(code: &str, message: &str): Self {
@@ -138,9 +140,9 @@ pub struct AllocationContext { state: usize
     kind: usize }
 ";
 const MEM_SOURCE: &str = "\
-primitive current_allocator_state(): usize
-primitive current_allocator_kind(): usize
-primitive allocation_failure_error(): error
+primitive func current_allocator_state(): usize
+primitive func current_allocator_kind(): usize
+primitive func allocation_failure_error(): error
 pub func allocation_context_state_for_test(): usize {
     return current_allocator_state()
 }
@@ -150,29 +152,29 @@ pub func allocation_context_kind_for_test(): usize {
 pub func allocation_failure_for_test(): error { return allocation_failure_error() }
 ";
 const INTERNAL_MEM_SOURCE: &str = "\
-pub(/) primitive allocation_abort(): never
+pub(/) primitive func allocation_abort(): never
 pub func allocation_abort_for_test(): never { allocation_abort() }
 ";
 const PTR_SOURCE: &str = "\
-pub primitive addr<T>(pointer: *T): usize
-pub primitive from_ref<T>(value: &T): *T
-pub primitive from_ref_mut<T>(value: &+T): *T
+pub primitive func addr<T>(pointer: *T): usize
+pub primitive func from_ref<T>(value: &T): *T
+pub primitive func from_ref_mut<T>(value: &+T): *T
 ";
 const INTERNAL_PTR_SOURCE: &str = "\
-pub(/) primitive from_addr<T>(address: usize): *T
-pub(/) primitive pointee_size<T>(pointer: *T): usize
-pub(/) primitive pointee_align<T>(pointer: *T): usize
-pub(/) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
-pub(/) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
-pub(/) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
-pub(/) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
-pub(/) primitive drop_value_at_ptr<T>(pointer: *T, offset: usize): void
-pub(/) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T
-pub(/) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
-pub(/) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
-pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
-pub(/) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
-pub(/) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
+pub(/) primitive func from_addr<T>(address: usize): *T
+pub(/) primitive func pointee_size<T>(pointer: *T): usize
+pub(/) primitive func pointee_align<T>(pointer: *T): usize
+pub(/) primitive func copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
+pub(/) primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
+pub(/) primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+pub(/) primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
+pub(/) primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
+pub(/) primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
+pub(/) primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+pub(/) primitive func slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+pub(/) primitive func slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 pub func pointee_size_for_test<T>(pointer: *T): usize { return pointee_size(pointer) }
 pub func pointee_align_for_test<T>(pointer: *T): usize { return pointee_align(pointer) }
 pub func copy_str_to_ptr_for_test(destination: *u8, offset: usize, text: &str): void {
@@ -208,16 +210,18 @@ pub func take_three_u64_at_ptr_for_test(pointer: *[u64; 3], offset: usize): [u64
 ";
 const STRING_SOURCE: &str = "";
 const SLICE_SOURCE: &str = "\
-primitive slice_len_raw<T>(value: &[T]): usize
-primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+primitive func slice_len_raw<T>(value: &[T]): usize
+primitive func slice_ptr_addr_raw<T>(value: &[T]): usize
 pub func slice_len_for_test<T>(value: &[T]): usize { return slice_len_raw(value) }
 pub func slice_ptr_addr_for_test<T>(value: &[T]): usize { return slice_ptr_addr_raw(value) }
 ";
 const STR_SOURCE: &str = "\
-primitive bytes_from_str(value: &str): &[u8] from value
-primitive str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
-primitive str_len_raw(value: &str): usize
-primitive str_ptr_addr_raw(value: &str): usize
+pub primitive type str
+
+primitive func bytes_from_str(value: &str): &[u8] from value
+primitive func str_subview_unchecked(text: &str, start: usize, len: usize): &str from text
+primitive func str_len_raw(value: &str): usize
+primitive func str_ptr_addr_raw(value: &str): usize
 pub func bytes_from_str_for_test(value: &str): &[u8] { return bytes_from_str(value) }
 pub func str_subview_unchecked_for_test(text: &str, start: usize, len: usize): &str {
     return str_subview_unchecked(text, start, len)
@@ -236,19 +240,36 @@ instance str {
 pub func str_len_for_test(value: &str): usize { return str_len_raw(value) }
 pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(value) }
 ";
+const NUM_SOURCE: &str = "\
+pub primitive type bool
+pub primitive type i8
+pub primitive type i16
+pub primitive type i32
+pub primitive type i64
+pub primitive type u8
+pub primitive type u16
+pub primitive type u32
+pub primitive type u64
+pub primitive type usize
+pub primitive type isize
+";
+const CORE_SOURCE: &str = "\
+pub primitive type void
+pub primitive type never
+";
 const PROCESS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
-primitive exit_raw(code: i32): never
+primitive func exit_raw(code: i32): never
 #target: \"arm64-darwin\"
-primitive arg_count_raw(): usize
+primitive func arg_count_raw(): usize
 #target: \"arm64-darwin\"
-primitive arg_raw(index: usize): &str from static
+primitive func arg_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
-primitive env_count_raw(): usize
+primitive func env_count_raw(): usize
 #target: \"arm64-darwin\"
-primitive env_name_raw(index: usize): &str from static
+primitive func env_name_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
-primitive env_value_raw(index: usize): &str from static
+primitive func env_value_raw(index: usize): &str from static
 pub func exit_for_test(code: i32): never { exit_raw(code) }
 pub func arg_count_for_test(): usize { return arg_count_raw() }
 pub func arg_for_test(index: usize): &str { return arg_raw(index) }
@@ -264,23 +285,23 @@ pub(/) copy struct SyscallResult {
     pub errno: i32
 }
 #target: \"arm64-darwin\"
-primitive syscall0(number: usize): SyscallResult
+primitive func syscall0(number: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall1(number: usize, a0: usize): SyscallResult
+pub(/) primitive func syscall1(number: usize, a0: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
+pub(/) primitive func syscall2(number: usize, a0: usize, a1: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
+pub(/) primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 #target: \"arm64-darwin\"
-primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 #target: \"arm64-darwin\"
-primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
+pub(/) primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive trap(): never
+pub(/) primitive func trap(): never
 #target: \"arm64-darwin\"
-primitive unreachable(): never
+primitive func unreachable(): never
 pub func syscall0_succeeds_for_test(number: usize): bool {
     let result = syscall0(number)
     return result.errno == 0 && result.value > 0
@@ -516,6 +537,8 @@ impl CompilerFixture {
         );
         let modules = [
             (&["error"][..], ERROR_SOURCE),
+            (&["core"][..], CORE_SOURCE),
+            (&["num"][..], NUM_SOURCE),
             (&["mem"][..], MEM_SOURCE),
             (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
             (&["ptr"][..], PTR_SOURCE),
@@ -651,19 +674,65 @@ impl CompilerFixture {
     }
 
     fn toolchain_input(&self, standard: &PackageIdentity) -> ToolchainInput {
-        let attachment = |kind, path| {
-            BuiltinAttachmentInput::new(kind, ModuleIdentity::new(standard.clone(), [path]))
-        };
         ToolchainInput::new(
             standard.clone(),
             ModuleIdentity::new(standard.clone(), ["prelude"]),
-            vec![
-                attachment(BuiltinAttachment::Str, "str"),
-                attachment(BuiltinAttachment::Error, "error"),
-                attachment(BuiltinAttachment::Slice, "slice"),
-            ],
+            vec![StructuralAttachmentInput::new(
+                StructuralAttachment::Slice,
+                ModuleIdentity::new(standard.clone(), ["slice"]),
+            )],
             self.standard_role_inputs(),
         )
+        .with_builtin_types(self.builtin_type_inputs())
+    }
+
+    fn builtin_type_inputs(&self) -> Vec<BuiltinTypeInput> {
+        BuiltinType::ALL
+            .iter()
+            .copied()
+            .map(|builtin| {
+                BuiltinTypeInput::new(
+                    builtin,
+                    declaration_token(
+                        &self.sources,
+                        self.module_for_builtin(builtin),
+                        NodeKind::PrimitiveTypeDeclaration,
+                        builtin.spelling(),
+                    ),
+                )
+            })
+            .collect()
+    }
+
+    fn module_for_builtin(&self, builtin: BuiltinType) -> &SyntaxTree {
+        let path: &[&str] = match builtin {
+            BuiltinType::Bool
+            | BuiltinType::I8
+            | BuiltinType::I16
+            | BuiltinType::I32
+            | BuiltinType::I64
+            | BuiltinType::U8
+            | BuiltinType::U16
+            | BuiltinType::U32
+            | BuiltinType::U64
+            | BuiltinType::Usize
+            | BuiltinType::Isize => &["num"],
+            BuiltinType::Str => &["str"],
+            BuiltinType::Error => &["error"],
+            BuiltinType::Void | BuiltinType::Never => &["core"],
+        };
+        &self
+            .modules
+            .iter()
+            .find(|module| {
+                module
+                    .path
+                    .iter()
+                    .map(AsRef::as_ref)
+                    .eq(path.iter().copied())
+            })
+            .expect("built-in fixture module exists")
+            .syntax
     }
 
     fn standard_role_inputs(&self) -> Vec<StandardRoleInput> {

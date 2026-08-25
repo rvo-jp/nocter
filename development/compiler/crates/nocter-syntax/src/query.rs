@@ -20,8 +20,8 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
                 token.kind() == TokenKind::Keyword(Keyword::Func)
             })
         }
-        NodeKind::PrimitiveDeclaration => identifier_after(&tokens, |token| {
-            token.kind() == TokenKind::Keyword(Keyword::Primitive)
+        NodeKind::PrimitiveTypeDeclaration => name_after(&tokens, |token| {
+            token.kind() == TokenKind::Keyword(Keyword::Type)
         }),
         NodeKind::TypeAliasDeclaration | NodeKind::AssociatedTypeDeclaration => {
             identifier_after(&tokens, |token| {
@@ -62,6 +62,19 @@ fn identifier_after(
         .iter()
         .copied()
         .find(|token| token.kind() == TokenKind::Identifier)
+}
+
+fn name_after(
+    tokens: &[SyntaxToken],
+    mut predicate: impl FnMut(SyntaxToken) -> bool,
+) -> Option<SyntaxToken> {
+    let marker = tokens.iter().position(|token| predicate(*token))?;
+    tokens[marker + 1..].iter().copied().find(|token| {
+        matches!(
+            token.kind(),
+            TokenKind::Identifier | TokenKind::Keyword(Keyword::Void | Keyword::Never)
+        )
+    })
 }
 
 fn descendant_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {

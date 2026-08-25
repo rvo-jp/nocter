@@ -1,14 +1,14 @@
 use std::fmt;
 
 use super::access::{module_index_by_id, module_index_by_identity, visible_from};
-use super::{ModuleNamespace, PreparedImports, lookup};
+use super::{ModuleNamespace, NamespaceBinding, PreparedImports, lookup};
 use crate::{ImportViolation, ModuleIdentity, PackageIdentity, ToolchainInput};
 use nocter_declarations::{
-    BuiltinAttachment, ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace,
-    NamespaceEntry, ProgramBuildError,
+    ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace, NamespaceEntry,
+    ProgramBuildError, StructuralAttachment,
 };
-use nocter_model::{ModuleId, Symbol};
-use nocter_syntax::NodeId;
+use nocter_model::{BuiltinType, ModuleId, PackageId, Symbol};
+use nocter_syntax::{NodeId, SyntaxToken};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolchainError {
@@ -17,8 +17,10 @@ pub enum ToolchainError {
     UnknownStandardPackage(PackageIdentity),
     UnknownModule(ModuleIdentity),
     PreludeOutsideStandardPackage,
-    AttachmentOutsideStandardPackage(BuiltinAttachment),
-    DuplicateAttachment(BuiltinAttachment),
+    StructuralAttachmentOutsideStandardPackage(StructuralAttachment),
+    DuplicateStructuralAttachment(StructuralAttachment),
+    MissingBuiltinType(BuiltinType),
+    DuplicateBuiltinType(BuiltinType),
     InconsistentImport(NodeId),
     Program(ProgramBuildError),
 }
@@ -42,17 +44,26 @@ impl fmt::Display for ToolchainError {
             Self::PreludeOutsideStandardPackage => {
                 formatter.write_str("toolchain prelude is outside the selected standard package")
             }
-            Self::AttachmentOutsideStandardPackage(attachment) => {
+            Self::StructuralAttachmentOutsideStandardPackage(attachment) => {
                 write!(
                     formatter,
-                    "{attachment:?} built-in attachment is outside the selected standard package"
+                    "{attachment:?} structural attachment is outside the selected standard package"
                 )
             }
-            Self::DuplicateAttachment(attachment) => {
+            Self::DuplicateStructuralAttachment(attachment) => {
                 write!(
                     formatter,
                     "toolchain profile repeats {attachment:?} attachment"
                 )
+            }
+            Self::MissingBuiltinType(builtin) => {
+                write!(
+                    formatter,
+                    "toolchain built-in type {builtin:?} lost its declaration"
+                )
+            }
+            Self::DuplicateBuiltinType(builtin) => {
+                write!(formatter, "toolchain repeats {builtin:?} built-in type")
             }
             Self::InconsistentImport(import) => {
                 write!(formatter, "authored import {import:?} has no retained path")
@@ -70,11 +81,11 @@ impl From<ImportViolation> for ToolchainError {
     }
 }
 
-/// Authored namespaces plus compiler-managed standard-prelude fallback entries.
+/// Authored namespaces plus compiler-selected universal and standard-prelude fallback entries.
 #[derive(Debug)]
 pub struct PreparedNamespaces<'syntax> {
     pub(crate) imports: PreparedImports<'syntax>,
-    prelude: Box<[ModuleNamespace]>,
+    fallback: Box<[ModuleNamespace]>,
 }
 
 impl PreparedNamespaces<'_> {
@@ -97,7 +108,7 @@ impl PreparedNamespaces<'_> {
                 .reserved
                 .module_for_source(source)?;
             let index = module_index_by_id(&self.imports.generics.headers.reserved, module)?;
-            lookup(&self.prelude[index], name).map(|binding| binding.entity)
+            lookup(&self.fallback[index], name).map(|binding| binding.entity)
         })
     }
 
@@ -111,7 +122,7 @@ impl PreparedNamespaces<'_> {
         self.imports.lookup_export(from, module, name)
     }
 
-    /// Freezes the already-selected authored and prelude namespace layers into the declaration
+    /// Freezes the already-selected authored and fallback namespace layers into the declaration
     /// program. Later semantic stages consume that authority instead of rebuilding lookup tables.
     pub(crate) fn define_program_namespaces(&mut self) -> Result<(), ProgramBuildError> {
         for (index, namespace) in self.imports.source_namespaces.iter().enumerate() {
@@ -136,7 +147,7 @@ impl PreparedNamespaces<'_> {
                 .iter()
                 .map(|(name, binding)| (*name, binding.entity))
                 .collect::<Vec<_>>();
-            let fallback = self.prelude[module_index]
+            let fallback = self.fallback[module_index]
                 .iter()
                 .filter(|(name, _)| {
                     namespace
@@ -180,7 +191,7 @@ impl PreparedNamespaces<'_> {
             .imports
             .namespaces
             .iter()
-            .zip(self.prelude.iter())
+            .zip(self.fallback.iter())
             .map(|(authored, fallback)| {
                 SemanticModuleNamespace::new(
                     authored.iter().map(|(name, binding)| {
@@ -223,94 +234,200 @@ pub fn apply_toolchain_profile<'syntax>(
     mut imports: PreparedImports<'syntax>,
     toolchain: &ToolchainInput,
 ) -> Result<PreparedNamespaces<'syntax>, ToolchainError> {
-    let (prelude_index, prelude_id, standard_package, attachment_modules) = {
-        let reserved = &imports.generics.headers.reserved;
-        if toolchain.prelude().package() != toolchain.standard_package() {
-            return Err(ToolchainError::PreludeOutsideStandardPackage);
-        }
-        let prelude_index = module_index_by_identity(reserved, toolchain.prelude())
-            .ok_or_else(|| ToolchainError::UnknownModule(toolchain.prelude().clone()))?;
-        for (index, import) in reserved.imports.iter().enumerate() {
-            if import.target() == toolchain.prelude() {
-                let path = imports
-                    .import_path(index)
-                    .ok_or(ToolchainError::InconsistentImport(import.node()))?;
-                return Err(ImportViolation::compiler_managed_prelude_import(path).into());
-            }
-        }
+    let resolved = resolve_toolchain_profile(&imports, toolchain)?;
+    install_toolchain_profile(&mut imports, &resolved)?;
+    let fallback = compose_fallback(&imports, toolchain, &resolved);
+    Ok(PreparedNamespaces { imports, fallback })
+}
 
-        let prelude_id = reserved.module_ids[prelude_index];
-        let standard_package_index = reserved
-            .packages
-            .iter()
-            .position(|package| package.identity() == toolchain.standard_package())
-            .ok_or_else(|| {
-                ToolchainError::UnknownStandardPackage(toolchain.standard_package().clone())
-            })?;
-        let standard_package = reserved.package_ids[standard_package_index];
-        let mut attachment_modules = Vec::with_capacity(toolchain.builtin_attachments().len());
-        for input in toolchain.builtin_attachments() {
-            if input.module().package() != toolchain.standard_package() {
-                return Err(ToolchainError::AttachmentOutsideStandardPackage(
-                    input.attachment(),
-                ));
-            }
-            if attachment_modules
-                .iter()
-                .any(|(attachment, _)| *attachment == input.attachment())
-            {
-                return Err(ToolchainError::DuplicateAttachment(input.attachment()));
-            }
-            let index = module_index_by_identity(reserved, input.module())
-                .ok_or_else(|| ToolchainError::UnknownModule(input.module().clone()))?;
-            attachment_modules.push((input.attachment(), reserved.module_ids[index]));
+struct ResolvedBuiltinType {
+    builtin: BuiltinType,
+    module: ModuleId,
+    symbol: Symbol,
+    declaration: SyntaxToken,
+}
+
+struct ResolvedToolchainProfile {
+    prelude_index: usize,
+    prelude: ModuleId,
+    standard_package: PackageId,
+    structural_attachments: Vec<(StructuralAttachment, ModuleId)>,
+    builtin_types: Vec<ResolvedBuiltinType>,
+}
+
+fn resolve_toolchain_profile(
+    imports: &PreparedImports<'_>,
+    toolchain: &ToolchainInput,
+) -> Result<ResolvedToolchainProfile, ToolchainError> {
+    let reserved = &imports.generics.headers.reserved;
+    if toolchain.prelude().package() != toolchain.standard_package() {
+        return Err(ToolchainError::PreludeOutsideStandardPackage);
+    }
+    let prelude_index = module_index_by_identity(reserved, toolchain.prelude())
+        .ok_or_else(|| ToolchainError::UnknownModule(toolchain.prelude().clone()))?;
+    for (index, import) in reserved.imports.iter().enumerate() {
+        if import.target() == toolchain.prelude() {
+            let path = imports
+                .import_path(index)
+                .ok_or(ToolchainError::InconsistentImport(import.node()))?;
+            return Err(ImportViolation::compiler_managed_prelude_import(path).into());
         }
-        (
-            prelude_index,
-            prelude_id,
-            standard_package,
-            attachment_modules,
-        )
-    };
+    }
+    let package_index = reserved
+        .packages
+        .iter()
+        .position(|package| package.identity() == toolchain.standard_package())
+        .ok_or_else(|| {
+            ToolchainError::UnknownStandardPackage(toolchain.standard_package().clone())
+        })?;
+    Ok(ResolvedToolchainProfile {
+        prelude_index,
+        prelude: reserved.module_ids[prelude_index],
+        standard_package: reserved.package_ids[package_index],
+        structural_attachments: resolve_structural_attachments(imports, toolchain)?,
+        builtin_types: resolve_builtin_types(imports, toolchain)?,
+    })
+}
+
+fn resolve_structural_attachments(
+    imports: &PreparedImports<'_>,
+    toolchain: &ToolchainInput,
+) -> Result<Vec<(StructuralAttachment, ModuleId)>, ToolchainError> {
+    let reserved = &imports.generics.headers.reserved;
+    let mut resolved = Vec::with_capacity(toolchain.structural_attachments().len());
+    for input in toolchain.structural_attachments() {
+        if input.module().package() != toolchain.standard_package() {
+            return Err(ToolchainError::StructuralAttachmentOutsideStandardPackage(
+                input.attachment(),
+            ));
+        }
+        if resolved
+            .iter()
+            .any(|(attachment, _)| *attachment == input.attachment())
+        {
+            return Err(ToolchainError::DuplicateStructuralAttachment(
+                input.attachment(),
+            ));
+        }
+        let index = module_index_by_identity(reserved, input.module())
+            .ok_or_else(|| ToolchainError::UnknownModule(input.module().clone()))?;
+        resolved.push((input.attachment(), reserved.module_ids[index]));
+    }
+    Ok(resolved)
+}
+
+fn resolve_builtin_types(
+    imports: &PreparedImports<'_>,
+    toolchain: &ToolchainInput,
+) -> Result<Vec<ResolvedBuiltinType>, ToolchainError> {
+    let reserved = &imports.generics.headers.reserved;
+    let mut resolved = Vec::<ResolvedBuiltinType>::with_capacity(toolchain.builtin_types().len());
+    for input in toolchain.builtin_types() {
+        if resolved
+            .iter()
+            .any(|candidate| candidate.builtin == input.builtin())
+        {
+            return Err(ToolchainError::DuplicateBuiltinType(input.builtin()));
+        }
+        let (index, declaration) = reserved
+            .declarations
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|(_, declaration)| declaration.name() == Some(input.declaration()))
+            .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?;
+        if reserved.entities[index] != Some(crate::ReservedEntity::BuiltinType(input.builtin())) {
+            return Err(ToolchainError::MissingBuiltinType(input.builtin()));
+        }
+        resolved.push(ResolvedBuiltinType {
+            builtin: input.builtin(),
+            module: reserved
+                .module_for_source(declaration.source())
+                .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?,
+            symbol: reserved
+                .symbols()
+                .get(input.builtin().spelling())
+                .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?,
+            declaration: input.declaration(),
+        });
+    }
+    Ok(resolved)
+}
+
+fn install_toolchain_profile(
+    imports: &mut PreparedImports<'_>,
+    resolved: &ResolvedToolchainProfile,
+) -> Result<(), ToolchainError> {
     imports
         .generics
         .headers
         .reserved
         .program
-        .set_standard_package(standard_package)
+        .set_standard_package(resolved.standard_package)
         .map_err(ToolchainError::Program)?;
-    for (attachment, module) in attachment_modules {
+    for &(attachment, module) in &resolved.structural_attachments {
         imports
             .generics
             .headers
             .reserved
             .program
-            .set_builtin_attachment_module(attachment, module)
+            .set_structural_attachment_module(attachment, module)
             .map_err(ToolchainError::Program)?;
     }
+    for builtin in &resolved.builtin_types {
+        imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .set_builtin_type_module(builtin.builtin, builtin.module)
+            .map_err(ToolchainError::Program)?;
+    }
+    Ok(())
+}
 
+fn compose_fallback(
+    imports: &PreparedImports<'_>,
+    toolchain: &ToolchainInput,
+    resolved: &ResolvedToolchainProfile,
+) -> Box<[ModuleNamespace]> {
     let reserved = &imports.generics.headers.reserved;
-    let prelude_namespace = &imports.namespaces[prelude_index];
+    let prelude_namespace = &imports.namespaces[resolved.prelude_index];
     let mut fallback: Vec<ModuleNamespace> = Vec::with_capacity(reserved.modules.len());
     for (index, module) in reserved.modules.iter().enumerate() {
-        if module.package() == toolchain.standard_package() {
-            fallback.push(Box::new([]));
-            continue;
-        }
         let recipient = reserved.module_ids[index];
-        let visible = prelude_namespace
+        let mut visible = resolved
+            .builtin_types
             .iter()
-            .filter(|(_, binding)| {
-                visible_from(reserved, binding.visibility, recipient, prelude_id)
+            .map(|builtin| {
+                (
+                    builtin.symbol,
+                    NamespaceBinding {
+                        entity: ExportedEntity::BuiltinType(builtin.builtin),
+                        visibility: nocter_declarations::Visibility::Public,
+                        origin: nocter_source_index::SyntaxOrigin::Token(builtin.declaration),
+                    },
+                )
             })
-            .copied()
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+            .collect::<Vec<_>>();
+        if module.package() != toolchain.standard_package() {
+            let prelude = prelude_namespace
+                .iter()
+                .filter(|(name, _)| {
+                    visible
+                        .iter()
+                        .all(|(builtin_name, _)| *builtin_name != *name)
+                })
+                .filter(|(_, binding)| {
+                    visible_from(reserved, binding.visibility, recipient, resolved.prelude)
+                })
+                .copied()
+                .collect::<Vec<_>>();
+            visible.extend(prelude);
+        }
+        visible.sort_unstable_by_key(|(name, _)| *name);
+        let visible = visible.into_boxed_slice();
         fallback.push(visible);
     }
-
-    Ok(PreparedNamespaces {
-        imports,
-        prelude: fallback.into_boxed_slice(),
-    })
+    fallback.into_boxed_slice()
 }

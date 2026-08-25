@@ -6,7 +6,7 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
-use super::context::{builtin_type, declaration_source, require_arity, token_symbol};
+use super::context::{declaration_source, require_arity, token_symbol};
 use super::{BoundDeclarationPattern, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) fn bind_all(
@@ -27,11 +27,6 @@ fn bind(
     tree: &SyntaxTree,
     pattern: NodeId,
 ) -> Result<BoundDeclarationPattern, TypeBindingError> {
-    if let Some(builtin) = direct_node(tree, pattern, NodeKind::BuiltinType) {
-        return Ok(BoundDeclarationPattern::Builtin(builtin_type(
-            namespaces, tree, builtin,
-        )?));
-    }
     if has_punctuation(tree, pattern, Punctuation::LeftBracket) {
         let token =
             direct_identifier(tree, pattern).ok_or(TypeBindingError::InvalidSyntax(pattern))?;
@@ -47,7 +42,9 @@ fn bind(
         return Ok(BoundDeclarationPattern::Slice(parameter));
     }
 
-    let head = direct_identifier(tree, pattern).ok_or(TypeBindingError::InvalidSyntax(pattern))?;
+    let named = direct_node(tree, pattern, NodeKind::NamedType);
+    let head = direct_identifier(tree, named.unwrap_or(pattern))
+        .ok_or(TypeBindingError::InvalidSyntax(pattern))?;
     let name = token_symbol(namespaces, tree, head)?;
     let source = declaration_source(namespaces, declaration)?;
     let entity = namespaces
@@ -57,12 +54,25 @@ fn bind(
             SyntaxOrigin::Token(head),
         ))?;
     projection::reference(namespaces, tree, entity, head)?;
-    let arguments_node = direct_node(tree, pattern, NodeKind::PatternArguments);
+    let arguments_node = if named.is_some() {
+        None
+    } else {
+        direct_node(tree, pattern, NodeKind::PatternArguments)
+    };
     let arguments = arguments_node
         .map(|arguments| bind_arguments(namespaces, declaration, tree, arguments))
         .transpose()?
         .unwrap_or_default();
     match entity {
+        ExportedEntity::BuiltinType(builtin) => {
+            if !arguments.is_empty() {
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::InvalidTypeArguments,
+                    arguments_node.map_or(SyntaxOrigin::Token(head), SyntaxOrigin::Node),
+                ));
+            }
+            Ok(BoundDeclarationPattern::Builtin(builtin))
+        }
         ExportedEntity::NominalType(definition) => {
             require_arity(
                 namespaces,
@@ -150,9 +160,17 @@ fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
+            SyntaxElement::Token(token) if is_type_name(token.kind()) => Some(*token),
             _ => None,
         })
+}
+
+const fn is_type_name(kind: TokenKind) -> bool {
+    matches!(
+        kind,
+        TokenKind::Identifier
+            | TokenKind::Keyword(nocter_syntax::Keyword::Void | nocter_syntax::Keyword::Never)
+    )
 }
 
 fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {

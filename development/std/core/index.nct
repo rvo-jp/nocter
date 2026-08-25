@@ -1,0 +1,7 @@
+//! Fundamental result-only types.
+
+/// The result type of a function that returns no value.
+pub primitive type void
+
+/// A type with no values, used for computations that cannot return.
+pub primitive type never

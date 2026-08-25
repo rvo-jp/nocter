@@ -1,6 +1,6 @@
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageInput, PackageMode, ToolchainInput,
+    PackageInput, PackageMode,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_model::PackageIdentity;
@@ -108,7 +108,11 @@ impl Fixture {
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
         let app_id = add_source(&mut sources, "/app/index.nct", app);
-        let std_id = add_source(&mut sources, "/std/index.nct", "");
+        let std_id = add_source(
+            &mut sources,
+            "/std/index.nct",
+            crate::test_support::BUILTIN_DECLARATIONS,
+        );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         Self {
             app_manifest: parsed(&sources, app_manifest_id, ParseGoal::SourceFile),
@@ -147,11 +151,10 @@ impl Fixture {
             modules,
             Vec::new(),
         )
-        .with_toolchain(ToolchainInput::new(
-            PackageIdentity::new("toolchain:std"),
+        .with_toolchain(crate::test_support::builtin_toolchain(
+            &self.sources,
+            &self.standard,
             prelude,
-            Vec::new(),
-            Vec::new(),
         ))
     }
 }

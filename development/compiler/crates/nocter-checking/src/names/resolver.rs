@@ -802,12 +802,14 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 };
             return Err(diagnostic.into());
         }
-        if self
-            .bindings
-            .source_namespaces()
+        let source_namespaces = self.bindings.source_namespaces();
+        if source_namespaces
             .lookup_authored(self.tree().source(), name)
             .is_some()
-            || self.builtin(name)?.is_some()
+            || matches!(
+                source_namespaces.lookup(self.tree().source(), name),
+                Some(ExportedEntity::BuiltinType(_))
+            )
             || self.spelling(name)? == "Self"
         {
             return Err(diagnostic::name_collision(self.spelling(name)?, primary, None).into());
@@ -847,25 +849,29 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             self.record_use(token, NameTarget::Exported(target))?;
             return Ok(());
         }
-        if let Some(builtin) = self.builtin(name)? {
-            self.record_use(token, NameTarget::Builtin(builtin))?;
-            return Ok(());
-        }
         Err(diagnostic::unknown_name(self.spelling(name)?, self.origin(token)?).into())
     }
 
     /// Freezes source-backed names in a body type path before typed construction.
     ///
-    /// Generic parameters, `Self`, builtins, and associated projections remain type-directed.
-    /// Module segments are ordinary exported-name resolution and therefore use the same exact
-    /// namespace and visibility authority as value-position qualification.
+    /// Generic parameters, `Self`, and associated projections remain type-directed. Named
+    /// builtin declarations and module segments use the same exact source namespace as other
+    /// source-backed declarations.
     fn resolve_type_override(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
         let tokens = self
             .tree()
             .children(node)
             .iter()
             .filter_map(|element| match element {
-                SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+                SyntaxElement::Token(token)
+                    if matches!(
+                        token.kind(),
+                        TokenKind::Identifier
+                            | TokenKind::Keyword(
+                                nocter_syntax::Keyword::Void | nocter_syntax::Keyword::Never
+                            )
+                    ) =>
+                {
                     Some(*token)
                 }
                 _ => None,
@@ -910,9 +916,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         token: SyntaxToken,
         target: NameTarget,
     ) -> Result<(), NameResolutionInternalError> {
-        let Some(entity) = semantic_entity(self.source.body(), target) else {
-            return Ok(());
-        };
+        let entity = semantic_entity(self.source.body(), target);
         self.projections.push(Projection::new(
             entity,
             SourceRole::Reference,
@@ -1061,30 +1065,6 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             .ok_or_else(|| NameResolutionInternalError::MissingSymbol(format!("{symbol:?}").into()))
     }
 
-    fn builtin(
-        &self,
-        symbol: Symbol,
-    ) -> Result<Option<nocter_model::BuiltinType>, NameResolutionInternalError> {
-        Ok(match self.spelling(symbol)? {
-            "bool" => Some(nocter_model::BuiltinType::Bool),
-            "i8" => Some(nocter_model::BuiltinType::I8),
-            "i16" => Some(nocter_model::BuiltinType::I16),
-            "i32" => Some(nocter_model::BuiltinType::I32),
-            "i64" => Some(nocter_model::BuiltinType::I64),
-            "u8" => Some(nocter_model::BuiltinType::U8),
-            "u16" => Some(nocter_model::BuiltinType::U16),
-            "u32" => Some(nocter_model::BuiltinType::U32),
-            "u64" => Some(nocter_model::BuiltinType::U64),
-            "usize" => Some(nocter_model::BuiltinType::Usize),
-            "isize" => Some(nocter_model::BuiltinType::Isize),
-            "str" => Some(nocter_model::BuiltinType::Str),
-            "error" => Some(nocter_model::BuiltinType::Error),
-            "void" => Some(nocter_model::BuiltinType::Void),
-            "never" => Some(nocter_model::BuiltinType::Never),
-            _ => None,
-        })
-    }
-
     fn origin(&self, token: SyntaxToken) -> Result<SourceOrigin, NameResolutionInternalError> {
         SourceOrigin::from_token(self.tree(), token).map_err(|_| {
             NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Token(token))
@@ -1103,20 +1083,20 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 }
 
-const fn semantic_entity(body: nocter_model::BodyId, target: NameTarget) -> Option<SemanticEntity> {
+const fn semantic_entity(body: nocter_model::BodyId, target: NameTarget) -> SemanticEntity {
     match target {
-        NameTarget::Parameter(id) => Some(SemanticEntity::Parameter(id)),
-        NameTarget::Local(id) => Some(SemanticEntity::LocalBinding(body, id)),
-        NameTarget::Capture(id) => Some(SemanticEntity::Capture(body, id)),
-        NameTarget::Exported(entity) => Some(match entity {
+        NameTarget::Parameter(id) => SemanticEntity::Parameter(id),
+        NameTarget::Local(id) => SemanticEntity::LocalBinding(body, id),
+        NameTarget::Capture(id) => SemanticEntity::Capture(body, id),
+        NameTarget::Exported(entity) => match entity {
+            ExportedEntity::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
             ExportedEntity::Module(id) => SemanticEntity::Module(id),
             ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
             ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
             ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
             ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
-        }),
-        NameTarget::Builtin(_) => None,
+        },
     }
 }
 

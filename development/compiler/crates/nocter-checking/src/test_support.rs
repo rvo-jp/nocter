@@ -1,9 +1,9 @@
 use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageInput, PackageMode, SourceVisibilityResolutionInput, StandardRoleInput, ToolchainInput,
-    UseResolutionInput,
+    BuiltinTypeInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageInput, PackageMode, SourceVisibilityResolutionInput,
+    StandardRoleInput, ToolchainInput, UseResolutionInput,
 };
-use nocter_model::PackageIdentity;
+use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
@@ -15,6 +15,23 @@ pub(crate) struct Fixture {
     standard: SyntaxTree,
     prelude: SyntaxTree,
 }
+
+pub(crate) const BUILTIN_DECLARATIONS: &str = "\
+pub primitive type bool\n\
+pub primitive type i8\n\
+pub primitive type i16\n\
+pub primitive type i32\n\
+pub primitive type i64\n\
+pub primitive type u8\n\
+pub primitive type u16\n\
+pub primitive type u32\n\
+pub primitive type u64\n\
+pub primitive type usize\n\
+pub primitive type isize\n\
+pub primitive type str\n\
+pub primitive type error\n\
+pub primitive type void\n\
+pub primitive type never\n";
 
 pub(crate) fn with_standard_roles(
     input: CompileUnitInput<'_>,
@@ -28,6 +45,36 @@ pub(crate) fn with_standard_roles(
     input.with_toolchain(toolchain)
 }
 
+pub(crate) fn builtin_toolchain(
+    sources: &SourceMap,
+    standard: &SyntaxTree,
+    prelude: ModuleIdentity,
+) -> ToolchainInput {
+    ToolchainInput::new(
+        PackageIdentity::new("toolchain:std"),
+        prelude,
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_builtin_types(
+        BuiltinType::ALL
+            .iter()
+            .copied()
+            .map(|builtin| {
+                BuiltinTypeInput::new(
+                    builtin,
+                    declaration_token(
+                        sources,
+                        standard,
+                        NodeKind::PrimitiveTypeDeclaration,
+                        builtin.spelling(),
+                    ),
+                )
+            })
+            .collect(),
+    )
+}
+
 impl Fixture {
     pub(crate) fn new(app: &str) -> Self {
         Self::with_standard(app, "")
@@ -36,7 +83,8 @@ impl Fixture {
     pub(crate) fn with_standard(app: &str, standard: &str) -> Self {
         let mut sources = SourceMap::new();
         let app_id = add_source(&mut sources, "/app/index.nct", app);
-        let std_id = add_source(&mut sources, "/std/index.nct", standard);
+        let standard = format!("{BUILTIN_DECLARATIONS}{standard}");
+        let std_id = add_source(&mut sources, "/std/index.nct", &standard);
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
         Self {
             app: parsed(&sources, app_id, ParseGoal::SourceFile),
@@ -137,12 +185,7 @@ impl Fixture {
             resolutions,
         )
         .with_source_visibility_resolutions(self.source_visibility_resolutions())
-        .with_toolchain(ToolchainInput::new(
-            PackageIdentity::new("toolchain:std"),
-            prelude,
-            Vec::new(),
-            Vec::new(),
-        ))
+        .with_toolchain(builtin_toolchain(&self.sources, &self.standard, prelude))
     }
 
     fn source_visibility_resolutions(&self) -> Vec<SourceVisibilityResolutionInput> {

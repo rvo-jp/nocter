@@ -4,9 +4,9 @@ see ./index.nct
 
 use /internal/ptr.from_addr
 
-primitive slice_len_raw<T>(value: &[T]): usize
+primitive func slice_len_raw<T>(value: &[T]): usize
 
-primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+primitive func slice_ptr_addr_raw<T>(value: &[T]): usize
 
 func values_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right

@@ -4,7 +4,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           ExpressionStatement
@@ -18,7 +18,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BindingStatement
@@ -35,7 +35,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BreakStatement
@@ -47,7 +47,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           ForStatement
@@ -63,7 +63,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -89,7 +89,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -111,7 +111,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -143,7 +143,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -194,7 +194,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -208,7 +208,7 @@ SourceFile
       Parameters
         Parameter
           Type
-            BuiltinType
+            NamedType
       CallableTail
         Type
           NamedType
@@ -228,7 +228,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BodyResult
@@ -261,7 +261,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BindingStatement

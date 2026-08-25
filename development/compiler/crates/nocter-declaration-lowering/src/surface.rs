@@ -11,7 +11,10 @@ use nocter_syntax::{
 use crate::topology::{
     PreparedCompileUnit, SourceVisibilityResolutionKey, UseResolutionKey, prepare_compile_unit,
 };
-use crate::{CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput};
+use crate::{
+    BuiltinTypeInput, CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind,
+    PackageInput,
+};
 use nocter_target_selection::TargetSelection;
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
@@ -49,7 +52,8 @@ impl SurfaceSourceId {
 pub enum SurfaceDeclarationKind {
     Constant,
     Function,
-    Primitive,
+    PrimitiveFunction,
+    PrimitiveType,
     TypeAlias,
     Struct,
     Field,
@@ -233,6 +237,7 @@ pub struct DeclarationSurface<'syntax> {
     imports: Box<[SurfaceImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
+    builtin_types: Box<[BuiltinTypeInput]>,
 }
 
 impl<'syntax> DeclarationSurface<'syntax> {
@@ -294,6 +299,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             imports: self.imports,
             package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
+            builtin_types: self.builtin_types,
         }
     }
 }
@@ -310,6 +316,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
+    pub(crate) builtin_types: Box<[BuiltinTypeInput]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -322,6 +329,7 @@ pub enum SurfaceError {
     InvalidNominalContract(NodeId),
     MissingConstructionContractVisibility(NodeId),
     MissingInterfaceContractVisibility(NodeId),
+    UnauthorizedPrimitiveType(NodeId),
     InconsistentSourceVisibilityResolution(NodeId),
     InconsistentUseResolution(NodeId),
     UnknownTargetGate(NodeId),
@@ -358,6 +366,10 @@ impl fmt::Display for SurfaceError {
             Self::MissingInterfaceContractVisibility(node) => write!(
                 formatter,
                 "interface contract member {node:?} requires explicit visibility"
+            ),
+            Self::UnauthorizedPrimitiveType(node) => write!(
+                formatter,
+                "primitive type declaration {node:?} is not selected by the toolchain"
             ),
             Self::InconsistentSourceVisibilityResolution(node) => {
                 write!(
@@ -470,6 +482,19 @@ fn collect_declaration_surface_with<'syntax>(
             &mut declarations,
         )?;
     }
+    let builtin_types = input
+        .toolchain()
+        .map_or(&[][..], |toolchain| toolchain.builtin_types());
+    if let Some(declaration) = declarations.iter().find(|declaration| {
+        declaration.kind() == SurfaceDeclarationKind::PrimitiveType
+            && !declaration.name().is_some_and(|name| {
+                builtin_types
+                    .iter()
+                    .any(|builtin| builtin.declaration() == name)
+            })
+    }) {
+        return Err(SurfaceError::UnauthorizedPrimitiveType(declaration.node()));
+    }
 
     Ok(DeclarationSurface {
         target: input.target(),
@@ -495,6 +520,7 @@ fn collect_declaration_surface_with<'syntax>(
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         declarations: declarations.into_boxed_slice(),
+        builtin_types: builtin_types.into(),
     })
 }
 
@@ -617,7 +643,7 @@ fn collect_item(
             .kind();
         if kind == NodeKind::TargetDirective {
             target_gate = Some(child);
-        } else if top_level_kind(kind).is_some() {
+        } else if top_level_kind(tree, child).is_some() {
             if declaration.replace(child).is_some() {
                 return Err(SurfaceError::InvalidItemShape(item));
             }
@@ -644,11 +670,9 @@ fn append_declaration(
 ) -> Result<(), SurfaceError> {
     let mut pending = vec![(node, owner, target_gate)];
     while let Some((node, owner, target_gate)) = pending.pop() {
-        let syntax_kind = tree
-            .node(node)
-            .ok_or(SurfaceError::InvalidItemShape(node))?
-            .kind();
-        let kind = declaration_kind(syntax_kind).ok_or(SurfaceError::InvalidItemShape(node))?;
+        tree.node(node)
+            .ok_or(SurfaceError::InvalidItemShape(node))?;
+        let kind = declaration_kind(tree, node).ok_or(SurfaceError::InvalidItemShape(node))?;
         let name = declaration_name_token(tree, node);
         let entity_origin =
             crate::surface_origin::declaration_entity_origin(tree, node, kind, name)
@@ -684,7 +708,7 @@ fn nested_declarations(tree: &SyntaxTree, root: NodeId) -> Result<Vec<NodeId>, S
         if kind == NodeKind::Block {
             continue;
         }
-        if declaration_kind(kind).is_some() {
+        if declaration_kind(tree, node).is_some() {
             result.push(node);
         } else {
             pending.extend(child_nodes(tree, node).rev());
@@ -790,11 +814,17 @@ fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeI
     child_nodes(tree, node).find(|child| tree.node(*child).is_some_and(|node| node.kind() == kind))
 }
 
-fn top_level_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
-    match kind {
+fn top_level_kind(tree: &SyntaxTree, node: NodeId) -> Option<SurfaceDeclarationKind> {
+    match tree.node(node)?.kind() {
         NodeKind::ConstantDeclaration => Some(SurfaceDeclarationKind::Constant),
-        NodeKind::FunctionDeclaration => Some(SurfaceDeclarationKind::Function),
-        NodeKind::PrimitiveDeclaration => Some(SurfaceDeclarationKind::Primitive),
+        NodeKind::FunctionDeclaration => Some(
+            if contains_direct_keyword(tree, node, nocter_syntax::Keyword::Primitive) {
+                SurfaceDeclarationKind::PrimitiveFunction
+            } else {
+                SurfaceDeclarationKind::Function
+            },
+        ),
+        NodeKind::PrimitiveTypeDeclaration => Some(SurfaceDeclarationKind::PrimitiveType),
         NodeKind::TypeAliasDeclaration => Some(SurfaceDeclarationKind::TypeAlias),
         NodeKind::StructDeclaration => Some(SurfaceDeclarationKind::Struct),
         NodeKind::EnumDeclaration => Some(SurfaceDeclarationKind::Enum),
@@ -808,11 +838,11 @@ fn top_level_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
     }
 }
 
-fn declaration_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
-    if let Some(kind) = top_level_kind(kind) {
+fn declaration_kind(tree: &SyntaxTree, node: NodeId) -> Option<SurfaceDeclarationKind> {
+    if let Some(kind) = top_level_kind(tree, node) {
         return Some(kind);
     }
-    match kind {
+    match tree.node(node)?.kind() {
         NodeKind::StructField => Some(SurfaceDeclarationKind::Field),
         NodeKind::EnumVariant => Some(SurfaceDeclarationKind::Variant),
         NodeKind::AssociatedTypeDeclaration => Some(SurfaceDeclarationKind::AssociatedType),
@@ -829,6 +859,20 @@ fn declaration_kind(kind: NodeKind) -> Option<SurfaceDeclarationKind> {
         NodeKind::OpaqueResult => Some(SurfaceDeclarationKind::OpaqueType),
         _ => None,
     }
+}
+
+fn contains_direct_keyword(
+    tree: &SyntaxTree,
+    node: NodeId,
+    expected: nocter_syntax::Keyword,
+) -> bool {
+    tree.children(node).iter().any(|child| {
+        matches!(
+            child,
+            SyntaxElement::Token(token)
+                if token.kind() == nocter_syntax::TokenKind::Keyword(expected)
+        )
+    })
 }
 
 #[cfg(test)]

@@ -51,7 +51,11 @@ fn fixture(
     let app_manifest_id = add_source(sources, "/app/index.nct", "");
     let std_manifest_id = add_source(sources, "/std/index.nct", "");
     let app_id = add_source(sources, "/app/index.nct", text);
-    let std_root_id = add_source(sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(sources, "/std/prelude/index.nct", "");
     (
         parse_source(sources, app_manifest_id, ParseGoal::SourceFile),
@@ -338,7 +342,9 @@ fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
         .program
         .types();
     let result = normalized
-        .callable_result(crate::SurfaceDeclarationId::from_index(2))
+        .callable_result(crate::SurfaceDeclarationId::from_index(
+            BuiltinType::COUNT + 2,
+        ))
         .expect("function has a result");
     let Some(TypeKind::Fallible(optional)) = store.get(result) else {
         panic!("expected fallible opaque result");

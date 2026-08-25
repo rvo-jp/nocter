@@ -144,7 +144,6 @@ const fn declaration_container(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::FunctionDeclaration
-            | NodeKind::PrimitiveDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::EnumDeclaration

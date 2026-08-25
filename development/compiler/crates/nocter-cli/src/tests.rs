@@ -625,7 +625,7 @@ fn public_check_renders_every_declaration_validation_diagnostic() {
     let home = tree.installation("arm64-darwin", true);
     fs::write(
         tree.0.join("invalid.nct"),
-        "primitive first(): usize\nprimitive second(): usize\n",
+        "primitive func first(): usize\nprimitive func second(): usize\n",
     )
     .unwrap();
 

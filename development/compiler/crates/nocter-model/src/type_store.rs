@@ -27,6 +27,8 @@ pub enum BuiltinType {
 }
 
 impl BuiltinType {
+    pub const COUNT: usize = 15;
+
     pub const ALL: &'static [Self] = &[
         Self::Bool,
         Self::I8,
@@ -45,8 +47,30 @@ impl BuiltinType {
         Self::Never,
     ];
 
-    const fn index(self) -> usize {
+    #[must_use]
+    pub const fn index(self) -> usize {
         self as usize
+    }
+
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Usize => "usize",
+            Self::Isize => "isize",
+            Self::Str => "str",
+            Self::Error => "error",
+            Self::Void => "void",
+            Self::Never => "never",
+        }
     }
 }
 

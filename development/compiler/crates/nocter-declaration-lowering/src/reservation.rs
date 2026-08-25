@@ -3,8 +3,9 @@ use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
 use nocter_model::{
-    AssociatedTypeId, CallableId, ConformanceId, ConstantId, ConstructionId, DropId, InstanceId,
-    InterfaceId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId, VariantId,
+    AssociatedTypeId, BuiltinType, CallableId, ConformanceId, ConstantId, ConstructionId, DropId,
+    InstanceId, InterfaceId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId,
+    VariantId,
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
@@ -24,6 +25,7 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ReservedEntity {
+    BuiltinType(BuiltinType),
     NominalType(NominalTypeId),
     TypeAlias(TypeAliasId),
     Interface(InterfaceId),
@@ -43,6 +45,7 @@ impl ReservedEntity {
     #[must_use]
     pub const fn semantic_entity(self) -> SemanticEntity {
         match self {
+            Self::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
             Self::NominalType(id) => SemanticEntity::NominalType(id),
             Self::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             Self::Interface(id) => SemanticEntity::Interface(id),
@@ -283,6 +286,7 @@ pub(crate) fn reserve_with_contracts(
         imports,
         package_target_resolutions,
         declarations,
+        builtin_types,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
@@ -316,7 +320,8 @@ pub(crate) fn reserve_with_contracts(
         &mut source_index,
     )?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
-    let entities = reserve_surface_entities(&declarations, &contracts, &mut program)?;
+    let entities =
+        reserve_surface_entities(&declarations, &contracts, &builtin_types, &mut program)?;
     project_declaration_documentation(
         &sources,
         &declarations,
@@ -500,6 +505,7 @@ fn project_declaration_documentation(
 fn reserve_surface_entities(
     declarations: &[SurfaceDeclaration],
     contracts: &DeclarationContracts,
+    builtin_types: &[crate::BuiltinTypeInput],
     program: &mut DeclarationProgramBuilder,
 ) -> Result<Vec<Option<ReservedEntity>>, ReservationError> {
     let mut entities = vec![None; declarations.len()];
@@ -510,7 +516,21 @@ fn reserve_surface_entities(
             continue;
         }
         validate_owner(declarations, id, declaration)?;
-        entities[index] = reserve_entity(program, declaration.kind());
+        entities[index] = if declaration.kind() == SurfaceDeclarationKind::PrimitiveType {
+            declaration.name().and_then(|name| {
+                builtin_types
+                    .iter()
+                    .copied()
+                    .find(|builtin| builtin.declaration() == name)
+                    .map(|builtin| ReservedEntity::BuiltinType(builtin.builtin()))
+            })
+        } else {
+            reserve_entity(program, declaration.kind())
+        };
+        if declaration.kind() == SurfaceDeclarationKind::PrimitiveType && entities[index].is_none()
+        {
+            return Err(InconsistentSurface(id));
+        }
     }
     for index in 0..declarations.len() {
         let id = SurfaceDeclarationId::from_index(index);
@@ -547,7 +567,7 @@ fn reserve_entity(
             Some(ReservedEntity::Constant(declarations.reserve_constant()))
         }
         SurfaceDeclarationKind::Function
-        | SurfaceDeclarationKind::Primitive
+        | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::InterfaceMethod
         | SurfaceDeclarationKind::ConstructionFunction
         | SurfaceDeclarationKind::Literal
@@ -577,7 +597,7 @@ fn reserve_entity(
         SurfaceDeclarationKind::OpaqueType => Some(ReservedEntity::OpaqueType(
             declarations.reserve_opaque_type(),
         )),
-        SurfaceDeclarationKind::Field => None,
+        SurfaceDeclarationKind::Field | SurfaceDeclarationKind::PrimitiveType => None,
     }
 }
 
@@ -614,7 +634,7 @@ fn validate_owner(
                 matches!(
                     kind,
                     SurfaceDeclarationKind::Function
-                        | SurfaceDeclarationKind::Primitive
+                        | SurfaceDeclarationKind::PrimitiveFunction
                         | SurfaceDeclarationKind::InterfaceMethod
                         | SurfaceDeclarationKind::ConstructionFunction
                         | SurfaceDeclarationKind::Literal
@@ -630,7 +650,7 @@ fn validate_owner(
         }),
         SurfaceDeclarationKind::Constant
         | SurfaceDeclarationKind::Function
-        | SurfaceDeclarationKind::Primitive
+        | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::TypeAlias
         | SurfaceDeclarationKind::Struct
         | SurfaceDeclarationKind::Enum
@@ -639,7 +659,8 @@ fn validate_owner(
         | SurfaceDeclarationKind::Instance
         | SurfaceDeclarationKind::Conformance
         | SurfaceDeclarationKind::Drop
-        | SurfaceDeclarationKind::Test => actual.is_none(),
+        | SurfaceDeclarationKind::Test
+        | SurfaceDeclarationKind::PrimitiveType => actual.is_none(),
     };
     if valid {
         Ok(())

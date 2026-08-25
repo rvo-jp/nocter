@@ -130,6 +130,12 @@ fn exported_entity_module(
             )?;
             return Ok(module);
         }
+        ExportedEntity::BuiltinType(builtin) => {
+            return program
+                .standard_library()
+                .and_then(|standard| standard.builtin_type_module(builtin))
+                .ok_or(ProgramIntegrityError::OwnerMismatch(owner));
+        }
         ExportedEntity::NominalType(id) => require(
             declarations.nominal_types().get(id),
             owner,

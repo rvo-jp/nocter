@@ -295,7 +295,7 @@ maybe initialized
 
 file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>other_path<span class="token-operator">)</span><span class="token-operator">?</span>
 file<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-comment">// OK: whole-binding assignment restored initialized state</span>
-</code></pre><h2 id="values-and-types-2">Values and Types</h2><p>Nocter is value-centered. Data is represented with explicit value types.</p><p>Primitive and built-in type names:</p><pre><code class="language-text">bool
+</code></pre><h2 id="values-and-types-2">Values and Types</h2><p>Nocter is value-centered. Data is represented with explicit value types.</p><p>Named built-in types:</p><pre><code class="language-text">bool
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
@@ -303,7 +303,7 @@ str
 error
 void
 never
-</code></pre><p>Built-in type syntax:</p><pre><code class="language-text">*T
+</code></pre><p>Each name above is declared exactly once by the compiler-selected standard package with a <code>primitive type</code> declaration. The declaration is the source authority for the type's canonical name, documentation, navigation target, and inherent-surface ownership; the compiler supplies its semantic identity and representation. Named built-in types are available in every source type context without an import and cannot be shadowed or redeclared by ordinary source.</p><p>The active standard package declares integer and boolean types in <code>std/num</code>, <code>str</code> in <code>std/str</code>, <code>error</code> in <code>std/error</code>, and the completion types <code>void</code> and <code>never</code> in <code>std/core</code>. These declarations do not make a built-in nominal or structural type: they have no fields, variants, body, generic parameters, source construction form, or source-defined layout.</p><p>Structural and contextual type syntax:</p><pre><code class="language-text">*T
 &amp;T
 &amp;+T
 [T]

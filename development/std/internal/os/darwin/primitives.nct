@@ -3,10 +3,10 @@
 see ./index.nct
 
 #target: "arm64-darwin"
-primitive syscall0(number: usize): SyscallResult
+primitive func syscall0(number: usize): SyscallResult
 
 #target: "arm64-darwin"
-primitive syscall4(
+primitive func syscall4(
     number: usize,
     a0: usize,
     a1: usize,
@@ -15,7 +15,7 @@ primitive syscall4(
 ): SyscallResult
 
 #target: "arm64-darwin"
-primitive syscall5(
+primitive func syscall5(
     number: usize,
     a0: usize,
     a1: usize,
@@ -25,4 +25,4 @@ primitive syscall5(
 ): SyscallResult
 
 #target: "arm64-darwin"
-primitive unreachable(): never
+primitive func unreachable(): never

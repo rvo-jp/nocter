@@ -327,7 +327,7 @@ file.read()? // OK: whole-binding assignment restored initialized state
 
 Nocter is value-centered. Data is represented with explicit value types.
 
-Primitive and built-in type names:
+Named built-in types:
 
 ```text
 bool
@@ -340,7 +340,18 @@ void
 never
 ```
 
-Built-in type syntax:
+Each name above is declared exactly once by the compiler-selected standard package with a
+`primitive type` declaration. The declaration is the source authority for the type's canonical
+name, documentation, navigation target, and inherent-surface ownership; the compiler supplies its
+semantic identity and representation. Named built-in types are available in every source type
+context without an import and cannot be shadowed or redeclared by ordinary source.
+
+The active standard package declares integer and boolean types in `std/num`, `str` in `std/str`,
+`error` in `std/error`, and the completion types `void` and `never` in `std/core`. These declarations
+do not make a built-in nominal or structural type: they have no fields, variants, body, generic
+parameters, source construction form, or source-defined layout.
+
+Structural and contextual type syntax:
 
 ```text
 *T

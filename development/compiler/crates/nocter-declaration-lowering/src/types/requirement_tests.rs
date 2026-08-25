@@ -3,7 +3,9 @@ use nocter_source::SourceMap;
 use nocter_syntax::ParseGoal;
 
 use super::test_support::{add_source, bind, module, package, parse_source};
-use super::{BoundCapability, BoundRequirementKind, BoundTypeKind, TypeBindingError};
+use super::{
+    BoundCapability, BoundRequirementKind, BoundTypeKind, PreparedTypeBindings, TypeBindingError,
+};
 use crate::{ModuleIdentity, PackageIdentity, SurfaceDeclarationId};
 
 #[test]
@@ -23,7 +25,11 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
             "(&C[usize]): &U, &T as &str, (...&C): I { return }\n",
         ),
     );
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -52,8 +58,14 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
     )
     .unwrap();
 
+    assert_requirement_families(&bound);
+}
+
+fn assert_requirement_families(bound: &PreparedTypeBindings<'_>) {
     let associated = bound
-        .declaration_requirements(SurfaceDeclarationId::from_index(2))
+        .declaration_requirements(SurfaceDeclarationId::from_index(
+            nocter_model::BuiltinType::COUNT + 2,
+        ))
         .unwrap();
     assert!(matches!(
         associated,
@@ -63,7 +75,9 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
         }] if arguments.len() == 1
     ));
     let requirements = bound
-        .declaration_requirements(SurfaceDeclarationId::from_index(3))
+        .declaration_requirements(SurfaceDeclarationId::from_index(
+            nocter_model::BuiltinType::COUNT + 3,
+        ))
         .unwrap();
     assert_eq!(requirements.len(), 9);
     assert!(matches!(
@@ -114,7 +128,11 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
         "/app/index.nct",
         "struct Box<T> {}\ninstance Box<T> where T = i32 {}\n",
     );
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -144,7 +162,9 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
     .unwrap();
     assert!(matches!(
         bound
-            .declaration_requirements(SurfaceDeclarationId::from_index(1))
+            .declaration_requirements(SurfaceDeclarationId::from_index(
+                nocter_model::BuiltinType::COUNT + 1,
+            ))
             .unwrap(),
         [BoundRequirementKind::BinderRefinement { .. }]
     ));

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-25">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/storage.nct - Nocter">
@@ -157,11 +157,11 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
 
-<span class="token-keyword">primitive</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
-<span class="token-keyword">primitive</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
-<span class="token-keyword">primitive</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 copy <span class="token-keyword">struct</span> <span class="token-type">Layout</span> <span class="token-operator">{</span>
     size<span class="token-operator">:</span> <span class="token-type">usize</span>

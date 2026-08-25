@@ -107,6 +107,8 @@ Source-backed module-surface diagnostics:
   span is the gate's string literal.
 - `E0234`: an interface contract method in `index.nct` omits bare `pub`. Private implementation
   fragments omit visibility and may only complete declared default methods.
+- `E0235`: a primitive type declaration is not the exact declaration selected for one compiler
+  built-in type role.
 
 Source-backed namespace diagnostics:
 
@@ -376,7 +378,7 @@ Source-backed declaration-header diagnostics:
 - `E0205`: one type family has more than one drop declaration.
 - `E0206`: a `copy struct` declares a drop body.
 - `E0207`: a payloadless enum declares a drop body.
-- `E0208`: a primitive declaration is outside the exact selected standard package.
+- `E0208`: a primitive function declaration is outside the exact selected standard package.
 - `E0209`: a built-in conformance is outside the exact selected standard package.
 - `E0210`: a conformance target is neither a nominal type nor an authorized built-in type.
 - `E0211`: a conformance does not bind every associated type declared by its interface.

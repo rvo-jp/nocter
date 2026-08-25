@@ -20,8 +20,9 @@ pub(super) fn item(parser: &mut Parser<'_>) {
 fn declaration(parser: &mut Parser<'_>) {
     match declaration_kind(parser) {
         Some(DeclarationKind::Constant) => constant(parser),
-        Some(DeclarationKind::Function) => function(parser),
-        Some(DeclarationKind::Primitive) => primitive(parser),
+        Some(DeclarationKind::Function) => function(parser, false),
+        Some(DeclarationKind::PrimitiveFunction) => function(parser, true),
+        Some(DeclarationKind::PrimitiveType) => primitive_type(parser),
         Some(DeclarationKind::TypeAlias) => type_alias(parser),
         Some(DeclarationKind::Struct) => nominal::struct_declaration(parser),
         Some(DeclarationKind::Enum) => nominal::enum_declaration(parser),
@@ -54,8 +55,9 @@ fn target_directive(parser: &mut Parser<'_>) {
 fn targetable_item(parser: &mut Parser<'_>) {
     match targetable_kind(parser) {
         Some(DeclarationKind::Constant) => constant(parser),
-        Some(DeclarationKind::Function) => function(parser),
-        Some(DeclarationKind::Primitive) => primitive(parser),
+        Some(DeclarationKind::Function) => function(parser, false),
+        Some(DeclarationKind::PrimitiveFunction) => function(parser, true),
+        Some(DeclarationKind::PrimitiveType) => primitive_type(parser),
         Some(DeclarationKind::TypeAlias) => type_alias(parser),
         Some(DeclarationKind::Struct) => nominal::struct_declaration(parser),
         Some(DeclarationKind::Enum) => nominal::enum_declaration(parser),
@@ -68,7 +70,8 @@ fn targetable_item(parser: &mut Parser<'_>) {
 enum DeclarationKind {
     Constant,
     Function,
-    Primitive,
+    PrimitiveFunction,
+    PrimitiveType,
     TypeAlias,
     Struct,
     Enum,
@@ -107,7 +110,16 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     match parser.tokens[cursor].kind() {
         TokenKind::Keyword(Keyword::Const) => Some(DeclarationKind::Constant),
         TokenKind::Keyword(Keyword::Func) => Some(DeclarationKind::Function),
-        TokenKind::Keyword(Keyword::Primitive) => Some(DeclarationKind::Primitive),
+        TokenKind::Keyword(Keyword::Primitive)
+            if parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Func) =>
+        {
+            Some(DeclarationKind::PrimitiveFunction)
+        }
+        TokenKind::Keyword(Keyword::Primitive)
+            if parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Type) =>
+        {
+            Some(DeclarationKind::PrimitiveType)
+        }
         TokenKind::Keyword(Keyword::Type) => Some(DeclarationKind::TypeAlias),
         TokenKind::Keyword(Keyword::Struct) => Some(DeclarationKind::Struct),
         TokenKind::Keyword(Keyword::Enum) => Some(DeclarationKind::Enum),
@@ -147,9 +159,12 @@ fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
     cursor
 }
 
-fn function(parser: &mut Parser<'_>) {
+fn function(parser: &mut Parser<'_>, primitive: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    if primitive {
+        parser.expect_keyword(Keyword::Primitive);
+    }
     parser.expect_keyword(Keyword::Func);
     parser.expect_name();
     if parser.at_punctuation(Punctuation::Less) {
@@ -157,21 +172,30 @@ fn function(parser: &mut Parser<'_>) {
     }
     types::parameters(parser);
     callable_tail(parser);
-    block::optional(parser);
+    if primitive {
+        if parser.at_punctuation(Punctuation::LeftBrace) {
+            parser.error_token(ExpectedSyntax::Newline);
+        }
+    } else {
+        block::optional(parser);
+    }
     parser.complete(marker, NodeKind::FunctionDeclaration);
 }
 
-fn primitive(parser: &mut Parser<'_>) {
+fn primitive_type(parser: &mut Parser<'_>) {
     let marker = parser.start();
     optional_visibility(parser);
     parser.expect_keyword(Keyword::Primitive);
-    parser.expect_name();
-    if parser.at_punctuation(Punctuation::Less) {
-        types::generic_parameters(parser);
+    parser.expect_keyword(Keyword::Type);
+    if parser.at(TokenKind::Identifier)
+        || parser.at_keyword(Keyword::Void)
+        || parser.at_keyword(Keyword::Never)
+    {
+        parser.bump();
+    } else {
+        parser.error_token(ExpectedSyntax::Name);
     }
-    types::parameters(parser);
-    callable_tail(parser);
-    parser.complete(marker, NodeKind::PrimitiveDeclaration);
+    parser.complete(marker, NodeKind::PrimitiveTypeDeclaration);
 }
 
 fn type_alias(parser: &mut Parser<'_>) {

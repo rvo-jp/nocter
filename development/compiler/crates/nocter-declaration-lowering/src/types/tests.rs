@@ -19,7 +19,11 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
         "use dep\ntype Projection<T> = &dep.Buffer<T>.Item?!\n",
     );
     let dep_id = add_source(&mut sources, "/dep/index.nct", "pub struct Buffer<T> {}\n");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
@@ -89,7 +93,11 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
         "/app/index.nct",
         "type Callback<T> = &+func(left: &T, right: &T): &T from right | left\n",
     );
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -147,7 +155,11 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
             "where T: Show<T> + &func(value: &T): &T from value { return }\n",
         ),
     );
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -176,10 +188,14 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
     )
     .unwrap();
     let instance = bound
-        .declaration_patterns(SurfaceDeclarationId::from_index(2))
+        .declaration_patterns(SurfaceDeclarationId::from_index(
+            nocter_model::BuiltinType::COUNT + 2,
+        ))
         .unwrap();
     let conform = bound
-        .declaration_patterns(SurfaceDeclarationId::from_index(3))
+        .declaration_patterns(SurfaceDeclarationId::from_index(
+            nocter_model::BuiltinType::COUNT + 3,
+        ))
         .unwrap();
 
     assert!(matches!(

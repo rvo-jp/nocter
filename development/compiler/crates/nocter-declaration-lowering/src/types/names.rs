@@ -39,7 +39,7 @@ pub(super) fn segments(
     let mut segments = Vec::<NameSegment>::new();
     for element in tree.children(node) {
         match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+            SyntaxElement::Token(token) if is_type_name(token.kind()) => {
                 segments.push(NameSegment {
                     token: *token,
                     arguments: Vec::new(),
@@ -86,6 +86,14 @@ pub(super) fn segments(
     } else {
         Ok(segments)
     }
+}
+
+const fn is_type_name(kind: TokenKind) -> bool {
+    matches!(
+        kind,
+        TokenKind::Identifier
+            | TokenKind::Keyword(nocter_syntax::Keyword::Void | nocter_syntax::Keyword::Never)
+    )
 }
 
 pub(super) fn resolve_exported(

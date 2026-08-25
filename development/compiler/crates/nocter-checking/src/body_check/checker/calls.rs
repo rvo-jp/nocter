@@ -76,7 +76,7 @@ impl BodyChecker<'_, '_> {
                     result_context.and_then(CallResultContext::complete_type),
                 );
             }
-            NameTarget::Exported(_) | NameTarget::Builtin(_) => {
+            NameTarget::Exported(_) => {
                 self.consumed_uses.insert(call_origin(self, reference)?);
                 return Err(self.rule(BodyRule::InvalidCall, reference)?);
             }

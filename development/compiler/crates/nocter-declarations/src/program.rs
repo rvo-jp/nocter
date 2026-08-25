@@ -7,9 +7,9 @@ use nocter_model::{
 };
 
 use crate::{
-    BuiltinAttachment, DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas,
-    ExportedEntity, ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath,
-    PackageTarget, ProgramValidationError, StandardLibrary, Visibility,
+    DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas, ExportedEntity,
+    ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
+    ProgramValidationError, StandardLibrary, StructuralAttachment, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -457,9 +457,9 @@ impl DeclarationProgramBuilder {
     ///
     /// Returns an error when no standard package is selected, the module is unknown or outside the
     /// selected package, or a different module already owns this surface.
-    pub fn set_builtin_attachment_module(
+    pub fn set_structural_attachment_module(
         &mut self,
-        attachment: BuiltinAttachment,
+        attachment: StructuralAttachment,
         module: ModuleId,
     ) -> Result<(), ProgramBuildError> {
         let module_package = self.require_module(module)?.package();
@@ -471,8 +471,32 @@ impl DeclarationProgramBuilder {
             return Err(ProgramBuildError::StandardModuleOutsidePackage);
         }
         standard
-            .set_attachment_module(attachment, module)
-            .map_err(|_| ProgramBuildError::ConflictingStandardModule(attachment))
+            .set_structural_attachment_module(attachment, module)
+            .map_err(|_| ProgramBuildError::ConflictingStructuralAttachmentModule(attachment))
+    }
+
+    /// Records the source module owning one named compiler-represented type declaration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no standard package is selected, the module is unknown or outside the
+    /// selected package, or a different module already owns this builtin type.
+    pub fn set_builtin_type_module(
+        &mut self,
+        builtin: nocter_model::BuiltinType,
+        module: ModuleId,
+    ) -> Result<(), ProgramBuildError> {
+        let module_package = self.require_module(module)?.package();
+        let standard = self
+            .standard_library
+            .as_mut()
+            .ok_or(ProgramBuildError::StandardPackageNotSelected)?;
+        if module_package != standard.package() {
+            return Err(ProgramBuildError::StandardModuleOutsidePackage);
+        }
+        standard
+            .set_builtin_type_module(builtin, module)
+            .map_err(|_| ProgramBuildError::ConflictingBuiltinTypeModule(builtin))
     }
 
     /// Adds one normalized module identity.
@@ -824,7 +848,8 @@ pub enum ProgramBuildError {
     ConflictingStandardPackage,
     StandardPackageNotSelected,
     StandardModuleOutsidePackage,
-    ConflictingStandardModule(BuiltinAttachment),
+    ConflictingStructuralAttachmentModule(StructuralAttachment),
+    ConflictingBuiltinTypeModule(nocter_model::BuiltinType),
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
@@ -868,11 +893,14 @@ impl fmt::Display for ProgramBuildError {
             Self::StandardModuleOutsidePackage => {
                 formatter.write_str("standard built-in module belongs to another package")
             }
-            Self::ConflictingStandardModule(attachment) => {
+            Self::ConflictingStructuralAttachmentModule(attachment) => {
                 write!(
                     formatter,
                     "a different module already owns the {attachment:?} built-in surface"
                 )
+            }
+            Self::ConflictingBuiltinTypeModule(builtin) => {
+                write!(formatter, "{builtin:?} has conflicting source modules")
             }
             Self::VisibilityOutsidePackage => {
                 formatter.write_str("package visibility names another package")

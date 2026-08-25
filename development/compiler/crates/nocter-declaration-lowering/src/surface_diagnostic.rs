@@ -14,6 +14,7 @@ pub enum SurfaceRule {
     InvalidNominalContract,
     MissingConstructionContractVisibility,
     MissingInterfaceContractVisibility,
+    UnauthorizedPrimitiveType,
     UnknownTargetGate,
 }
 
@@ -26,6 +27,7 @@ impl SurfaceRule {
             Self::MissingConstructionContractVisibility => "E0232",
             Self::UnknownTargetGate => "E0233",
             Self::MissingInterfaceContractVisibility => "E0234",
+            Self::UnauthorizedPrimitiveType => "E0235",
         }
     }
 
@@ -43,6 +45,9 @@ impl SurfaceRule {
             }
             Self::MissingInterfaceContractVisibility => {
                 "an interface contract method requires explicit public visibility"
+            }
+            Self::UnauthorizedPrimitiveType => {
+                "a primitive type declaration is not selected by the active toolchain"
             }
             Self::UnknownTargetGate => "target gate names an unrecognized compilation target",
         }
@@ -62,6 +67,9 @@ impl SurfaceRule {
             }
             Self::MissingInterfaceContractVisibility => {
                 "add bare pub to the interface contract method"
+            }
+            Self::UnauthorizedPrimitiveType => {
+                "remove the declaration; only the toolchain standard library may declare named builtin types"
             }
             Self::UnknownTargetGate => {
                 "use one of the target names recognized by this compiler release"
@@ -134,6 +142,9 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
         }
         SurfaceError::MissingInterfaceContractVisibility(node) => {
             Some((SurfaceRule::MissingInterfaceContractVisibility, *node))
+        }
+        SurfaceError::UnauthorizedPrimitiveType(node) => {
+            Some((SurfaceRule::UnauthorizedPrimitiveType, *node))
         }
         SurfaceError::UnknownTargetGate(node) => Some((SurfaceRule::UnknownTargetGate, *node)),
         SurfaceError::Topology(_)
@@ -242,6 +253,32 @@ mod tests {
             diagnostic.source().primary().span().range().start().get(),
             23
         );
+    }
+
+    #[test]
+    fn unselected_primitive_types_are_authored_source_errors() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let root_id = add_source(&mut sources, "/app/index.nct", "pub primitive type i32\n");
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let input = compile_unit(
+            &sources,
+            &manifest,
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            Vec::new(),
+        );
+
+        let error = collect_declaration_surface(&input).unwrap_err();
+        let diagnostic = SurfaceDiagnostic::project(error, &input).unwrap();
+
+        assert_eq!(diagnostic.rule(), SurfaceRule::UnauthorizedPrimitiveType);
+        assert_eq!(diagnostic.source().code(), "E0235");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
     }
 
     #[test]

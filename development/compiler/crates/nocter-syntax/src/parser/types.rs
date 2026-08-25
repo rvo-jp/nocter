@@ -33,7 +33,7 @@ pub(super) fn declaration_type_pattern(parser: &mut Parser<'_>) {
         expect_pattern_binder(parser);
         parser.expect_punctuation(Punctuation::RightBracket);
     } else if at_builtin_pattern(parser) {
-        builtin_type(parser);
+        named_type(parser);
     } else if parser.at(TokenKind::Identifier) && !matches!(parser.current_text(), "_" | "Self") {
         parser.bump();
         if parser.at_punctuation(Punctuation::Less) {
@@ -215,14 +215,8 @@ fn callable_parameter(parser: &mut Parser<'_>) {
 
 fn type_atom(parser: &mut Parser<'_>) {
     match parser.current_kind() {
-        TokenKind::Identifier if at_builtin_type(parser) => {
-            builtin_type(parser);
-        }
-        TokenKind::Identifier => {
+        TokenKind::Identifier | TokenKind::Keyword(Keyword::Void | Keyword::Never) => {
             named_type(parser);
-        }
-        TokenKind::Keyword(Keyword::Void | Keyword::Never) => {
-            builtin_type(parser);
         }
         TokenKind::Punctuation(Punctuation::LeftBracket) => bracket_type(parser),
         TokenKind::Punctuation(Punctuation::LeftParen) => grouped_type(parser),
@@ -235,13 +229,7 @@ fn named_type(parser: &mut Parser<'_>) -> CompletedMarker {
 }
 
 pub(super) fn owner_reference(parser: &mut Parser<'_>) -> OwnerFacts {
-    if at_builtin_pattern(parser) {
-        OwnerFacts {
-            completed: builtin_type(parser),
-            has_type_arguments: false,
-            plain_selections_after_type_arguments: 0,
-        }
-    } else if parser.at(TokenKind::Identifier) {
+    if parser.at(TokenKind::Identifier) {
         let (completed, has_type_arguments, plain_selections_after_type_arguments) =
             named_type_with_facts(parser);
         OwnerFacts {
@@ -290,12 +278,6 @@ fn named_type_with_facts(parser: &mut Parser<'_>) -> (CompletedMarker, bool, usi
         has_type_arguments,
         plain_selections_after_type_arguments,
     )
-}
-
-fn builtin_type(parser: &mut Parser<'_>) -> CompletedMarker {
-    let marker = parser.start();
-    parser.bump();
-    parser.complete(marker, NodeKind::BuiltinType)
 }
 
 fn pattern_arguments(parser: &mut Parser<'_>) {

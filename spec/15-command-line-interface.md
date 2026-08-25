@@ -533,7 +533,7 @@ Declaration target gates use the source form:
 
 ```nct
 #target: "arm64-darwin"
-primitive syscall0(number: u64): i64
+primitive func syscall0(number: u64): i64
 ```
 
 ## Version and Doctor

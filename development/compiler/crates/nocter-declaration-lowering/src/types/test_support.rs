@@ -3,9 +3,9 @@ use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, pars
 
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageIdentity, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
-    apply_toolchain_profile, collect_declaration_surface, prepare_authored_imports,
-    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
+    PackageIdentity, PackageInput, PackageMode, UseResolutionInput, apply_toolchain_profile,
+    collect_declaration_surface, prepare_authored_imports, prepare_declaration_headers,
+    prepare_generic_binders, reserve_declaration_identities,
 };
 
 use super::{PreparedTypeBindings, TypeBindingError, bind_header_type_syntax};
@@ -66,24 +66,28 @@ pub(super) fn bind<'syntax>(
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<PreparedTypeBindings<'syntax>, TypeBindingError> {
+    let builtin_source = modules
+        .iter()
+        .find(|module| {
+            module.identity().package() == prelude.package() && module.identity().path().is_empty()
+        })
+        .and_then(|module| module.sources().first())
+        .map(crate::ModuleSourceInput::syntax)
+        .expect("test standard package has no root builtin source");
+    let toolchain = crate::test_support::test_toolchain(prelude.clone(), builtin_source);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
         packages,
         modules,
         uses,
-    );
+    )
+    .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let toolchain = ToolchainInput::new(
-        prelude.package().clone(),
-        prelude.clone(),
-        Vec::new(),
-        Vec::new(),
-    );
     let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     bind_header_type_syntax(namespaces)
 }

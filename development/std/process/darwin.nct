@@ -14,22 +14,22 @@ use /string.{String, is_valid_utf8}
 use /vec.Vec
 
 #target: "arm64-darwin"
-primitive exit_raw(code: i32): never
+primitive func exit_raw(code: i32): never
 
 #target: "arm64-darwin"
-primitive arg_count_raw(): usize
+primitive func arg_count_raw(): usize
 
 #target: "arm64-darwin"
-primitive arg_raw(index: usize): &str from static
+primitive func arg_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-primitive env_count_raw(): usize
+primitive func env_count_raw(): usize
 
 #target: "arm64-darwin"
-primitive env_name_raw(index: usize): &str from static
+primitive func env_name_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-primitive env_value_raw(index: usize): &str from static
+primitive func env_value_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
 func open_current_directory(): usize! {

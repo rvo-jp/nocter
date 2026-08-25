@@ -1,8 +1,9 @@
 use nocter_model::{
-    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ConformanceId,
-    ConstantId, ConstructionId, DeclarationSiteId, DropId, FieldId, GenericParameterId, ImportId,
-    InstanceId, InterfaceId, LocalBindingId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
-    PackageTargetId, ParameterId, RequirementId, TestId, TypeAliasId, VariantId,
+    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, BuiltinType, CallableId, CaptureId,
+    ConformanceId, ConstantId, ConstructionId, DeclarationSiteId, DropId, FieldId,
+    GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, ModuleId, NominalTypeId,
+    OpaqueTypeId, PackageId, PackageTargetId, ParameterId, RequirementId, TestId, TypeAliasId,
+    VariantId,
 };
 
 /// A syntax-independent identity that can have source projections.
@@ -15,6 +16,7 @@ pub enum SemanticEntity {
     Package(PackageId),
     PackageTarget(PackageTargetId),
     Module(ModuleId),
+    BuiltinType(BuiltinType),
     Import(ImportId),
     DeclarationSite(DeclarationSiteId),
     NominalType(NominalTypeId),

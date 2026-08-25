@@ -1,7 +1,7 @@
 use nocter_model::{AttachmentFamily, BorrowCapability, BuiltinType, ModuleId, TypeId, TypeKind};
 
 use crate::{
-    BuiltinAttachment, CallableDeclaration, DeclarationProgram, LiteralShape, ParameterRole,
+    CallableDeclaration, DeclarationProgram, LiteralShape, ParameterRole, StructuralAttachment,
     Visibility,
 };
 
@@ -67,10 +67,15 @@ pub(super) fn inherent_target_is_authorized(
             .get(definition)
             .and_then(|declaration| program.graph().declaration_sites().get(declaration.site()))
             .is_some_and(|site| site.module() == module),
-        Some(AttachmentFamily::Builtin(builtin)) => builtin_attachment(builtin)
-            .is_some_and(|attachment| is_standard_attachment_module(program, module, attachment)),
+        Some(AttachmentFamily::Builtin(builtin)) => {
+            program
+                .graph()
+                .standard_library()
+                .and_then(|standard| standard.builtin_type_module(builtin))
+                == Some(module)
+        }
         Some(AttachmentFamily::Slice) => {
-            is_standard_attachment_module(program, module, BuiltinAttachment::Slice)
+            is_structural_attachment_module(program, module, StructuralAttachment::Slice)
         }
         None => false,
     }
@@ -90,34 +95,15 @@ pub(super) fn conformance_target_is_authorized(
     }
 }
 
-fn builtin_attachment(builtin: BuiltinType) -> Option<BuiltinAttachment> {
-    match builtin {
-        BuiltinType::Bool
-        | BuiltinType::I8
-        | BuiltinType::I16
-        | BuiltinType::I32
-        | BuiltinType::I64
-        | BuiltinType::U8
-        | BuiltinType::U16
-        | BuiltinType::U32
-        | BuiltinType::U64
-        | BuiltinType::Usize
-        | BuiltinType::Isize => Some(BuiltinAttachment::Scalar),
-        BuiltinType::Str => Some(BuiltinAttachment::Str),
-        BuiltinType::Error => Some(BuiltinAttachment::Error),
-        BuiltinType::Void | BuiltinType::Never => None,
-    }
-}
-
-fn is_standard_attachment_module(
+fn is_structural_attachment_module(
     program: &DeclarationProgram,
     module: ModuleId,
-    attachment: BuiltinAttachment,
+    attachment: StructuralAttachment,
 ) -> bool {
     program
         .graph()
         .standard_library()
-        .and_then(|standard| standard.attachment_module(attachment))
+        .and_then(|standard| standard.structural_attachment_module(attachment))
         == Some(module)
 }
 

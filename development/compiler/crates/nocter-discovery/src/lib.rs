@@ -19,7 +19,8 @@ pub use failure::DiscoveryFailure;
 pub use graph::discover;
 pub use module_catalog::module_for_source;
 pub use request::{
-    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
+    BuiltinTypeLocator, DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator,
+    StandardRoleLocator, ToolchainRequest,
 };
 pub use snapshot::{
     CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,

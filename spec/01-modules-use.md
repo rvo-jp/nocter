@@ -394,8 +394,9 @@ pub use std/vec.Vec
 pub use std/iter.Iterator
 ```
 
-Built-in forms such as `str`, `[T]`, and primitive numeric types are language types, not prelude
-exports. `Format`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
+Named builtins such as `str` and primitive numeric types come from the compiler-managed universal
+declaration fallback, while structural forms such as `[T]` come from the type grammar. Neither is
+a prelude export. `Format`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
 I/O functions require explicit imports from their domain modules.
 
 ## Package Layout
@@ -607,7 +608,7 @@ pub func stdout(): File {
 
 ```nct
 // std/ptr/index.nct
-pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive func from_addr<T>(address: usize): *T
 ```
 
 Rules:

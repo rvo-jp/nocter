@@ -2,23 +2,42 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity, ModuleSourceKind, PackageMode};
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_compile_input::{
+    ModuleIdentity, ModuleSourceKind, PackageMode, StructuralAttachmentInput,
+};
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::{CompilationTarget, PackageIdentity};
+use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 use crate::{
-    DiscoveryError, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
-    UseFailure, discover,
+    BuiltinTypeLocator, DiscoveryError, DiscoveryRequest, PrimitiveRoleLocator,
+    StandardRoleLocator, ToolchainRequest, UseFailure, discover,
 };
 
 #[path = "tests/standard_contract.rs"]
 mod standard_contract;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+const TEST_BUILTIN_SOURCE: &str = "\
+pub primitive type bool\n\
+pub primitive type i8\n\
+pub primitive type i16\n\
+pub primitive type i32\n\
+pub primitive type i64\n\
+pub primitive type u8\n\
+pub primitive type u16\n\
+pub primitive type u32\n\
+pub primitive type u64\n\
+pub primitive type usize\n\
+pub primitive type isize\n\
+pub primitive type str\n\
+pub primitive type error\n\
+pub primitive type void\n\
+pub primitive type never\n";
 
 struct TempTree(PathBuf);
 
@@ -76,6 +95,18 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
         ModuleIdentity::new(package, Vec::<&str>::new()),
         Vec::new(),
         Vec::new(),
+    )
+}
+
+fn root_builtin_toolchain(package: &str) -> ToolchainRequest {
+    let identity = PackageIdentity::new(package);
+    let root = ModuleIdentity::new(identity, Vec::<&str>::new());
+    minimal_toolchain(package).with_builtin_types(
+        BuiltinType::ALL
+            .iter()
+            .copied()
+            .map(|builtin| BuiltinTypeLocator::new(builtin, root.clone(), builtin.spelling()))
+            .collect(),
     )
 }
 
@@ -138,7 +169,7 @@ fn primitive_role_resolution_selects_a_private_visible_declaration() {
     tree.source("std/index.nct", "see ./runtime.nct\n");
     tree.source(
         "std/runtime.nct",
-        "see ./index.nct\n\nprimitive new_error(code: &str, message: &str): error\n",
+        "see ./index.nct\n\nprimitive func new_error(code: &str, message: &str): error\n",
     );
     let identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &tree.path().join("std"))
@@ -175,6 +206,43 @@ fn primitive_role_resolution_selects_a_private_visible_declaration() {
 }
 
 #[test]
+fn builtin_type_resolution_selects_the_exact_public_declaration() {
+    let tree = TempTree::new();
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
+    tree.source("std/index.nct", "pub primitive type i32\n");
+    let identity = PackageIdentity::new("toolchain:std");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"))
+        .with_standard_dependency(identity.clone());
+    let builtin = BuiltinTypeLocator::new(
+        BuiltinType::I32,
+        ModuleIdentity::new(identity.clone(), Vec::<&str>::new()),
+        "i32",
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![standard]),
+        vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+        ToolchainRequest::new(
+            identity.clone(),
+            ModuleIdentity::new(identity, Vec::<&str>::new()),
+            Vec::new(),
+            Vec::new(),
+        )
+        .with_builtin_types(vec![builtin]),
+    ))
+    .unwrap();
+
+    let compile_input = unit.compile_input().unwrap();
+    let builtins = compile_input.toolchain().unwrap().builtin_types();
+    assert_eq!(builtins.len(), 1);
+    assert_eq!(builtins[0].builtin(), BuiltinType::I32);
+}
+
+#[test]
 fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
     let tree = TempTree::new();
     tree.source(
@@ -182,6 +250,7 @@ fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
         "#package: { name: \"std\", version: \"0.0.0\", }\n",
     );
     tree.source("std/index.nct", "//! Standard root.\n");
+    tree.source("std/index.nct", TEST_BUILTIN_SOURCE);
     tree.source(
         "std/unreferenced/index.nct",
         "see ./body.nct\n\npub struct Unreferenced {}\n",
@@ -197,7 +266,7 @@ fn toolchain_standard_layout_catalogs_modules_without_authored_edges() {
     let unit = discover(DiscoveryRequest::toolchain_standard(
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
-        minimal_toolchain("toolchain:std"),
+        root_builtin_toolchain("toolchain:std"),
     ))
     .unwrap();
 
@@ -281,6 +350,7 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         "#package: { name: \"std\", version: \"0.0.0\", }\n",
     );
     tree.source("std/index.nct", "//! Standard root.\n");
+    tree.source("std/index.nct", TEST_BUILTIN_SOURCE);
     tree.source("std/value/index.nct", "pub struct Value {}\n");
     let standard = package("toolchain:std", "std", &tree.path().join("std"));
 
@@ -288,7 +358,7 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         CompilationTarget::Arm64Darwin,
         tree.path().join("app.nct"),
         package_graph(vec![standard]),
-        minimal_toolchain("toolchain:std"),
+        root_builtin_toolchain("toolchain:std"),
     ))
     .unwrap();
     let input = unit.compile_input().unwrap();
@@ -449,6 +519,7 @@ fn selected_declared_roots_retain_exact_package_target_directives() {
         "#package: { name: \"app\", version: \"0.0.0\", }\n#executable: { name: \"app\" }\n#test: { name: \"unit\", module: \"./tests/unit\" }\n",
     );
     tree.source("app/index.nct", "func main(): void { return }\n");
+    tree.source("app/index.nct", TEST_BUILTIN_SOURCE);
     tree.source("app/tests/unit/index.nct", "test works { return }\n");
 
     let package = PackageIdentity::new("workspace:app");
@@ -463,7 +534,7 @@ fn selected_declared_roots_retain_exact_package_target_directives() {
             root.clone(),
             ModuleIdentity::new(package, ["tests", "unit"]),
         ],
-        minimal_toolchain("workspace:app"),
+        root_builtin_toolchain("workspace:app"),
     ))
     .unwrap();
     let input = unit.compile_input().unwrap();
@@ -479,6 +550,7 @@ fn declared_module_inventory_includes_an_overlay_only_source_with_physical_owner
         "app/index.nct",
         "#package: { name: \"app\", version: \"0.0.0\", }\n",
     );
+    tree.source("app/index.nct", TEST_BUILTIN_SOURCE);
     let package_root = fs::canonicalize(tree.path().join("app")).unwrap();
     let virtual_source = package_root.join("editor.nct");
     let mut overlay = SourceOverlay::builder();
@@ -500,7 +572,7 @@ fn declared_module_inventory_includes_an_overlay_only_source_with_physical_owner
             overlay.finish(),
         ),
         vec![root.clone()],
-        minimal_toolchain("workspace:app"),
+        root_builtin_toolchain("workspace:app"),
     ))
     .unwrap();
 
@@ -722,15 +794,10 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
 
 fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
     let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
-    let attachments = [
-        (BuiltinAttachment::Scalar, "num"),
-        (BuiltinAttachment::Str, "str"),
-        (BuiltinAttachment::Error, "error"),
-        (BuiltinAttachment::Slice, "slice"),
-    ]
-    .into_iter()
-    .map(|(attachment, path)| BuiltinAttachmentInput::new(attachment, module(&[path])))
-    .collect();
+    let attachments = vec![StructuralAttachmentInput::new(
+        StructuralAttachment::Slice,
+        module(&["slice"]),
+    )];
     let roles = [
         (
             StandardDeclarationRole::AbortingAllocator,
@@ -818,4 +885,32 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
         .collect();
     ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)
         .with_primitive_roles(primitives)
+        .with_builtin_types(standard_builtin_types(package))
+}
+
+fn standard_builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
+    let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
+    BuiltinType::ALL
+        .iter()
+        .copied()
+        .map(|builtin| {
+            let path = match builtin {
+                BuiltinType::Bool
+                | BuiltinType::I8
+                | BuiltinType::I16
+                | BuiltinType::I32
+                | BuiltinType::I64
+                | BuiltinType::U8
+                | BuiltinType::U16
+                | BuiltinType::U32
+                | BuiltinType::U64
+                | BuiltinType::Usize
+                | BuiltinType::Isize => &["num"][..],
+                BuiltinType::Str => &["str"][..],
+                BuiltinType::Error => &["error"][..],
+                BuiltinType::Void | BuiltinType::Never => &["core"][..],
+            };
+            BuiltinTypeLocator::new(builtin, module(path), builtin.spelling())
+        })
+        .collect()
 }

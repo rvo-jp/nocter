@@ -4,7 +4,7 @@ SourceFile
       Parameters
       CallableTail
         Type
-          BuiltinType
+          NamedType
   Item
     EnumDeclaration
   Item

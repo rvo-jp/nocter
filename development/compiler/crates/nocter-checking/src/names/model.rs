@@ -12,7 +12,6 @@ pub enum NameTarget {
     Local(LocalBindingId),
     Capture(CaptureId),
     Exported(ExportedEntity),
-    Builtin(nocter_model::BuiltinType),
 }
 
 impl NameTarget {

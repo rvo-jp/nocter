@@ -69,19 +69,19 @@ SourceFile
             Type
               NamedType
             Type
-              BuiltinType
+              NamedType
           OperatorPredicate
             Type
               NamedType
             Type
               NamedType
             Type
-              BuiltinType
+              NamedType
           OperatorPredicate
             Type
               NamedType
             Type
-              BuiltinType
+              NamedType
             Type
               BorrowType
                 NamedType
@@ -90,7 +90,7 @@ SourceFile
               NamedType
             Type
               BorrowType
-                BuiltinType
+                NamedType
           ExpansionPredicate
             Type
               NamedType

@@ -20,7 +20,7 @@ SourceFile
             NamedType
       CallableTail
         Type
-          BuiltinType
+          NamedType
       Block
         ExecutableSequence
           BindingStatement
@@ -161,7 +161,7 @@ SourceFile
                           NamedType
                 ClosureResult
                   Type
-                    BuiltinType
+                    NamedType
                 Block
                   ExecutableSequence
                     BodyResult

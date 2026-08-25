@@ -82,6 +82,7 @@ impl FrontendProjectionBuilder {
     ) -> Result<(), DuplicateSourceBinding> {
         self.bindings.add_declaration(token, declaration);
         let entity = match declaration {
+            FrontendDeclaration::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
             FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(id),
             FrontendDeclaration::Interface(id) => SemanticEntity::Interface(id),
             FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(id),
@@ -163,6 +164,9 @@ impl FrontendProjectionBuilder {
 
 const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticEntity {
     match entity {
+        nocter_declarations::ExportedEntity::BuiltinType(builtin) => {
+            SemanticEntity::BuiltinType(builtin)
+        }
         nocter_declarations::ExportedEntity::Module(id) => SemanticEntity::Module(id),
         nocter_declarations::ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
         nocter_declarations::ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),

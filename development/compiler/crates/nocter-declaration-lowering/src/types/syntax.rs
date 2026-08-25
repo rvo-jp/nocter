@@ -10,7 +10,7 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::binding_arena::BindingArena;
-use super::context::{builtin_type, require_arity, token_symbol, token_text};
+use super::context::{require_arity, token_symbol, token_text};
 use super::names::{resolve_exported, segments};
 use super::normalization_origins::NormalizationOrigins;
 use super::{
@@ -82,10 +82,6 @@ fn bind_node(
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result = match kind {
         NodeKind::Type => bind_type_wrapper(tree, node, values, kinds)?,
-        NodeKind::BuiltinType => push(
-            kinds,
-            BoundTypeKind::Builtin(builtin_type(namespaces, tree, node)?),
-        ),
         NodeKind::NamedType => {
             bind_named(namespaces, declaration, tree, node, values, kinds, origins)?
         }
@@ -216,6 +212,15 @@ fn bind_entity(
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     match entity {
+        ExportedEntity::BuiltinType(builtin) => {
+            if !arguments.is_empty() {
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::InvalidTypeArguments,
+                    arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
+                ));
+            }
+            Ok(push(kinds, BoundTypeKind::Builtin(builtin)))
+        }
         ExportedEntity::NominalType(definition) => {
             require_arity(
                 namespaces,

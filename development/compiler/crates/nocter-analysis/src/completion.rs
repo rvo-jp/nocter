@@ -619,13 +619,16 @@ fn name_candidate(graph: &DeclarationGraph, body: BodyId, target: NameTarget) ->
             kind: SemanticCompletionKind::Variable,
         }),
         NameTarget::Exported(exported) => exported_candidate(graph, exported),
-        NameTarget::Builtin(_) => None,
     }
 }
 
 fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Option<Candidate> {
     let declarations = graph.declarations();
     let (entity, kind) = match exported {
+        ExportedEntity::BuiltinType(builtin) => (
+            SemanticEntity::BuiltinType(builtin),
+            SemanticCompletionKind::Type,
+        ),
         ExportedEntity::Module(module) => (
             SemanticEntity::Module(module),
             SemanticCompletionKind::Module,

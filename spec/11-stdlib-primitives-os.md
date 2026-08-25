@@ -41,14 +41,48 @@ itself require a new compiler primitive. A primitive is justified only when ordi
 cannot express the operation, such as issuing a target syscall, converting a borrow to an address,
 or constructing a view from trusted raw parts.
 
-Built-in types may receive ordinary source-defined instances or construction only from the exact
-implicit standard-library module recorded for that built-in identity. `str` is owned by
-`std/str`, slices by `std/slice`, `error` construction by `std/error`, and scalar inherent APIs by
-`std/num`. Interface conformances are owned by the selected standard-library package because an
-interface and the built-in's inherent surface have separate module responsibilities. A project
-package cannot add behavior directly to a compiler-owned type. This preserves one coherent source
-surface without turning the built-in identity into a synthetic nominal declaration. Authority is
-based on selected package and module identity, not an arbitrary textual `std` prefix.
+Every named built-in type has one `primitive type` declaration selected by exact source identity.
+That declaration's module owns ordinary source-defined instances and construction for the type:
+`str` is declared and owned by `std/str`, `error` by `std/error`, and boolean and integer types by
+`std/num`. `void` and `never` are declared in `std/core` but admit no inherent surface. Structural
+slices remain owned by the exact compiler-selected `std/slice` module because `[T]` is a type
+constructor rather than a named declaration. Interface conformances are owned by the selected
+standard-library package because an interface and the built-in's inherent surface may have
+separate module responsibilities. A project package cannot declare or directly extend a
+compiler-owned type. Authority is based on exact selected declarations and module identities, not
+an arbitrary textual `std` prefix.
+
+## Primitive Type Declarations
+
+`primitive type` declares the source surface of one compiler-defined named type:
+
+```nct
+// std/num/index.nct
+pub primitive type i32
+
+// std/str/index.nct
+pub primitive type str
+```
+
+Rules:
+
+- A primitive type declaration has visibility, `primitive type`, and exactly one name. It has no
+  generic parameters, body, fields, variants, requirements, source representation, or alias
+  target.
+- Only the exact declaration selected for one closed compiler built-in role is valid. The complete
+  selected standard package must declare every named built-in type exactly once, and one
+  declaration cannot satisfy multiple roles.
+- The declaration binds its name to the compiler's pre-existing canonical type identity. It never
+  allocates a nominal type identity and never makes structural construction available.
+- The declaration owns source documentation and editor navigation for the built-in type. Tools do
+  not synthesize a second declaration or documentation surface.
+- Named built-in declarations form a compiler-managed type fallback visible in every standard,
+  dependency, package, and single-file source. This fallback is independent of `use` and the
+  standard prelude. Authored declarations cannot shadow its names.
+- The declaration's exact module owns inherent `construct` and `instance` surfaces for that named
+  built-in. No separate path- or spelling-derived attachment authority exists.
+- `&T`, `*T`, `[T]`, `[T; N]`, `T?`, `T!`, callable types, and other structural type constructors
+  are not primitive type declarations.
 
 ## Error Boundary
 
@@ -122,13 +156,15 @@ Target-specific values preserve their raw numeric code, while `OSErrorKind` prov
 classification used by higher-level wrappers. Unknown target errors map to `unknown` rather than
 being misclassified.
 
-## Primitive Declarations
+## Primitive Function Declarations
 
-A primitive declaration has a typed Nocter signature but no Nocter body. It may be private when
-only its authored implementation source needs the trusted operation:
+A primitive function is an ordinary function contract whose implementation is supplied by the
+toolchain. The `primitive` modifier precedes `func`; the declaration has a typed signature but no
+Nocter body. It may be private when only its authored implementation source needs the trusted
+operation:
 
 ```nct
-primitive new_error(
+primitive func new_error(
     code: &str,
     message: &str,
 ): error
@@ -140,16 +176,16 @@ module path, name, generic shape, parameter types, result type, target, and meta
 
 Rules:
 
-- Primitive declarations are allowed only in the exact implicit standard-library package selected
+- Primitive functions are allowed only in the exact implicit standard-library package selected
   by the active Nocter home.
 - Every primitive must match an entry in the compiler's closed registry exactly.
 - The registry assigns each primitive one authorized exposure: source-private, package-visible, or
   public. The declaration's normalized language visibility must match that exposure.
 - Source-private primitives are callable only in their authored source and a source that directly
-  includes it, following the ordinary private-declaration rule. Primitive authority does not widen
+  sees it, following the ordinary private-declaration rule. Primitive authority does not widen
   that access.
 - Moving a registered declaration to another module or changing its signature is a compile error.
-- An ordinary function with the same name has no primitive behavior.
+- A function without the `primitive` modifier has no primitive behavior.
 - `pub(/)` primitives are callable only from modules in that same `std` package.
 - A deliberately public primitive remains subject to normal import and type rules.
 - User packages cannot declare primitives, even when they use the same module spelling or name.
@@ -176,9 +212,9 @@ primitives.
 Three target-independent pointer primitives are intentionally public:
 
 ```nct
-pub primitive addr<T>(pointer: *T): usize
-pub primitive from_ref<T>(value: &T): *T
-pub primitive from_ref_mut<T>(value: &+T): *T
+pub primitive func addr<T>(pointer: *T): usize
+pub primitive func from_ref<T>(value: &T): *T
+pub primitive func from_ref_mut<T>(value: &+T): *T
 ```
 
 They convert an existing pointer or borrow without granting dereference permission. Operations
@@ -195,7 +231,7 @@ Target-dependent functions, primitives, aliases, structs, enums, and interfaces 
 
 ```nct
 #target: "arm64-darwin"
-primitive exit_raw(code: i32): never
+primitive func exit_raw(code: i32): never
 ```
 
 Rules:

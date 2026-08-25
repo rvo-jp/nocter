@@ -7,7 +7,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_model::{
-    AssociatedTypeId, BodyId, CallableId, InterfaceId, ModuleId, NominalTypeId, ParameterId, Symbol,
+    AssociatedTypeId, BodyId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId,
+    ParameterId, Symbol,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, SyntaxToken};
@@ -69,6 +70,7 @@ fn lookup_namespace(
 /// A declaration kind that toolchain discovery may assign a standard semantic role.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FrontendDeclaration {
+    BuiltinType(BuiltinType),
     NominalType(NominalTypeId),
     Interface(InterfaceId),
     AssociatedType(AssociatedTypeId),

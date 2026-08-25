@@ -279,6 +279,9 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
         };
         let origin = entity_origin(reserved, id)?;
         let declaration = match entity {
+            crate::ReservedEntity::BuiltinType(builtin) => Some(
+                nocter_frontend_bindings::FrontendDeclaration::BuiltinType(builtin),
+            ),
             crate::ReservedEntity::NominalType(id) => Some(
                 nocter_frontend_bindings::FrontendDeclaration::NominalType(id),
             ),

@@ -3,20 +3,23 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
+    BuiltinTypeInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
     PrimitiveRoleInput, SourceVisibilityResolutionInput, StandardRoleInput, ToolchainInput,
     UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxTree, declaration_name_token, parse};
+use nocter_syntax::{
+    Keyword, ParseGoal, SyntaxElement, SyntaxTree, TokenKind, declaration_name_token, parse,
+};
 use nocter_target_selection::TargetSelection;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
 use crate::module_catalog::{module_sources, toolchain_standard_modules};
 use crate::request::{
-    DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
+    BuiltinTypeLocator, DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator,
+    StandardRoleLocator, ToolchainRequest,
 };
 use crate::snapshot::{
     DiscoveredModule, DiscoveredModuleDependency, DiscoveredPackage, DiscoveredSource,
@@ -259,7 +262,7 @@ impl Builder {
     }
 
     fn resolve_toolchain(&self) -> Result<ToolchainInput, DiscoveryError> {
-        let mut attachments = self.toolchain.builtin_attachments().to_vec();
+        let mut attachments = self.toolchain.structural_attachments().to_vec();
         attachments.sort_unstable_by(|left, right| {
             left.attachment()
                 .cmp(&right.attachment())
@@ -277,13 +280,20 @@ impl Builder {
             .iter()
             .map(|locator| self.resolve_primitive_role(locator))
             .collect::<Result<_, _>>()?;
+        let mut builtin_locators = self.toolchain.builtin_types().to_vec();
+        builtin_locators.sort_unstable_by_key(BuiltinTypeLocator::builtin);
+        let builtin_types = builtin_locators
+            .iter()
+            .map(|locator| self.resolve_builtin_type(locator))
+            .collect::<Result<_, _>>()?;
         Ok(ToolchainInput::new(
             self.toolchain.standard_package().clone(),
             self.toolchain.prelude().clone(),
             attachments,
             roles,
         )
-        .with_primitive_roles(primitives))
+        .with_primitive_roles(primitives)
+        .with_builtin_types(builtin_types))
     }
 
     fn resolve_standard_role(
@@ -296,6 +306,7 @@ impl Builder {
                 locator.kind(),
                 locator.name(),
                 DeclarationMatchSurface::VisibleContract,
+                false,
             )
             .ok_or_else(|| {
                 DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
@@ -333,9 +344,10 @@ impl Builder {
         let matches = self
             .declaration_matches(
                 locator.module(),
-                nocter_syntax::NodeKind::PrimitiveDeclaration,
+                nocter_syntax::NodeKind::FunctionDeclaration,
                 locator.name(),
                 DeclarationMatchSurface::AnyDeclaration,
+                true,
             )
             .ok_or_else(|| {
                 DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingPrimitiveDeclaration {
@@ -363,12 +375,51 @@ impl Builder {
         }
     }
 
+    fn resolve_builtin_type(
+        &self,
+        locator: &BuiltinTypeLocator,
+    ) -> Result<BuiltinTypeInput, DiscoveryError> {
+        let matches = self
+            .declaration_matches(
+                locator.module(),
+                nocter_syntax::NodeKind::PrimitiveTypeDeclaration,
+                locator.name(),
+                DeclarationMatchSurface::VisibleContract,
+                false,
+            )
+            .ok_or_else(|| {
+                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingBuiltinTypeDeclaration {
+                    builtin: locator.builtin(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                })
+            })?;
+        match matches.as_slice() {
+            [token] => Ok(BuiltinTypeInput::new(locator.builtin(), *token)),
+            [] => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::MissingBuiltinTypeDeclaration {
+                    builtin: locator.builtin(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                },
+            )),
+            _ => Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::AmbiguousBuiltinTypeDeclaration {
+                    builtin: locator.builtin(),
+                    module: locator.module().clone(),
+                    name: locator.name().into(),
+                },
+            )),
+        }
+    }
+
     fn declaration_matches(
         &self,
         module: &ModuleIdentity,
         kind: nocter_syntax::NodeKind,
         name: &str,
         surface: DeclarationMatchSurface,
+        require_primitive_modifier: bool,
     ) -> Option<Vec<nocter_syntax::SyntaxToken>> {
         let module = self.modules.get(module)?;
         let mut matches = Vec::new();
@@ -377,6 +428,7 @@ impl Builder {
             let mut pending = vec![tree.root_id()];
             while let Some(node) = pending.pop() {
                 if tree.node(node).is_some_and(|syntax| syntax.kind() == kind)
+                    && (!require_primitive_modifier || has_direct_primitive_token(tree, node))
                     && (surface == DeclarationMatchSurface::AnyDeclaration
                         || has_direct_child(tree, node, nocter_syntax::NodeKind::Visibility))
                     && let Some(token) = declaration_name_token(tree, node)
@@ -806,6 +858,16 @@ fn has_direct_child(
     })
 }
 
+fn has_direct_primitive_token(tree: &SyntaxTree, node: nocter_syntax::NodeId) -> bool {
+    tree.children(node).iter().any(|child| {
+        matches!(
+            child,
+            SyntaxElement::Token(token)
+                if token.kind() == TokenKind::Keyword(Keyword::Primitive)
+        )
+    })
+}
+
 fn discover_package_targets(
     packages: &BTreeMap<PackageIdentity, PackageState>,
     roots: &[ModuleIdentity],
@@ -982,11 +1044,11 @@ fn validate_toolchain(
         ));
     }
     let mut attachment_kinds = BTreeSet::new();
-    for attachment in toolchain.builtin_attachments() {
+    for attachment in toolchain.structural_attachments() {
         validate_toolchain_module(toolchain, attachment.module())?;
         if !attachment_kinds.insert(attachment.attachment()) {
             return Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::DuplicateBuiltinAttachment(attachment.attachment()),
+                ToolchainDiscoveryError::DuplicateStructuralAttachment(attachment.attachment()),
             ));
         }
     }
@@ -1005,6 +1067,15 @@ fn validate_toolchain(
         if !primitive_kinds.insert(role.role()) {
             return Err(DiscoveryError::Toolchain(
                 ToolchainDiscoveryError::DuplicatePrimitiveRole(role.role()),
+            ));
+        }
+    }
+    let mut builtin_kinds = BTreeSet::new();
+    for builtin in toolchain.builtin_types() {
+        validate_toolchain_module(toolchain, builtin.module())?;
+        if !builtin_kinds.insert(builtin.builtin()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicateBuiltinType(builtin.builtin()),
             ));
         }
     }
@@ -1035,7 +1106,7 @@ fn initial_work(
     pending.insert(Work::Module(toolchain.prelude().clone()));
     pending.extend(
         toolchain
-            .builtin_attachments()
+            .structural_attachments()
             .iter()
             .map(|attachment| Work::Module(attachment.module().clone())),
     );
@@ -1050,6 +1121,12 @@ fn initial_work(
             .primitive_roles()
             .iter()
             .map(|role| Work::Module(role.module().clone())),
+    );
+    pending.extend(
+        toolchain
+            .builtin_types()
+            .iter()
+            .map(|builtin| Work::Module(builtin.module().clone())),
     );
     Ok(pending)
 }

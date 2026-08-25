@@ -4,6 +4,39 @@ use /mem.TryAllocator
 use /string.String
 see ./scalar.nct
 
+/// Boolean truth value.
+pub primitive type bool
+
+/// Signed 8-bit integer.
+pub primitive type i8
+
+/// Signed 16-bit integer.
+pub primitive type i16
+
+/// Signed 32-bit integer.
+pub primitive type i32
+
+/// Signed 64-bit integer.
+pub primitive type i64
+
+/// Unsigned 8-bit integer.
+pub primitive type u8
+
+/// Unsigned 16-bit integer.
+pub primitive type u16
+
+/// Unsigned 32-bit integer.
+pub primitive type u32
+
+/// Unsigned 64-bit integer.
+pub primitive type u64
+
+/// Pointer-sized unsigned integer.
+pub primitive type usize
+
+/// Pointer-sized signed integer.
+pub primitive type isize
+
 pub func parse_usize(text: &str): usize?
 
 pub func parse_u8(text: &str): u8?

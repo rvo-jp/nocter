@@ -109,7 +109,6 @@ const fn declaration_node(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::FunctionDeclaration
-            | NodeKind::PrimitiveDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::StructField

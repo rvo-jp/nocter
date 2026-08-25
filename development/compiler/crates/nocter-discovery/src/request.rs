@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity};
+use nocter_compile_input::{ModuleIdentity, StructuralAttachmentInput};
 use nocter_declarations::StandardDeclarationRole;
 use nocter_filesystem::SourceOverlay;
-use nocter_model::{CompilationTarget, PackageIdentity};
+use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_package::ResolvedPackageGraph;
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
@@ -47,6 +47,40 @@ pub struct PrimitiveRoleLocator {
     role: PrimitiveRole,
     module: ModuleIdentity,
     name: Box<str>,
+}
+
+/// Exact authored declaration selected for one named compiler-represented type.
+#[derive(Clone, Debug)]
+pub struct BuiltinTypeLocator {
+    builtin: BuiltinType,
+    module: ModuleIdentity,
+    name: Box<str>,
+}
+
+impl BuiltinTypeLocator {
+    #[must_use]
+    pub fn new(builtin: BuiltinType, module: ModuleIdentity, name: impl Into<Box<str>>) -> Self {
+        Self {
+            builtin,
+            module,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn builtin(&self) -> BuiltinType {
+        self.builtin
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl PrimitiveRoleLocator {
@@ -117,9 +151,10 @@ impl StandardRoleLocator {
 pub struct ToolchainRequest {
     standard_package: PackageIdentity,
     prelude: ModuleIdentity,
-    builtin_attachments: Vec<BuiltinAttachmentInput>,
+    structural_attachments: Vec<StructuralAttachmentInput>,
     standard_roles: Vec<StandardRoleLocator>,
     primitive_roles: Vec<PrimitiveRoleLocator>,
+    builtin_types: Vec<BuiltinTypeLocator>,
 }
 
 impl ToolchainRequest {
@@ -127,15 +162,16 @@ impl ToolchainRequest {
     pub fn new(
         standard_package: PackageIdentity,
         prelude: ModuleIdentity,
-        builtin_attachments: Vec<BuiltinAttachmentInput>,
+        structural_attachments: Vec<StructuralAttachmentInput>,
         standard_roles: Vec<StandardRoleLocator>,
     ) -> Self {
         Self {
             standard_package,
             prelude,
-            builtin_attachments,
+            structural_attachments,
             standard_roles,
             primitive_roles: Vec::new(),
+            builtin_types: Vec::new(),
         }
     }
 
@@ -150,8 +186,8 @@ impl ToolchainRequest {
     }
 
     #[must_use]
-    pub fn builtin_attachments(&self) -> &[BuiltinAttachmentInput] {
-        &self.builtin_attachments
+    pub fn structural_attachments(&self) -> &[StructuralAttachmentInput] {
+        &self.structural_attachments
     }
 
     #[must_use]
@@ -165,8 +201,19 @@ impl ToolchainRequest {
     }
 
     #[must_use]
+    pub fn builtin_types(&self) -> &[BuiltinTypeLocator] {
+        &self.builtin_types
+    }
+
+    #[must_use]
     pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleLocator>) -> Self {
         self.primitive_roles = roles;
+        self
+    }
+
+    #[must_use]
+    pub fn with_builtin_types(mut self, builtins: Vec<BuiltinTypeLocator>) -> Self {
+        self.builtin_types = builtins;
         self
     }
 }

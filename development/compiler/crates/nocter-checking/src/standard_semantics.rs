@@ -232,6 +232,7 @@ fn resolve_role_source(
         return Err(StandardSemanticError::MissingDeclaration(input.role()));
     };
     Ok(match declaration {
+        FrontendDeclaration::BuiltinType(builtin) => SemanticEntity::BuiltinType(*builtin),
         FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(*id),
         FrontendDeclaration::Interface(id) => SemanticEntity::Interface(*id),
         FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(*id),

@@ -125,8 +125,9 @@ fn direct_node(syntax: &SyntaxTree, parent: NodeId, kind: NodeKind) -> Option<No
 
 const fn declaration_matches(callable: CallableKind, syntax: NodeKind) -> bool {
     match callable {
-        CallableKind::Function => matches!(syntax, NodeKind::FunctionDeclaration),
-        CallableKind::Primitive => matches!(syntax, NodeKind::PrimitiveDeclaration),
+        CallableKind::Function | CallableKind::Primitive => {
+            matches!(syntax, NodeKind::FunctionDeclaration)
+        }
         CallableKind::Method => matches!(
             syntax,
             NodeKind::InterfaceMethod | NodeKind::InherentMethod | NodeKind::ConformMethod

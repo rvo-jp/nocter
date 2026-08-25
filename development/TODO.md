@@ -6,12 +6,12 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0 construction surface simplification](milestones/v0.18.0.md) and its
-[adversarial review](reviews/v0.18.0-phase-0.md) are complete. The adopted source contract removes
-construction `default`, makes structural construction depend only on nominal representation and
-field visibility, and removes construction-surface aggregation from nominal type hover. No
-compatibility syntax or retained default-member state remains. No subsequent v0.18.0 phase is
-currently selected.
+The [v0.18.0 Phase 0 and Phase 1 work](milestones/v0.18.0.md) and their adversarial reviews are
+complete. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
+every named builtin and adopts `primitive func`; named inherent ownership now derives from the
+selected declaration, while only anonymous slices retain structural attachment authority. No
+compatibility syntax, implicit semantic spelling lookup, or duplicate scalar/string/error
+attachment state remains. No subsequent v0.18.0 phase is currently selected.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
@@ -49,6 +49,9 @@ behavioral oracle or implementation reference.
   authority. Checking consumes the selected identity without repeating namespace lookup, and
   callable re-exports retain their declaration identity through native lowering and editor
   projection.
+- Named builtin types enter discovery, namespaces, checking, documentation, hover, highlighting,
+  and navigation through one exact `primitive type` declaration identity. The compiler retains
+  canonical representation, but no consumer reconstructs source authority from a spelling or path.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
 - Every completed v0.15.0 phase passed its focused tests and complete workspace, Clippy, formatting,

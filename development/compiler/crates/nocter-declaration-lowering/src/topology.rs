@@ -965,7 +965,15 @@ fn collect_tree_symbols(
                 }
                 pending.extend(tree.children(node).iter().rev().copied());
             }
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+            SyntaxElement::Token(token)
+                if matches!(
+                    token.kind(),
+                    TokenKind::Identifier
+                        | TokenKind::Keyword(
+                            nocter_syntax::Keyword::Void | nocter_syntax::Keyword::Never
+                        )
+                ) =>
+            {
                 let spelling = source
                     .text_at(token.range())
                     .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;

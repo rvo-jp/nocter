@@ -882,7 +882,6 @@ const fn is_member_declaration(kind: NodeKind) -> bool {
         kind,
         NodeKind::FunctionDeclaration
             | NodeKind::ConstantDeclaration
-            | NodeKind::PrimitiveDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::StructField

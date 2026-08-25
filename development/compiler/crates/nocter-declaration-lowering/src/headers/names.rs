@@ -95,7 +95,9 @@ fn validate_unique_names(
                 return Err(duplicate_name(reserved, first, id)?.into());
             }
         } else if occupies_module_namespace(declaration.kind()) {
-            reject_builtin_name(reserved, id, name)?;
+            if declaration.kind() != SurfaceDeclarationKind::PrimitiveType {
+                reject_builtin_name(reserved, id, name)?;
+            }
             let module = module(reserved, declaration)?;
             if let Err(first) = insert_unique(&mut module_names, (module, name), id) {
                 return Err(duplicate_name(reserved, first, id)?.into());
@@ -169,7 +171,8 @@ const fn occupies_module_namespace(kind: SurfaceDeclarationKind) -> bool {
         kind,
         SurfaceDeclarationKind::Constant
             | SurfaceDeclarationKind::Function
-            | SurfaceDeclarationKind::Primitive
+            | SurfaceDeclarationKind::PrimitiveFunction
+            | SurfaceDeclarationKind::PrimitiveType
             | SurfaceDeclarationKind::TypeAlias
             | SurfaceDeclarationKind::Struct
             | SurfaceDeclarationKind::Enum
@@ -182,7 +185,8 @@ const fn requires_name(kind: SurfaceDeclarationKind) -> bool {
         kind,
         SurfaceDeclarationKind::Constant
             | SurfaceDeclarationKind::Function
-            | SurfaceDeclarationKind::Primitive
+            | SurfaceDeclarationKind::PrimitiveFunction
+            | SurfaceDeclarationKind::PrimitiveType
             | SurfaceDeclarationKind::TypeAlias
             | SurfaceDeclarationKind::Struct
             | SurfaceDeclarationKind::Field

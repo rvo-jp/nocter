@@ -100,7 +100,9 @@ Rules:
 - `Self` has identifier spelling but is reserved as contextual type syntax in
   inherent member type positions. It is not a valid binding, declaration, field,
   variant, module, type parameter, or import alias name.
-- `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
+- `error` is not a reserved keyword. In type positions, the exact spelling `error` resolves through
+  the compiler-selected primitive-type declaration. In value positions, it is an ordinary
+  identifier, so `catch error { ... }` binds a local value named `error`.
 - A single `_` is the one-slot wildcard or discard spelling in enum payload pattern positions and
   in the local discard initializer `let _ = expression`. It never abbreviates multiple enum
   payload positions. A discard initializer creates no binding. `_` is not a valid binding,
@@ -153,9 +155,11 @@ void
 while
 ```
 
-Built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`,
-`void`, and `never` are reserved type syntax, not importable user names. The
-special `error` type spelling is contextual as described above.
+Named built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`, `error`,
+`void`, and `never` are reserved declaration and type-binder names. Their exact
+compiler-selected `primitive type` declarations supply the semantic identity and source target;
+they are not imported names. `void` and `never` remain keywords, while the other spellings are
+contextual identifiers.
 
 Package metadata uses the same `test` token in `#test`; package parsing treats it as that
 directive's exact name rather than as a general identifier.
@@ -329,7 +333,8 @@ Keyword rules:
 - `drop` is emitted as an identifier token; the parser treats `drop Type(&+self) { ... }` at top
   level and `drop name` in statement position as contextual source forms.
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
-- `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
+- `error` is emitted as an identifier token; semantic resolution selects its compiler-managed
+  primitive-type declaration in type and construction-owner positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
   The parser recognizes `some` contextually only in the opaque result type form defined by
   [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#static-opaque-results).

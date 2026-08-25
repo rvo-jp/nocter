@@ -4,14 +4,14 @@ use nocter_model::{
 };
 
 use crate::{
-    Body, BodyOwner, BuiltinAttachment, CallableDeclaration, CallableKind, CallableOwner,
-    CallableProvenance, CallableProvenanceContract, ConstantDeclaration, ConstructionDeclaration,
-    DeclarationDomain, DeclarationProgramBuilder, DeclarationRule, DeclarationValidationReport,
-    DeclarationViolation, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
-    InstanceDeclaration, ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration,
-    PackageTarget, Parameter, ParameterOwner, ParameterRole, ProgramBuildError,
-    ProgramBuildFailure, ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin,
-    RejectedDeclarationAnalysis, VariantDeclaration, Visibility,
+    Body, BodyOwner, CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
+    CallableProvenanceContract, ConstantDeclaration, ConstructionDeclaration, DeclarationDomain,
+    DeclarationProgramBuilder, DeclarationRule, DeclarationValidationReport, DeclarationViolation,
+    DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration,
+    ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter,
+    ParameterOwner, ParameterRole, ProgramBuildError, ProgramBuildFailure, ProgramIntegrityError,
+    ProgramValidationError, ProvenanceOrigin, RejectedDeclarationAnalysis, VariantDeclaration,
+    Visibility,
 };
 
 #[test]
@@ -428,7 +428,7 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
             .unwrap();
         program.set_standard_package(standard).unwrap();
         program
-            .set_builtin_attachment_module(BuiltinAttachment::Str, standard_str)
+            .set_builtin_type_module(BuiltinType::Str, standard_str)
             .unwrap();
         let owner = if attach_from_standard_module {
             standard_str

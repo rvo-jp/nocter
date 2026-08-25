@@ -692,6 +692,7 @@ fn validate_local_name(
 
 const fn exported_entity(entity: ReservedEntity) -> Option<ExportedEntity> {
     match entity {
+        ReservedEntity::BuiltinType(builtin) => Some(ExportedEntity::BuiltinType(builtin)),
         ReservedEntity::NominalType(id) => Some(ExportedEntity::NominalType(id)),
         ReservedEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
         ReservedEntity::Interface(id) => Some(ExportedEntity::Interface(id)),

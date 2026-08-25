@@ -4,11 +4,11 @@ see ./index.nct
 
 use /internal/ptr.from_addr
 
-primitive current_allocator_state(): usize
+primitive func current_allocator_state(): usize
 
-primitive current_allocator_kind(): usize
+primitive func current_allocator_kind(): usize
 
-primitive allocation_failure_error(): error
+primitive func allocation_failure_error(): error
 
 copy struct Layout {
     size: usize

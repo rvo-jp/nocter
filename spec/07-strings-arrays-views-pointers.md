@@ -56,15 +56,15 @@ Pointer and address conversion APIs live in `std/ptr`.
 Public APIs:
 
 ```nct
-pub primitive addr<T>(pointer: *T): usize
-pub primitive from_ref<T>(value: &T): *T
-pub primitive from_ref_mut<T>(value: &+T): *T
+pub primitive func addr<T>(pointer: *T): usize
+pub primitive func from_ref<T>(value: &T): *T
+pub primitive func from_ref_mut<T>(value: &+T): *T
 ```
 
 Restricted API:
 
 ```nct
-pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive func from_addr<T>(address: usize): *T
 ```
 
 `from_addr` is package-visible within the implicit toolchain `std` package. User packages cannot
@@ -402,7 +402,9 @@ let many_lines = """
     """
 ```
 
-`str` and `&str` are built-in type syntax and do not require an import. They are not exported by `std/string` or `std/prelude`.
+`str` is declared by `pub primitive type str` in `std/str`, and `&str` applies the ordinary
+readonly-borrow type constructor to it. The compiler-selected declaration is available in every
+type context without an import; it is not exported by `std/string` or `std/prelude`.
 
 The compiler places string literal bytes into the Mach-O image. A string literal is not an owned `String`, and the compiler must not allocate a heap object for it.
 

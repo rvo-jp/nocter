@@ -8,9 +8,7 @@ use nocter_declarations::{
     NominalShape, ParameterRole, RequirementKind, RequirementSubject, StructuralCapability,
     Visibility,
 };
-use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, Symbol, TypeId, TypeKind, TypeStore,
-};
+use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SemanticEntity;
 
 mod signature;
@@ -264,6 +262,7 @@ impl<'a> Renderer<'a> {
                 self.workspace_entity(entity)?;
             }
             SemanticEntity::NominalType(_)
+            | SemanticEntity::BuiltinType(_)
             | SemanticEntity::TypeAlias(_)
             | SemanticEntity::Interface(_)
             | SemanticEntity::AssociatedType(_) => self.type_entity(entity)?,
@@ -304,6 +303,10 @@ impl<'a> Renderer<'a> {
     fn type_entity(&mut self, entity: SemanticEntity) -> Option<()> {
         let declarations = self.graph.declarations();
         match entity {
+            SemanticEntity::BuiltinType(builtin) => {
+                self.output.push_str("primitive type ");
+                self.output.push_str(builtin.spelling());
+            }
             SemanticEntity::NominalType(id) => {
                 let declaration = declarations.nominal_types().get(id)?;
                 self.visibility(declaration.site())?;
@@ -1104,7 +1107,7 @@ impl<'a> Renderer<'a> {
             return Some(());
         }
         match self.types.get(ty)? {
-            TypeKind::Builtin(builtin) => self.output.push_str(builtin_spelling(*builtin)),
+            TypeKind::Builtin(builtin) => self.output.push_str(builtin.spelling()),
             TypeKind::GenericParameter(id) => {
                 if let Some(argument) = self.generics.and_then(|arguments| arguments.get(*id))
                     && argument != ty
@@ -1321,26 +1324,6 @@ fn write_string_literal(output: &mut String, value: &str) -> fmt::Result {
     }
     output.push('"');
     Ok(())
-}
-
-const fn builtin_spelling(builtin: BuiltinType) -> &'static str {
-    match builtin {
-        BuiltinType::Bool => "bool",
-        BuiltinType::I8 => "i8",
-        BuiltinType::I16 => "i16",
-        BuiltinType::I32 => "i32",
-        BuiltinType::I64 => "i64",
-        BuiltinType::U8 => "u8",
-        BuiltinType::U16 => "u16",
-        BuiltinType::U32 => "u32",
-        BuiltinType::U64 => "u64",
-        BuiltinType::Usize => "usize",
-        BuiltinType::Isize => "isize",
-        BuiltinType::Str => "str",
-        BuiltinType::Error => "error",
-        BuiltinType::Void => "void",
-        BuiltinType::Never => "never",
-    }
 }
 
 #[cfg(test)]

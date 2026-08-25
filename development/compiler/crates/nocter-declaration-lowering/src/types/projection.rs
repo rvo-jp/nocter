@@ -71,6 +71,7 @@ pub(super) fn associated(
 
 const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {
     match entity {
+        ExportedEntity::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
         ExportedEntity::Module(id) => SemanticEntity::Module(id),
         ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
         ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),

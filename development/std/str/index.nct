@@ -12,6 +12,9 @@ see ./text.nct
 see ./views.nct
 see ./owned.nct
 
+/// Borrowed UTF-8 text with storage owned elsewhere.
+pub primitive type str
+
 /// Allocation-free iterator over separator-delimited borrowed components.
 pub struct SplitIter
 

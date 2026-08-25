@@ -1,4 +1,4 @@
-use nocter_model::{ModuleId, PackageId};
+use nocter_model::{BuiltinType, ModuleId, PackageId};
 
 /// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
 ///
@@ -21,20 +21,17 @@ pub enum StandardDeclarationRole {
     ExactSizeIteratorRemainingLenMethod,
 }
 
-/// One compiler-owned built-in surface that source declarations may extend.
+/// One anonymous structural type surface that standard source declarations may extend.
 ///
-/// These semantic roles are distinct from module path spellings. Compilation setup resolves each
-/// role to an exact module identity once, before declaration validation.
+/// Named builtin types derive their authority from their `primitive type` declarations. Only
+/// structural types without a declaration require a separate compiler-selected authority.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum BuiltinAttachment {
-    Scalar,
-    Str,
-    Error,
+pub enum StructuralAttachment {
     Slice,
 }
 
-impl BuiltinAttachment {
-    const COUNT: usize = 4;
+impl StructuralAttachment {
+    const COUNT: usize = 1;
 
     const fn index(self) -> usize {
         self as usize
@@ -45,14 +42,37 @@ impl BuiltinAttachment {
 #[derive(Debug)]
 pub struct StandardLibrary {
     package: PackageId,
-    attachment_modules: [Option<ModuleId>; BuiltinAttachment::COUNT],
+    structural_attachment_modules: [Option<ModuleId>; StructuralAttachment::COUNT],
+    builtin_type_modules: [Option<ModuleId>; BuiltinType::COUNT],
 }
 
 impl StandardLibrary {
     pub(crate) const fn new(package: PackageId) -> Self {
         Self {
             package,
-            attachment_modules: [None; BuiltinAttachment::COUNT],
+            structural_attachment_modules: [None; StructuralAttachment::COUNT],
+            builtin_type_modules: [None; BuiltinType::COUNT],
+        }
+    }
+
+    #[must_use]
+    pub const fn builtin_type_module(&self, builtin: BuiltinType) -> Option<ModuleId> {
+        self.builtin_type_modules[builtin.index()]
+    }
+
+    pub(crate) fn set_builtin_type_module(
+        &mut self,
+        builtin: BuiltinType,
+        module: ModuleId,
+    ) -> Result<(), ModuleId> {
+        let slot = &mut self.builtin_type_modules[builtin.index()];
+        match *slot {
+            None => {
+                *slot = Some(module);
+                Ok(())
+            }
+            Some(existing) if existing == module => Ok(()),
+            Some(existing) => Err(existing),
         }
     }
 
@@ -62,16 +82,19 @@ impl StandardLibrary {
     }
 
     #[must_use]
-    pub const fn attachment_module(&self, attachment: BuiltinAttachment) -> Option<ModuleId> {
-        self.attachment_modules[attachment.index()]
+    pub const fn structural_attachment_module(
+        &self,
+        attachment: StructuralAttachment,
+    ) -> Option<ModuleId> {
+        self.structural_attachment_modules[attachment.index()]
     }
 
-    pub(crate) fn set_attachment_module(
+    pub(crate) fn set_structural_attachment_module(
         &mut self,
-        attachment: BuiltinAttachment,
+        attachment: StructuralAttachment,
         module: ModuleId,
     ) -> Result<(), ModuleId> {
-        let slot = &mut self.attachment_modules[attachment.index()];
+        let slot = &mut self.structural_attachment_modules[attachment.index()];
         match *slot {
             None => {
                 *slot = Some(module);

@@ -1,7 +1,9 @@
-use nocter_compile_input::{BuiltinAttachmentInput, ModuleIdentity};
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
-use nocter_discovery::{PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest};
-use nocter_model::PackageIdentity;
+use nocter_compile_input::{ModuleIdentity, StructuralAttachmentInput};
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
+use nocter_discovery::{
+    BuiltinTypeLocator, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
+};
+use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
@@ -14,22 +16,44 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainRequest
     ToolchainRequest::new(
         package.clone(),
         module(package, &["prelude"]),
-        builtin_attachments(package),
+        structural_attachments(package),
         standard_roles(package),
     )
     .with_primitive_roles(primitive_roles(package))
+    .with_builtin_types(builtin_types(package))
 }
 
-fn builtin_attachments(package: &PackageIdentity) -> Vec<BuiltinAttachmentInput> {
-    [
-        (BuiltinAttachment::Scalar, "num"),
-        (BuiltinAttachment::Str, "str"),
-        (BuiltinAttachment::Error, "error"),
-        (BuiltinAttachment::Slice, "slice"),
-    ]
-    .into_iter()
-    .map(|(attachment, path)| BuiltinAttachmentInput::new(attachment, module(package, &[path])))
-    .collect()
+fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
+    BuiltinType::ALL
+        .iter()
+        .copied()
+        .map(|builtin| {
+            let path = match builtin {
+                BuiltinType::Bool
+                | BuiltinType::I8
+                | BuiltinType::I16
+                | BuiltinType::I32
+                | BuiltinType::I64
+                | BuiltinType::U8
+                | BuiltinType::U16
+                | BuiltinType::U32
+                | BuiltinType::U64
+                | BuiltinType::Usize
+                | BuiltinType::Isize => "num",
+                BuiltinType::Str => "str",
+                BuiltinType::Error => "error",
+                BuiltinType::Void | BuiltinType::Never => "core",
+            };
+            BuiltinTypeLocator::new(builtin, module(package, &[path]), builtin.spelling())
+        })
+        .collect()
+}
+
+fn structural_attachments(package: &PackageIdentity) -> Vec<StructuralAttachmentInput> {
+    vec![StructuralAttachmentInput::new(
+        StructuralAttachment::Slice,
+        module(package, &["slice"]),
+    )]
 }
 
 fn standard_roles(package: &PackageIdentity) -> Vec<StandardRoleLocator> {

@@ -86,7 +86,7 @@ impl BodyChecker<'_, '_> {
                 };
                 construction
             }
-            NameTarget::Builtin(builtin) => {
+            NameTarget::Exported(ExportedEntity::BuiltinType(builtin)) => {
                 let ty = self.types.builtin(builtin);
                 let Some(construction) = self.construction_surfaces.for_type(self.types, ty) else {
                     self.record_construction_interruption(member_token, completion_owner)?;
@@ -593,7 +593,9 @@ const fn construction_completion_owner(target: NameTarget) -> Option<Constructio
         NameTarget::Exported(ExportedEntity::NominalType(nominal)) => {
             Some(ConstructionCompletionOwner::Nominal(nominal))
         }
-        NameTarget::Builtin(builtin) => Some(ConstructionCompletionOwner::Builtin(builtin)),
+        NameTarget::Exported(ExportedEntity::BuiltinType(builtin)) => {
+            Some(ConstructionCompletionOwner::Builtin(builtin))
+        }
         NameTarget::Exported(_)
         | NameTarget::Parameter(_)
         | NameTarget::Local(_)

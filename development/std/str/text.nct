@@ -10,9 +10,9 @@ use /internal/ptr.from_addr
 use /string.String
 use /vec.Vec
 
-primitive str_len_raw(value: &str): usize
+primitive func str_len_raw(value: &str): usize
 
-primitive str_ptr_addr_raw(value: &str): usize
+primitive func str_ptr_addr_raw(value: &str): usize
 
 instance str {
     operator (&self == other: &Self): bool {

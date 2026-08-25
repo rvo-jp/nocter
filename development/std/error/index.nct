@@ -5,6 +5,9 @@
 
 see ./construction.nct
 
+/// The uniform recoverable failure payload carried by `T!`.
+pub primitive type error
+
 construct error {
     pub func new(code: &str, message: &str): Self
 }

@@ -238,7 +238,7 @@ fn rename_family(
                     NameTarget::Parameter(parameter) => SemanticEntity::Parameter(parameter),
                     NameTarget::Local(local) => SemanticEntity::LocalBinding(body_id, local),
                     NameTarget::Capture(capture) => SemanticEntity::Capture(body_id, capture),
-                    NameTarget::Exported(_) | NameTarget::Builtin(_) => continue,
+                    NameTarget::Exported(_) => continue,
                 };
                 if entities.contains(&capture_entity) || entities.contains(&source_entity) {
                     changed |= entities.insert(capture_entity);

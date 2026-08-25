@@ -117,6 +117,7 @@ fn classify(
     let entity = binding.entity();
     let declarations = graph.declarations();
     let kind = match entity {
+        SemanticEntity::BuiltinType(_) => SemanticHighlightKind::Type,
         SemanticEntity::Module(_) => SemanticHighlightKind::Namespace,
         SemanticEntity::NominalType(id) => match declarations.nominal_types().get(id)?.shape() {
             NominalShape::Struct { .. } => SemanticHighlightKind::Struct,

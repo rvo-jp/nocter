@@ -96,20 +96,20 @@ pub(/) const stat_mode_regular: u16
 pub(/) const stat_mode_directory: u16
 
 #target: "arm64-darwin"
-pub(/) primitive syscall1(
+pub(/) primitive func syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive syscall2(
+pub(/) primitive func syscall2(
     number: usize,
     a0: usize,
     a1: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive syscall3(
+pub(/) primitive func syscall3(
     number: usize,
     a0: usize,
     a1: usize,
@@ -117,7 +117,7 @@ pub(/) primitive syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive syscall6(
+pub(/) primitive func syscall6(
     number: usize,
     a0: usize,
     a1: usize,
@@ -128,4 +128,4 @@ pub(/) primitive syscall6(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive trap(): never
+pub(/) primitive func trap(): never

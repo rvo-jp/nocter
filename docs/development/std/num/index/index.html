@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-25">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/num/index.nct - Nocter">
@@ -156,6 +156,39 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
+
+<span class="token-comment">/// Boolean truth value.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">bool</span>
+
+<span class="token-comment">/// Signed 8-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">i8</span>
+
+<span class="token-comment">/// Signed 16-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">i16</span>
+
+<span class="token-comment">/// Signed 32-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">i32</span>
+
+<span class="token-comment">/// Signed 64-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">i64</span>
+
+<span class="token-comment">/// Unsigned 8-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">u8</span>
+
+<span class="token-comment">/// Unsigned 16-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">u16</span>
+
+<span class="token-comment">/// Unsigned 32-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">u32</span>
+
+<span class="token-comment">/// Unsigned 64-bit integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">u64</span>
+
+<span class="token-comment">/// Pointer-sized unsigned integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">usize</span>
+
+<span class="token-comment">/// Pointer-sized signed integer.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">isize</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
 

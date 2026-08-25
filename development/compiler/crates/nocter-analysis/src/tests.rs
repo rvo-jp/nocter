@@ -173,11 +173,44 @@ fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
 }
 
 #[test]
+fn named_builtin_uses_present_and_navigate_through_the_selected_declaration() {
+    let tree = TempTree::new();
+    let source_text = "func identity(value: i32): i32 { value }\n";
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(49));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("i32").unwrap()).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .expect("builtin type use has no semantic subject");
+
+    assert_eq!(subject.presentation().code(), "primitive type i32");
+    let definitions = snapshot.semantic_definition(source.id(), offset);
+    assert_eq!(definitions.len(), 1);
+    let definition_source = snapshot
+        .sources()
+        .get(definitions[0].source())
+        .expect("builtin definition source is absent");
+    assert!(
+        definition_source
+            .name()
+            .as_str()
+            .ends_with("/std/num/index.nct")
+    );
+}
+
+#[test]
 fn declaration_diagnostics_are_complete_while_safe_body_semantics_remain_available() {
     let tree = TempTree::new();
     let source_text = concat!(
-        "primitive first(): usize\n",
-        "primitive second(): usize\n",
+        "primitive func first(): usize\n",
+        "primitive func second(): usize\n",
         "func inspect(value: i32): i32 {\n",
         "    let local = value\n",
         "    return local\n",

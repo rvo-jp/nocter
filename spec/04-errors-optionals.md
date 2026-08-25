@@ -28,8 +28,11 @@ type, `error`. An `error` is an owned, move-only handle; it is not a pair of bor
 
 Rules:
 
-- `error` is compiler built-in type-position syntax, like `str`, `i32`, and `never`.
-- `error` is not looked up through imports and cannot be redefined as a type declaration.
+- `error` is a named compiler built-in type declared by the selected `std/error` module with
+  `pub primitive type error`, like the declarations of `str`, `i32`, and `never` in their owning
+  standard modules.
+- `error` is available in every type context without an import and cannot be shadowed or redeclared
+  by ordinary source.
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
 - `void!` is the sole fallible form whose success branch carries no payload. It represents normal
@@ -80,7 +83,7 @@ Its source-private representation primitive is authored with the implementation 
 the same two inputs but returns an owned error with no input provenance:
 
 ```nct
-primitive new_error(
+primitive func new_error(
     code: &str,
     message: &str,
 ): error

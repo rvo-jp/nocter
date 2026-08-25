@@ -1,7 +1,7 @@
 use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
 use nocter_model::{
-    AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
-    GenericParameterId, NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
+    AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericParameterId,
+    NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -290,14 +290,6 @@ impl BodyChecker<'_, '_> {
                 }
                 Ok(ty)
             }
-            NodeKind::BuiltinType => {
-                let token = direct_token(self.tree(), node)
-                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                let Some(builtin) = builtin_type(self.token_text(token)?) else {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-                };
-                Ok(self.types.builtin(builtin))
-            }
             NodeKind::NamedType => {
                 let segments = self.named_segments(node)?;
                 self.resolve_named_segments(node, segments)
@@ -457,7 +449,15 @@ impl BodyChecker<'_, '_> {
         let mut segments = Vec::<NamedSegment>::new();
         for element in self.tree().children(node) {
             match element {
-                SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
+                SyntaxElement::Token(token)
+                    if matches!(
+                        token.kind(),
+                        TokenKind::Identifier
+                            | TokenKind::Keyword(
+                                nocter_syntax::Keyword::Void | nocter_syntax::Keyword::Never
+                            )
+                    ) =>
+                {
                     segments.push(NamedSegment {
                         token: *token,
                         arguments: Vec::new(),
@@ -729,6 +729,13 @@ impl BodyChecker<'_, '_> {
             .map(|argument| self.resolve_type_use(argument))
             .collect::<Result<Vec<_>, _>>()?;
         match entity {
+            ExportedEntity::BuiltinType(builtin) => {
+                if arguments.is_empty() {
+                    Ok(self.types.builtin(builtin))
+                } else {
+                    Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?)
+                }
+            }
             ExportedEntity::NominalType(definition) => {
                 let nominal = self
                     .graph
@@ -926,6 +933,7 @@ impl BodyChecker<'_, '_> {
         entity: ExportedEntity,
     ) -> Result<(), BodyCheckInternalError> {
         let entity = match entity {
+            ExportedEntity::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
             ExportedEntity::Module(id) => SemanticEntity::Module(id),
             ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
             ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
@@ -946,26 +954,5 @@ impl BodyChecker<'_, '_> {
         self.projections
             .push(super::NodeProjection::new(entity, origin));
         Ok(())
-    }
-}
-
-fn builtin_type(spelling: &str) -> Option<BuiltinType> {
-    match spelling {
-        "bool" => Some(BuiltinType::Bool),
-        "i8" => Some(BuiltinType::I8),
-        "i16" => Some(BuiltinType::I16),
-        "i32" => Some(BuiltinType::I32),
-        "i64" => Some(BuiltinType::I64),
-        "u8" => Some(BuiltinType::U8),
-        "u16" => Some(BuiltinType::U16),
-        "u32" => Some(BuiltinType::U32),
-        "u64" => Some(BuiltinType::U64),
-        "usize" => Some(BuiltinType::Usize),
-        "isize" => Some(BuiltinType::Isize),
-        "str" => Some(BuiltinType::Str),
-        "error" => Some(BuiltinType::Error),
-        "void" => Some(BuiltinType::Void),
-        "never" => Some(BuiltinType::Never),
-        _ => None,
     }
 }

@@ -1,7 +1,8 @@
 use std::fmt;
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_declarations::{BuiltinAttachment, StandardDeclarationRole};
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
+use nocter_model::BuiltinType;
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
@@ -9,9 +10,10 @@ use nocter_syntax::NodeKind;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolchainDiscoveryError {
     ModuleOutsideStandardPackage(ModuleIdentity),
-    DuplicateBuiltinAttachment(BuiltinAttachment),
+    DuplicateStructuralAttachment(StructuralAttachment),
     DuplicateStandardRole(StandardDeclarationRole),
     DuplicatePrimitiveRole(PrimitiveRole),
+    DuplicateBuiltinType(BuiltinType),
     MissingRoleDeclaration {
         role: StandardDeclarationRole,
         module: ModuleIdentity,
@@ -34,6 +36,16 @@ pub enum ToolchainDiscoveryError {
         module: ModuleIdentity,
         name: Box<str>,
     },
+    MissingBuiltinTypeDeclaration {
+        builtin: BuiltinType,
+        module: ModuleIdentity,
+        name: Box<str>,
+    },
+    AmbiguousBuiltinTypeDeclaration {
+        builtin: BuiltinType,
+        module: ModuleIdentity,
+        name: Box<str>,
+    },
 }
 
 impl fmt::Display for ToolchainDiscoveryError {
@@ -43,10 +55,10 @@ impl fmt::Display for ToolchainDiscoveryError {
                 formatter,
                 "toolchain module {module:?} is outside the selected standard package"
             ),
-            Self::DuplicateBuiltinAttachment(attachment) => {
+            Self::DuplicateStructuralAttachment(attachment) => {
                 write!(
                     formatter,
-                    "toolchain repeats {attachment:?} built-in attachment"
+                    "toolchain repeats {attachment:?} structural attachment"
                 )
             }
             Self::DuplicateStandardRole(role) => {
@@ -57,6 +69,9 @@ impl fmt::Display for ToolchainDiscoveryError {
             }
             Self::DuplicatePrimitiveRole(role) => {
                 write!(formatter, "toolchain repeats {role:?} primitive role")
+            }
+            Self::DuplicateBuiltinType(builtin) => {
+                write!(formatter, "toolchain repeats {builtin:?} built-in type")
             }
             Self::MissingRoleDeclaration {
                 role,
@@ -83,6 +98,22 @@ impl fmt::Display for ToolchainDiscoveryError {
             Self::AmbiguousPrimitiveDeclaration { role, module, name } => write!(
                 formatter,
                 "toolchain primitive {role:?} matches multiple primitive declarations named {name:?} in {module:?}"
+            ),
+            Self::MissingBuiltinTypeDeclaration {
+                builtin,
+                module,
+                name,
+            } => write!(
+                formatter,
+                "toolchain built-in type {builtin:?} cannot find primitive type {name:?} in {module:?}"
+            ),
+            Self::AmbiguousBuiltinTypeDeclaration {
+                builtin,
+                module,
+                name,
+            } => write!(
+                formatter,
+                "toolchain built-in type {builtin:?} matches multiple primitive type declarations named {name:?} in {module:?}"
             ),
         }
     }

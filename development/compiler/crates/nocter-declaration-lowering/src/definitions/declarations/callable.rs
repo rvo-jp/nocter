@@ -72,7 +72,7 @@ fn callable_owner(
     declaration: SurfaceDeclarationId,
 ) -> Result<CallableOwner, HeaderDefinitionError> {
     match surface_kind(types, declaration)? {
-        SurfaceDeclarationKind::Function | SurfaceDeclarationKind::Primitive => {
+        SurfaceDeclarationKind::Function | SurfaceDeclarationKind::PrimitiveFunction => {
             let surface = types
                 .namespaces
                 .imports
@@ -109,7 +109,7 @@ fn callable_kind(
 ) -> Result<CallableKind, HeaderDefinitionError> {
     Ok(match surface_kind(types, declaration)? {
         SurfaceDeclarationKind::Function => CallableKind::Function,
-        SurfaceDeclarationKind::Primitive => CallableKind::Primitive,
+        SurfaceDeclarationKind::PrimitiveFunction => CallableKind::Primitive,
         SurfaceDeclarationKind::InterfaceMethod
         | SurfaceDeclarationKind::InherentMethod
         | SurfaceDeclarationKind::ConformanceMethod => CallableKind::Method,

@@ -629,7 +629,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = "primitive forbidden(): void\nprimitive also_forbidden(): void\n\nstruct Value {\n    number: i32\n}\n";
+        let text = "primitive func forbidden(): void\nprimitive func also_forbidden(): void\n\nstruct Value {\n    number: i32\n}\n";
         let mut text_json = String::new();
         nocter_json::write_string(&mut text_json, text);
         let opened = server.receive(&format!(
@@ -799,7 +799,7 @@ mod tests {
         let uri = format!("file://{}", source.display());
         let text = concat!(
             "#package: { name: \"ordinary\", version: \"0.1.0\" }\n",
-            "primitive unauthorized(): i32\n",
+            "primitive func unauthorized(): i32\n",
             "instance str {\n",
             "    method &self.inspect(): i32 {\n",
             "        let retained = identity(1)\n",
@@ -1083,7 +1083,9 @@ mod tests {
         ));
         assert_eq!(
             tokens.response(),
-            Some(r#"{"jsonrpc":"2.0","id":2,"result":{"resultId":"1","data":[0,6,4,10,1]}}"#)
+            Some(
+                r#"{"jsonrpc":"2.0","id":2,"result":{"resultId":"1","data":[0,6,4,10,1,0,9,4,1,0]}}"#
+            )
         );
         assert!(tokens.issue().is_none());
 

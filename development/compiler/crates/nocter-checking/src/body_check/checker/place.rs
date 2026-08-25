@@ -579,7 +579,9 @@ impl BodyChecker<'_, '_> {
                     .capture_type(capture)
                     .ok_or(BodyCheckInternalError::MissingCaptureType(capture))?,
             ),
-            _ => return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into()),
+            NameTarget::Exported(_) => {
+                return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into());
+            }
         })
     }
 }

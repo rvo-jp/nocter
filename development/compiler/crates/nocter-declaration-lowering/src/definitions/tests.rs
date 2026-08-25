@@ -61,11 +61,10 @@ test headers { return }
 "#;
 use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, ToolchainInput,
-    UseResolutionInput, apply_toolchain_profile, bind_header_type_syntax,
-    collect_declaration_surface, evaluate_header_constants, normalize_header_types,
-    prepare_authored_imports, prepare_declaration_headers, prepare_generic_binders,
-    reserve_declaration_identities,
+    ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
+    apply_toolchain_profile, bind_header_type_syntax, collect_declaration_surface,
+    evaluate_header_constants, normalize_header_types, prepare_authored_imports,
+    prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
 };
 
 use super::define_declaration_headers_recovering;
@@ -133,6 +132,15 @@ fn try_lower<'syntax>(
     uses: Vec<UseResolutionInput>,
     prelude: &ModuleIdentity,
 ) -> Result<crate::LoweredDeclarations, super::HeaderDefinitionError> {
+    let builtin_source = modules
+        .iter()
+        .find(|module| {
+            module.identity().package() == prelude.package() && module.identity().path().is_empty()
+        })
+        .and_then(|module| module.sources().first())
+        .map(crate::ModuleSourceInput::syntax)
+        .expect("test standard package has no root builtin source");
+    let toolchain = crate::test_support::test_toolchain(prelude.clone(), builtin_source);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
@@ -140,18 +148,13 @@ fn try_lower<'syntax>(
         modules,
         uses,
     )
-    .with_source_visibility_resolutions(source_visibilities);
+    .with_source_visibility_resolutions(source_visibilities)
+    .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let toolchain = ToolchainInput::new(
-        prelude.package().clone(),
-        prelude.clone(),
-        Vec::new(),
-        Vec::new(),
-    );
     let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let bound = evaluate_header_constants(bound)?;
@@ -163,7 +166,11 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", source_text);
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
@@ -172,6 +179,7 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+    let toolchain = crate::test_support::test_toolchain(prelude.clone(), &std_root);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -190,17 +198,14 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
             ),
         ],
         vec![],
-    );
+    )
+    .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
     let reserved = reserve_declaration_identities(surface).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_toolchain_profile(
-        imports,
-        &ToolchainInput::new(prelude.package().clone(), prelude, Vec::new(), Vec::new()),
-    )
-    .unwrap();
+    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let bound = match evaluate_header_constants(bound) {
         Ok(bound) => bound,
@@ -215,42 +220,7 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
 
 #[test]
 fn freezes_complete_header_graph_with_exact_leaf_ownership() {
-    let mut sources = SourceMap::new();
-    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
-    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
-    let prelude_id = add_source(
-        &mut sources,
-        "/std/prelude/index.nct",
-        "pub func shared(): void { return }\n",
-    );
-    let app_id = add_source(&mut sources, "/app/index.nct", FULL_HEADER_SOURCE);
-    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
-    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
-    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
-    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
-    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
-    let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-    let lowered = lower(
-        &sources,
-        vec![
-            package("workspace:app", "app", "/app/index.nct", &app_manifest),
-            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
-        ],
-        vec![
-            module("workspace:app", &[], "/app/index.nct", &app_tree),
-            module("toolchain:std", &[], "/std/index.nct", &std_root),
-            module(
-                "toolchain:std",
-                &["prelude"],
-                "/std/prelude/index.nct",
-                &prelude_tree,
-            ),
-        ],
-        vec![],
-        vec![],
-        &prelude,
-    );
+    let (sources, lowered) = lower_full_header_program();
     let program = lowered.program();
     let declarations = program.declarations();
 
@@ -317,6 +287,50 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     assert_provenance_annotations(declarations);
     assert!(lowered.source_index().len() > declarations.callables().len());
     assert_exact_unnamed_origins(&sources, &lowered);
+}
+
+fn lower_full_header_program() -> (SourceMap, crate::LoweredDeclarations) {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
+    let prelude_id = add_source(
+        &mut sources,
+        "/std/prelude/index.nct",
+        "pub func shared(): void { return }\n",
+    );
+    let app_id = add_source(&mut sources, "/app/index.nct", FULL_HEADER_SOURCE);
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
+    let lowered = lower(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("toolchain:std", "std", "/std/index.nct", &std_manifest),
+        ],
+        vec![
+            module("workspace:app", &[], "/app/index.nct", &app_tree),
+            module("toolchain:std", &[], "/std/index.nct", &std_root),
+            module(
+                "toolchain:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude_tree,
+            ),
+        ],
+        vec![],
+        vec![],
+        &prelude,
+    );
+    (sources, lowered)
 }
 
 fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
@@ -400,7 +414,11 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let root_id = add_source(
         &mut sources,
@@ -481,7 +499,7 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
 fn rejects_ambiguous_bodyless_result_provenance() {
     for source in [
         "interface Choose {\n    pub method &self.choose(other: &Self): &Self\n}\n",
-        "primitive choose<T>(left: &T, right: &T): &T\n",
+        "primitive func choose<T>(left: &T, right: &T): &T\n",
     ] {
         let error = definition_error(source);
         assert!(matches!(
@@ -497,7 +515,7 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
     for source in [
         "func invalid(...items: i32, tail: i32): void { return }\n",
         "func invalid(...first: i32, ...second: i32): void { return }\n",
-        "primitive invalid(...items: i32): void\n",
+        "primitive func invalid(...items: i32): void\n",
         "enum Invalid { value(...items: i32) }\n",
     ] {
         assert!(matches!(
@@ -672,8 +690,8 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
 #[test]
 fn declaration_freeze_projects_every_independent_rule_violation() {
     let source = concat!(
-        "primitive first(): usize\n",
-        "primitive second(): usize\n",
+        "primitive func first(): usize\n",
+        "primitive func second(): usize\n",
         "enum Empty {}\n",
     );
     let super::HeaderDefinitionError::Declaration(diagnostics) = definition_error(source) else {
@@ -695,7 +713,7 @@ fn declaration_freeze_projects_every_independent_rule_violation() {
             .iter()
             .map(|diagnostic| diagnostic.primary().span().range().start().get())
             .collect::<Vec<_>>(),
-        [0, 25, 51]
+        [0, 30, 61]
     );
 }
 
@@ -704,7 +722,11 @@ fn complete_header_identity_is_independent_of_input_order() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(
         &mut sources,
@@ -769,7 +791,11 @@ fn declaration_diagnostic_is_independent_of_compile_unit_input_order() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let app_id = add_source(&mut sources, "/app/index.nct", "enum Empty {}\n");
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
@@ -813,7 +839,11 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
-    let std_root_id = add_source(&mut sources, "/std/index.nct", "");
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
     let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
     let contract_id = add_source(
         &mut sources,

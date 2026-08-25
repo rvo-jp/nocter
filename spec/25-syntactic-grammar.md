@@ -181,7 +181,7 @@ Item = TargetDirective? TargetableItem
 
 TargetableItem = FunctionDeclaration
                | ConstantDeclaration
-               | PrimitiveDeclaration
+               | PrimitiveTypeDeclaration
                | TypeAliasDeclaration
                | StructDeclaration
                | EnumDeclaration
@@ -230,21 +230,25 @@ Semantic declaration validation permits at most one `...` parameter in final pos
 supported callable. Sequence-literal definitions require exactly one such parameter and no fixed
 parameter. Other declaration forms reject the modifier.
 
-## Functions, Primitives, and Aliases
+## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? "primitive"? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
 
-PrimitiveDeclaration = Visibility? "primitive" Name GenericParameters? Parameters
-                       CallableTail
+PrimitiveTypeDeclaration = Visibility? "primitive" "type" PrimitiveTypeName
+
+PrimitiveTypeName = Name | "void" | "never"
 
 TypeAliasDeclaration = Visibility? "type" Name GenericParameters? "=" Type
                        WhereClause?
 ```
 
-A primitive never has a source body. An ordinary function is recognized with a body or as a
-bodyless contract; module composition and visibility rules decide whether the latter is valid.
+A function carrying `primitive` never has a source body. A function without that modifier is
+recognized with a body or as a bodyless contract; module composition and visibility rules decide
+whether the latter is valid. Semantic toolchain validation restricts `PrimitiveTypeName` to the
+exact closed built-in declaration selected for that source token; accepting a syntactic `Name`
+here does not create an open user-defined primitive-type facility.
 
 ## Structs and Enums
 
