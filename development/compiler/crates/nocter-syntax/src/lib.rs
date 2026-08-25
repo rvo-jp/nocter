@@ -15,9 +15,10 @@ pub use literal::{
     DecodedStringPart, decode_plain_string_expression, decode_string_expression,
     decode_string_literal, decode_string_text,
 };
+pub use nocter_language::BuiltinType;
 pub use parser::{ParseGoal, parse};
 pub use query::declaration_name_token;
-pub use token::{BuiltinType, Keyword, Punctuation, StringDelimiter, Token, TokenKind};
+pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{
     MissingSyntax, NodeId, NodeKind, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree, TokenId,
 };

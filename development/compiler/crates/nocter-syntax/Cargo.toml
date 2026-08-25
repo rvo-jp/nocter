@@ -7,8 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-language = { path = "../nocter-language" }
 nocter-source = { path = "../nocter-source" }
 
 [lints]
 workspace = true
-

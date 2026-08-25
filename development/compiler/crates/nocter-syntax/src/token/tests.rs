@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::BuiltinType;
+use crate::BuiltinType;
 
 #[test]
 fn builtin_type_spellings_are_closed_and_round_trip() {

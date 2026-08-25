@@ -1,12 +1,10 @@
 [package]
-name = "nocter-model"
+name = "nocter-language"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-
-[dependencies]
-nocter-language = { path = "../nocter-language" }
+publish = false
 
 [lints]
 workspace = true

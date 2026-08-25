@@ -1877,6 +1877,10 @@ name = "nocter-json"
 version = "0.0.0"
 
 [[package]]
+name = "nocter-language"
+version = "0.0.0"
+
+[[package]]
 name = "nocter-language-server"
 version = "0.0.0"
 dependencies = [
@@ -1939,6 +1943,9 @@ dependencies = [
 [[package]]
 name = "nocter-model"
 version = "0.0.0"
+dependencies = [
+ "nocter-language",
+]
 
 [[package]]
 name = "nocter-package"
@@ -2030,6 +2037,7 @@ dependencies = [
 name = "nocter-syntax"
 version = "0.0.0"
 dependencies = [
+ "nocter-language",
  "nocter-source",
 ]
 

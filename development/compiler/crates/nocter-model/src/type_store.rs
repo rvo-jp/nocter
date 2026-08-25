@@ -1,78 +1,13 @@
 use std::collections::HashMap;
 use std::fmt;
 
+pub use nocter_language::BuiltinType;
+
 use crate::id::SemanticId;
 use crate::{
     AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
     ResultProvenance, TypeId,
 };
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum BuiltinType {
-    Bool,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    Usize,
-    Isize,
-    Str,
-    Error,
-    Void,
-    Never,
-}
-
-impl BuiltinType {
-    pub const COUNT: usize = 15;
-
-    pub const ALL: &'static [Self] = &[
-        Self::Bool,
-        Self::I8,
-        Self::I16,
-        Self::I32,
-        Self::I64,
-        Self::U8,
-        Self::U16,
-        Self::U32,
-        Self::U64,
-        Self::Usize,
-        Self::Isize,
-        Self::Str,
-        Self::Error,
-        Self::Void,
-        Self::Never,
-    ];
-
-    #[must_use]
-    pub const fn index(self) -> usize {
-        self as usize
-    }
-
-    #[must_use]
-    pub const fn spelling(self) -> &'static str {
-        match self {
-            Self::Bool => "bool",
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Usize => "usize",
-            Self::Isize => "isize",
-            Self::Str => "str",
-            Self::Error => "error",
-            Self::Void => "void",
-            Self::Never => "never",
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BorrowCapability {
