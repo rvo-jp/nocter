@@ -173,6 +173,17 @@ fn toolchain_roles_are_located_without_discovery_owned_syntax_authority() {
 }
 
 #[test]
+fn body_recovery_promotes_or_discards_one_isolated_transaction() {
+    let pipeline = source("crates/nocter-checking/src/body_check/pipeline.rs");
+    assert!(pipeline.contains("struct BodySemanticTransaction"));
+    assert!(pipeline.contains("transaction.commit(types, copyabilities, closures)"));
+    assert!(!pipeline.contains("*types = type_checkpoint"));
+    assert!(!pipeline.contains("*copyabilities = copyability_checkpoint"));
+    assert!(!pipeline.contains("prepared.types.clone()"));
+    assert!(!pipeline.contains("prepared.copyabilities.clone()"));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));

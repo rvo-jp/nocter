@@ -104,16 +104,8 @@ fn check_prepared_program_internal<'syntax>(
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let mut prepared = prepared.into_parts();
     let mut closures = ClosureTableBuilder::new();
-    let mut checked_types = if retain_prepared {
-        prepared.types.clone()
-    } else {
-        std::mem::take(&mut prepared.types)
-    };
-    let mut checked_copyabilities = if retain_prepared {
-        prepared.copyabilities.clone()
-    } else {
-        std::mem::take(&mut prepared.copyabilities)
-    };
+    let mut checked_types = std::mem::take(&mut prepared.types);
+    let mut checked_copyabilities = std::mem::take(&mut prepared.copyabilities);
     let facts = BodyProgramFacts::from_prepared(&prepared);
 
     let CheckedBodiesOutput {
@@ -475,8 +467,6 @@ fn check_declared_bodies<'input, 'syntax>(
     let mut first_error = None;
     let mut interruptions = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
-        let checkpoint =
-            retain_recovery.then(|| (types.clone(), copyabilities.clone(), closures.clone()));
         let source = body_sources
             .get(body)
             .ok_or(BodyCheckInternalError::MissingBodySource(body))
@@ -490,16 +480,20 @@ fn check_declared_bodies<'input, 'syntax>(
                 BodyCheckInternalError::BodyIdentityMismatch(body).into(),
             ));
         }
-        let unit = BodyUnitInput {
+        let attempt = attempt_body(
+            input,
+            facts,
             source,
             names,
-            closure_ids: reserve_body_closures(closures, source),
-        };
-        let body_checker = BodyChecker::new(input, facts, types, copyabilities, closures, unit)
-            .map_err(RecoveringBodyConstructionFailure::single)?;
-        let mut body_output = match body_checker.check() {
+            retain_recovery,
+            (types, copyabilities, closures),
+        );
+        let mut body_output = match attempt {
             Ok(output) => output,
-            Err(failure) => {
+            Err(BodyAttemptFailure {
+                failure,
+                mut transaction,
+            }) => {
                 let (error, interruption) = failure.into_parts();
                 if !retain_recovery {
                     return Err(RecoveringBodyConstructionFailure {
@@ -511,7 +505,16 @@ fn check_declared_bodies<'input, 'syntax>(
                 }
                 let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
                 if let Some(interruption) = interruption {
-                    interruptions.push((interruption, types.clone(), copyabilities.clone()));
+                    let transaction = transaction
+                        .take()
+                        .expect("recovery body attempt must own its isolated transaction");
+                    let (interrupted_types, interrupted_copyabilities) =
+                        transaction.into_recovery_snapshot();
+                    interruptions.push((
+                        interruption,
+                        interrupted_types,
+                        interrupted_copyabilities,
+                    ));
                 }
                 if !recoverable {
                     return Err(RecoveringBodyConstructionFailure {
@@ -521,14 +524,6 @@ fn check_declared_bodies<'input, 'syntax>(
                         projections,
                     });
                 }
-                let Some((type_checkpoint, copyability_checkpoint, closure_checkpoint)) =
-                    checkpoint
-                else {
-                    return Err(RecoveringBodyConstructionFailure::single(error));
-                };
-                *types = type_checkpoint;
-                *copyabilities = copyability_checkpoint;
-                *closures = closure_checkpoint;
                 if first_error.is_none() {
                     first_error = Some(error);
                 }
@@ -557,6 +552,122 @@ fn check_declared_bodies<'input, 'syntax>(
         opaque_witnesses,
         associated_type_completion_contexts,
     })
+}
+
+fn attempt_body<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+    facts: BodyProgramFacts<'input>,
+    source: BodySource<'syntax>,
+    names: &'input ResolvedBodyNames,
+    retain_recovery: bool,
+    state: (
+        &'input mut TypeStore,
+        &'input mut CopyabilityTable,
+        &'input mut ClosureTableBuilder,
+    ),
+) -> Result<CheckedBodyOutput, BodyAttemptFailure> {
+    let (types, copyabilities, closures) = state;
+    if !retain_recovery {
+        return construct_body(
+            input,
+            facts,
+            source,
+            names,
+            (types, copyabilities, closures),
+        )
+        .map_err(|failure| BodyAttemptFailure {
+            failure,
+            transaction: None,
+        });
+    }
+    let mut transaction = BodySemanticTransaction::fork(types, copyabilities, closures);
+    match construct_body(input, facts, source, names, transaction.parts_mut()) {
+        Ok(output) => {
+            transaction.commit(types, copyabilities, closures);
+            Ok(output)
+        }
+        Err(failure) => Err(BodyAttemptFailure {
+            failure,
+            transaction: Some(Box::new(transaction)),
+        }),
+    }
+}
+
+struct BodyAttemptFailure {
+    failure: super::error::BodyConstructionFailure,
+    transaction: Option<Box<BodySemanticTransaction>>,
+}
+
+/// An isolated mutable branch for one body.
+///
+/// A successful branch is promoted atomically. A rejected branch is retained only when an exact
+/// typed interruption needs it; otherwise dropping the value is the rollback operation. This
+/// keeps recovery from restoring checker internals field by field.
+struct BodySemanticTransaction {
+    types: TypeStore,
+    copyabilities: CopyabilityTable,
+    closures: ClosureTableBuilder,
+}
+
+impl BodySemanticTransaction {
+    fn fork(
+        types: &TypeStore,
+        copyabilities: &CopyabilityTable,
+        closures: &ClosureTableBuilder,
+    ) -> Self {
+        Self {
+            types: types.clone(),
+            copyabilities: copyabilities.clone(),
+            closures: closures.clone(),
+        }
+    }
+
+    fn parts_mut(
+        &mut self,
+    ) -> (
+        &mut TypeStore,
+        &mut CopyabilityTable,
+        &mut ClosureTableBuilder,
+    ) {
+        (&mut self.types, &mut self.copyabilities, &mut self.closures)
+    }
+
+    fn commit(
+        self,
+        types: &mut TypeStore,
+        copyabilities: &mut CopyabilityTable,
+        closures: &mut ClosureTableBuilder,
+    ) {
+        *types = self.types;
+        *copyabilities = self.copyabilities;
+        *closures = self.closures;
+    }
+
+    fn into_recovery_snapshot(self) -> (TypeStore, CopyabilityTable) {
+        (self.types, self.copyabilities)
+    }
+}
+
+fn construct_body<'input, 'syntax>(
+    input: &'input CompileUnitInput<'syntax>,
+    facts: BodyProgramFacts<'input>,
+    source: BodySource<'syntax>,
+    names: &'input ResolvedBodyNames,
+    state: (
+        &'input mut TypeStore,
+        &'input mut CopyabilityTable,
+        &'input mut ClosureTableBuilder,
+    ),
+) -> Result<CheckedBodyOutput, super::error::BodyConstructionFailure> {
+    let (types, copyabilities, closures) = state;
+    let unit = BodyUnitInput {
+        source,
+        names,
+        closure_ids: reserve_body_closures(closures, source),
+    };
+    BodyChecker::new(input, facts, types, copyabilities, closures, unit)
+        .map_err(|error| super::error::BodyConstructionFailure::new(error, None))?
+        .check()
 }
 
 #[derive(Clone, Copy)]
