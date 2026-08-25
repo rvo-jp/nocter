@@ -7,6 +7,7 @@ use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
+use nocter_native_session::NativeImageSetCompileRequest;
 use nocter_package::{
     ExactDependencyLock, PackageResolutionError, ResolvedPackageGraph, ResolvedPackageSpec,
     StandardPackage,
@@ -14,10 +15,7 @@ use nocter_package::{
 use nocter_package_state::{
     LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
 };
-use nocter_session::{
-    ExecutableCompileRequest, ExecutableSelector, NativeImageSetCompileRequest,
-    bundled_standard_toolchain,
-};
+use nocter_session::{ExecutableCompileRequest, ExecutableSelector, bundled_standard_toolchain};
 use nocter_test_support::{PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicPackageExample};
 
 use super::artifact::persist_bytes;

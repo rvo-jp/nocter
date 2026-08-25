@@ -11,9 +11,12 @@ use nocter_runtime_contract::PrimitiveRole;
 use nocter_test_support::PUBLIC_PACKAGE_EXAMPLES;
 
 use super::{
-    ExecutableCompileRequest, NativeImageSetCompileRequest, NativeTestCompileRequest,
-    NativeTestTargetOutcome, analyze_incomplete_syntax, analyze_target, bundled_standard_toolchain,
-    compile_native_image, compile_native_images, compile_native_tests, compile_target,
+    NativeImageSetCompileRequest, NativeTestCompileRequest, NativeTestTargetOutcome,
+    compile_native_image, compile_native_images, compile_native_tests,
+};
+use nocter_session::{
+    ExecutableCompileRequest, analyze_incomplete_syntax, analyze_target,
+    bundled_standard_toolchain, compile_target,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);

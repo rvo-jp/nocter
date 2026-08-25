@@ -2,10 +2,11 @@ use std::fmt;
 use std::path::Path;
 
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_session::{
-    ExecutableCompileRequest, ExecutableIdentity, NativeImageSetCompileRequest,
-    NativeImageSetError, NativeSessionError, compile_native_image, compile_native_images,
+use nocter_native_session::{
+    NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError, compile_native_image,
+    compile_native_images,
 };
+use nocter_session::{ExecutableCompileRequest, ExecutableIdentity};
 use nocter_source_index::SourceIndex;
 
 use crate::SelectedBuildOutput;
@@ -109,7 +110,7 @@ pub fn build_selected_executable(
         }
     };
     let (image, source_index) = compiled.into_parts();
-    let artifact = persist_native_image(&image, output)?;
+    let artifact = persist_native_image(image.bytes(), output)?;
     Ok(BuiltExecutable {
         artifact,
         source_index,
@@ -136,7 +137,7 @@ pub fn build_executables(
     for (image, output) in images.into_vec().into_iter().zip(plan.outputs()) {
         debug_assert_eq!(image.identity(), output.identity());
         let (identity, image) = image.into_parts();
-        let artifact = persist_native_image(&image, output.path()).map_err(|error| {
+        let artifact = persist_native_image(image.bytes(), output.path()).map_err(|error| {
             BuildSetCommandError::Artifact {
                 executable: identity.clone(),
                 error,

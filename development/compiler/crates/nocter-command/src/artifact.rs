@@ -4,8 +4,6 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_macho::MachOImage;
-
 static TEMPORARY_ID: AtomicU64 = AtomicU64::new(0);
 
 /// One persistent executable committed atomically at its final path.
@@ -61,11 +59,11 @@ impl Drop for TemporaryArtifact {
 ///
 /// Returns the exact create, write, permission, synchronization, or rename operation that failed.
 pub fn persist_native_image(
-    image: &MachOImage,
+    image: &[u8],
     output: impl AsRef<Path>,
 ) -> Result<PersistentArtifact, ArtifactError> {
     let output = output.as_ref();
-    persist_bytes(image.bytes(), output)?;
+    persist_bytes(image, output)?;
     Ok(PersistentArtifact {
         path: output.to_path_buf(),
     })
@@ -77,11 +75,11 @@ pub fn persist_native_image(
 ///
 /// Returns the exact directory or executable operation that failed. Any created temporary object
 /// is removed before an error is returned.
-pub fn stage_temporary_image(image: &MachOImage) -> Result<TemporaryArtifact, ArtifactError> {
+pub fn stage_temporary_image(image: &[u8]) -> Result<TemporaryArtifact, ArtifactError> {
     let parent = std::env::temp_dir();
     let directory = create_unique_directory(&parent)?;
     let executable = directory.join("program");
-    if let Err(error) = persist_bytes(image.bytes(), &executable) {
+    if let Err(error) = persist_bytes(image, &executable) {
         let _ = fs::remove_dir_all(&directory);
         return Err(error);
     }

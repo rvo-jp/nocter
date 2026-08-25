@@ -5,11 +5,11 @@ use std::process::Command;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveryFailure;
 use nocter_model::{CompilationTarget, PackageIdentity};
-use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::{
+use nocter_native_session::{
     NativeTestCompileRequest, NativeTestSessionError, NativeTestTargetOutcome, TestCaseIdentity,
     compile_native_tests,
 };
+use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_source::SourceMap;
 
 use crate::failure::command_compilation_failure;
@@ -328,7 +328,7 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
 }
 
 fn run_compiled_target(
-    compiled: nocter_session::CompiledNativeTestSet,
+    compiled: nocter_native_session::CompiledNativeTestSet,
     target: &TestRunTarget,
     working_directory: &Path,
 ) -> Result<Vec<TestRunResult>, TestCommandIntegrityError> {
@@ -450,10 +450,10 @@ fn finish_test_result(
 fn run_test_case(
     target: TestRunTarget,
     test: TestCaseIdentity,
-    image: &nocter_macho::MachOImage,
+    image: &nocter_native_session::NativeImage,
     working_directory: &Path,
 ) -> TestRunResult {
-    let artifact = match stage_temporary_image(image) {
+    let artifact = match stage_temporary_image(image.bytes()) {
         Ok(artifact) => artifact,
         Err(error) => return runner_failure(target, test, error.to_string()),
     };

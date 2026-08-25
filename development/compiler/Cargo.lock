@@ -1739,8 +1739,8 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-discovery",
  "nocter-json",
- "nocter-macho",
  "nocter-model",
+ "nocter-native-session",
  "nocter-package",
  "nocter-package-state",
  "nocter-session",
@@ -1948,6 +1948,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-native-session"
+version = "0.0.0"
+dependencies = [
+ "nocter-arm64",
+ "nocter-checking",
+ "nocter-compile-input",
+ "nocter-diagnostics",
+ "nocter-discovery",
+ "nocter-machine",
+ "nocter-macho",
+ "nocter-mir",
+ "nocter-model",
+ "nocter-package",
+ "nocter-runtime-contract",
+ "nocter-session",
+ "nocter-source-index",
+ "nocter-target-program",
+ "nocter-test-support",
+]
+
+[[package]]
 name = "nocter-package"
 version = "0.0.0"
 dependencies = [
@@ -1991,23 +2012,17 @@ dependencies = [
 name = "nocter-session"
 version = "0.0.0"
 dependencies = [
- "nocter-arm64",
  "nocter-checking",
  "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
- "nocter-machine",
- "nocter-macho",
- "nocter-mir",
  "nocter-model",
- "nocter-package",
  "nocter-runtime-contract",
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",
- "nocter-test-support",
 ]
 
 [[package]]

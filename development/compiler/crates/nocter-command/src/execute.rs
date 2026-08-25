@@ -1,7 +1,8 @@
 use std::fmt;
 
+use nocter_native_session::NativeImageSetCompileRequest;
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::{ExecutableCompileRequest, NativeImageSetCompileRequest};
+use nocter_session::ExecutableCompileRequest;
 
 use crate::failure::command_compilation_failure;
 use crate::source::{CommandCompileRoots, discover_command_source};

@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_session::{ExecutableCompileRequest, NativeSessionError, compile_native_image};
+use nocter_native_session::{NativeSessionError, compile_native_image};
+use nocter_session::ExecutableCompileRequest;
 use nocter_source_index::SourceIndex;
 
 use crate::{ArtifactError, stage_temporary_image};
@@ -49,7 +50,7 @@ pub fn run_executable(
 ) -> Result<ExecutedProgram, RunCommandError> {
     let compiled = compile_native_image(request)?;
     let (image, source_index) = compiled.into_parts();
-    let artifact = stage_temporary_image(&image)?;
+    let artifact = stage_temporary_image(image.bytes())?;
     let executable = artifact.path().to_path_buf();
     let launched = Command::new(&executable)
         .current_dir(working_directory)

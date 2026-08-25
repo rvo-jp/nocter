@@ -14,7 +14,9 @@ use nocter_target_program::{
     ExecutableProgram, TargetProgram, select_test_case, select_test_target,
 };
 
-use crate::{CompileSessionError, NativeImageError, compile_target};
+use nocter_session::{CompileSessionError, TestTargetSelector, compile_target};
+
+use crate::{NativeImage, NativeImageError};
 
 /// Resolver-stable identity of one package-declared test target.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -60,20 +62,6 @@ impl TestCaseIdentity {
     }
 }
 
-/// User-visible test-target selection, kept separate from source declaration identities.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum TestTargetSelector {
-    All,
-    Named(Box<str>),
-}
-
-impl TestTargetSelector {
-    #[must_use]
-    pub fn named(name: impl Into<Box<str>>) -> Self {
-        Self::Named(name.into())
-    }
-}
-
 /// One closed native test compilation request.
 #[derive(Debug)]
 pub struct NativeTestCompileRequest<'unit> {
@@ -116,7 +104,7 @@ impl<'unit> NativeTestCompileRequest<'unit> {
 #[derive(Debug)]
 pub struct NativeTestImage {
     identity: TestCaseIdentity,
-    image: MachOImage,
+    image: NativeImage,
 }
 
 impl NativeTestImage {
@@ -126,12 +114,12 @@ impl NativeTestImage {
     }
 
     #[must_use]
-    pub const fn image(&self) -> &MachOImage {
+    pub const fn image(&self) -> &NativeImage {
         &self.image
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (TestCaseIdentity, MachOImage) {
+    pub fn into_parts(self) -> (TestCaseIdentity, NativeImage) {
         (self.identity, self.image)
     }
 }
@@ -279,7 +267,9 @@ fn compile_test_target(
                         "native test name does not match its semantic identity".into(),
                     ));
                 }
-                let image = MachOImage::build(test.program()).map_err(NativeImageError::Image)?;
+                let image = NativeImage::from_macho(
+                    MachOImage::build(test.program()).map_err(NativeImageError::Image)?,
+                );
                 Ok(NativeTestImage { identity, image })
             })
             .collect::<Result<Vec<_>, NativeImageError>>()

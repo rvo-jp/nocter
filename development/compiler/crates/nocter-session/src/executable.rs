@@ -114,7 +114,13 @@ fn select_executable(
     }
 }
 
-pub(crate) fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
+/// Returns executable identities owned by root packages in declaration order.
+///
+/// # Panics
+///
+/// Panics only if `program` violates its validated package-target integrity guarantees.
+#[must_use]
+pub fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
     let graph = program.checked().graph();
     let root_packages = graph.root_packages();
     graph
@@ -142,7 +148,12 @@ pub(crate) fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentit
         .collect()
 }
 
-pub(crate) fn close_executable(
+/// Closes one previously selected executable identity over its target program.
+///
+/// # Errors
+///
+/// Returns an executable-closure error if the selected root cannot produce a closed program.
+pub fn close_executable(
     target: Arc<TargetProgram>,
     selected: &ExecutableIdentity,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {

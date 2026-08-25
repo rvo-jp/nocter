@@ -24,6 +24,7 @@ members = [
     "crates/nocter-macho",
     "crates/nocter-model",
     "crates/nocter-mir",
+    "crates/nocter-native-session",
     "crates/nocter-package",
     "crates/nocter-package-acquisition",
     "crates/nocter-package-state",

@@ -30,6 +30,26 @@ fn production_dependencies(crate_name: &str) -> BTreeSet<String> {
         .collect()
 }
 
+fn production_dependency_closure(crate_name: &str) -> BTreeSet<String> {
+    fn visit(crate_name: &str, closure: &mut BTreeSet<String>) {
+        for dependency in production_dependencies(crate_name) {
+            if closure.insert(dependency.clone())
+                && workspace()
+                    .join("crates")
+                    .join(&dependency)
+                    .join("Cargo.toml")
+                    .is_file()
+            {
+                visit(&dependency, closure);
+            }
+        }
+    }
+
+    let mut closure = BTreeSet::new();
+    visit(crate_name, &mut closure);
+    closure
+}
+
 #[test]
 fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
@@ -74,6 +94,32 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
         assert_eq!(
             actual, allowed,
             "review production dependencies for {crate_name}"
+        );
+    }
+}
+
+#[test]
+fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
+    let forbidden = [
+        "nocter-arm64",
+        "nocter-machine",
+        "nocter-macho",
+        "nocter-mir",
+        "nocter-native-session",
+    ];
+    for crate_name in [
+        "nocter-session",
+        "nocter-analysis",
+        "nocter-language-server",
+    ] {
+        let closure = production_dependency_closure(crate_name);
+        let inherited = forbidden
+            .iter()
+            .filter(|dependency| closure.contains(**dependency))
+            .collect::<Vec<_>>();
+        assert!(
+            inherited.is_empty(),
+            "{crate_name} inherits native backend crates: {inherited:?}"
         );
     }
 }

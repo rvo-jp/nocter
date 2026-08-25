@@ -1,5 +1,5 @@
 [package]
-name = "nocter-command"
+name = "nocter-native-session"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,20 +7,22 @@ license.workspace = true
 publish = false
 
 [dependencies]
-nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-arm64 = { path = "../nocter-arm64" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-discovery = { path = "../nocter-discovery" }
-nocter-json = { path = "../nocter-json" }
+nocter-machine = { path = "../nocter-machine" }
+nocter-macho = { path = "../nocter-macho" }
+nocter-mir = { path = "../nocter-mir" }
 nocter-model = { path = "../nocter-model" }
-nocter-native-session = { path = "../nocter-native-session" }
-nocter-package = { path = "../nocter-package" }
-nocter-package-state = { path = "../nocter-package-state" }
 nocter-session = { path = "../nocter-session" }
-nocter-source = { path = "../nocter-source" }
 nocter-source-index = { path = "../nocter-source-index" }
-nocter-source-tooling = { path = "../nocter-source-tooling" }
+nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]
+nocter-checking = { path = "../nocter-checking" }
+nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-package = { path = "../nocter-package" }
+nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

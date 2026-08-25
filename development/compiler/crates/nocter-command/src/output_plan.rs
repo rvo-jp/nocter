@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
-use nocter_session::{ExecutableIdentity, NativeImageEntry};
+use nocter_native_session::NativeImageEntry;
+use nocter_session::ExecutableIdentity;
 
 /// Filesystem-independent output assignment for one complete native image set.
 #[derive(Debug)]

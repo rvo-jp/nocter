@@ -7,12 +7,13 @@ use nocter_machine::{MachineProgram, MachineProgramError};
 use nocter_macho::{MachOError, MachOImage};
 use nocter_mir::{MirLoweringError, lower_executable};
 
-use crate::executable::{close_executable, root_executables};
-use crate::{
-    CompileSessionError, CompiledNativeImage, CompiledNativeImageSet, ExecutableCompileRequest,
-    ExecutableIdentity, ExecutableSessionError, NativeImageEntry, compile_executable,
-    compile_target,
+use nocter_session::{
+    CompileSessionError, ExecutableCompileRequest, ExecutableIdentity, ExecutableSessionError,
+    compile_executable, compile_target,
 };
+
+use crate::output::{CompiledNativeImage, CompiledNativeImageSet, NativeImage, NativeImageEntry};
+use crate::{close_executable, root_executables};
 
 /// Compiles one selected executable through the complete native image boundary.
 ///
@@ -81,11 +82,11 @@ pub fn compile_native_images(
 
 fn lower_native_image(
     executable: nocter_target_program::ExecutableProgram,
-) -> Result<MachOImage, NativeImageError> {
+) -> Result<NativeImage, NativeImageError> {
     let mir = lower_executable(executable)?;
     let machine = MachineProgram::lower(&mir)?;
     let arm64 = Arm64Program::lower_machine(&machine)?;
-    Ok(MachOImage::build(&arm64)?)
+    Ok(NativeImage::from_macho(MachOImage::build(&arm64)?))
 }
 
 #[derive(Debug)]

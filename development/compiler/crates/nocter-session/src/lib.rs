@@ -7,11 +7,10 @@
 mod analysis;
 mod error;
 mod executable;
-mod native;
 mod output;
 mod profile;
 mod semantic_analysis;
-mod test;
+mod test_selection;
 
 pub use analysis::{
     CompileTargetFailure, IncompleteSyntaxAnalysis, analyze_incomplete_syntax, analyze_target,
@@ -19,23 +18,12 @@ pub use analysis::{
 pub use error::CompileSessionError;
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,
-    ExecutableSessionError, compile_executable,
+    ExecutableSessionError, close_executable, compile_executable, root_executables,
 };
-pub use native::{
-    NativeImageError, NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError,
-    compile_native_image, compile_native_images,
-};
-pub use output::{
-    CompiledExecutable, CompiledNativeImage, CompiledNativeImageSet, CompiledTarget,
-    NativeImageEntry,
-};
+pub use output::{CompiledExecutable, CompiledTarget};
 pub use profile::bundled_standard_toolchain;
 pub use semantic_analysis::SemanticAnalysis;
-pub use test::{
-    CompiledNativeTestSet, NativeTestCompileRequest, NativeTestImage, NativeTestSessionError,
-    NativeTestTargetCompilation, NativeTestTargetOutcome, TestCaseIdentity, TestTargetIdentity,
-    TestTargetSelectionError, TestTargetSelector, compile_native_tests,
-};
+pub use test_selection::TestTargetSelector;
 
 use nocter_discovery::DiscoveredUnit;
 
@@ -48,6 +36,3 @@ use nocter_discovery::DiscoveredUnit;
 pub fn compile_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, CompileSessionError> {
     analysis::compile_target_without_recovery(unit).map_err(|failure| (*failure).into_error())
 }
-
-#[cfg(test)]
-mod tests;

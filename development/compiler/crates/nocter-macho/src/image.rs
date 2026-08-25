@@ -86,6 +86,11 @@ impl MachOImage {
     pub const fn bytes(&self) -> &[u8] {
         &self.bytes
     }
+
+    #[must_use]
+    pub fn into_bytes(self) -> Box<[u8]> {
+        self.bytes
+    }
 }
 
 struct ImageLayout {
