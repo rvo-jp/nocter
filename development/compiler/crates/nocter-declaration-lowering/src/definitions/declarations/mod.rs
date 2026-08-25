@@ -433,8 +433,13 @@ fn conformance_bindings(
         let token = syntax::direct_identifier(tree, child)
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
         let name = projection::symbol(types, declaration, token)?;
-        let associated =
-            associated_by_name(types, interface.interface(), name).ok_or_else(|| {
+        let associated = types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .associated_type(interface.interface(), name)
+            .ok_or_else(|| {
                 HeaderDefinitionError::from(DefinitionViolation::new(
                     DefinitionRule::UnknownAssociatedTypeBinding,
                     SyntaxOrigin::Token(token),
@@ -475,23 +480,6 @@ fn conformance_bindings(
         result.push(AssociatedTypeBinding::new(associated, ty));
     }
     Ok(result.into_boxed_slice())
-}
-
-fn associated_by_name(
-    types: &PreparedTypes<'_>,
-    interface: InterfaceId,
-    sought: nocter_model::Symbol,
-) -> Option<AssociatedTypeId> {
-    (0..surface_count(types)).find_map(|index| {
-        let declaration = SurfaceDeclarationId::from_index(index);
-        let Some(ReservedEntity::AssociatedType(associated)) = entity(types, declaration) else {
-            return None;
-        };
-        let owner = surface_owner(types, declaration).ok()?;
-        (entity(types, owner) == Some(ReservedEntity::Interface(interface))
-            && name(types, declaration).ok() == Some(sought))
-        .then_some(associated)
-    })
 }
 
 fn child_fields(

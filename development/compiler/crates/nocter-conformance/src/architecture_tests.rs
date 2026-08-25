@@ -240,6 +240,11 @@ fn named_associated_types_are_indexed_once_at_header_resolution() {
         source("crates/nocter-declaration-lowering/src/types/normalization/preparation.rs");
     assert!(preparation.contains(".associated_types()"));
     assert!(!preparation.contains("fn collect_associated("));
+
+    let definitions =
+        source("crates/nocter-declaration-lowering/src/definitions/declarations/mod.rs");
+    assert!(definitions.contains(".associated_type(interface.interface(), name)"));
+    assert!(!definitions.contains("fn associated_by_name("));
 }
 
 #[test]
