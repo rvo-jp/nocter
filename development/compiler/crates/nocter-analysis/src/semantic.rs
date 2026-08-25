@@ -5,8 +5,8 @@ use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
 use crate::presentation::{
-    PresentationError, SemanticPresentation, declaration_presentation, hover_presentation,
-    name_recovery_presentation, prepared_presentation,
+    PresentationError, SemanticPresentation, body_recovery_presentation, declaration_presentation,
+    hover_presentation, name_recovery_presentation,
 };
 use crate::source_context::{SourceContext, SourceContextError};
 use crate::source_selection::select_source_binding;
@@ -190,10 +190,30 @@ impl<'a> SemanticAuthority<'a> {
         }
     }
 
+    pub(crate) fn types(&self) -> &'a nocter_model::TypeStore {
+        match self {
+            Self::Checked { checked, .. } => checked.types(),
+            Self::Bodies(analysis) => analysis.prepared().types(),
+            Self::Names(recovery) => recovery.types(),
+            Self::Declarations(recovery) => recovery.types(),
+        }
+    }
+
     pub(crate) fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
         match self {
             Self::Checked { checked, .. } => Some(checked),
             Self::Bodies(_) | Self::Names(_) | Self::Declarations(_) => None,
+        }
+    }
+
+    pub(crate) fn body(
+        &self,
+        body: nocter_model::BodyId,
+    ) -> Option<&'a nocter_checking::CheckedBody> {
+        match self {
+            Self::Checked { checked, .. } => checked.bodies().get(body),
+            Self::Bodies(analysis) => analysis.body(body),
+            Self::Names(_) | Self::Declarations(_) => None,
         }
     }
 
@@ -240,7 +260,7 @@ impl<'a> SemanticAuthority<'a> {
             Self::Checked { checked, .. } => {
                 crate::presentation::presentation(checked, entity, spellings)
             }
-            Self::Bodies(analysis) => prepared_presentation(analysis.prepared(), entity, spellings),
+            Self::Bodies(analysis) => body_recovery_presentation(analysis, entity, spellings),
             Self::Names(analysis) => name_recovery_presentation(analysis, entity, spellings),
             Self::Declarations(analysis) => declaration_presentation(analysis, entity, spellings),
         }
@@ -266,7 +286,7 @@ impl<'a> SemanticAuthority<'a> {
                     source_index,
                     source,
                 );
-                Ok(prepared_presentation(prepared, entity, &spellings))
+                Ok(body_recovery_presentation(analysis, entity, &spellings))
             }
             Self::Names(recovery) => {
                 let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(

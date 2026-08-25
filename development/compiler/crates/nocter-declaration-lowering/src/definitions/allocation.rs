@@ -133,8 +133,11 @@ pub(super) fn finish_recovering(
                 ) => match super::DeclarationDiagnostic::project(violation, &source_index) {
                     Ok(diagnostic) => {
                         let recovery = rejected.map(|rejected| {
-                            let (graph, types) = rejected.into_parts();
-                            crate::DeclarationLoweringRecovery::new(graph, types, source_index)
+                            crate::DeclarationLoweringRecovery::new(
+                                rejected.into_analysis_program(),
+                                frontend_bindings,
+                                source_index,
+                            )
                         });
                         (HeaderDefinitionError::Declaration(diagnostic), recovery)
                     }
@@ -145,7 +148,6 @@ pub(super) fn finish_recovering(
                 },
                 error => (HeaderDefinitionError::Program(error), None),
             };
-            drop(frontend_bindings);
             Err(HeaderDefinitionFailure::new(error, recovery))
         }
     }

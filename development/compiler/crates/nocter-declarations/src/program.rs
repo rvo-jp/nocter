@@ -7,9 +7,9 @@ use nocter_model::{
 };
 
 use crate::{
-    BuiltinAttachment, DeclarationArenaBuilder, DeclarationArenas, ExportedEntity,
-    ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
-    ProgramValidationError, StandardLibrary, Visibility,
+    BuiltinAttachment, DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas,
+    ExportedEntity, ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath,
+    PackageTarget, ProgramValidationError, StandardLibrary, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -710,6 +710,40 @@ impl RejectedDeclarationProgram {
     #[must_use]
     pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
         self.program.into_parts()
+    }
+
+    /// Converts structurally valid but compilation-rejected declarations into an editor-only
+    /// checking input. Global operation admission is frozen before the accepted program is
+    /// destroyed, so later analysis cannot accidentally activate an unauthorized extension.
+    #[must_use]
+    pub fn into_analysis_program(self) -> AnalysisDeclarationProgram {
+        AnalysisDeclarationProgram::new(self.program)
+    }
+}
+
+/// Structurally valid declaration facts that may enter editor body analysis but never a
+/// production compilation transition.
+#[derive(Debug)]
+pub struct AnalysisDeclarationProgram {
+    graph: DeclarationGraph,
+    types: TypeStore,
+    admission: DeclarationAnalysisAdmission,
+}
+
+impl AnalysisDeclarationProgram {
+    fn new(program: DeclarationProgram) -> Self {
+        let admission = DeclarationAnalysisAdmission::for_rejected(&program);
+        let (graph, types) = program.into_parts();
+        Self {
+            graph,
+            types,
+            admission,
+        }
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationGraph, TypeStore, DeclarationAnalysisAdmission) {
+        (self.graph, self.types, self.admission)
     }
 }
 

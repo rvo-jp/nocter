@@ -1,5 +1,5 @@
 use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::{
     Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, Symbol, TypeId,
@@ -132,6 +132,7 @@ pub struct ConformanceTable {
     entries: Arena<ConformanceId, CheckedConformance>,
     by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
     interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
+    admitted: BTreeSet<ConformanceId>,
 }
 
 impl ConformanceTable {
@@ -139,11 +140,13 @@ impl ConformanceTable {
         entries: Arena<ConformanceId, CheckedConformance>,
         by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
         interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
+        admitted: BTreeSet<ConformanceId>,
     ) -> Self {
         Self {
             entries,
             by_interface,
             interfaces_by_method,
+            admitted,
         }
     }
 
@@ -158,6 +161,11 @@ impl ConformanceTable {
             .get(interface)
             .map(AsRef::as_ref)
             .unwrap_or_default()
+    }
+
+    #[must_use]
+    pub(crate) fn is_admitted(&self, conformance: ConformanceId) -> bool {
+        self.admitted.contains(&conformance)
     }
 
     /// Returns interfaces declaring one method name in canonical declaration identity order.

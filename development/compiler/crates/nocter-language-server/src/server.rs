@@ -791,6 +791,98 @@ mod tests {
     }
 
     #[test]
+    fn authority_diagnostics_do_not_hide_independently_typed_body_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("index.nct");
+        let uri = format!("file://{}", source.display());
+        let text = concat!(
+            "#package: { name: \"ordinary\", version: \"0.1.0\" }\n",
+            "primitive unauthorized(): i32\n",
+            "instance str {\n",
+            "    method &self.inspect(): i32 {\n",
+            "        let retained = identity(1)\n",
+            "        return retained\n",
+            "    }\n",
+            "}\n",
+            "func identity(value: i32): i32 { return value }\n",
+        );
+        fs::write(&source, text).unwrap();
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert!(!snapshot.has_checked_semantics());
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0208");
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":14}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nlet retained: i32\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":3,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":4,\"character\":0}},",
+                "\"end\":{{\"line\":4,\"character\":34}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":4,\"character\":20},",
+                "\"label\":\": i32\",\"kind\":1"
+            )),
+            "{response}"
+        );
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":33}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("func identity(value: i32): i32"),
+            "{response}"
+        );
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let source = snapshot
+            .sources()
+            .iter()
+            .find(|candidate| candidate.text() == text)
+            .unwrap();
+        assert!(
+            snapshot
+                .semantic_highlights(source.id())
+                .iter()
+                .any(|highlight| {
+                    highlight.kind() == SemanticHighlightKind::Variable
+                        && source.text_at(highlight.range()) == Some("retained")
+                })
+        );
+    }
+
+    #[test]
     fn type_hover_uses_the_visible_compiler_owned_construction_surface() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

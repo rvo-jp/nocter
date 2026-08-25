@@ -324,6 +324,44 @@ fn recovery_collects_body_interruptions_independently_of_declaration_order() {
 }
 
 #[test]
+fn recovery_retains_independently_successful_typed_bodies() {
+    for source in [
+        concat!(
+            "func invalid(input: i32?): i32 { input? }\n",
+            "func valid(): i32 { let retained = 1\nretained }\n",
+        ),
+        concat!(
+            "func valid(): i32 { let retained = 1\nretained }\n",
+            "func invalid(input: i32?): i32 { input? }\n",
+        ),
+    ] {
+        let fixture = Fixture::new(source);
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let failure = check_prepared_program_recovering(&input, prepared).unwrap_err();
+        let recovery = failure.recovery().expect("body recovery");
+        let recovered = recovery
+            .prepared()
+            .graph()
+            .declarations()
+            .bodies()
+            .iter()
+            .filter_map(|(body, _)| recovery.body(body))
+            .collect::<Vec<_>>();
+
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].locals().len(), 1);
+        assert_eq!(
+            recovered[0].locals().iter().next().unwrap().1.ty(),
+            recovery.prepared().types().builtin(BuiltinType::I32)
+        );
+    }
+}
+
+#[test]
 fn recovery_joins_fallback_ownership_with_the_success_path() {
     let error = check(
         "struct Owned { value: i32 }\n\

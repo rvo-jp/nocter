@@ -1,23 +1,18 @@
 use std::collections::HashMap;
 
-use nocter_model::{BorrowCapability, BuiltinType, ModuleId, NominalTypeId, TypeId, TypeKind};
+use nocter_model::{ModuleId, TypeId};
 
-use crate::{
-    BuiltinAttachment, CallableKind, CallableOwner, DeclarationProgram, LiteralShape, NominalShape,
-    ParameterRole, Visibility,
+use crate::analysis_admission::{
+    AttachmentTarget, attachment_target, conformance_target_is_authorized,
+    inherent_target_is_authorized, is_standard_package_module, outcome_payload,
+    valid_literal_signature,
 };
+use crate::{CallableKind, CallableOwner, DeclarationProgram, NominalShape};
 
 use super::{
     DeclarationDomain, DeclarationRule, DeclarationViolation, ProgramIntegrityError,
     ProgramValidationError, require,
 };
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-enum AttachmentTarget {
-    Nominal(NominalTypeId),
-    Builtin(BuiltinType),
-    Slice,
-}
 
 pub(super) fn validate_ownership(
     program: &DeclarationProgram,
@@ -156,7 +151,7 @@ fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramVal
                 );
             }
             if let CallableKind::Literal(shape) = member.kind()
-                && !valid_literal_signature(program, member, construction.target(), shape)?
+                && !valid_literal_signature(program, member, construction.target(), shape)
             {
                 return related_violation(
                     DeclarationRule::InvalidLiteralSignature,
@@ -167,43 +162,6 @@ fn validate_constructions(program: &DeclarationProgram) -> Result<(), ProgramVal
         }
     }
     Ok(())
-}
-
-fn valid_literal_signature(
-    program: &DeclarationProgram,
-    callable: &crate::CallableDeclaration,
-    target: TypeId,
-    shape: LiteralShape,
-) -> Result<bool, ProgramIntegrityError> {
-    let site = require(
-        program.declaration_sites().get(callable.site()),
-        DeclarationDomain::Callable,
-        DeclarationDomain::DeclarationSite,
-    )?;
-    let [parameter] = callable.parameters() else {
-        return Ok(false);
-    };
-    let parameter = require(
-        program.declarations().parameters().get(*parameter),
-        DeclarationDomain::Callable,
-        DeclarationDomain::Parameter,
-    )?;
-    if site.visibility() != Visibility::Public || callable.result() != target {
-        return Ok(false);
-    }
-    Ok(match shape {
-        LiteralShape::Sequence => parameter.role() == ParameterRole::ArgumentPack { position: 0 },
-        LiteralShape::String => {
-            parameter.role() == ParameterRole::Ordinary { position: 0 }
-                && matches!(
-                    program.types().get(parameter.ty()),
-                    Some(TypeKind::Borrow {
-                        capability: BorrowCapability::Readonly,
-                        referent,
-                    }) if *referent == program.types().builtin(BuiltinType::Str)
-                )
-        }
-    })
 }
 
 fn validate_instances(program: &DeclarationProgram) -> Result<(), ProgramValidationError> {
@@ -226,7 +184,7 @@ fn validate_conformances(program: &DeclarationProgram) -> Result<(), ProgramVali
         match attachment_target(program, conformance.target()) {
             Some(AttachmentTarget::Nominal(_)) => {}
             Some(AttachmentTarget::Builtin(_) | AttachmentTarget::Slice) => {
-                if !is_standard_package_module(program, module) {
+                if !conformance_target_is_authorized(program, conformance.target(), module) {
                     return violation(
                         DeclarationRule::BuiltinConformanceAuthority,
                         conformance.site(),
@@ -324,74 +282,12 @@ fn require_inherent_target(
                 );
             }
         }
-        AttachmentTarget::Builtin(builtin) => {
-            let Some(attachment) = builtin_attachment(builtin) else {
-                return violation(DeclarationRule::InvalidInherentAttachment, site);
-            };
-            if !is_standard_attachment_module(program, module, attachment) {
-                return violation(DeclarationRule::InvalidInherentAttachment, site);
-            }
-        }
-        AttachmentTarget::Slice => {
-            if !is_standard_attachment_module(program, module, BuiltinAttachment::Slice) {
-                return violation(DeclarationRule::InvalidInherentAttachment, site);
-            }
-        }
+        AttachmentTarget::Builtin(_) | AttachmentTarget::Slice => {}
+    }
+    if !inherent_target_is_authorized(program, ty, module) {
+        return violation(DeclarationRule::InvalidInherentAttachment, site);
     }
     Ok(target)
-}
-
-fn attachment_target(program: &DeclarationProgram, ty: TypeId) -> Option<AttachmentTarget> {
-    match program.types().get(ty)? {
-        TypeKind::Nominal { definition, .. } => Some(AttachmentTarget::Nominal(*definition)),
-        TypeKind::Builtin(builtin) => Some(AttachmentTarget::Builtin(*builtin)),
-        TypeKind::Slice(_) => Some(AttachmentTarget::Slice),
-        _ => None,
-    }
-}
-
-fn builtin_attachment(builtin: BuiltinType) -> Option<BuiltinAttachment> {
-    match builtin {
-        BuiltinType::Bool
-        | BuiltinType::I8
-        | BuiltinType::I16
-        | BuiltinType::I32
-        | BuiltinType::I64
-        | BuiltinType::U8
-        | BuiltinType::U16
-        | BuiltinType::U32
-        | BuiltinType::U64
-        | BuiltinType::Usize
-        | BuiltinType::Isize => Some(BuiltinAttachment::Scalar),
-        BuiltinType::Str => Some(BuiltinAttachment::Str),
-        BuiltinType::Error => Some(BuiltinAttachment::Error),
-        BuiltinType::Void | BuiltinType::Never => None,
-    }
-}
-
-fn is_standard_attachment_module(
-    program: &DeclarationProgram,
-    module: ModuleId,
-    attachment: BuiltinAttachment,
-) -> bool {
-    program
-        .standard_library()
-        .and_then(|standard| standard.attachment_module(attachment))
-        == Some(module)
-}
-
-fn is_standard_package_module(program: &DeclarationProgram, module: ModuleId) -> bool {
-    let package = program.modules().get(module).map(crate::Module::package);
-    package.is_some() && package == program.standard_package()
-}
-
-fn outcome_payload(program: &DeclarationProgram, mut ty: TypeId) -> Option<TypeId> {
-    loop {
-        match program.types().get(ty)? {
-            TypeKind::Optional(payload) | TypeKind::Fallible(payload) => ty = *payload,
-            _ => return Some(ty),
-        }
-    }
 }
 
 fn require_same_site_module(

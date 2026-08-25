@@ -330,7 +330,10 @@ fn conformance_origin_bounds(
     summaries: &BTreeMap<CallableId, CallableSummary>,
 ) -> Result<BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>, BodyCheckError> {
     let mut bounds = BTreeMap::<CallableId, BTreeSet<ProvenanceOrigin>>::new();
-    for (_, conformance) in conformances.entries().iter() {
+    for (id, conformance) in conformances.entries().iter() {
+        if !conformances.is_admitted(id) {
+            continue;
+        }
         for method in conformance.methods() {
             let MethodSelection::Implementation(implementation) = method.selection() else {
                 continue;

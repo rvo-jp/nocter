@@ -24,6 +24,18 @@ pub enum DeclarationRule {
 }
 
 impl DeclarationRule {
+    /// Reports whether a structurally valid rejected graph can continue into editor-only body
+    /// analysis after quarantining unauthorized global operation containers.
+    #[must_use]
+    pub const fn permits_body_analysis(self) -> bool {
+        matches!(
+            self,
+            Self::InvalidInherentAttachment
+                | Self::PrimitiveAuthority
+                | Self::BuiltinConformanceAuthority
+        )
+    }
+
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {

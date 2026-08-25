@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{DeclarationAnalysisAdmission, DeclarationGraph};
 use nocter_model::{DropId, NominalTypeId, TypeId, TypeKind, TypeStore};
 
 /// Canonical association between nominal families and their type-owned drop bodies.
@@ -11,12 +11,16 @@ pub struct DropTable {
 }
 
 impl DropTable {
-    pub(crate) fn build(
+    pub(crate) fn build_with_admission(
         graph: &DeclarationGraph,
         types: &TypeStore,
+        admission: Option<&DeclarationAnalysisAdmission>,
     ) -> Result<Self, DropTableError> {
         let mut families = BTreeMap::new();
         for (drop, declaration) in graph.declarations().drops().iter() {
+            if admission.is_some_and(|admission| !admission.admits_drop(drop)) {
+                continue;
+            }
             let definition = match types.get(declaration.target()) {
                 Some(TypeKind::Nominal { definition, .. }) => *definition,
                 Some(_) => return Err(DropTableError::InvalidTarget(declaration.target())),

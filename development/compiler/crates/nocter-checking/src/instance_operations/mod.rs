@@ -11,6 +11,7 @@ mod selection;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use build::build_instance_operation_table_with_admission;
 pub use build::{
     InstanceOperationBuildError, InstanceOperationInternalError, build_instance_operation_table,
 };

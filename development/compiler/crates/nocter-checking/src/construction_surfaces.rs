@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, LiteralShape, NominalShape, Visibility,
+    CallableKind, CallableOwner, DeclarationAnalysisAdmission, DeclarationGraph, LiteralShape,
+    NominalShape, Visibility,
 };
 use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{
@@ -85,10 +86,11 @@ pub struct ConstructionSurfaceTable {
 }
 
 impl ConstructionSurfaceTable {
-    pub(crate) fn build(
+    pub(crate) fn build_with_admission(
         graph: &DeclarationGraph,
         types: &TypeStore,
         source_access: &SourceAccessTable,
+        admission: Option<&DeclarationAnalysisAdmission>,
     ) -> Result<Self, ConstructionSurfaceBuildError> {
         let mut by_family = BTreeMap::new();
         let mut by_construction = BTreeMap::new();
@@ -159,6 +161,9 @@ impl ConstructionSurfaceTable {
         }
 
         for (construction, declaration) in graph.declarations().constructions().iter() {
+            if admission.is_some_and(|admission| !admission.admits_construction(construction)) {
+                continue;
+            }
             let family = InherentTypeFamily::of(types, declaration.target()).ok_or(
                 ConstructionSurfaceBuildError::InvalidTarget(declaration.target()),
             )?;

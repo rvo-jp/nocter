@@ -16,6 +16,9 @@ pub(super) fn validate_associated_bounds(
     table: &ConformanceTable,
 ) -> Result<(), ConformanceBuildError> {
     for (id, conformance) in table.entries().iter() {
+        if !table.is_admitted(id) {
+            continue;
+        }
         let declaration = graph
             .declarations()
             .conformances()

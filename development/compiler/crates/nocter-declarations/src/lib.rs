@@ -5,6 +5,7 @@
 //! and a separate source index; semantic stages consume this program without importing the
 //! lowering or syntax crates.
 
+mod analysis_admission;
 mod arenas;
 mod callable;
 mod constant;
@@ -19,6 +20,7 @@ mod target;
 mod validate;
 mod visibility;
 
+pub use analysis_admission::DeclarationAnalysisAdmission;
 pub use arenas::{
     DeclarationArenaBuilder, DeclarationArenas, DefinitionError, IncompleteDefinition,
 };
@@ -39,8 +41,9 @@ pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{
-    DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,
-    Package, ProgramBuildError, ProgramBuildFailure, RejectedDeclarationProgram,
+    AnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder,
+    DeclarationSite, Module, Package, ProgramBuildError, ProgramBuildFailure,
+    RejectedDeclarationProgram,
 };
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,

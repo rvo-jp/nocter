@@ -86,11 +86,12 @@ pub(super) fn presentation(
 }
 
 pub(super) fn type_presentation_with_spellings(
-    checked: &CheckedProgram,
+    graph: &DeclarationGraph,
+    types: &TypeStore,
     ty: TypeId,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(checked.graph(), checked.types(), spellings);
+    let mut renderer = Renderer::new(graph, types, spellings);
     renderer.ty(ty)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -143,6 +144,50 @@ pub(super) fn prepared_presentation(
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
     semantic_presentation(prepared.graph(), prepared.types(), entity, spellings)
+}
+
+pub(super) fn body_recovery_presentation(
+    recovery: &nocter_checking::BodyAnalysisRecovery,
+    entity: SemanticEntity,
+    spellings: &visible_spelling::VisibleSpellings,
+) -> Option<SemanticPresentation> {
+    let prepared = recovery.prepared();
+    let mut renderer = Renderer::new(prepared.graph(), prepared.types(), spellings);
+    match entity {
+        SemanticEntity::LocalBinding(body, id) => {
+            let local = recovery.body(body)?.locals().get(id)?;
+            let introducer = match local.declaration().kind() {
+                LocalBindingKind::Mutable => "var",
+                LocalBindingKind::Immutable
+                | LocalBindingKind::PatternPayload
+                | LocalBindingKind::Loop
+                | LocalBindingKind::Region
+                | LocalBindingKind::Catch
+                | LocalBindingKind::ClosureParameter => "let",
+            };
+            write!(
+                renderer.output,
+                "{introducer} {}: ",
+                renderer.symbol(local.declaration().name())?
+            )
+            .ok()?;
+            renderer.ty(local.ty())?;
+        }
+        SemanticEntity::Capture(body, id) => {
+            let capture = recovery.body(body)?.captures().get(id)?;
+            write!(
+                renderer.output,
+                "capture {}: ",
+                renderer.symbol(capture.declaration().name())?
+            )
+            .ok()?;
+            renderer.ty(capture.ty())?;
+        }
+        _ => renderer.entity(None, entity)?,
+    }
+    Some(SemanticPresentation {
+        code: renderer.output.into_boxed_str(),
+    })
 }
 
 pub(super) fn name_recovery_presentation(

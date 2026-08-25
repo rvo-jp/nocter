@@ -69,6 +69,8 @@ pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
-pub use pipeline::{check_prepared_program, check_prepared_program_recovering};
+pub use pipeline::{
+    analyze_prepared_program_bodies, check_prepared_program, check_prepared_program_recovering,
+};
 mod assumptions;
 pub(crate) use assumptions::body_assumptions;

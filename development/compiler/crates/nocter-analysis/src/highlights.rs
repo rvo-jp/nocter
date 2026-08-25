@@ -1,4 +1,4 @@
-use nocter_checking::{CaptureMode, CheckedProgram, LocalBindingKind};
+use nocter_checking::{CaptureMode, LocalBindingKind};
 use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
 use nocter_model::CallableCapability;
 use nocter_source::{SourceId, TextRange};
@@ -63,13 +63,11 @@ impl AnalysisSnapshot {
         let Some(authority) = self.semantic_authority() else {
             return Box::new([]);
         };
-        let graph = authority.graph();
-        let checked = authority.checked();
         let index = authority.source_index();
         let mut candidates = index
             .bindings_in(source)
             .filter_map(|binding| {
-                highlight(graph, checked, binding)
+                highlight(authority, binding)
                     .map(|highlight| (source_binding_key(binding), highlight))
             })
             .collect::<Vec<_>>();
@@ -90,11 +88,10 @@ impl AnalysisSnapshot {
 }
 
 fn highlight(
-    graph: &nocter_declarations::DeclarationGraph,
-    checked: Option<&CheckedProgram>,
+    authority: crate::semantic::SemanticAuthority<'_>,
     binding: &SourceBinding,
 ) -> Option<SemanticHighlight> {
-    let (kind, readonly) = classify(graph, checked, binding)?;
+    let (kind, readonly) = classify(authority, binding)?;
     if matches!(binding.entity(), SemanticEntity::Module(_))
         && binding.role() != SourceRole::Reference
     {
@@ -113,10 +110,10 @@ fn highlight(
 }
 
 fn classify(
-    graph: &nocter_declarations::DeclarationGraph,
-    checked: Option<&CheckedProgram>,
+    authority: crate::semantic::SemanticAuthority<'_>,
     binding: &SourceBinding,
 ) -> Option<(SemanticHighlightKind, bool)> {
+    let graph = authority.graph();
     let entity = binding.entity();
     let declarations = graph.declarations();
     let kind = match entity {
@@ -142,12 +139,12 @@ fn classify(
             return Some((SemanticHighlightKind::Parameter, readonly));
         }
         SemanticEntity::LocalBinding(body, id) => {
-            let local = checked?.bodies().get(body)?.locals().get(id)?;
+            let local = authority.body(body)?.locals().get(id)?;
             let readonly = local.declaration().kind() != LocalBindingKind::Mutable;
             return Some((SemanticHighlightKind::Variable, readonly));
         }
         SemanticEntity::Capture(body, id) => {
-            let capture = checked?.bodies().get(body)?.captures().get(id)?;
+            let capture = authority.body(body)?.captures().get(id)?;
             let readonly = capture.declaration().mode() == CaptureMode::Readonly;
             return Some((SemanticHighlightKind::Variable, readonly));
         }

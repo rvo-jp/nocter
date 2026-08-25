@@ -1,20 +1,21 @@
 use std::fmt;
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{DeclarationGraph, DeclarationProgram};
+use nocter_declarations::{AnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
+use crate::conformance::build_conformance_table_with_admission;
+use crate::instance_operations::build_instance_operation_table_with_admission;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
     ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
     DeclarationTypeValidityError, DropTable, DropTableError, InstanceOperationBuildError,
     InstanceOperationTable, NameResolutionError, ResolvedBodyNames, StandardSemanticError,
-    StandardSemanticTable, build_conformance_table, build_instance_operation_table,
-    catalog_body_sources, validate_declaration_types,
+    StandardSemanticTable, catalog_body_sources, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -37,6 +38,18 @@ pub struct PreparedChecking<'syntax> {
     source_namespaces: SourceNamespaceTable,
     source_access: SourceAccessTable,
     source_index: SourceIndex,
+}
+
+/// Editor-only prepared bodies originating from a structurally valid but rejected declaration
+/// graph. This type deliberately has no conversion into [`PreparedChecking`] and can only enter
+/// the analysis-body endpoint.
+#[derive(Debug)]
+pub struct PreparedBodyAnalysis<'syntax>(PreparedChecking<'syntax>);
+
+impl<'syntax> PreparedBodyAnalysis<'syntax> {
+    pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
+        self.0.into_parts()
+    }
 }
 
 /// Syntax-independent semantic state completed before typed body construction.
@@ -385,8 +398,14 @@ pub fn prepare_program_checking<'syntax>(
     bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
-    prepare_program_checking_internal(input, program, bindings, source_index, false)
-        .map_err(|failure| failure.error)
+    prepare_program_checking_internal(
+        input,
+        PreparationProgram::Accepted(program),
+        bindings,
+        source_index,
+        false,
+    )
+    .map_err(|failure| failure.error)
 }
 
 /// Prepares the ordinary checking input while retaining partial lexical state on a name rule.
@@ -401,12 +420,78 @@ pub fn prepare_program_checking_recovering<'syntax>(
     bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
-    prepare_program_checking_internal(input, program, bindings, source_index, true)
+    prepare_program_checking_internal(
+        input,
+        PreparationProgram::Accepted(program),
+        bindings,
+        source_index,
+        true,
+    )
+}
+
+/// Prepares structurally valid declarations rejected by a recoverable authored authority rule.
+///
+/// Unauthorized construction, instance, and conformance containers retain bodies and lexical
+/// identities but are quarantined from global operation lookup. The input type has no production
+/// transition, so successful editor checking cannot authorize compilation.
+///
+/// # Errors
+///
+/// Returns the same preparation failures and explicit recovery contracts as ordinary checking.
+pub fn prepare_analysis_program_checking_recovering<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    program: AnalysisDeclarationProgram,
+    bindings: &FrontendBindings,
+    source_index: SourceIndex,
+) -> Result<PreparedBodyAnalysis<'syntax>, PreparationFailure> {
+    prepare_program_checking_internal(
+        input,
+        PreparationProgram::Analysis(program),
+        bindings,
+        source_index,
+        true,
+    )
+    .map(PreparedBodyAnalysis)
+}
+
+enum PreparationProgram {
+    Accepted(DeclarationProgram),
+    Analysis(AnalysisDeclarationProgram),
+}
+
+impl PreparationProgram {
+    fn into_parts(
+        self,
+    ) -> (
+        DeclarationGraph,
+        TypeStore,
+        Option<nocter_declarations::DeclarationAnalysisAdmission>,
+    ) {
+        match self {
+            Self::Accepted(program) => {
+                let (graph, types) = program.into_parts();
+                (graph, types, None)
+            }
+            Self::Analysis(program) => {
+                let (graph, types, admission) = program.into_parts();
+                (graph, types, Some(admission))
+            }
+        }
+    }
+}
+
+struct PreparedProgramAuthorities {
+    conformances: ConformanceTable,
+    construction_surfaces: ConstructionSurfaceTable,
+    instance_operations: InstanceOperationTable,
+    copyabilities: CopyabilityTable,
+    drops: DropTable,
+    standard_semantics: StandardSemanticTable,
 }
 
 fn prepare_program_checking_internal<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    program: DeclarationProgram,
+    program: PreparationProgram,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
     retain_names: bool,
@@ -414,14 +499,14 @@ fn prepare_program_checking_internal<'syntax>(
     let toolchain = input
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
-    if input.target() != program.target() {
+    let (graph, mut types, admission) = program.into_parts();
+    if input.target() != graph.target() {
         return Err(PreparationError::TargetMismatch {
             input: input.target(),
-            program: program.target(),
+            program: graph.target(),
         }
         .into());
     }
-    let (graph, mut types) = program.into_parts();
     macro_rules! declaration_stage {
         ($operation:expr) => {
             match $operation {
@@ -445,27 +530,20 @@ fn prepare_program_checking_internal<'syntax>(
             .map_err(NameResolutionError::from)
             .map_err(PreparationError::from)
     );
-    declaration_stage!(validate_declaration_types(&graph, &types, &source_index));
-    let copyabilities =
-        declaration_stage!(CopyabilityTable::build(&graph, &mut types, &source_index));
-    let drops = declaration_stage!(DropTable::build(&graph, &types));
-    let conformances =
-        declaration_stage!(build_conformance_table(&graph, &mut types, &source_index));
-    let construction_surfaces = declaration_stage!(ConstructionSurfaceTable::build(
-        &graph,
-        &types,
-        bindings.source_access(),
-    ));
-    let instance_operations = declaration_stage!(build_instance_operation_table(
+    let PreparedProgramAuthorities {
+        conformances,
+        construction_surfaces,
+        instance_operations,
+        copyabilities,
+        drops,
+        standard_semantics,
+    } = declaration_stage!(build_program_authorities(
         &graph,
         &mut types,
-        &source_index
-    ));
-    let standard_semantics = declaration_stage!(StandardSemanticTable::build(
-        toolchain.standard_roles(),
-        &graph,
-        &types,
         bindings,
+        &source_index,
+        admission.as_ref(),
+        toolchain.standard_roles(),
     ));
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
@@ -508,6 +586,38 @@ fn prepare_program_checking_internal<'syntax>(
         source_namespaces: bindings.source_namespaces().clone(),
         source_access: bindings.source_access().clone(),
         source_index,
+    })
+}
+
+fn build_program_authorities(
+    graph: &DeclarationGraph,
+    types: &mut TypeStore,
+    bindings: &FrontendBindings,
+    source_index: &SourceIndex,
+    admission: Option<&nocter_declarations::DeclarationAnalysisAdmission>,
+    standard_roles: &[nocter_compile_input::StandardRoleInput],
+) -> Result<PreparedProgramAuthorities, PreparationError> {
+    validate_declaration_types(graph, types, source_index)?;
+    let copyabilities = CopyabilityTable::build(graph, types, source_index)?;
+    let drops = DropTable::build_with_admission(graph, types, admission)?;
+    let conformances =
+        build_conformance_table_with_admission(graph, types, source_index, admission)?;
+    let construction_surfaces = ConstructionSurfaceTable::build_with_admission(
+        graph,
+        types,
+        bindings.source_access(),
+        admission,
+    )?;
+    let instance_operations =
+        build_instance_operation_table_with_admission(graph, types, source_index, admission)?;
+    let standard_semantics = StandardSemanticTable::build(standard_roles, graph, types, bindings)?;
+    Ok(PreparedProgramAuthorities {
+        conformances,
+        construction_surfaces,
+        instance_operations,
+        copyabilities,
+        drops,
+        standard_semantics,
     })
 }
 

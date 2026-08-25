@@ -1302,6 +1302,17 @@ actions all select through that view rather than maintaining feature-local recov
 Every generation first freezes its complete open-document overlay; package resolution, discovery,
 syntax, and semantic analysis all consume that one value.
 
+An authored declaration-authority violation may enter an editor-only admission path when the
+declaration graph remains structurally valid. One whole-graph admission scan classifies every
+construction, instance, conformance, and drop independently of validation traversal order.
+Unauthorized containers and locally invalid construction or drop surfaces stay available as lexical
+body owners but are excluded from global candidate indexes, overlap validation, destruction, and
+provenance selection. The analysis-only declaration and prepared-program types cannot enter the
+production checking transition. Their sole body endpoint stops before ownership and provenance.
+Body checking is transactional per body: independently successful bodies and their source
+projections remain as sparse editor evidence when another body fails, while executable dispatch and
+target closure remain unavailable.
+
 Full semantic-token results retain that snapshot identity at the protocol boundary. The language
 server passes the exact accepted analysis generation to the neutral LSP encoder as an opaque
 `resultId`; a later accepted document transition therefore cannot be mistaken for the earlier token

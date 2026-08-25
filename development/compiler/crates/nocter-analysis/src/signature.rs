@@ -68,12 +68,9 @@ impl AnalysisSnapshot {
         let Some(authority) = self.semantic_authority() else {
             return Ok(None);
         };
-        let Some(checked) = authority.checked() else {
-            return Ok(None);
-        };
         let index = authority.source_index();
         let from = SourceContext::resolve(index, source)?.module();
-        let spellings = VisibleSpellings::for_source(checked.graph(), from, index, source);
+        let spellings = VisibleSpellings::for_source(authority.graph(), from, index, source);
         let Some((body_id, _node_id, _range, call)) = index
             .bindings_in(source)
             .filter_map(|binding| {
@@ -84,7 +81,7 @@ impl AnalysisSnapshot {
                 if !range.contains_cursor(offset) {
                     return None;
                 }
-                let node = checked.bodies().get(body_id)?.nodes().get(node_id)?;
+                let node = authority.body(body_id)?.nodes().get(node_id)?;
                 let CheckedOperation::Call(call) = node.operation() else {
                     return None;
                 };
@@ -99,10 +96,15 @@ impl AnalysisSnapshot {
             | CallTarget::CallableValue {
                 dispatch: selection,
                 ..
-            } => static_signature_presentation(checked, selection, &spellings),
-            CallTarget::ClosureValue { closure, .. } => {
-                closure_signature_presentation(checked, *closure, &spellings)
-            }
+            } => static_signature_presentation(
+                authority.graph(),
+                authority.types(),
+                selection,
+                &spellings,
+            ),
+            CallTarget::ClosureValue { closure, .. } => authority
+                .checked()
+                .and_then(|checked| closure_signature_presentation(checked, *closure, &spellings)),
         };
         let Some(rendered) = rendered else {
             return Ok(None);

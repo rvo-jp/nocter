@@ -1,11 +1,11 @@
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{TypeProjection, TypeProjectionError, TypeStore};
+use nocter_model::{Arena, TypeProjection, TypeProjectionError, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
 
 use crate::member_completion::select_member_completions;
 use crate::{
-    ConstructionCompletionCandidate, ConstructionCompletionError, CopyabilityTable,
+    CheckedBody, ConstructionCompletionCandidate, ConstructionCompletionError, CopyabilityTable,
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
     PreparedSemanticProgram, TypedBodyInterruption, TypedBodyInterruptionKind,
 };
@@ -79,18 +79,21 @@ struct TypedInterruptionSnapshot {
 ///
 /// The prepared program remains the authority for declarations, names, and scopes. Every authored
 /// body failure may add one typed interruption backed by a private transactional type/copyability
-/// snapshot. Consumers can select interruptions and invoke explicit recovery queries, but cannot
-/// observe those checker stores or treat them as checked bodies.
+/// snapshot. Independently successful bodies are retained sparsely for local editor queries, but
+/// they have not passed whole-program ownership, provenance, or target closure and therefore
+/// cannot be promoted to a checked program.
 #[derive(Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
     typed: Box<[TypedInterruptionSnapshot]>,
+    bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
 }
 
 impl BodyAnalysisRecovery {
     pub(crate) fn new(
         prepared: PreparedSemanticProgram,
         typed: Vec<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+        bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
     ) -> Self {
         Self {
             prepared,
@@ -105,12 +108,21 @@ impl BodyAnalysisRecovery {
                 )
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
+            bodies,
         }
     }
 
     #[must_use]
     pub const fn prepared(&self) -> &PreparedSemanticProgram {
         &self.prepared
+    }
+
+    /// Returns typed facts for one independently successful body. The sparse body is analysis
+    /// evidence only: it has not passed whole-program ownership, provenance, or target closure and
+    /// cannot be converted into a [`crate::CheckedProgram`].
+    #[must_use]
+    pub fn body(&self, body: nocter_model::BodyId) -> Option<&CheckedBody> {
+        self.bodies.get(body)?.as_ref()
     }
 
     #[must_use]

@@ -49,7 +49,8 @@ pub use associated_type_completion::{
 };
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, TypedBodyInterruption,
-    TypedBodyInterruptionKind, check_prepared_program, check_prepared_program_recovering,
+    TypedBodyInterruptionKind, analyze_prepared_program_bodies, check_prepared_program,
+    check_prepared_program_recovering,
 };
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
@@ -126,7 +127,8 @@ pub use names::{
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
-    PreparationError, PreparationFailure, PreparedChecking, PreparedSemanticProgram,
+    PreparationError, PreparationFailure, PreparedBodyAnalysis, PreparedChecking,
+    PreparedSemanticProgram, prepare_analysis_program_checking_recovering,
     prepare_program_checking, prepare_program_checking_recovering,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparationRecovery};

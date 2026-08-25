@@ -11,6 +11,7 @@ mod validate;
 mod tests;
 
 pub use crate::type_relations::SubstitutionError;
+pub(crate) use build::build_conformance_table_with_admission;
 pub use build::{
     ConformanceBuildError, ConformanceInternalError, MissingConformanceMethods,
     build_conformance_table,

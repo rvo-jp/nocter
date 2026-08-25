@@ -10,17 +10,13 @@ pub(crate) struct RenderedSignature {
 }
 
 pub(crate) fn static_signature_presentation(
-    checked: &CheckedProgram,
+    graph: &nocter_declarations::DeclarationGraph,
+    types: &TypeStore,
     selection: &StaticSelection,
     spellings: &super::visible_spelling::VisibleSpellings,
 ) -> Option<RenderedSignature> {
-    let graph = checked.graph();
-    let mut renderer = Renderer::with_generics(
-        graph,
-        checked.types(),
-        selection.generic_arguments(),
-        spellings,
-    );
+    let mut renderer =
+        Renderer::with_generics(graph, types, selection.generic_arguments(), spellings);
     match selection.dispatch() {
         StaticDispatch::Direct(callable)
         | StaticDispatch::InterfaceMethod {

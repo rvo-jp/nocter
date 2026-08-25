@@ -48,6 +48,55 @@ pub fn check_prepared_program_recovering<'syntax>(
     check_prepared_program_internal(input, prepared, true)
 }
 
+/// Types bodies from a rejected declaration graph without opening a checked-program transition.
+///
+/// Every body is checked transactionally. Independently successful bodies become sparse editor
+/// evidence whether or not another body fails; ownership, provenance, executable dispatch, and
+/// target closure are never attempted by this endpoint.
+///
+/// # Errors
+///
+/// Returns the first canonical body error together with any independently retained body evidence.
+pub fn analyze_prepared_program_bodies<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    prepared: crate::PreparedBodyAnalysis<'syntax>,
+) -> Result<crate::BodyAnalysisRecovery, crate::BodyCheckFailure> {
+    let mut prepared = prepared.into_parts();
+    let mut closures = ClosureTableBuilder::new();
+    let mut checked_types = std::mem::take(&mut prepared.types);
+    let mut checked_copyabilities = std::mem::take(&mut prepared.copyabilities);
+    let facts = BodyProgramFacts::from_prepared(&prepared);
+    match check_declared_bodies(
+        input,
+        facts,
+        &mut checked_types,
+        &mut checked_copyabilities,
+        &mut closures,
+        BodyConstructionInput {
+            sources: &prepared.body_sources,
+            names: &prepared.body_names,
+            retain_recovery: true,
+        },
+    ) {
+        Ok(output) => build_body_analysis_recovery(
+            prepared,
+            checked_types,
+            checked_copyabilities,
+            Vec::new(),
+            output.bodies,
+            output.projections,
+        )
+        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None)),
+        Err(failure) => Err(recover_body_construction_failure(
+            failure,
+            true,
+            prepared,
+            checked_types,
+            checked_copyabilities,
+        )),
+    }
+}
+
 fn check_prepared_program_internal<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     prepared: PreparedChecking<'syntax>,
@@ -68,7 +117,7 @@ fn check_prepared_program_internal<'syntax>(
     let facts = BodyProgramFacts::from_prepared(&prepared);
 
     let CheckedBodiesOutput {
-        bodies: mut checked_bodies,
+        bodies: checked_bodies,
         projections,
         opaque_witnesses,
         associated_type_completion_contexts,
@@ -90,9 +139,42 @@ fn check_prepared_program_internal<'syntax>(
                 failure,
                 retain_prepared,
                 prepared,
+                checked_types,
+                checked_copyabilities,
             ));
         }
     };
+
+    complete_checked_program(
+        prepared,
+        checked_types,
+        checked_copyabilities,
+        closures,
+        CheckedBodiesOutput {
+            bodies: checked_bodies,
+            projections,
+            opaque_witnesses,
+            associated_type_completion_contexts,
+        },
+        retain_prepared,
+    )
+}
+
+fn complete_checked_program(
+    prepared: PreparedCheckingParts<'_>,
+    mut checked_types: TypeStore,
+    mut checked_copyabilities: CopyabilityTable,
+    closures: ClosureTableBuilder,
+    output: CheckedBodiesOutput,
+    retain_prepared: bool,
+) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+    let CheckedBodiesOutput {
+        bodies: mut checked_bodies,
+        projections,
+        opaque_witnesses,
+        associated_type_completion_contexts,
+    } = output;
+    let facts = BodyProgramFacts::from_prepared(&prepared);
 
     let closures = closures
         .finish()
@@ -108,12 +190,19 @@ fn check_prepared_program_internal<'syntax>(
         &prepared.body_sources,
         &mut checked_bodies,
     ) {
-        return Err(crate::BodyCheckFailure::new(
-            error,
-            retain_prepared.then(|| {
-                crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), Vec::new())
-            }),
-        ));
+        let recovery = retain_prepared
+            .then(|| {
+                build_body_analysis_recovery(
+                    prepared,
+                    checked_types,
+                    checked_copyabilities,
+                    Vec::new(),
+                    checked_bodies,
+                    projections,
+                )
+            })
+            .and_then(Result::ok);
+        return Err(crate::BodyCheckFailure::new(error, recovery));
     }
 
     let (provenance, loans) = match analyze_checked_body_relations(
@@ -127,12 +216,19 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         Ok(relations) => relations,
         Err(error) => {
-            return Err(crate::BodyCheckFailure::new(
-                error,
-                retain_prepared.then(|| {
-                    crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), Vec::new())
-                }),
-            ));
+            let recovery = retain_prepared
+                .then(|| {
+                    build_body_analysis_recovery(
+                        prepared,
+                        checked_types,
+                        checked_copyabilities,
+                        Vec::new(),
+                        checked_bodies,
+                        projections,
+                    )
+                })
+                .and_then(Result::ok);
+            return Err(crate::BodyCheckFailure::new(error, recovery));
         }
     };
 
@@ -157,17 +253,65 @@ fn recover_body_construction_failure(
     failure: RecoveringBodyConstructionFailure,
     retain_prepared: bool,
     prepared: PreparedCheckingParts<'_>,
+    checked_types: TypeStore,
+    checked_copyabilities: CopyabilityTable,
 ) -> crate::BodyCheckFailure {
     let RecoveringBodyConstructionFailure {
         error,
         interruptions,
+        checked_bodies,
+        projections,
     } = failure;
-    crate::BodyCheckFailure::new(
-        *error,
-        retain_prepared.then(|| {
-            crate::BodyAnalysisRecovery::new(prepared.into_semantic_program(), interruptions)
-        }),
-    )
+    let recovery = retain_prepared
+        .then(|| {
+            build_body_analysis_recovery(
+                prepared,
+                checked_types,
+                checked_copyabilities,
+                interruptions,
+                checked_bodies,
+                projections,
+            )
+        })
+        .and_then(Result::ok);
+    crate::BodyCheckFailure::new(*error, recovery)
+}
+
+fn build_body_analysis_recovery(
+    mut prepared: PreparedCheckingParts<'_>,
+    checked_types: TypeStore,
+    checked_copyabilities: CopyabilityTable,
+    interruptions: Vec<(crate::TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+    checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    projections: Vec<NodeProjection>,
+) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
+    prepared.types = checked_types;
+    prepared.copyabilities = checked_copyabilities;
+    prepared.source_index = extend_source_index(prepared.source_index, projections)?;
+    let mut checked_bodies = checked_bodies.into_iter().peekable();
+    let mut recovered = ArenaBuilder::<BodyId, Option<CheckedBody>>::new();
+    for (body, _) in prepared.graph.declarations().bodies().iter() {
+        let value = if checked_bodies
+            .peek()
+            .is_some_and(|(candidate, _)| *candidate == body)
+        {
+            checked_bodies.next().map(|(_, output)| output.body)
+        } else {
+            None
+        };
+        let actual = recovered.insert(value);
+        if actual != body {
+            return Err(BodyCheckInternalError::NonCanonicalBody(body));
+        }
+    }
+    if let Some((body, _)) = checked_bodies.next() {
+        return Err(BodyCheckInternalError::NonCanonicalBody(body));
+    }
+    Ok(crate::BodyAnalysisRecovery::new(
+        prepared.into_semantic_program(),
+        interruptions,
+        recovered.finish(),
+    ))
 }
 
 struct CheckedProgramCompletion {
@@ -357,6 +501,8 @@ fn check_declared_bodies<'input, 'syntax>(
                     return Err(RecoveringBodyConstructionFailure {
                         error: Box::new(error),
                         interruptions: Vec::new(),
+                        checked_bodies: Vec::new(),
+                        projections: Vec::new(),
                     });
                 }
                 let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
@@ -367,6 +513,8 @@ fn check_declared_bodies<'input, 'syntax>(
                     return Err(RecoveringBodyConstructionFailure {
                         error: Box::new(error),
                         interruptions,
+                        checked_bodies,
+                        projections,
                     });
                 }
                 let Some((type_checkpoint, copyability_checkpoint, closure_checkpoint)) =
@@ -395,6 +543,8 @@ fn check_declared_bodies<'input, 'syntax>(
         return Err(RecoveringBodyConstructionFailure {
             error: Box::new(error),
             interruptions,
+            checked_bodies,
+            projections,
         });
     }
     Ok(CheckedBodiesOutput {
@@ -415,6 +565,8 @@ struct BodyConstructionInput<'input, 'syntax> {
 struct RecoveringBodyConstructionFailure {
     error: Box<BodyCheckError>,
     interruptions: Vec<(crate::TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+    checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    projections: Vec<NodeProjection>,
 }
 
 impl RecoveringBodyConstructionFailure {
@@ -422,6 +574,8 @@ impl RecoveringBodyConstructionFailure {
         Self {
             error: Box::new(error),
             interruptions: Vec::new(),
+            checked_bodies: Vec::new(),
+            projections: Vec::new(),
         }
     }
 }

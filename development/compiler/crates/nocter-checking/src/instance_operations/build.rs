@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
+use nocter_declarations::{
+    CallableKind, DeclarationAnalysisAdmission, DeclarationGraph, ParameterRole,
+};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     ArenaBuilder, CallableCapability, CallableId, InstanceId, Symbol, TypeId, TypeStore,
@@ -99,18 +101,28 @@ pub fn build_instance_operation_table(
     types: &mut TypeStore,
     source_index: &SourceIndex,
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
+    build_instance_operation_table_with_admission(graph, types, source_index, None)
+}
+
+pub(crate) fn build_instance_operation_table_with_admission(
+    graph: &DeclarationGraph,
+    types: &mut TypeStore,
+    source_index: &SourceIndex,
+    admission: Option<&DeclarationAnalysisAdmission>,
+) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let declarations = graph.declarations();
     let mut entries = ArenaBuilder::<InstanceId, CheckedInstanceOperations>::new();
     let mut by_family = BTreeMap::<InherentTypeFamily, Vec<InstanceId>>::new();
     let mut method_names_by_family = BTreeMap::<InherentTypeFamily, BTreeSet<Symbol>>::new();
 
     for (id, instance) in declarations.instances().iter() {
+        let is_admitted = admission.is_none_or(|admission| admission.admits_instance(id));
         let pattern_requirements = PatternRequirements::collect(graph, instance.requirements())?;
         let pattern_substitution = pattern_requirements.substitution();
         let target = pattern_substitution.apply_type(types, instance.target())?;
         let family = InherentTypeFamily::of(types, target)
             .ok_or(InstanceOperationInternalError::InvalidTarget(target))?;
-        if let Some(previous) = by_family.get(&family) {
+        if is_admitted && let Some(previous) = by_family.get(&family) {
             for previous in previous {
                 let previous_entry = entries
                     .get(*previous)
@@ -143,19 +155,21 @@ pub fn build_instance_operation_table(
             instance.members(),
             &pattern_substitution,
         )?;
-        for member in instance.members() {
-            let callable = declarations
-                .callables()
-                .get(*member)
-                .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
-            if callable.kind() == CallableKind::Method {
-                let name = callable
-                    .name()
+        if is_admitted {
+            for member in instance.members() {
+                let callable = declarations
+                    .callables()
+                    .get(*member)
                     .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
-                method_names_by_family
-                    .entry(family)
-                    .or_default()
-                    .insert(name);
+                if callable.kind() == CallableKind::Method {
+                    let name = callable
+                        .name()
+                        .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
+                    method_names_by_family
+                        .entry(family)
+                        .or_default()
+                        .insert(name);
+                }
             }
         }
         let actual = entries.insert(CheckedInstanceOperations::new(
@@ -166,7 +180,9 @@ pub fn build_instance_operation_table(
             instance.members(),
         ));
         debug_assert_eq!(actual, id);
-        by_family.entry(family).or_default().push(id);
+        if is_admitted {
+            by_family.entry(family).or_default().push(id);
+        }
     }
 
     Ok(InstanceOperationTable::new(

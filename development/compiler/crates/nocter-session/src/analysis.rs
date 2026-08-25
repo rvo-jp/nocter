@@ -1,10 +1,12 @@
 use nocter_checking::{
-    CheckedProgramOutput, check_prepared_program, check_prepared_program_recovering,
+    CheckedProgramOutput, analyze_prepared_program_bodies, check_prepared_program,
+    check_prepared_program_recovering, prepare_analysis_program_checking_recovering,
     prepare_program_checking, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    lower_compile_unit_declarations, lower_compile_unit_declarations_recovering,
-    lower_incomplete_body_declarations_recovering, resolve_primitive_bindings,
+    DeclarationLoweringError, DeclarationLoweringRecovery, lower_compile_unit_declarations,
+    lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
+    resolve_primitive_bindings,
 };
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
@@ -175,11 +177,20 @@ fn analyze_target_internal(
         .primitive_roles()
         .to_vec();
     let lowered = if retain_semantic {
-        lower_compile_unit_declarations_recovering(&input).map_err(|failure| {
-            let (error, recovery) = failure.into_parts();
-            let semantic = recovery.map(SemanticAnalysis::from_declaration_lowering);
-            Box::new(CompileTargetFailure::new(error.into(), semantic))
-        })?
+        match lower_compile_unit_declarations_recovering(&input) {
+            Ok(lowered) => lowered,
+            Err(failure) => {
+                let (error, recovery) = failure.into_parts();
+                let semantic = recovery.and_then(|recovery| {
+                    if declaration_failure_permits_body_analysis(&error) {
+                        analyze_rejected_declarations(&input, recovery)
+                    } else {
+                        Some(SemanticAnalysis::from_declaration_lowering(recovery))
+                    }
+                });
+                return Err(Box::new(CompileTargetFailure::new(error.into(), semantic)));
+            }
+        }
     } else {
         lower_compile_unit_declarations(&input)
             .map_err(CompileSessionError::from)
@@ -217,6 +228,40 @@ fn analyze_target_internal(
             .map_err(Box::new)?
     };
     finish_checked_target(&input, &primitive_roles, checked, retain_semantic)
+}
+
+fn declaration_failure_permits_body_analysis(error: &DeclarationLoweringError) -> bool {
+    matches!(
+        error,
+        DeclarationLoweringError::Declaration(diagnostic)
+            if diagnostic.rule().permits_body_analysis()
+    )
+}
+
+fn analyze_rejected_declarations(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+    recovery: DeclarationLoweringRecovery,
+) -> Option<SemanticAnalysis> {
+    let (program, frontend_bindings, source_index) = recovery.into_checking_parts(input);
+    let prepared = match prepare_analysis_program_checking_recovering(
+        input,
+        program,
+        &frontend_bindings,
+        source_index,
+    ) {
+        Ok(prepared) => prepared,
+        Err(failure) => {
+            let (_, recovery) = failure.into_parts();
+            return recovery.map(SemanticAnalysis::from_preparation);
+        }
+    };
+    match analyze_prepared_program_bodies(input, prepared) {
+        Ok(analysis) => Some(SemanticAnalysis::from_bodies(analysis)),
+        Err(failure) => {
+            let (_, recovery) = failure.into_parts();
+            recovery.map(SemanticAnalysis::from_bodies)
+        }
+    }
 }
 
 fn finish_checked_target(

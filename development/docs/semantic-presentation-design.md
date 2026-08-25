@@ -145,11 +145,13 @@ workspace edit carries the accepted version for open documents and a null versio
 documents. Explicit closure captures form a compiler-owned rename family with their source
 binding, so a rename crosses the capture boundary without conflating unrelated equal spellings.
 
-Signature help selects the innermost checked call node rather than inferring a callee from nearby
-tokens. Static dispatch renders its selected generic arguments; callable requirements and concrete
-closures render their checked structural signatures. The compiler records parameter-label byte
-ranges while it renders the normalized signature, and the protocol adapter converts only those
-offsets to UTF-16. Authored argument-node ranges determine the active parameter.
+Signature help selects the innermost typed call node rather than inferring a callee from nearby
+tokens. Static dispatch renders its selected generic arguments and remains available from an
+independently successful recovery body. Callable requirements and concrete closures render their
+checked structural signatures; closure signatures therefore require the completed closure-table
+authority. The compiler records parameter-label byte ranges while it renders the normalized
+signature, and the protocol adapter converts only those offsets to UTF-16. Authored argument-node
+ranges determine the active parameter.
 
 Name completion retains each checked lexical scope's resolved bindings and gives the scope itself
 an exact block projection in `SourceIndex`. The compiler selects the innermost containing scope,
@@ -161,11 +163,13 @@ canonical presentation renderer; the protocol layer assigns only LSP item catego
 The production session owns one closed semantic-stage sum. A body-stage value retained when typed-
 body checking rejects the current generation is not a partial checked program: it contains
 declarations, normalized program-wide authorities, resolved body names, scopes, and their source
-index, but no checked nodes, local types, dispatch, ownership, or provenance. A declaration or name
-failure retains an earlier, narrower value; a target-boundary failure retains the already completed
-checked program. Analysis owns one capability view over these alternatives, so a feature cannot
-select a different fallback order. Ordinary command compilation uses the non-retaining path and
-does not clone the type or copyability stores.
+index. It may also contain sparse typed nodes, local types, and dispatch from bodies that completed
+independently of the rejecting body. These facts remain editor evidence only because program-wide
+ownership, provenance, and target closure did not complete. A declaration or name failure retains
+an earlier, narrower value; a target-boundary failure retains the already completed checked program.
+Analysis owns one capability view over these alternatives, so a feature cannot select a different
+fallback order. Ordinary command compilation uses the non-retaining path and does not clone the
+type or copyability stores.
 
 Receiver-member completion does not scan declarations or infer a type from source spelling. The
 instance-operation and conformance authorities retain canonical method-name indexes. For each
@@ -181,6 +185,11 @@ body, while its private typed snapshot remains available only to checker-owned r
 All independently recoverable body interruptions are retained, regardless of which body supplied
 the first canonical diagnostic. An interruption is not a partial `CheckedBody`, does not
 manufacture a dispatch, and is usable only at its exact source range in that failed generation.
+Independently successful bodies use a separate sparse body table. Their source projections and
+typed locals remain queryable even when another body or an analysis-only declaration authority
+diagnostic rejects the generation; failed bodies never contribute invented checked nodes.
+Local type inlay hints consume that sparse body capability. Provenance inlays remain absent until
+the whole-program provenance table completes.
 
 The production declaration-lowering and compile-input entries still reject every syntax error.
 One separate editor-only declaration entry permits an incomplete syntax tree only when it has no

@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use nocter_checking::CheckedProgram;
 use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
 use nocter_model::ModuleId;
 use nocter_source::{ByteOffset, SourceId, TextRange};
@@ -10,6 +9,7 @@ use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::AnalysisSnapshot;
 use crate::callable_source::project_callable_source;
+use crate::semantic::SemanticAuthority;
 use crate::source_context::{SourceContext, SourceContextError};
 
 /// One compiler-owned inlay fact before editor-coordinate projection.
@@ -125,10 +125,11 @@ impl From<SourceContextError> for SemanticInlayHintError {
 }
 
 impl AnalysisSnapshot {
-    /// Projects inferred local-binding types retained by one successful checked generation.
+    /// Projects inferred local-binding types retained by the current semantic authority.
     ///
     /// Explicit binding annotations suppress the corresponding hint. Syntax participates only in
-    /// that suppression decision; types and visible spellings remain checked-program facts.
+    /// that suppression decision; types and visible spellings remain semantic facts. Result
+    /// provenance is emitted only when the whole-program provenance authority completed.
     ///
     /// # Errors
     ///
@@ -142,9 +143,6 @@ impl AnalysisSnapshot {
         let Some(authority) = self.semantic_authority() else {
             return Ok(Box::new([]));
         };
-        let Some(checked) = authority.checked() else {
-            return Ok(Box::new([]));
-        };
         let index = authority.source_index();
         let module = SourceContext::resolve(index, source)?.module();
         let syntax = self
@@ -153,7 +151,7 @@ impl AnalysisSnapshot {
             .find(|tree| tree.source() == source)
             .ok_or(SemanticInlayHintError::MissingSyntax(source))?;
         let context = InlayContext {
-            checked,
+            authority,
             index,
             source,
             module,
@@ -169,7 +167,7 @@ impl AnalysisSnapshot {
 }
 
 struct InlayContext<'a> {
-    checked: &'a CheckedProgram,
+    authority: SemanticAuthority<'a>,
     index: &'a SourceIndex,
     source: SourceId,
     module: ModuleId,
@@ -181,7 +179,7 @@ impl InlayContext<'_> {
     fn local_type_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
         let annotated = annotated_binding_targets(self.syntax);
         let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
-            self.checked.graph(),
+            self.authority.graph(),
             self.module,
             self.index,
             self.source,
@@ -201,9 +199,8 @@ impl InlayContext<'_> {
                 continue;
             }
             let checked_body = self
-                .checked
-                .bodies()
-                .get(body)
+                .authority
+                .body(body)
                 .ok_or(SemanticInlayHintError::MissingBody(body))?;
             let checked_local = checked_body
                 .locals()
@@ -211,7 +208,8 @@ impl InlayContext<'_> {
                 .ok_or(SemanticInlayHintError::MissingLocal { body, local })?;
             let entity = binding.entity();
             let rendered = crate::presentation::type_presentation_with_spellings(
-                self.checked,
+                self.authority.graph(),
+                self.authority.types(),
                 checked_local.ty(),
                 &spellings,
             )
@@ -226,6 +224,9 @@ impl InlayContext<'_> {
     }
 
     fn callable_provenance_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
+        let Some(checked) = self.authority.checked() else {
+            return Ok(Vec::new());
+        };
         let mut hints = Vec::new();
         for binding in self.index.bindings_in(self.source) {
             if binding.role() != SourceRole::Declaration {
@@ -234,8 +235,7 @@ impl InlayContext<'_> {
             let SemanticEntity::Callable(callable) = binding.entity() else {
                 continue;
             };
-            let declaration = self
-                .checked
+            let declaration = checked
                 .graph()
                 .declarations()
                 .callables()
@@ -244,8 +244,7 @@ impl InlayContext<'_> {
             if declaration.provenance_annotation() != ProvenanceAnnotation::Elided {
                 continue;
             }
-            let provenance = self
-                .checked
+            let provenance = checked
                 .provenance()
                 .callables()
                 .get(callable)
@@ -270,15 +269,14 @@ impl InlayContext<'_> {
                 match origin {
                     ProvenanceOrigin::Receiver => label.push_str("self"),
                     ProvenanceOrigin::Parameter(parameter) => {
-                        let parameter = self
-                            .checked
+                        let parameter = checked
                             .graph()
                             .declarations()
                             .parameters()
                             .get(parameter)
                             .ok_or(SemanticInlayHintError::MissingParameter(parameter))?;
                         label.push_str(
-                            self.checked
+                            checked
                                 .graph()
                                 .symbols()
                                 .spelling(parameter.name())
