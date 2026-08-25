@@ -1,6 +1,6 @@
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, RequirementId, TypeStore};
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::build::{ConformanceBuildError, ConformanceInternalError};
 use super::diagnostic;
@@ -127,15 +127,6 @@ fn source_origin(
     source_index: &SourceIndex,
     entity: SemanticEntity,
 ) -> Result<SourceOrigin, ConformanceInternalError> {
-    source_index
-        .bindings_for(entity)
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
         .ok_or(ConformanceInternalError::MissingSource(entity))
 }

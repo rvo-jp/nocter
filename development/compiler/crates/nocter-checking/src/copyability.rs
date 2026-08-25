@@ -6,7 +6,7 @@ use nocter_model::{
     BorrowCapability, BuiltinType, ClosureId, FieldId, GenericParameterId, NominalTypeId, TypeId,
     TypeKind, TypeStore, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use crate::CheckedPredicate;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
@@ -559,14 +559,5 @@ impl fmt::Display for CopyabilityError {
 impl std::error::Error for CopyabilityError {}
 
 fn source_origin(source_index: &SourceIndex, entity: SemanticEntity) -> Option<SourceOrigin> {
-    source_index
-        .bindings_for(entity)
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
 }

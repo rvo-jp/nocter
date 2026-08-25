@@ -8,9 +8,7 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
     TypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{
-    SemanticEntity, SourceAccess, SourceIndex, SourceOrigin, SourceRole, SyntaxOrigin,
-};
+use nocter_source_index::{SemanticEntity, SourceAccess, SourceIndex, SourceOrigin, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
@@ -1062,17 +1060,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let primary = SourceOrigin::from_node(self.tree(), node)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         let entity = SemanticEntity::Drop(drop);
-        let related = self
-            .source_index
-            .bindings_for(entity)
-            .iter()
-            .find(|binding| {
-                matches!(
-                    binding.role(),
-                    SourceRole::Declaration | SourceRole::Implementation
-                )
-            })
-            .map(|binding| binding.origin())
+        let related = crate::diagnostic_projection::declaration_origin(self.source_index, entity)
             .ok_or(BodyCheckInternalError::MissingSource(entity))?;
         Ok(BodyCheckError::from_rule(
             BodyRule::PartialMoveThroughDrop,

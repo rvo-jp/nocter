@@ -120,7 +120,7 @@ fn validate_binding(
         .get(callable)
         .ok_or_else(|| contract_error(role, callable, PrimitiveContractRule::Authority))?;
     validate_identity(graph, standard_package, declaration, &contract)
-        .and_then(|module| {
+        .and_then(|()| {
             validate_signature(
                 graph,
                 types,
@@ -128,7 +128,6 @@ fn validate_binding(
                 callable,
                 declaration,
                 &contract,
-                module,
             )
         })
         .map_err(|rule| contract_error(role, callable, rule))
@@ -151,7 +150,7 @@ fn validate_identity(
     standard_package: PackageId,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
-) -> Result<nocter_model::ModuleId, PrimitiveContractRule> {
+) -> Result<(), PrimitiveContractRule> {
     let CallableOwner::Module(module) = declaration.owner() else {
         return Err(PrimitiveContractRule::Module);
     };
@@ -178,7 +177,7 @@ fn validate_identity(
     if site.module() != module || site.visibility() != expected_visibility {
         return Err(PrimitiveContractRule::Visibility);
     }
-    Ok(module)
+    Ok(())
 }
 
 fn validate_signature(
@@ -188,7 +187,6 @@ fn validate_signature(
     callable: CallableId,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
-    _module: nocter_model::ModuleId,
 ) -> Result<(), PrimitiveContractRule> {
     validate_generics(
         graph,
@@ -218,7 +216,7 @@ fn validate_signature(
     ) {
         return Err(PrimitiveContractRule::ResultType);
     }
-    if !provenance_matches(types, declaration, contract) {
+    if !provenance_matches(declaration, contract) {
         return Err(PrimitiveContractRule::Provenance);
     }
     if declaration.target_gate() != contract.target {
@@ -294,7 +292,6 @@ fn validate_generics(
 }
 
 fn provenance_matches(
-    _types: &TypeStore,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
 ) -> bool {

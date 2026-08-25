@@ -6,7 +6,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     AttachmentFamily, CallableCapability, CallableId, InstanceId, Symbol, TypeId, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::diagnostic;
 use super::model::{CheckedInstanceOperations, InstanceOperationTable};
@@ -240,34 +240,15 @@ fn site_origin(
     source_index: &SourceIndex,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<SourceOrigin, InstanceOperationInternalError> {
-    source_index
-        .bindings_for(SemanticEntity::DeclarationSite(site))
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
-        .ok_or(InstanceOperationInternalError::MissingSource(
-            SemanticEntity::DeclarationSite(site),
-        ))
+    let entity = SemanticEntity::DeclarationSite(site);
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
+        .ok_or(InstanceOperationInternalError::MissingSource(entity))
 }
 
 fn entity_origin(
     source_index: &SourceIndex,
     entity: SemanticEntity,
 ) -> Result<SourceOrigin, InstanceOperationInternalError> {
-    source_index
-        .bindings_for(entity)
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
         .ok_or(InstanceOperationInternalError::MissingSource(entity))
 }

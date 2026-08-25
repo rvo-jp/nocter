@@ -10,7 +10,7 @@ use nocter_model::{
     ArenaBuilder, CallableId, ConformanceId, GenericParameterId, InterfaceId, ParameterId,
     TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::diagnostic;
 use super::model::{CheckedConformance, ConformanceMethod, ConformanceTable, MethodSelection};
@@ -221,7 +221,6 @@ pub(crate) fn build_conformance_table_from_ids(
             .get(interface_id)
             .ok_or(ConformanceInternalError::MissingInterface(interface_id))?;
         record_nonoverlapping_pattern(
-            graph,
             types,
             source_index,
             &mut preceding_patterns,
@@ -315,7 +314,6 @@ struct ConformancePattern {
 type ConformancePatterns = BTreeMap<InterfaceId, Vec<ConformancePattern>>;
 
 fn record_nonoverlapping_pattern(
-    graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
     preceding_patterns: &mut ConformancePatterns,
@@ -331,8 +329,8 @@ fn record_nonoverlapping_pattern(
                 current.target,
             )? {
                 return Err(diagnostic::overlapping(
-                    site_origin(graph, source_index, current.site)?,
-                    site_origin(graph, source_index, previous.site)?,
+                    site_origin(source_index, current.site)?,
+                    site_origin(source_index, previous.site)?,
                 )
                 .into());
             }
@@ -407,8 +405,8 @@ fn select_methods(
                 actual_substitution,
             )? {
                 return Err(diagnostic::incompatible_method(
-                    site_origin(graph, source_index, actual.site())?,
-                    site_origin(graph, source_index, expected.site())?,
+                    site_origin(source_index, actual.site())?,
+                    site_origin(source_index, expected.site())?,
                 )
                 .into());
             }
@@ -489,8 +487,8 @@ fn implementation_method_index(
             .ok_or(ConformanceInternalError::MissingCallable(*method))?;
         if by_name.insert(name, *method).is_some() || !expected.contains_key(&name) {
             return Err(diagnostic::extra_method(
-                site_origin(graph, source_index, callable.site())?,
-                site_origin(graph, source_index, interface_site)?,
+                site_origin(source_index, callable.site())?,
+                site_origin(source_index, interface_site)?,
             )
             .into());
         }
@@ -517,8 +515,8 @@ fn missing_methods_error(
         ))?;
     Ok(ConformanceBuildError::Rule {
         diagnostic: Box::new(diagnostic::missing_method(
-            site_origin(graph, source_index, conformance_site)?,
-            site_origin(graph, source_index, expected.site())?,
+            site_origin(source_index, conformance_site)?,
+            site_origin(source_index, expected.site())?,
         )),
         missing_methods: Some(Box::new(MissingConformanceMethods::new(
             conformance,
@@ -707,23 +705,12 @@ fn parameter_contract(
 }
 
 fn site_origin(
-    _graph: &DeclarationGraph,
     source_index: &SourceIndex,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<SourceOrigin, ConformanceInternalError> {
-    source_index
-        .bindings_for(SemanticEntity::DeclarationSite(site))
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
-        .ok_or(ConformanceInternalError::MissingSource(
-            SemanticEntity::DeclarationSite(site),
-        ))
+    let entity = SemanticEntity::DeclarationSite(site);
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
+        .ok_or(ConformanceInternalError::MissingSource(entity))
 }
 
 fn interface_id_index(

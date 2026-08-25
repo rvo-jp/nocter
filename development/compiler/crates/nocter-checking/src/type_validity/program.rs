@@ -5,7 +5,7 @@ use nocter_declarations::{
 };
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{TypeId, TypeStore};
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::shape::{TypePosition, TypeValidityFailure, validate_type};
 
@@ -288,14 +288,5 @@ fn validate_position(
 }
 
 fn source_origin(source_index: &SourceIndex, entity: SemanticEntity) -> Option<SourceOrigin> {
-    source_index
-        .bindings_for(entity)
-        .iter()
-        .find(|binding| {
-            matches!(
-                binding.role(),
-                SourceRole::Declaration | SourceRole::Implementation
-            )
-        })
-        .map(|binding| binding.origin())
+    crate::diagnostic_projection::declaration_origin(source_index, entity)
 }
