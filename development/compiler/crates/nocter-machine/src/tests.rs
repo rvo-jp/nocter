@@ -1289,6 +1289,21 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
         Some(crate::MachineFunctionKind::Callable(_))
     ));
     assert_eq!(spread.next().receiver_offset(), 0);
+    let outcome = spread.next().outcome();
+    assert_eq!(outcome.item(), pack.element());
+    let layout = program.layouts().get(outcome.result()).unwrap();
+    assert!(matches!(
+        layout.kind(),
+        crate::MachineLayoutKind::Outcome {
+            kind: crate::MachineOutcomeKind::Optional,
+            tag_offset,
+            payload_offset,
+            primary: Some(item),
+            alternate: None,
+        } if *tag_offset == outcome.tag_offset()
+            && *payload_offset == outcome.payload_offset()
+            && *item == outcome.item()
+    ));
 }
 
 #[test]

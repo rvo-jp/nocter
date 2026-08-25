@@ -64,7 +64,8 @@ pub use operation::{
     MachineValueDefinition, MachineValueRepresentation,
 };
 pub use pack::{
-    MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment, MachinePackSpread,
+    MachinePack, MachinePackContribution, MachinePackNext, MachinePackNextOutcome,
+    MachinePackSegment, MachinePackSpread,
 };
 pub use primitive_dependency::MachinePrimitiveDependency;
 pub use program::{

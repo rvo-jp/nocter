@@ -415,43 +415,13 @@ fn spread_result_shape<'layout>(
 ) -> Result<SpreadResultShape<'layout>, Arm64MaterializationError> {
     let layout = machine
         .layouts()
-        .get(spread.next().result())
+        .get(spread.next().outcome().result())
         .ok_or(Arm64MaterializationError::InvalidPackCallback(key))?;
-    let MachineLayoutKind::Outcome {
-        kind: MachineOutcomeKind::Optional,
-        tag_offset,
-        payload_offset,
-        primary: Some(item),
-        alternate: None,
-    } = layout.kind()
-    else {
-        return Err(Arm64MaterializationError::InvalidPackCallback(key));
-    };
-    let abi = next_abi(machine, spread, key)?;
-    let [receiver] = abi.arguments() else {
-        return Err(Arm64MaterializationError::InvalidPackCallback(key));
-    };
-    let Some(nocter_machine::MachineArgumentLocation::Registers(registers)) = receiver.location()
-    else {
-        return Err(Arm64MaterializationError::InvalidPackCallback(key));
-    };
-    if *item != spread.next().item()
-        || receiver.class() != (MachineValueClass::Direct { words: 1 })
-        || registers.first() != 0
-        || registers.words() != 1
-        || abi.pack().is_some()
-        || abi.stack_argument_size() != 0
-        || !matches!(
-            abi.result(),
-            MachineResultAbi::Value(result) if result.ty() == spread.next().result()
-        )
-    {
-        return Err(Arm64MaterializationError::InvalidPackCallback(key));
-    }
+    let outcome = spread.next().outcome();
     Ok(SpreadResultShape {
         layout,
-        tag_offset: *tag_offset,
-        payload_offset: *payload_offset,
+        tag_offset: outcome.tag_offset(),
+        payload_offset: outcome.payload_offset(),
     })
 }
 

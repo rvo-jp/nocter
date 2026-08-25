@@ -1,5 +1,6 @@
 use nocter_mir::{
-    MirCallTarget, MirOperationKind, MirPackContribution, MirPackSegment, MirValueDefinition,
+    MirCall, MirCallTarget, MirOperationKind, MirPackContribution, MirPackSegment,
+    MirValueDefinition,
 };
 use nocter_model::{BorrowCapability, MirOperationId};
 use nocter_runtime_contract::RuntimeType;
@@ -9,8 +10,9 @@ use super::body::BodyIdentities;
 use super::context::ProgramLoweringContext;
 use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineArgumentLocation,
-    MachineFunctionId, MachinePack, MachinePackContribution, MachinePackNext, MachinePackSegment,
-    MachinePackSpread, MachineValueClass,
+    MachineFunctionId, MachineLayoutKind, MachineOutcomeKind, MachinePack, MachinePackContribution,
+    MachinePackNext, MachinePackNextOutcome, MachinePackSegment, MachinePackSpread,
+    MachineResultAbi, MachineValueClass,
 };
 
 pub(super) fn lower_packs(
@@ -27,13 +29,14 @@ pub(super) fn lower_packs(
             };
             call.pack()
                 .and_then(nocter_mir::MirCallPack::prepared)
-                .map(|pack| lower_pack(operation, pack, body, addresses, context, ids))
+                .map(|pack| lower_pack(operation, call, pack, body, addresses, context, ids))
         })
         .collect()
 }
 
 fn lower_pack(
     operation: MirOperationId,
+    call: &MirCall,
     pack: &nocter_mir::MirPackArgument,
     body: &nocter_mir::MirBody,
     addresses: &[MachineAddress],
@@ -71,8 +74,8 @@ fn lower_pack(
                     .abi
                     .get(*item)
                     .ok_or(MachineProgramError::MissingCallableAbi(*item))?;
-                let receiver_offset =
-                    receiver_offset(operation, spread, body, addresses, context, ids, abi)?;
+                let (receiver_offset, outcome) =
+                    prepare_next(operation, spread, body, addresses, context, ids, abi)?;
                 let contribution = match spread.contribution() {
                     MirPackContribution::Direct => MachinePackContribution::Direct,
                     MirPackContribution::CopyBorrowed => MachinePackContribution::CopyBorrowed,
@@ -87,12 +90,7 @@ fn lower_pack(
                 Ok(MachinePackSegment::Spread(MachinePackSpread::new(
                     ids.address(spread.iterator())?,
                     ids.value(spread.remaining())?,
-                    MachinePackNext::new(
-                        receiver_offset,
-                        target,
-                        spread.next_result(),
-                        spread.item(),
-                    ),
+                    MachinePackNext::new(receiver_offset, target, outcome),
                     contribution,
                     destruction,
                 )))
@@ -102,13 +100,38 @@ fn lower_pack(
     Ok(MachinePack::new(
         pack.element(),
         pack.next(),
-        crate::transport::plan_result(context.types, context.layouts, pack.next())?,
+        pack_result_abi(operation, call, pack, context, ids)?,
         ids.value(pack.length())?,
         segments,
     ))
 }
 
-fn receiver_offset(
+fn pack_result_abi(
+    operation: MirOperationId,
+    call: &MirCall,
+    pack: &nocter_mir::MirPackArgument,
+    context: ProgramLoweringContext<'_>,
+    ids: &BodyIdentities,
+) -> Result<MachineResultAbi, MachineProgramError> {
+    let invalid = || MachineProgramError::InvalidPackTarget {
+        owner: ids.owner(),
+        operation,
+    };
+    let MirCallTarget::Direct(target) = call.target() else {
+        return Err(invalid());
+    };
+    let abi = context
+        .abi
+        .get(*target)
+        .ok_or(MachineProgramError::MissingCallableAbi(*target))?;
+    let target_pack = abi.pack().ok_or_else(invalid)?;
+    if target_pack.element() != pack.element() || target_pack.next() != pack.next() {
+        return Err(invalid());
+    }
+    Ok(target_pack.next_result())
+}
+
+fn prepare_next(
     operation: MirOperationId,
     spread: &nocter_mir::MirPackSpread,
     body: &nocter_mir::MirBody,
@@ -116,7 +139,7 @@ fn receiver_offset(
     context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
     abi: &crate::MachineCallableAbi,
-) -> Result<u64, MachineProgramError> {
+) -> Result<(u64, MachinePackNextOutcome), MachineProgramError> {
     let invalid = || MachineProgramError::InvalidPackReceiver {
         owner: ids.owner(),
         operation,
@@ -157,7 +180,14 @@ fn receiver_offset(
     {
         return Err(invalid());
     }
-    validate_next_abi(abi, receiver.ty(), spread.next_result(), context).map_err(|()| invalid())?;
+    let outcome = validate_next_contract(
+        abi,
+        receiver.ty(),
+        spread.next_result(),
+        spread.item(),
+        context,
+    )
+    .map_err(|()| invalid())?;
     let iterator_offset = static_address_offset(iterator).ok_or_else(invalid)?;
     let receiver_offset = static_address_offset(receiver_address).ok_or_else(invalid)?;
     let relative = receiver_offset
@@ -169,15 +199,16 @@ fn receiver_offset(
     if receiver_end > iterator.stored_size().ok_or_else(invalid)? {
         return Err(invalid());
     }
-    Ok(relative)
+    Ok((relative, outcome))
 }
 
-fn validate_next_abi(
+fn validate_next_contract(
     abi: &crate::MachineCallableAbi,
     receiver: nocter_model::TypeId,
     result: nocter_model::TypeId,
+    item: nocter_model::TypeId,
     context: ProgramLoweringContext<'_>,
-) -> Result<(), ()> {
+) -> Result<MachinePackNextOutcome, ()> {
     let [argument] = abi.arguments() else {
         return Err(());
     };
@@ -190,13 +221,30 @@ fn validate_next_abi(
         || registers.words() != 1
         || abi.pack().is_some()
         || abi.stack_argument_size() != 0
-        || abi.result()
-            != crate::transport::plan_result(context.types, context.layouts, result)
-                .map_err(|_| ())?
+        || !matches!(abi.result(), MachineResultAbi::Value(value) if value.ty() == result)
     {
         return Err(());
     }
-    Ok(())
+    let layout = context.layouts.get(result).ok_or(())?;
+    let MachineLayoutKind::Outcome {
+        kind: MachineOutcomeKind::Optional,
+        tag_offset,
+        payload_offset,
+        primary: Some(actual_item),
+        alternate: None,
+    } = layout.kind()
+    else {
+        return Err(());
+    };
+    if *actual_item != item {
+        return Err(());
+    }
+    Ok(MachinePackNextOutcome::new(
+        result,
+        item,
+        *tag_offset,
+        *payload_offset,
+    ))
 }
 
 fn machine_address(
