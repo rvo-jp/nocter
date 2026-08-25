@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{Arena, CallableId, GenericParameterId, InstanceId, Symbol, TypeId, TypeStore};
-
-use crate::type_relations::InherentTypeFamily;
 use crate::{CheckedRequirement, GenericArgument};
+use nocter_model::{
+    AttachmentFamily, CallableId, GenericParameterId, InstanceId, Symbol, TypeId, TypeStore,
+};
 
 /// One refinement-normalized instance declaration and its operation members.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,16 +61,16 @@ impl CheckedInstanceOperations {
 /// Sole normalized lookup authority for instance-owned operations.
 #[derive(Debug)]
 pub struct InstanceOperationTable {
-    entries: Arena<InstanceId, CheckedInstanceOperations>,
-    by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
-    method_names_by_family: BTreeMap<InherentTypeFamily, Box<[Symbol]>>,
+    entries: BTreeMap<InstanceId, CheckedInstanceOperations>,
+    by_family: BTreeMap<AttachmentFamily, Box<[InstanceId]>>,
+    method_names_by_family: BTreeMap<AttachmentFamily, Box<[Symbol]>>,
 }
 
 impl InstanceOperationTable {
     pub(super) fn new(
-        entries: Arena<InstanceId, CheckedInstanceOperations>,
-        by_family: BTreeMap<InherentTypeFamily, Box<[InstanceId]>>,
-        method_names_by_family: BTreeMap<InherentTypeFamily, Box<[Symbol]>>,
+        entries: BTreeMap<InstanceId, CheckedInstanceOperations>,
+        by_family: BTreeMap<AttachmentFamily, Box<[InstanceId]>>,
+        method_names_by_family: BTreeMap<AttachmentFamily, Box<[Symbol]>>,
     ) -> Self {
         Self {
             entries,
@@ -80,12 +80,12 @@ impl InstanceOperationTable {
     }
 
     #[must_use]
-    pub const fn entries(&self) -> &Arena<InstanceId, CheckedInstanceOperations> {
+    pub const fn entries(&self) -> &BTreeMap<InstanceId, CheckedInstanceOperations> {
         &self.entries
     }
 
     pub(crate) fn candidates(&self, types: &TypeStore, target: TypeId) -> Option<&[InstanceId]> {
-        InherentTypeFamily::of(types, target)
+        AttachmentFamily::of(types, target)
             .and_then(|family| self.by_family.get(&family))
             .map(AsRef::as_ref)
     }
@@ -95,7 +95,7 @@ impl InstanceOperationTable {
     /// This is a discovery index only. Visibility, pattern matching, requirements, receiver
     /// capability, and dispatch are still decided by [`super::InstanceOperationSelector`].
     pub(crate) fn method_names(&self, types: &TypeStore, target: TypeId) -> &[Symbol] {
-        InherentTypeFamily::of(types, target)
+        AttachmentFamily::of(types, target)
             .and_then(|family| self.method_names_by_family.get(&family))
             .map(AsRef::as_ref)
             .unwrap_or_default()

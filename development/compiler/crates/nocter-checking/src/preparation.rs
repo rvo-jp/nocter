@@ -1,14 +1,15 @@
 use std::fmt;
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{AnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram};
+use nocter_declarations::{BodyAnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::conformance::build_conformance_table_with_admission;
-use crate::instance_operations::build_instance_operation_table_with_admission;
+use crate::conformance::build_conformance_table_from_ids;
+use crate::declaration_patterns::DeclarationPatternTable;
+use crate::instance_operations::build_instance_operation_table_from_ids;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::{
     BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
@@ -30,6 +31,7 @@ pub struct PreparedChecking<'syntax> {
     conformances: ConformanceTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
+    declaration_patterns: DeclarationPatternTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -64,6 +66,7 @@ pub struct PreparedSemanticProgram {
     conformances: ConformanceTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
+    declaration_patterns: DeclarationPatternTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -96,6 +99,10 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
         &self.instance_operations
+    }
+
+    pub(crate) const fn declaration_patterns(&self) -> &DeclarationPatternTable {
+        &self.declaration_patterns
     }
 
     #[must_use]
@@ -197,6 +204,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             conformances: self.conformances,
             construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
+            declaration_patterns: self.declaration_patterns,
             copyabilities: self.copyabilities,
             drops: self.drops,
             standard_semantics: self.standard_semantics,
@@ -215,6 +223,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) conformances: ConformanceTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
+    pub(crate) declaration_patterns: DeclarationPatternTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
@@ -233,6 +242,7 @@ impl PreparedCheckingParts<'_> {
             conformances: self.conformances,
             construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
+            declaration_patterns: self.declaration_patterns,
             copyabilities: self.copyabilities,
             drops: self.drops,
             standard_semantics: self.standard_semantics,
@@ -256,6 +266,7 @@ pub enum PreparationError {
     Conformance(ConformanceBuildError),
     ConstructionSurfaces(ConstructionSurfaceBuildError),
     InstanceOperations(InstanceOperationBuildError),
+    DeclarationPatterns(crate::SubstitutionError),
     StandardSemantics(StandardSemanticError),
     NameResolution(NameResolutionError),
 }
@@ -303,6 +314,7 @@ impl PreparationError {
             | Self::TargetMismatch { .. }
             | Self::DropTable(_)
             | Self::ConstructionSurfaces(_)
+            | Self::DeclarationPatterns(_)
             | Self::StandardSemantics(_) => None,
             Self::Conformance(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
@@ -325,6 +337,7 @@ impl fmt::Display for PreparationError {
             Self::Conformance(error) => error.fmt(formatter),
             Self::ConstructionSurfaces(error) => error.fmt(formatter),
             Self::InstanceOperations(error) => error.fmt(formatter),
+            Self::DeclarationPatterns(error) => error.fmt(formatter),
             Self::StandardSemantics(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
         }
@@ -354,6 +367,12 @@ impl From<ConstructionSurfaceBuildError> for PreparationError {
 impl From<InstanceOperationBuildError> for PreparationError {
     fn from(error: InstanceOperationBuildError) -> Self {
         Self::InstanceOperations(error)
+    }
+}
+
+impl From<crate::SubstitutionError> for PreparationError {
+    fn from(error: crate::SubstitutionError) -> Self {
+        Self::DeclarationPatterns(error)
     }
 }
 
@@ -440,7 +459,7 @@ pub fn prepare_program_checking_recovering<'syntax>(
 /// Returns the same preparation failures and explicit recovery contracts as ordinary checking.
 pub fn prepare_analysis_program_checking_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    program: AnalysisDeclarationProgram,
+    program: BodyAnalysisDeclarationProgram,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedBodyAnalysis<'syntax>, PreparationFailure> {
@@ -456,7 +475,7 @@ pub fn prepare_analysis_program_checking_recovering<'syntax>(
 
 enum PreparationProgram {
     Accepted(DeclarationProgram),
-    Analysis(AnalysisDeclarationProgram),
+    Analysis(BodyAnalysisDeclarationProgram),
 }
 
 impl PreparationProgram {
@@ -484,6 +503,7 @@ struct PreparedProgramAuthorities {
     conformances: ConformanceTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
+    declaration_patterns: DeclarationPatternTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -534,6 +554,7 @@ fn prepare_program_checking_internal<'syntax>(
         conformances,
         construction_surfaces,
         instance_operations,
+        declaration_patterns,
         copyabilities,
         drops,
         standard_semantics,
@@ -578,6 +599,7 @@ fn prepare_program_checking_internal<'syntax>(
         conformances,
         construction_surfaces,
         instance_operations,
+        declaration_patterns,
         copyabilities,
         drops,
         standard_semantics,
@@ -597,24 +619,37 @@ fn build_program_authorities(
     admission: Option<&nocter_declarations::DeclarationAnalysisAdmission>,
     standard_roles: &[nocter_compile_input::StandardRoleInput],
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
+    let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
     validate_declaration_types(graph, types, source_index)?;
     let copyabilities = CopyabilityTable::build(graph, types, source_index)?;
-    let drops = DropTable::build_with_admission(graph, types, admission)?;
-    let conformances =
-        build_conformance_table_with_admission(graph, types, source_index, admission)?;
-    let construction_surfaces = ConstructionSurfaceTable::build_with_admission(
+    let declaration_patterns = DeclarationPatternTable::build(graph, types)?;
+    let drops = DropTable::build_from_ids(graph, types, operations.drops())?;
+    let conformances = build_conformance_table_from_ids(
+        graph,
+        types,
+        source_index,
+        &declaration_patterns,
+        operations.conformances(),
+    )?;
+    let construction_surfaces = ConstructionSurfaceTable::build_from_ids(
         graph,
         types,
         bindings.source_access(),
-        admission,
+        operations.constructions(),
     )?;
-    let instance_operations =
-        build_instance_operation_table_with_admission(graph, types, source_index, admission)?;
+    let instance_operations = build_instance_operation_table_from_ids(
+        graph,
+        types,
+        source_index,
+        &declaration_patterns,
+        operations.instances(),
+    )?;
     let standard_semantics = StandardSemanticTable::build(standard_roles, graph, types, bindings)?;
     Ok(PreparedProgramAuthorities {
         conformances,
         construction_surfaces,
         instance_operations,
+        declaration_patterns,
         copyabilities,
         drops,
         standard_semantics,

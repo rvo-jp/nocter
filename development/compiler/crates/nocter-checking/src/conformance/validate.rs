@@ -15,15 +15,12 @@ pub(super) fn validate_associated_bounds(
     source_index: &SourceIndex,
     table: &ConformanceTable,
 ) -> Result<(), ConformanceBuildError> {
-    for (id, conformance) in table.entries().iter() {
-        if !table.is_admitted(id) {
-            continue;
-        }
+    for (id, conformance) in table.entries() {
         let declaration = graph
             .declarations()
             .conformances()
-            .get(id)
-            .ok_or(ConformanceInternalError::MissingConformance(id))?;
+            .get(*id)
+            .ok_or(ConformanceInternalError::MissingConformance(*id))?;
         let interface = graph
             .declarations()
             .interfaces()

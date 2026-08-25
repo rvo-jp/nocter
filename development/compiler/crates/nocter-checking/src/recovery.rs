@@ -196,12 +196,15 @@ impl BodyAnalysisRecovery {
             None => return Some(Err(MemberCompletionError::MissingBody(body))),
         };
         Some(select_member_completions(
-            self.prepared.graph(),
-            &typed.types,
-            self.prepared.conformances(),
-            self.prepared.instance_operations(),
-            &typed.copyabilities,
-            self.prepared.source_access(),
+            crate::member_completion::MemberCompletionAuthorities {
+                graph: self.prepared.graph(),
+                types: &typed.types,
+                conformances: self.prepared.conformances(),
+                instance_operations: self.prepared.instance_operations(),
+                declaration_patterns: self.prepared.declaration_patterns(),
+                copyabilities: &typed.copyabilities,
+                source_access: self.prepared.source_access(),
+            },
             MemberCompletionContext::new(owner, source, *receiver, *available, *owned),
         ))
     }

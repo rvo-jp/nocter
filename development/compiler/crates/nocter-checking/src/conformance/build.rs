@@ -1,9 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
 use nocter_declarations::{
-    AssociatedTypeBinding, CallableDeclaration, CallableProvenanceContract,
-    DeclarationAnalysisAdmission, DeclarationGraph, InterfaceApplication, ProvenanceOrigin,
+    AssociatedTypeBinding, CallableDeclaration, CallableProvenanceContract, DeclarationGraph,
+    InterfaceApplication, ProvenanceOrigin,
 };
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
@@ -18,7 +18,7 @@ use super::overlap::patterns_overlap;
 use super::predicate::{CheckedRequirement, normalize_requirements};
 use super::required_method::RequiredConformanceMethod;
 use super::validate::validate_associated_bounds;
-use crate::pattern_requirements::PatternRequirements;
+use crate::declaration_patterns::DeclarationPatternTable;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// Authored conformance failure or an inconsistent semantic boundary.
@@ -181,69 +181,63 @@ pub fn build_conformance_table(
     types: &mut TypeStore,
     source_index: &SourceIndex,
 ) -> Result<ConformanceTable, ConformanceBuildError> {
-    build_conformance_table_with_admission(graph, types, source_index, None)
+    let patterns = DeclarationPatternTable::build(graph, types)?;
+    let operations = crate::admitted_operations::AdmittedOperations::new(graph, None);
+    build_conformance_table_from_ids(
+        graph,
+        types,
+        source_index,
+        &patterns,
+        operations.conformances(),
+    )
 }
 
-pub(crate) fn build_conformance_table_with_admission(
+pub(crate) fn build_conformance_table_from_ids(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
-    admission: Option<&DeclarationAnalysisAdmission>,
+    patterns: &DeclarationPatternTable,
+    conformances: &[ConformanceId],
 ) -> Result<ConformanceTable, ConformanceBuildError> {
     let declarations = graph.declarations();
-    let mut entries = ArenaBuilder::new();
+    let mut entries = BTreeMap::new();
     let mut by_interface = vec![Vec::new(); declarations.interfaces().len()];
     let mut preceding_patterns = BTreeMap::<InterfaceId, Vec<_>>::new();
-    let mut admitted = BTreeSet::new();
 
-    for (id, conformance) in declarations.conformances().iter() {
-        let is_admitted = admission.is_none_or(|admission| admission.admits_conformance(id));
-        let pattern_requirements = PatternRequirements::collect(graph, conformance.requirements())?;
-        let pattern_substitution = pattern_requirements.substitution();
-        let normalized_interface = InterfaceApplication::new(
-            conformance.interface().interface(),
-            conformance
-                .interface()
-                .arguments()
-                .iter()
-                .map(|argument| pattern_substitution.apply_type(types, *argument))
-                .collect::<Result<Vec<_>, _>>()?,
-        );
-        let normalized_target = pattern_substitution.apply_type(types, conformance.target())?;
+    for id in conformances {
+        let id = *id;
+        let conformance = declarations
+            .conformances()
+            .get(id)
+            .ok_or(ConformanceInternalError::MissingConformance(id))?;
+        let pattern = patterns
+            .conformance(id)
+            .ok_or(ConformanceInternalError::MissingConformance(id))?;
+        let normalized_interface = pattern.interface().clone();
+        let normalized_target = pattern.target();
         let interface_id = normalized_interface.interface();
         let interface = declarations
             .interfaces()
             .get(interface_id)
             .ok_or(ConformanceInternalError::MissingInterface(interface_id))?;
-        if is_admitted {
-            record_nonoverlapping_pattern(
-                graph,
-                types,
-                source_index,
-                &mut preceding_patterns,
-                ConformancePattern {
-                    site: conformance.site(),
-                    interface: normalized_interface.clone(),
-                    target: normalized_target,
-                },
-            )?;
-        }
+        record_nonoverlapping_pattern(
+            graph,
+            types,
+            source_index,
+            &mut preceding_patterns,
+            ConformancePattern {
+                site: conformance.site(),
+                interface: normalized_interface.clone(),
+                target: normalized_target,
+            },
+        )?;
 
-        let mut associated_types = conformance
-            .associated_types()
-            .iter()
-            .map(|binding| {
-                pattern_substitution
-                    .apply_type(types, binding.ty())
-                    .map(|ty| AssociatedTypeBinding::new(binding.declaration(), ty))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        associated_types.sort_unstable_by_key(|binding| binding.declaration());
+        let associated_types = pattern.associated_types();
         let substitution = conformance_substitution(
             graph,
             &normalized_interface,
             normalized_target,
-            &associated_types,
+            associated_types,
         )?;
         let methods = select_methods(MethodSelectionInput {
             graph,
@@ -253,32 +247,24 @@ pub(crate) fn build_conformance_table_with_admission(
             interface_methods: interface.methods(),
             implementation_methods: conformance.methods(),
             expected_substitution: &substitution,
-            actual_substitution: &pattern_substitution,
+            actual_substitution: pattern.substitution(),
             conformance_site: conformance.site(),
             conformance: id,
         })?;
-        let requirements = normalize_requirements(
-            graph,
-            types,
-            &pattern_substitution,
-            pattern_requirements.retained(),
-        )?;
-        let refinements =
-            pattern_requirements.normalized_refinements(types, conformance.generic_parameters())?;
-        let actual = entries.insert(CheckedConformance::new(
-            normalized_interface,
-            normalized_target,
-            conformance.generic_parameters(),
-            refinements,
-            requirements,
-            associated_types,
-            methods,
-        ));
-        debug_assert_eq!(actual, id);
-        if is_admitted {
-            admitted.insert(id);
-            by_interface[interface_id_index(interface_id, declarations.interfaces())?].push(id);
-        }
+        let previous = entries.insert(
+            id,
+            CheckedConformance::new(
+                normalized_interface,
+                normalized_target,
+                conformance.generic_parameters(),
+                pattern.lexical().refinements().to_vec(),
+                pattern.lexical().requirements().to_vec(),
+                associated_types.to_vec(),
+                methods,
+            ),
+        );
+        debug_assert!(previous.is_none());
+        by_interface[interface_id_index(interface_id, declarations.interfaces())?].push(id);
     }
 
     let mut by_interface_arena = ArenaBuilder::new();
@@ -286,10 +272,9 @@ pub(crate) fn build_conformance_table_with_admission(
         by_interface_arena.insert(candidates.into_boxed_slice());
     }
     let table = ConformanceTable::new(
-        entries.finish(),
+        entries,
         by_interface_arena.finish(),
         method_interface_index(graph)?,
-        admitted,
     );
     validate_associated_bounds(graph, types, source_index, &table)?;
     Ok(table)

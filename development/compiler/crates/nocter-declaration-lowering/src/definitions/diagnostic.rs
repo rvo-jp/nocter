@@ -8,13 +8,12 @@ use crate::{DiagnosticNote, SourceDiagnostic};
 /// Complete source projection of one rejected declaration-validation report.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeclarationDiagnostics {
-    report: DeclarationValidationReport,
     sources: Box<[SourceDiagnostic]>,
 }
 
 impl DeclarationDiagnostics {
     pub(super) fn project(
-        report: DeclarationValidationReport,
+        report: &DeclarationValidationReport,
         sources: &SourceIndex,
     ) -> Result<Self, nocter_model::DeclarationSiteId> {
         let mut projected = Vec::with_capacity(report.len());
@@ -38,14 +37,8 @@ impl DeclarationDiagnostics {
                 ))
         });
         Ok(Self {
-            report,
             sources: projected.into_boxed_slice(),
         })
-    }
-
-    #[must_use]
-    pub const fn report(&self) -> &DeclarationValidationReport {
-        &self.report
     }
 
     #[must_use]
@@ -56,7 +49,15 @@ impl DeclarationDiagnostics {
 
 impl fmt::Display for DeclarationDiagnostics {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.report.fmt(formatter)
+        match self.sources.as_ref() {
+            [] => formatter.write_str("declaration validation succeeded"),
+            [diagnostic] => write!(formatter, "{}: {}", diagnostic.code(), diagnostic.message()),
+            diagnostics => write!(
+                formatter,
+                "declaration validation failed with {} authored errors",
+                diagnostics.len()
+            ),
+        }
     }
 }
 

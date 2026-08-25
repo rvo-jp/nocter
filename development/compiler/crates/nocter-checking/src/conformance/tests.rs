@@ -149,7 +149,7 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     let table = build_conformance_table(&graph, &mut types, &source_index).unwrap();
 
     assert_eq!(table.entries().len(), 2);
-    for (_, conformance) in table.entries().iter() {
+    for conformance in table.entries().values() {
         assert!(conformance.requirements().is_empty());
         assert_eq!(conformance.generic_parameters().len(), 1);
         assert_eq!(conformance.refinements().len(), 1);

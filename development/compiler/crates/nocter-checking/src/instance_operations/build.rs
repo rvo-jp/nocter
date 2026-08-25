@@ -1,20 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_declarations::{
-    CallableKind, DeclarationAnalysisAdmission, DeclarationGraph, ParameterRole,
-};
+use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
-    ArenaBuilder, CallableCapability, CallableId, InstanceId, Symbol, TypeId, TypeStore,
+    AttachmentFamily, CallableCapability, CallableId, InstanceId, Symbol, TypeId, TypeStore,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 
 use super::diagnostic;
 use super::model::{CheckedInstanceOperations, InstanceOperationTable};
-use crate::conformance::normalize_requirements;
-use crate::pattern_requirements::PatternRequirements;
-use crate::type_relations::{InherentTypeFamily, SubstitutionError, type_patterns_overlap};
+use crate::declaration_patterns::DeclarationPatternTable;
+use crate::type_relations::{SubstitutionError, type_patterns_overlap};
 
 #[derive(Debug)]
 pub enum InstanceOperationBuildError {
@@ -101,31 +98,45 @@ pub fn build_instance_operation_table(
     types: &mut TypeStore,
     source_index: &SourceIndex,
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
-    build_instance_operation_table_with_admission(graph, types, source_index, None)
+    let patterns = DeclarationPatternTable::build(graph, types)?;
+    let operations = crate::admitted_operations::AdmittedOperations::new(graph, None);
+    build_instance_operation_table_from_ids(
+        graph,
+        types,
+        source_index,
+        &patterns,
+        operations.instances(),
+    )
 }
 
-pub(crate) fn build_instance_operation_table_with_admission(
+pub(crate) fn build_instance_operation_table_from_ids(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
-    admission: Option<&DeclarationAnalysisAdmission>,
+    patterns: &DeclarationPatternTable,
+    instances: &[InstanceId],
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let declarations = graph.declarations();
-    let mut entries = ArenaBuilder::<InstanceId, CheckedInstanceOperations>::new();
-    let mut by_family = BTreeMap::<InherentTypeFamily, Vec<InstanceId>>::new();
-    let mut method_names_by_family = BTreeMap::<InherentTypeFamily, BTreeSet<Symbol>>::new();
+    let mut entries = BTreeMap::<InstanceId, CheckedInstanceOperations>::new();
+    let mut by_family = BTreeMap::<AttachmentFamily, Vec<InstanceId>>::new();
+    let mut method_names_by_family = BTreeMap::<AttachmentFamily, BTreeSet<Symbol>>::new();
 
-    for (id, instance) in declarations.instances().iter() {
-        let is_admitted = admission.is_none_or(|admission| admission.admits_instance(id));
-        let pattern_requirements = PatternRequirements::collect(graph, instance.requirements())?;
-        let pattern_substitution = pattern_requirements.substitution();
-        let target = pattern_substitution.apply_type(types, instance.target())?;
-        let family = InherentTypeFamily::of(types, target)
+    for id in instances {
+        let id = *id;
+        let instance = declarations
+            .instances()
+            .get(id)
+            .ok_or(InstanceOperationInternalError::MissingInstance(id))?;
+        let pattern = patterns
+            .instance(id)
+            .ok_or(InstanceOperationInternalError::MissingInstance(id))?;
+        let target = pattern.target();
+        let family = AttachmentFamily::of(types, target)
             .ok_or(InstanceOperationInternalError::InvalidTarget(target))?;
-        if is_admitted && let Some(previous) = by_family.get(&family) {
+        if let Some(previous) = by_family.get(&family) {
             for previous in previous {
                 let previous_entry = entries
-                    .get(*previous)
+                    .get(previous)
                     .ok_or(InstanceOperationInternalError::MissingInstance(*previous))?;
                 if type_patterns_overlap(types, previous_entry.target(), target)? {
                     let previous = declarations
@@ -140,53 +151,44 @@ pub(crate) fn build_instance_operation_table_with_admission(
                 }
             }
         }
-        let refinements =
-            pattern_requirements.normalized_refinements(types, instance.generic_parameters())?;
-        let requirements = normalize_requirements(
-            graph,
-            types,
-            &pattern_substitution,
-            pattern_requirements.retained(),
-        )?;
         validate_coercion_identities(
             graph,
             types,
             source_index,
             instance.members(),
-            &pattern_substitution,
+            pattern.substitution(),
         )?;
-        if is_admitted {
-            for member in instance.members() {
-                let callable = declarations
-                    .callables()
-                    .get(*member)
+        for member in instance.members() {
+            let callable = declarations
+                .callables()
+                .get(*member)
+                .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
+            if callable.kind() == CallableKind::Method {
+                let name = callable
+                    .name()
                     .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
-                if callable.kind() == CallableKind::Method {
-                    let name = callable
-                        .name()
-                        .ok_or(InstanceOperationInternalError::MissingCallable(*member))?;
-                    method_names_by_family
-                        .entry(family)
-                        .or_default()
-                        .insert(name);
-                }
+                method_names_by_family
+                    .entry(family)
+                    .or_default()
+                    .insert(name);
             }
         }
-        let actual = entries.insert(CheckedInstanceOperations::new(
-            target,
-            instance.generic_parameters(),
-            refinements,
-            requirements,
-            instance.members(),
-        ));
-        debug_assert_eq!(actual, id);
-        if is_admitted {
-            by_family.entry(family).or_default().push(id);
-        }
+        let previous = entries.insert(
+            id,
+            CheckedInstanceOperations::new(
+                target,
+                instance.generic_parameters(),
+                pattern.lexical().refinements().to_vec(),
+                pattern.lexical().requirements().to_vec(),
+                instance.members(),
+            ),
+        );
+        debug_assert!(previous.is_none());
+        by_family.entry(family).or_default().push(id);
     }
 
     Ok(InstanceOperationTable::new(
-        entries.finish(),
+        entries,
         by_family
             .into_iter()
             .map(|(family, instances)| (family, instances.into_boxed_slice()))

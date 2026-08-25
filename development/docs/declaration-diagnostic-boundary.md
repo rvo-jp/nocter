@@ -31,15 +31,17 @@ After graph integrity succeeds, the validation pass produces one immutable outco
 - every declaration-rule violation found in the structurally valid graph;
 - exact declaration-site subjects for source projection;
 - admission facts for construction, instance, conformance, and destruction containers; and
-- an explicit editor-analysis capability that states whether the rejected graph can safely enter
-  body analysis after inadmissible containers have been quarantined.
+- a closed editor-analysis outcome that is either declaration-only or carries the sole
+  body-analysis input after inadmissible containers have been quarantined.
 
 The validation pass is the sole owner of those decisions. Recovery code must consume its admission
-facts and capability; it must not infer them from diagnostic codes or traverse declarations to
-repeat authorization, duplicate, target-shape, or signature rules. Production checking accepts
+facts and the selected outcome variant; it must not infer them from diagnostic codes or traverse
+declarations to repeat authorization, duplicate, target-shape, or signature rules. Production
+checking accepts
 only a validation outcome with no violations. Editor-only checking receives a distinct rejected
 program type carrying the frozen admission facts and cannot be converted into a production
-program.
+program. A declaration-only rejection cannot construct the type accepted by editor body checking;
+there is no boolean guard that a caller can omit.
 
 Structural integrity remains fail-fast. An unknown identity, owner mismatch, malformed arena, or
 other broken compiler invariant makes further semantic validation untrustworthy and yields no
@@ -58,6 +60,9 @@ failure and optional semantic recovery. CLI and LSP consumers read that same col
 not call a singular diagnostic accessor on the typed error and do not recreate diagnostics from
 display text or rule identities. This gives one diagnostic authority for batch and editor entry
 points while retaining typed failures for orchestration and debugging.
+
+After projection, declaration lowering retains only that ordered source collection. It does not
+keep a second semantic report with a different ordering beside the projected diagnostics.
 
 Diagnostic order is canonical and independent of the first failing validation loop. Validation
 orders semantic violations by their declaration subjects and rule code, then removes identical

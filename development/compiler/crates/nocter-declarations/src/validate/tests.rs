@@ -10,8 +10,8 @@ use crate::{
     DeclarationViolation, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
     InstanceDeclaration, ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration,
     PackageTarget, Parameter, ParameterOwner, ParameterRole, ProgramBuildError,
-    ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin, VariantDeclaration,
-    Visibility,
+    ProgramBuildFailure, ProgramIntegrityError, ProgramValidationError, ProvenanceOrigin,
+    RejectedDeclarationAnalysis, VariantDeclaration, Visibility,
 };
 
 #[test]
@@ -476,21 +476,22 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
     }
 
     let failure = program.finish_recovering().unwrap_err();
-    let (error, rejected) = failure.into_parts();
+    let ProgramBuildFailure::Rejected(rejected) = failure else {
+        panic!("authored declaration rejection lost analysis facts");
+    };
+    let (report, analysis) = rejected.into_analysis();
     assert_eq!(
-        error,
-        ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(
-            DeclarationValidationReport::new(vec![DeclarationViolation::with_related(
-                DeclarationRule::DuplicateConstruction,
-                site,
-                site,
-            )])
-        ))
+        report,
+        DeclarationValidationReport::new(vec![DeclarationViolation::with_related(
+            DeclarationRule::DuplicateConstruction,
+            site,
+            site,
+        )])
     );
-    let (_, _, admission) = rejected
-        .expect("authored declaration rejection lost analysis facts")
-        .into_analysis_program()
-        .into_parts();
+    let RejectedDeclarationAnalysis::Bodies(analysis) = analysis else {
+        panic!("local construction rejection unnecessarily disabled body analysis");
+    };
+    let (_, _, admission) = analysis.into_parts();
     assert!(
         constructions
             .iter()

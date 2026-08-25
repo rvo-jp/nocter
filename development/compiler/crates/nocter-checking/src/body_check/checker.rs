@@ -202,6 +202,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let conformances = facts.conformances();
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
+        let declaration_patterns = facts.declaration_patterns();
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
         let source_access = body_source_access(facts, source)?;
@@ -245,14 +246,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
-        let assumptions = body_assumptions(
-            graph,
-            types,
-            conformances,
-            instance_operations,
-            source.owner(),
-        )
-        .map_err(BodyCheckInternalError::BodyAssumptions)?;
+        let assumptions = body_assumptions(graph, types, declaration_patterns, source.owner())
+            .map_err(BodyCheckInternalError::BodyAssumptions)?;
         let opaque_result = OpaqueResultState::for_body(graph, types, source, result_type)?;
         Ok(Self {
             input,

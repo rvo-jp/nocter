@@ -1,5 +1,5 @@
 use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use nocter_model::{
     Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, Symbol, TypeId,
@@ -129,29 +129,26 @@ impl CheckedConformance {
 /// Program-wide conformance dispatch authority.
 #[derive(Debug)]
 pub struct ConformanceTable {
-    entries: Arena<ConformanceId, CheckedConformance>,
+    entries: BTreeMap<ConformanceId, CheckedConformance>,
     by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
     interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
-    admitted: BTreeSet<ConformanceId>,
 }
 
 impl ConformanceTable {
     pub(super) const fn new(
-        entries: Arena<ConformanceId, CheckedConformance>,
+        entries: BTreeMap<ConformanceId, CheckedConformance>,
         by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
         interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
-        admitted: BTreeSet<ConformanceId>,
     ) -> Self {
         Self {
             entries,
             by_interface,
             interfaces_by_method,
-            admitted,
         }
     }
 
     #[must_use]
-    pub const fn entries(&self) -> &Arena<ConformanceId, CheckedConformance> {
+    pub const fn entries(&self) -> &BTreeMap<ConformanceId, CheckedConformance> {
         &self.entries
     }
 
@@ -161,11 +158,6 @@ impl ConformanceTable {
             .get(interface)
             .map(AsRef::as_ref)
             .unwrap_or_default()
-    }
-
-    #[must_use]
-    pub(crate) fn is_admitted(&self, conformance: ConformanceId) -> bool {
-        self.admitted.contains(&conformance)
     }
 
     /// Returns interfaces declaring one method name in canonical declaration identity order.

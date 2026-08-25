@@ -327,7 +327,7 @@ impl<'program> InstanceOperationSelector<'program> {
             let members = self
                 .table
                 .entries()
-                .get(applicable.instance)
+                .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
                 .to_vec();
@@ -430,7 +430,7 @@ impl<'program> InstanceOperationSelector<'program> {
             let members = self
                 .table
                 .entries()
-                .get(applicable.instance)
+                .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
                 .to_vec();
@@ -560,7 +560,7 @@ impl<'program> InstanceOperationSelector<'program> {
             let entry = self
                 .table
                 .entries()
-                .get(instance)
+                .get(&instance)
                 .ok_or(InstanceSelectionError::MissingInstance(instance))?;
             let pattern = entry.target();
             let refinements = entry.refinements().to_vec();

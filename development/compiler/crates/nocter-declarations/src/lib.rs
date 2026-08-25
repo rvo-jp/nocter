@@ -41,8 +41,9 @@ pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{
-    AnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder,
-    DeclarationSite, Module, Package, ProgramBuildError, ProgramBuildFailure,
+    BodyAnalysisDeclarationProgram, DeclarationAnalysisProgram, DeclarationGraph,
+    DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module, Package,
+    ProgramBuildError, ProgramBuildFailure, RejectedDeclarationAnalysis,
     RejectedDeclarationProgram,
 };
 pub use requirement::{

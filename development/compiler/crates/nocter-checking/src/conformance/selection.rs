@@ -135,7 +135,7 @@ impl<'program> Prover<'program> {
             let conformance = self
                 .table
                 .entries()
-                .get(declaration)
+                .get(&declaration)
                 .ok_or(SubstitutionError::InvalidStore)?;
             let Some(matched) = match_pattern(
                 self.types,

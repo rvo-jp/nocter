@@ -124,7 +124,7 @@ impl InstanceOperationSelector<'_> {
             let members = self
                 .table
                 .entries()
-                .get(applicable.instance)
+                .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
                 .to_vec();

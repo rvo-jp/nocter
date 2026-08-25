@@ -208,6 +208,81 @@ fn declaration_diagnostics_are_complete_while_safe_body_semantics_remain_availab
 }
 
 #[test]
+fn quarantined_operation_shapes_cannot_block_independent_body_semantics() {
+    for (generation, rejected, expected_code) in [
+        (
+            51,
+            "instance str {\n    method &self.invalid(): i32 { return 0 }\n}\n",
+            "E0201",
+        ),
+        (
+            52,
+            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n",
+            "E0211",
+        ),
+    ] {
+        let tree = TempTree::new();
+        let source_text = format!(
+            "{rejected}func inspect(value: i32): i32 {{\n    let retained = value\n    return retained\n}}\n"
+        );
+        let (_, snapshot) = bundled_snapshot(&tree, &source_text, GenerationId::new(generation));
+
+        assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+        let codes = snapshot
+            .diagnostics()
+            .iter()
+            .map(nocter_diagnostics::SourceDiagnostic::code)
+            .collect::<Vec<_>>();
+        assert!(codes.contains(&expected_code), "{codes:?}");
+        let source = snapshot
+            .sources()
+            .iter()
+            .find(|source| source.name().as_str().ends_with("app.nct"))
+            .unwrap();
+        let retained = source_text.rfind("retained").unwrap();
+        let subject = snapshot
+            .semantic_subject(
+                source.id(),
+                ByteOffset::new(u32::try_from(retained).unwrap()),
+            )
+            .unwrap()
+            .expect("quarantined operation blocked an independent body");
+        assert_eq!(subject.presentation().code(), "let retained: i32");
+    }
+}
+
+#[test]
+fn program_fact_rejection_stops_at_the_declaration_capability() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "enum Empty {}\n",
+        "func inspect(value: i32): i32 {\n",
+        "    let unavailable = value\n",
+        "    return unavailable\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(53));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(snapshot.diagnostics()[0].code(), "E0200");
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let unavailable = source_text.rfind("unavailable").unwrap();
+    assert!(
+        snapshot
+            .semantic_subject(
+                source.id(),
+                ByteOffset::new(u32::try_from(unavailable).unwrap()),
+            )
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
     let tree = TempTree::new();
     let source_text = concat!(

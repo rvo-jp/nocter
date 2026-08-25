@@ -3,6 +3,7 @@ use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
+use crate::declaration_patterns::DeclarationPatternTable;
 use crate::{
     AssociatedTypeCompletionContext, ClosureTable, ConformanceTable, ConstructionSurfaceTable,
     CopyabilityTable, DropTable, InstanceOperationTable, LoanTable, ProvenanceTable,
@@ -19,6 +20,7 @@ pub struct CheckedProgram {
     conformances: ConformanceTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
+    declaration_patterns: DeclarationPatternTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -35,6 +37,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) conformances: ConformanceTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
+    pub(crate) declaration_patterns: DeclarationPatternTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
@@ -59,6 +62,7 @@ impl CheckedProgram {
             conformances: authorities.conformances,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
+            declaration_patterns: authorities.declaration_patterns,
             copyabilities: authorities.copyabilities,
             drops: authorities.drops,
             standard_semantics: authorities.standard_semantics,
@@ -95,6 +99,10 @@ impl CheckedProgram {
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
         &self.instance_operations
+    }
+
+    pub(crate) const fn declaration_patterns(&self) -> &DeclarationPatternTable {
+        &self.declaration_patterns
     }
 
     #[must_use]

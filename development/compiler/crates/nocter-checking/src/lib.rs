@@ -5,6 +5,7 @@
 //! checked semantic identities. Later stages may consume its immutable semantic values, but they
 //! cannot construct them, inspect body syntax, or reopen a checked selection.
 
+mod admitted_operations;
 mod associated_type_completion;
 mod body_check;
 mod body_sources;
@@ -15,6 +16,7 @@ mod conformance;
 mod construction_completion;
 mod construction_surfaces;
 mod copyability;
+mod declaration_patterns;
 mod enum_pattern_completion;
 mod expected;
 mod field_selection;

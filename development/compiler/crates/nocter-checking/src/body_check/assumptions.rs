@@ -5,8 +5,9 @@ use nocter_model::{TypeKind, TypeStore};
 
 use crate::conformance::normalize_requirements;
 use crate::copyability::CopyProofs;
+use crate::declaration_patterns::DeclarationPatternTable;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
-use crate::{CheckedPredicate, CheckedRequirement, ConformanceTable, InstanceOperationTable};
+use crate::{CheckedPredicate, CheckedRequirement};
 
 /// The complete lexical proof environment for one body.
 ///
@@ -37,8 +38,7 @@ impl BodyAssumptions {
 pub(crate) fn body_assumptions(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    conformances: &ConformanceTable,
-    instance_operations: &InstanceOperationTable,
+    declaration_patterns: &DeclarationPatternTable,
     owner: BodyOwner,
 ) -> Result<BodyAssumptions, SubstitutionError> {
     let BodyOwner::Callable(callable_id) = owner else {
@@ -57,20 +57,9 @@ pub(crate) fn body_assumptions(
     let mut intrinsic = Vec::new();
     let mut substitution = TypeSubstitution::default();
     match callable.owner() {
-        CallableOwner::Instance(instance) => {
-            let entry = instance_operations
-                .entries()
-                .get(instance)
-                .ok_or(SubstitutionError::InvalidStore)?;
-            declared.extend_from_slice(entry.requirements());
-            for refinement in entry.refinements() {
-                substitution.bind_generic(refinement.parameter(), refinement.ty());
-            }
-        }
-        CallableOwner::Conformance(conformance) => {
-            let entry = conformances
-                .entries()
-                .get(conformance)
+        owner @ (CallableOwner::Instance(_) | CallableOwner::Conformance(_)) => {
+            let entry = declaration_patterns
+                .lexical(owner)
                 .ok_or(SubstitutionError::InvalidStore)?;
             declared.extend_from_slice(entry.requirements());
             for refinement in entry.refinements() {

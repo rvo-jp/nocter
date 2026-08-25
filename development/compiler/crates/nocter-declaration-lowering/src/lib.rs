@@ -69,7 +69,9 @@ pub use pipeline::{
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
 };
 pub use primitive_bindings::{PrimitiveResolutionError, resolve_primitive_bindings};
-pub use recovery::DeclarationLoweringRecovery;
+pub use recovery::{
+    DeclarationBodyAnalysisInput, DeclarationCheckingTransition, DeclarationLoweringRecovery,
+};
 pub use reservation::{
     ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
 };

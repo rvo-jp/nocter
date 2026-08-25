@@ -123,12 +123,15 @@ impl CheckedProgram {
         context: MemberCompletionContext,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
         select_member_completions(
-            self.graph(),
-            self.types(),
-            self.conformances(),
-            self.instance_operations(),
-            self.copyabilities(),
-            self.source_access(),
+            MemberCompletionAuthorities {
+                graph: self.graph(),
+                types: self.types(),
+                conformances: self.conformances(),
+                instance_operations: self.instance_operations(),
+                declaration_patterns: self.declaration_patterns(),
+                copyabilities: self.copyabilities(),
+                source_access: self.source_access(),
+            },
             context,
         )
     }
@@ -146,26 +149,44 @@ impl PreparedSemanticProgram {
         context: MemberCompletionContext,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
         select_member_completions(
-            self.graph(),
-            self.types(),
-            self.conformances(),
-            self.instance_operations(),
-            self.copyabilities(),
-            self.source_access(),
+            MemberCompletionAuthorities {
+                graph: self.graph(),
+                types: self.types(),
+                conformances: self.conformances(),
+                instance_operations: self.instance_operations(),
+                declaration_patterns: self.declaration_patterns(),
+                copyabilities: self.copyabilities(),
+                source_access: self.source_access(),
+            },
             context,
         )
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct MemberCompletionAuthorities<'program> {
+    pub(crate) graph: &'program DeclarationGraph,
+    pub(crate) types: &'program TypeStore,
+    pub(crate) conformances: &'program ConformanceTable,
+    pub(crate) instance_operations: &'program InstanceOperationTable,
+    pub(crate) declaration_patterns: &'program crate::declaration_patterns::DeclarationPatternTable,
+    pub(crate) copyabilities: &'program CopyabilityTable,
+    pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
+}
+
 pub(crate) fn select_member_completions(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
-    conformances: &ConformanceTable,
-    instance_operations: &InstanceOperationTable,
-    copyabilities: &CopyabilityTable,
-    source_access: &nocter_frontend_bindings::SourceAccessTable,
+    authorities: MemberCompletionAuthorities<'_>,
     context: MemberCompletionContext,
 ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
+    let MemberCompletionAuthorities {
+        graph,
+        types,
+        conformances,
+        instance_operations,
+        declaration_patterns,
+        copyabilities,
+        source_access,
+    } = authorities;
     let mut types = types.clone();
     let mut copyabilities = copyabilities.clone();
     let receiver = match types.get(context.receiver) {
@@ -176,14 +197,8 @@ pub(crate) fn select_member_completions(
     let access = crate::SourceAccessContext::for_source(source_access, context.source)
         .map_err(MemberCompletionError::SourceAccess)?;
     let mut completions = field_completions(graph, &mut types, access, receiver)?;
-    let assumptions = body_assumptions(
-        graph,
-        &mut types,
-        conformances,
-        instance_operations,
-        context.owner,
-    )
-    .map_err(MemberCompletionError::Assumptions)?;
+    let assumptions = body_assumptions(graph, &mut types, declaration_patterns, context.owner)
+        .map_err(MemberCompletionError::Assumptions)?;
     let selection = InstanceSelectionContext::new(
         graph,
         conformances,

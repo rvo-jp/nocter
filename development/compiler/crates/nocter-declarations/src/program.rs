@@ -630,7 +630,7 @@ impl DeclarationProgramBuilder {
             .try_finish_with(|module, namespace| {
                 namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
             })
-            .map_err(ProgramBuildFailure::without_program)?;
+            .map_err(ProgramBuildFailure::Error)?;
         let program = DeclarationProgram {
             graph: DeclarationGraph {
                 target: self.target,
@@ -649,28 +649,23 @@ impl DeclarationProgramBuilder {
                     .declarations
                     .finish()
                     .map_err(ProgramBuildError::from)
-                    .map_err(ProgramBuildFailure::without_program)?,
+                    .map_err(ProgramBuildFailure::Error)?,
             },
             types: self.types,
         };
         crate::validate::validate_integrity(&program)
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::without_program)?;
+            .map_err(ProgramBuildFailure::Error)?;
         let validation = crate::validate::validate_language_rules(&program)
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::without_program)?;
+            .map_err(ProgramBuildFailure::Error)?;
         let (report, admission, body_analysis) = validation.into_parts();
         if !report.is_empty() {
-            return Err(ProgramBuildFailure::new(
-                ProgramBuildError::InvalidProgram(ProgramValidationError::Declaration(report)),
-                Some(RejectedDeclarationProgram::new(
-                    program,
-                    admission,
-                    body_analysis,
-                )),
-            ));
+            return Err(ProgramBuildFailure::Rejected(Box::new(
+                RejectedDeclarationProgram::new(program, report, admission, body_analysis),
+            )));
         }
         Ok(program)
     }
@@ -703,6 +698,7 @@ impl DeclarationProgramBuilder {
 #[derive(Debug)]
 pub struct RejectedDeclarationProgram {
     program: DeclarationProgram,
+    report: crate::validate::DeclarationValidationReport,
     admission: DeclarationAnalysisAdmission,
     body_analysis: crate::validate::BodyAnalysisCapability,
 }
@@ -710,96 +706,107 @@ pub struct RejectedDeclarationProgram {
 impl RejectedDeclarationProgram {
     const fn new(
         program: DeclarationProgram,
+        report: crate::validate::DeclarationValidationReport,
         admission: DeclarationAnalysisAdmission,
         body_analysis: crate::validate::BodyAnalysisCapability,
     ) -> Self {
         Self {
             program,
+            report,
             admission,
             body_analysis,
         }
     }
 
+    /// Separates the authored validation report from the deepest editor analysis input that the
+    /// rejected graph may safely enter.
+    ///
+    /// The returned variant is the capability boundary. A declaration-only rejection never
+    /// constructs a [`BodyAnalysisDeclarationProgram`], so checking cannot depend on callers to
+    /// inspect a boolean before opening its editor-only entry point.
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
-        self.program.into_parts()
-    }
-
-    /// Converts structurally valid but compilation-rejected declarations into an editor-only
-    /// checking input. Global operation admission is frozen before the accepted program is
-    /// destroyed, so later analysis cannot accidentally activate an unauthorized extension.
-    #[must_use]
-    pub fn into_analysis_program(self) -> AnalysisDeclarationProgram {
-        AnalysisDeclarationProgram::new(self.program, self.admission, self.body_analysis)
+    pub fn into_analysis(
+        self,
+    ) -> (
+        crate::validate::DeclarationValidationReport,
+        RejectedDeclarationAnalysis,
+    ) {
+        let (graph, types) = self.program.into_parts();
+        let analysis = match self.body_analysis {
+            crate::validate::BodyAnalysisCapability::DeclarationsOnly => {
+                RejectedDeclarationAnalysis::Declarations(DeclarationAnalysisProgram {
+                    graph,
+                    types,
+                })
+            }
+            crate::validate::BodyAnalysisCapability::AdmittedBodies => {
+                RejectedDeclarationAnalysis::Bodies(BodyAnalysisDeclarationProgram {
+                    graph,
+                    types,
+                    admission: self.admission,
+                })
+            }
+        };
+        (self.report, analysis)
     }
 }
 
-/// Structurally valid declaration facts that may enter editor body analysis but never a
-/// production compilation transition.
+/// The exact editor analysis capability retained after declaration rejection.
 #[derive(Debug)]
-pub struct AnalysisDeclarationProgram {
+pub enum RejectedDeclarationAnalysis {
+    Declarations(DeclarationAnalysisProgram),
+    Bodies(BodyAnalysisDeclarationProgram),
+}
+
+/// Structurally valid declaration facts that cannot enter body analysis.
+#[derive(Debug)]
+pub struct DeclarationAnalysisProgram {
+    graph: DeclarationGraph,
+    types: TypeStore,
+}
+
+impl DeclarationAnalysisProgram {
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
+        (self.graph, self.types)
+    }
+}
+
+/// Structurally valid declaration facts admitted to editor body analysis but never to production
+/// compilation.
+#[derive(Debug)]
+pub struct BodyAnalysisDeclarationProgram {
     graph: DeclarationGraph,
     types: TypeStore,
     admission: DeclarationAnalysisAdmission,
-    body_analysis: crate::validate::BodyAnalysisCapability,
 }
 
-impl AnalysisDeclarationProgram {
-    fn new(
-        program: DeclarationProgram,
-        admission: DeclarationAnalysisAdmission,
-        body_analysis: crate::validate::BodyAnalysisCapability,
-    ) -> Self {
-        let (graph, types) = program.into_parts();
-        Self {
-            graph,
-            types,
-            admission,
-            body_analysis,
-        }
-    }
-
-    #[must_use]
-    pub const fn supports_body_analysis(&self) -> bool {
-        matches!(
-            self.body_analysis,
-            crate::validate::BodyAnalysisCapability::AdmittedBodies
-        )
-    }
-
+impl BodyAnalysisDeclarationProgram {
     #[must_use]
     pub fn into_parts(self) -> (DeclarationGraph, TypeStore, DeclarationAnalysisAdmission) {
         (self.graph, self.types, self.admission)
     }
 }
 
-/// A failed declaration-program freeze and its optional rejected declaration facts.
+/// A failed declaration-program freeze.
+///
+/// Authored rejection owns its report and rejected graph in one variant. Structural build and
+/// integrity failures cannot accidentally carry a rejected analysis program.
 #[derive(Debug)]
-pub struct ProgramBuildFailure {
-    error: ProgramBuildError,
-    rejected: Option<Box<RejectedDeclarationProgram>>,
+pub enum ProgramBuildFailure {
+    Error(ProgramBuildError),
+    Rejected(Box<RejectedDeclarationProgram>),
 }
 
 impl ProgramBuildFailure {
-    fn new(error: ProgramBuildError, rejected: Option<RejectedDeclarationProgram>) -> Self {
-        Self {
-            error,
-            rejected: rejected.map(Box::new),
-        }
-    }
-
-    fn without_program(error: ProgramBuildError) -> Self {
-        Self::new(error, None)
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (ProgramBuildError, Option<RejectedDeclarationProgram>) {
-        (self.error, self.rejected.map(|rejected| *rejected))
-    }
-
     #[must_use]
     pub fn into_error(self) -> ProgramBuildError {
-        self.error
+        match self {
+            Self::Error(error) => error,
+            Self::Rejected(rejected) => ProgramBuildError::InvalidProgram(
+                ProgramValidationError::Declaration(rejected.report),
+            ),
+        }
     }
 }
 

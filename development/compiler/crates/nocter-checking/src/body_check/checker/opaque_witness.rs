@@ -194,7 +194,7 @@ impl BodyChecker<'_, '_> {
             let conformance = self
                 .conformances
                 .entries()
-                .get(selected.declaration())
+                .get(&selected.declaration())
                 .cloned()
                 .ok_or(BodyCheckInternalError::OpaqueWitnessPlanning)?;
             for expected in associated_types {

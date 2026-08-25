@@ -1,6 +1,5 @@
 use nocter_declarations::{
-    CallableKind, CallableProvenanceContract, DeclarationRule, ExportedEntity, NominalShape,
-    ProvenanceAnnotation,
+    CallableKind, CallableProvenanceContract, ExportedEntity, NominalShape, ProvenanceAnnotation,
 };
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -624,10 +623,6 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     else {
         panic!("empty enum did not produce a declaration diagnostic");
     };
-    assert_eq!(
-        empty_enum.report().violations()[0].rule(),
-        DeclarationRule::EmptyEnum
-    );
     let empty_source = &empty_enum.sources()[0];
     assert_eq!(empty_source.code(), "E0200");
     assert!(empty_source.primary().node().is_some());
@@ -639,19 +634,13 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
             "interface Show { pub method &self.show(): i32 }\ninterface Factory { pub method &self.make(): some Show }\n"
         ),
         super::HeaderDefinitionError::Declaration(diagnostics)
-            if diagnostics.report().violations().iter().any(|diagnostic| {
-                diagnostic.rule() == DeclarationRule::InvalidOpaqueResult
-            })
+            if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0212")
     ));
     let super::HeaderDefinitionError::Declaration(invalid_result) =
         definition_error("struct Box {}\nconstruct Box {\n    pub func new(): i32 { return }\n}\n")
     else {
         panic!("invalid construction result did not produce a declaration diagnostic");
     };
-    assert_eq!(
-        invalid_result.report().violations()[0].rule(),
-        DeclarationRule::InvalidConstructionResult
-    );
     let invalid_source = &invalid_result.sources()[0];
     let related = invalid_source.notes()[0].origin();
     let primary_range = invalid_source.primary().span().range();
@@ -665,18 +654,14 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     assert!(matches!(
         definition_error("instance str {\n    pub method &self.size(): usize { return 0 }\n}\n"),
         super::HeaderDefinitionError::Declaration(diagnostics)
-            if diagnostics.report().violations().iter().any(|diagnostic| {
-                diagnostic.rule() == DeclarationRule::InvalidInherentAttachment
-            })
+            if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0201")
     ));
     assert!(matches!(
         definition_error(
             "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n"
         ),
         super::HeaderDefinitionError::Declaration(diagnostics)
-            if diagnostics.report().violations().iter().any(|diagnostic| {
-                diagnostic.rule() == DeclarationRule::IncompleteAssociatedTypes
-            })
+            if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0211")
     ));
     for source in [
         "struct Text {}\nconstruct Text {\n    pub literal \"\"(text: i32): Self { return Self {} }\n}\n",
@@ -685,9 +670,7 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
         assert!(matches!(
             definition_error(source),
             super::HeaderDefinitionError::Declaration(diagnostics)
-                if diagnostics.report().violations().iter().any(|diagnostic| {
-                    diagnostic.rule() == DeclarationRule::InvalidLiteralSignature
-                }) && diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0213")
+                if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0213")
         ));
     }
 }
@@ -703,7 +686,7 @@ fn declaration_freeze_projects_every_independent_rule_violation() {
         panic!("invalid declarations did not produce a validation report");
     };
 
-    assert_eq!(diagnostics.report().len(), 3);
+    assert_eq!(diagnostics.sources().len(), 3);
     assert_eq!(
         diagnostics
             .sources()

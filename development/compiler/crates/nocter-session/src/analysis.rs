@@ -4,7 +4,7 @@ use nocter_checking::{
     prepare_program_checking, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    DeclarationLoweringRecovery, lower_compile_unit_declarations,
+    DeclarationCheckingTransition, DeclarationLoweringRecovery, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
     resolve_primitive_bindings,
 };
@@ -181,13 +181,8 @@ fn analyze_target_internal(
             Ok(lowered) => lowered,
             Err(failure) => {
                 let (error, recovery) = failure.into_parts();
-                let semantic = recovery.and_then(|recovery| {
-                    if recovery.supports_body_analysis() {
-                        analyze_rejected_declarations(&input, recovery)
-                    } else {
-                        Some(SemanticAnalysis::from_declaration_lowering(recovery))
-                    }
-                });
+                let semantic =
+                    recovery.and_then(|recovery| analyze_rejected_declarations(&input, recovery));
                 return Err(Box::new(CompileTargetFailure::new(error.into(), semantic)));
             }
         }
@@ -234,7 +229,13 @@ fn analyze_rejected_declarations(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
 ) -> Option<SemanticAnalysis> {
-    let (program, frontend_bindings, source_index) = recovery.into_checking_parts(input)?;
+    let (program, frontend_bindings, source_index) = match recovery.into_checking_transition(input)
+    {
+        DeclarationCheckingTransition::Bodies(input) => input.into_parts(),
+        DeclarationCheckingTransition::Declarations(recovery) => {
+            return Some(SemanticAnalysis::from_declaration_lowering(*recovery));
+        }
+    };
     let prepared = match prepare_analysis_program_checking_recovering(
         input,
         program,

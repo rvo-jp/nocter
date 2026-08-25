@@ -126,27 +126,30 @@ pub(super) fn finish_recovering(
             source_index,
         )),
         Err(failure) => {
-            let (error, rejected) = failure.into_parts();
-            let (error, recovery) = match error {
-                nocter_declarations::ProgramBuildError::InvalidProgram(
-                    nocter_declarations::ProgramValidationError::Declaration(report),
-                ) => match super::DeclarationDiagnostics::project(report, &source_index) {
-                    Ok(diagnostics) => {
-                        let recovery = rejected.map(|rejected| {
-                            crate::DeclarationLoweringRecovery::new(
-                                rejected.into_analysis_program(),
+            let (error, recovery) = match failure {
+                nocter_declarations::ProgramBuildFailure::Rejected(rejected) => {
+                    let (report, analysis) = rejected.into_analysis();
+                    match super::DeclarationDiagnostics::project(&report, &source_index) {
+                        Ok(diagnostics) => {
+                            let recovery = crate::DeclarationLoweringRecovery::new(
+                                analysis,
                                 frontend_bindings,
                                 source_index,
+                            );
+                            (
+                                HeaderDefinitionError::Declaration(diagnostics),
+                                Some(recovery),
                             )
-                        });
-                        (HeaderDefinitionError::Declaration(diagnostics), recovery)
+                        }
+                        Err(subject) => (
+                            HeaderDefinitionError::MissingDiagnosticSubject(subject),
+                            None,
+                        ),
                     }
-                    Err(subject) => (
-                        HeaderDefinitionError::MissingDiagnosticSubject(subject),
-                        None,
-                    ),
-                },
-                error => (HeaderDefinitionError::Program(error), None),
+                }
+                nocter_declarations::ProgramBuildFailure::Error(error) => {
+                    (HeaderDefinitionError::Program(error), None)
+                }
             };
             Err(HeaderDefinitionFailure::new(error, recovery))
         }

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::{DeclarationAnalysisAdmission, DeclarationGraph};
+use nocter_declarations::DeclarationGraph;
 use nocter_model::{DropId, NominalTypeId, TypeId, TypeKind, TypeStore};
 
 /// Canonical association between nominal families and their type-owned drop bodies.
@@ -11,16 +11,19 @@ pub struct DropTable {
 }
 
 impl DropTable {
-    pub(crate) fn build_with_admission(
+    pub(crate) fn build_from_ids(
         graph: &DeclarationGraph,
         types: &TypeStore,
-        admission: Option<&DeclarationAnalysisAdmission>,
+        drops: &[DropId],
     ) -> Result<Self, DropTableError> {
         let mut families = BTreeMap::new();
-        for (drop, declaration) in graph.declarations().drops().iter() {
-            if admission.is_some_and(|admission| !admission.admits_drop(drop)) {
-                continue;
-            }
+        for drop in drops {
+            let drop = *drop;
+            let declaration = graph
+                .declarations()
+                .drops()
+                .get(drop)
+                .ok_or(DropTableError::MissingDeclaration(drop))?;
             let definition = match types.get(declaration.target()) {
                 Some(TypeKind::Nominal { definition, .. }) => *definition,
                 Some(_) => return Err(DropTableError::InvalidTarget(declaration.target())),
@@ -41,6 +44,7 @@ impl DropTable {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DropTableError {
+    MissingDeclaration(DropId),
     UnknownType(TypeId),
     InvalidTarget(TypeId),
     DuplicateFamily(NominalTypeId),

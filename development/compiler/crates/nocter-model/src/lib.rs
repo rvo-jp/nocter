@@ -5,6 +5,7 @@
 //! source ranges, or rendered type spellings.
 
 mod arena;
+mod attachment_family;
 mod constant;
 mod id;
 mod origin;
@@ -15,6 +16,7 @@ mod type_projection;
 mod type_store;
 
 pub use arena::{Arena, ArenaBuilder};
+pub use attachment_family::AttachmentFamily;
 pub use constant::ConstantValue;
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,

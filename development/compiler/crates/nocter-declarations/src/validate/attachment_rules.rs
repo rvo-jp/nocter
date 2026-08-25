@@ -1,16 +1,9 @@
-use nocter_model::{BorrowCapability, BuiltinType, ModuleId, TypeId, TypeKind};
+use nocter_model::{AttachmentFamily, BorrowCapability, BuiltinType, ModuleId, TypeId, TypeKind};
 
 use crate::{
     BuiltinAttachment, CallableDeclaration, DeclarationProgram, LiteralShape, ParameterRole,
     Visibility,
 };
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum AttachmentTarget {
-    Nominal(nocter_model::NominalTypeId),
-    Builtin(BuiltinType),
-    Slice,
-}
 
 pub(super) fn outcome_payload(program: &DeclarationProgram, mut ty: TypeId) -> Option<TypeId> {
     loop {
@@ -57,13 +50,8 @@ pub(super) fn valid_literal_signature(
 pub(super) fn attachment_target(
     program: &DeclarationProgram,
     ty: TypeId,
-) -> Option<AttachmentTarget> {
-    match program.types().get(ty)? {
-        TypeKind::Nominal { definition, .. } => Some(AttachmentTarget::Nominal(*definition)),
-        TypeKind::Builtin(builtin) => Some(AttachmentTarget::Builtin(*builtin)),
-        TypeKind::Slice(_) => Some(AttachmentTarget::Slice),
-        _ => None,
-    }
+) -> Option<AttachmentFamily> {
+    AttachmentFamily::of(program.types(), ty)
 }
 
 pub(super) fn inherent_target_is_authorized(
@@ -72,16 +60,16 @@ pub(super) fn inherent_target_is_authorized(
     module: ModuleId,
 ) -> bool {
     match attachment_target(program, ty) {
-        Some(AttachmentTarget::Nominal(definition)) => program
+        Some(AttachmentFamily::Nominal(definition)) => program
             .graph()
             .declarations()
             .nominal_types()
             .get(definition)
             .and_then(|declaration| program.graph().declaration_sites().get(declaration.site()))
             .is_some_and(|site| site.module() == module),
-        Some(AttachmentTarget::Builtin(builtin)) => builtin_attachment(builtin)
+        Some(AttachmentFamily::Builtin(builtin)) => builtin_attachment(builtin)
             .is_some_and(|attachment| is_standard_attachment_module(program, module, attachment)),
-        Some(AttachmentTarget::Slice) => {
+        Some(AttachmentFamily::Slice) => {
             is_standard_attachment_module(program, module, BuiltinAttachment::Slice)
         }
         None => false,
@@ -94,8 +82,8 @@ pub(super) fn conformance_target_is_authorized(
     module: ModuleId,
 ) -> bool {
     match attachment_target(program, ty) {
-        Some(AttachmentTarget::Nominal(_)) => true,
-        Some(AttachmentTarget::Builtin(_) | AttachmentTarget::Slice) => {
+        Some(AttachmentFamily::Nominal(_)) => true,
+        Some(AttachmentFamily::Builtin(_) | AttachmentFamily::Slice) => {
             is_standard_package_module(program, module)
         }
         None => false,

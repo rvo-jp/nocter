@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use nocter_model::ModuleId;
 
 use super::attachment_rules::{
-    AttachmentTarget, attachment_target, conformance_target_is_authorized,
-    inherent_target_is_authorized, is_standard_package_module, outcome_payload,
-    valid_literal_signature,
+    attachment_target, conformance_target_is_authorized, inherent_target_is_authorized,
+    is_standard_package_module, outcome_payload, valid_literal_signature,
 };
 use crate::{CallableKind, CallableOwner, DeclarationProgram, NominalShape};
 
@@ -125,7 +124,7 @@ fn validate_constructions(
     program: &DeclarationProgram,
     collector: &mut ValidationCollector,
 ) -> Result<(), ProgramIntegrityError> {
-    let mut targets = HashMap::<AttachmentTarget, Vec<_>>::new();
+    let mut targets = HashMap::<nocter_model::AttachmentFamily, Vec<_>>::new();
     for (id, construction) in program.declarations().constructions().iter() {
         let module = site_module(
             program,
@@ -136,7 +135,7 @@ fn validate_constructions(
         let authorized = inherent_target_is_authorized(program, construction.target(), module);
         if !authorized {
             let related = match target {
-                Some(AttachmentTarget::Nominal(definition)) => Some(
+                Some(nocter_model::AttachmentFamily::Nominal(definition)) => Some(
                     require(
                         program.declarations().nominal_types().get(definition),
                         DeclarationDomain::Construction,
@@ -222,7 +221,7 @@ fn validate_instances(
         let module = site_module(program, instance.site(), DeclarationDomain::Instance)?;
         if !inherent_target_is_authorized(program, instance.target(), module) {
             let related = match attachment_target(program, instance.target()) {
-                Some(AttachmentTarget::Nominal(definition)) => Some(
+                Some(nocter_model::AttachmentFamily::Nominal(definition)) => Some(
                     require(
                         program.declarations().nominal_types().get(definition),
                         DeclarationDomain::Instance,
@@ -255,9 +254,9 @@ fn validate_conformances(
     for (id, conformance) in program.declarations().conformances().iter() {
         let module = site_module(program, conformance.site(), DeclarationDomain::Conformance)?;
         match attachment_target(program, conformance.target()) {
-            Some(AttachmentTarget::Builtin(_) | AttachmentTarget::Slice)
-                if !conformance_target_is_authorized(program, conformance.target(), module) =>
-            {
+            Some(
+                nocter_model::AttachmentFamily::Builtin(_) | nocter_model::AttachmentFamily::Slice,
+            ) if !conformance_target_is_authorized(program, conformance.target(), module) => {
                 collector.reject_conformance(
                     id,
                     violation(
@@ -274,9 +273,9 @@ fn validate_conformances(
                 ),
             ),
             Some(
-                AttachmentTarget::Nominal(_)
-                | AttachmentTarget::Builtin(_)
-                | AttachmentTarget::Slice,
+                nocter_model::AttachmentFamily::Nominal(_)
+                | nocter_model::AttachmentFamily::Builtin(_)
+                | nocter_model::AttachmentFamily::Slice,
             ) => {}
         }
     }
@@ -290,7 +289,8 @@ fn validate_drops(
     let mut targets = HashMap::<nocter_model::NominalTypeId, Vec<_>>::new();
     for (id, drop) in program.declarations().drops().iter() {
         let module = site_module(program, drop.site(), DeclarationDomain::Drop)?;
-        let Some(AttachmentTarget::Nominal(definition)) = attachment_target(program, drop.target())
+        let Some(nocter_model::AttachmentFamily::Nominal(definition)) =
+            attachment_target(program, drop.target())
         else {
             collector.reject_drop(
                 id,

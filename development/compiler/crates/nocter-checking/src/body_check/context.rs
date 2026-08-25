@@ -1,4 +1,5 @@
 use super::error::BodyCheckInternalError;
+use crate::declaration_patterns::DeclarationPatternTable;
 use crate::{
     BodySource, ConformanceTable, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     StandardSemanticTable,
@@ -16,6 +17,7 @@ pub(super) struct BodyProgramFacts<'program> {
     conformances: &'program ConformanceTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
+    declaration_patterns: &'program DeclarationPatternTable,
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
     source_access: &'program SourceAccessTable,
@@ -74,6 +76,7 @@ impl<'program> BodyProgramFacts<'program> {
             conformances: &prepared.conformances,
             construction_surfaces: &prepared.construction_surfaces,
             instance_operations: &prepared.instance_operations,
+            declaration_patterns: &prepared.declaration_patterns,
             standard_semantics: &prepared.standard_semantics,
             source_namespaces: &prepared.source_namespaces,
             source_access: &prepared.source_access,
@@ -99,6 +102,10 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn instance_operations(self) -> &'program InstanceOperationTable {
         self.instance_operations
+    }
+
+    pub(super) const fn declaration_patterns(self) -> &'program DeclarationPatternTable {
+        self.declaration_patterns
     }
 
     pub(super) const fn standard_semantics(self) -> &'program StandardSemanticTable {

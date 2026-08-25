@@ -9,6 +9,15 @@ queries, and LSP mutation validation now use one staged authority model; the sup
 adapters and source-`include` vocabulary were deleted. Practical API planning may resume from this
 boundary.
 
+The follow-up adversarial boundary review is complete. Declaration rejection now exposes distinct
+declaration-only and body-analysis types instead of a caller-checked capability flag. One
+`AdmittedOperations` value is the only checking-side interpreter of recovery admission, one
+`DeclarationPatternTable` supplies normalized container facts to body assumptions and admitted
+global tables, and one model-owned `AttachmentFamily` defines type-family identity. Rejected
+operation entries are physically absent from dispatch tables, projected declaration diagnostics no
+longer retain a parallel semantic report, and strict workspace Clippy protects the resulting API
+surface.
+
 Nocter v0.16.0 is published and externally audited. Release-content commit
 `1d656283f27fb02a61f9ff1b1593040989e54cf2` passed two independent workspace test runs, strict
 Clippy from reusable and clean targets, explicit public-HTTPS acquisition, deterministic double

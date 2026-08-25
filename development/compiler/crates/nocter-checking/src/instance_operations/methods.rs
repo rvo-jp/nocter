@@ -347,7 +347,7 @@ impl InstanceOperationSelector<'_> {
             let members = self
                 .table
                 .entries()
-                .get(applicable.instance)
+                .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
                 .to_vec();
@@ -531,7 +531,7 @@ impl InstanceOperationSelector<'_> {
             let conformance = self
                 .conformances
                 .entries()
-                .get(conformance_id)
+                .get(&conformance_id)
                 .cloned()
                 .ok_or(InstanceSelectionError::MissingConformance(conformance_id))?;
             let mut pattern_substitution = TypeSubstitution::default();
@@ -640,7 +640,7 @@ impl InstanceOperationSelector<'_> {
         let conformance = self
             .conformances
             .entries()
-            .get(selected.declaration())
+            .get(&selected.declaration())
             .cloned()
             .ok_or(InstanceSelectionError::MissingConformance(
                 selected.declaration(),

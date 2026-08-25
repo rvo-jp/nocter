@@ -849,6 +849,16 @@ cannot rescan declarations or infer admission from a diagnostic code. Changing a
 therefore cannot change rule selection, and adding a diagnostic cannot create a second attachment
 or declaration-shape evaluator.
 
+Checking converts accepted declarations or the frozen editor admission facts into one
+`AdmittedOperations` identity set before building any program-wide table. Construction,
+instance-operation, conformance, and drop builders receive only their admitted IDs; they never
+interpret an optional recovery mode or traverse rejected containers. One declaration-pattern table
+normalizes instance and conformance substitutions, targets, associated bindings, requirements, and
+refinements exactly once. Body-local assumptions and admitted global table builders consume that
+same immutable contract. A quarantined container therefore retains local editor semantics without
+becoming a dispatch, overlap, destruction, or provenance candidate or triggering a second pattern
+normalization pass.
+
 All source-backed compiler diagnostics share one phase-neutral envelope containing a stable code,
 primary source origin, zero or more related source notes, and optional correction guidance. The
 envelope does not select a rule and has no dependency on declaration or checked-program models.
@@ -1315,6 +1325,9 @@ Unauthorized containers and locally invalid construction or drop surfaces stay a
 body owners but are excluded from global candidate indexes, overlap validation, destruction, and
 provenance selection. The analysis-only declaration and prepared-program types cannot enter the
 production checking transition. Their sole body endpoint stops before ownership and provenance.
+Declaration validation constructs either a declaration-only value or the distinct body-analysis
+input type; no public checking entry accepts the former and no caller-controlled capability test
+opens that boundary.
 Body checking is transactional per body: independently successful bodies and their source
 projections remain as sparse editor evidence when another body fails, while executable dispatch and
 target closure remain unavailable.
