@@ -184,6 +184,7 @@ struct AliasDefinition {
 struct NormalizationContext {
     declarations: Box<[SurfaceDeclaration]>,
     entities: Box<[Option<ReservedEntity>]>,
+    entity_declarations: std::collections::BTreeMap<ReservedEntity, SurfaceDeclarationId>,
     aliases: HashMap<TypeAliasId, AliasDefinition>,
     associated: HashMap<(InterfaceId, Symbol), AssociatedTypeId>,
     associated_surfaces: HashMap<AssociatedTypeId, SurfaceDeclarationId>,
@@ -933,26 +934,23 @@ fn normalize_opaque_results(
     evaluator: &mut Evaluator<'_>,
     bound: &HashMap<OpaqueTypeId, BoundOpaqueResult>,
 ) -> Result<HashMap<OpaqueTypeId, NormalizedOpaqueResult>, TypeNormalizationError> {
-    let mut ordered: Vec<_> = bound.iter().collect();
-    ordered.sort_by_key(|(opaque, _)| {
-        evaluator
-            .context
-            .entities
-            .iter()
-            .position(|entity| *entity == Some(ReservedEntity::OpaqueType(**opaque)))
-            .unwrap_or(usize::MAX)
-    });
+    let mut ordered = bound
+        .iter()
+        .map(|(opaque, result)| {
+            evaluator
+                .context
+                .entity_declarations
+                .get(&ReservedEntity::OpaqueType(*opaque))
+                .copied()
+                .map(|declaration| (declaration, *opaque, result))
+                .ok_or(TypeNormalizationError::InvalidSelf(
+                    ReservedEntity::OpaqueType(*opaque),
+                ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    ordered.sort_unstable_by_key(|(declaration, _, _)| *declaration);
     let mut normalized = HashMap::with_capacity(ordered.len());
-    for (opaque, result) in ordered {
-        let declaration = evaluator
-            .context
-            .entities
-            .iter()
-            .position(|entity| *entity == Some(ReservedEntity::OpaqueType(*opaque)))
-            .map(SurfaceDeclarationId::from_index)
-            .ok_or(TypeNormalizationError::InvalidSelf(
-                ReservedEntity::OpaqueType(*opaque),
-            ))?;
+    for (declaration, opaque, result) in ordered {
         let arguments = result
             .arguments
             .iter()
@@ -968,7 +966,7 @@ fn normalize_opaque_results(
             })
             .collect::<Result<Vec<_>, _>>()?;
         normalized.insert(
-            *opaque,
+            opaque,
             NormalizedOpaqueResult {
                 generic_parameters: result.generic_parameters.clone(),
                 interface: InterfaceApplication::new(result.interface, arguments),

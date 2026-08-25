@@ -87,20 +87,19 @@ pub fn evaluate(
             })?;
         let (file, tree) = syntax_input(&bindings, &source_ids, source.initializer)?;
         let plan = plan_expression(file, tree, source.initializer, expected, &mut resolver)
-            .map_err(|error| plan_error(&resolver, error))?;
+            .map_err(plan_error)?;
         plans.insert(id, plan);
     }
-    let values =
-        evaluate_constant_plans(&plans).map_err(|error| evaluation_error(&resolver, error))?;
+    let values = evaluate_constant_plans(&plans).map_err(evaluation_error)?;
 
     let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
     let mut array_lengths = HashMap::new();
     for expression in collect_array_expressions(&bindings) {
         let (file, tree) = syntax_input(&bindings, &source_ids, expression)?;
-        let plan = plan_expression(file, tree, expression, usize_ty, &mut resolver)
-            .map_err(|error| plan_error(&resolver, error))?;
+        let plan =
+            plan_expression(file, tree, expression, usize_ty, &mut resolver).map_err(plan_error)?;
         let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
-            .map_err(|error| evaluation_error(&resolver, error))?;
+            .map_err(evaluation_error)?;
         let ConstantValue::Integer(value) = value else {
             return Err(rule_at(
                 DefinitionRule::ConstantTypeMismatch,
@@ -155,7 +154,7 @@ fn collect_sources(
 ) -> Result<HashMap<ConstantId, ConstantSource>, HeaderDefinitionError> {
     let reserved = &bindings.namespaces.imports.generics.headers.reserved;
     let mut result = HashMap::new();
-    for (index, entity) in reserved.entities.iter().copied().enumerate() {
+    for (index, entity) in reserved.entities().iter().copied().enumerate() {
         let Some(ReservedEntity::Constant(id)) = entity else {
             continue;
         };
@@ -223,7 +222,10 @@ impl ConstantResolver for HeaderResolver<'_, '_> {
                 SyntaxOrigin::Node(node),
             ));
         };
-        let source = self.sources.get(&id).ok_or_else(|| self.internal(node))?;
+        let source = self
+            .sources
+            .get(&id)
+            .ok_or_else(|| inconsistent_node(node))?;
         let ty = self
             .scalar_type(source.ty, &mut HashSet::new())
             .ok_or_else(|| {
@@ -240,7 +242,7 @@ impl ConstantResolver for HeaderResolver<'_, '_> {
                 .insert(token, (entity, origin))
                 .is_some_and(|(existing, _)| existing != entity)
             {
-                return Err(self.internal(node));
+                return Err(inconsistent_node(node));
             }
         }
         let reference = ConstantReference::new(id, ty);
@@ -298,7 +300,7 @@ impl HeaderResolver<'_, '_> {
         let tree = self.tree(node)?;
         match tree.node(node).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::ReferenceExpression) => {
-                let token = direct_token(tree, node).ok_or_else(|| self.internal(node))?;
+                let token = direct_token(tree, node).ok_or_else(|| inconsistent_node(node))?;
                 let symbol = self.symbol(token)?;
                 let source = self.surface_source(node)?;
                 let entity = self
@@ -323,7 +325,7 @@ impl HeaderResolver<'_, '_> {
                 };
                 let token = direct_token(tree, nodes[1])
                     .filter(|token| token.kind() == TokenKind::Identifier)
-                    .ok_or_else(|| self.internal(node))?;
+                    .ok_or_else(|| inconsistent_node(node))?;
                 let entity = self
                     .bindings
                     .namespaces
@@ -363,7 +365,7 @@ impl HeaderResolver<'_, '_> {
             .headers
             .reserved
             .module_for_source(self.surface_source(node)?)
-            .ok_or_else(|| self.internal(node))
+            .ok_or(HeaderDefinitionError::InconsistentSource(node.source()))
     }
 
     fn symbol(&self, token: SyntaxToken) -> Result<nocter_model::Symbol, HeaderDefinitionError> {
@@ -375,7 +377,7 @@ impl HeaderResolver<'_, '_> {
             .reserved
             .symbols()
             .get(self.token_text(token)?)
-            .ok_or_else(|| self.internal_token(token))
+            .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))
     }
 
     fn token_text(&self, token: SyntaxToken) -> Result<&str, HeaderDefinitionError> {
@@ -390,34 +392,10 @@ impl HeaderResolver<'_, '_> {
             .and_then(|source| source.text_at(token.range()))
             .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))
     }
+}
 
-    fn internal(&self, node: NodeId) -> HeaderDefinitionError {
-        self.declaration_for_source(node.source()).map_or(
-            HeaderDefinitionError::InconsistentSource(node.source()),
-            HeaderDefinitionError::InvalidSurface,
-        )
-    }
-
-    fn internal_token(&self, token: SyntaxToken) -> HeaderDefinitionError {
-        self.declaration_for_source(token.source()).map_or(
-            HeaderDefinitionError::InconsistentSource(token.source()),
-            HeaderDefinitionError::InvalidSurface,
-        )
-    }
-
-    fn declaration_for_source(&self, source: SourceId) -> Option<SurfaceDeclarationId> {
-        let reserved = &self.bindings.namespaces.imports.generics.headers.reserved;
-        reserved
-            .declarations
-            .iter()
-            .position(|declaration| {
-                reserved.sources[declaration.source().index()]
-                    .syntax()
-                    .source()
-                    == source
-            })
-            .map(SurfaceDeclarationId::from_index)
-    }
+fn inconsistent_node(node: NodeId) -> HeaderDefinitionError {
+    HeaderDefinitionError::InconsistentSource(node.source())
 }
 
 fn syntax_input<'a>(
@@ -438,10 +416,7 @@ fn syntax_input<'a>(
     Ok((file, tree))
 }
 
-fn plan_error(
-    resolver: &HeaderResolver<'_, '_>,
-    error: ConstantPlanError<HeaderDefinitionError>,
-) -> HeaderDefinitionError {
+fn plan_error(error: ConstantPlanError<HeaderDefinitionError>) -> HeaderDefinitionError {
     match error {
         ConstantPlanError::Context(error) => error,
         ConstantPlanError::Rule { rule, origin } => rule_at(
@@ -451,14 +426,11 @@ fn plan_error(
             },
             origin,
         ),
-        ConstantPlanError::InvalidSyntax(node) => resolver.internal(node),
+        ConstantPlanError::InvalidSyntax(node) => inconsistent_node(node),
     }
 }
 
-fn evaluation_error(
-    resolver: &HeaderResolver<'_, '_>,
-    error: ConstantEvaluationError,
-) -> HeaderDefinitionError {
+fn evaluation_error(error: ConstantEvaluationError) -> HeaderDefinitionError {
     match error.rule() {
         ConstantEvaluationRule::ArithmeticFailure => {
             rule_at(DefinitionRule::ConstantArithmeticFailure, error.origin())
@@ -468,8 +440,10 @@ fn evaluation_error(
         }
         ConstantEvaluationRule::MissingConstant | ConstantEvaluationRule::InvalidPlan => {
             match error.origin() {
-                SyntaxOrigin::Node(node) => resolver.internal(node),
-                SyntaxOrigin::Token(token) => resolver.internal_token(token),
+                SyntaxOrigin::Node(node) => inconsistent_node(node),
+                SyntaxOrigin::Token(token) => {
+                    HeaderDefinitionError::InconsistentSource(token.source())
+                }
             }
         }
     }

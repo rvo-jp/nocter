@@ -45,10 +45,8 @@ pub(super) fn require_arity(
     let expected = generics
         .headers
         .reserved
-        .entities
-        .iter()
-        .position(|candidate| *candidate == Some(entity))
-        .and_then(|index| generics.own.get(index))
+        .declaration_for_entity(entity)
+        .and_then(|declaration| generics.own.get(declaration.index()))
         .map_or(0, |parameters| parameters.len());
     if expected == actual {
         Ok(())

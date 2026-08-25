@@ -41,6 +41,57 @@ pub enum ReservedEntity {
     OpaqueType(OpaqueTypeId),
 }
 
+/// The authoritative bidirectional identity mapping produced by reservation.
+///
+/// Multiple surface declarations may describe one semantic entity when a public contract and its
+/// implementation are split across source files. `representatives` always points back to the
+/// contract representative selected by [`DeclarationContracts`]; consumers must not recover that
+/// relationship by searching `by_surface`.
+#[derive(Debug)]
+pub(crate) struct ReservedEntityIndex {
+    by_surface: Box<[Option<ReservedEntity>]>,
+    representatives: BTreeMap<ReservedEntity, SurfaceDeclarationId>,
+}
+
+impl ReservedEntityIndex {
+    fn new(
+        by_surface: Vec<Option<ReservedEntity>>,
+        contracts: &DeclarationContracts,
+    ) -> Result<Self, ReservationError> {
+        let mut representatives = BTreeMap::new();
+        for (index, entity) in by_surface.iter().copied().enumerate() {
+            let Some(entity) = entity else { continue };
+            let declaration = SurfaceDeclarationId::from_index(index);
+            if contracts.representative(declaration) != declaration {
+                continue;
+            }
+            if representatives.insert(entity, declaration).is_some() {
+                return Err(InconsistentSurface(declaration));
+            }
+        }
+        Ok(Self {
+            by_surface: by_surface.into_boxed_slice(),
+            representatives,
+        })
+    }
+
+    pub(crate) fn entity(&self, declaration: SurfaceDeclarationId) -> Option<ReservedEntity> {
+        self.by_surface.get(declaration.index()).copied().flatten()
+    }
+
+    pub(crate) fn representative(&self, entity: ReservedEntity) -> Option<SurfaceDeclarationId> {
+        self.representatives.get(&entity).copied()
+    }
+
+    pub(crate) const fn by_surface(&self) -> &[Option<ReservedEntity>] {
+        &self.by_surface
+    }
+
+    pub(crate) fn representatives(&self) -> &BTreeMap<ReservedEntity, SurfaceDeclarationId> {
+        &self.representatives
+    }
+}
+
 impl ReservedEntity {
     #[must_use]
     pub const fn semantic_entity(self) -> SemanticEntity {
@@ -181,7 +232,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
     pub(crate) contracts: DeclarationContracts,
-    pub(crate) entities: Box<[Option<ReservedEntity>]>,
+    pub(crate) entity_index: ReservedEntityIndex,
     pub(crate) toolchain: crate::toolchain::ResolvedToolchainInput,
     pub(crate) primitive_bindings: Box<[PrimitiveBinding]>,
 }
@@ -244,7 +295,12 @@ impl ReservedDeclarations<'_> {
 
     #[must_use]
     pub fn entity(&self, declaration: SurfaceDeclarationId) -> Option<ReservedEntity> {
-        self.entities.get(declaration.index()).copied().flatten()
+        self.entity_index.entity(declaration)
+    }
+
+    #[must_use]
+    pub fn declaration_for_entity(&self, entity: ReservedEntity) -> Option<SurfaceDeclarationId> {
+        self.entity_index.representative(entity)
     }
 
     #[must_use]
@@ -259,7 +315,7 @@ impl ReservedDeclarations<'_> {
 
     #[must_use]
     pub const fn entities(&self) -> &[Option<ReservedEntity>] {
-        &self.entities
+        self.entity_index.by_surface()
     }
 }
 
@@ -333,19 +389,19 @@ pub(crate) fn reserve_with_contracts(
         &mut source_index,
     )?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
-    let entities = reserve_surface_entities(
+    let entity_index = reserve_surface_entities(
         &declarations,
         &contracts,
         toolchain.builtin_types(),
         &mut program,
     )?;
     let primitive_bindings =
-        resolve_primitive_bindings(&declarations, &entities, toolchain.primitive_roles())?;
+        resolve_primitive_bindings(&declarations, &entity_index, toolchain.primitive_roles())?;
     project_declaration_documentation(
         &sources,
         &declarations,
         &contracts,
-        &entities,
+        entity_index.by_surface(),
         &mut source_index,
     )?;
     let semantic_packages = packages
@@ -381,7 +437,7 @@ pub(crate) fn reserve_with_contracts(
         imports,
         declarations,
         contracts,
-        entities: entities.into_boxed_slice(),
+        entity_index,
         toolchain,
         primitive_bindings: primitive_bindings.into_boxed_slice(),
     })
@@ -389,7 +445,7 @@ pub(crate) fn reserve_with_contracts(
 
 fn resolve_primitive_bindings(
     declarations: &[SurfaceDeclaration],
-    entities: &[Option<ReservedEntity>],
+    entities: &ReservedEntityIndex,
     roles: &[crate::toolchain::ResolvedPrimitiveRole],
 ) -> Result<Vec<PrimitiveBinding>, ReservationError> {
     roles
@@ -400,7 +456,8 @@ fn resolve_primitive_bindings(
             let declaration = declarations
                 .get(index)
                 .ok_or(InconsistentSurface(role.declaration()))?;
-            let Some(ReservedEntity::Callable(callable)) = entities[index] else {
+            let Some(ReservedEntity::Callable(callable)) = entities.entity(role.declaration())
+            else {
                 return Err(InconsistentSurface(role.declaration()));
             };
             if declaration.kind() != SurfaceDeclarationKind::PrimitiveFunction {
@@ -552,7 +609,7 @@ fn reserve_surface_entities(
     contracts: &DeclarationContracts,
     builtin_types: &[crate::toolchain::ResolvedBuiltinType],
     program: &mut DeclarationProgramBuilder,
-) -> Result<Vec<Option<ReservedEntity>>, ReservationError> {
+) -> Result<ReservedEntityIndex, ReservationError> {
     let mut entities = vec![None; declarations.len()];
     for (index, declaration) in declarations.iter().copied().enumerate() {
         let id = SurfaceDeclarationId::from_index(index);
@@ -585,7 +642,7 @@ fn reserve_surface_entities(
             }
         }
     }
-    Ok(entities)
+    ReservedEntityIndex::new(entities, contracts)
 }
 
 fn reserve_entity(

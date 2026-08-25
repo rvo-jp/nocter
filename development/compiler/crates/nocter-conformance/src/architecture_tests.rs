@@ -207,6 +207,26 @@ fn prepared_semantic_program_excludes_syntax_owned_body_state() {
 }
 
 #[test]
+fn reservation_owns_bidirectional_surface_entity_identity() {
+    let reservation = source("crates/nocter-declaration-lowering/src/reservation.rs");
+    assert!(reservation.contains("struct ReservedEntityIndex"));
+    assert!(
+        reservation.contains("representatives: BTreeMap<ReservedEntity, SurfaceDeclarationId>")
+    );
+
+    let type_context = source("crates/nocter-declaration-lowering/src/types/context.rs");
+    assert!(type_context.contains(".declaration_for_entity(entity)"));
+    assert!(!type_context.contains(".position(|candidate| *candidate == Some(entity))"));
+
+    let normalization = source("crates/nocter-declaration-lowering/src/types/normalization.rs");
+    assert!(!normalization.contains(".position(|entity|"));
+
+    let topology = source("crates/nocter-declaration-lowering/src/topology.rs");
+    assert!(topology.contains("let mut source_index = SourceIndexBuilder::new()"));
+    assert!(!topology.contains("let _ = frontend_bindings"));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));

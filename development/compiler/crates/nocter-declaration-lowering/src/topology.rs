@@ -9,7 +9,8 @@ use nocter_model::{ModuleId, SymbolTable};
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::SourceId;
 use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceOrigin, SourceRole,
+    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin,
+    SourceRole,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
 
@@ -333,7 +334,7 @@ pub fn lower_compile_unit_topology(
 ) -> Result<LoweredTopology, LoweringError> {
     let prepared = prepare_compile_unit(input)?;
     let mut program = DeclarationProgramBuilder::new(input.target(), prepared.symbols);
-    let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
+    let mut source_index = SourceIndexBuilder::new();
     let mut package_ids = BTreeMap::new();
 
     for package in &prepared.packages {
@@ -387,9 +388,10 @@ pub fn lower_compile_unit_topology(
         project_module_sources(&mut source_index, id, module)?;
     }
 
-    let (source_index, frontend_bindings) = source_index.finish();
-    let _ = frontend_bindings;
-    Ok(LoweredTopology::new(program.finish()?, source_index))
+    Ok(LoweredTopology::new(
+        program.finish()?,
+        source_index.finish(),
+    ))
 }
 
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
@@ -1011,7 +1013,7 @@ fn collect_tree_symbols(
 }
 
 fn project_module_sources(
-    index: &mut crate::frontend_projection::FrontendProjectionBuilder,
+    index: &mut SourceIndexBuilder,
     module: ModuleId,
     input: &ModuleInput<'_>,
 ) -> Result<(), LoweringError> {
@@ -1022,9 +1024,8 @@ fn project_module_sources(
             ModuleSourceKind::Root | ModuleSourceKind::SingleFile => SourceRole::Declaration,
             ModuleSourceKind::Implementation => SourceRole::Implementation,
         };
-        index.insert_module_source(
-            module,
-            source.syntax().source(),
+        index.insert(
+            SemanticEntity::Module(module),
             role,
             SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                 .map_err(|_| LoweringError::InconsistentSyntax(source.syntax().source()))?,

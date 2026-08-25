@@ -139,6 +139,10 @@ fn contract_and_implementation_receive_one_callable_identity() {
         reserved.entities()[0],
         Some(ReservedEntity::Callable(_))
     ));
+    assert_eq!(
+        reserved.declaration_for_entity(reserved.entities()[0].unwrap()),
+        Some(SurfaceDeclarationId::from_index(0))
+    );
 }
 
 #[test]

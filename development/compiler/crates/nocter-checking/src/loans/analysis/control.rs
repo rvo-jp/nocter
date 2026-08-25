@@ -7,8 +7,8 @@ use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, CheckedControl, LoanId, LoopKind,
-    PatternSubjectPreparation, PlaceRoot, ProvenanceProjection,
+    BodyCheckError, BodyCheckInternalError, CheckedControl, LoanId, LoopKind, PlaceRoot,
+    ProvenanceProjection,
 };
 
 impl Analyzer<'_, '_> {
@@ -289,7 +289,6 @@ impl Analyzer<'_, '_> {
         }
         *state = entry;
         state.join(&incoming);
-        let _ = subject.preparation() == PatternSubjectPreparation::ConsumedPlace;
         Ok((output, !incoming.is_empty()))
     }
 

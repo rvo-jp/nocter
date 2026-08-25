@@ -257,7 +257,7 @@ fn project_site(
 fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), HeaderError> {
     for index in 0..reserved.declarations.len() {
         let id = SurfaceDeclarationId::from_index(index);
-        let Some(entity) = reserved.entities[index] else {
+        let Some(entity) = reserved.entity(id) else {
             continue;
         };
         if let crate::ReservedEntity::NominalType(nominal) = entity

@@ -21,7 +21,8 @@ pub(super) fn prepare_context(
 ) -> Result<NormalizationContext, TypeNormalizationError> {
     let reserved = &namespaces.imports.generics.headers.reserved;
     let declarations = reserved.declarations.clone();
-    let entities = reserved.entities.clone();
+    let entities = reserved.entities().to_vec().into_boxed_slice();
+    let entity_declarations = reserved.entity_index.representatives().clone();
     let names = namespaces.imports.generics.headers.names.clone();
     let own_generics = namespaces.imports.generics.own.clone();
     let aliases = collect_aliases(&entities, &own_generics, bound_alias_targets)?;
@@ -46,6 +47,7 @@ pub(super) fn prepare_context(
     Ok(NormalizationContext {
         declarations,
         entities,
+        entity_declarations,
         aliases,
         associated,
         associated_surfaces,

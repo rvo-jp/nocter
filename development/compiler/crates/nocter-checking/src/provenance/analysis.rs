@@ -226,7 +226,6 @@ fn build_body_provenance(
             Analyzer::new_declared(graph, types, summaries, closure_summaries, input).analyze()?;
         if let BodyOwner::Callable(callable) = declaration.owner() {
             validate_callable_returns(
-                graph,
                 types,
                 input,
                 callable,
@@ -415,7 +414,6 @@ fn initial_summaries(graph: &DeclarationGraph) -> BTreeMap<CallableId, CallableS
 }
 
 fn validate_callable_returns(
-    graph: &DeclarationGraph,
     types: &TypeStore,
     input: &ProvenanceBodyInput<'_, '_>,
     callable: CallableId,
@@ -423,11 +421,6 @@ fn validate_callable_returns(
     conformance_bound: Option<&BTreeSet<ProvenanceOrigin>>,
     analysis: &BodyAnalysis,
 ) -> Result<(), BodyCheckError> {
-    let declaration = graph
-        .declarations()
-        .callables()
-        .get(callable)
-        .ok_or(BodyCheckInternalError::MissingCallable(callable))?;
     let allowed = summaries
         .get(&callable)
         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
@@ -465,7 +458,6 @@ fn validate_callable_returns(
             return Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)));
         }
     }
-    let _ = declaration;
     Ok(())
 }
 

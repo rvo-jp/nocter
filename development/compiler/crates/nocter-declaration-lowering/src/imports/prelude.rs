@@ -233,7 +233,7 @@ fn resolve_standard_declarations(
             .declarations
             .get(index)
             .ok_or(ToolchainError::MissingStandardDeclaration(input.role()))?;
-        let declaration = match reserved.entities[index] {
+        let declaration = match reserved.entity(crate::SurfaceDeclarationId::from_index(index)) {
             Some(crate::ReservedEntity::BuiltinType(id)) => StandardDeclaration::BuiltinType(id),
             Some(crate::ReservedEntity::NominalType(id)) => StandardDeclaration::NominalType(id),
             Some(crate::ReservedEntity::Interface(id)) => StandardDeclaration::Interface(id),
@@ -294,7 +294,9 @@ fn resolve_builtin_types(
             .get(index)
             .copied()
             .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?;
-        if reserved.entities[index] != Some(crate::ReservedEntity::BuiltinType(input.builtin())) {
+        if reserved.entity(crate::SurfaceDeclarationId::from_index(index))
+            != Some(crate::ReservedEntity::BuiltinType(input.builtin()))
+        {
             return Err(ToolchainError::MissingBuiltinType(input.builtin()));
         }
         resolved.push(ResolvedBuiltinType {

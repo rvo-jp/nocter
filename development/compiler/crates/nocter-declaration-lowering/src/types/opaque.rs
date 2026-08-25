@@ -174,7 +174,7 @@ fn associated_type(
     let name = token_symbol(namespaces, tree, token)?;
     let reserved = &namespaces.imports.generics.headers.reserved;
     let found = reserved
-        .entities
+        .entities()
         .iter()
         .copied()
         .enumerate()
