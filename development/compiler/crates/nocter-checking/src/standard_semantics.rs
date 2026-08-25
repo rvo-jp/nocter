@@ -11,7 +11,6 @@ use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
     DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::SemanticEntity;
 
 mod interpolation;
 
@@ -24,7 +23,20 @@ use interpolation::validate_interpolation_roles;
 /// checked boundary.
 #[derive(Debug, Default)]
 pub struct StandardSemanticTable {
-    entries: BTreeMap<StandardDeclarationRole, SemanticEntity>,
+    entries: BTreeMap<StandardDeclarationRole, StandardDeclaration>,
+}
+
+/// Declaration identities needed by standard-language semantics.
+///
+/// This deliberately does not use the editor-facing `SemanticEntity` vocabulary: standard roles
+/// are resolved from declaration bindings and must not acquire a dependency on source indexing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StandardDeclaration {
+    BuiltinType,
+    NominalType(NominalTypeId),
+    Interface(InterfaceId),
+    AssociatedType(AssociatedTypeId),
+    Callable(CallableId),
 }
 
 impl StandardSemanticTable {
@@ -57,7 +69,7 @@ impl StandardSemanticTable {
     #[must_use]
     pub fn nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
         match self.entries.get(&role) {
-            Some(SemanticEntity::NominalType(id)) => Some(*id),
+            Some(StandardDeclaration::NominalType(id)) => Some(*id),
             _ => None,
         }
     }
@@ -65,7 +77,7 @@ impl StandardSemanticTable {
     #[must_use]
     pub fn interface(&self, role: StandardDeclarationRole) -> Option<InterfaceId> {
         match self.entries.get(&role) {
-            Some(SemanticEntity::Interface(id)) => Some(*id),
+            Some(StandardDeclaration::Interface(id)) => Some(*id),
             _ => None,
         }
     }
@@ -73,7 +85,7 @@ impl StandardSemanticTable {
     #[must_use]
     pub fn callable(&self, role: StandardDeclarationRole) -> Option<CallableId> {
         match self.entries.get(&role) {
-            Some(SemanticEntity::Callable(id)) => Some(*id),
+            Some(StandardDeclaration::Callable(id)) => Some(*id),
             _ => None,
         }
     }
@@ -81,7 +93,7 @@ impl StandardSemanticTable {
     #[must_use]
     pub fn associated_type(&self, role: StandardDeclarationRole) -> Option<AssociatedTypeId> {
         match self.entries.get(&role) {
-            Some(SemanticEntity::AssociatedType(id)) => Some(*id),
+            Some(StandardDeclaration::AssociatedType(id)) => Some(*id),
             _ => None,
         }
     }
@@ -222,7 +234,7 @@ fn has_allocation_context_header(
 fn resolve_role_source(
     input: StandardRoleInput,
     bindings: &FrontendBindings,
-) -> Result<SemanticEntity, StandardSemanticError> {
+) -> Result<StandardDeclaration, StandardSemanticError> {
     let token = input.declaration();
     let matches = bindings.declarations(token);
     let [declaration] = matches else {
@@ -232,36 +244,38 @@ fn resolve_role_source(
         return Err(StandardSemanticError::MissingDeclaration(input.role()));
     };
     Ok(match declaration {
-        FrontendDeclaration::BuiltinType(builtin) => SemanticEntity::BuiltinType(*builtin),
-        FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(*id),
-        FrontendDeclaration::Interface(id) => SemanticEntity::Interface(*id),
-        FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(*id),
-        FrontendDeclaration::Callable(id) => SemanticEntity::Callable(*id),
+        FrontendDeclaration::BuiltinType(_) => StandardDeclaration::BuiltinType,
+        FrontendDeclaration::NominalType(id) => StandardDeclaration::NominalType(*id),
+        FrontendDeclaration::Interface(id) => StandardDeclaration::Interface(*id),
+        FrontendDeclaration::AssociatedType(id) => StandardDeclaration::AssociatedType(*id),
+        FrontendDeclaration::Callable(id) => StandardDeclaration::Callable(*id),
     })
 }
 
 fn validate_role_domain(
     role: StandardDeclarationRole,
-    entity: SemanticEntity,
+    entity: StandardDeclaration,
 ) -> Result<(), StandardSemanticError> {
     let valid = match role {
         StandardDeclarationRole::AbortingAllocator
         | StandardDeclarationRole::AllocationContext
-        | StandardDeclarationRole::OwnedString => matches!(entity, SemanticEntity::NominalType(_)),
+        | StandardDeclarationRole::OwnedString => {
+            matches!(entity, StandardDeclaration::NominalType(_))
+        }
         StandardDeclarationRole::FormatInterface
         | StandardDeclarationRole::IteratorInterface
         | StandardDeclarationRole::ExactSizeIteratorInterface => {
-            matches!(entity, SemanticEntity::Interface(_))
+            matches!(entity, StandardDeclaration::Interface(_))
         }
         StandardDeclarationRole::IteratorItem => {
-            matches!(entity, SemanticEntity::AssociatedType(_))
+            matches!(entity, StandardDeclaration::AssociatedType(_))
         }
         StandardDeclarationRole::FormatMethod
         | StandardDeclarationRole::InterpolationConstructor
         | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod => {
-            matches!(entity, SemanticEntity::Callable(_))
+            matches!(entity, StandardDeclaration::Callable(_))
         }
     };
     if valid {
@@ -274,7 +288,7 @@ fn validate_role_domain(
 fn validate_standard_owner(
     graph: &DeclarationGraph,
     role: StandardDeclarationRole,
-    entity: SemanticEntity,
+    entity: StandardDeclaration,
 ) -> Result<(), StandardSemanticError> {
     let standard = graph
         .standard_library()
@@ -291,24 +305,24 @@ fn validate_standard_owner(
     Ok(())
 }
 
-fn entity_site(graph: &DeclarationGraph, entity: SemanticEntity) -> Option<DeclarationSiteId> {
+fn entity_site(graph: &DeclarationGraph, entity: StandardDeclaration) -> Option<DeclarationSiteId> {
     match entity {
-        SemanticEntity::NominalType(id) => graph
+        StandardDeclaration::NominalType(id) => graph
             .declarations()
             .nominal_types()
             .get(id)
             .map(nocter_declarations::NominalTypeDeclaration::site),
-        SemanticEntity::Interface(id) => graph
+        StandardDeclaration::Interface(id) => graph
             .declarations()
             .interfaces()
             .get(id)
             .map(nocter_declarations::InterfaceDeclaration::site),
-        SemanticEntity::AssociatedType(id) => graph
+        StandardDeclaration::AssociatedType(id) => graph
             .declarations()
             .associated_types()
             .get(id)
             .map(nocter_declarations::AssociatedTypeDeclaration::site),
-        SemanticEntity::Callable(id) => graph
+        StandardDeclaration::Callable(id) => graph
             .declarations()
             .callables()
             .get(id)
