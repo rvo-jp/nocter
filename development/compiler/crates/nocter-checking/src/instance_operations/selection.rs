@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use nocter_declarations::{CallableKind, DeclarationGraph, ParameterRole};
-use nocter_model::{BorrowCapability, CallableCapability, TypeId, TypeKind, TypeStore};
+use nocter_declarations::DeclarationGraph;
+use nocter_model::{BorrowCapability, TypeId, TypeKind, TypeStore};
 
-use super::InstanceOperationTable;
+use super::{CheckedInstanceMember, InstanceOperationTable};
 use crate::conformance::normalize_requirements;
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, collect_generic_parameters,
@@ -324,67 +324,44 @@ impl<'program> InstanceOperationSelector<'program> {
     ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
         let mut selected = Vec::new();
         for applicable in self.applicable_instances(target)? {
-            let members = self
+            let operations = self
                 .table
                 .entries()
                 .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
-                .to_vec();
-            for member in members {
-                let callable = self
-                    .graph
-                    .declarations()
-                    .callables()
-                    .get(member)
-                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
-                if callable.kind() != CallableKind::Index
-                    || !self.callable_is_admissible(callable.site())?
+                .iter()
+                .filter_map(|member| match member {
+                    CheckedInstanceMember::Index(operation) => Some(operation.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for operation in operations {
+                if operation.capability() != capability
+                    || !self.callable_is_admissible(operation.site())?
                 {
                     continue;
                 }
-                let receiver = callable
-                    .receiver()
-                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
-                    .ok_or(InstanceSelectionError::InvalidIndexSignature(member))?;
-                if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
-                    || callable.parameters().len() != 1
-                    || !callable.generic_parameters().is_empty()
-                {
-                    continue;
-                }
-                let parameter_id = callable.parameters()[0];
-                let result_id = callable.result();
-                let requirements = callable.requirements().to_vec();
-                let parameter = self
-                    .graph
-                    .declarations()
-                    .parameters()
-                    .get(parameter_id)
-                    .ok_or(InstanceSelectionError::MissingParameter(parameter_id))?;
                 let index = applicable
                     .substitution
-                    .apply_type(self.types, parameter.ty())?;
-                let result = applicable.substitution.apply_type(self.types, result_id)?;
-                let (result_capability, referent) = borrow_result(self.types, result)
-                    .ok_or(InstanceSelectionError::InvalidIndexSignature(member))?;
-                if result_capability != capability {
-                    return Err(InstanceSelectionError::InvalidIndexSignature(member));
-                }
+                    .apply_type(self.types, operation.index())?;
+                let result = applicable
+                    .substitution
+                    .apply_type(self.types, operation.result())?;
                 let callable_requirements = normalize_requirements(
                     self.graph,
                     self.types,
                     &applicable.substitution,
-                    &requirements,
+                    operation.requirements(),
                 )?;
                 if !self.requirements_hold(&callable_requirements, &TypeSubstitution::default())? {
                     continue;
                 }
                 selected.push(IndexOperationCandidate {
                     index,
-                    result: referent,
+                    result,
                     operation: Some(StaticSelection::new(
-                        StaticDispatch::Direct(member),
+                        StaticDispatch::Direct(operation.callable()),
                         applicable.generic_arguments.clone(),
                     )),
                     receiver_coercion: None,
@@ -427,45 +404,32 @@ impl<'program> InstanceOperationSelector<'program> {
     ) -> Result<Vec<CoercionCandidate>, InstanceSelectionError> {
         let mut selected = self.structural_coercions(source, capability);
         for applicable in self.applicable_instances(source)? {
-            let members = self
+            let coercions = self
                 .table
                 .entries()
                 .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
-                .to_vec();
-            for member in members {
-                let callable = self
-                    .graph
-                    .declarations()
-                    .callables()
-                    .get(member)
-                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
-                if callable.kind() != CallableKind::Coercion
-                    || !self.callable_is_admissible(callable.site())?
+                .iter()
+                .filter_map(|member| match member {
+                    CheckedInstanceMember::Coercion(coercion) => Some(coercion.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for coercion in coercions {
+                if coercion.receiver_capability() != capability
+                    || !self.callable_is_admissible(coercion.site())?
                 {
                     continue;
                 }
-                let receiver = callable
-                    .receiver()
-                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
-                    .ok_or(InstanceSelectionError::InvalidCoercionSignature(member))?;
-                if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
-                    || !callable.parameters().is_empty()
-                    || !callable.generic_parameters().is_empty()
-                {
-                    continue;
-                }
-                let result_id = callable.result();
-                let requirements = callable.requirements().to_vec();
-                let result = applicable.substitution.apply_type(self.types, result_id)?;
-                let (result_capability, target) = borrow_result(self.types, result)
-                    .ok_or(InstanceSelectionError::InvalidCoercionSignature(member))?;
+                let target = applicable
+                    .substitution
+                    .apply_type(self.types, coercion.target())?;
                 let callable_requirements = normalize_requirements(
                     self.graph,
                     self.types,
                     &applicable.substitution,
-                    &requirements,
+                    coercion.requirements(),
                 )?;
                 if !self.requirements_hold(&callable_requirements, &TypeSubstitution::default())? {
                     continue;
@@ -473,9 +437,9 @@ impl<'program> InstanceOperationSelector<'program> {
                 selected.push(CoercionCandidate {
                     target,
                     receiver_capability: capability,
-                    result_capability,
+                    result_capability: coercion.result_capability(),
                     selection: StaticSelection::new(
-                        StaticDispatch::Direct(member),
+                        StaticDispatch::Direct(coercion.callable()),
                         applicable.generic_arguments.clone(),
                     ),
                 });
@@ -681,13 +645,6 @@ pub(super) fn builtin_index_result(
             Some(types.builtin(nocter_model::BuiltinType::U8))
         }
         _ => None,
-    }
-}
-
-fn callable_capability(capability: BorrowCapability) -> CallableCapability {
-    match capability {
-        BorrowCapability::Readonly => CallableCapability::Readonly,
-        BorrowCapability::ReadWrite => CallableCapability::ReadWrite,
     }
 }
 

@@ -1,7 +1,5 @@
-use nocter_declarations::{
-    CallableKind, CallableOwner, LiteralShape, ParameterOwner, ParameterRole,
-};
-use nocter_model::{BorrowCapability, BuiltinType, CallableId, TypeId, TypeKind};
+use nocter_declarations::LiteralShape;
+use nocter_model::{CallableId, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind};
 
@@ -22,12 +20,11 @@ use crate::{
 
 struct LiteralPlan {
     definition: nocter_model::NominalTypeId,
-    construction: nocter_model::ConstructionId,
     constructor: CallableId,
+    construction_target: TypeId,
     construction_parameters: Box<[nocter_model::GenericParameterId]>,
     inference_parameters: Box<[nocter_model::GenericParameterId]>,
     substitution: TypeSubstitution,
-    parameter: nocter_model::ParameterId,
     parameter_type: TypeId,
     result_pattern: TypeId,
     requirements: Box<[nocter_model::RequirementId]>,
@@ -45,10 +42,6 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::Sequence)?;
-        let parameter = self.literal_parameter(node, &plan)?;
-        if parameter.role() != (ParameterRole::ArgumentPack { position: 0 }) {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        }
         let body = direct_child(self.tree(), node, NodeKind::SequenceBody)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let allocation = self.literal_allocation(node)?;
@@ -142,12 +135,6 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::String)?;
-        let parameter = self.literal_parameter(node, &plan)?;
-        if parameter.role() != (ParameterRole::Ordinary { position: 0 })
-            || !self.is_readonly_str(parameter.ty())
-        {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        }
         let allocation = self.literal_allocation(node)?;
         let literal = direct_child(self.tree(), node, NodeKind::StringLiteral)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
@@ -219,21 +206,7 @@ impl BodyChecker<'_, '_> {
         else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);
         };
-        let callable = self
-            .graph
-            .declarations()
-            .callables()
-            .get(constructor)
-            .cloned()
-            .ok_or(BodyCheckInternalError::MissingCallable(constructor))?;
-        let construction_declaration = self
-            .graph
-            .declarations()
-            .constructions()
-            .get(construction)
-            .ok_or(crate::ConstructionSurfaceSelectionError::MissingConstruction(construction))
-            .map_err(BodyCheckInternalError::from)?;
-        let construction_parameters = construction_declaration.generic_parameters().to_vec();
+        let construction_parameters = constructor.construction_parameters().to_vec();
         let (inference_parameters, substitution) = match owner.arguments {
             NominalOwnerArguments::Inferred(_) => {
                 (construction_parameters.clone(), TypeSubstitution::default())
@@ -254,7 +227,7 @@ impl BodyChecker<'_, '_> {
             }
         };
         let specialized_target = substitution
-            .apply_type(self.types, construction_declaration.target())
+            .apply_type(self.types, constructor.construction_target())
             .map_err(BodyCheckInternalError::CallSubstitution)?;
         if !matches!(
             self.types.get(specialized_target),
@@ -262,55 +235,17 @@ impl BodyChecker<'_, '_> {
         ) {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
-        let [parameter] = callable.parameters() else {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        };
-        if callable.kind() != CallableKind::Literal(shape)
-            || callable.owner() != CallableOwner::Construction(construction)
-            || callable.receiver().is_some()
-            || !callable.generic_parameters().is_empty()
-        {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        }
-        let declaration = self
-            .graph
-            .declarations()
-            .parameters()
-            .get(*parameter)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingParameterType(
-                crate::NameTarget::Exported(nocter_declarations::ExportedEntity::Callable(
-                    constructor,
-                )),
-            ))?;
-        if declaration.owner() != ParameterOwner::Callable(constructor) {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        }
         Ok(LiteralPlan {
             definition: owner.definition,
-            construction,
-            constructor,
+            constructor: constructor.callable(),
+            construction_target: constructor.construction_target(),
             construction_parameters: construction_parameters.into_boxed_slice(),
             inference_parameters: inference_parameters.into_boxed_slice(),
             substitution,
-            parameter: *parameter,
-            parameter_type: declaration.ty(),
-            result_pattern: callable.result(),
-            requirements: callable.requirements().into(),
+            parameter_type: constructor.parameter_type(),
+            result_pattern: constructor.result(),
+            requirements: constructor.requirements().into(),
         })
-    }
-
-    fn literal_parameter(
-        &self,
-        node: NodeId,
-        plan: &LiteralPlan,
-    ) -> Result<nocter_declarations::Parameter, BodyCheckError> {
-        self.graph
-            .declarations()
-            .parameters()
-            .get(plan.parameter)
-            .copied()
-            .ok_or_else(|| BodyCheckInternalError::InvalidSyntax(node).into())
     }
 
     fn finish_literal_selection(
@@ -327,15 +262,6 @@ impl BodyChecker<'_, '_> {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
         if *definition != plan.definition {
-            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
-        }
-        if self
-            .graph
-            .declarations()
-            .nominal_types()
-            .get(*definition)
-            .is_none()
-        {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
         let generic_arguments = GenericArguments::new(
@@ -358,12 +284,7 @@ impl BodyChecker<'_, '_> {
         .map_err(BodyCheckInternalError::CallGenericArguments)?;
         if !self.requirements_hold(&plan.requirements, &plan.substitution)?
             || !self.construction_target_requirements_hold(
-                self.graph
-                    .declarations()
-                    .constructions()
-                    .get(plan.construction)
-                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?
-                    .target(),
+                plan.construction_target,
                 &generic_arguments,
             )?
         {
@@ -398,16 +319,6 @@ impl BodyChecker<'_, '_> {
         Ok(AllocationSelection::Explicit(
             self.check_allocation_place(allocator)?,
         ))
-    }
-
-    fn is_readonly_str(&self, ty: TypeId) -> bool {
-        matches!(
-            self.types.get(ty),
-            Some(TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
-                referent,
-            }) if *referent == self.types.builtin(BuiltinType::Str)
-        )
     }
 }
 

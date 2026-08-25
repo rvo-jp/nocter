@@ -5,6 +5,7 @@ use nocter_declarations::{
 };
 use nocter_model::{BorrowCapability, CallableCapability, CallableId, Symbol, TypeId, TypeKind};
 
+use super::CheckedInstanceMember;
 use super::selection::{
     InstanceOperationSelector, InstanceSelectionError, selected_generic_arguments,
 };
@@ -344,40 +345,31 @@ impl InstanceOperationSelector<'_> {
     ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
         let mut selected = Vec::new();
         for applicable in self.applicable_instances(target)? {
-            let members = self
+            let methods = self
                 .table
                 .entries()
                 .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
-                .to_vec();
-            for member in members {
-                let callable = self
-                    .graph
-                    .declarations()
-                    .callables()
-                    .get(member)
-                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
-                if callable.kind() != CallableKind::Method
-                    || callable.name() != Some(name)
-                    || !self.callable_is_admissible(callable.site())?
-                {
+                .iter()
+                .filter_map(|member| match member {
+                    CheckedInstanceMember::Method(method) if method.name() == name => {
+                        Some(method.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for method in methods {
+                if !self.callable_is_admissible(method.site())? {
                     continue;
                 }
-                let receiver_capability = receiver_capability(
-                    self.graph,
-                    self.types,
-                    member,
-                    &applicable.substitution,
-                    target,
-                )?;
                 selected.push(MethodCandidate {
-                    callable: member,
-                    surface: member,
-                    receiver_capability,
+                    callable: method.callable(),
+                    surface: method.callable(),
+                    receiver_capability: method.receiver_capability(),
                     generic_arguments: applicable.generic_arguments.clone(),
                     substitution: applicable.substitution.clone(),
-                    dispatch: StaticDispatch::Direct(member),
+                    dispatch: StaticDispatch::Direct(method.callable()),
                     receiver_coercion: None,
                 });
             }

@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
+use super::CheckedInstanceMember;
 use crate::{CheckedRequirement, GenericArgument};
-use nocter_model::{
-    AttachmentFamily, CallableId, GenericParameterId, InstanceId, Symbol, TypeId, TypeStore,
-};
+use nocter_model::{AttachmentFamily, GenericParameterId, InstanceId, Symbol, TypeId, TypeStore};
 
 /// One refinement-normalized instance declaration and its operation members.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,7 +11,7 @@ pub struct CheckedInstanceOperations {
     generic_parameters: Box<[GenericParameterId]>,
     refinements: Box<[GenericArgument]>,
     requirements: Box<[CheckedRequirement]>,
-    members: Box<[CallableId]>,
+    members: Box<[CheckedInstanceMember]>,
 }
 
 impl CheckedInstanceOperations {
@@ -21,7 +20,7 @@ impl CheckedInstanceOperations {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         refinements: impl Into<Box<[GenericArgument]>>,
         requirements: impl Into<Box<[CheckedRequirement]>>,
-        members: impl Into<Box<[CallableId]>>,
+        members: impl Into<Box<[CheckedInstanceMember]>>,
     ) -> Self {
         Self {
             target,
@@ -53,7 +52,7 @@ impl CheckedInstanceOperations {
     }
 
     #[must_use]
-    pub const fn members(&self) -> &[CallableId] {
+    pub const fn members(&self) -> &[CheckedInstanceMember] {
         &self.members
     }
 }

@@ -1,5 +1,6 @@
 mod build;
 mod comparison;
+mod contracts;
 mod diagnostic;
 mod evidence;
 mod expansion;
@@ -16,6 +17,10 @@ pub use build::{
     InstanceOperationBuildError, InstanceOperationInternalError, build_instance_operation_table,
 };
 pub(crate) use comparison::ComparisonCandidateImplementation;
+pub use contracts::{
+    CheckedInstanceCoercion, CheckedInstanceComparison, CheckedInstanceExpansion,
+    CheckedInstanceIndex, CheckedInstanceMember, CheckedInstanceMethod,
+};
 pub use diagnostic::InstanceOperationRule;
 pub(crate) use evidence::ConcreteEvidenceAuthority;
 pub(crate) use methods::{MethodCandidate, MethodCompletionCandidate, receiver_supports};

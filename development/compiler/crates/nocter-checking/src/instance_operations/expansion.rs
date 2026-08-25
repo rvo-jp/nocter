@@ -1,6 +1,7 @@
-use nocter_declarations::{CallableKind, ExpansionCapability, ParameterRole};
-use nocter_model::{CallableCapability, TypeId};
+use nocter_declarations::ExpansionCapability;
+use nocter_model::TypeId;
 
+use super::CheckedInstanceMember;
 use super::selection::{InstanceOperationSelector, InstanceSelectionError};
 use crate::conformance::normalize_requirements;
 use crate::type_relations::TypeSubstitution;
@@ -73,43 +74,32 @@ impl InstanceOperationSelector<'_> {
     ) -> Result<Vec<ExpansionCandidate>, InstanceSelectionError> {
         let mut selected = Vec::new();
         for applicable in self.applicable_instances(source)? {
-            let members = self
+            let expansions = self
                 .table
                 .entries()
                 .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
-                .to_vec();
-            for member in members {
-                let callable = self
-                    .graph
-                    .declarations()
-                    .callables()
-                    .get(member)
-                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
-                if callable.kind() != CallableKind::Expansion
-                    || !self.callable_is_admissible(callable.site())?
-                {
-                    continue;
-                }
-                let receiver = callable
-                    .receiver()
-                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
-                    .ok_or(InstanceSelectionError::InvalidExpansionSignature(member))?;
-                if receiver.role() != ParameterRole::Receiver(callable_capability(capability))
-                    || !callable.parameters().is_empty()
-                    || !callable.generic_parameters().is_empty()
+                .iter()
+                .filter_map(|member| match member {
+                    CheckedInstanceMember::Expansion(expansion) => Some(expansion.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for expansion in expansions {
+                if expansion.capability() != capability
+                    || !self.callable_is_admissible(expansion.site())?
                 {
                     continue;
                 }
                 let result = applicable
                     .substitution
-                    .apply_type(self.types, callable.result())?;
+                    .apply_type(self.types, expansion.result())?;
                 let requirements = normalize_requirements(
                     self.graph,
                     self.types,
                     &applicable.substitution,
-                    callable.requirements(),
+                    expansion.requirements(),
                 )?;
                 if !self.requirements_hold(&requirements, &TypeSubstitution::default())? {
                     continue;
@@ -117,20 +107,12 @@ impl InstanceOperationSelector<'_> {
                 selected.push(ExpansionCandidate {
                     result,
                     selection: StaticSelection::new(
-                        StaticDispatch::Direct(member),
+                        StaticDispatch::Direct(expansion.callable()),
                         applicable.generic_arguments.clone(),
                     ),
                 });
             }
         }
         Ok(selected)
-    }
-}
-
-const fn callable_capability(capability: ExpansionCapability) -> CallableCapability {
-    match capability {
-        ExpansionCapability::Readonly => CallableCapability::Readonly,
-        ExpansionCapability::ReadWrite => CallableCapability::ReadWrite,
-        ExpansionCapability::Owned => CallableCapability::Owned,
     }
 }

@@ -77,7 +77,7 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
         graph
             .declarations()
             .callables()
-            .get(*member)
+            .get(member.callable())
             .unwrap()
             .kind(),
         CallableKind::Index
@@ -98,4 +98,18 @@ fn duplicate_coercion_identity_is_rejected_before_body_selection() {
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0356");
+}
+
+#[test]
+fn unused_invalid_instance_operation_is_rejected_during_preparation() {
+    let fixture = Fixture::new(
+        "struct Buffer { value: i32 }\ninstance Buffer {\n    pub operator (&self[index: usize]): &+i32 {\n        loop {}\n    }\n}\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let error =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0357");
 }

@@ -5,18 +5,34 @@ use nocter_source_index::SourceOrigin;
 pub enum InstanceOperationRule {
     OverlappingInstance,
     DuplicateCoercion,
+    InvalidSignature,
 }
 
 impl InstanceOperationRule {
-    pub const ALL: &'static [Self] = &[Self::OverlappingInstance, Self::DuplicateCoercion];
+    pub const ALL: &'static [Self] = &[
+        Self::OverlappingInstance,
+        Self::DuplicateCoercion,
+        Self::InvalidSignature,
+    ];
 
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
             Self::OverlappingInstance => "E0355",
             Self::DuplicateCoercion => "E0356",
+            Self::InvalidSignature => "E0357",
         }
     }
+}
+
+pub(super) fn invalid_signature(primary: SourceOrigin) -> SourceDiagnostic {
+    SourceDiagnostic::new(
+        InstanceOperationRule::InvalidSignature.code(),
+        "instance operation has an invalid signature",
+        primary,
+        [],
+        Some("use the receiver, parameters, and result required by this operation kind"),
+    )
 }
 
 pub(super) fn duplicate_coercion(
@@ -28,10 +44,10 @@ pub(super) fn duplicate_coercion(
         "instance repeats the same borrow coercion identity",
         primary,
         [DiagnosticNote::new(
-            "the first coercion with this receiver capability and target is declared here",
+            "the first coercion with these borrow capabilities and target is declared here",
             previous,
         )],
-        Some("keep one coercion for each receiver-capability and canonical-target pair"),
+        Some("keep one coercion for each receiver/result-capability and canonical-target identity"),
     )
 }
 

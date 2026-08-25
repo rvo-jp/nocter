@@ -29,7 +29,10 @@ pub(super) fn valid_literal_signature(
     let Some(parameter) = program.graph().declarations().parameters().get(*parameter) else {
         return false;
     };
-    if site.visibility() != Visibility::Public || callable.result() != target {
+    if site.visibility() != Visibility::Public
+        || !callable.generic_parameters().is_empty()
+        || callable.result() != target
+    {
         return false;
     }
     match shape {

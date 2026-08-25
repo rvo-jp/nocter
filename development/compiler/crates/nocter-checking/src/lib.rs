@@ -111,9 +111,10 @@ pub use expected::{
 };
 pub use inference::{CallableInference, InferenceEvidence, InferenceFailure};
 pub use instance_operations::{
-    CheckedInstanceOperations, InstanceOperationBuildError, InstanceOperationInternalError,
-    InstanceOperationRule, InstanceOperationTable, InstanceSelectionError,
-    build_instance_operation_table,
+    CheckedInstanceCoercion, CheckedInstanceComparison, CheckedInstanceExpansion,
+    CheckedInstanceIndex, CheckedInstanceMember, CheckedInstanceMethod, CheckedInstanceOperations,
+    InstanceOperationBuildError, InstanceOperationInternalError, InstanceOperationRule,
+    InstanceOperationTable, InstanceSelectionError, build_instance_operation_table,
 };
 pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,

@@ -1,7 +1,8 @@
-use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
-use nocter_model::{BorrowCapability, BuiltinType, CallableCapability, TypeId, TypeKind};
+use nocter_declarations::NominalShape;
+use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
 
-use super::selection::{InstanceOperationSelector, InstanceSelectionError, borrow_result};
+use super::CheckedInstanceMember;
+use super::selection::{InstanceOperationSelector, InstanceSelectionError};
 use crate::conformance::normalize_requirements;
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -116,77 +117,37 @@ impl InstanceOperationSelector<'_> {
             })
             .collect::<Vec<_>>();
 
-        let callable_kind = match operation {
-            ComparisonOperation::Equal => CallableKind::Equality,
-            ComparisonOperation::Less => CallableKind::Ordering,
-        };
         for applicable in self.applicable_instances(target)? {
-            let members = self
+            let comparisons = self
                 .table
                 .entries()
                 .get(&applicable.instance)
                 .ok_or(InstanceSelectionError::MissingInstance(applicable.instance))?
                 .members()
-                .to_vec();
-            for member in members {
-                let callable = self
-                    .graph
-                    .declarations()
-                    .callables()
-                    .get(member)
-                    .ok_or(InstanceSelectionError::MissingCallable(member))?;
-                if callable.kind() != callable_kind
-                    || !self.callable_is_admissible(callable.site())?
-                {
+                .iter()
+                .filter_map(|member| match (operation, member) {
+                    (ComparisonOperation::Equal, CheckedInstanceMember::Equality(comparison))
+                    | (ComparisonOperation::Less, CheckedInstanceMember::Ordering(comparison)) => {
+                        Some(comparison.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for comparison in comparisons {
+                if !self.callable_is_admissible(comparison.site())? {
                     continue;
-                }
-                let receiver = callable
-                    .receiver()
-                    .and_then(|receiver| self.graph.declarations().parameters().get(receiver))
-                    .ok_or(InstanceSelectionError::InvalidComparisonSignature(member))?;
-                let receiver_ty = applicable
-                    .substitution
-                    .apply_type(self.types, receiver.ty())?;
-                if receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
-                    || receiver_ty != target
-                    || callable.parameters().len() != 1
-                    || !callable.generic_parameters().is_empty()
-                {
-                    return Err(InstanceSelectionError::InvalidComparisonSignature(member));
-                }
-                let parameter_id = callable.parameters()[0];
-                let parameter = self
-                    .graph
-                    .declarations()
-                    .parameters()
-                    .get(parameter_id)
-                    .ok_or(InstanceSelectionError::MissingParameter(parameter_id))?;
-                if parameter.role() != (ParameterRole::Ordinary { position: 0 }) {
-                    return Err(InstanceSelectionError::InvalidComparisonSignature(member));
-                }
-                let parameter_ty = applicable
-                    .substitution
-                    .apply_type(self.types, parameter.ty())?;
-                let result = applicable
-                    .substitution
-                    .apply_type(self.types, callable.result())?;
-                if borrow_result(self.types, parameter_ty)
-                    != Some((BorrowCapability::Readonly, target))
-                    || result != self.types.builtin(BuiltinType::Bool)
-                {
-                    return Err(InstanceSelectionError::InvalidComparisonSignature(member));
                 }
                 let callable_requirements = normalize_requirements(
                     self.graph,
                     self.types,
                     &applicable.substitution,
-                    callable.requirements(),
+                    comparison.requirements(),
                 )?;
                 if !self.requirements_hold(&callable_requirements, &TypeSubstitution::default())? {
                     continue;
                 }
                 selected.push(StaticSelection::new(
-                    StaticDispatch::Direct(member),
+                    StaticDispatch::Direct(comparison.callable()),
                     applicable.generic_arguments.clone(),
                 ));
             }

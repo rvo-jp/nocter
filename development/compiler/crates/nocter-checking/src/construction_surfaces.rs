@@ -8,6 +8,10 @@ use nocter_model::{
     NominalTypeId, Symbol, TypeId, TypeStore, VariantId,
 };
 
+mod contracts;
+
+pub(crate) use contracts::CheckedLiteralConstructor;
+
 #[derive(Clone, Copy, Debug)]
 struct VisibleEntry<I> {
     id: I,
@@ -22,7 +26,7 @@ struct ConstructionSurface {
     variants: BTreeMap<Symbol, VisibleEntry<VariantId>>,
     variant_order: Box<[VisibleEntry<VariantId>]>,
     functions: BTreeMap<Symbol, VisibleEntry<CallableId>>,
-    literals: BTreeMap<LiteralShape, VisibleEntry<CallableId>>,
+    literals: BTreeMap<LiteralShape, CheckedLiteralConstructor>,
     member_order: Box<[VisibleEntry<CallableId>]>,
 }
 
@@ -105,8 +109,14 @@ impl ConstructionSurfaceTable {
                     .ok_or(ConstructionSurfaceBuildError::InvalidTarget(
                         declaration.target(),
                     ))?;
-            surface.member_order =
-                index_construction_members(graph, construction, declaration.members(), surface)?;
+            surface.member_order = index_construction_members(
+                graph,
+                construction,
+                declaration.target(),
+                declaration.generic_parameters(),
+                declaration.members(),
+                surface,
+            )?;
         }
         Ok(Self {
             by_family,
@@ -350,12 +360,14 @@ impl ConstructionSurfaceTable {
         construction: ConstructionId,
         shape: LiteralShape,
         from: crate::SourceAccessContext<'_>,
-    ) -> Result<Option<CallableId>, ConstructionSurfaceSelectionError> {
+    ) -> Result<Option<CheckedLiteralConstructor>, ConstructionSurfaceSelectionError> {
         let surface = self.surface_for_construction(construction)?;
-        let Some(member) = surface.literals.get(&shape).copied() else {
+        let Some(member) = surface.literals.get(&shape) else {
             return Ok(None);
         };
-        Self::visible_member(graph, member, from).map(|visible| visible.then_some(member.id))
+        from.site_is_visible(graph, member.site())
+            .map(|visible| visible.then(|| member.clone()))
+            .map_err(ConstructionSurfaceSelectionError::Visibility)
     }
 
     fn surface_for_construction(
@@ -490,6 +502,8 @@ fn select_authored_entries(
 fn index_construction_members(
     graph: &DeclarationGraph,
     construction: ConstructionId,
+    construction_target: TypeId,
+    construction_parameters: &[nocter_model::GenericParameterId],
     members: &[CallableId],
     surface: &mut ConstructionSurface,
 ) -> Result<Box<[VisibleEntry<CallableId>]>, ConstructionSurfaceBuildError> {
@@ -523,7 +537,13 @@ fn index_construction_members(
                 }
             }
             CallableKind::Literal(shape) => {
-                if surface.literals.insert(shape, entry).is_some() {
+                let literal = checked_literal_constructor(
+                    graph,
+                    construction_target,
+                    construction_parameters,
+                    member,
+                )?;
+                if surface.literals.insert(shape, literal).is_some() {
                     return Err(ConstructionSurfaceBuildError::DuplicateLiteral(
                         construction,
                         shape,
@@ -535,6 +555,40 @@ fn index_construction_members(
         order.push(entry);
     }
     Ok(order.into_boxed_slice())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn checked_literal_constructor(
+    graph: &DeclarationGraph,
+    construction_target: TypeId,
+    construction_parameters: &[nocter_model::GenericParameterId],
+    callable_id: CallableId,
+) -> Result<CheckedLiteralConstructor, ConstructionSurfaceBuildError> {
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(callable_id)
+        .ok_or(ConstructionSurfaceBuildError::MissingCallable(callable_id))?;
+    let [parameter_id] = callable.parameters() else {
+        return Err(ConstructionSurfaceBuildError::InvalidMember(callable_id));
+    };
+    let parameter = graph
+        .declarations()
+        .parameters()
+        .get(*parameter_id)
+        .copied()
+        .ok_or(ConstructionSurfaceBuildError::MissingParameter(
+            *parameter_id,
+        ))?;
+    Ok(CheckedLiteralConstructor::new(
+        construction_target,
+        construction_parameters,
+        callable_id,
+        callable.site(),
+        parameter.ty(),
+        callable.result(),
+        callable.requirements(),
+    ))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -549,6 +603,7 @@ pub enum ConstructionSurfaceBuildError {
     InvalidVariantOwner(VariantId),
     DuplicateVariantName(NominalTypeId, Symbol),
     MissingCallable(CallableId),
+    MissingParameter(nocter_model::ParameterId),
     InvalidMember(CallableId),
     DuplicateFunction(ConstructionId, Symbol),
     DuplicateLiteral(ConstructionId, LiteralShape),
@@ -581,6 +636,9 @@ impl std::fmt::Display for ConstructionSurfaceBuildError {
                 write!(formatter, "duplicate variant name {name:?} in {nominal:?}")
             }
             Self::MissingCallable(callable) => write!(formatter, "missing callable {callable:?}"),
+            Self::MissingParameter(parameter) => {
+                write!(formatter, "missing parameter {parameter:?}")
+            }
             Self::InvalidMember(callable) => {
                 write!(formatter, "invalid construction member {callable:?}")
             }
@@ -633,6 +691,45 @@ mod tests {
     use super::SelectedConstructionEntry;
     use crate::prepare_program_checking;
     use crate::test_support::Fixture;
+
+    #[test]
+    fn literal_contract_is_frozen_during_preparation() {
+        let fixture = Fixture::new(
+            "struct Text {}\nconstruct Text {\n    pub literal \"\"(text: &str): Self {\n        return Self {}\n    }\n}\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let graph = prepared.graph();
+        let (nominal, _) = graph.declarations().nominal_types().iter().next().unwrap();
+        let construction = prepared
+            .construction_surfaces()
+            .for_nominal(nominal)
+            .unwrap();
+        let root = graph
+            .modules()
+            .iter()
+            .find(|(_, module)| module.path().segments().is_empty())
+            .map(|(module, _)| module)
+            .unwrap();
+        let source = frontend_bindings.module_sources(root).unwrap()[0];
+        let access =
+            crate::SourceAccessContext::for_source(prepared.source_access(), source).unwrap();
+        let literal = prepared
+            .construction_surfaces()
+            .literal(
+                graph,
+                construction,
+                nocter_declarations::LiteralShape::String,
+                access,
+            )
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(literal.construction_target(), literal.result());
+    }
 
     #[test]
     fn private_entries_are_available_in_their_owning_source() {
