@@ -9,9 +9,12 @@ remain under `development/releases/` and are not repeated here.
 The [v0.18.0 Phase 0 and Phase 1 work](milestones/v0.18.0.md) and their adversarial reviews are
 complete. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
 every named builtin and adopts `primitive func`; named inherent ownership now derives from the
-selected declaration, while only anonymous slices retain structural attachment authority. No
-compatibility syntax, implicit semantic spelling lookup, or duplicate scalar/string/error
-attachment state remains. No subsequent v0.18.0 phase is currently selected.
+selected declaration, while only anonymous slices retain structural attachment authority. The
+post-phase architecture audit then removed repeated target-directive parsing, source-index-based
+primitive and standard-role selection, repeated package-target validation, source projection from
+prepared semantic state, duplicated built-in type vocabularies, and standard-API spelling checks
+in conformance code actions. Executable architecture gates now protect these boundaries. No
+subsequent v0.18.0 language phase is currently selected.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
@@ -52,6 +55,11 @@ behavioral oracle or implementation reference.
 - Named builtin types enter discovery, namespaces, checking, documentation, hover, highlighting,
   and navigation through one exact `primitive type` declaration identity. The compiler retains
   canonical representation, but no consumer reconstructs source authority from a spelling or path.
+- Target directives are decoded into one typed `TargetSelection` during discovery and carried into
+  declaration lowering. Standard declaration roles are resolved once into `StandardLibrary`, while
+  primitive roles are resolved once from `FrontendBindings`; neither path reads `SourceIndex`.
+- Prepared and checked semantic programs exclude source projection. Their output or recovery
+  boundaries retain `SourceIndex` beside the semantic program, never inside it.
 - ARM64 string-to-pointer copy now applies the authored destination offset. A native primitive
   conformance case and `custom-format.nct` output test protect the fix.
 - Every completed v0.15.0 phase passed its focused tests and complete workspace, Clippy, formatting,

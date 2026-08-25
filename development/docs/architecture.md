@@ -838,15 +838,21 @@ path. The same validator owns empty-enum, construction-result, unique constructi
 opaque-result, associated-binding, and owner-site invariants; lowering does not maintain a second
 semantic prevalidation table.
 
-Standard-library semantics that cannot be expressed by an ordinary source declaration use a
-second closed identity boundary at checked-program preparation. Discovery supplies the exact
-declaration-name token for each compiler-owned role. Preparation resolves that token through the
-shared `SourceIndex`, requires the declaration to belong to the selected standard package,
-validates its complete semantic shape and required public surface, and freezes one role-to-ID
-table. Consumers cannot search for `Allocator`, `String`, `Format`, `format_into`, or a textual
-module path. A missing or malformed
-role is a toolchain integrity failure; an authored `using` place whose resolved type is not one of
-the validated allocator/context families is a source rule.
+Standard-library semantics that cannot be expressed by an ordinary source declaration use the
+same declaration-graph authority as built-in attachments. Discovery supplies the exact declaration
+name token for each compiler-owned role. Declaration lowering resolves each token against its
+reserved semantic identity once and records the typed role-to-declaration mapping in
+`StandardLibrary`. Graph integrity verifies that every recorded ID exists and belongs to the
+selected standard package. Checked-program preparation consumes that mapping directly and validates
+the complete semantic shape and required public surface; it does not receive role tokens,
+`FrontendBindings`, or `SourceIndex` for role selection. Consumers cannot search for `Allocator`,
+`String`, `Format`, `format_into`, `abort`, or a textual module path. A missing or malformed role is
+a toolchain integrity failure; an authored `using` place whose resolved type is not one of the
+validated allocator/context families is a source rule.
+
+Primitive runtime roles remain a separate target contract. Declaration lowering projects their
+selected tokens through `FrontendBindings` to exact callable IDs, and the session freezes one
+`PrimitiveRegistry` before target validation. It never searches editor bindings in `SourceIndex`.
 
 Program validation separates authored declaration-rule violations from malformed compiler graph
 integrity. Integrity validation is fail-fast because a malformed graph cannot support trustworthy
@@ -1302,8 +1308,11 @@ stderr, entry-wrapper failure, or cleanup edges.
 
 ## Dependency Enforcement
 
-The workspace encodes the dependency direction in crate boundaries. Architecture tests
-additionally reject:
+The workspace encodes the dependency direction in crate boundaries. Executable architecture tests
+freeze the reviewed production dependency sets for the language, model, declaration, target, MIR,
+machine, ARM64, and Mach-O layers. They also reject source-index lookup in standard-role and
+primitive-role selection, repeated package-target validation, standard-API spelling checks in
+editor mutations, and duplicate built-in type definitions. The broader architecture review rejects:
 
 - source or syntax types in semantic identity
 - rendered-name type equality
