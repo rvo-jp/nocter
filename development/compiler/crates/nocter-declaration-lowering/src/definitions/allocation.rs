@@ -118,12 +118,14 @@ pub(super) fn finish_recovering(
         .map_err(HeaderDefinitionError::Program)
         .map_err(HeaderDefinitionFailure::without_recovery)?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
+    let primitive_bindings = reserved.primitive_bindings;
     let (source_index, frontend_bindings) = reserved.source_index.finish();
     match reserved.program.finish_recovering() {
         Ok(program) => Ok(LoweredDeclarations::new(
             program,
             frontend_bindings,
             source_index,
+            primitive_bindings,
         )),
         Err(failure) => {
             let (error, recovery) = match failure {

@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::definitions::{HeaderDefinitionError, define_declaration_headers_recovering};
 use crate::surface::collect_incomplete_body_declaration_surface;
+use crate::toolchain::resolve_toolchain_surface;
 use crate::{
     CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
     DeclarationDiagnostics, DeclarationLoweringRecovery, DefinitionDiagnostic, GenericDiagnostic,
@@ -222,6 +223,21 @@ fn prepare_compile_unit_declarations_from<'syntax>(
             };
         }
     };
+    let toolchain_input = input
+        .toolchain()
+        .ok_or(DeclarationLoweringError::Toolchain(
+            ToolchainError::MissingProfile,
+        ))?;
+    let toolchain = resolve_toolchain_surface(&surface, toolchain_input)
+        .map_err(DeclarationLoweringError::Toolchain)?;
+    if let Err(error) =
+        crate::surface::validate_builtin_type_authority(&surface, toolchain.builtin_types())
+    {
+        return match SurfaceDiagnostic::project(error, input) {
+            Ok(diagnostic) => Err(DeclarationLoweringError::Surface(diagnostic)),
+            Err(internal) => Err(DeclarationLoweringError::InternalSurface(internal)),
+        };
+    }
     let contracts = match analyze_declaration_contracts(&surface) {
         Ok(contracts) => contracts,
         Err(error) => {
@@ -231,7 +247,7 @@ fn prepare_compile_unit_declarations_from<'syntax>(
             };
         }
     };
-    let reserved = crate::reservation::reserve_with_contracts(surface, contracts)
+    let reserved = crate::reservation::reserve_with_contracts(surface, contracts, toolchain)
         .map_err(DeclarationLoweringError::Reservation)?;
     let headers = match prepare_declaration_headers(reserved) {
         Ok(headers) => headers,
@@ -305,12 +321,7 @@ fn prepare_toolchain_namespaces<'syntax>(
     imports: PreparedImports<'syntax>,
     input: &CompileUnitInput<'syntax>,
 ) -> Result<PreparedNamespaces<'syntax>, DeclarationLoweringError> {
-    let toolchain = input
-        .toolchain()
-        .ok_or(DeclarationLoweringError::Toolchain(
-            ToolchainError::MissingProfile,
-        ))?;
-    match apply_toolchain_profile(imports, toolchain) {
+    match apply_toolchain_profile(imports) {
         Ok(namespaces) => Ok(namespaces),
         Err(ToolchainError::Rule(violation)) => match ImportDiagnostic::project(violation, input) {
             Ok(diagnostic) => Err(DeclarationLoweringError::Import(diagnostic)),
@@ -677,7 +688,11 @@ mod tests {
             vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
@@ -717,7 +732,11 @@ mod tests {
             vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
@@ -757,7 +776,11 @@ mod tests {
                 ),
             ],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
@@ -784,7 +807,11 @@ mod tests {
             vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Generic(diagnostic) = error else {
@@ -830,7 +857,11 @@ mod tests {
             vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
             vec![module("workspace:app", &[], "/app/index.nct", &root)],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Generic(diagnostic) = error else {
@@ -889,7 +920,11 @@ mod tests {
                 module("resolved:dep", &[], "/dep/index.nct", &dependency),
             ],
             vec![module_use(&app, 0, dependency_identity)],
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
@@ -939,7 +974,11 @@ mod tests {
                 module("resolved:dep", &[], "/dep/index.nct", &dependency),
             ],
             vec![module_use(&app, 0, dependency_identity)],
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Import(diagnostic) = error else {
@@ -1049,7 +1088,11 @@ mod tests {
                 module("resolved:dep", &[], "/dep/index.nct", &dependency),
             ],
             vec![module_use(&app, 0, dependency_identity)],
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
         let error = lower_compile_unit_declarations(&input).unwrap_err();
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
@@ -1734,7 +1777,11 @@ mod tests {
 
     fn standard_toolchain(standard: &SyntaxTree) -> ToolchainInput {
         let package = PackageIdentity::new("toolchain:std");
-        crate::test_support::test_toolchain(ModuleIdentity::new(package, ["prelude"]), standard)
+        crate::test_support::test_toolchain(
+            ModuleIdentity::new(package.clone(), ["prelude"]),
+            &ModuleIdentity::new(package, Vec::<&str>::new()),
+            standard,
+        )
     }
 
     fn module<'syntax>(

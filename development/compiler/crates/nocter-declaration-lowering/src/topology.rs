@@ -6,6 +6,7 @@ use nocter_declarations::{
 };
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
+use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceOrigin, SourceRole,
@@ -27,6 +28,14 @@ pub(crate) type UseResolutionKey = (SourceId, usize);
 pub struct LoweredDeclarations {
     program: DeclarationProgram,
     frontend_bindings: FrontendBindings,
+    source_index: SourceIndex,
+    primitive_bindings: Box<[PrimitiveBinding]>,
+}
+
+/// Topology-only output used by the focused topology pass.
+#[derive(Debug)]
+pub struct LoweredTopology {
+    program: DeclarationProgram,
     source_index: SourceIndex,
 }
 
@@ -68,11 +77,13 @@ impl LoweredDeclarations {
         program: DeclarationProgram,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
+        primitive_bindings: Box<[PrimitiveBinding]>,
     ) -> Self {
         Self {
             program,
             frontend_bindings,
             source_index,
+            primitive_bindings,
         }
     }
 
@@ -84,6 +95,11 @@ impl LoweredDeclarations {
     #[must_use]
     pub const fn source_index(&self) -> &SourceIndex {
         &self.source_index
+    }
+
+    #[must_use]
+    pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
+        &self.primitive_bindings
     }
 
     #[must_use]
@@ -99,6 +115,25 @@ impl LoweredDeclarations {
     ) -> (DeclarationProgram, FrontendBindings, SourceIndex) {
         let bindings = crate::frontend_projection::add_block_imports(input, self.frontend_bindings);
         (self.program, bindings, self.source_index)
+    }
+}
+
+impl LoweredTopology {
+    const fn new(program: DeclarationProgram, source_index: SourceIndex) -> Self {
+        Self {
+            program,
+            source_index,
+        }
+    }
+
+    #[must_use]
+    pub const fn program(&self) -> &DeclarationProgram {
+        &self.program
+    }
+
+    #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
     }
 }
 
@@ -295,7 +330,7 @@ impl From<TopologyViolation> for LoweringError {
 /// inconsistent with its parsed source snapshots.
 pub fn lower_compile_unit_topology(
     input: &CompileUnitInput<'_>,
-) -> Result<LoweredDeclarations, LoweringError> {
+) -> Result<LoweredTopology, LoweringError> {
     let prepared = prepare_compile_unit(input)?;
     let mut program = DeclarationProgramBuilder::new(input.target(), prepared.symbols);
     let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
@@ -353,11 +388,8 @@ pub fn lower_compile_unit_topology(
     }
 
     let (source_index, frontend_bindings) = source_index.finish();
-    Ok(LoweredDeclarations::new(
-        program.finish()?,
-        frontend_bindings,
-        source_index,
-    ))
+    let _ = frontend_bindings;
+    Ok(LoweredTopology::new(program.finish()?, source_index))
 }
 
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {

@@ -74,7 +74,11 @@ pub(super) fn bind<'syntax>(
         .and_then(|module| module.sources().first())
         .map(crate::ModuleSourceInput::syntax)
         .expect("test standard package has no root builtin source");
-    let toolchain = crate::test_support::test_toolchain(prelude.clone(), builtin_source);
+    let toolchain = crate::test_support::test_toolchain(
+        prelude.clone(),
+        &ModuleIdentity::new(prelude.package().clone(), Vec::<&str>::new()),
+        builtin_source,
+    );
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
@@ -84,11 +88,11 @@ pub(super) fn bind<'syntax>(
     )
     .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &toolchain).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
+    let namespaces = apply_toolchain_profile(imports).unwrap();
     bind_header_type_syntax(namespaces)
 }
 

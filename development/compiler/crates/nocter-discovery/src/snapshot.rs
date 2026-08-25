@@ -42,6 +42,7 @@ impl DiscoveredSource {
         self.kind
     }
 
+    #[cfg(test)]
     pub(crate) const fn syntax_index(&self) -> usize {
         self.syntax
     }

@@ -42,6 +42,14 @@ fn module<'syntax>(
     )
 }
 
+fn reserve<'syntax>(input: &CompileUnitInput<'syntax>) -> crate::ReservedDeclarations<'syntax> {
+    let toolchain = crate::test_support::empty_toolchain(ModuleIdentity::new(
+        PackageIdentity::new("workspace:app"),
+        Vec::<&str>::new(),
+    ));
+    reserve_declaration_identities(collect_declaration_surface(input).unwrap(), &toolchain).unwrap()
+}
+
 #[test]
 fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
     let mut sources = SourceMap::new();
@@ -67,8 +75,7 @@ fn resolves_exact_name_tokens_and_creates_sites_for_fields() {
         )],
         Vec::new(),
     );
-    let reserved =
-        reserve_declaration_identities(collect_declaration_surface(&input).unwrap()).unwrap();
+    let reserved = reserve(&input);
 
     let headers = prepare_declaration_headers(reserved).unwrap();
     let value = headers.name(SurfaceDeclarationId::from_index(0)).unwrap();
@@ -116,8 +123,7 @@ fn duplicate_module_names_are_order_independent() {
         Vec::new(),
     )
     .with_source_visibility_resolutions(vec![source_see(&root, 0, "/app/other.nct")]);
-    let reserved =
-        reserve_declaration_identities(collect_declaration_surface(&input).unwrap()).unwrap();
+    let reserved = reserve(&input);
 
     assert!(matches!(
         prepare_declaration_headers(reserved),
@@ -163,8 +169,7 @@ fn visibility_scopes_resolve_to_semantic_package_and_module_boundaries() {
         ],
         Vec::new(),
     );
-    let reserved =
-        reserve_declaration_identities(collect_declaration_surface(&input).unwrap()).unwrap();
+    let reserved = reserve(&input);
     let root_module = reserved.module_ids()[0];
     let child_module = reserved.module_ids()[1];
     let package = reserved.package_ids()[0];

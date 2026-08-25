@@ -130,9 +130,9 @@ fn semantic_authorities_do_not_read_editor_projection_contracts() {
     assert!(!standard.contains("nocter_source_index"));
     assert!(!standard.contains("FrontendBindings"));
 
-    let primitives = source("crates/nocter-declaration-lowering/src/primitive_bindings.rs");
-    assert!(!primitives.contains("nocter_source_index"));
-    assert!(primitives.contains("FrontendBindings"));
+    let toolchain = source("crates/nocter-declaration-lowering/src/toolchain.rs");
+    assert!(!toolchain.contains("nocter_source_index"));
+    assert!(!toolchain.contains("FrontendBindings"));
 
     let target = source("crates/nocter-target-program/src/program.rs");
     assert!(!target.contains("validate_package_targets"));
@@ -144,6 +144,32 @@ fn semantic_authorities_do_not_read_editor_projection_contracts() {
     ] {
         assert!(!source(path).contains("TargetSelection::prepare"));
     }
+}
+
+#[test]
+fn toolchain_roles_are_located_without_discovery_owned_syntax_authority() {
+    let discovery = source("crates/nocter-discovery/src/graph.rs");
+    assert!(!discovery.contains("declaration_name_token"));
+    assert!(!discovery.contains("resolve_standard_role"));
+    assert!(!discovery.contains("resolve_primitive_role"));
+    assert!(!discovery.contains("resolve_builtin_type"));
+
+    let compile_input = source("crates/nocter-compile-input/src/lib.rs");
+    let locator_contract = compile_input
+        .split_once("pub struct StandardRoleLocator")
+        .expect("standard role locator exists")
+        .1
+        .split_once("pub struct StructuralAttachmentInput")
+        .expect("locator contract ends before structural attachments")
+        .0;
+    assert!(!locator_contract.contains("SyntaxToken"));
+
+    let lowering = source("crates/nocter-declaration-lowering/src/toolchain.rs");
+    assert!(lowering.contains("SurfaceDeclarationId"));
+    assert!(!lowering.contains("declaration_name_token"));
+
+    let reservation = source("crates/nocter-declaration-lowering/src/reservation.rs");
+    assert!(!reservation.contains("declaration.name() == Some(role.declaration())"));
 }
 
 #[test]

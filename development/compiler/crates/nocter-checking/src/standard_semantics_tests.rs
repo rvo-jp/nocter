@@ -1,4 +1,4 @@
-use nocter_compile_input::StandardRoleInput;
+use crate::test_support::StandardRoleInput;
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::StandardDeclarationRole;
 use nocter_syntax::NodeKind;
@@ -171,8 +171,8 @@ pub interface Format {
 }
 ",
     );
-    let error = with_prepared_roles(
-        &fixture,
+    let input = with_standard_roles(
+        fixture.input(false),
         vec![
             StandardRoleInput::new(
                 StandardDeclarationRole::OwnedString,
@@ -187,15 +187,16 @@ pub interface Format {
                 fixture.standard_declaration_token(NodeKind::InterfaceMethod, "format_into"),
             ),
         ],
-        |_| (),
-    )
-    .unwrap_err();
+    );
+    let error = lower_compile_unit_declarations(&input).unwrap_err();
 
     assert!(matches!(
         error,
-        PreparationError::StandardSemantics(StandardSemanticError::InvalidNominalContract(
-            StandardDeclarationRole::OwnedString
-        ))
+        nocter_declaration_lowering::DeclarationLoweringError::Toolchain(
+            nocter_declaration_lowering::ToolchainError::MissingStandardDeclaration(
+                StandardDeclarationRole::OwnedString
+            )
+        )
     ));
 }
 
@@ -335,16 +336,8 @@ fn project_declarations_cannot_acquire_standard_authority_during_lowering() {
 
     assert!(matches!(
         error,
-        nocter_declaration_lowering::DeclarationLoweringError::InternalDefinition(
-            nocter_declaration_lowering::HeaderDefinitionError::Program(
-                nocter_declarations::ProgramBuildError::InvalidProgram(
-                    nocter_declarations::ProgramValidationError::Integrity(
-                        nocter_declarations::ProgramIntegrityError::OwnerMismatch(
-                            nocter_declarations::DeclarationDomain::StandardLibrary
-                        )
-                    )
-                )
-            )
+        nocter_declaration_lowering::DeclarationLoweringError::Toolchain(
+            nocter_declaration_lowering::ToolchainError::DeclarationModuleOutsideStandardPackage(_)
         )
     ));
 }

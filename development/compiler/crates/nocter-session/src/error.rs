@@ -9,9 +9,8 @@ pub enum CompileSessionError {
     Declaration(nocter_declaration_lowering::DeclarationLoweringError),
     Preparation(nocter_checking::PreparationError),
     Checking(nocter_checking::BodyCheckError),
-    MissingToolchainProfile,
     MissingStandardPackage,
-    Primitive(nocter_declaration_lowering::PrimitiveResolutionError),
+    Primitive(nocter_runtime_contract::PrimitiveBindingError),
     TargetUnavailable(nocter_target_program::TargetUnavailable),
     Target(nocter_target_program::TargetProgramError),
 }
@@ -26,7 +25,6 @@ impl CompileSessionError {
             Self::Preparation(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::Checking(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::CompileInput(_)
-            | Self::MissingToolchainProfile
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::TargetUnavailable(_)
@@ -43,7 +41,6 @@ impl CompileSessionError {
             | Self::Declaration(_)
             | Self::Preparation(_)
             | Self::Checking(_)
-            | Self::MissingToolchainProfile
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::Target(_) => None,
@@ -58,9 +55,6 @@ impl fmt::Display for CompileSessionError {
             Self::Declaration(error) => error.fmt(formatter),
             Self::Preparation(error) => error.fmt(formatter),
             Self::Checking(error) => error.fmt(formatter),
-            Self::MissingToolchainProfile => {
-                formatter.write_str("compile input has no toolchain profile")
-            }
             Self::MissingStandardPackage => {
                 formatter.write_str("checked program has no selected standard package")
             }
@@ -81,7 +75,7 @@ impl std::error::Error for CompileSessionError {
             Self::Primitive(error) => Some(error),
             Self::TargetUnavailable(error) => Some(error),
             Self::Target(error) => Some(error),
-            Self::MissingToolchainProfile | Self::MissingStandardPackage => None,
+            Self::MissingStandardPackage => None,
         }
     }
 }
@@ -110,8 +104,8 @@ impl From<nocter_checking::BodyCheckError> for CompileSessionError {
     }
 }
 
-impl From<nocter_declaration_lowering::PrimitiveResolutionError> for CompileSessionError {
-    fn from(error: nocter_declaration_lowering::PrimitiveResolutionError) -> Self {
+impl From<nocter_runtime_contract::PrimitiveBindingError> for CompileSessionError {
+    fn from(error: nocter_runtime_contract::PrimitiveBindingError) -> Self {
         Self::Primitive(error)
     }
 }

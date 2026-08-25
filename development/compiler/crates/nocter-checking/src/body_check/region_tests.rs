@@ -1,4 +1,4 @@
-use nocter_compile_input::StandardRoleInput;
+use crate::test_support::StandardRoleInput;
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::TypeKind;

@@ -4,10 +4,12 @@
 //! lowering boundary canonicalizes an explicit compile unit, creates semantic identities, and
 //! projects them back to source without exposing syntax to later semantic stages.
 
+#[cfg(test)]
+use nocter_compile_input::ToolchainInput;
 use nocter_compile_input::{
-    BuiltinTypeInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput,
-    SourceVisibilityResolutionInput, ToolchainInput, UseResolutionInput,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageInput, PackageMode, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
+    UseResolutionInput,
 };
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::PackageIdentity;
@@ -28,13 +30,13 @@ mod namespace_diagnostic;
 mod package_source;
 mod package_targets;
 mod pipeline;
-mod primitive_bindings;
 mod recovery;
 mod representation_contract;
 mod reservation;
 mod surface;
 mod surface_diagnostic;
 mod surface_origin;
+mod toolchain;
 mod topology;
 mod topology_diagnostic;
 mod topology_violation;
@@ -58,9 +60,10 @@ pub use generics::{
 };
 pub use headers::{HeaderError, PreparedHeaders, prepare_declaration_headers};
 pub use import_diagnostic::ImportDiagnostic;
+pub(crate) use imports::apply_toolchain_profile;
 pub use imports::{
-    ImportError, ImportRule, ImportViolation, PreparedImports, PreparedNamespaces, ToolchainError,
-    apply_toolchain_profile, prepare_authored_imports,
+    ImportError, ImportRule, ImportViolation, PreparedImports, PreparedNamespaces,
+    prepare_authored_imports,
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
@@ -68,21 +71,22 @@ pub use pipeline::{
     DeclarationLoweringError, DeclarationLoweringFailure, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
 };
-pub use primitive_bindings::{PrimitiveResolutionError, resolve_primitive_bindings};
 pub use recovery::{
     DeclarationBodyAnalysisInput, DeclarationCheckingTransition, DeclarationLoweringRecovery,
 };
-pub use reservation::{
-    ReservationError, ReservedDeclarations, ReservedEntity, reserve_declaration_identities,
-};
+#[cfg(test)]
+pub(crate) use reservation::reserve_declaration_identities;
+pub use reservation::{ReservationError, ReservedDeclarations, ReservedEntity};
 pub use surface::{
     DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
     SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId, SurfaceVisibility,
     collect_declaration_surface,
 };
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
+pub use toolchain::ToolchainError;
 pub use topology::{
-    LoweredDeclarations, LoweringError, PackageTargetResolutionError, lower_compile_unit_topology,
+    LoweredDeclarations, LoweredTopology, LoweringError, PackageTargetResolutionError,
+    lower_compile_unit_topology,
 };
 pub use topology_diagnostic::TopologyDiagnostic;
 pub use topology_violation::{TopologyRule, TopologyViolation};

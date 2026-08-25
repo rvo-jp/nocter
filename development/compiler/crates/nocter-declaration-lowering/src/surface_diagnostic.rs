@@ -164,8 +164,9 @@ mod tests {
     use super::{SurfaceDiagnostic, SurfaceRule};
     use crate::test_support::source_see;
     use crate::{
-        CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-        PackageIdentity, PackageInput, PackageMode, collect_declaration_surface,
+        CompileUnitInput, DeclarationLoweringError, ModuleIdentity, ModuleInput, ModuleSourceInput,
+        ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, collect_declaration_surface,
+        lower_compile_unit_declarations,
     };
 
     #[test]
@@ -271,10 +272,16 @@ mod tests {
                 &root,
             )],
             Vec::new(),
-        );
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
 
-        let error = collect_declaration_surface(&input).unwrap_err();
-        let diagnostic = SurfaceDiagnostic::project(error, &input).unwrap();
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
+        let DeclarationLoweringError::Surface(diagnostic) = error else {
+            panic!("unauthorized primitive type did not produce a surface diagnostic");
+        };
 
         assert_eq!(diagnostic.rule(), SurfaceRule::UnauthorizedPrimitiveType);
         assert_eq!(diagnostic.source().code(), "E0235");

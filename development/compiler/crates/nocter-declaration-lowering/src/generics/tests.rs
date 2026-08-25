@@ -37,10 +37,10 @@ fn prepare<'syntax>(
         "app",
         PackageMode::Declared,
     );
-    let module = ModuleInput::new(
-        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
-        module_sources,
-    );
+    let module_identity =
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
+    let toolchain = crate::test_support::empty_toolchain(module_identity.clone());
+    let module = ModuleInput::new(module_identity, module_sources);
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
@@ -50,7 +50,7 @@ fn prepare<'syntax>(
     )
     .with_source_visibility_resolutions(source_visibility_resolutions);
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &toolchain).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     prepare_generic_binders(headers)
 }

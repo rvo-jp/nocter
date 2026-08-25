@@ -2,8 +2,8 @@ use nocter_model::BuiltinType;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, declaration_name_token};
 
 use crate::{
-    BuiltinTypeInput, ModuleIdentity, PackageTargetResolutionInput,
-    SourceVisibilityResolutionInput, ToolchainInput, UseResolutionInput,
+    ModuleIdentity, PackageTargetResolutionInput, SourceVisibilityResolutionInput, ToolchainInput,
+    UseResolutionInput,
 };
 
 pub(crate) const TEST_BUILTIN_SOURCE: &str = "\
@@ -25,6 +25,7 @@ pub primitive type never\n";
 
 pub(crate) fn test_toolchain(
     prelude: ModuleIdentity,
+    builtin_module: &ModuleIdentity,
     builtin_source: &SyntaxTree,
 ) -> ToolchainInput {
     let mut declarations = Vec::new();
@@ -45,11 +46,20 @@ pub(crate) fn test_toolchain(
     let builtin_types = BuiltinType::ALL
         .iter()
         .copied()
-        .zip(declarations)
-        .map(|(builtin, declaration)| BuiltinTypeInput::new(builtin, declaration))
+        .map(|builtin| {
+            nocter_compile_input::BuiltinTypeLocator::new(
+                builtin,
+                builtin_module.clone(),
+                builtin.spelling(),
+            )
+        })
         .collect();
     ToolchainInput::new(prelude.package().clone(), prelude, Vec::new(), Vec::new())
         .with_builtin_types(builtin_types)
+}
+
+pub(crate) fn empty_toolchain(module: ModuleIdentity) -> ToolchainInput {
+    ToolchainInput::new(module.package().clone(), module, Vec::new(), Vec::new())
 }
 
 fn child_nodes(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {

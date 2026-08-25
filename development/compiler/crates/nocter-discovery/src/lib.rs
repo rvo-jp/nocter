@@ -18,10 +18,7 @@ pub use error::{DiscoveryError, SourceVisibilityFailure, ToolchainDiscoveryError
 pub use failure::DiscoveryFailure;
 pub use graph::discover;
 pub use module_catalog::module_for_source;
-pub use request::{
-    BuiltinTypeLocator, DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator,
-    StandardRoleLocator, ToolchainRequest,
-};
+pub use request::{DiscoveryLayout, DiscoveryRequest};
 pub use snapshot::{
     CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,
     DiscoveredUnit,

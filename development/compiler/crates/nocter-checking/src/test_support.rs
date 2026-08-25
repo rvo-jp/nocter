@@ -1,7 +1,7 @@
 use nocter_compile_input::{
-    BuiltinTypeInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    BuiltinTypeLocator, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageInput, PackageMode, SourceVisibilityResolutionInput,
-    StandardRoleInput, ToolchainInput, UseResolutionInput,
+    StandardRoleLocator, ToolchainInput, UseResolutionInput,
 };
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_source::{SourceId, SourceMap, SourceName};
@@ -14,6 +14,21 @@ pub(crate) struct Fixture {
     implementations: Vec<(Box<str>, SyntaxTree)>,
     standard: SyntaxTree,
     prelude: SyntaxTree,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct StandardRoleInput {
+    role: nocter_declarations::StandardDeclarationRole,
+    declaration: nocter_syntax::SyntaxToken,
+}
+
+impl StandardRoleInput {
+    pub(crate) const fn new(
+        role: nocter_declarations::StandardDeclarationRole,
+        declaration: nocter_syntax::SyntaxToken,
+    ) -> Self {
+        Self { role, declaration }
+    }
 }
 
 pub(crate) const BUILTIN_DECLARATIONS: &str = "\
@@ -37,6 +52,10 @@ pub(crate) fn with_standard_roles(
     input: CompileUnitInput<'_>,
     roles: Vec<StandardRoleInput>,
 ) -> CompileUnitInput<'_> {
+    let roles = roles
+        .into_iter()
+        .map(|role| standard_role_locator(&input, role))
+        .collect();
     let toolchain = input
         .toolchain()
         .expect("checking fixture always supplies a toolchain profile")
@@ -46,8 +65,8 @@ pub(crate) fn with_standard_roles(
 }
 
 pub(crate) fn builtin_toolchain(
-    sources: &SourceMap,
-    standard: &SyntaxTree,
+    _sources: &SourceMap,
+    _standard: &SyntaxTree,
     prelude: ModuleIdentity,
 ) -> ToolchainInput {
     ToolchainInput::new(
@@ -61,18 +80,52 @@ pub(crate) fn builtin_toolchain(
             .iter()
             .copied()
             .map(|builtin| {
-                BuiltinTypeInput::new(
+                BuiltinTypeLocator::new(
                     builtin,
-                    declaration_token(
-                        sources,
-                        standard,
-                        NodeKind::PrimitiveTypeDeclaration,
-                        builtin.spelling(),
-                    ),
+                    ModuleIdentity::new(PackageIdentity::new("toolchain:std"), Vec::<&str>::new()),
+                    builtin.spelling(),
                 )
             })
             .collect(),
     )
+}
+
+fn standard_role_locator(
+    input: &CompileUnitInput<'_>,
+    role: StandardRoleInput,
+) -> StandardRoleLocator {
+    let source = input
+        .sources()
+        .get(role.declaration.source())
+        .expect("standard role source exists");
+    let name = source
+        .text_at(role.declaration.range())
+        .expect("standard role name has source text");
+    for module in input.modules() {
+        for module_source in module.sources() {
+            let tree = module_source.syntax();
+            if tree.source() != role.declaration.source() {
+                continue;
+            }
+            let mut pending = vec![tree.root_id()];
+            while let Some(node) = pending.pop() {
+                if nocter_syntax::declaration_name_token(tree, node) == Some(role.declaration) {
+                    let kind = tree.node(node).expect("declaration node exists").kind();
+                    return StandardRoleLocator::new(
+                        role.role,
+                        module.identity().clone(),
+                        kind,
+                        name,
+                    );
+                }
+                pending.extend(tree.children(node).iter().filter_map(|child| match child {
+                    SyntaxElement::Node(child) => Some(*child),
+                    SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
+                }));
+            }
+        }
+    }
+    panic!("standard role declaration has no fixture module")
 }
 
 impl Fixture {

@@ -7,6 +7,7 @@ use nocter_model::{
     InstanceId, InterfaceId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId,
     VariantId,
 };
+use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole,
@@ -20,7 +21,6 @@ use crate::{
     DeclarationContractError, DeclarationContracts, DeclarationSurface, ModuleIdentity,
     ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration,
     SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceSource, SurfaceVisibility,
-    analyze_declaration_contracts,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -78,6 +78,7 @@ pub enum ReservationError {
     InconsistentSource(SourceId),
     InvalidPackageTarget(NodeId),
     DuplicatePackageTarget(NodeId),
+    Toolchain(crate::ToolchainError),
 }
 
 impl fmt::Display for ReservationError {
@@ -124,6 +125,7 @@ impl fmt::Display for ReservationError {
                     "package target {declaration:?} repeats a selected target name"
                 )
             }
+            Self::Toolchain(error) => error.fmt(formatter),
         }
     }
 }
@@ -154,6 +156,12 @@ impl From<DuplicateDocumentation> for ReservationError {
     }
 }
 
+impl From<crate::ToolchainError> for ReservationError {
+    fn from(error: crate::ToolchainError) -> Self {
+        Self::Toolchain(error)
+    }
+}
+
 /// A complete semantic-identity reservation awaiting header definition.
 ///
 /// The syntax-owned fields remain private to the lowering crate and are consumed by the header
@@ -174,6 +182,8 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
     pub(crate) contracts: DeclarationContracts,
     pub(crate) entities: Box<[Option<ReservedEntity>]>,
+    pub(crate) toolchain: crate::toolchain::ResolvedToolchainInput,
+    pub(crate) primitive_bindings: Box<[PrimitiveBinding]>,
 }
 
 impl ReservedDeclarations<'_> {
@@ -263,16 +273,20 @@ impl ReservedDeclarations<'_> {
 ///
 /// Returns [`ReservationError`] for invalid callable contracts, inconsistent surface ownership,
 /// missing topology symbols, invalid program topology, or duplicate source projections.
-pub fn reserve_declaration_identities(
-    surface: DeclarationSurface<'_>,
-) -> Result<ReservedDeclarations<'_>, ReservationError> {
-    let contracts = analyze_declaration_contracts(&surface)?;
-    reserve_with_contracts(surface, contracts)
+#[cfg(test)]
+pub(crate) fn reserve_declaration_identities<'syntax>(
+    surface: DeclarationSurface<'syntax>,
+    toolchain: &crate::ToolchainInput,
+) -> Result<ReservedDeclarations<'syntax>, ReservationError> {
+    let resolved = crate::toolchain::resolve_toolchain_surface(&surface, toolchain)?;
+    let contracts = crate::analyze_declaration_contracts(&surface)?;
+    reserve_with_contracts(surface, contracts, resolved)
 }
 
 pub(crate) fn reserve_with_contracts(
     surface: DeclarationSurface<'_>,
     contracts: DeclarationContracts,
+    toolchain: crate::toolchain::ResolvedToolchainInput,
 ) -> Result<ReservedDeclarations<'_>, ReservationError> {
     let SurfaceParts {
         target,
@@ -286,7 +300,6 @@ pub(crate) fn reserve_with_contracts(
         imports,
         package_target_resolutions,
         declarations,
-        builtin_types,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
     let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
@@ -320,8 +333,14 @@ pub(crate) fn reserve_with_contracts(
         &mut source_index,
     )?;
     let source_modules = project_sources(&sources, &module_ids, &mut source_index)?;
-    let entities =
-        reserve_surface_entities(&declarations, &contracts, &builtin_types, &mut program)?;
+    let entities = reserve_surface_entities(
+        &declarations,
+        &contracts,
+        toolchain.builtin_types(),
+        &mut program,
+    )?;
+    let primitive_bindings =
+        resolve_primitive_bindings(&declarations, &entities, toolchain.primitive_roles())?;
     project_declaration_documentation(
         &sources,
         &declarations,
@@ -363,7 +382,33 @@ pub(crate) fn reserve_with_contracts(
         declarations,
         contracts,
         entities: entities.into_boxed_slice(),
+        toolchain,
+        primitive_bindings: primitive_bindings.into_boxed_slice(),
     })
+}
+
+fn resolve_primitive_bindings(
+    declarations: &[SurfaceDeclaration],
+    entities: &[Option<ReservedEntity>],
+    roles: &[crate::toolchain::ResolvedPrimitiveRole],
+) -> Result<Vec<PrimitiveBinding>, ReservationError> {
+    roles
+        .iter()
+        .copied()
+        .map(|role| {
+            let index = role.declaration().index();
+            let declaration = declarations
+                .get(index)
+                .ok_or(InconsistentSurface(role.declaration()))?;
+            let Some(ReservedEntity::Callable(callable)) = entities[index] else {
+                return Err(InconsistentSurface(role.declaration()));
+            };
+            if declaration.kind() != SurfaceDeclarationKind::PrimitiveFunction {
+                return Err(InconsistentSurface(role.declaration()));
+            }
+            Ok(PrimitiveBinding::new(role.role(), callable))
+        })
+        .collect()
 }
 
 fn reserve_packages(
@@ -505,7 +550,7 @@ fn project_declaration_documentation(
 fn reserve_surface_entities(
     declarations: &[SurfaceDeclaration],
     contracts: &DeclarationContracts,
-    builtin_types: &[crate::BuiltinTypeInput],
+    builtin_types: &[crate::toolchain::ResolvedBuiltinType],
     program: &mut DeclarationProgramBuilder,
 ) -> Result<Vec<Option<ReservedEntity>>, ReservationError> {
     let mut entities = vec![None; declarations.len()];
@@ -517,13 +562,11 @@ fn reserve_surface_entities(
         }
         validate_owner(declarations, id, declaration)?;
         entities[index] = if declaration.kind() == SurfaceDeclarationKind::PrimitiveType {
-            declaration.name().and_then(|name| {
-                builtin_types
-                    .iter()
-                    .copied()
-                    .find(|builtin| builtin.declaration() == name)
-                    .map(|builtin| ReservedEntity::BuiltinType(builtin.builtin()))
-            })
+            builtin_types
+                .iter()
+                .copied()
+                .find(|builtin| builtin.declaration() == id)
+                .map(|builtin| ReservedEntity::BuiltinType(builtin.builtin()))
         } else {
             reserve_entity(program, declaration.kind())
         };

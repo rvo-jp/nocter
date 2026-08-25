@@ -1,103 +1,13 @@
-use std::fmt;
-
 use super::access::{module_index_by_id, module_index_by_identity, visible_from};
 use super::{ModuleNamespace, NamespaceBinding, PreparedImports, lookup};
-use crate::{ImportViolation, ModuleIdentity, PackageIdentity, ToolchainInput};
+use crate::toolchain::ResolvedToolchainInput;
+use crate::{ImportViolation, ToolchainError};
 use nocter_declarations::{
     ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace, NamespaceEntry,
     ProgramBuildError, StandardDeclaration, StandardDeclarationRole, StructuralAttachment,
 };
 use nocter_model::{BuiltinType, ModuleId, PackageId, Symbol};
-use nocter_syntax::{NodeId, SyntaxToken};
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ToolchainError {
-    MissingProfile,
-    Rule(ImportViolation),
-    UnknownStandardPackage(PackageIdentity),
-    UnknownModule(ModuleIdentity),
-    PreludeOutsideStandardPackage,
-    StructuralAttachmentOutsideStandardPackage(StructuralAttachment),
-    DuplicateStructuralAttachment(StructuralAttachment),
-    MissingBuiltinType(BuiltinType),
-    DuplicateBuiltinType(BuiltinType),
-    MissingStandardDeclaration(StandardDeclarationRole),
-    DuplicateStandardDeclaration(StandardDeclarationRole),
-    InvalidStandardDeclaration(StandardDeclarationRole),
-    InconsistentImport(NodeId),
-    Program(ProgramBuildError),
-}
-
-impl fmt::Display for ToolchainError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingProfile => formatter.write_str("compile input has no toolchain profile"),
-            Self::Rule(violation) => write!(
-                formatter,
-                "{}: {}",
-                violation.rule().code(),
-                violation.rule().message()
-            ),
-            Self::UnknownModule(module) => {
-                write!(formatter, "toolchain module {module:?} is absent")
-            }
-            Self::UnknownStandardPackage(package) => {
-                write!(formatter, "standard package {package:?} is absent")
-            }
-            Self::PreludeOutsideStandardPackage => {
-                formatter.write_str("toolchain prelude is outside the selected standard package")
-            }
-            Self::StructuralAttachmentOutsideStandardPackage(attachment) => {
-                write!(
-                    formatter,
-                    "{attachment:?} structural attachment is outside the selected standard package"
-                )
-            }
-            Self::DuplicateStructuralAttachment(attachment) => {
-                write!(
-                    formatter,
-                    "toolchain profile repeats {attachment:?} attachment"
-                )
-            }
-            Self::MissingBuiltinType(builtin) => {
-                write!(
-                    formatter,
-                    "toolchain built-in type {builtin:?} lost its declaration"
-                )
-            }
-            Self::DuplicateBuiltinType(builtin) => {
-                write!(formatter, "toolchain repeats {builtin:?} built-in type")
-            }
-            Self::MissingStandardDeclaration(role) => {
-                write!(
-                    formatter,
-                    "toolchain standard role {role:?} lost its declaration"
-                )
-            }
-            Self::DuplicateStandardDeclaration(role) => {
-                write!(formatter, "toolchain repeats standard role {role:?}")
-            }
-            Self::InvalidStandardDeclaration(role) => {
-                write!(
-                    formatter,
-                    "toolchain standard role {role:?} selects an invalid declaration"
-                )
-            }
-            Self::InconsistentImport(import) => {
-                write!(formatter, "authored import {import:?} has no retained path")
-            }
-            Self::Program(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for ToolchainError {}
-
-impl From<ImportViolation> for ToolchainError {
-    fn from(violation: ImportViolation) -> Self {
-        Self::Rule(violation)
-    }
-}
+use nocter_syntax::SyntaxToken;
 
 /// Authored namespaces plus compiler-selected universal and standard-prelude fallback entries.
 #[derive(Debug)]
@@ -248,13 +158,12 @@ impl PreparedNamespaces<'_> {
 ///
 /// Returns [`ToolchainError`] when an exact selected identity is absent, inconsistent, duplicated,
 /// or explicitly imported where the compiler owns the edge.
-pub fn apply_toolchain_profile<'syntax>(
-    mut imports: PreparedImports<'syntax>,
-    toolchain: &ToolchainInput,
-) -> Result<PreparedNamespaces<'syntax>, ToolchainError> {
-    let resolved = resolve_toolchain_profile(&imports, toolchain)?;
+pub(crate) fn apply_toolchain_profile(
+    mut imports: PreparedImports<'_>,
+) -> Result<PreparedNamespaces<'_>, ToolchainError> {
+    let resolved = resolve_toolchain_profile(&imports)?;
     install_toolchain_profile(&mut imports, &resolved)?;
-    let fallback = compose_fallback(&imports, toolchain, &resolved);
+    let fallback = compose_fallback(&imports, &resolved);
     Ok(PreparedNamespaces { imports, fallback })
 }
 
@@ -276,9 +185,9 @@ struct ResolvedToolchainProfile {
 
 fn resolve_toolchain_profile(
     imports: &PreparedImports<'_>,
-    toolchain: &ToolchainInput,
 ) -> Result<ResolvedToolchainProfile, ToolchainError> {
     let reserved = &imports.generics.headers.reserved;
+    let toolchain = &reserved.toolchain;
     if toolchain.prelude().package() != toolchain.standard_package() {
         return Err(ToolchainError::PreludeOutsideStandardPackage);
     }
@@ -311,19 +220,18 @@ fn resolve_toolchain_profile(
 
 fn resolve_standard_declarations(
     imports: &PreparedImports<'_>,
-    toolchain: &ToolchainInput,
+    toolchain: &ResolvedToolchainInput,
 ) -> Result<Vec<(StandardDeclarationRole, StandardDeclaration)>, ToolchainError> {
     let reserved = &imports.generics.headers.reserved;
     let mut resolved = Vec::with_capacity(toolchain.standard_roles().len());
-    for input in toolchain.standard_roles() {
+    for input in toolchain.standard_roles().iter().copied() {
         if resolved.iter().any(|(role, _)| *role == input.role()) {
             return Err(ToolchainError::DuplicateStandardDeclaration(input.role()));
         }
-        let (index, _) = reserved
+        let index = input.declaration().index();
+        let _ = reserved
             .declarations
-            .iter()
-            .enumerate()
-            .find(|(_, declaration)| declaration.name() == Some(input.declaration()))
+            .get(index)
             .ok_or(ToolchainError::MissingStandardDeclaration(input.role()))?;
         let declaration = match reserved.entities[index] {
             Some(crate::ReservedEntity::BuiltinType(id)) => StandardDeclaration::BuiltinType(id),
@@ -344,50 +252,47 @@ fn resolve_standard_declarations(
 
 fn resolve_structural_attachments(
     imports: &PreparedImports<'_>,
-    toolchain: &ToolchainInput,
+    toolchain: &ResolvedToolchainInput,
 ) -> Result<Vec<(StructuralAttachment, ModuleId)>, ToolchainError> {
     let reserved = &imports.generics.headers.reserved;
     let mut resolved = Vec::with_capacity(toolchain.structural_attachments().len());
-    for input in toolchain.structural_attachments() {
-        if input.module().package() != toolchain.standard_package() {
+    for (attachment, module) in toolchain.structural_attachments() {
+        if module.package() != toolchain.standard_package() {
             return Err(ToolchainError::StructuralAttachmentOutsideStandardPackage(
-                input.attachment(),
+                *attachment,
             ));
         }
         if resolved
             .iter()
-            .any(|(attachment, _)| *attachment == input.attachment())
+            .any(|(candidate, _)| candidate == attachment)
         {
-            return Err(ToolchainError::DuplicateStructuralAttachment(
-                input.attachment(),
-            ));
+            return Err(ToolchainError::DuplicateStructuralAttachment(*attachment));
         }
-        let index = module_index_by_identity(reserved, input.module())
-            .ok_or_else(|| ToolchainError::UnknownModule(input.module().clone()))?;
-        resolved.push((input.attachment(), reserved.module_ids[index]));
+        let index = module_index_by_identity(reserved, module)
+            .ok_or_else(|| ToolchainError::UnknownModule(module.clone()))?;
+        resolved.push((*attachment, reserved.module_ids[index]));
     }
     Ok(resolved)
 }
 
 fn resolve_builtin_types(
     imports: &PreparedImports<'_>,
-    toolchain: &ToolchainInput,
+    toolchain: &ResolvedToolchainInput,
 ) -> Result<Vec<ResolvedBuiltinType>, ToolchainError> {
     let reserved = &imports.generics.headers.reserved;
     let mut resolved = Vec::<ResolvedBuiltinType>::with_capacity(toolchain.builtin_types().len());
-    for input in toolchain.builtin_types() {
+    for input in toolchain.builtin_types().iter().copied() {
         if resolved
             .iter()
             .any(|candidate| candidate.builtin == input.builtin())
         {
             return Err(ToolchainError::DuplicateBuiltinType(input.builtin()));
         }
-        let (index, declaration) = reserved
+        let index = input.declaration().index();
+        let declaration = reserved
             .declarations
-            .iter()
+            .get(index)
             .copied()
-            .enumerate()
-            .find(|(_, declaration)| declaration.name() == Some(input.declaration()))
             .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?;
         if reserved.entities[index] != Some(crate::ReservedEntity::BuiltinType(input.builtin())) {
             return Err(ToolchainError::MissingBuiltinType(input.builtin()));
@@ -401,7 +306,9 @@ fn resolve_builtin_types(
                 .symbols()
                 .get(input.builtin().spelling())
                 .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?,
-            declaration: input.declaration(),
+            declaration: declaration
+                .name()
+                .ok_or(ToolchainError::MissingBuiltinType(input.builtin()))?,
         });
     }
     Ok(resolved)
@@ -450,13 +357,12 @@ fn install_toolchain_profile(
 
 fn compose_fallback(
     imports: &PreparedImports<'_>,
-    toolchain: &ToolchainInput,
     resolved: &ResolvedToolchainProfile,
 ) -> Box<[ModuleNamespace]> {
     let reserved = &imports.generics.headers.reserved;
     let prelude_namespace = &imports.namespaces[resolved.prelude_index];
     let mut fallback: Vec<ModuleNamespace> = Vec::with_capacity(reserved.modules.len());
-    for (index, module) in reserved.modules.iter().enumerate() {
+    for index in 0..reserved.modules.len() {
         let recipient = reserved.module_ids[index];
         let mut visible = resolved
             .builtin_types
@@ -472,7 +378,7 @@ fn compose_fallback(
                 )
             })
             .collect::<Vec<_>>();
-        if module.package() != toolchain.standard_package() {
+        if reserved.program.module_package(recipient) != Some(resolved.standard_package) {
             let prelude = prelude_namespace
                 .iter()
                 .filter(|(name, _)| {

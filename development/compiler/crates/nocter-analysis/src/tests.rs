@@ -2,8 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, ToolchainRequest, discover};
+use nocter_compile_input::{ModuleIdentity, ToolchainInput};
+use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
@@ -46,7 +46,7 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
         CompilationTarget::Arm64Darwin,
         graph,
         vec![root.clone()],
-        ToolchainRequest::new(package, root, Vec::new(), Vec::new()),
+        ToolchainInput::new(package, root, Vec::new(), Vec::new()),
     ))
     .unwrap();
 
@@ -98,7 +98,7 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
         CompilationTarget::Arm64Darwin,
         graph,
         vec![root.clone()],
-        ToolchainRequest::new(package, root, Vec::new(), Vec::new()),
+        ToolchainInput::new(package, root, Vec::new(), Vec::new()),
     ))
     .unwrap_err();
 

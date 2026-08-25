@@ -22,7 +22,8 @@ use crate::{
 use access::{module_index_by_id, module_index_by_identity, visibility_is_within, visible_from};
 use projection::project_import;
 
-pub use prelude::{PreparedNamespaces, ToolchainError, apply_toolchain_profile};
+pub use prelude::PreparedNamespaces;
+pub(crate) use prelude::apply_toolchain_profile;
 pub use violation::{ImportRule, ImportViolation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -11,10 +11,7 @@ use nocter_syntax::{
 use crate::topology::{
     PreparedCompileUnit, SourceVisibilityResolutionKey, UseResolutionKey, prepare_compile_unit,
 };
-use crate::{
-    BuiltinTypeInput, CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind,
-    PackageInput,
-};
+use crate::{CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput};
 use nocter_target_selection::TargetSelection;
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
@@ -237,7 +234,6 @@ pub struct DeclarationSurface<'syntax> {
     imports: Box<[SurfaceImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
-    builtin_types: Box<[BuiltinTypeInput]>,
 }
 
 impl<'syntax> DeclarationSurface<'syntax> {
@@ -299,7 +295,6 @@ impl<'syntax> DeclarationSurface<'syntax> {
             imports: self.imports,
             package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
-            builtin_types: self.builtin_types,
         }
     }
 }
@@ -316,7 +311,6 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) imports: Box<[SurfaceImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
-    pub(crate) builtin_types: Box<[BuiltinTypeInput]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -482,20 +476,6 @@ fn collect_declaration_surface_with<'syntax>(
             &mut declarations,
         )?;
     }
-    let builtin_types = input
-        .toolchain()
-        .map_or(&[][..], |toolchain| toolchain.builtin_types());
-    if let Some(declaration) = declarations.iter().find(|declaration| {
-        declaration.kind() == SurfaceDeclarationKind::PrimitiveType
-            && !declaration.name().is_some_and(|name| {
-                builtin_types
-                    .iter()
-                    .any(|builtin| builtin.declaration() == name)
-            })
-    }) {
-        return Err(SurfaceError::UnauthorizedPrimitiveType(declaration.node()));
-    }
-
     Ok(DeclarationSurface {
         target: input.target(),
         source_map: input.sources(),
@@ -520,8 +500,29 @@ fn collect_declaration_surface_with<'syntax>(
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         declarations: declarations.into_boxed_slice(),
-        builtin_types: builtin_types.into(),
     })
+}
+
+pub(crate) fn validate_builtin_type_authority(
+    surface: &DeclarationSurface<'_>,
+    builtins: &[crate::toolchain::ResolvedBuiltinType],
+) -> Result<(), SurfaceError> {
+    if let Some(declaration) =
+        surface
+            .declarations()
+            .iter()
+            .enumerate()
+            .find_map(|(index, declaration)| {
+                (declaration.kind() == SurfaceDeclarationKind::PrimitiveType
+                    && !builtins.iter().any(|builtin| {
+                        builtin.declaration() == SurfaceDeclarationId::from_index(index)
+                    }))
+                .then_some(declaration)
+            })
+    {
+        return Err(SurfaceError::UnauthorizedPrimitiveType(declaration.node()));
+    }
+    Ok(())
 }
 
 struct SourceCollectionInput<'input> {

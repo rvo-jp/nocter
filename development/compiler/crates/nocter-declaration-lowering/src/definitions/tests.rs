@@ -140,7 +140,11 @@ fn try_lower<'syntax>(
         .and_then(|module| module.sources().first())
         .map(crate::ModuleSourceInput::syntax)
         .expect("test standard package has no root builtin source");
-    let toolchain = crate::test_support::test_toolchain(prelude.clone(), builtin_source);
+    let toolchain = crate::test_support::test_toolchain(
+        prelude.clone(),
+        &ModuleIdentity::new(prelude.package().clone(), Vec::<&str>::new()),
+        builtin_source,
+    );
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
@@ -151,11 +155,11 @@ fn try_lower<'syntax>(
     .with_source_visibility_resolutions(source_visibilities)
     .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &toolchain).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
+    let namespaces = apply_toolchain_profile(imports).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let bound = evaluate_header_constants(bound)?;
     let normalized = normalize_header_types(bound).unwrap();
@@ -179,7 +183,11 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let prelude_tree = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
     let app_tree = parse_source(&sources, app_id, ParseGoal::SourceFile);
     let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
-    let toolchain = crate::test_support::test_toolchain(prelude.clone(), &std_root);
+    let toolchain = crate::test_support::test_toolchain(
+        prelude.clone(),
+        &ModuleIdentity::new(prelude.package().clone(), Vec::<&str>::new()),
+        &std_root,
+    );
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -201,11 +209,11 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     )
     .with_toolchain(toolchain.clone());
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &toolchain).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     let imports = prepare_authored_imports(generics).unwrap();
-    let namespaces = apply_toolchain_profile(imports, &toolchain).unwrap();
+    let namespaces = apply_toolchain_profile(imports).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
     let bound = match evaluate_header_constants(bound) {
         Ok(bound) => bound,

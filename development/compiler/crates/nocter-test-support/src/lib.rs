@@ -8,8 +8,8 @@ pub use public_examples::{
 };
 
 use nocter_compile_input::{
-    BuiltinTypeInput, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleInput,
+    BuiltinTypeLocator, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
+    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleLocator,
     StructuralAttachmentInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
@@ -683,28 +683,24 @@ impl CompilerFixture {
             )],
             self.standard_role_inputs(),
         )
-        .with_builtin_types(self.builtin_type_inputs())
+        .with_builtin_types(Self::builtin_type_inputs())
     }
 
-    fn builtin_type_inputs(&self) -> Vec<BuiltinTypeInput> {
+    fn builtin_type_inputs() -> Vec<BuiltinTypeLocator> {
         BuiltinType::ALL
             .iter()
             .copied()
             .map(|builtin| {
-                BuiltinTypeInput::new(
+                BuiltinTypeLocator::new(
                     builtin,
-                    declaration_token(
-                        &self.sources,
-                        self.module_for_builtin(builtin),
-                        NodeKind::PrimitiveTypeDeclaration,
-                        builtin.spelling(),
-                    ),
+                    Self::module_for_builtin(builtin),
+                    builtin.spelling(),
                 )
             })
             .collect()
     }
 
-    fn module_for_builtin(&self, builtin: BuiltinType) -> &SyntaxTree {
+    fn module_for_builtin(builtin: BuiltinType) -> ModuleIdentity {
         let path: &[&str] = match builtin {
             BuiltinType::Bool
             | BuiltinType::I8
@@ -721,28 +717,19 @@ impl CompilerFixture {
             BuiltinType::Error => &["error"],
             BuiltinType::Void | BuiltinType::Never => &["core"],
         };
-        &self
-            .modules
-            .iter()
-            .find(|module| {
-                module
-                    .path
-                    .iter()
-                    .map(AsRef::as_ref)
-                    .eq(path.iter().copied())
-            })
-            .expect("built-in fixture module exists")
-            .syntax
+        ModuleIdentity::new(PackageIdentity::new("toolchain:std"), path.iter().copied())
     }
 
-    fn standard_role_inputs(&self) -> Vec<StandardRoleInput> {
+    fn standard_role_inputs(&self) -> Vec<StandardRoleLocator> {
         self.standard_roles
             .iter()
             .copied()
             .map(|spec| {
-                StandardRoleInput::new(
+                StandardRoleLocator::new(
                     spec.role,
-                    declaration_token(&self.sources, &self.standard, spec.kind, spec.name),
+                    ModuleIdentity::new(PackageIdentity::new("toolchain:std"), Vec::<&str>::new()),
+                    spec.kind,
+                    spec.name,
                 )
             })
             .collect()
@@ -792,42 +779,6 @@ fn use_declarations(tree: &SyntaxTree) -> Vec<nocter_syntax::NodeId> {
             .map(nocter_source::TextRange::start)
     });
     declarations
-}
-
-fn declaration_token(
-    sources: &SourceMap,
-    tree: &SyntaxTree,
-    kind: NodeKind,
-    name: &str,
-) -> nocter_syntax::SyntaxToken {
-    let source = sources.get(tree.source()).expect("fixture source");
-    let mut pending = vec![tree.root_id()];
-    while let Some(node) = pending.pop() {
-        if tree.node(node).is_some_and(|node| node.kind() == kind) {
-            let mut descendants = vec![node];
-            while let Some(descendant) = descendants.pop() {
-                for child in tree.children(descendant).iter().rev() {
-                    match child {
-                        SyntaxElement::Token(token)
-                            if source
-                                .text_at(token.range())
-                                .is_some_and(|text| text == name) =>
-                        {
-                            return *token;
-                        }
-                        SyntaxElement::Node(child) => descendants.push(*child),
-                        SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
-                    }
-                }
-            }
-        }
-        for child in tree.children(node).iter().rev() {
-            if let SyntaxElement::Node(child) = child {
-                pending.push(*child);
-            }
-        }
-    }
-    panic!("fixture declaration {kind:?} named {name} is missing")
 }
 
 fn add_parsed(sources: &mut SourceMap, name: &str, text: &str, goal: ParseGoal) -> SyntaxTree {

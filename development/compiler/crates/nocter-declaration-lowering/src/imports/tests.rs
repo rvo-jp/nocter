@@ -2,13 +2,11 @@ use nocter_declarations::ExportedEntity;
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use super::{
-    ImportError, PreparedImports, ToolchainError, apply_toolchain_profile, prepare_authored_imports,
-};
+use super::{ImportError, PreparedImports, apply_toolchain_profile, prepare_authored_imports};
 use crate::test_support::{module_use, source_see};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageIdentity, PackageInput, PackageMode, ToolchainInput, UseResolutionInput,
+    PackageIdentity, PackageInput, PackageMode, ToolchainError, ToolchainInput, UseResolutionInput,
     collect_declaration_surface, prepare_declaration_headers, prepare_generic_binders,
     reserve_declaration_identities,
 };
@@ -67,15 +65,29 @@ fn prepare<'syntax>(
     modules: Vec<ModuleInput<'syntax>>,
     uses: Vec<UseResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
+    let profile = modules
+        .iter()
+        .find(|module| {
+            module
+                .identity()
+                .path()
+                .iter()
+                .map(AsRef::as_ref)
+                .eq(["prelude"])
+        })
+        .or_else(|| modules.first())
+        .map(|module| toolchain(module.identity().clone()))
+        .expect("import fixture has no module");
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
         packages,
         modules,
         uses,
-    );
+    )
+    .with_toolchain(profile.clone());
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &profile).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     prepare_authored_imports(generics)
@@ -87,6 +99,19 @@ fn prepare_with_source_visibility<'syntax>(
     modules: Vec<ModuleInput<'syntax>>,
     source_visibilities: Vec<crate::SourceVisibilityResolutionInput>,
 ) -> Result<PreparedImports<'syntax>, ImportError> {
+    let profile = modules
+        .iter()
+        .find(|module| {
+            module
+                .identity()
+                .path()
+                .iter()
+                .map(AsRef::as_ref)
+                .eq(["prelude"])
+        })
+        .or_else(|| modules.first())
+        .map(|module| toolchain(module.identity().clone()))
+        .expect("import fixture has no module");
     let input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         sources,
@@ -94,9 +119,10 @@ fn prepare_with_source_visibility<'syntax>(
         modules,
         Vec::new(),
     )
-    .with_source_visibility_resolutions(source_visibilities);
+    .with_source_visibility_resolutions(source_visibilities)
+    .with_toolchain(profile.clone());
     let surface = collect_declaration_surface(&input).unwrap();
-    let reserved = reserve_declaration_identities(surface).unwrap();
+    let reserved = reserve_declaration_identities(surface, &profile).unwrap();
     let headers = prepare_declaration_headers(reserved).unwrap();
     let generics = prepare_generic_binders(headers).unwrap();
     prepare_authored_imports(generics)
@@ -590,7 +616,6 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let app_root_identity = ModuleIdentity::new(app_package.clone(), Vec::<&str>::new());
     let app_child_identity = ModuleIdentity::new(app_package, ["child"]);
     let std_string_identity = ModuleIdentity::new(std_package.clone(), ["string"]);
-    let std_prelude_identity = ModuleIdentity::new(std_package, ["prelude"]);
 
     let imports = prepare(
         &sources,
@@ -644,7 +669,7 @@ fn standard_prelude_is_a_shadowable_fallback_and_not_an_implicit_reexport() {
     let app_string = imports.lookup_local(app_root_source, string).unwrap();
     let standard_string = imports.lookup_local(std_string_source, string).unwrap();
 
-    let namespaces = apply_toolchain_profile(imports, &toolchain(std_prelude_identity)).unwrap();
+    let namespaces = apply_toolchain_profile(imports).unwrap();
 
     assert_eq!(
         namespaces.lookup_local(app_root_source, string),
@@ -718,7 +743,7 @@ fn source_code_cannot_import_the_compiler_managed_prelude() {
     )
     .unwrap();
 
-    let error = apply_toolchain_profile(imports, &toolchain(prelude_identity)).unwrap_err();
+    let error = apply_toolchain_profile(imports).unwrap_err();
 
     assert!(matches!(
         error,

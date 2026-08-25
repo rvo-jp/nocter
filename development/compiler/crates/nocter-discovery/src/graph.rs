@@ -3,24 +3,18 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::{
-    BuiltinTypeInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
-    PrimitiveRoleInput, SourceVisibilityResolutionInput, StandardRoleInput, ToolchainInput,
-    UseResolutionInput,
+    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
+    SourceVisibilityResolutionInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{
-    Keyword, ParseGoal, SyntaxElement, SyntaxTree, TokenKind, declaration_name_token, parse,
-};
+use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 use nocter_target_selection::TargetSelectionBuilder;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
 use crate::module_catalog::{module_sources, toolchain_standard_modules};
-use crate::request::{
-    BuiltinTypeLocator, DiscoveryLayout, DiscoveryRequest, PrimitiveRoleLocator,
-    StandardRoleLocator, ToolchainRequest,
-};
+use crate::request::{DiscoveryLayout, DiscoveryRequest};
 use crate::snapshot::{
     DiscoveredModule, DiscoveredModuleDependency, DiscoveredPackage, DiscoveredSource,
     DiscoveredUnit,
@@ -28,12 +22,6 @@ use crate::snapshot::{
 use crate::source_visibility::source_visibility_paths;
 use crate::syntax::active_use_paths;
 use crate::{DiscoveryError, DiscoveryFailure};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum DeclarationMatchSurface {
-    VisibleContract,
-    AnyDeclaration,
-}
 
 #[derive(Debug)]
 struct PackageState {
@@ -82,7 +70,7 @@ struct Builder {
     package_target_resolutions: Vec<PackageTargetResolutionInput>,
     target_selection: TargetSelectionBuilder,
     pending: BTreeSet<Work>,
-    toolchain: ToolchainRequest,
+    toolchain: ToolchainInput,
 }
 
 #[derive(Debug)]
@@ -202,12 +190,7 @@ impl Builder {
             }
         }
 
-        let has_syntax_errors = self.syntax.iter().any(SyntaxTree::has_errors);
-        let toolchain = match self.resolve_toolchain() {
-            Ok(toolchain) => Some(toolchain),
-            Err(_) if has_syntax_errors => None,
-            Err(error) => return Err(self.into_failure(error)),
-        };
+        let toolchain = Some(self.toolchain.clone());
 
         let packages = self
             .packages
@@ -262,195 +245,6 @@ impl Builder {
 
     fn into_failure(self, error: DiscoveryError) -> DiscoveryFailure {
         DiscoveryFailure::from_snapshot(error, self.source_overlay, self.sources, self.syntax)
-    }
-
-    fn resolve_toolchain(&self) -> Result<ToolchainInput, DiscoveryError> {
-        let mut attachments = self.toolchain.structural_attachments().to_vec();
-        attachments.sort_unstable_by(|left, right| {
-            left.attachment()
-                .cmp(&right.attachment())
-                .then_with(|| left.module().cmp(right.module()))
-        });
-        let mut locators = self.toolchain.standard_roles().to_vec();
-        locators.sort_unstable_by_key(StandardRoleLocator::role);
-        let roles = locators
-            .iter()
-            .map(|locator| self.resolve_standard_role(locator))
-            .collect::<Result<_, _>>()?;
-        let mut primitive_locators = self.toolchain.primitive_roles().to_vec();
-        primitive_locators.sort_unstable_by_key(PrimitiveRoleLocator::role);
-        let primitives = primitive_locators
-            .iter()
-            .map(|locator| self.resolve_primitive_role(locator))
-            .collect::<Result<_, _>>()?;
-        let mut builtin_locators = self.toolchain.builtin_types().to_vec();
-        builtin_locators.sort_unstable_by_key(BuiltinTypeLocator::builtin);
-        let builtin_types = builtin_locators
-            .iter()
-            .map(|locator| self.resolve_builtin_type(locator))
-            .collect::<Result<_, _>>()?;
-        Ok(ToolchainInput::new(
-            self.toolchain.standard_package().clone(),
-            self.toolchain.prelude().clone(),
-            attachments,
-            roles,
-        )
-        .with_primitive_roles(primitives)
-        .with_builtin_types(builtin_types))
-    }
-
-    fn resolve_standard_role(
-        &self,
-        locator: &StandardRoleLocator,
-    ) -> Result<StandardRoleInput, DiscoveryError> {
-        let matches = self
-            .declaration_matches(
-                locator.module(),
-                locator.kind(),
-                locator.name(),
-                DeclarationMatchSurface::VisibleContract,
-                false,
-            )
-            .ok_or_else(|| {
-                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingRoleDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    kind: locator.kind(),
-                    name: locator.name().into(),
-                })
-            })?;
-        match matches.as_slice() {
-            [token] => Ok(StandardRoleInput::new(locator.role(), *token)),
-            [] => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::MissingRoleDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    kind: locator.kind(),
-                    name: locator.name().into(),
-                },
-            )),
-            _ => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::AmbiguousRoleDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    kind: locator.kind(),
-                    name: locator.name().into(),
-                },
-            )),
-        }
-    }
-
-    fn resolve_primitive_role(
-        &self,
-        locator: &PrimitiveRoleLocator,
-    ) -> Result<PrimitiveRoleInput, DiscoveryError> {
-        let matches = self
-            .declaration_matches(
-                locator.module(),
-                nocter_syntax::NodeKind::FunctionDeclaration,
-                locator.name(),
-                DeclarationMatchSurface::AnyDeclaration,
-                true,
-            )
-            .ok_or_else(|| {
-                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingPrimitiveDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                })
-            })?;
-        match matches.as_slice() {
-            [token] => Ok(PrimitiveRoleInput::new(locator.role(), *token)),
-            [] => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::MissingPrimitiveDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                },
-            )),
-            _ => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::AmbiguousPrimitiveDeclaration {
-                    role: locator.role(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                },
-            )),
-        }
-    }
-
-    fn resolve_builtin_type(
-        &self,
-        locator: &BuiltinTypeLocator,
-    ) -> Result<BuiltinTypeInput, DiscoveryError> {
-        let matches = self
-            .declaration_matches(
-                locator.module(),
-                nocter_syntax::NodeKind::PrimitiveTypeDeclaration,
-                locator.name(),
-                DeclarationMatchSurface::VisibleContract,
-                false,
-            )
-            .ok_or_else(|| {
-                DiscoveryError::Toolchain(ToolchainDiscoveryError::MissingBuiltinTypeDeclaration {
-                    builtin: locator.builtin(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                })
-            })?;
-        match matches.as_slice() {
-            [token] => Ok(BuiltinTypeInput::new(locator.builtin(), *token)),
-            [] => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::MissingBuiltinTypeDeclaration {
-                    builtin: locator.builtin(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                },
-            )),
-            _ => Err(DiscoveryError::Toolchain(
-                ToolchainDiscoveryError::AmbiguousBuiltinTypeDeclaration {
-                    builtin: locator.builtin(),
-                    module: locator.module().clone(),
-                    name: locator.name().into(),
-                },
-            )),
-        }
-    }
-
-    fn declaration_matches(
-        &self,
-        module: &ModuleIdentity,
-        kind: nocter_syntax::NodeKind,
-        name: &str,
-        surface: DeclarationMatchSurface,
-        require_primitive_modifier: bool,
-    ) -> Option<Vec<nocter_syntax::SyntaxToken>> {
-        let module = self.modules.get(module)?;
-        let mut matches = Vec::new();
-        for source in module {
-            let tree = &self.syntax[source.syntax_index()];
-            let mut pending = vec![tree.root_id()];
-            while let Some(node) = pending.pop() {
-                if tree.node(node).is_some_and(|syntax| syntax.kind() == kind)
-                    && (!require_primitive_modifier || has_direct_primitive_token(tree, node))
-                    && (surface == DeclarationMatchSurface::AnyDeclaration
-                        || has_direct_child(tree, node, nocter_syntax::NodeKind::Visibility))
-                    && let Some(token) = declaration_name_token(tree, node)
-                    && self
-                        .sources
-                        .get(token.source())
-                        .and_then(|source| source.text_at(token.range()))
-                        == Some(name)
-                {
-                    matches.push(token);
-                }
-                for child in tree.children(node).iter().rev() {
-                    if let SyntaxElement::Node(child) = child {
-                        pending.push(*child);
-                    }
-                }
-            }
-        }
-        Some(matches)
     }
 
     fn load_module(&mut self, module: ModuleIdentity) -> Result<(), DiscoveryError> {
@@ -851,29 +645,6 @@ impl Builder {
     }
 }
 
-fn has_direct_child(
-    tree: &SyntaxTree,
-    node: nocter_syntax::NodeId,
-    kind: nocter_syntax::NodeKind,
-) -> bool {
-    tree.children(node).iter().any(|child| {
-        let SyntaxElement::Node(child) = child else {
-            return false;
-        };
-        tree.node(*child).is_some_and(|node| node.kind() == kind)
-    })
-}
-
-fn has_direct_primitive_token(tree: &SyntaxTree, node: nocter_syntax::NodeId) -> bool {
-    tree.children(node).iter().any(|child| {
-        matches!(
-            child,
-            SyntaxElement::Token(token)
-                if token.kind() == TokenKind::Keyword(Keyword::Primitive)
-        )
-    })
-}
-
 fn discover_package_targets(
     packages: &BTreeMap<PackageIdentity, PackageState>,
     roots: &[ModuleIdentity],
@@ -976,7 +747,7 @@ fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPa
 fn load_single_file_package(
     loaded: &mut LoadedPackages,
     source: PathBuf,
-    toolchain: &ToolchainRequest,
+    toolchain: &ToolchainInput,
 ) -> Result<(ModuleIdentity, PathBuf), DiscoveryError> {
     if source.extension().and_then(|extension| extension.to_str()) != Some("nct") {
         return Err(DiscoveryError::InvalidSingleFileExtension(source));
@@ -1042,7 +813,7 @@ fn validate_package_dependencies(
 
 fn validate_toolchain(
     packages: &BTreeMap<PackageIdentity, PackageState>,
-    toolchain: &ToolchainRequest,
+    toolchain: &ToolchainInput,
 ) -> Result<(), DiscoveryError> {
     if !packages.contains_key(toolchain.standard_package()) {
         return Err(DiscoveryError::UnknownPackage(
@@ -1091,7 +862,7 @@ fn validate_toolchain(
 fn initial_work(
     packages: &BTreeMap<PackageIdentity, PackageState>,
     roots: &[ModuleIdentity],
-    toolchain: &ToolchainRequest,
+    toolchain: &ToolchainInput,
 ) -> Result<BTreeSet<Work>, DiscoveryError> {
     let mut pending = packages
         .values()
@@ -1138,7 +909,7 @@ fn initial_work(
 }
 
 fn validate_toolchain_module(
-    toolchain: &ToolchainRequest,
+    toolchain: &ToolchainInput,
     module: &ModuleIdentity,
 ) -> Result<(), DiscoveryError> {
     if module.package() == toolchain.standard_package() {

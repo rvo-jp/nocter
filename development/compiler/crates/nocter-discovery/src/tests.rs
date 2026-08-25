@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageMode, StructuralAttachmentInput,
+    BuiltinTypeLocator, ModuleIdentity, ModuleSourceKind, PackageMode, PrimitiveRoleLocator,
+    StandardRoleLocator, StructuralAttachmentInput, ToolchainInput,
 };
 use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
@@ -12,10 +13,7 @@ use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
-use crate::{
-    BuiltinTypeLocator, DiscoveryError, DiscoveryRequest, PrimitiveRoleLocator,
-    StandardRoleLocator, ToolchainRequest, UseFailure, discover,
-};
+use crate::{DiscoveryError, DiscoveryRequest, UseFailure, discover};
 
 #[path = "tests/standard_contract.rs"]
 mod standard_contract;
@@ -88,9 +86,9 @@ fn module(package: &str, path: &[&str]) -> ModuleIdentity {
     ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied())
 }
 
-fn minimal_toolchain(package: &str) -> ToolchainRequest {
+fn minimal_toolchain(package: &str) -> ToolchainInput {
     let package = PackageIdentity::new(package);
-    ToolchainRequest::new(
+    ToolchainInput::new(
         package.clone(),
         ModuleIdentity::new(package, Vec::<&str>::new()),
         Vec::new(),
@@ -98,7 +96,7 @@ fn minimal_toolchain(package: &str) -> ToolchainRequest {
     )
 }
 
-fn root_builtin_toolchain(package: &str) -> ToolchainRequest {
+fn root_builtin_toolchain(package: &str) -> ToolchainInput {
     let identity = PackageIdentity::new(package);
     let root = ModuleIdentity::new(identity, Vec::<&str>::new());
     minimal_toolchain(package).with_builtin_types(
@@ -111,7 +109,7 @@ fn root_builtin_toolchain(package: &str) -> ToolchainRequest {
 }
 
 #[test]
-fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
+fn discovery_retains_a_standard_role_locator_without_selecting_syntax() {
     let tree = TempTree::new();
     tree.source(
         "std/index.nct",
@@ -139,7 +137,7 @@ fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
         vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
-        ToolchainRequest::new(
+        ToolchainInput::new(
             identity.clone(),
             ModuleIdentity::new(identity, Vec::<&str>::new()),
             Vec::new(),
@@ -160,7 +158,7 @@ fn standard_role_resolution_selects_the_public_contract_not_its_private_body() {
 }
 
 #[test]
-fn primitive_role_resolution_selects_a_private_visible_declaration() {
+fn discovery_retains_a_primitive_role_locator_without_selecting_syntax() {
     let tree = TempTree::new();
     tree.source(
         "std/index.nct",
@@ -184,7 +182,7 @@ fn primitive_role_resolution_selects_a_private_visible_declaration() {
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
         vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
-        ToolchainRequest::new(
+        ToolchainInput::new(
             identity.clone(),
             ModuleIdentity::new(identity, Vec::<&str>::new()),
             Vec::new(),
@@ -206,7 +204,7 @@ fn primitive_role_resolution_selects_a_private_visible_declaration() {
 }
 
 #[test]
-fn builtin_type_resolution_selects_the_exact_public_declaration() {
+fn discovery_retains_a_builtin_locator_without_selecting_syntax() {
     let tree = TempTree::new();
     tree.source(
         "std/index.nct",
@@ -226,7 +224,7 @@ fn builtin_type_resolution_selects_the_exact_public_declaration() {
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
         vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
-        ToolchainRequest::new(
+        ToolchainInput::new(
             identity.clone(),
             ModuleIdentity::new(identity, Vec::<&str>::new()),
             Vec::new(),
@@ -792,7 +790,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     );
 }
 
-fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
+fn standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
     let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
     let attachments = vec![StructuralAttachmentInput::new(
         StructuralAttachment::Slice,
@@ -883,7 +881,7 @@ fn standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
             PrimitiveRoleLocator::new(role, module(path), name)
         })
         .collect();
-    ToolchainRequest::new(package.clone(), module(&["prelude"]), attachments, roles)
+    ToolchainInput::new(package.clone(), module(&["prelude"]), attachments, roles)
         .with_primitive_roles(primitives)
         .with_builtin_types(standard_builtin_types(package))
 }

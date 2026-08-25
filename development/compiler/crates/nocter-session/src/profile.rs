@@ -1,19 +1,18 @@
-use nocter_compile_input::{ModuleIdentity, StructuralAttachmentInput};
-use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
-use nocter_discovery::{
-    BuiltinTypeLocator, PrimitiveRoleLocator, StandardRoleLocator, ToolchainRequest,
+use nocter_compile_input::{
+    BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, StandardRoleLocator,
+    StructuralAttachmentInput, ToolchainInput,
 };
+use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
 
 /// Builds the exact standard-source profile bundled with this compiler.
 ///
-/// The returned locators are discovery inputs, not semantic identities. Discovery must resolve
-/// each locator to one source token before declaration lowering begins.
+/// The returned locators are resolved against target-filtered declaration surfaces by lowering.
 #[must_use]
-pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainRequest {
-    ToolchainRequest::new(
+pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
+    ToolchainInput::new(
         package.clone(),
         module(package, &["prelude"]),
         structural_attachments(package),

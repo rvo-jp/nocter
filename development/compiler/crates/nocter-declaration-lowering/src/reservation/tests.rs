@@ -35,10 +35,10 @@ fn reserve<'syntax>(
         "app",
         PackageMode::Declared,
     );
-    let module = ModuleInput::new(
-        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
-        module_sources,
-    );
+    let module_identity =
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
+    let toolchain = crate::test_support::empty_toolchain(module_identity.clone());
+    let module = ModuleInput::new(module_identity, module_sources);
     let surface = collect_declaration_surface(
         &CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -50,7 +50,7 @@ fn reserve<'syntax>(
         .with_source_visibility_resolutions(source_visibility_resolutions),
     )
     .unwrap();
-    reserve_declaration_identities(surface).unwrap()
+    reserve_declaration_identities(surface, &toolchain).unwrap()
 }
 
 #[test]

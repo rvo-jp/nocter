@@ -6,7 +6,6 @@ use nocter_checking::{
 use nocter_declaration_lowering::{
     DeclarationCheckingTransition, DeclarationLoweringRecovery, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
-    resolve_primitive_bindings,
 };
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
@@ -169,13 +168,6 @@ fn analyze_target_internal(
         .map_err(CompileSessionError::from)
         .map_err(without_prepared)
         .map_err(Box::new)?;
-    let primitive_roles = input
-        .toolchain()
-        .ok_or(CompileSessionError::MissingToolchainProfile)
-        .map_err(without_prepared)
-        .map_err(Box::new)?
-        .primitive_roles()
-        .to_vec();
     let lowered = if retain_semantic {
         match lower_compile_unit_declarations_recovering(&input) {
             Ok(lowered) => lowered,
@@ -192,6 +184,7 @@ fn analyze_target_internal(
             .map_err(without_prepared)
             .map_err(Box::new)?
     };
+    let primitive_bindings = lowered.primitive_bindings().to_vec();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let prepared = if retain_semantic {
         prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
@@ -222,7 +215,7 @@ fn analyze_target_internal(
             .map_err(without_prepared)
             .map_err(Box::new)?
     };
-    let primitives = match resolve_primitive_bindings(&primitive_roles, &frontend_bindings) {
+    let primitives = match nocter_runtime_contract::PrimitiveRegistry::new(primitive_bindings) {
         Ok(primitives) => primitives,
         Err(error) => {
             return Err(Box::new(failure_with_checked(

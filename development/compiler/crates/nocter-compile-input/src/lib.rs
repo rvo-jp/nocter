@@ -8,7 +8,7 @@ use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::SourceMap;
-use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree};
+use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
 mod dependency;
@@ -134,62 +134,117 @@ impl PackageTargetResolutionInput {
     }
 }
 
-/// One exact source declaration selected for a compiler-owned standard semantic role.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct StandardRoleInput {
+/// Semantic shape required for one compiler-owned standard declaration role.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct StandardRoleLocator {
     role: StandardDeclarationRole,
-    declaration: SyntaxToken,
+    module: ModuleIdentity,
+    kind: NodeKind,
+    name: Box<str>,
 }
 
-/// One exact source callable selected for a compiler-owned primitive role.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct PrimitiveRoleInput {
+/// Semantic shape required for one compiler-owned primitive callable role.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct PrimitiveRoleLocator {
     role: PrimitiveRole,
-    declaration: SyntaxToken,
+    module: ModuleIdentity,
+    name: Box<str>,
 }
 
-/// One exact source declaration selected as the canonical spelling and attachment authority for
-/// a named compiler-represented type.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct BuiltinTypeInput {
+/// Semantic shape required for one compiler-represented built-in type declaration.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct BuiltinTypeLocator {
     builtin: BuiltinType,
-    declaration: SyntaxToken,
+    module: ModuleIdentity,
+    name: Box<str>,
 }
 
-impl BuiltinTypeInput {
+impl BuiltinTypeLocator {
     #[must_use]
-    pub const fn new(builtin: BuiltinType, declaration: SyntaxToken) -> Self {
+    pub fn new(builtin: BuiltinType, module: ModuleIdentity, name: impl Into<Box<str>>) -> Self {
         Self {
             builtin,
-            declaration,
+            module,
+            name: name.into(),
         }
     }
 
     #[must_use]
-    pub const fn builtin(self) -> BuiltinType {
+    pub const fn builtin(&self) -> BuiltinType {
         self.builtin
     }
 
     #[must_use]
-    pub const fn declaration(self) -> SyntaxToken {
-        self.declaration
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
     }
 }
 
-impl PrimitiveRoleInput {
+impl PrimitiveRoleLocator {
     #[must_use]
-    pub const fn new(role: PrimitiveRole, declaration: SyntaxToken) -> Self {
-        Self { role, declaration }
+    pub fn new(role: PrimitiveRole, module: ModuleIdentity, name: impl Into<Box<str>>) -> Self {
+        Self {
+            role,
+            module,
+            name: name.into(),
+        }
     }
 
     #[must_use]
-    pub const fn role(self) -> PrimitiveRole {
+    pub const fn role(&self) -> PrimitiveRole {
         self.role
     }
 
     #[must_use]
-    pub const fn declaration(self) -> SyntaxToken {
-        self.declaration
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl StandardRoleLocator {
+    #[must_use]
+    pub fn new(
+        role: StandardDeclarationRole,
+        module: ModuleIdentity,
+        kind: NodeKind,
+        name: impl Into<Box<str>>,
+    ) -> Self {
+        Self {
+            role,
+            module,
+            kind,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> StandardDeclarationRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> NodeKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -217,18 +272,18 @@ impl StructuralAttachmentInput {
     }
 }
 
-/// Exact standard-library authority selected once by toolchain discovery.
+/// Toolchain declaration locators carried unchanged through physical discovery.
 ///
-/// The semantic pipeline may resolve these identities into dense program IDs, but it must never
-/// reconstruct them from package names, module spellings, or declaration names.
+/// Declaration lowering resolves each locator exactly once against its target-filtered surface.
+/// Later semantic stages consume only those resolved identities and must not repeat name lookup.
 #[derive(Clone, Debug)]
 pub struct ToolchainInput {
     standard_package: PackageIdentity,
     prelude: ModuleIdentity,
     structural_attachments: Vec<StructuralAttachmentInput>,
-    standard_roles: Vec<StandardRoleInput>,
-    primitive_roles: Vec<PrimitiveRoleInput>,
-    builtin_types: Vec<BuiltinTypeInput>,
+    standard_roles: Vec<StandardRoleLocator>,
+    primitive_roles: Vec<PrimitiveRoleLocator>,
+    builtin_types: Vec<BuiltinTypeLocator>,
 }
 
 impl ToolchainInput {
@@ -237,7 +292,7 @@ impl ToolchainInput {
         standard_package: PackageIdentity,
         prelude: ModuleIdentity,
         structural_attachments: Vec<StructuralAttachmentInput>,
-        standard_roles: Vec<StandardRoleInput>,
+        standard_roles: Vec<StandardRoleLocator>,
     ) -> Self {
         Self {
             standard_package,
@@ -265,53 +320,36 @@ impl ToolchainInput {
     }
 
     #[must_use]
-    pub fn standard_roles(&self) -> &[StandardRoleInput] {
+    pub fn standard_roles(&self) -> &[StandardRoleLocator] {
         &self.standard_roles
     }
 
     #[must_use]
-    pub fn primitive_roles(&self) -> &[PrimitiveRoleInput] {
+    pub fn primitive_roles(&self) -> &[PrimitiveRoleLocator] {
         &self.primitive_roles
     }
 
     #[must_use]
-    pub fn builtin_types(&self) -> &[BuiltinTypeInput] {
+    pub fn builtin_types(&self) -> &[BuiltinTypeLocator] {
         &self.builtin_types
     }
 
     #[must_use]
-    pub fn with_standard_roles(mut self, roles: Vec<StandardRoleInput>) -> Self {
+    pub fn with_standard_roles(mut self, roles: Vec<StandardRoleLocator>) -> Self {
         self.standard_roles = roles;
         self
     }
 
     #[must_use]
-    pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleInput>) -> Self {
+    pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleLocator>) -> Self {
         self.primitive_roles = roles;
         self
     }
 
     #[must_use]
-    pub fn with_builtin_types(mut self, builtins: Vec<BuiltinTypeInput>) -> Self {
+    pub fn with_builtin_types(mut self, builtins: Vec<BuiltinTypeLocator>) -> Self {
         self.builtin_types = builtins;
         self
-    }
-}
-
-impl StandardRoleInput {
-    #[must_use]
-    pub const fn new(role: StandardDeclarationRole, declaration: SyntaxToken) -> Self {
-        Self { role, declaration }
-    }
-
-    #[must_use]
-    pub const fn role(self) -> StandardDeclarationRole {
-        self.role
-    }
-
-    #[must_use]
-    pub const fn declaration(self) -> SyntaxToken {
-        self.declaration
     }
 }
 
