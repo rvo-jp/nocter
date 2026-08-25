@@ -33,6 +33,7 @@ pub struct SemanticCompletion {
     detail: Option<Box<str>>,
     additional_edits: Box<[SemanticCompletionEdit]>,
     automatic_import: Option<Box<str>>,
+    entity: Option<SemanticEntity>,
 }
 
 impl SemanticCompletion {
@@ -47,6 +48,7 @@ impl SemanticCompletion {
             detail,
             additional_edits: Box::new([]),
             automatic_import: None,
+            entity: None,
         }
     }
 
@@ -58,6 +60,16 @@ impl SemanticCompletion {
     fn with_automatic_import(mut self, path: impl Into<Box<str>>) -> Self {
         self.automatic_import = Some(path.into());
         self
+    }
+
+    fn with_entity(mut self, entity: SemanticEntity) -> Self {
+        self.entity = Some(entity);
+        self
+    }
+
+    #[must_use]
+    pub(crate) const fn entity(&self) -> Option<SemanticEntity> {
+        self.entity
     }
 
     #[must_use]
@@ -295,11 +307,14 @@ impl AnalysisSnapshot {
             .into_iter()
             .filter_map(|(name, candidate)| {
                 let label = program.graph().symbols().spelling(name)?;
-                Some(SemanticCompletion::new(
-                    label,
-                    candidate.kind,
-                    program.completion_detail(candidate.entity, &spellings),
-                ))
+                Some(
+                    SemanticCompletion::new(
+                        label,
+                        candidate.kind,
+                        program.completion_detail(candidate.entity, &spellings),
+                    )
+                    .with_entity(candidate.entity),
+                )
             })
             .collect::<Vec<_>>();
         completions.extend(automatic_imports);

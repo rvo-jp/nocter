@@ -5,7 +5,7 @@ use super::{ModuleNamespace, NamespaceBinding, PreparedImports, lookup};
 use crate::{ImportViolation, ModuleIdentity, PackageIdentity, ToolchainInput};
 use nocter_declarations::{
     ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace, NamespaceEntry,
-    ProgramBuildError, StructuralAttachment,
+    ProgramBuildError, StandardDeclaration, StandardDeclarationRole, StructuralAttachment,
 };
 use nocter_model::{BuiltinType, ModuleId, PackageId, Symbol};
 use nocter_syntax::{NodeId, SyntaxToken};
@@ -21,6 +21,9 @@ pub enum ToolchainError {
     DuplicateStructuralAttachment(StructuralAttachment),
     MissingBuiltinType(BuiltinType),
     DuplicateBuiltinType(BuiltinType),
+    MissingStandardDeclaration(StandardDeclarationRole),
+    DuplicateStandardDeclaration(StandardDeclarationRole),
+    InvalidStandardDeclaration(StandardDeclarationRole),
     InconsistentImport(NodeId),
     Program(ProgramBuildError),
 }
@@ -64,6 +67,21 @@ impl fmt::Display for ToolchainError {
             }
             Self::DuplicateBuiltinType(builtin) => {
                 write!(formatter, "toolchain repeats {builtin:?} built-in type")
+            }
+            Self::MissingStandardDeclaration(role) => {
+                write!(
+                    formatter,
+                    "toolchain standard role {role:?} lost its declaration"
+                )
+            }
+            Self::DuplicateStandardDeclaration(role) => {
+                write!(formatter, "toolchain repeats standard role {role:?}")
+            }
+            Self::InvalidStandardDeclaration(role) => {
+                write!(
+                    formatter,
+                    "toolchain standard role {role:?} selects an invalid declaration"
+                )
             }
             Self::InconsistentImport(import) => {
                 write!(formatter, "authored import {import:?} has no retained path")
@@ -253,6 +271,7 @@ struct ResolvedToolchainProfile {
     standard_package: PackageId,
     structural_attachments: Vec<(StructuralAttachment, ModuleId)>,
     builtin_types: Vec<ResolvedBuiltinType>,
+    standard_declarations: Vec<(StandardDeclarationRole, StandardDeclaration)>,
 }
 
 fn resolve_toolchain_profile(
@@ -286,7 +305,41 @@ fn resolve_toolchain_profile(
         standard_package: reserved.package_ids[package_index],
         structural_attachments: resolve_structural_attachments(imports, toolchain)?,
         builtin_types: resolve_builtin_types(imports, toolchain)?,
+        standard_declarations: resolve_standard_declarations(imports, toolchain)?,
     })
+}
+
+fn resolve_standard_declarations(
+    imports: &PreparedImports<'_>,
+    toolchain: &ToolchainInput,
+) -> Result<Vec<(StandardDeclarationRole, StandardDeclaration)>, ToolchainError> {
+    let reserved = &imports.generics.headers.reserved;
+    let mut resolved = Vec::with_capacity(toolchain.standard_roles().len());
+    for input in toolchain.standard_roles() {
+        if resolved.iter().any(|(role, _)| *role == input.role()) {
+            return Err(ToolchainError::DuplicateStandardDeclaration(input.role()));
+        }
+        let (index, _) = reserved
+            .declarations
+            .iter()
+            .enumerate()
+            .find(|(_, declaration)| declaration.name() == Some(input.declaration()))
+            .ok_or(ToolchainError::MissingStandardDeclaration(input.role()))?;
+        let declaration = match reserved.entities[index] {
+            Some(crate::ReservedEntity::BuiltinType(id)) => StandardDeclaration::BuiltinType(id),
+            Some(crate::ReservedEntity::NominalType(id)) => StandardDeclaration::NominalType(id),
+            Some(crate::ReservedEntity::Interface(id)) => StandardDeclaration::Interface(id),
+            Some(crate::ReservedEntity::AssociatedType(id)) => {
+                StandardDeclaration::AssociatedType(id)
+            }
+            Some(crate::ReservedEntity::Callable(id)) => StandardDeclaration::Callable(id),
+            Some(_) | None => {
+                return Err(ToolchainError::InvalidStandardDeclaration(input.role()));
+            }
+        };
+        resolved.push((input.role(), declaration));
+    }
+    Ok(resolved)
 }
 
 fn resolve_structural_attachments(
@@ -381,6 +434,15 @@ fn install_toolchain_profile(
             .reserved
             .program
             .set_builtin_type_module(builtin.builtin, builtin.module)
+            .map_err(ToolchainError::Program)?;
+    }
+    for &(role, declaration) in &resolved.standard_declarations {
+        imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .set_standard_declaration(role, declaration)
             .map_err(ToolchainError::Program)?;
     }
     Ok(())

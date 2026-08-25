@@ -134,6 +134,7 @@ pub(super) fn completions(
                         candidate.kind,
                         program.completion_detail(candidate.entity, &spellings),
                     )
+                    .with_entity(candidate.entity)
                     .with_additional_edit(insertion.edit(&import))
                     .with_automatic_import(import),
                 );

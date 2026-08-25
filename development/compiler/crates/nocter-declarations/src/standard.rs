@@ -1,4 +1,8 @@
-use nocter_model::{BuiltinType, ModuleId, PackageId};
+use std::collections::BTreeMap;
+
+use nocter_model::{
+    AssociatedTypeId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId, PackageId,
+};
 
 /// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
 ///
@@ -19,6 +23,17 @@ pub enum StandardDeclarationRole {
     IteratorNextMethod,
     ExactSizeIteratorInterface,
     ExactSizeIteratorRemainingLenMethod,
+    ProcessAbort,
+}
+
+/// Exact declaration identity assigned one compiler-defined standard role during lowering.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StandardDeclaration {
+    BuiltinType(BuiltinType),
+    NominalType(NominalTypeId),
+    Interface(InterfaceId),
+    AssociatedType(AssociatedTypeId),
+    Callable(CallableId),
 }
 
 /// One anonymous structural type surface that standard source declarations may extend.
@@ -44,6 +59,7 @@ pub struct StandardLibrary {
     package: PackageId,
     structural_attachment_modules: [Option<ModuleId>; StructuralAttachment::COUNT],
     builtin_type_modules: [Option<ModuleId>; BuiltinType::COUNT],
+    declarations: BTreeMap<StandardDeclarationRole, StandardDeclaration>,
 }
 
 impl StandardLibrary {
@@ -52,6 +68,7 @@ impl StandardLibrary {
             package,
             structural_attachment_modules: [None; StructuralAttachment::COUNT],
             builtin_type_modules: [None; BuiltinType::COUNT],
+            declarations: BTreeMap::new(),
         }
     }
 
@@ -79,6 +96,36 @@ impl StandardLibrary {
     #[must_use]
     pub const fn package(&self) -> PackageId {
         self.package
+    }
+
+    /// Returns the declaration selected for one compiler-defined standard role.
+    #[must_use]
+    pub fn declaration(&self, role: StandardDeclarationRole) -> Option<StandardDeclaration> {
+        self.declarations.get(&role).copied()
+    }
+
+    /// Enumerates every role selected by the active toolchain in stable role order.
+    pub fn declarations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (StandardDeclarationRole, StandardDeclaration)> + '_ {
+        self.declarations
+            .iter()
+            .map(|(role, value)| (*role, *value))
+    }
+
+    pub(crate) fn set_declaration(
+        &mut self,
+        role: StandardDeclarationRole,
+        declaration: StandardDeclaration,
+    ) -> Result<(), StandardDeclaration> {
+        match self.declarations.insert(role, declaration) {
+            None => Ok(()),
+            Some(existing) if existing == declaration => Ok(()),
+            Some(existing) => {
+                self.declarations.insert(role, existing);
+                Err(existing)
+            }
+        }
     }
 
     #[must_use]

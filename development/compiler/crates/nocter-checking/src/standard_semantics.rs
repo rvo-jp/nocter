@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_compile_input::StandardRoleInput;
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
-    StandardDeclarationRole, Visibility,
+    StandardDeclaration, StandardDeclarationRole, Visibility,
 };
-use nocter_frontend_bindings::{FrontendBindings, FrontendDeclaration};
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
     DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
@@ -26,39 +24,19 @@ pub struct StandardSemanticTable {
     entries: BTreeMap<StandardDeclarationRole, StandardDeclaration>,
 }
 
-/// Declaration identities needed by standard-language semantics.
-///
-/// This deliberately does not use the editor-facing `SemanticEntity` vocabulary: standard roles
-/// are resolved from declaration bindings and must not acquire a dependency on source indexing.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum StandardDeclaration {
-    BuiltinType,
-    NominalType(NominalTypeId),
-    Interface(InterfaceId),
-    AssociatedType(AssociatedTypeId),
-    Callable(CallableId),
-}
-
 impl StandardSemanticTable {
     pub(crate) fn build(
-        inputs: &[StandardRoleInput],
         graph: &DeclarationGraph,
         types: &TypeStore,
-        bindings: &FrontendBindings,
     ) -> Result<Self, StandardSemanticError> {
-        let mut inputs = inputs.to_vec();
-        inputs.sort_by_key(|input| input.role());
-        for duplicate in inputs.windows(2) {
-            if duplicate[0].role() == duplicate[1].role() {
-                return Err(StandardSemanticError::DuplicateRole(duplicate[0].role()));
-            }
-        }
+        let standard = graph
+            .standard_library()
+            .ok_or(StandardSemanticError::MissingStandardPackage)?;
         let mut entries = BTreeMap::new();
-        for input in inputs {
-            let entity = resolve_role_source(input, bindings)?;
-            validate_role_domain(input.role(), entity)?;
-            validate_standard_owner(graph, input.role(), entity)?;
-            entries.insert(input.role(), entity);
+        for (role, declaration) in standard.declarations() {
+            validate_role_domain(role, declaration)?;
+            validate_standard_owner(graph, role, declaration)?;
+            entries.insert(role, declaration);
         }
         let table = Self { entries };
         table.validate_nominal_roles(graph, types)?;
@@ -125,6 +103,9 @@ impl StandardSemanticTable {
             self.callable(StandardDeclarationRole::InterpolationConstructor),
             self.callable(StandardDeclarationRole::InterpolationTextAppender),
         )?;
+        if let Some(abort) = self.callable(StandardDeclarationRole::ProcessAbort) {
+            validate_process_abort(graph, types, abort)?;
+        }
         self.validate_iteration_relationships(graph, types)?;
         self.validate_exact_size_relationships(graph, types)
     }
@@ -231,27 +212,6 @@ fn has_allocation_context_header(
     })
 }
 
-fn resolve_role_source(
-    input: StandardRoleInput,
-    bindings: &FrontendBindings,
-) -> Result<StandardDeclaration, StandardSemanticError> {
-    let token = input.declaration();
-    let matches = bindings.declarations(token);
-    let [declaration] = matches else {
-        if !matches.is_empty() {
-            return Err(StandardSemanticError::AmbiguousDeclaration(input.role()));
-        }
-        return Err(StandardSemanticError::MissingDeclaration(input.role()));
-    };
-    Ok(match declaration {
-        FrontendDeclaration::BuiltinType(_) => StandardDeclaration::BuiltinType,
-        FrontendDeclaration::NominalType(id) => StandardDeclaration::NominalType(*id),
-        FrontendDeclaration::Interface(id) => StandardDeclaration::Interface(*id),
-        FrontendDeclaration::AssociatedType(id) => StandardDeclaration::AssociatedType(*id),
-        FrontendDeclaration::Callable(id) => StandardDeclaration::Callable(*id),
-    })
-}
-
 fn validate_role_domain(
     role: StandardDeclarationRole,
     entity: StandardDeclaration,
@@ -274,7 +234,8 @@ fn validate_role_domain(
         | StandardDeclarationRole::InterpolationConstructor
         | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod
-        | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod => {
+        | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod
+        | StandardDeclarationRole::ProcessAbort => {
             matches!(entity, StandardDeclaration::Callable(_))
         }
     };
@@ -327,7 +288,7 @@ fn entity_site(graph: &DeclarationGraph, entity: StandardDeclaration) -> Option<
             .callables()
             .get(id)
             .map(nocter_declarations::CallableDeclaration::site),
-        _ => None,
+        StandardDeclaration::BuiltinType(_) => None,
     }
 }
 
@@ -522,6 +483,30 @@ fn validate_exact_size_method(
     Ok(())
 }
 
+fn validate_process_abort(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    abort: CallableId,
+) -> Result<(), StandardSemanticError> {
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(abort)
+        .ok_or(StandardSemanticError::InvalidProcessAbortContract)?;
+    if callable.kind() != CallableKind::Function
+        || !matches!(callable.owner(), CallableOwner::Module(_))
+        || callable.receiver().is_some()
+        || !callable.parameters().is_empty()
+        || !callable.generic_parameters().is_empty()
+        || !callable.requirements().is_empty()
+        || callable.result() != types.builtin(BuiltinType::Never)
+        || !is_public(graph, callable.site())
+    {
+        return Err(StandardSemanticError::InvalidProcessAbortContract);
+    }
+    Ok(())
+}
+
 fn is_public(graph: &DeclarationGraph, site: DeclarationSiteId) -> bool {
     graph
         .declaration_sites()
@@ -531,9 +516,6 @@ fn is_public(graph: &DeclarationGraph, site: DeclarationSiteId) -> bool {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StandardSemanticError {
-    DuplicateRole(StandardDeclarationRole),
-    MissingDeclaration(StandardDeclarationRole),
-    AmbiguousDeclaration(StandardDeclarationRole),
     WrongDeclarationKind(StandardDeclarationRole),
     MissingStandardPackage,
     MissingSite(StandardDeclarationRole),
@@ -546,6 +528,7 @@ pub enum StandardSemanticError {
     InvalidInterpolationContract,
     InvalidIteratorContract,
     InvalidExactSizeIteratorContract,
+    InvalidProcessAbortContract,
     InvalidNominalContract(StandardDeclarationRole),
 }
 

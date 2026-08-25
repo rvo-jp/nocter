@@ -1,6 +1,7 @@
 use std::fmt;
 
 use nocter_checking::MissingConformanceMethods;
+use nocter_declarations::{StandardDeclaration, StandardDeclarationRole};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, TokenKind};
@@ -107,12 +108,21 @@ pub(super) fn missing_method_action(
                 ))?;
         signatures.push(presentation.code().to_owned());
     }
-    let method_edit = method_insertion(context.source, context.closing, &signatures)?;
-    let Some(mut edits) =
-        abort_import_edits(snapshot, context.source.id(), method_edit.range().start())?
+    let Some(StandardDeclaration::Callable(abort)) = context
+        .recovery
+        .graph()
+        .standard_library()
+        .and_then(|standard| standard.declaration(StandardDeclarationRole::ProcessAbort))
     else {
         return Ok(None);
     };
+    let probe_offset = context.closing;
+    let Some((terminator, mut edits)) =
+        terminator_import_edits(snapshot, context.source.id(), probe_offset, abort)?
+    else {
+        return Ok(None);
+    };
+    let method_edit = method_insertion(context.source, context.closing, &signatures, &terminator)?;
     edits.push(method_edit);
     Ok(Some(SemanticCodeAction {
         title: action_title(context.recovery, missing)?.into(),
@@ -208,30 +218,31 @@ fn insertion_context<'snapshot>(
     }))
 }
 
-fn abort_import_edits(
+fn terminator_import_edits(
     snapshot: &AnalysisSnapshot,
     source: SourceId,
     offset: ByteOffset,
-) -> Result<Option<Vec<SemanticSourceEdit>>, ConformanceActionError> {
+    terminator: nocter_model::CallableId,
+) -> Result<Option<(Box<str>, Vec<SemanticSourceEdit>)>, ConformanceActionError> {
     let completions = snapshot
         .semantic_completions(source, offset)
         .map_err(ConformanceActionError::Completion)?;
     for completion in &completions {
-        if completion.label() != "abort" {
+        if completion.entity() != Some(SemanticEntity::Callable(terminator)) {
             continue;
         }
         match completion.automatic_import() {
-            Some("std/process.abort") => {
-                return Ok(Some(
+            Some(_) => {
+                return Ok(Some((
+                    completion.label().into(),
                     completion
                         .additional_edits()
                         .iter()
                         .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
                         .collect(),
-                ));
+                )));
             }
-            None => return Ok(Some(Vec::new())),
-            Some(_) => {}
+            None => return Ok(Some((completion.label().into(), Vec::new()))),
         }
     }
     Ok(None)
@@ -266,6 +277,7 @@ fn method_insertion(
     source: &nocter_source::SourceFile,
     closing: ByteOffset,
     signatures: &[String],
+    terminator: &str,
 ) -> Result<SemanticSourceEdit, ConformanceActionError> {
     let line_start = source.text()[..usize::try_from(closing.get()).expect("bounded offset")]
         .rfind('\n')
@@ -290,7 +302,7 @@ fn method_insertion(
     let methods = signatures
         .iter()
         .map(|signature| {
-            format!("{member_indent}{signature} {{\n{body_indent}abort()\n{member_indent}}}")
+            format!("{member_indent}{signature} {{\n{body_indent}{terminator}()\n{member_indent}}}")
         })
         .collect::<Vec<_>>()
         .join("\n\n");
@@ -319,7 +331,7 @@ mod tests {
             .iter()
             .map(|signature| (*signature).to_owned())
             .collect::<Vec<_>>();
-        let edit = method_insertion(file, closing, &signatures).unwrap();
+        let edit = method_insertion(file, closing, &signatures, "abort").unwrap();
         let offset = usize::try_from(edit.range().start().get()).unwrap();
         format!(
             "{}{}{}",

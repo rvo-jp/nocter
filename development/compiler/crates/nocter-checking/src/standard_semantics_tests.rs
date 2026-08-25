@@ -322,45 +322,30 @@ pub interface ExactSizeIterator {
 }
 
 #[test]
-fn project_declarations_cannot_acquire_standard_authority() {
+fn project_declarations_cannot_acquire_standard_authority_during_lowering() {
     let fixture = Fixture::new("struct Allocator {}\n");
-    let error = with_prepared_roles(
-        &fixture,
+    let input = with_standard_roles(
+        fixture.input(false),
         vec![StandardRoleInput::new(
             StandardDeclarationRole::AbortingAllocator,
             fixture.app_declaration_token(NodeKind::StructDeclaration, "Allocator"),
         )],
-        |_| (),
-    )
-    .unwrap_err();
+    );
+    let error = lower_compile_unit_declarations(&input).unwrap_err();
 
     assert!(matches!(
         error,
-        PreparationError::StandardSemantics(StandardSemanticError::OutsideStandardPackage(
-            StandardDeclarationRole::AbortingAllocator
-        ))
-    ));
-}
-
-#[test]
-fn one_declaration_role_cannot_be_supplied_twice() {
-    let fixture = Fixture::with_standard("", "struct Allocator {}\n");
-    let token = fixture.standard_declaration_token(NodeKind::StructDeclaration, "Allocator");
-    let error = with_prepared_roles(
-        &fixture,
-        vec![
-            StandardRoleInput::new(StandardDeclarationRole::AbortingAllocator, token),
-            StandardRoleInput::new(StandardDeclarationRole::AbortingAllocator, token),
-        ],
-        |_| (),
-    )
-    .unwrap_err();
-
-    assert!(matches!(
-        error,
-        PreparationError::StandardSemantics(StandardSemanticError::DuplicateRole(
-            StandardDeclarationRole::AbortingAllocator
-        ))
+        nocter_declaration_lowering::DeclarationLoweringError::InternalDefinition(
+            nocter_declaration_lowering::HeaderDefinitionError::Program(
+                nocter_declarations::ProgramBuildError::InvalidProgram(
+                    nocter_declarations::ProgramValidationError::Integrity(
+                        nocter_declarations::ProgramIntegrityError::OwnerMismatch(
+                            nocter_declarations::DeclarationDomain::StandardLibrary
+                        )
+                    )
+                )
+            )
+        )
     ));
 }
 

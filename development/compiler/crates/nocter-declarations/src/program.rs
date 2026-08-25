@@ -499,6 +499,24 @@ impl DeclarationProgramBuilder {
             .map_err(|_| ProgramBuildError::ConflictingBuiltinTypeModule(builtin))
     }
 
+    /// Records one exact standard declaration selected by toolchain discovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no standard package is selected or the role was already assigned to
+    /// a different declaration.
+    pub fn set_standard_declaration(
+        &mut self,
+        role: crate::StandardDeclarationRole,
+        declaration: crate::StandardDeclaration,
+    ) -> Result<(), ProgramBuildError> {
+        self.standard_library
+            .as_mut()
+            .ok_or(ProgramBuildError::StandardPackageNotSelected)?
+            .set_declaration(role, declaration)
+            .map_err(|_| ProgramBuildError::ConflictingStandardDeclaration(role))
+    }
+
     /// Adds one normalized module identity.
     ///
     /// # Errors
@@ -850,6 +868,7 @@ pub enum ProgramBuildError {
     StandardModuleOutsidePackage,
     ConflictingStructuralAttachmentModule(StructuralAttachment),
     ConflictingBuiltinTypeModule(nocter_model::BuiltinType),
+    ConflictingStandardDeclaration(crate::StandardDeclarationRole),
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
@@ -901,6 +920,12 @@ impl fmt::Display for ProgramBuildError {
             }
             Self::ConflictingBuiltinTypeModule(builtin) => {
                 write!(formatter, "{builtin:?} has conflicting source modules")
+            }
+            Self::ConflictingStandardDeclaration(role) => {
+                write!(
+                    formatter,
+                    "standard role {role:?} has conflicting declarations"
+                )
             }
             Self::VisibilityOutsidePackage => {
                 formatter.write_str("package visibility names another package")

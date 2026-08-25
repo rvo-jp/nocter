@@ -67,7 +67,7 @@ fn lookup_namespace(
         .map(|index| namespace[index].1)
 }
 
-/// A declaration kind that toolchain discovery may assign a standard semantic role.
+/// One exact declaration identity selected by declaration lowering.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FrontendDeclaration {
     BuiltinType(BuiltinType),

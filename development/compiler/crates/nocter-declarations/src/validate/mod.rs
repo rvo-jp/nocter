@@ -31,6 +31,7 @@ mod tests;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationDomain {
     Package,
+    StandardLibrary,
     Module,
     Namespace,
     PackageTarget,
@@ -120,6 +121,7 @@ pub(crate) fn validate_integrity(
 ) -> Result<(), ProgramIntegrityError> {
     types::validate_types(program)?;
     graph::validate_packages_modules_sites(program)?;
+    graph::validate_standard_declarations(program)?;
     types::validate_nominal_types(program)?;
     types::validate_aliases_interfaces(program)?;
     validate_constants(program)?;

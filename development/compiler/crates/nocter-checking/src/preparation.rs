@@ -512,7 +512,7 @@ fn prepare_program_checking_internal<'syntax>(
     source_index: SourceIndex,
     retain_names: bool,
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
-    let toolchain = input
+    input
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
     let (graph, mut types, admission) = program.into_parts();
@@ -557,10 +557,8 @@ fn prepare_program_checking_internal<'syntax>(
     } = declaration_stage!(build_program_authorities(
         &graph,
         &mut types,
-        bindings,
         &source_index,
         admission.as_ref(),
-        toolchain.standard_roles(),
     ));
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
@@ -610,10 +608,8 @@ fn prepare_program_checking_internal<'syntax>(
 fn build_program_authorities(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    bindings: &FrontendBindings,
     source_index: &SourceIndex,
     admission: Option<&nocter_declarations::DeclarationAnalysisAdmission>,
-    standard_roles: &[nocter_compile_input::StandardRoleInput],
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
     let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
     validate_declaration_types(graph, types, source_index)?;
@@ -636,7 +632,7 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.instances(),
     )?;
-    let standard_semantics = StandardSemanticTable::build(standard_roles, graph, types, bindings)?;
+    let standard_semantics = StandardSemanticTable::build(graph, types)?;
     Ok(PreparedProgramAuthorities {
         conformances,
         construction_surfaces,

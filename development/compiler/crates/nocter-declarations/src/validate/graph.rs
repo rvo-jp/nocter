@@ -1,6 +1,6 @@
 use nocter_model::ModuleId;
 
-use crate::{CallableOwner, DeclarationProgram, ExportedEntity, ImportTarget};
+use crate::{CallableOwner, DeclarationProgram, ExportedEntity, ImportTarget, StandardDeclaration};
 
 use super::{
     DeclarationDomain, ProgramIntegrityError, require, require_site, require_symbol,
@@ -113,6 +113,79 @@ pub(super) fn validate_namespaces(
         }
     }
     Ok(())
+}
+
+pub(super) fn validate_standard_declarations(
+    program: &DeclarationProgram,
+) -> Result<(), ProgramIntegrityError> {
+    let Some(standard) = program.standard_library() else {
+        return Ok(());
+    };
+    for (_, declaration) in standard.declarations() {
+        let module = match declaration {
+            StandardDeclaration::BuiltinType(builtin) => standard
+                .builtin_type_module(builtin)
+                .ok_or(ProgramIntegrityError::UnknownReference {
+                    owner: DeclarationDomain::StandardLibrary,
+                    target: DeclarationDomain::Module,
+                })?,
+            StandardDeclaration::NominalType(id) => standard_site_module(
+                program,
+                require(
+                    program.declarations().nominal_types().get(id),
+                    DeclarationDomain::StandardLibrary,
+                    DeclarationDomain::NominalType,
+                )?
+                .site(),
+            )?,
+            StandardDeclaration::Interface(id) => standard_site_module(
+                program,
+                require(
+                    program.declarations().interfaces().get(id),
+                    DeclarationDomain::StandardLibrary,
+                    DeclarationDomain::Interface,
+                )?
+                .site(),
+            )?,
+            StandardDeclaration::AssociatedType(id) => standard_site_module(
+                program,
+                require(
+                    program.declarations().associated_types().get(id),
+                    DeclarationDomain::StandardLibrary,
+                    DeclarationDomain::AssociatedType,
+                )?
+                .site(),
+            )?,
+            StandardDeclaration::Callable(id) => standard_site_module(
+                program,
+                require(
+                    program.declarations().callables().get(id),
+                    DeclarationDomain::StandardLibrary,
+                    DeclarationDomain::Callable,
+                )?
+                .site(),
+            )?,
+        };
+        let package = require(
+            program.modules().get(module),
+            DeclarationDomain::StandardLibrary,
+            DeclarationDomain::Module,
+        )?
+        .package();
+        if package != standard.package() {
+            return Err(ProgramIntegrityError::OwnerMismatch(
+                DeclarationDomain::StandardLibrary,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn standard_site_module(
+    program: &DeclarationProgram,
+    site: nocter_model::DeclarationSiteId,
+) -> Result<ModuleId, ProgramIntegrityError> {
+    Ok(require_site(program, site, DeclarationDomain::StandardLibrary)?.module())
 }
 
 fn exported_entity_module(

@@ -132,6 +132,12 @@ fn standard_roles(package: &PackageIdentity) -> Vec<StandardRoleLocator> {
             NodeKind::InterfaceMethod,
             "remaining_len",
         ),
+        (
+            Role::ProcessAbort,
+            &["process"][..],
+            NodeKind::FunctionDeclaration,
+            "abort",
+        ),
     ]
     .into_iter()
     .map(|(role, path, kind, name)| {
