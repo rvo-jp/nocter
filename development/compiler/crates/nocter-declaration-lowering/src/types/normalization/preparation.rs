@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_declarations::InterfaceApplication;
-use nocter_model::{
-    AssociatedTypeId, GenericParameterId, InterfaceId, Symbol, TypeAliasId, TypeId, TypeKind,
-    TypeStore,
-};
+use nocter_model::{GenericParameterId, TypeAliasId, TypeId, TypeKind, TypeStore};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId};
 
@@ -23,10 +20,20 @@ pub(super) fn prepare_context(
     let declarations = reserved.declarations.clone();
     let entities = reserved.entities().to_vec().into_boxed_slice();
     let entity_declarations = reserved.entity_index.representatives().clone();
-    let names = namespaces.imports.generics.headers.names.clone();
     let own_generics = namespaces.imports.generics.own.clone();
     let aliases = collect_aliases(&entities, &own_generics, bound_alias_targets)?;
-    let (associated, associated_surfaces) = collect_associated(&declarations, &entities, &names)?;
+    let associated = namespaces
+        .imports
+        .generics
+        .headers
+        .associated_types()
+        .clone();
+    let associated_surfaces = namespaces
+        .imports
+        .generics
+        .headers
+        .associated_type_declarations()
+        .clone();
     let store = namespaces
         .imports
         .generics
@@ -80,45 +87,6 @@ fn collect_aliases(
         );
     }
     Ok(aliases)
-}
-
-type AssociatedIndex = (
-    HashMap<(InterfaceId, Symbol), AssociatedTypeId>,
-    HashMap<AssociatedTypeId, SurfaceDeclarationId>,
-);
-
-fn collect_associated(
-    declarations: &[SurfaceDeclaration],
-    entities: &[Option<ReservedEntity>],
-    names: &[Option<Symbol>],
-) -> Result<AssociatedIndex, TypeNormalizationError> {
-    let mut associated = HashMap::new();
-    let mut surfaces = HashMap::new();
-    for (index, entity) in entities.iter().copied().enumerate() {
-        let Some(ReservedEntity::AssociatedType(item)) = entity else {
-            continue;
-        };
-        let interface = declarations[index]
-            .owner()
-            .and_then(|owner| entities.get(owner.index()).copied().flatten())
-            .and_then(|owner| match owner {
-                ReservedEntity::Interface(interface) => Some(interface),
-                _ => None,
-            })
-            .ok_or(TypeNormalizationError::InvalidSelf(
-                ReservedEntity::AssociatedType(item),
-            ))?;
-        let name = names[index].ok_or(TypeNormalizationError::InvalidSelf(
-            ReservedEntity::AssociatedType(item),
-        ))?;
-        if associated.insert((interface, name), item).is_some() {
-            return Err(TypeNormalizationError::InconsistentAssociatedIndex(
-                SurfaceDeclarationId::from_index(index),
-            ));
-        }
-        surfaces.insert(item, SurfaceDeclarationId::from_index(index));
-    }
-    Ok((associated, surfaces))
 }
 
 fn intern_generic_types(

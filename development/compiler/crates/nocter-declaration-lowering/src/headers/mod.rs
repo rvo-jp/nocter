@@ -1,9 +1,10 @@
 mod names;
 
+use std::collections::HashMap;
 use std::fmt;
 
 use nocter_declarations::{ProgramBuildError, Visibility};
-use nocter_model::{DeclarationSiteId, Symbol};
+use nocter_model::{AssociatedTypeId, DeclarationSiteId, InterfaceId, Symbol};
 use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin,
@@ -11,8 +12,8 @@ use nocter_source_index::{
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
-    NamespaceViolation, ReservedDeclarations, SurfaceDeclarationId, SurfaceDeclarationKind,
-    SurfaceSourceId,
+    NamespaceViolation, ReservedDeclarations, ReservedEntity, SurfaceDeclarationId,
+    SurfaceDeclarationKind, SurfaceSourceId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -92,6 +93,13 @@ pub struct PreparedHeaders<'syntax> {
     pub(crate) names: Box<[Option<Symbol>]>,
     pub(crate) sites: Box<[Option<DeclarationSiteId>]>,
     pub(crate) visibility: Box<[Option<Visibility>]>,
+    associated_types: AssociatedTypeIndex,
+}
+
+#[derive(Debug, Default)]
+struct AssociatedTypeIndex {
+    by_owner_and_name: HashMap<(InterfaceId, Symbol), AssociatedTypeId>,
+    declarations: HashMap<AssociatedTypeId, SurfaceDeclarationId>,
 }
 
 impl PreparedHeaders<'_> {
@@ -113,6 +121,27 @@ impl PreparedHeaders<'_> {
     #[must_use]
     pub fn visibility(&self, declaration: SurfaceDeclarationId) -> Option<Visibility> {
         self.visibility.get(declaration.index()).copied().flatten()
+    }
+
+    pub(crate) fn associated_type(
+        &self,
+        interface: InterfaceId,
+        name: Symbol,
+    ) -> Option<AssociatedTypeId> {
+        self.associated_types
+            .by_owner_and_name
+            .get(&(interface, name))
+            .copied()
+    }
+
+    pub(crate) fn associated_types(&self) -> &HashMap<(InterfaceId, Symbol), AssociatedTypeId> {
+        &self.associated_types.by_owner_and_name
+    }
+
+    pub(crate) fn associated_type_declarations(
+        &self,
+    ) -> &HashMap<AssociatedTypeId, SurfaceDeclarationId> {
+        &self.associated_types.declarations
     }
 }
 
@@ -151,13 +180,52 @@ pub fn prepare_declaration_headers(
         project_site(&mut reserved, id, site)?;
     }
     project_entities(&mut reserved)?;
+    let associated_types = index_associated_types(&reserved, &names)?;
 
     Ok(PreparedHeaders {
         reserved,
         names: names.into_boxed_slice(),
         sites: sites.into_boxed_slice(),
         visibility: resolved_visibility.into_boxed_slice(),
+        associated_types,
     })
+}
+
+fn index_associated_types(
+    reserved: &ReservedDeclarations<'_>,
+    names: &[Option<Symbol>],
+) -> Result<AssociatedTypeIndex, HeaderError> {
+    let mut index = AssociatedTypeIndex::default();
+    for (entity, declaration) in reserved.entity_index.representatives() {
+        let ReservedEntity::AssociatedType(associated) = *entity else {
+            continue;
+        };
+        let owner = reserved
+            .declarations
+            .get(declaration.index())
+            .and_then(|surface| surface.owner())
+            .and_then(|owner| reserved.entity(owner));
+        let Some(ReservedEntity::Interface(interface)) = owner else {
+            return Err(HeaderError::MissingDeclaration(*declaration));
+        };
+        let name = names
+            .get(declaration.index())
+            .copied()
+            .flatten()
+            .ok_or(HeaderError::MissingName(*declaration))?;
+        if index
+            .by_owner_and_name
+            .insert((interface, name), associated)
+            .is_some()
+            || index
+                .declarations
+                .insert(associated, *declaration)
+                .is_some()
+        {
+            return Err(HeaderError::InconsistentName(*declaration));
+        }
+    }
+    Ok(index)
 }
 
 fn resolve_visibility(

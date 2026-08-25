@@ -227,6 +227,22 @@ fn reservation_owns_bidirectional_surface_entity_identity() {
 }
 
 #[test]
+fn named_associated_types_are_indexed_once_at_header_resolution() {
+    let headers = source("crates/nocter-declaration-lowering/src/headers/mod.rs");
+    assert!(headers.contains("struct AssociatedTypeIndex"));
+    assert!(headers.contains("fn index_associated_types("));
+
+    let opaque = source("crates/nocter-declaration-lowering/src/types/opaque.rs");
+    assert!(opaque.contains(".associated_type(interface, name)"));
+    assert!(!opaque.contains(".find_map(|(index, entity)|"));
+
+    let preparation =
+        source("crates/nocter-declaration-lowering/src/types/normalization/preparation.rs");
+    assert!(preparation.contains(".associated_types()"));
+    assert!(!preparation.contains("fn collect_associated("));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));

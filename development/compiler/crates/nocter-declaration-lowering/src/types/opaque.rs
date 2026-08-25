@@ -172,21 +172,11 @@ fn associated_type(
     token: SyntaxToken,
 ) -> Result<AssociatedTypeId, TypeBindingError> {
     let name = token_symbol(namespaces, tree, token)?;
-    let reserved = &namespaces.imports.generics.headers.reserved;
-    let found = reserved
-        .entities()
-        .iter()
-        .copied()
-        .enumerate()
-        .find_map(|(index, entity)| {
-            let ReservedEntity::AssociatedType(associated) = entity? else {
-                return None;
-            };
-            let owner = reserved.declarations[index].owner()?;
-            (reserved.entity(owner) == Some(ReservedEntity::Interface(interface))
-                && namespaces.imports.generics.headers.names[index] == Some(name))
-            .then_some(associated)
-        })
+    let found = namespaces
+        .imports
+        .generics
+        .headers
+        .associated_type(interface, name)
         .ok_or(TypeBindingError::rule(
             TypeBindingRule::UnknownOpaqueBinding,
             SyntaxOrigin::Token(token),
