@@ -263,6 +263,20 @@ fn executable_freezing_preserves_reserved_item_identities() {
 }
 
 #[test]
+fn construction_selection_consumes_its_frozen_surface_contract() {
+    let surfaces = source("crates/nocter-checking/src/construction_surfaces.rs");
+    assert!(surfaces.contains("struct VisibleEntry<I>"));
+    assert!(surfaces.contains("member_order: Box<[VisibleEntry<CallableId>]>"));
+    assert!(!surfaces.contains("fn surface_member_is_indexed("));
+    assert!(!surfaces.contains("fn member_is_visible("));
+    assert!(!surfaces.contains("fn field_is_visible("));
+
+    let constructions = source("crates/nocter-checking/src/body_check/checker/constructions.rs");
+    assert!(!constructions.contains("callable.kind() != CallableKind::ConstructionFunction"));
+    assert!(!constructions.contains("callable.owner() != CallableOwner::Construction"));
+}
+
+#[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
     let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
     assert!(!action.contains("std/process.abort"));

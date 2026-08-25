@@ -1,6 +1,4 @@
-use nocter_declarations::{
-    CallableKind, CallableOwner, ExportedEntity, ParameterOwner, ParameterRole,
-};
+use nocter_declarations::{ExportedEntity, ParameterOwner, ParameterRole};
 use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind, VariantId};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, SyntaxToken};
@@ -386,15 +384,6 @@ impl BodyChecker<'_, '_> {
             .get(callable_id)
             .cloned()
             .ok_or(BodyCheckInternalError::MissingCallable(callable_id))?;
-        if callable.kind() != CallableKind::ConstructionFunction
-            || callable.owner() != CallableOwner::Construction(construction)
-            || callable.receiver().is_some()
-        {
-            return Err(BodyCheckInternalError::ConstructionSurfaceSelection(
-                crate::ConstructionSurfaceSelectionError::InvalidMember(callable_id),
-            )
-            .into());
-        }
         let construction_declaration = self
             .graph
             .declarations()
