@@ -48,12 +48,6 @@ fn primitive_destruction_becomes_one_generated_machine_function() {
                         call.target(),
                         crate::MachineCallTarget::Primitive(primitive)
                             if primitive.role() == PrimitiveRole::DropValueAtPointer
-                                && matches!(
-                                    primitive.dependency(),
-                                    crate::MachinePrimitiveDependency::Destruction {
-                                        plan: Some(_), ..
-                                    }
-                                )
                     )
             )
         })

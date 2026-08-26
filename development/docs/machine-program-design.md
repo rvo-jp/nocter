@@ -183,10 +183,11 @@ MIR-local identities.
 
 Standard primitive targets retain their closed `PrimitiveRole`, concrete layout-key type
 arguments, exact concrete signature, and an explicit specialized semantic dependency. Most
-primitives carry no dependency. Pointer destruction carries its concrete subject plus an optional
-`MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
-not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
-item once. Plans with work from either pointer calls or argument-pack segments enter a
+primitives carry no dependency. A copyable pointer-destruction primitive carries an explicit
+`NoopDestruction` dependency and its concrete subject. A nontrivial pointer destruction becomes an
+ordinary direct function call during machine construction; the final primitive schema cannot
+contain an unlowered recursive plan. MIR-to-machine lowering translates every nested layout and
+user-drop item once. Plans with work from either pointer calls or argument-pack segments enter a
 construction-only, content-ordered `MachineDestructionPlanTable`, receive generated linkage only
 after the source-function domain, and use the common compiler-owned
 `(byte_pointer, byte_offset)` ABI. Pointer calls become ordinary direct calls; pack segments retain
@@ -510,8 +511,9 @@ transport, current-context reads, pure pointer/view primitives, byte/value trans
 Darwin syscalls, process exit, trap, unreachable, allocation abort, direct user destruction, and
 conditional drop flags, value and stored-tag switches, and cycle-safe direct/memory block-parameter
 transport are complete. Concrete destruction now interns exact pointer and pack plans as ordinary
-generated machine functions; recursive structs, active enum payloads, reverse fixed arrays, empty
-pointer plans, and hidden allocation-context propagation execute natively through pointer calls.
+generated machine functions; recursive structs, active enum payloads, reverse fixed arrays,
+explicit copyable-pointer no-ops, and hidden allocation-context propagation execute natively
+through pointer calls.
 Fixed argument packs now initialize and transfer their four-word descriptors, execute consuming-next
 through the exact result ABI, and destroy unconsumed elements through those generated functions.
 Spread packs execute the same native descriptor ABI for direct and copied-borrow contributions,

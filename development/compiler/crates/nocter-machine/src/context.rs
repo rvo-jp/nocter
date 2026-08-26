@@ -1,13 +1,11 @@
 use std::fmt;
 
-use nocter_model::TypeId;
 use nocter_runtime_contract::PrimitiveRole;
 
 use crate::identity::MachineTable;
 use crate::{
     MachineCall, MachineCallAllocation, MachineCallTarget, MachineFunction, MachineFunctionId,
     MachineFunctionKind, MachineOperationKind, MachinePack, MachinePackId, MachinePackSegment,
-    MachinePrimitiveDependency,
 };
 
 /// One compiler-propagated ambient capability with a dedicated hidden ABI lane.
@@ -253,15 +251,6 @@ fn target_requires_context(
             function_requires_context(kind, requirements, *function)
         }
         MachineCallTarget::Primitive(primitive) => {
-            if let MachinePrimitiveDependency::Destruction {
-                plan: Some(plan), ..
-            } = primitive.dependency()
-            {
-                return Err(MachineContextError::UnloweredDestructionPlan {
-                    kind,
-                    ty: plan.ty(),
-                });
-            }
             Ok(primitive_uses_context(kind, primitive.role()))
         }
     }
@@ -326,10 +315,6 @@ pub enum MachineContextError {
     UnknownFunction {
         kind: MachineContextKind,
         function: MachineFunctionId,
-    },
-    UnloweredDestructionPlan {
-        kind: MachineContextKind,
-        ty: TypeId,
     },
     UnknownPack {
         kind: MachineContextKind,

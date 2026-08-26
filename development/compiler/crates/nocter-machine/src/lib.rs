@@ -39,10 +39,10 @@ pub use data::{MachineData, MachineDataTable};
 pub use dataflow::{
     MachineBlockDataflow, MachineDataflowError, MachineFunctionDataflow, MachineOperationDataflow,
 };
-pub use destruction::{
-    MachineDestructionCapture, MachineDestructionError, MachineDestructionField,
-    MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
-    MachineDestructionVariant,
+pub use destruction::MachineDestructionError;
+pub(crate) use destruction::{
+    MachineDestructionCapture, MachineDestructionField, MachineDestructionKind,
+    MachineDestructionPayload, MachineDestructionPlan, MachineDestructionVariant,
 };
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
@@ -81,10 +81,11 @@ pub use structural::{
     MachineIndexBorrow, MachineIndexDomain, MachineStructuralError,
 };
 pub use target::{MachineEndianness, MachineTarget};
+pub(crate) use transport::MachineAbiPlan;
 pub use transport::{
-    MachineAbiError, MachineAbiPlan, MachineArgumentAbi, MachineArgumentLocation,
-    MachineCallableAbi, MachinePackAbi, MachineRegisterSpan, MachineResultAbi,
-    MachineResultLocation, MachineReturnedValue, MachineStackSlot, MachineValueClass,
+    MachineAbiError, MachineArgumentAbi, MachineArgumentLocation, MachineCallableAbi,
+    MachinePackAbi, MachineRegisterSpan, MachineResultAbi, MachineResultLocation,
+    MachineReturnedValue, MachineStackSlot, MachineValueClass,
 };
 
 #[cfg(test)]

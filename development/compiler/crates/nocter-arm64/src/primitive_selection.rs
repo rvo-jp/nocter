@@ -131,10 +131,8 @@ fn select_noop_destruction(
     target: Arm64PrimitiveTarget<'_>,
 ) -> Result<(), Arm64SelectionError> {
     validate_type_arguments(operation, target, 1)?;
-    let nocter_machine::MachinePrimitiveDependency::Destruction {
-        subject,
-        plan: None,
-    } = target.dependency()
+    let nocter_machine::MachinePrimitiveDependency::NoopDestruction { subject } =
+        target.dependency()
     else {
         return Err(Arm64SelectionError::PrimitiveCall(operation));
     };

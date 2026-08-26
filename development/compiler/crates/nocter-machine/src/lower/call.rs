@@ -97,10 +97,7 @@ pub(super) fn lower_call_target(
                             operation,
                         ));
                     }
-                    MachinePrimitiveDependency::Destruction {
-                        subject: *subject,
-                        plan: None,
-                    }
+                    MachinePrimitiveDependency::NoopDestruction { subject: *subject }
                 }
             };
             Ok(MachineCallTarget::Primitive(MachinePrimitiveTarget::new(

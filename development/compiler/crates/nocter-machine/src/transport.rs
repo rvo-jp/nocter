@@ -221,8 +221,7 @@ impl MachineCallableAbi {
 /// Direct callable entries are moved into their final machine functions. Primitive signatures are
 /// interned here, referenced by identity from calls, and transferred as one dense final table.
 #[derive(Debug)]
-pub struct MachineAbiPlan {
-    target: MachineTarget,
+pub(crate) struct MachineAbiPlan {
     callables: Arena<ExecutableItemId, MachineCallableAbi>,
     primitive_signatures: MachinePrimitiveSignatureIndex,
     primitive_abis: Vec<MachineCallableAbi>,
@@ -281,7 +280,6 @@ impl MachineAbiPlan {
         program: &MirProgram,
         layouts: &MachineLayoutStore,
     ) -> Result<Self, MachineAbiError> {
-        let target = layouts.target();
         let types = program.types();
         let mut callables = ArenaBuilder::new();
         let mut primitive_signatures = MachinePrimitiveSignatureIndex::default();
@@ -320,7 +318,6 @@ impl MachineAbiPlan {
             }
         }
         Ok(Self {
-            target,
             callables: callables.finish(),
             primitive_signatures,
             primitive_abis,
@@ -328,17 +325,15 @@ impl MachineAbiPlan {
     }
 
     #[must_use]
-    pub const fn target(&self) -> MachineTarget {
-        self.target
-    }
-
-    #[must_use]
-    pub fn get(&self, item: ExecutableItemId) -> Option<&MachineCallableAbi> {
+    pub(crate) fn get(&self, item: ExecutableItemId) -> Option<&MachineCallableAbi> {
         self.callables.get(item)
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (ExecutableItemId, &MachineCallableAbi)> {
+    pub(crate) fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (ExecutableItemId, &MachineCallableAbi)> {
         self.callables.iter()
     }
 
