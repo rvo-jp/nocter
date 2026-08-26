@@ -1770,11 +1770,13 @@ dependencies = [
  "nocter-checking",
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-language",
  "nocter-machine",
  "nocter-macho",
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-syntax",
  "nocter-target-program",
  "nocter-test-support",
 ]

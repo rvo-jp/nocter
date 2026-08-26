@@ -59,7 +59,7 @@ func greet(user: User): void! {
     pub method &+self.write(bytes: &[u8]): void!
 }
 
-func save_log<W>(output: &+W, events: &[Event]): void! where W: Writer {
+func save_log<W>(output: &+W, events: &[Event]): void! where W impl Writer {
     for event in events {
         output.write(event.message().bytes())?
         output.write("\\n".bytes())?
