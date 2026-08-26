@@ -21,7 +21,7 @@ fn lexical_identities_cover_scopes_and_explicit_capture_projection() {
     );
     let input = fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let resolution =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap();
     let (_, body) = resolution
@@ -102,7 +102,7 @@ fn binding_initializer_cannot_see_the_binding_being_declared() {
     );
     let input = fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap_err();
 
@@ -128,7 +128,7 @@ fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
     );
     let input = fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let catalog = crate::catalog_body_sources(&input, program.graph(), &frontend_bindings).unwrap();
     let failure = resolve_cataloged_body_names_recovering(
         &input,
@@ -182,7 +182,7 @@ fn closure_outer_binding_requires_an_explicit_capture() {
     );
     let input = fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap_err();
 
@@ -206,7 +206,7 @@ fn closure_capture_rules_distinguish_missing_and_duplicate_targets() {
         let fixture = Fixture::new(source, "");
         let input = fixture.input(false, Vec::new());
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let error = resolve_body_names(&input, program.graph(), &frontend_bindings, source_index)
             .unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
@@ -221,7 +221,7 @@ fn authored_module_names_collide_but_prelude_fallback_is_shadowable() {
     );
     let input = fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap_err();
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0341");
@@ -232,7 +232,7 @@ fn authored_module_names_collide_but_prelude_fallback_is_shadowable() {
     );
     let input = shadow_fixture.input(false, Vec::new());
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap();
 }
 
@@ -247,7 +247,7 @@ fn block_import_resolves_to_export_without_creating_local_storage() {
     let resolutions = vec![UseResolutionInput::new(use_node, target)];
     let input = fixture.input_with_library(false, resolutions);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let resolution =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap();
     let (_, body) = resolution
@@ -285,7 +285,7 @@ fn missing_selected_block_import_has_its_own_rule() {
     let resolutions = vec![UseResolutionInput::new(use_node, target)];
     let input = fixture.input_with_library(false, resolutions);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap_err();
 
@@ -302,7 +302,7 @@ fn body_name_diagnostic_is_independent_of_package_and_module_input_order() {
     for reverse in [false, true] {
         let input = fixture.input(reverse, Vec::new());
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         diagnostics.push(
             resolve_body_names(&input, program.graph(), &frontend_bindings, source_index)
                 .unwrap_err()

@@ -78,9 +78,9 @@ pub use recovery::{
 pub(crate) use reservation::reserve_declaration_identities;
 pub use reservation::{ReservationError, ReservedDeclarations, ReservedEntity};
 pub use surface::{
-    DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
-    SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId, SurfaceVisibility,
-    collect_declaration_surface,
+    DeclarationSurface, SurfaceBlockImport, SurfaceDeclaration, SurfaceDeclarationId,
+    SurfaceDeclarationKind, SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId,
+    SurfaceVisibility, collect_declaration_surface,
 };
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
 pub use toolchain::ToolchainError;

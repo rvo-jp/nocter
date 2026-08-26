@@ -13,7 +13,7 @@ fn explicit_move_transfers_a_move_only_parameter_into_the_body_result() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -33,7 +33,7 @@ fn moved_local_is_initialized_before_its_own_transfer() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
@@ -48,7 +48,7 @@ fn second_use_after_move_reports_uninitialized_place() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -63,7 +63,7 @@ fn builtin_error_is_move_only() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -78,7 +78,7 @@ fn fallible_value_is_move_only_even_when_its_success_payload_is_copyable() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -91,7 +91,7 @@ fn explicit_move_rejects_copy_and_borrow_values_separately() {
     let copy = Fixture::new("func invalid(value: i32): i32 {\n    move value\n}\n");
     let input = copy.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -101,7 +101,7 @@ fn explicit_move_rejects_copy_and_borrow_values_separately() {
         Fixture::new("func invalid(value: &+i32): void {\n    let _ = move value\n    return\n}\n");
     let input = borrow.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -117,7 +117,7 @@ fn generic_named_field_move_uses_the_substituted_field_type() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -152,7 +152,7 @@ fn disjoint_named_fields_move_independently() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
@@ -169,7 +169,7 @@ fn named_field_move_invalidates_that_field_and_its_parent() {
         ));
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -187,7 +187,7 @@ fn named_field_move_rejects_borrowed_and_unknown_fields() {
     );
     let input = borrowed.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -200,7 +200,7 @@ fn named_field_move_rejects_borrowed_and_unknown_fields() {
     );
     let input = unknown.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -219,7 +219,7 @@ fn named_field_move_obeys_the_declaring_module_visibility_boundary() {
     for reverse in [false, true] {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -244,7 +244,7 @@ fn a_type_owned_drop_forbids_partial_move_with_a_related_location() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

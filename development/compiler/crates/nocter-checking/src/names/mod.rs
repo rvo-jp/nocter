@@ -1,5 +1,4 @@
 mod diagnostic;
-mod imports;
 mod model;
 mod resolver;
 
@@ -21,7 +20,6 @@ use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
 use crate::{BodySourceCatalog, BodySourceError, catalog_body_sources};
-use imports::block_import_targets;
 
 pub use diagnostic::NameRule;
 pub use model::{
@@ -263,47 +261,41 @@ fn resolve_cataloged_body_names_active<'syntax>(
     source_index: SourceIndex,
     catalog: BodySourceCatalog<'syntax>,
 ) -> Result<NameResolution<'syntax>, RecoveringNameResolutionError> {
-    let import_targets =
-        block_import_targets(input, bindings).map_err(|error| RecoveringNameResolutionError {
-            error: Box::new(error.into()),
-            recovery: None,
-        })?;
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
     let mut first_error = None;
 
     for source in catalog.iter() {
         let expected = source.body();
-        let resolved = match BodyNameResolver::new(input, graph, bindings, &import_targets, source)
-            .resolve_recovering()
-        {
-            Ok(resolved) => resolved,
-            Err(failure) => {
-                if failure.error.source_diagnostic().is_none() {
-                    return Err(RecoveringNameResolutionError {
-                        error: failure.error,
-                        recovery: None,
+        let resolved =
+            match BodyNameResolver::new(input, graph, bindings, source).resolve_recovering() {
+                Ok(resolved) => resolved,
+                Err(failure) => {
+                    if failure.error.source_diagnostic().is_none() {
+                        return Err(RecoveringNameResolutionError {
+                            error: failure.error,
+                            recovery: None,
+                        });
+                    }
+                    let partial = failure.partial.map(|partial| {
+                        projections.extend(partial.projections);
+                        partial.body
                     });
+                    let actual = bodies.insert(partial);
+                    if actual != expected {
+                        return Err(RecoveringNameResolutionError {
+                            error: Box::new(
+                                NameResolutionInternalError::InvalidBodyOwner(expected).into(),
+                            ),
+                            recovery: None,
+                        });
+                    }
+                    if first_error.is_none() {
+                        first_error = Some(failure.error);
+                    }
+                    continue;
                 }
-                let partial = failure.partial.map(|partial| {
-                    projections.extend(partial.projections);
-                    partial.body
-                });
-                let actual = bodies.insert(partial);
-                if actual != expected {
-                    return Err(RecoveringNameResolutionError {
-                        error: Box::new(
-                            NameResolutionInternalError::InvalidBodyOwner(expected).into(),
-                        ),
-                        recovery: None,
-                    });
-                }
-                if first_error.is_none() {
-                    first_error = Some(failure.error);
-                }
-                continue;
-            }
-        };
+            };
         let actual = bodies.insert(Some(resolved.body));
         if actual != expected {
             return Err(RecoveringNameResolutionError {

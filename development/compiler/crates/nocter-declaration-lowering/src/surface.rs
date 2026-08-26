@@ -155,6 +155,25 @@ impl SurfaceImport {
     }
 }
 
+/// One body-local import after discovery has selected its exact target module.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SurfaceBlockImport {
+    node: NodeId,
+    target: ModuleIdentity,
+}
+
+impl SurfaceBlockImport {
+    #[must_use]
+    pub const fn node(&self) -> NodeId {
+        self.node
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> &ModuleIdentity {
+        &self.target
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SurfaceDeclaration {
     source: SurfaceSourceId,
@@ -232,6 +251,7 @@ pub struct DeclarationSurface<'syntax> {
     sources: Box<[SurfaceSource<'syntax>]>,
     source_visibilities: Box<[SurfaceVisibility]>,
     imports: Box<[SurfaceImport]>,
+    block_imports: Box<[SurfaceBlockImport]>,
     package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     declarations: Box<[SurfaceDeclaration]>,
 }
@@ -278,6 +298,11 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
+    pub const fn block_imports(&self) -> &[SurfaceBlockImport] {
+        &self.block_imports
+    }
+
+    #[must_use]
     pub const fn declarations(&self) -> &[SurfaceDeclaration] {
         &self.declarations
     }
@@ -293,6 +318,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             sources: self.sources,
             source_visibilities: self.source_visibilities,
             imports: self.imports,
+            block_imports: self.block_imports,
             package_target_resolutions: self.package_target_resolutions,
             declarations: self.declarations,
         }
@@ -309,6 +335,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_visibilities: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
+    pub(crate) block_imports: Box<[SurfaceBlockImport]>,
     pub(crate) package_target_resolutions: Box<[crate::PackageTargetResolutionInput]>,
     pub(crate) declarations: Box<[SurfaceDeclaration]>,
 }
@@ -437,6 +464,14 @@ fn collect_declaration_surface_with<'syntax>(
     let mut source_visibilities = Vec::new();
     let mut imports = Vec::new();
     let mut declarations = Vec::new();
+    let block_imports = use_resolutions
+        .values()
+        .filter(|resolution| resolution.scope() == crate::topology::UseScope::Block)
+        .map(|resolution| SurfaceBlockImport {
+            node: resolution.declaration(),
+            target: resolution.target_module().clone(),
+        })
+        .collect::<Vec<_>>();
 
     for module in &modules {
         let mut module_sources: Vec<_> = module.sources().iter().collect();
@@ -494,6 +529,7 @@ fn collect_declaration_surface_with<'syntax>(
         sources: sources.into_boxed_slice(),
         source_visibilities: source_visibilities.into_boxed_slice(),
         imports: imports.into_boxed_slice(),
+        block_imports: block_imports.into_boxed_slice(),
         package_target_resolutions: package_target_resolutions
             .into_iter()
             .cloned()
@@ -530,7 +566,8 @@ struct SourceCollectionInput<'input> {
         SourceVisibilityResolutionKey,
         &'input crate::SourceVisibilityResolutionInput,
     >,
-    use_resolutions: &'input BTreeMap<UseResolutionKey, &'input crate::UseResolutionInput>,
+    use_resolutions:
+        &'input BTreeMap<UseResolutionKey, crate::topology::PreparedUseResolution<'input>>,
     target_selection: &'input TargetSelection,
     source_by_path: &'input BTreeMap<&'input str, SurfaceSourceId>,
 }

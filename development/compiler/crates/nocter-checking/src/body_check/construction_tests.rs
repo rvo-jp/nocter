@@ -11,7 +11,7 @@ fn scalar_local_and_body_result_construct_one_closed_checked_body() {
     let fixture = Fixture::new("func answer(): i32 {\n    let value = 42\n    value\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -44,7 +44,7 @@ fn body_result_materializes_recursive_outcome_injection() {
     let fixture = Fixture::new("func answer(): i32?! {\n    42\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -76,7 +76,7 @@ fn optional_absence_needs_no_synthetic_payload() {
     let fixture = Fixture::new("func answer(): i32? {\n    none\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -93,7 +93,7 @@ fn reachable_nonvoid_fallthrough_has_one_body_rule() {
     let fixture = Fixture::new("func missing(): i32 {}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -106,7 +106,7 @@ fn nonfinal_value_expression_is_not_implicitly_discarded() {
     let fixture = Fixture::new("func invalid(): void {\n    42\n    return\n}\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

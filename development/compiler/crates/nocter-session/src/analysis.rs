@@ -125,7 +125,7 @@ pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSynt
             ));
         }
     };
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared = match prepare_program_checking_recovering(
         &input,
         program,
@@ -185,7 +185,7 @@ fn analyze_target_internal(
             .map_err(Box::new)?
     };
     let primitive_bindings = lowered.primitive_bindings().to_vec();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared = if retain_semantic {
         prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
             .map_err(|failure| {
@@ -232,8 +232,7 @@ fn analyze_rejected_declarations(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
 ) -> Option<SemanticAnalysis> {
-    let (program, frontend_bindings, source_index) = match recovery.into_checking_transition(input)
-    {
+    let (program, frontend_bindings, source_index) = match recovery.into_checking_transition() {
         DeclarationCheckingTransition::Bodies(input) => input.into_parts(),
         DeclarationCheckingTransition::Declarations(recovery) => {
             return Some(SemanticAnalysis::from_declaration_lowering(*recovery));

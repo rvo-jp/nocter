@@ -13,7 +13,7 @@ fn overlapping_operation_patterns_are_rejected_before_body_checking() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 
@@ -27,7 +27,7 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let table =
         build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -68,7 +68,7 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let table =
         build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -98,7 +98,7 @@ fn duplicate_coercion_identity_is_rejected_before_body_selection() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 
@@ -112,7 +112,7 @@ fn unused_invalid_instance_operation_is_rejected_during_preparation() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let error =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap_err();
 

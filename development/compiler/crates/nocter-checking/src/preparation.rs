@@ -729,7 +729,7 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let index = prepared.source_index();
@@ -777,7 +777,7 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
@@ -797,7 +797,7 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let error = prepare_program_checking(&input, program, &frontend_bindings, source_index)
             .unwrap_err();
 
@@ -812,7 +812,7 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let error = prepare_program_checking(&input, program, &frontend_bindings, source_index)
             .unwrap_err();
 
@@ -824,7 +824,7 @@ mod tests {
         let fixture = Fixture::new("copy struct Box<T> {\n    value: T\n}\n");
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
         let (family, declaration) = prepared
@@ -857,7 +857,7 @@ mod tests {
         );
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, frontend_bindings, _) = lowered.into_checking_parts(&input);
+        let (program, frontend_bindings, _) = lowered.into_checking_parts();
 
         let prepared = prepare_program_checking(
             &input,

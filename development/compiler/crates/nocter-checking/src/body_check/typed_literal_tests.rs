@@ -16,7 +16,7 @@ fn checked(source: &str) -> crate::CheckedProgramOutput {
     let fixture = Fixture::new(source);
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared).unwrap()
@@ -51,7 +51,7 @@ fn checked_with_iteration_standard(
     let input = fixture.input(false);
     let input = with_standard_roles(input, roles);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared)
@@ -254,7 +254,7 @@ construct Vec<T> {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();
@@ -690,7 +690,7 @@ func values(allocator: &+Allocator): Vec<i32> {
     let input = fixture.input(false);
     let input = with_standard_roles(input, vec![role]);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -744,7 +744,7 @@ func values(allocator: &+Untrusted): Vec<i32> {
     let input = fixture.input(false);
     let input = with_standard_roles(input, vec![role]);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let error = check_prepared_program(&input, prepared).unwrap_err();

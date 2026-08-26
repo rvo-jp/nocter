@@ -26,6 +26,32 @@ use nocter_target_selection::{TargetSelection, TargetSelectionError};
 pub(crate) type SourceVisibilityResolutionKey = (SourceId, usize);
 pub(crate) type UseResolutionKey = (SourceId, usize);
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UseScope {
+    Module,
+    Block,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PreparedUseResolution<'input> {
+    input: &'input UseResolutionInput,
+    scope: UseScope,
+}
+
+impl PreparedUseResolution<'_> {
+    pub(crate) const fn declaration(self) -> NodeId {
+        self.input.declaration()
+    }
+
+    pub(crate) const fn target_module(&self) -> &ModuleIdentity {
+        self.input.target_module()
+    }
+
+    pub(crate) const fn scope(self) -> UseScope {
+        self.scope
+    }
+}
+
 #[derive(Debug)]
 pub struct LoweredDeclarations {
     program: AcceptedDeclarationProgram,
@@ -113,10 +139,8 @@ impl LoweredDeclarations {
     #[must_use]
     pub fn into_checking_parts(
         self,
-        input: &CompileUnitInput<'_>,
     ) -> (AcceptedDeclarationProgram, FrontendBindings, SourceIndex) {
-        let bindings = crate::frontend_projection::add_block_imports(input, self.frontend_bindings);
-        (self.program, bindings, self.source_index)
+        (self.program, self.frontend_bindings, self.source_index)
     }
 }
 
@@ -401,7 +425,7 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
     pub(crate) source_visibility_resolutions:
         BTreeMap<SourceVisibilityResolutionKey, &'input SourceVisibilityResolutionInput>,
-    pub(crate) use_resolutions: BTreeMap<UseResolutionKey, &'input UseResolutionInput>,
+    pub(crate) use_resolutions: BTreeMap<UseResolutionKey, PreparedUseResolution<'input>>,
     pub(crate) package_target_resolutions: Vec<&'input crate::PackageTargetResolutionInput>,
     pub(crate) target_selection: &'input TargetSelection,
 }
@@ -756,7 +780,7 @@ fn validate_use_resolutions<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
     modules: &[&'input ModuleInput<'syntax>],
     target_selection: &TargetSelection,
-) -> Result<BTreeMap<UseResolutionKey, &'input UseResolutionInput>, LoweringError> {
+) -> Result<BTreeMap<UseResolutionKey, PreparedUseResolution<'input>>, LoweringError> {
     let mut authored = BTreeMap::new();
     let mut source_owners = BTreeMap::new();
     let module_indices: BTreeMap<_, _> = modules
@@ -786,11 +810,21 @@ fn validate_use_resolutions<'input, 'syntax>(
             continue;
         }
         let key = resolution_key(declaration);
-        if resolved.insert(key, resolution).is_some() {
+        let (_, scope) = authored
+            .get(&key)
+            .copied()
+            .ok_or(LoweringError::InvalidUseResolution(declaration))?;
+        if resolved
+            .insert(
+                key,
+                PreparedUseResolution {
+                    input: resolution,
+                    scope,
+                },
+            )
+            .is_some()
+        {
             return Err(LoweringError::DuplicateUseResolution(declaration));
-        }
-        if !authored.contains_key(&key) {
-            return Err(LoweringError::InvalidUseResolution(declaration));
         }
         let importing_module = source_owners
             .get(&declaration.source())
@@ -806,7 +840,9 @@ fn validate_use_resolutions<'input, 'syntax>(
             .entry(target_index)
             .or_insert(declaration);
     }
-    if let Some((_, declaration)) = authored.iter().find(|(key, _)| !resolved.contains_key(key)) {
+    if let Some((_, (declaration, _))) =
+        authored.iter().find(|(key, _)| !resolved.contains_key(key))
+    {
         return Err(LoweringError::MissingUseResolution(*declaration));
     }
 
@@ -836,7 +872,7 @@ fn collect_source_visibility_nodes(
 fn collect_use_nodes(
     tree: &nocter_syntax::SyntaxTree,
     target_selection: &TargetSelection,
-    declarations: &mut BTreeMap<UseResolutionKey, NodeId>,
+    declarations: &mut BTreeMap<UseResolutionKey, (NodeId, UseScope)>,
 ) -> Result<(), LoweringError> {
     let mut pending = vec![tree.root_id()];
     while let Some(node) = pending.pop() {
@@ -851,7 +887,12 @@ fn collect_use_nodes(
             kind,
             NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
         ) {
-            declarations.insert(resolution_key(node), node);
+            let scope = if kind == NodeKind::BlockUseDeclaration {
+                UseScope::Block
+            } else {
+                UseScope::Module
+            };
+            declarations.insert(resolution_key(node), (node, scope));
         }
         for child in tree.children(node).iter().rev() {
             if let SyntaxElement::Node(child) = child {

@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use nocter_compile_input::CompileUnitInput;
 use nocter_frontend_bindings::{
-    AssociatedProjectionUse, FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration,
+    AssociatedProjectionUse, DuplicateBlockImport, FrontendBindings, FrontendBindingsBuilder,
+    FrontendDeclaration,
 };
 use nocter_model::{
     AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
@@ -12,7 +12,7 @@ use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex,
     SourceIndexBuilder, SourceOrigin, SourceRole,
 };
-use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
+use nocter_syntax::{NodeId, SyntaxToken};
 
 /// One lowering-owned write path that independently emits semantic checking bindings and the
 /// presentation index. Neither completed product is reconstructed from the other.
@@ -115,6 +115,14 @@ impl FrontendProjectionBuilder {
         Ok(())
     }
 
+    pub(crate) fn insert_block_import(
+        &mut self,
+        declaration: NodeId,
+        target: ModuleId,
+    ) -> Result<(), DuplicateBlockImport> {
+        self.bindings.add_block_import(declaration, target)
+    }
+
     pub(crate) fn define_declaration_site_source(
         &mut self,
         site: DeclarationSiteId,
@@ -198,43 +206,4 @@ const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticE
         nocter_declarations::ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
         nocter_declarations::ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
-}
-
-pub(crate) fn add_block_imports(
-    input: &CompileUnitInput<'_>,
-    bindings: FrontendBindings,
-) -> FrontendBindings {
-    let modules_by_identity = input
-        .modules()
-        .iter()
-        .filter_map(|module| {
-            module.sources().iter().find_map(|source| {
-                let source = source.syntax().source();
-                bindings
-                    .module_for_source(source)
-                    .map(|id| (module.identity(), id))
-            })
-        })
-        .collect::<HashMap<_, _>>();
-    let imports = input.use_resolutions().iter().filter_map(|resolution| {
-        let node = resolution.declaration();
-        let is_block = input.modules().iter().any(|module| {
-            module.sources().iter().any(|source| {
-                let tree = source.syntax();
-                tree.source() == node.source()
-                    && tree.node(node).map(nocter_syntax::SyntaxNode::kind)
-                        == Some(NodeKind::BlockUseDeclaration)
-            })
-        });
-        let identity = resolution.target_module();
-        is_block
-            .then(|| {
-                modules_by_identity
-                    .get(identity)
-                    .copied()
-                    .map(|module| (node, module))
-            })
-            .flatten()
-    });
-    bindings.with_block_imports(imports)
 }

@@ -70,7 +70,6 @@ pub(super) struct BodyNameResolver<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
     bindings: &'input FrontendBindings,
-    import_targets: &'input HashMap<NodeId, ModuleId>,
     source: BodySource<'syntax>,
     scopes: ArenaBuilder<BodyScopeId, BodyScope>,
     locals: ArenaBuilder<LocalBindingId, LocalBinding>,
@@ -89,14 +88,12 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         input: &'input CompileUnitInput<'syntax>,
         graph: &'input DeclarationGraph,
         bindings: &'input FrontendBindings,
-        import_targets: &'input HashMap<NodeId, ModuleId>,
         source: BodySource<'syntax>,
     ) -> Self {
         Self {
             input,
             graph,
             bindings,
-            import_targets,
             source,
             scopes: ArenaBuilder::new(),
             locals: ArenaBuilder::new(),
@@ -596,9 +593,8 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
     fn declare_block_import(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
         let target_module = self
-            .import_targets
-            .get(&node)
-            .copied()
+            .bindings
+            .block_import(node)
             .ok_or(NameResolutionInternalError::MissingUseResolution(node))?;
         let path = direct_node(self.tree(), node, NodeKind::ModulePath)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;

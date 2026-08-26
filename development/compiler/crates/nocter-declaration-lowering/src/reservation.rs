@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
+use nocter_frontend_bindings::DuplicateBlockImport;
 use nocter_model::{
     AssociatedTypeId, BuiltinType, CallableId, ConstantId, ConstructionId, DropId, InstanceId,
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
@@ -19,8 +20,9 @@ use crate::package_targets::{reserve_package_targets, reserve_single_file_target
 use crate::surface::SurfaceParts;
 use crate::{
     DeclarationContractError, DeclarationContracts, DeclarationSurface, ModuleIdentity,
-    ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceDeclaration,
-    SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceSource, SurfaceVisibility,
+    ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceBlockImport,
+    SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceSource,
+    SurfaceVisibility,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -120,6 +122,7 @@ pub enum ReservationError {
     Program(ProgramBuildError),
     DuplicateSourceBinding(DuplicateSourceBinding),
     DuplicateDocumentation(DuplicateDocumentation),
+    DuplicateBlockImport(DuplicateBlockImport),
     MissingSymbol(Box<str>),
     UnknownPackage(ModuleIdentity),
     UnknownRootPackage(crate::PackageIdentity),
@@ -139,6 +142,7 @@ impl fmt::Display for ReservationError {
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::DuplicateDocumentation(error) => error.fmt(formatter),
+            Self::DuplicateBlockImport(error) => error.fmt(formatter),
             Self::MissingSymbol(spelling) => {
                 write!(formatter, "canonical symbol table is missing {spelling}")
             }
@@ -204,6 +208,12 @@ impl From<DuplicateSourceBinding> for ReservationError {
 impl From<DuplicateDocumentation> for ReservationError {
     fn from(error: DuplicateDocumentation) -> Self {
         Self::DuplicateDocumentation(error)
+    }
+}
+
+impl From<DuplicateBlockImport> for ReservationError {
+    fn from(error: DuplicateBlockImport) -> Self {
+        Self::DuplicateBlockImport(error)
     }
 }
 
@@ -354,6 +364,7 @@ pub(crate) fn reserve_with_contracts(
         sources,
         source_visibilities,
         imports,
+        block_imports,
         package_target_resolutions,
         declarations,
     } = surface.into_parts();
@@ -371,6 +382,7 @@ pub(crate) fn reserve_with_contracts(
         .collect::<Result<Vec<_>, _>>()?;
     program.set_root_packages(semantic_roots)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
+    project_block_imports(&block_imports, &module_ids, &mut source_index)?;
     reserve_single_file_targets(
         &packages,
         &sources,
@@ -531,6 +543,20 @@ fn reserve_modules(
         );
     }
     Ok(ids)
+}
+
+fn project_block_imports(
+    imports: &[SurfaceBlockImport],
+    modules: &BTreeMap<ModuleIdentity, ModuleId>,
+    projection: &mut crate::frontend_projection::FrontendProjectionBuilder,
+) -> Result<(), ReservationError> {
+    for import in imports {
+        let target = *modules
+            .get(import.target())
+            .ok_or_else(|| ReservationError::UnknownModule(import.target().clone()))?;
+        projection.insert_block_import(import.node(), target)?;
+    }
+    Ok(())
 }
 
 fn project_sources(

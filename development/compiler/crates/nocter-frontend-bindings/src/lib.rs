@@ -5,6 +5,7 @@
 //! and editor features.
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 
 use nocter_model::{
     AssociatedTypeId, BodyId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId,
@@ -89,6 +90,46 @@ pub struct AssociatedProjectionUse {
     origin: SyntaxOrigin,
 }
 
+/// Conflicting targets projected for one authored block import.
+///
+/// Import resolution owns this decision. A conflict therefore indicates an inconsistent
+/// lowering transaction rather than an authored namespace error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DuplicateBlockImport {
+    declaration: NodeId,
+    existing: ModuleId,
+    duplicate: ModuleId,
+}
+
+impl DuplicateBlockImport {
+    #[must_use]
+    pub const fn declaration(self) -> NodeId {
+        self.declaration
+    }
+
+    #[must_use]
+    pub const fn existing(self) -> ModuleId {
+        self.existing
+    }
+
+    #[must_use]
+    pub const fn duplicate(self) -> ModuleId {
+        self.duplicate
+    }
+}
+
+impl fmt::Display for DuplicateBlockImport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "block import {:?} resolves to both {:?} and {:?}",
+            self.declaration, self.existing, self.duplicate
+        )
+    }
+}
+
+impl std::error::Error for DuplicateBlockImport {}
+
 impl AssociatedProjectionUse {
     #[must_use]
     pub const fn new(base: TypeId, associated: AssociatedTypeId, origin: SyntaxOrigin) -> Self {
@@ -132,11 +173,6 @@ impl FrontendBindings {
     #[must_use]
     pub fn module_sources(&self, module: ModuleId) -> Option<&[SourceId]> {
         self.module_sources.get(&module).map(AsRef::as_ref)
-    }
-
-    #[must_use]
-    pub fn module_for_source(&self, source: SourceId) -> Option<ModuleId> {
-        self.source_access.module_for_source(source).ok()
     }
 
     #[must_use]
@@ -188,15 +224,6 @@ impl FrontendBindings {
     pub const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
-
-    #[must_use]
-    pub fn with_block_imports(
-        mut self,
-        imports: impl IntoIterator<Item = (NodeId, ModuleId)>,
-    ) -> Self {
-        self.block_imports.extend(imports);
-        self
-    }
 }
 
 /// Sole construction authority for [`FrontendBindings`].
@@ -207,6 +234,7 @@ pub struct FrontendBindingsBuilder {
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
+    block_imports: HashMap<NodeId, ModuleId>,
     source_namespaces: HashMap<SourceId, SourceNamespaceBuilder>,
     source_access: SourceAccessTableBuilder,
 }
@@ -248,6 +276,29 @@ impl FrontendBindingsBuilder {
 
     pub fn add_associated_projection_use(&mut self, projection: AssociatedProjectionUse) {
         self.associated_projection_uses.push(projection);
+    }
+
+    /// Records the semantic target selected for one block import.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateBlockImport`] when the declaration already has a target.
+    pub fn add_block_import(
+        &mut self,
+        declaration: NodeId,
+        target: ModuleId,
+    ) -> Result<(), DuplicateBlockImport> {
+        match self.block_imports.entry(declaration) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(target);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => Err(DuplicateBlockImport {
+                declaration,
+                existing: *entry.get(),
+                duplicate: target,
+            }),
+        }
     }
 
     pub fn define_source_namespace(
@@ -364,7 +415,7 @@ impl FrontendBindingsBuilder {
                     .collect(),
             },
             source_access: self.source_access.finish(),
-            block_imports: HashMap::new(),
+            block_imports: self.block_imports,
         }
     }
 }

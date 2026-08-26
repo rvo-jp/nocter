@@ -6,8 +6,6 @@ use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::TypeStore;
 use nocter_source_index::SourceIndex;
 
-use crate::CompileUnitInput;
-
 /// Source-projected declaration facts retained after an authored declaration rule rejects source.
 ///
 /// The snapshot contains no accepted declaration program, builder, or production transition. It
@@ -92,28 +90,20 @@ impl DeclarationLoweringRecovery {
         (graph, types, self.source_index)
     }
 
-    /// Opens the editor-only declaration-to-body analysis boundary. Block imports are projected
-    /// exactly as they are for accepted declarations; the returned program cannot enter the
-    /// production checking API.
+    /// Opens the editor-only declaration-to-body analysis boundary. The returned program cannot
+    /// enter the production checking API.
     #[must_use]
-    pub fn into_checking_transition(
-        self,
-        input: &CompileUnitInput<'_>,
-    ) -> DeclarationCheckingTransition {
+    pub fn into_checking_transition(self) -> DeclarationCheckingTransition {
         match self {
             Self {
                 program: DeclarationRecoveryProgram::Bodies(program),
                 frontend_bindings,
                 source_index,
-            } => {
-                let bindings =
-                    crate::frontend_projection::add_block_imports(input, frontend_bindings);
-                DeclarationCheckingTransition::Bodies(Box::new(DeclarationBodyAnalysisInput {
-                    program,
-                    frontend_bindings: bindings,
-                    source_index,
-                }))
-            }
+            } => DeclarationCheckingTransition::Bodies(Box::new(DeclarationBodyAnalysisInput {
+                program,
+                frontend_bindings,
+                source_index,
+            })),
             recovery => DeclarationCheckingTransition::Declarations(Box::new(recovery)),
         }
     }

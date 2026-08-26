@@ -19,7 +19,7 @@ pub(crate) fn lower_tests(source: &str) -> MachineProgram {
 fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (declarations, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (declarations, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, declarations, &frontend_bindings, source_index).unwrap();
     let checked = check_prepared_program(&input, prepared)

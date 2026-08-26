@@ -332,7 +332,7 @@ mod tests {
                 prelude_identity.clone(),
             ));
             let lowered = lower_compile_unit_declarations(&input).unwrap();
-            let (program, bindings, _) = lowered.into_checking_parts(&input);
+            let (program, bindings, _) = lowered.into_checking_parts();
             let catalog = catalog_body_sources(&input, program.graph(), &bindings).unwrap();
             assert_eq!(catalog.len(), 2);
             assert!(!catalog.is_empty());
@@ -410,7 +410,7 @@ mod tests {
             prelude_identity,
         ));
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, _, _) = lowered.into_checking_parts(&input);
+        let (program, _, _) = lowered.into_checking_parts();
         let error = catalog_body_sources(
             &input,
             program.graph(),

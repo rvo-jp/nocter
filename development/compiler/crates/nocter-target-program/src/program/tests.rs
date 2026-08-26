@@ -22,7 +22,7 @@ fn complete_closed_registry_constructs_a_target_program() {
     let fixture = Fixture::new();
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -48,7 +48,7 @@ fn target_rejection_returns_the_unchanged_checked_program() {
     let fixture = Fixture::with_app("func main(): void { return }\n");
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -514,7 +514,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
     let fixture = Fixture::new();
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
@@ -560,7 +560,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
 fn build_target_program(fixture: &Fixture) -> TargetProgram {
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();

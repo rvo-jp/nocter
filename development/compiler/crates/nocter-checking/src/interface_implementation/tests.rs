@@ -17,7 +17,7 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let table =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -81,7 +81,7 @@ fn interface_implementation_method_failures_have_distinct_rules() {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
         let (graph, mut types, _admission) = program.into_parts();
         let error = build_interface_implementation_table(
             &graph,
@@ -108,7 +108,7 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
     ));
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -137,7 +137,7 @@ fn exact_overlap_diagnostic_is_input_order_independent() {
     for reverse in [false, true] {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
         let (graph, mut types, _admission) = program.into_parts();
         diagnostics.push(
             build_interface_implementation_table(
@@ -162,7 +162,7 @@ fn refined_pattern_overlaps_a_general_generic_pattern() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -178,7 +178,7 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let table =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -213,7 +213,7 @@ fn associated_type_bounds_use_the_same_interface_implementation_table() {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
-        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
         let (graph, mut types, _admission) = program.into_parts();
 
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -228,7 +228,7 @@ fn unsatisfied_associated_type_bound_has_its_own_rule() {
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
     let (graph, mut types, _admission) = program.into_parts();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
