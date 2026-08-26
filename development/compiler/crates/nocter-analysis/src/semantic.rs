@@ -115,7 +115,10 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let module = authority.source_ownership().module_for_source(source)?;
-        let Some(presentation) = authority.presentation(binding.entity(), module, index, source)?
+        let spellings = self
+            .queries
+            .source_spellings(authority.graph(), module, index, source);
+        let Some(presentation) = authority.presentation(binding.entity(), &spellings, source)?
         else {
             return Ok(None);
         };
@@ -273,41 +276,17 @@ impl<'a> SemanticAuthority<'a> {
     fn presentation(
         &self,
         entity: SemanticEntity,
-        from: nocter_model::ModuleId,
-        source_index: &nocter_source_index::SourceIndex,
+        spellings: &crate::presentation::visible_spelling::VisibleSpellings,
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, PresentationError> {
         match self {
             Self::Checked { checked, .. } => {
-                hover_presentation(checked, entity, from, source_index, source).map(Some)
+                hover_presentation(checked, entity, spellings, source).map(Some)
             }
-            Self::Bodies(analysis) => {
-                let prepared = analysis.prepared();
-                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
-                    prepared.graph(),
-                    from,
-                    source_index,
-                    source,
-                );
-                Ok(body_recovery_presentation(analysis, entity, &spellings))
-            }
-            Self::Names(recovery) => {
-                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
-                    recovery.graph(),
-                    from,
-                    source_index,
-                    source,
-                );
-                Ok(name_recovery_presentation(recovery, entity, &spellings))
-            }
+            Self::Bodies(analysis) => Ok(body_recovery_presentation(analysis, entity, spellings)),
+            Self::Names(recovery) => Ok(name_recovery_presentation(recovery, entity, spellings)),
             Self::Declarations(recovery) => {
-                let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
-                    recovery.graph(),
-                    from,
-                    source_index,
-                    source,
-                );
-                Ok(declaration_presentation(recovery, entity, &spellings))
+                Ok(declaration_presentation(recovery, entity, spellings))
             }
         }
     }

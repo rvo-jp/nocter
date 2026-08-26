@@ -107,12 +107,15 @@ pub(super) fn missing_method_action(
     let Some(context) = context else {
         return Ok(None);
     };
+    let spellings = snapshot
+        .queries
+        .module_spellings(context.recovery.graph(), context.module);
     let mut signatures = Vec::with_capacity(missing.required().len());
     for required in missing.required() {
         let presentation = required_interface_implementation_method_presentation(
             context.recovery,
             required,
-            context.module,
+            &spellings,
         )
         .ok_or(InterfaceImplementationActionError::MissingMethodName(
             required.interface_method(),

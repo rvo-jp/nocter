@@ -24,6 +24,7 @@ mod highlights;
 mod inlay_hints;
 mod navigation;
 mod presentation;
+mod query_session;
 mod rename;
 mod semantic;
 mod signature;
@@ -89,45 +90,6 @@ struct CurrentAnalysis {
     authority: CurrentSemanticAuthority,
 }
 
-#[derive(Debug, Default)]
-struct AnalysisQuerySession {
-    checked_members: nocter_checking::MemberCompletionQuerySession,
-    interrupted_members: Box<[nocter_checking::MemberCompletionQuerySession]>,
-}
-
-impl AnalysisQuerySession {
-    fn for_state(state: &AnalysisState) -> Self {
-        let interruption_count = match state {
-            AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::Semantic(semantic),
-                ..
-            }) => semantic
-                .bodies()
-                .map_or(0, |recovery| recovery.interruptions().len()),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),
-                ..
-            }) => 0,
-        };
-        Self {
-            checked_members: nocter_checking::MemberCompletionQuerySession::default(),
-            interrupted_members: std::iter::repeat_with(
-                nocter_checking::MemberCompletionQuerySession::default,
-            )
-            .take(interruption_count)
-            .collect(),
-        }
-    }
-
-    fn interrupted_members(
-        &self,
-        index: usize,
-    ) -> Option<&nocter_checking::MemberCompletionQuerySession> {
-        self.interrupted_members.get(index)
-    }
-}
-
 #[derive(Debug)]
 enum CurrentAnalysisFailure {
     Syntax(Option<CompileSessionError>),
@@ -185,7 +147,7 @@ pub struct AnalysisSnapshot {
     generation: GenerationId,
     diagnostics: Box<[SourceDiagnostic]>,
     state: AnalysisState,
-    queries: AnalysisQuerySession,
+    queries: query_session::AnalysisQuerySession,
 }
 
 impl AnalysisSnapshot {
@@ -204,7 +166,7 @@ impl AnalysisSnapshot {
         Self {
             generation,
             diagnostics,
-            queries: AnalysisQuerySession::for_state(&state),
+            queries: query_session::AnalysisQuerySession::for_state(&state),
             state,
         }
     }
@@ -231,7 +193,7 @@ impl AnalysisSnapshot {
             return Self {
                 generation,
                 diagnostics: diagnostics.into_boxed_slice(),
-                queries: AnalysisQuerySession::for_state(&state),
+                queries: query_session::AnalysisQuerySession::for_state(&state),
                 state,
             };
         }
@@ -241,7 +203,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics: Box::new([]),
-                    queries: AnalysisQuerySession::for_state(&state),
+                    queries: query_session::AnalysisQuerySession::for_state(&state),
                     state,
                 }
             }
@@ -253,7 +215,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics,
-                    queries: AnalysisQuerySession::for_state(&state),
+                    queries: query_session::AnalysisQuerySession::for_state(&state),
                     state,
                 }
             }

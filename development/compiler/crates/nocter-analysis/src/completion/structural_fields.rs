@@ -3,7 +3,7 @@ use nocter_checking::{
     StructuralFieldCompletionCandidate, StructuralFieldCompletionError,
 };
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{FieldId, ModuleId};
+use nocter_model::FieldId;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex};
 use nocter_syntax::{NodeKind, SyntaxTree};
@@ -20,7 +20,7 @@ pub(super) fn checked_completions(
     trees: &[SyntaxTree],
     source: SourceId,
     offset: ByteOffset,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, StructuralFieldCompletionError> {
     let Some(context_range) = containing_initializer(trees, source, offset) else {
         return Ok(None);
@@ -47,12 +47,11 @@ pub(super) fn checked_completions(
     };
     let used_fields = fields.iter().map(|(field, _)| *field).collect::<Vec<_>>();
     let candidates = program.structural_field_completions(definition, source, &used_fields)?;
-    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
         |field| {
-            presentation(program, SemanticEntity::Field(field), &spellings)
+            presentation(program, SemanticEntity::Field(field), spellings)
                 .map(|value| Box::<str>::from(value.code()))
         },
     )))

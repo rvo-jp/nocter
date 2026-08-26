@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
-use nocter_model::ModuleId;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
@@ -154,7 +153,9 @@ impl AnalysisSnapshot {
             authority,
             index,
             source,
-            module,
+            spellings: self
+                .queries
+                .source_spellings(authority.graph(), module, index, source),
             syntax,
             requested,
         };
@@ -170,7 +171,7 @@ struct InlayContext<'a> {
     authority: SemanticAuthority<'a>,
     index: &'a SourceIndex,
     source: SourceId,
-    module: ModuleId,
+    spellings: std::sync::Arc<crate::presentation::visible_spelling::VisibleSpellings>,
     syntax: &'a SyntaxTree,
     requested: TextRange,
 }
@@ -178,12 +179,6 @@ struct InlayContext<'a> {
 impl InlayContext<'_> {
     fn local_type_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
         let annotated = annotated_binding_targets(self.syntax);
-        let spellings = crate::presentation::visible_spelling::VisibleSpellings::for_source(
-            self.authority.graph(),
-            self.module,
-            self.index,
-            self.source,
-        );
         let mut hints = Vec::new();
         for binding in self.index.bindings_in(self.source) {
             if binding.role() != SourceRole::Declaration
@@ -211,7 +206,7 @@ impl InlayContext<'_> {
                 self.authority.graph(),
                 self.authority.types(),
                 checked_local.ty(),
-                &spellings,
+                &self.spellings,
             )
             .ok_or(SemanticInlayHintError::UnrenderableType(entity))?;
             hints.push(SemanticInlayHint {

@@ -256,9 +256,12 @@ impl AnalysisSnapshot {
         };
         let index = program.source_index();
         let module = program.source_ownership().module_for_source(source)?;
+        let spellings = self
+            .queries
+            .source_spellings(program.graph(), module, index, source);
         if let Some(checked) = program.checked() {
             if let Some(completions) =
-                associated_types::checked_completions(checked, index, source, offset, module)?
+                associated_types::checked_completions(checked, source, offset, &spellings)?
             {
                 return Ok(completions);
             }
@@ -268,7 +271,7 @@ impl AnalysisSnapshot {
                 self.syntax_trees(),
                 source,
                 offset,
-                module,
+                &spellings,
             )? {
                 return Ok(completions);
             }
@@ -278,12 +281,12 @@ impl AnalysisSnapshot {
                 self.syntax_trees(),
                 source,
                 offset,
-                module,
+                &spellings,
             )? {
                 return Ok(completions);
             }
             if let Some(completions) =
-                construction::checked_completions(checked, index, source, offset, module)?
+                construction::checked_completions(checked, index, source, offset, &spellings)?
             {
                 return Ok(completions);
             }
@@ -293,13 +296,13 @@ impl AnalysisSnapshot {
                 index,
                 source,
                 offset,
-                module,
+                &spellings,
             )? {
                 return Ok(completions);
             }
         }
         if let Some(completions) =
-            interrupted_completions(program, &self.queries, source, offset, module)?
+            interrupted_completions(program, &self.queries, source, offset, &spellings)?
         {
             return Ok(completions);
         }
@@ -308,7 +311,6 @@ impl AnalysisSnapshot {
         if let Some((body, scope)) = containing_scope(index, source, offset) {
             add_scope_candidates(program, index, source, offset, body, scope, &mut candidates);
         }
-        let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
         let automatic_imports =
             automatic_imports::completions(self, program, source, module, &candidates)?;
         let mut completions = candidates
@@ -333,10 +335,10 @@ impl AnalysisSnapshot {
 
 fn interrupted_completions(
     authority: SemanticAuthority<'_>,
-    queries: &crate::AnalysisQuerySession,
+    queries: &crate::query_session::AnalysisQuerySession,
     source: SourceId,
     offset: ByteOffset,
-    module: nocter_model::ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
     let Some(recovery) = authority.body_analysis() else {
         return Ok(None);
@@ -346,9 +348,6 @@ fn interrupted_completions(
     else {
         return Ok(None);
     };
-    let index = recovery.source_index();
-    let spellings =
-        VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
             let Some(session) = queries.interrupted_members(interruption_index) else {
@@ -372,7 +371,7 @@ fn interrupted_completions(
                         let (kind, entity) = completion_target(candidate.target());
                         let detail = entity
                             .and_then(|entity| {
-                                prepared_presentation(recovery.prepared(), entity, &spellings)
+                                prepared_presentation(recovery.prepared(), entity, spellings)
                             })
                             .map(|presentation| Box::<str>::from(presentation.code()));
                         Some(SemanticCompletion::new(label, kind, detail))
@@ -390,7 +389,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(construction::render_prepared_completions(
                 recovery.prepared(),
-                &spellings,
+                spellings,
                 &candidates,
             )))
         }
@@ -403,7 +402,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(structural_fields::render_prepared_completions(
                 recovery.prepared(),
-                &spellings,
+                spellings,
                 &candidates,
             )))
         }
@@ -416,7 +415,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(enum_patterns::render_prepared_completions(
                 recovery.prepared(),
-                &spellings,
+                spellings,
                 &candidates,
             )))
         }
@@ -428,7 +427,7 @@ fn interrupted_completions(
             let candidates = candidates?;
             Ok(Some(associated_types::render_prepared_completions(
                 recovery.prepared(),
-                &spellings,
+                spellings,
                 &candidates,
             )?))
         }
@@ -442,7 +441,7 @@ fn checked_member_completions(
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
-    module: nocter_model::ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
     let member_range = select_source_binding(index.bindings_in(source), |binding| {
         binding.role() == SourceRole::Reference
@@ -486,7 +485,6 @@ fn checked_member_completions(
         session,
         MemberCompletionContext::new(body_id, source, receiver_type, available, owned),
     )?;
-    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(
         candidates
             .iter()
@@ -494,7 +492,7 @@ fn checked_member_completions(
                 let label = program.graph().symbols().spelling(candidate.name())?;
                 let (kind, entity) = completion_target(candidate.target());
                 let detail = entity
-                    .and_then(|entity| presentation(program, entity, &spellings))
+                    .and_then(|entity| presentation(program, entity, spellings))
                     .map(|presentation| Box::<str>::from(presentation.code()));
                 Some(SemanticCompletion::new(label, kind, detail))
             })

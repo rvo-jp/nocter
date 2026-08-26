@@ -3,9 +3,9 @@ use nocter_checking::{
     PreparedSemanticProgram,
 };
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{AssociatedTypeId, ModuleId};
+use nocter_model::AssociatedTypeId;
 use nocter_source::{ByteOffset, SourceId};
-use nocter_source_index::{SemanticEntity, SourceIndex};
+use nocter_source_index::SemanticEntity;
 
 use super::{SemanticCompletion, SemanticCompletionKind};
 use crate::presentation::visible_spelling::VisibleSpellings;
@@ -13,10 +13,9 @@ use crate::presentation::{prepared_presentation, presentation};
 
 pub(super) fn checked_completions(
     program: &CheckedProgram,
-    index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, AssociatedTypeCompletionError> {
     let selected = program
         .associated_type_completion_contexts()
@@ -30,7 +29,6 @@ pub(super) fn checked_completions(
         return Ok(None);
     };
     let candidates = program.associated_type_completions(context.candidates())?;
-    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
@@ -38,7 +36,7 @@ pub(super) fn checked_completions(
             presentation(
                 program,
                 SemanticEntity::AssociatedType(associated),
-                &spellings,
+                spellings,
             )
             .map(|value| Box::<str>::from(value.code()))
         },

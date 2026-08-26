@@ -17,7 +17,7 @@ pub(super) fn checked_completions(
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
-    module: nocter_model::ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
     let mut candidates = Vec::new();
     for binding in index.bindings_in(source) {
@@ -49,10 +49,9 @@ pub(super) fn checked_completions(
     };
     let owner = program.construction_completion_owner(target)?;
     let candidates = program.construction_completions(owner, source)?;
-    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_checked_completions(
         program,
-        &spellings,
+        spellings,
         &candidates,
     )))
 }

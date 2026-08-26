@@ -10,6 +10,7 @@ use nocter_source_index::{SemanticEntity, SourceIndex};
 /// The complete view is derived once per editor query context. Rendering nested types or a batch
 /// of completion details therefore does not repeatedly traverse the module graph, and all related
 /// presentations use the same deterministic alias choice.
+#[derive(Debug)]
 pub(crate) struct VisibleSpellings {
     by_entity: HashMap<ExportedEntity, Box<[Symbol]>>,
 }

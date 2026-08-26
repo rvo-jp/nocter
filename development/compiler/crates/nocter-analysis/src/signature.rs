@@ -4,7 +4,6 @@ use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use crate::AnalysisSnapshot;
-use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
@@ -71,7 +70,9 @@ impl AnalysisSnapshot {
         };
         let index = authority.source_index();
         let from = authority.source_ownership().module_for_source(source)?;
-        let spellings = VisibleSpellings::for_source(authority.graph(), from, index, source);
+        let spellings = self
+            .queries
+            .source_spellings(authority.graph(), from, index, source);
         let Some((body_id, call)) =
             select_source_candidates(index.bindings_in(source).filter_map(|binding| {
                 let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {

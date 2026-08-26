@@ -10,7 +10,6 @@ use nocter_syntax::{CommentKind, NodeKind, SyntaxElement, SyntaxTree};
 
 use super::{Candidate, SemanticCompletion, SemanticCompletionEdit, exported_candidate};
 use crate::AnalysisSnapshot;
-use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::semantic::SemanticAuthority;
 
 /// Inconsistency while deriving an importable name and its source edit.
@@ -93,7 +92,7 @@ pub(super) fn completions(
         .find(|tree| tree.source() == source)
         .ok_or(AutomaticImportError::SyntaxUnavailable(source))?;
     let insertion = ImportInsertion::new(source_file, syntax);
-    let spellings = VisibleSpellings::new(graph, module);
+    let spellings = snapshot.queries.module_spellings(graph, module);
     let cycle_sources = modules_reaching(graph, unit, module)?;
     let mut emitted = BTreeSet::new();
     let mut completions = Vec::new();

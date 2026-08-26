@@ -3,7 +3,7 @@ use nocter_checking::{
     PreparedSemanticProgram,
 };
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{ModuleId, NominalTypeId, VariantId};
+use nocter_model::{NominalTypeId, VariantId};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex};
 use nocter_syntax::{NodeKind, SyntaxTree};
@@ -19,7 +19,7 @@ pub(super) fn checked_completions(
     trees: &[SyntaxTree],
     source: SourceId,
     offset: ByteOffset,
-    module: ModuleId,
+    spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, EnumPatternCompletionError> {
     let Some(pattern) = containing_pattern(trees, source, offset) else {
         return Ok(None);
@@ -38,12 +38,11 @@ pub(super) fn checked_completions(
     };
     let definition = variant_owner(program.graph(), variant)?;
     let candidates = program.enum_pattern_completions(definition, source)?;
-    let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(render_completions(
         program.graph(),
         &candidates,
         |variant| {
-            presentation(program, SemanticEntity::Variant(variant), &spellings)
+            presentation(program, SemanticEntity::Variant(variant), spellings)
                 .map(|value| Box::<str>::from(value.code()))
         },
     )))

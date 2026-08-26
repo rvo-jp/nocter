@@ -99,10 +99,9 @@ pub(super) fn type_presentation_with_spellings(
 pub(super) fn recovery_type_presentation(
     projection: &nocter_model::TypeProjection,
     graph: &DeclarationGraph,
-    from: nocter_model::ModuleId,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let spellings = visible_spelling::VisibleSpellings::new(graph, from);
-    let mut renderer = Renderer::new(graph, projection.types(), &spellings);
+    let mut renderer = Renderer::new(graph, projection.types(), spellings);
     renderer.ty(projection.root())?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -112,15 +111,12 @@ pub(super) fn recovery_type_presentation(
 pub(super) fn hover_presentation(
     checked: &CheckedProgram,
     entity: SemanticEntity,
-    from: nocter_model::ModuleId,
-    source_index: &nocter_source_index::SourceIndex,
+    spellings: &visible_spelling::VisibleSpellings,
     source: nocter_source::SourceId,
 ) -> Result<SemanticPresentation, PresentationError> {
     let graph = checked.graph();
-    let spellings =
-        visible_spelling::VisibleSpellings::for_source(graph, from, source_index, source);
     let source_access = checked.source_access_context(source)?;
-    let mut renderer = Renderer::new(graph, checked.types(), &spellings);
+    let mut renderer = Renderer::new(graph, checked.types(), spellings);
     renderer
         .entity(Some(checked), entity)
         .ok_or(PresentationError::InvalidEntity(entity))?;
@@ -205,10 +201,9 @@ pub(super) fn declaration_presentation(
 pub(super) fn required_interface_implementation_method_presentation(
     recovery: &nocter_checking::DeclarationAnalysisRecovery,
     required: &RequiredInterfaceImplementationMethod,
-    from: nocter_model::ModuleId,
+    spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let spellings = visible_spelling::VisibleSpellings::new(recovery.graph(), from);
-    let mut renderer = Renderer::new(recovery.graph(), recovery.types(), &spellings);
+    let mut renderer = Renderer::new(recovery.graph(), recovery.types(), spellings);
     renderer.required_interface_implementation_method(required)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
