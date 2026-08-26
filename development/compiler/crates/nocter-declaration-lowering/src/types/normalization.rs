@@ -16,7 +16,7 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDecla
 use super::normalization_origins::NormalizationOrigins;
 use super::{
     BoundInterfaceApplication, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
-    PreparedTypeBindings,
+    PreparedTypeBindings, TypeBindingRule, TypeBindingViolation,
 };
 
 mod preparation;
@@ -64,6 +64,7 @@ impl NormalizedOpaqueResult {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeNormalizationError {
     Rule(TypeNormalizationViolation),
+    RequirementRule(TypeBindingViolation),
     InvalidBoundType(BoundTypeId),
     InconsistentTypeStore,
     MissingInterfaceApplicationContext(NodeId),
@@ -76,6 +77,12 @@ impl fmt::Display for TypeNormalizationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rule(violation) => write!(
+                formatter,
+                "{}: {}",
+                violation.rule().code(),
+                violation.rule().message()
+            ),
+            Self::RequirementRule(violation) => write!(
                 formatter,
                 "{}: {}",
                 violation.rule().code(),
@@ -918,8 +925,30 @@ pub fn normalize_header_types(
     for (index, bound) in context.bound_requirements.iter().enumerate() {
         let declaration = SurfaceDeclarationId::from_index(index);
         let mut normalized = Vec::with_capacity(bound.len());
-        for requirement in bound {
-            let requirement = normalize_requirement(&mut evaluator, declaration, requirement)?;
+        let mut interface_requirements = HashMap::new();
+        for bound_requirement in bound {
+            let requirement =
+                normalize_requirement(&mut evaluator, declaration, bound_requirement)?;
+            if let (
+                BoundRequirementKind::Interface { origin, .. },
+                RequirementKind::Interface {
+                    subject,
+                    application,
+                    ..
+                },
+            ) = (bound_requirement, &requirement)
+            {
+                let key = (*subject, application.clone());
+                if let Some(first) = interface_requirements.insert(key, *origin) {
+                    return Err(TypeNormalizationError::RequirementRule(
+                        TypeBindingViolation::duplicate(
+                            TypeBindingRule::DuplicateInterfaceRequirement,
+                            first,
+                            *origin,
+                        ),
+                    ));
+                }
+            }
             normalized.push(requirement);
         }
         requirements.push(normalized.into_boxed_slice());
@@ -1015,6 +1044,7 @@ fn normalize_requirement(
             subject,
             application,
             associated_types,
+            ..
         } => RequirementKind::Interface {
             subject: *subject,
             application: normalize_interface_application(evaluator, declaration, application)?,
@@ -1082,6 +1112,7 @@ fn normalize_requirement(
         BoundRequirementKind::BinderRefinement {
             parameter,
             replacement,
+            ..
         } => RequirementKind::BinderRefinement {
             parameter: *parameter,
             replacement: evaluator.normalize(*replacement, declaration)?,

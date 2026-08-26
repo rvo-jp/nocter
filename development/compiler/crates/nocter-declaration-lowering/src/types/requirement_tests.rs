@@ -74,6 +74,7 @@ fn assert_requirement_families(bound: &PreparedTypeBindings<'_>) {
             subject: RequirementSubject::AssociatedType(_),
             application: BoundInterfaceApplication { arguments, .. },
             associated_types,
+            ..
         }] if arguments.len() == 1
             && associated_types.is_empty()
     ));
@@ -275,10 +276,10 @@ fn rejects_repeated_requirement_identities_before_declaration_freezing() {
         ),
         (
             concat!(
-                "interface Source {}\n",
-                "func invalid<T>(): void where T impl Source, T impl Source { return }\n",
+                "struct Box<T> {}\n",
+                "instance Box<T> where T = i32, T = u32 {}\n",
             ),
-            crate::TypeBindingRule::DuplicateInterfaceRequirement,
+            crate::TypeBindingRule::DuplicateBinderRefinement,
         ),
     ];
 

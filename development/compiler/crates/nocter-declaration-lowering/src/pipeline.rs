@@ -385,6 +385,14 @@ fn normalize_types<'syntax>(
                 )),
             }
         }
+        Err(TypeNormalizationError::RequirementRule(violation)) => {
+            match TypeBindingDiagnostic::project(violation, input) {
+                Ok(diagnostic) => Err(DeclarationLoweringError::TypeBinding(diagnostic)),
+                Err(internal) => Err(DeclarationLoweringError::InternalTypeNormalization(
+                    TypeNormalizationError::RequirementRule(internal),
+                )),
+            }
+        }
         Err(internal) => Err(DeclarationLoweringError::InternalTypeNormalization(
             internal,
         )),

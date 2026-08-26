@@ -252,6 +252,40 @@ fn rejects_recursive_alias_expansion() {
 }
 
 #[test]
+fn rejects_canonically_duplicate_interface_requirements() {
+    for source in [
+        concat!(
+            "interface Marker<T> {}\n",
+            "func invalid<T>(): void where T impl Marker<i32>, T impl Marker<i32> { return }\n",
+        ),
+        concat!(
+            "type Integer = i32\n",
+            "interface Marker<T> {}\n",
+            "func invalid<T>(): void where T impl Marker<Integer>, T impl Marker<i32> { return }\n",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (manifest, app, std_manifest, std_root, prelude) = fixture(&mut sources, source);
+        let error = normalized_app(
+            &sources,
+            &manifest,
+            &app,
+            &std_manifest,
+            &std_root,
+            &prelude,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            TypeNormalizationError::RequirementRule(violation)
+                if violation.rule() == crate::TypeBindingRule::DuplicateInterfaceRequirement
+                    && violation.related().is_some()
+        ));
+    }
+}
+
+#[test]
 fn duplicate_implementations_do_not_change_associated_declaration_identity() {
     let mut sources = SourceMap::new();
     let (manifest, app, std_manifest, std_root, prelude) = fixture(

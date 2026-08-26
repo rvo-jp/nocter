@@ -172,6 +172,8 @@ Source-backed declaration-header type diagnostics:
   parameter is primary and the first parameter is related.
 - `E0305`: a declaration repeats the same interface requirement for the same subject and type
   arguments. The later interface name is primary and the first name is related.
+- `E0306`: a declaration pattern repeats a binder refinement for the same generic parameter. The
+  later refinement is primary and the first refinement is related.
 
 These rules retain their exact name token, argument container, requirement, or duplicate pair when
 type binding selects the error. Diagnostic rendering does not search the syntax tree or repeat name

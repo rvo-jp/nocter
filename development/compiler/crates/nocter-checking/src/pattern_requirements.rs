@@ -36,6 +36,9 @@ impl PatternRequirements {
             }
         }
         refinements.sort_unstable_by_key(|(parameter, _)| *parameter);
+        if refinements.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(SubstitutionError::InvalidStore);
+        }
         Ok(Self {
             refinements: refinements.into_boxed_slice(),
             retained: retained.into_boxed_slice(),

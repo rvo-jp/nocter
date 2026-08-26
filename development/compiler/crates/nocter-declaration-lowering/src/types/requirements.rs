@@ -31,7 +31,7 @@ pub(super) fn bind_all(
 ) -> Result<Vec<BoundRequirementKind>, TypeBindingError> {
     let mut result = Vec::new();
     let mut copy_requirements = AuthoredUniqueness::default();
-    let mut interface_requirements = AuthoredUniqueness::default();
+    let mut refinement_requirements = AuthoredUniqueness::default();
     for container in requirement_containers(tree, root) {
         match tree.node(container).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::WhereClause) => {
@@ -47,7 +47,7 @@ pub(super) fn bind_all(
                         origins,
                         &mut result,
                         &mut copy_requirements,
-                        &mut interface_requirements,
+                        &mut refinement_requirements,
                     )?;
                 }
             }
@@ -79,10 +79,7 @@ fn bind_predicate(
     origins: &mut NormalizationOrigins,
     result: &mut Vec<BoundRequirementKind>,
     copy_requirements: &mut AuthoredUniqueness<GenericParameterId>,
-    interface_requirements: &mut AuthoredUniqueness<(
-        RequirementSubject,
-        BoundInterfaceApplication,
-    )>,
+    refinement_requirements: &mut AuthoredUniqueness<GenericParameterId>,
 ) -> Result<(), TypeBindingError> {
     match tree.node(predicate).map(nocter_syntax::SyntaxNode::kind) {
         Some(NodeKind::InterfacePredicate) => {
@@ -94,7 +91,6 @@ fn bind_predicate(
                 roots,
                 interface_applications,
                 origins,
-                interface_requirements,
                 result,
             )?;
         }
@@ -127,6 +123,7 @@ fn bind_predicate(
                 predicate,
                 kinds,
                 roots,
+                refinement_requirements,
                 result,
             )?;
         }
@@ -178,7 +175,6 @@ fn bind_interface_predicate(
     roots: &HashMap<NodeId, BoundTypeId>,
     interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     origins: &mut NormalizationOrigins,
-    uniqueness: &mut AuthoredUniqueness<(RequirementSubject, BoundInterfaceApplication)>,
     result: &mut Vec<BoundRequirementKind>,
 ) -> Result<(), TypeBindingError> {
     let subject_type = direct_node(tree, predicate, NodeKind::Type)
@@ -201,15 +197,11 @@ fn bind_interface_predicate(
         .get(&application_node)
         .cloned()
         .ok_or(invalid_requirement(predicate))?;
-    uniqueness.record(
-        (subject, application.clone()),
-        application_origin,
-        TypeBindingRule::DuplicateInterfaceRequirement,
-    )?;
     result.push(BoundRequirementKind::Interface {
         subject,
         application,
         associated_types: associated_types.into_boxed_slice(),
+        origin: application_origin,
     });
     Ok(())
 }
@@ -294,6 +286,7 @@ fn interface_name_origin(
         .ok_or(invalid_requirement(application))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bind_equality(
     namespaces: &PreparedNamespaces<'_>,
     declaration: SurfaceDeclarationId,
@@ -301,6 +294,7 @@ fn bind_equality(
     predicate: NodeId,
     kinds: &[BoundTypeKind],
     roots: &HashMap<NodeId, BoundTypeId>,
+    uniqueness: &mut AuthoredUniqueness<GenericParameterId>,
     result: &mut Vec<BoundRequirementKind>,
 ) -> Result<(), TypeBindingError> {
     let types = bound_types(tree, predicate, roots)?;
@@ -336,9 +330,15 @@ fn bind_equality(
                 SyntaxOrigin::Node(predicate),
             ));
         }
+        uniqueness.record(
+            *parameter,
+            SyntaxOrigin::Node(predicate),
+            TypeBindingRule::DuplicateBinderRefinement,
+        )?;
         result.push(BoundRequirementKind::BinderRefinement {
             parameter: *parameter,
             replacement: right,
+            origin: SyntaxOrigin::Node(predicate),
         });
     } else {
         return Err(invalid_requirement(predicate));
@@ -415,6 +415,7 @@ fn bind_associated_bounds(
                 .cloned()
                 .ok_or(invalid_requirement(bounds))?,
             associated_types: Box::new([]),
+            origin: interface_name_origin(tree, application)?,
         });
     }
     Ok(())

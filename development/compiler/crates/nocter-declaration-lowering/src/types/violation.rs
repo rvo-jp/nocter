@@ -18,10 +18,11 @@ pub enum TypeBindingRule {
     DuplicateAssociatedRequirementBinding,
     DuplicateCopyRequirement,
     DuplicateInterfaceRequirement,
+    DuplicateBinderRefinement,
 }
 
 impl TypeBindingRule {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::UnknownTypeContextName,
         Self::InvalidTypeEntity,
         Self::InvalidTypeArguments,
@@ -37,6 +38,7 @@ impl TypeBindingRule {
         Self::DuplicateAssociatedRequirementBinding,
         Self::DuplicateCopyRequirement,
         Self::DuplicateInterfaceRequirement,
+        Self::DuplicateBinderRefinement,
     ];
 
     #[must_use]
@@ -57,6 +59,7 @@ impl TypeBindingRule {
             Self::DuplicateAssociatedRequirementBinding => "E0303",
             Self::DuplicateCopyRequirement => "E0304",
             Self::DuplicateInterfaceRequirement => "E0305",
+            Self::DuplicateBinderRefinement => "E0306",
         }
     }
 
@@ -84,6 +87,7 @@ impl TypeBindingRule {
             Self::DuplicateInterfaceRequirement => {
                 "generic requirement repeats an interface predicate"
             }
+            Self::DuplicateBinderRefinement => "declaration pattern repeats a binder refinement",
         }
     }
 
@@ -116,6 +120,9 @@ impl TypeBindingRule {
             Self::DuplicateInterfaceRequirement => {
                 "merge or remove the repeated interface predicate"
             }
+            Self::DuplicateBinderRefinement => {
+                "keep exactly one concrete replacement for this pattern binder"
+            }
         }
     }
 
@@ -132,6 +139,7 @@ impl TypeBindingRule {
             Self::DuplicateInterfaceRequirement => {
                 Some("the first interface predicate is named here")
             }
+            Self::DuplicateBinderRefinement => Some("the first refinement is written here"),
             Self::UnknownTypeContextName
             | Self::InvalidTypeEntity
             | Self::InvalidTypeArguments

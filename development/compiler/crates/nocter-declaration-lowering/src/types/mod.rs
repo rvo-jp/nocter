@@ -170,6 +170,7 @@ pub enum BoundRequirementKind {
         subject: RequirementSubject,
         application: BoundInterfaceApplication,
         associated_types: Box<[BoundAssociatedTypeBinding]>,
+        origin: nocter_source_index::SyntaxOrigin,
     },
     Callable {
         subject: GenericParameterId,
@@ -200,6 +201,7 @@ pub enum BoundRequirementKind {
     BinderRefinement {
         parameter: GenericParameterId,
         replacement: BoundTypeId,
+        origin: nocter_source_index::SyntaxOrigin,
     },
 }
 
