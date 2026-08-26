@@ -1341,7 +1341,10 @@ The workspace encodes the dependency direction in crate boundaries. Executable a
 freeze the reviewed production dependency sets for the language, model, declaration, target, MIR,
 machine, ARM64, and Mach-O layers. They also reject source-index lookup in standard-role and
 primitive-role selection, repeated package-target validation, standard-API spelling checks in
-editor mutations, and duplicate built-in type definitions. The broader architecture review rejects:
+editor mutations, and duplicate built-in type definitions. Type-resolved Clippy restrictions,
+rather than source-text scans, prevent downstream code from naming semantic construction
+authorities, transactions, closure construction sequences, or persistent collections through an
+alias or a fully qualified path. The broader architecture review rejects:
 
 - source or syntax types in semantic identity
 - rendered-name type equality

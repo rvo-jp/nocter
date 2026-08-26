@@ -17,10 +17,12 @@ and closure construction.
 
 ## Adopted Authority Model
 
-Prepared, checked, and recovery products own one immutable `SemanticAuthority`. It keeps the
+Prepared and recovery products own one immutable `SemanticAuthority`. It keeps the
 construction-owning `TypeAuthority` and `CopyabilityTable` together, while exposing only
 `&TypeStore` and `&CopyabilityTable` as read contracts. Body checking adds closure construction and
-opens one branch-local transaction containing three coordinated overlays:
+opens one branch-local transaction containing three coordinated overlays. Finishing body checking
+produces one `CheckedSemanticAuthority`, whose private construction boundary seals the accepted
+semantic generation together with the only `ClosureTable` built from it:
 
 ```text
 SemanticAuthority (TypeAuthority + CopyabilityTable)
@@ -31,6 +33,10 @@ SemanticAuthority (TypeAuthority + CopyabilityTable)
                     |-- TypeTransaction
                     |-- CopyabilityTransaction
                     `-- ClosureTransaction
+            |
+            `-- CheckedSemanticAuthority
+                    |-- accepted SemanticAuthority
+                    `-- finalized ClosureTable
 ```
 
 `SemanticAuthority` remains intact through preparation, body recovery, checked-program completion,
@@ -39,6 +45,12 @@ construction without splitting type and copyability ownership. Callers cannot as
 transaction from components belonging to different bodies. Success consumes the transaction into
 one descendant authority. Failure cannot modify the base: it discards the branch or freezes that
 exact branch as a tooling capability.
+
+Program-wide facts that do not branch with type construction have a separate single owner,
+`ProgramEnvironment`. Declaration graph, implementation selection, construction surface, instance
+operations, body assumptions, destruction, standard roles, and source access move together from
+prepared input into checked output. Preparation and checking do not repeat those fields in
+phase-specific carrier structs.
 
 No compiler consumer receives a persistent chunk, intern index, mutation journal, or lineage
 implementation. The dependency-free `nocter-persistent` crate owns only path-copying collection
@@ -112,9 +124,11 @@ Member completion opens one semantic query transaction from that branch. Generat
 state may retain the query delta, but immutable compiler products remain unchanged and no complete
 store is cloned on first use. Each query session verifies the composite authority supplied by the
 query. Checked completion accepts a body-node identity and obtains its receiver type from the same
-checked program; callers cannot combine a current program with a stale raw `TypeId`. Reusing a
-session with another compiler generation or another recovery interruption is an error rather than
-silent cross-branch identity reuse.
+checked body. The checked body also owns the exact source used for visibility, so callers cannot
+combine a body from the current program with a stale raw `TypeId` or an unrelated `SourceId`.
+Recovery queries derive their source from the interruption origin. Reusing a session with another
+compiler generation or another recovery interruption is an error rather than silent cross-branch
+identity reuse.
 
 ## Downstream Boundary
 
@@ -126,8 +140,12 @@ specialization remains a checking-owned capability: its dispatch, associated-typ
 destruction work share one `SemanticTransaction`. Target code asks `ConcreteDispatchResolver` for
 specialized identities and finally receives one frozen descendant `TypeStore`.
 
-Executable architecture tests enumerate workspace manifests and downstream production source to
-keep both restrictions active. Tests may construct isolated type authorities for fixtures, but no
+Executable architecture tests enumerate workspace manifests to enforce dependency direction.
+Warnings-denied Clippy resolves the actual Rust type behind imports, aliases, and fully qualified
+paths and rejects construction authorities, transactions, closure construction sequences, and
+persistent collections outside their reviewed owner crates. This replaces source-text scanning,
+which could be bypassed by renaming an import and could also reject comments accidentally. Tests
+may construct isolated type authorities for fixtures through local lint allowances, but no
 production backend phase can extend semantic state itself.
 
 ## Qualification

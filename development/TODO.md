@@ -6,8 +6,8 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0, Phase 1, Phase 2, and reopened Phase 3 work](milestones/v0.18.0.md) and their
-adversarial reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with
+The [v0.18.0 Phase 0, Phase 1, Phase 2, and twice-reopened Phase 3 work](milestones/v0.18.0.md) and
+their adversarial reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with
 persistent immutable authorities and explicit type, copyability, and closure transactions. Its
 reopened review then separated read-only type snapshots from construction ownership, kept type and
 copyability in one semantic authority through every checking stage, bound checked member input to
@@ -26,7 +26,9 @@ boundaries. Phase 3 changes no language behavior. v0.18.0 release qualification 
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
 `SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body
-recovery, checked completion, member queries, and concrete specialization. Closure construction
+recovery, checked completion, member queries, and concrete specialization. Stable program facts
+move through one `ProgramEnvironment`; checked semantic facts and closures can be paired only by
+the body-finish boundary. Closure construction
 uses an immutable internal authority and freezes into `ClosureTable` only after body checking.
 `TypeTransaction`, `CopyabilityTransaction`, and `ClosureTransaction` share one body-level
 capability and commit boundary through `BodySemanticTransaction`. Their persistent vectors and
@@ -35,13 +37,15 @@ stale commits. Declaration lowering, preparation, body checking, member queries,
 specialization, type projection, and tests use these boundaries. All semantic checkpoints,
 journals, body rollback paths, and full-store recovery clones are gone. Editor query sessions
 verify their composite semantic base and reject cross-generation or cross-interruption reuse;
-checked completion resolves the receiver type through its own body node rather than accepting a raw
-`TypeId`. Downstream architecture gates allow direct persistent-storage dependencies only in model
-and checking, and reject construction authorities, transactions, or persistent collections in
-Target, MIR, Machine, and runtime production source. Persistent iteration is linear, final
-copyability closure scans only appended types, and structural storage and concreteness facts are
-computed once at interning. Closure drafts and final definitions share one immutable core. The
-reopened adversarial review found no open correctness or architecture issue. Complete workspace
+checked completion resolves the receiver type and source visibility through its own body rather
+than accepting raw cross-generation input. Downstream architecture gates allow direct
+persistent-storage dependencies only in model and checking. Type-resolved Clippy rejects
+construction authorities, transactions, closure construction sequences, and persistent
+collections outside their reviewed owner crates, including uses hidden behind aliases. Persistent
+iteration is linear, final copyability closure scans only appended types without traversing the
+closed prefix, and structural storage and concreteness facts are computed once at interning.
+Closure drafts and final definitions share one immutable core. The twice-reopened adversarial
+review found no open correctness or architecture issue. Complete workspace
 tests, warnings-denied all-target Clippy, formatting, generated documentation, and repository
 whitespace validation passed on the final tree.
 

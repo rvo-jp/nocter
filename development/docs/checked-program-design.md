@@ -7,8 +7,10 @@ authoritative when this document and a normative rule disagree.
 ## Boundary
 
 `CheckedProgram` is the first complete, syntax-independent executable-semantics graph. It consumes
-the immutable `AcceptedDeclarationProgram` exactly once and owns its `DeclarationGraph` plus
-the same `TypeStore` extended with checked-body types. A body, type, callable, or module ID therefore
+the immutable `AcceptedDeclarationProgram` exactly once. One `ProgramEnvironment` carries its
+stable declaration, operation, destruction, standard-role, and source-access facts; one
+`CheckedSemanticAuthority` carries the accepted type/copyability generation and the closure table
+finalized from it. A body, type, callable, or module ID therefore
 cannot be paired with declarations from another compile unit, and checking cannot create a parallel
 type interner. Every body owns one typed node arena. Nodes contain the exact declaration, local
 binding, field, variant, requirement, conversion, dispatch, ownership, loan, provenance, region,
@@ -180,15 +182,16 @@ types interned and copy conditions memoized by later requests. A keystroke there
 the complete stores, and query-derived cache entries never flow back into checked semantics.
 
 Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
-opens `AcceptedDeclarationProgram` once, retains the same extended `TypeStore`, and owns the interface-implementation
-table, body-source catalog, resolved lexical identities, temporary syntax-backed uses, and source
-projection. It cannot be mistaken for a checked program. `CheckedProgram` has no syntax lifetime
-and owns the graph, type store, interface-implementation table, copyability table, type-owned drop table, and one
-`CheckedBody` per `BodyId`.
+opens `AcceptedDeclarationProgram` once, retains the same semantic authority and
+`ProgramEnvironment`, and adds the body-source catalog, resolved lexical identities, temporary
+syntax-backed uses, and source projection. It cannot be mistaken for a checked program.
+`CheckedProgram` has no syntax lifetime. It moves the stable environment intact, seals type,
+copyability, and closure facts as one checked semantic authority, and owns one `CheckedBody` per
+`BodyId`.
 
-Compiler setup also supplies exact declaration-name tokens for standard semantic roles. Preparation
-resolves them through the shared source index, validates standard-package ownership and complete
-role-specific declaration shapes, and freezes one `StandardSemanticTable` into the checked
+Compiler setup also supplies exact declaration identities for standard semantic roles. Preparation
+validates standard-package ownership and complete role-specific declaration shapes from semantic
+bindings, then freezes one `StandardSemanticTable` into the checked
 program. Allocation and formatting consumers query semantic IDs from that table; they never search
 module paths or declaration spellings. The interpolation contract validates a public, body-backed,
 zero-input owned-String constructor and a public readwrite String method accepting one readonly
