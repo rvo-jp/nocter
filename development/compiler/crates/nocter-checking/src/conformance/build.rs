@@ -13,7 +13,10 @@ use nocter_model::{
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::diagnostic;
-use super::model::{CheckedConformance, ConformanceMethod, ConformanceTable, MethodSelection};
+use super::model::{
+    CheckedConformance, ConformanceInputCorrespondence, ConformanceMethod, ConformanceTable,
+    MethodSelection,
+};
 use super::overlap::patterns_overlap;
 use super::predicate::{CheckedRequirement, normalize_requirements};
 use super::required_method::RequiredConformanceMethod;
@@ -392,40 +395,54 @@ fn select_methods(
         let name = expected
             .name()
             .ok_or(ConformanceInternalError::MissingCallable(*interface_method))?;
-        let selection = if let Some(implementation) = implementation_by_name.get(&name).copied() {
-            let actual = declarations
-                .callables()
-                .get(implementation)
-                .ok_or(ConformanceInternalError::MissingCallable(implementation))?;
-            if !compatible_signature(
-                graph,
-                types,
-                expected,
-                actual,
-                expected_substitution,
-                actual_substitution,
-            )? {
-                return Err(diagnostic::incompatible_method(
-                    site_origin(source_index, actual.site())?,
-                    site_origin(source_index, expected.site())?,
+        let (selection, input_correspondence) =
+            if let Some(implementation) = implementation_by_name.get(&name).copied() {
+                let actual = declarations
+                    .callables()
+                    .get(implementation)
+                    .ok_or(ConformanceInternalError::MissingCallable(implementation))?;
+                let Some(input_correspondence) = compatible_signature(
+                    graph,
+                    types,
+                    expected,
+                    actual,
+                    expected_substitution,
+                    actual_substitution,
+                )?
+                else {
+                    return Err(diagnostic::incompatible_method(
+                        site_origin(source_index, actual.site())?,
+                        site_origin(source_index, expected.site())?,
+                    )
+                    .into());
+                };
+                (
+                    MethodSelection::Implementation(implementation),
+                    input_correspondence,
                 )
-                .into());
-            }
-            MethodSelection::Implementation(implementation)
-        } else if expected.body().is_some() {
-            MethodSelection::Default(*interface_method)
-        } else {
-            missing.push(RequiredConformanceMethod::build(
-                graph,
-                types,
-                conformance,
-                *interface_method,
-                expected,
-                expected_substitution,
-            )?);
-            continue;
-        };
-        selected.push(ConformanceMethod::new(*interface_method, selection));
+            } else if expected.body().is_some() {
+                (
+                    MethodSelection::Default(*interface_method),
+                    input_correspondence(expected, expected).ok_or(
+                        ConformanceInternalError::InvalidInterfaceMethodSet(interface_id),
+                    )?,
+                )
+            } else {
+                missing.push(RequiredConformanceMethod::build(
+                    graph,
+                    types,
+                    conformance,
+                    *interface_method,
+                    expected,
+                    expected_substitution,
+                )?);
+                continue;
+            };
+        selected.push(ConformanceMethod::new(
+            *interface_method,
+            selection,
+            input_correspondence,
+        ));
     }
     if !missing.is_empty() {
         return Err(missing_methods_error(
@@ -436,7 +453,7 @@ fn select_methods(
             missing,
         )?);
     }
-    selected.sort_unstable_by_key(|method| method.interface_method());
+    selected.sort_unstable_by_key(ConformanceMethod::interface_method);
     Ok(selected)
 }
 
@@ -533,13 +550,16 @@ fn compatible_signature(
     actual: &CallableDeclaration,
     owner_substitution: &TypeSubstitution,
     actual_substitution: &TypeSubstitution,
-) -> Result<bool, ConformanceBuildError> {
+) -> Result<Option<ConformanceInputCorrespondence>, ConformanceBuildError> {
     if expected.kind() != actual.kind()
         || expected.parameters().len() != actual.parameters().len()
         || expected.generic_parameters().len() != actual.generic_parameters().len()
     {
-        return Ok(false);
+        return Ok(None);
     }
+    let Some(input_correspondence) = input_correspondence(expected, actual) else {
+        return Ok(None);
+    };
     let mut substitution = owner_substitution.clone();
     for (expected, actual) in expected
         .generic_parameters()
@@ -554,7 +574,7 @@ fn compatible_signature(
     if receiver_capability(graph, expected.receiver())?
         != receiver_capability(graph, actual.receiver())?
     {
-        return Ok(false);
+        return Ok(None);
     }
     for (expected, actual) in expected.parameters().iter().zip(actual.parameters()) {
         let (expected_type, expected_pack) = parameter_contract(graph, *expected)?;
@@ -563,22 +583,26 @@ fn compatible_signature(
             || substitution.apply_type(types, expected_type)?
                 != actual_substitution.apply_type(types, actual_type)?
         {
-            return Ok(false);
+            return Ok(None);
         }
     }
     if substitution.apply_type(types, expected.result())?
         != actual_substitution.apply_type(types, actual.result())?
     {
-        return Ok(false);
+        return Ok(None);
     }
     let expected_requirements =
         normalize_requirements(graph, types, &substitution, expected.requirements())?;
     let actual_requirements =
         normalize_requirements(graph, types, actual_substitution, actual.requirements())?;
     if !same_predicates(&expected_requirements, &actual_requirements) {
-        return Ok(false);
+        return Ok(None);
     }
-    compatible_provenance(expected, actual)
+    if compatible_provenance(expected, actual, &input_correspondence) {
+        Ok(Some(input_correspondence))
+    } else {
+        Ok(None)
+    }
 }
 
 fn conformance_substitution(
@@ -627,7 +651,8 @@ fn same_predicates(left: &[CheckedRequirement], right: &[CheckedRequirement]) ->
 fn compatible_provenance(
     expected_declaration: &CallableDeclaration,
     actual_declaration: &CallableDeclaration,
-) -> Result<bool, ConformanceBuildError> {
+    input_correspondence: &[(ProvenanceOrigin, ProvenanceOrigin)],
+) -> bool {
     let (
         CallableProvenanceContract::Declared(expected_contract),
         CallableProvenanceContract::Declared(actual_contract),
@@ -636,35 +661,47 @@ fn compatible_provenance(
         actual_declaration.provenance(),
     )
     else {
-        return Ok(true);
+        return true;
     };
-    let expected = provenance_positions(expected_contract.origins(), expected_declaration)?;
-    let actual = provenance_positions(actual_contract.origins(), actual_declaration)?;
-    Ok(actual.is_subset(&expected))
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-enum ProvenancePosition {
-    Receiver,
-    Parameter(usize),
-}
-
-fn provenance_positions(
-    origins: &[ProvenanceOrigin],
-    callable: &CallableDeclaration,
-) -> Result<HashSet<ProvenancePosition>, ConformanceBuildError> {
-    origins
+    let expected = expected_contract
+        .origins()
         .iter()
-        .map(|origin| match origin {
-            ProvenanceOrigin::Receiver => Ok(ProvenancePosition::Receiver),
-            ProvenanceOrigin::Parameter(parameter) => callable
-                .parameters()
-                .iter()
-                .position(|candidate| candidate == parameter)
-                .map(ProvenancePosition::Parameter)
-                .ok_or_else(|| ConformanceInternalError::MissingParameter(*parameter).into()),
-        })
-        .collect()
+        .copied()
+        .collect::<HashSet<_>>();
+    actual_contract.origins().iter().all(|actual| {
+        input_correspondence
+            .iter()
+            .any(|(interface, implementation)| {
+                implementation == actual && expected.contains(interface)
+            })
+    })
+}
+
+fn input_correspondence(
+    interface: &CallableDeclaration,
+    selected: &CallableDeclaration,
+) -> Option<ConformanceInputCorrespondence> {
+    if interface.parameters().len() != selected.parameters().len()
+        || interface.receiver().is_some() != selected.receiver().is_some()
+    {
+        return None;
+    }
+    let receiver = interface
+        .receiver()
+        .is_some()
+        .then_some((ProvenanceOrigin::Receiver, ProvenanceOrigin::Receiver));
+    let parameters = interface
+        .parameters()
+        .iter()
+        .copied()
+        .zip(selected.parameters().iter().copied())
+        .map(|(interface, selected)| {
+            (
+                ProvenanceOrigin::Parameter(interface),
+                ProvenanceOrigin::Parameter(selected),
+            )
+        });
+    Some(receiver.into_iter().chain(parameters).collect())
 }
 
 fn receiver_capability(

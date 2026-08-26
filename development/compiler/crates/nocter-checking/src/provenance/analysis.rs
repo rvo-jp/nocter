@@ -128,7 +128,7 @@ pub(super) fn analyze_program(
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
     let summaries = infer_program_summaries(graph, types, closures, inputs)?;
-    let conformance_bounds = conformance_origin_bounds(graph, conformances, &summaries.callables)?;
+    let conformance_bounds = conformance_origin_bounds(conformances, &summaries.callables)?;
     let bodies = build_body_provenance(
         graph,
         types,
@@ -324,7 +324,6 @@ fn build_closure_provenance(
 }
 
 fn conformance_origin_bounds(
-    graph: &DeclarationGraph,
     conformances: &ConformanceTable,
     summaries: &BTreeMap<CallableId, CallableSummary>,
 ) -> Result<BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>, BodyCheckError> {
@@ -334,12 +333,19 @@ fn conformance_origin_bounds(
             let MethodSelection::Implementation(implementation) = method.selection() else {
                 continue;
             };
-            let interface = method.interface_method();
             let interface_summary = summaries
-                .get(&interface)
+                .get(&method.interface_method())
                 .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-            let mapped =
-                map_origin_positions(graph, interface, implementation, &interface_summary.origins)?;
+            let mapped = interface_summary
+                .origins
+                .iter()
+                .copied()
+                .map(|origin| {
+                    method
+                        .selected_input(origin)
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)
+                })
+                .collect::<Result<BTreeSet<_>, _>>()?;
             bounds
                 .entry(implementation)
                 .and_modify(|current| current.retain(|origin| mapped.contains(origin)))
@@ -347,43 +353,6 @@ fn conformance_origin_bounds(
         }
     }
     Ok(bounds)
-}
-
-fn map_origin_positions(
-    graph: &DeclarationGraph,
-    expected: CallableId,
-    actual: CallableId,
-    origins: &BTreeSet<ProvenanceOrigin>,
-) -> Result<BTreeSet<ProvenanceOrigin>, BodyCheckError> {
-    let declarations = graph.declarations().callables();
-    let expected = declarations
-        .get(expected)
-        .ok_or(BodyCheckInternalError::MissingCallable(expected))?;
-    let actual = declarations
-        .get(actual)
-        .ok_or(BodyCheckInternalError::MissingCallable(actual))?;
-    origins
-        .iter()
-        .map(|origin| match origin {
-            ProvenanceOrigin::Receiver => actual
-                .receiver()
-                .map(|_| ProvenanceOrigin::Receiver)
-                .ok_or_else(|| BodyCheckInternalError::ProvenanceAnalysis.into()),
-            ProvenanceOrigin::Parameter(parameter) => {
-                let position = expected
-                    .parameters()
-                    .iter()
-                    .position(|candidate| candidate == parameter)
-                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                actual
-                    .parameters()
-                    .get(position)
-                    .copied()
-                    .map(ProvenanceOrigin::Parameter)
-                    .ok_or_else(|| BodyCheckInternalError::ProvenanceAnalysis.into())
-            }
-        })
-        .collect()
 }
 
 fn initial_summaries(graph: &DeclarationGraph) -> BTreeMap<CallableId, CallableSummary> {

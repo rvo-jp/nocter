@@ -1,4 +1,4 @@
-use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication};
+use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication, ProvenanceOrigin};
 use std::collections::BTreeMap;
 
 use nocter_model::{
@@ -8,6 +8,8 @@ use nocter_model::{
 use super::predicate::CheckedRequirement;
 use crate::GenericArgument;
 
+pub(super) type ConformanceInputCorrespondence = Box<[(ProvenanceOrigin, ProvenanceOrigin)]>;
+
 /// Callable selected for one interface method under an explicit conformance.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MethodSelection {
@@ -16,28 +18,44 @@ pub enum MethodSelection {
 }
 
 /// One interface method and its exact dispatch target.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConformanceMethod {
     interface_method: CallableId,
     selection: MethodSelection,
+    input_correspondence: ConformanceInputCorrespondence,
 }
 
 impl ConformanceMethod {
-    pub(super) const fn new(interface_method: CallableId, selection: MethodSelection) -> Self {
+    pub(super) fn new(
+        interface_method: CallableId,
+        selection: MethodSelection,
+        input_correspondence: ConformanceInputCorrespondence,
+    ) -> Self {
         Self {
             interface_method,
             selection,
+            input_correspondence,
         }
     }
 
     #[must_use]
-    pub const fn interface_method(self) -> CallableId {
+    pub const fn interface_method(&self) -> CallableId {
         self.interface_method
     }
 
     #[must_use]
-    pub const fn selection(self) -> MethodSelection {
+    pub const fn selection(&self) -> MethodSelection {
         self.selection
+    }
+
+    /// Maps an interface input identity to the selected body's corresponding input.
+    ///
+    /// Signature compatibility owns this correspondence. Later analyses must consume it rather
+    /// than reconstructing parameter positions from declarations.
+    pub(crate) fn selected_input(&self, input: ProvenanceOrigin) -> Option<ProvenanceOrigin> {
+        self.input_correspondence
+            .iter()
+            .find_map(|(interface, selected)| (*interface == input).then_some(*selected))
     }
 }
 
@@ -120,7 +138,7 @@ impl CheckedConformance {
     #[must_use]
     pub fn method(&self, declaration: CallableId) -> Option<MethodSelection> {
         self.methods
-            .binary_search_by_key(&declaration, |method| method.interface_method())
+            .binary_search_by_key(&declaration, ConformanceMethod::interface_method)
             .ok()
             .map(|index| self.methods[index].selection())
     }

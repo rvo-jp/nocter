@@ -3,6 +3,7 @@ use nocter_compile_input::{
     PackageInput, PackageMode,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_declarations::ProvenanceOrigin;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -12,7 +13,7 @@ use super::{MethodSelection, build_conformance_table};
 #[test]
 fn required_and_default_methods_receive_exact_dispatch_selections() {
     let fixture = Fixture::new(
-        "pub interface Readable {\n    pub method &self.read(): i32\n    pub default method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(): i32 { return 0 }\n}\n",
+        "pub interface Readable {\n    pub method &self.read(offset: i32): i32\n    pub default method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(offset: i32): i32 { return offset }\n}\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
@@ -35,6 +36,28 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
             .any(|method| { matches!(method.selection(), MethodSelection::Default(_)) })
     );
     assert_eq!(table.candidates(entry.interface().interface()).len(), 1);
+    for method in entry.methods() {
+        assert_eq!(
+            method.selected_input(ProvenanceOrigin::Receiver),
+            Some(ProvenanceOrigin::Receiver)
+        );
+        let interface = graph
+            .declarations()
+            .callables()
+            .get(method.interface_method())
+            .unwrap();
+        let selected = match method.selection() {
+            MethodSelection::Implementation(selected) | MethodSelection::Default(selected) => {
+                graph.declarations().callables().get(selected).unwrap()
+            }
+        };
+        for (interface, selected) in interface.parameters().iter().zip(selected.parameters()) {
+            assert_eq!(
+                method.selected_input(ProvenanceOrigin::Parameter(*interface)),
+                Some(ProvenanceOrigin::Parameter(*selected))
+            );
+        }
+    }
 }
 
 #[test]
