@@ -159,6 +159,84 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
 }
 
 #[test]
+fn repeated_checked_member_queries_are_semantically_identical() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "use std/fs\n",
+        "func inspect(path: &str): void! {\n",
+        "    let details = fs.metadata(path)?\n",
+        "    let _ = details.len()\n",
+        "    return\n",
+        "}\n",
+        "func main(): i32 { return 0 }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(51));
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("len").unwrap()).unwrap());
+    let accepted_type_count = snapshot
+        .semantic_authority()
+        .and_then(|authority| authority.checked())
+        .expect("checked authority")
+        .types()
+        .len();
+
+    let first = snapshot.semantic_completions(source.id(), offset).unwrap();
+    let second = snapshot.semantic_completions(source.id(), offset).unwrap();
+
+    assert_eq!(first, second);
+    assert!(first.iter().any(|completion| completion.label() == "len"));
+    assert_eq!(
+        snapshot
+            .semantic_authority()
+            .and_then(|authority| authority.checked())
+            .expect("checked authority")
+            .types()
+            .len(),
+        accepted_type_count
+    );
+}
+
+#[test]
+fn repeated_recovery_member_queries_are_semantically_identical() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func inspect(value: i32): void {\n",
+        "    value.missing()\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(52));
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    let recovery = snapshot
+        .semantic_authority()
+        .and_then(|authority| authority.body_analysis())
+        .expect("typed body recovery");
+    assert!(matches!(
+        recovery
+            .interruptions()
+            .next()
+            .map(nocter_checking::TypedBodyInterruption::kind),
+        Some(nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. })
+    ));
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("missing").unwrap()).unwrap());
+
+    let first = snapshot.semantic_completions(source.id(), offset).unwrap();
+    let second = snapshot.semantic_completions(source.id(), offset).unwrap();
+
+    assert_eq!(first, second);
+}
+
+#[test]
 fn missing_namespace_member_is_a_source_diagnostic_not_an_internal_failure() {
     let tree = TempTree::new();
     let (_, snapshot) = bundled_snapshot(

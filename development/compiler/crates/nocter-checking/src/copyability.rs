@@ -202,6 +202,10 @@ impl CopyabilityTable {
 }
 
 impl CopyabilityTransaction {
+    pub(crate) fn is_based_on(&self, authority: &CopyabilityTable) -> bool {
+        self.base == authority.authority
+    }
+
     pub(crate) fn commit(
         mut self,
         base: &CopyabilityTable,
@@ -725,5 +729,17 @@ mod tests {
         let accepted = accepted.commit(&base).unwrap();
 
         assert!(stale.commit(&accepted).is_err());
+    }
+
+    #[test]
+    fn base_compatibility_distinguishes_authorities_but_accepts_an_immutable_clone() {
+        let base = CopyabilityTable::default();
+        let same = base.clone();
+        let foreign = CopyabilityTable::default();
+        let transaction = base.transaction();
+
+        assert!(transaction.is_based_on(&base));
+        assert!(transaction.is_based_on(&same));
+        assert!(!transaction.is_based_on(&foreign));
     }
 }

@@ -28,9 +28,11 @@ one body-level capability and commit boundary through `BodySemanticTransaction`.
 vector, arena, and indexes share unchanged roots and copy only changed paths. Exact-base lineage
 rejects sibling and stale commits. Declaration lowering, preparation, body checking, member
 queries, concrete specialization, type projection, and tests use these boundaries. All semantic
-checkpoints, journals, body rollback paths, and full-store recovery clones are gone. The next step
-is to harden editor query authority binding, recovery isolation, and repeated-query determinism
-before Phase 3 qualification.
+checkpoints, journals, body rollback paths, and full-store recovery clones are gone. Editor query
+sessions now verify their exact type and copyability bases, reject cross-generation or
+cross-interruption reuse, and have checked plus recovery tests proving repeatable completion without
+mutating accepted types. The next step is to audit downstream dependency and API boundaries before
+Phase 3 qualification.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a

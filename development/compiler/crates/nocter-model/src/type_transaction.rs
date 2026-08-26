@@ -32,6 +32,15 @@ impl TypeTransaction {
         self.branch.intern_branch(kind)
     }
 
+    /// Reports whether this branch was opened from the exact immutable authority supplied.
+    ///
+    /// Query-session owners use this check to reject accidental reuse across compiler
+    /// generations without exposing the authority's lineage representation.
+    #[must_use]
+    pub fn is_based_on(&self, authority: &TypeStore) -> bool {
+        self.base == authority.authority()
+    }
+
     /// Consumes this branch into an immutable descendant of `base`.
     ///
     /// # Errors
@@ -119,5 +128,17 @@ mod tests {
 
         assert_eq!(base.get(provisional), None);
         assert_eq!(recovery.get(provisional), Some(&TypeKind::Optional(value)));
+    }
+
+    #[test]
+    fn base_compatibility_distinguishes_authorities_but_accepts_an_immutable_clone() {
+        let base = TypeStore::new();
+        let same = base.clone();
+        let foreign = TypeStore::new();
+        let transaction = base.transaction();
+
+        assert!(transaction.is_based_on(&base));
+        assert!(transaction.is_based_on(&same));
+        assert!(!transaction.is_based_on(&foreign));
     }
 }

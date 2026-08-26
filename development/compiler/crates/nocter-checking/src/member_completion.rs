@@ -82,6 +82,7 @@ pub enum MemberCompletionError {
     MissingReceiver(nocter_model::BodyNodeId),
     UnknownReceiver(TypeId),
     InvalidRecoveryEvidence,
+    AuthorityMismatch,
     PoisonedQueryState,
 }
 
@@ -109,6 +110,8 @@ impl fmt::Display for MemberCompletionError {
             Self::InvalidRecoveryEvidence => {
                 formatter.write_str("member completion recovery evidence is inconsistent")
             }
+            Self::AuthorityMismatch => formatter
+                .write_str("member completion query session belongs to another semantic authority"),
             Self::PoisonedQueryState => {
                 formatter.write_str("member completion query state is poisoned")
             }
@@ -146,7 +149,8 @@ impl MemberCompletionQuerySession {
         copyabilities: &CopyabilityTable,
     ) -> Result<std::sync::MutexGuard<'program, MemberCompletionQueryState>, MemberCompletionError>
     {
-        self.state
+        let state = self
+            .state
             .get_or_init(|| {
                 Mutex::new(MemberCompletionQueryState {
                     types: types.transaction(),
@@ -154,7 +158,11 @@ impl MemberCompletionQuerySession {
                 })
             })
             .lock()
-            .map_err(|_| MemberCompletionError::PoisonedQueryState)
+            .map_err(|_| MemberCompletionError::PoisonedQueryState)?;
+        if !state.types.is_based_on(types) || !state.copyabilities.is_based_on(copyabilities) {
+            return Err(MemberCompletionError::AuthorityMismatch);
+        }
+        Ok(state)
     }
 }
 
@@ -345,4 +353,47 @@ fn field_completions(
         }
     }
     Ok(completions)
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::TypeStore;
+
+    use crate::copyability::CopyabilityTable;
+
+    use super::{MemberCompletionError, MemberCompletionQuerySession};
+
+    #[test]
+    fn query_session_rejects_reuse_with_another_semantic_authority() {
+        let types = TypeStore::new();
+        let copyabilities = CopyabilityTable::default();
+        let session = MemberCompletionQuerySession::default();
+        drop(session.state(&types, &copyabilities).unwrap());
+
+        let foreign_types = TypeStore::new();
+        assert!(matches!(
+            session.state(&foreign_types, &copyabilities),
+            Err(MemberCompletionError::AuthorityMismatch)
+        ));
+
+        let foreign_copyabilities = CopyabilityTable::default();
+        assert!(matches!(
+            session.state(&types, &foreign_copyabilities),
+            Err(MemberCompletionError::AuthorityMismatch)
+        ));
+    }
+
+    #[test]
+    fn query_session_accepts_immutable_clones_of_the_same_authority() {
+        let types = TypeStore::new();
+        let copyabilities = CopyabilityTable::default();
+        let session = MemberCompletionQuerySession::default();
+        drop(session.state(&types, &copyabilities).unwrap());
+
+        drop(
+            session
+                .state(&types.clone(), &copyabilities.clone())
+                .unwrap(),
+        );
+    }
 }

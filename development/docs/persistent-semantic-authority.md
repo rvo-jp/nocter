@@ -91,7 +91,10 @@ copyability facts.
 
 Member completion opens a query transaction from that branch. Generation-local query state may
 retain the query delta, but immutable compiler products remain unchanged and no complete store is
-cloned on first use.
+cloned on first use. Each query session verifies that both of its transactions were opened from the
+exact type and copyability authorities supplied by the query. Reusing a session with another
+compiler generation or another recovery interruption is an error rather than silent cross-branch
+identity reuse.
 
 ## Qualification
 
