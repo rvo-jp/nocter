@@ -4,6 +4,7 @@ use nocter_model::{
     Arena, ArenaBuilder, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, LoopId, PlaceId,
     TypeId,
 };
+use nocter_source::SourceId;
 
 use crate::{BodyScope, Capture, LocalBinding, ResolvedBodyNames};
 
@@ -15,6 +16,7 @@ use super::{
 
 /// Sole mutable construction path for one checked body.
 pub(crate) struct CheckedBodyBuilder {
+    source: SourceId,
     scopes: Arena<BodyScopeId, BodyScope>,
     local_declarations: Arena<LocalBindingId, LocalBinding>,
     capture_declarations: Arena<CaptureId, Capture>,
@@ -27,7 +29,7 @@ pub(crate) struct CheckedBodyBuilder {
 
 impl CheckedBodyBuilder {
     #[must_use]
-    pub(crate) fn new(names: &ResolvedBodyNames) -> Self {
+    pub(crate) fn new(names: &ResolvedBodyNames, source: SourceId) -> Self {
         let mut locals = ArenaBuilder::new();
         for _ in 0..names.locals().len() {
             locals.insert(None);
@@ -37,6 +39,7 @@ impl CheckedBodyBuilder {
             captures.insert(None);
         }
         Self {
+            source,
             scopes: names.scopes().clone(),
             local_declarations: names.locals().clone(),
             capture_declarations: names.captures().clone(),
@@ -196,6 +199,7 @@ impl CheckedBodyBuilder {
             cleanup_schedules.insert(Box::new([]));
         }
         Ok(CheckedBody::new(
+            self.source,
             CheckedBodyDomains {
                 scopes: self.scopes,
                 locals,

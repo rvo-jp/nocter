@@ -1,6 +1,7 @@
 use nocter_model::{
     Arena, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, LoopId, PlaceId, TypeId,
 };
+use nocter_source::SourceId;
 
 use crate::{BodyScope, Capture, LocalBinding};
 
@@ -53,6 +54,7 @@ impl CheckedCapture {
 /// One complete typed body. Syntax-backed name uses have been consumed before construction.
 #[derive(Clone, Debug)]
 pub struct CheckedBody {
+    source: SourceId,
     scopes: Arena<BodyScopeId, BodyScope>,
     locals: Arena<LocalBindingId, CheckedLocal>,
     captures: Arena<CaptureId, CheckedCapture>,
@@ -74,11 +76,13 @@ pub(super) struct CheckedBodyDomains {
 
 impl CheckedBody {
     pub(super) fn new(
+        source: SourceId,
         domains: CheckedBodyDomains,
         cleanups: CleanupTable,
         root: BodyNodeId,
     ) -> Self {
         Self {
+            source,
             scopes: domains.scopes,
             locals: domains.locals,
             captures: domains.captures,
@@ -88,6 +92,12 @@ impl CheckedBody {
             cleanups,
             root,
         }
+    }
+
+    /// Returns the physical source under whose direct `see` visibility this body was checked.
+    #[must_use]
+    pub const fn source(&self) -> SourceId {
+        self.source
     }
 
     #[must_use]

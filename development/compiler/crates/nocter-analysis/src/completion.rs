@@ -352,8 +352,7 @@ fn interrupted_completions(
             let Some(session) = queries.interrupted_members(interruption_index) else {
                 return Ok(None);
             };
-            let Some(candidates) =
-                recovery.interrupted_member_completions(session, interruption, source)
+            let Some(candidates) = recovery.interrupted_member_completions(session, interruption)
             else {
                 return Ok(None);
             };
@@ -473,7 +472,7 @@ fn checked_member_completions(
     };
     let (available, owned) = receiver_access(receiver.preparation());
     let candidates =
-        program.member_completions(session, body_id, source, receiver.value(), available, owned)?;
+        program.member_completions(session, body_id, receiver.value(), available, owned)?;
     Ok(Some(
         candidates
             .iter()

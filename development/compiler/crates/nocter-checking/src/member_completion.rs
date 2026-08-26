@@ -171,15 +171,16 @@ impl CheckedProgram {
         &self,
         session: &MemberCompletionQuerySession,
         body: BodyId,
-        source: SourceId,
         receiver: BodyNodeId,
         available: BorrowCapability,
         can_consume: bool,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
-        let receiver = self
+        let checked_body = self
             .bodies()
             .get(body)
-            .ok_or(MemberCompletionError::MissingBody(body))?
+            .ok_or(MemberCompletionError::MissingBody(body))?;
+        let source = checked_body.source();
+        let receiver = checked_body
             .nodes()
             .get(receiver)
             .ok_or(MemberCompletionError::MissingReceiver(receiver))?

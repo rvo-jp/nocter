@@ -256,7 +256,6 @@ impl BodyAnalysisRecovery {
         &self,
         session: &crate::MemberCompletionQuerySession,
         interruption: &TypedBodyInterruption,
-        source: SourceId,
     ) -> Option<Result<Box<[MemberCompletionCandidate]>, MemberCompletionError>> {
         let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::MemberSelection {
@@ -272,6 +271,7 @@ impl BodyAnalysisRecovery {
         };
         let semantics = &evidence.semantics;
         let body = typed.interruption.body();
+        let source = typed.interruption.origin().source();
         if self
             .prepared
             .graph()

@@ -284,7 +284,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             diagnostic_origins,
             source,
             names,
-            builder: CheckedBodyBuilder::new(names),
+            builder: CheckedBodyBuilder::new(names, source.syntax().source()),
             uses,
             consumed_uses: HashSet::new(),
             argument_pack_uses: HashMap::new(),
