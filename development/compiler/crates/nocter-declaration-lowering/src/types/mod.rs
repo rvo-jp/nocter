@@ -24,7 +24,7 @@ use nocter_model::{
 };
 use nocter_source::SourceId;
 use nocter_source_index::DuplicateSourceBinding;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
@@ -530,25 +530,6 @@ fn header_nodes(
         pending.extend(tree.children(node).iter().rev().copied());
     }
     roots
-}
-
-fn direct_node(
-    tree: &nocter_syntax::SyntaxTree,
-    node: NodeId,
-    expected: NodeKind,
-) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == expected) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
 }
 
 pub(super) fn push(kinds: &mut Vec<BoundTypeKind>, kind: BoundTypeKind) -> BoundTypeId {

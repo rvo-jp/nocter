@@ -1,7 +1,7 @@
 use nocter_declarations::CallableKind;
 use nocter_source::{ByteOffset, TextRange};
 use nocter_source_index::SyntaxOrigin;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
 
 /// Structural source projection for one semantic callable declaration.
 ///
@@ -105,22 +105,6 @@ fn callable_tail_result_end(syntax: &SyntaxTree, tail: NodeId) -> Option<ByteOff
         }
     }
     end
-}
-
-fn direct_node(syntax: &SyntaxTree, parent: NodeId, kind: NodeKind) -> Option<NodeId> {
-    syntax
-        .children(parent)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(node)
-                if syntax
-                    .node(*node)
-                    .is_some_and(|candidate| candidate.kind() == kind) =>
-            {
-                Some(*node)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
 }
 
 const fn declaration_matches(callable: CallableKind, syntax: NodeKind) -> bool {

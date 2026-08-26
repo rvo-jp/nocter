@@ -5,6 +5,7 @@ use nocter_model::{BorrowCapability, GenericParameterId};
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    direct_identifier, direct_node, direct_nodes,
 };
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
@@ -568,33 +569,11 @@ fn invalid_requirement(node: NodeId) -> TypeBindingError {
     )
 }
 
-fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    direct_identifiers(tree, node).into_iter().next()
-}
-
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    direct_nodes(tree, node, kind).into_iter().next()
-}
-
 fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
     tree.children(node)
         .iter()
         .filter_map(|element| match element {
             SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
-        .collect()
-}
-
-fn direct_nodes(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
             _ => None,
         })
         .collect()

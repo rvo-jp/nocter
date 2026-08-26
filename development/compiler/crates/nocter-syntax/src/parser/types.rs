@@ -111,7 +111,7 @@ fn associated_bindings(parser: &mut Parser<'_>) {
     parser.comma_list(
         Punctuation::RightBrace,
         false,
-        ExpectedSyntax::DeclarationMember,
+        ExpectedSyntax::AssociatedTypeBinding,
         associated_type_binding,
     );
     parser.expect_punctuation(Punctuation::RightBrace);
@@ -121,7 +121,11 @@ fn associated_bindings(parser: &mut Parser<'_>) {
 
 fn associated_type_binding(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    parser.expect_punctuation(Punctuation::Dot);
+    if !parser.eat_punctuation(Punctuation::Dot) {
+        parser.error_token(ExpectedSyntax::AssociatedTypeBinding);
+        parser.complete(marker, NodeKind::AssociatedTypeBinding);
+        return;
+    }
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Equal);
     type_(parser);

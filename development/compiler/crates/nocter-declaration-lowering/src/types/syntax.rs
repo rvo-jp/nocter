@@ -5,6 +5,7 @@ use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin, Symbol
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    direct_identifier, direct_node, direct_nodes,
 };
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
@@ -495,42 +496,6 @@ fn invalid_arguments(segment: &super::names::NameSegment) -> TypeBindingError {
             .arguments_origin
             .map_or(SyntaxOrigin::Token(segment.token), SyntaxOrigin::Node),
     )
-}
-
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-}
-
-fn direct_nodes(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
 }
 
 fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {

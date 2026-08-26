@@ -442,6 +442,18 @@ fn rejects_implicit_interface_default_bodies() {
 }
 
 #[test]
+fn associated_binding_lists_report_their_own_expected_syntax() {
+    let tree = parse_text(
+        "func make(): some Source { .Item = i32, invalid } { return }\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(tree.diagnostics().iter().any(|diagnostic| {
+        diagnostic.kind() == ParseDiagnosticKind::Expected(ExpectedSyntax::AssociatedTypeBinding)
+    }));
+}
+
+#[test]
 fn interface_members_require_bare_public_visibility() {
     for source in [
         "interface Source { method &self.read(): void }\n",

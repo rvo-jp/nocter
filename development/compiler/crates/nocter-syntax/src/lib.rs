@@ -4,6 +4,7 @@ mod diagnostic;
 mod documentation;
 mod lexer;
 mod literal;
+mod navigation;
 mod parser;
 mod query;
 mod token;
@@ -14,6 +15,10 @@ pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFil
 pub use literal::{
     DecodedStringPart, decode_plain_string_expression, decode_string_expression,
     decode_string_literal, decode_string_text,
+};
+pub use navigation::{
+    child_nodes, direct_identifier, direct_node, direct_nodes, direct_token, direct_tokens,
+    first_direct_token,
 };
 pub use nocter_language::BuiltinType;
 pub use parser::{ParseGoal, parse};

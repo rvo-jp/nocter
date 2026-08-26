@@ -1,6 +1,7 @@
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    Keyword, NodeId, NodeKind, Punctuation, SyntaxToken, SyntaxTree, TokenKind, direct_node,
+    direct_token,
 };
 
 use crate::SurfaceDeclarationKind;
@@ -35,26 +36,4 @@ pub(crate) fn declaration_entity_origin(
         Some(token_kind) => direct_token(tree, node, token_kind).map(SyntaxOrigin::Token),
         None => Some(SyntaxOrigin::Node(node)),
     }
-}
-
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-}
-
-fn direct_token(tree: &SyntaxTree, node: NodeId, kind: TokenKind) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == kind => Some(*token),
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
 }

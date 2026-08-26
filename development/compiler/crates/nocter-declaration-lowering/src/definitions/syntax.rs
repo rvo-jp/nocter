@@ -1,26 +1,5 @@
-use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
-};
-
-pub(super) fn direct_nodes(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-pub(super) fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    direct_nodes(tree, node, kind).into_iter().next()
-}
+use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
+pub(super) use nocter_syntax::{direct_identifier, direct_node, direct_nodes, direct_tokens};
 
 pub(super) fn descendants(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Vec<NodeId> {
     let mut result = Vec::new();
@@ -40,22 +19,6 @@ pub(super) fn descendants(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Ve
 
 pub(super) fn descendant(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Option<NodeId> {
     descendants(tree, root, kind).into_iter().next()
-}
-
-pub(super) fn direct_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Token(token) => Some(*token),
-            _ => None,
-        })
-        .collect()
-}
-
-pub(super) fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    direct_tokens(tree, node)
-        .into_iter()
-        .find(|token| token.kind() == TokenKind::Identifier)
 }
 
 pub(super) fn has_punctuation(tree: &SyntaxTree, node: NodeId, punctuation: Punctuation) -> bool {

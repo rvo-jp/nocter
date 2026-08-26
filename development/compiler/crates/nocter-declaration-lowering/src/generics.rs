@@ -7,7 +7,9 @@ use std::fmt;
 use nocter_declarations::{GenericOwner, GenericParameter};
 use nocter_model::{GenericParameterId, Symbol};
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind};
+use nocter_syntax::{
+    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind, direct_token,
+};
 
 use crate::{
     PreparedHeaders, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId,
@@ -292,7 +294,12 @@ fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec
     for pattern in direct_children(tree, declaration, NodeKind::DeclarationTypePattern) {
         if let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments) {
             binders.extend(identifier_tokens(tree, arguments));
-        } else if direct_token(tree, pattern, Punctuation::LeftBracket).is_some()
+        } else if direct_token(
+            tree,
+            pattern,
+            TokenKind::Punctuation(Punctuation::LeftBracket),
+        )
+        .is_some()
             && let Some(token) = identifier_tokens(tree, pattern).into_iter().next()
         {
             binders.push(token);
@@ -495,21 +502,6 @@ fn identifier_tokens(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Vec<Synt
         }
     }
     identifiers
-}
-
-fn direct_token(
-    tree: &nocter_syntax::SyntaxTree,
-    node: NodeId,
-    punctuation: Punctuation,
-) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Punctuation(punctuation) => {
-                Some(*token)
-            }
-            _ => None,
-        })
 }
 
 const fn is_member(kind: NodeKind) -> bool {

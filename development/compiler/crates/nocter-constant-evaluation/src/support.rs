@@ -1,6 +1,7 @@
 use nocter_model::BuiltinType;
-use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
+pub(crate) use nocter_syntax::{
+    child_nodes as direct_nodes, direct_node, first_direct_token as direct_token,
 };
 
 #[derive(Clone, Copy)]
@@ -82,29 +83,6 @@ pub(crate) fn shift(
     }
 }
 
-pub(crate) fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-}
-
-pub(crate) fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(node) => Some(*node),
-            _ => None,
-        })
-        .collect()
-}
-
 pub(crate) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
     direct_nodes(tree, node)
         .into_iter()
@@ -119,15 +97,6 @@ pub(crate) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId
 pub(crate) fn one_expression_child(tree: &SyntaxTree, node: NodeId) -> Option<NodeId> {
     let children = expression_children(tree, node);
     (children.len() == 1).then_some(children[0])
-}
-
-pub(crate) fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) => Some(*token),
-            _ => None,
-        })
 }
 
 pub(crate) fn direct_punctuation(tree: &SyntaxTree, node: NodeId) -> Option<Punctuation> {

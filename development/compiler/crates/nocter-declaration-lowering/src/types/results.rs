@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_model::{BuiltinType, OpaqueTypeId};
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
@@ -127,21 +127,6 @@ fn bind_callable_result(
         return Ok(Some(bound));
     }
     syntax::bind(namespaces, declaration, tree, result_node, arena).map(Some)
-}
-
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
 }
 
 fn find_descendant(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Option<NodeId> {

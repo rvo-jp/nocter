@@ -362,6 +362,7 @@ fn expected_parts(expected: ExpectedSyntax) -> (&'static str, Option<&'static st
         ExpectedSyntax::TargetableItem => ("targetable_declaration", None),
         ExpectedSyntax::Item => ("declaration", None),
         ExpectedSyntax::DeclarationMember => ("declaration_member", None),
+        ExpectedSyntax::AssociatedTypeBinding => ("associated_type_binding", None),
         ExpectedSyntax::DeclarationTypePattern => ("declaration_type_pattern", None),
         ExpectedSyntax::Receiver => ("receiver", None),
         ExpectedSyntax::Block => ("block", None),

@@ -163,6 +163,7 @@ fn expected_message(expected: ExpectedSyntax) -> Box<str> {
         ExpectedSyntax::TargetableItem => "expected a targetable declaration".into(),
         ExpectedSyntax::Item => "expected a declaration".into(),
         ExpectedSyntax::DeclarationMember => "expected a declaration member".into(),
+        ExpectedSyntax::AssociatedTypeBinding => "expected an associated type binding".into(),
         ExpectedSyntax::DeclarationTypePattern => "expected a declaration type pattern".into(),
         ExpectedSyntax::Receiver => "expected a receiver".into(),
         ExpectedSyntax::Block => "expected a block".into(),

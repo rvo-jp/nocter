@@ -19,6 +19,7 @@ pub enum ExpectedSyntax {
     TargetableItem,
     Item,
     DeclarationMember,
+    AssociatedTypeBinding,
     DeclarationTypePattern,
     Receiver,
     Block,

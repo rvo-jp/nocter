@@ -9,7 +9,10 @@ use nocter_declarations::ExportedEntity;
 use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
+use nocter_syntax::{
+    NodeId, NodeKind, SyntaxToken, SyntaxTree, TokenKind, child_nodes, direct_node,
+    first_direct_token,
+};
 
 use crate::definitions::HeaderDefinitionError;
 use crate::{
@@ -300,7 +303,8 @@ impl HeaderResolver<'_, '_> {
         let tree = self.tree(node)?;
         match tree.node(node).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::ReferenceExpression) => {
-                let token = direct_token(tree, node).ok_or_else(|| inconsistent_node(node))?;
+                let token =
+                    first_direct_token(tree, node).ok_or_else(|| inconsistent_node(node))?;
                 let symbol = self.symbol(token)?;
                 let source = self.surface_source(node)?;
                 let entity = self
@@ -312,7 +316,7 @@ impl HeaderResolver<'_, '_> {
                 Ok(entity)
             }
             Some(NodeKind::PostfixExpression) => {
-                let nodes = direct_nodes(tree, node);
+                let nodes = child_nodes(tree, node);
                 if nodes.len() != 2
                     || tree.node(nodes[1]).map(nocter_syntax::SyntaxNode::kind)
                         != Some(NodeKind::MemberSuffix)
@@ -323,7 +327,7 @@ impl HeaderResolver<'_, '_> {
                 else {
                     return Err(non_constant(node));
                 };
-                let token = direct_token(tree, nodes[1])
+                let token = first_direct_token(tree, nodes[1])
                     .filter(|token| token.kind() == TokenKind::Identifier)
                     .ok_or_else(|| inconsistent_node(node))?;
                 let entity = self
@@ -495,38 +499,6 @@ const fn integer_builtin(builtin: BuiltinType) -> bool {
             | BuiltinType::U64
             | BuiltinType::Usize
     )
-}
-
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-}
-
-fn direct_nodes(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(node) => Some(*node),
-            _ => None,
-        })
-        .collect()
-}
-
-fn direct_token(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) => Some(*token),
-            _ => None,
-        })
 }
 
 const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {

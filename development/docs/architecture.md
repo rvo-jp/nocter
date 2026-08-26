@@ -577,6 +577,12 @@ tree. The `nocter.tokens` and `nocter.ast` version-1 renderers project that snap
 flat, ID-based JSON; they do not create a second AST. Lexer/parser diagnostics use the same
 projection functions as discovery.
 
+Direct CST navigation is also a syntax-layer contract. `nocter-syntax` owns the source-ordered
+queries for child nodes, child nodes of one kind, child tokens, and the first token of one kind.
+Lowering, checking, constant evaluation, and analysis consume those queries instead of maintaining
+lookalike tree walks with subtly different missing-node behavior. Domain traversals may still stop
+at declaration or block boundaries, but they build on this one direct-child definition.
+
 Formatting consumes that same snapshot as a concrete-syntax layout operation. It cannot resolve a
 name or inspect a semantic program. One shared ordered-token projection returns every CST token
 once and retains parser-owned subdivisions of lexical tokens such as nested generic `>>`; AST JSON

@@ -1,7 +1,8 @@
 use nocter_declarations::ExportedEntity;
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind, direct_node,
+    direct_nodes,
 };
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
@@ -29,7 +30,7 @@ fn bind(
 ) -> Result<BoundDeclarationPattern, TypeBindingError> {
     if has_punctuation(tree, pattern, Punctuation::LeftBracket) {
         let token =
-            direct_identifier(tree, pattern).ok_or(TypeBindingError::InvalidSyntax(pattern))?;
+            direct_type_name(tree, pattern).ok_or(TypeBindingError::InvalidSyntax(pattern))?;
         let name = token_symbol(namespaces, tree, token)?;
         let parameter = namespaces
             .imports
@@ -43,7 +44,7 @@ fn bind(
     }
 
     let named = direct_node(tree, pattern, NodeKind::NamedType);
-    let head = direct_identifier(tree, named.unwrap_or(pattern))
+    let head = direct_type_name(tree, named.unwrap_or(pattern))
         .ok_or(TypeBindingError::InvalidSyntax(pattern))?;
     let name = token_symbol(namespaces, tree, head)?;
     let source = declaration_source(namespaces, declaration)?;
@@ -129,34 +130,7 @@ fn bind_arguments(
         .collect()
 }
 
-fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-}
-
-fn direct_nodes(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
+fn direct_type_name(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     tree.children(node)
         .iter()
         .find_map(|element| match element {
