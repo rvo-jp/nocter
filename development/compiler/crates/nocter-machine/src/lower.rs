@@ -85,10 +85,11 @@ impl MachineProgram {
         let root = lower_root(linkage.root(), function_domain)?;
         let function_table = MachineTable::from_values(functions);
         let contexts = MachineContextPlans::build(&function_table)?;
+        let primitive_abis = abi.finish();
 
         Ok(Self::new(crate::program::MachineProgramParts {
             layouts,
-            abi,
+            primitive_abis,
             contexts,
             destructions,
             linkage,
@@ -217,6 +218,7 @@ pub enum MachineProgramError {
     MissingItemFunction(ExecutableItemId),
     MissingItem(ExecutableItemId),
     MissingCallableAbi(ExecutableItemId),
+    MissingPrimitiveAbi(MirOperationId),
     MissingProcessRoot(nocter_model::PackageTargetId),
     MissingTestRoot(TestId),
     MissingLinkageKey(MachineLinkageKey),
@@ -294,6 +296,7 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingItemFunction(_)
             | Self::MissingItem(_)
             | Self::MissingCallableAbi(_)
+            | Self::MissingPrimitiveAbi(_)
             | Self::MissingProcessRoot(_)
             | Self::MissingTestRoot(_)
             | Self::MissingLinkageKey(_)

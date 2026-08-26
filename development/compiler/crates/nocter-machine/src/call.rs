@@ -1,17 +1,18 @@
 use nocter_model::TypeId;
 use nocter_runtime_contract::PrimitiveRole;
 
+use crate::identity::MachinePrimitiveAbiId;
 use crate::{
-    MachineAddressId, MachineCallableAbi, MachineFunctionId, MachinePackId,
-    MachinePrimitiveDependency, MachineStackId, MachineValueId,
+    MachineAddressId, MachineFunctionId, MachinePackId, MachinePrimitiveDependency, MachineStackId,
+    MachineValueId,
 };
 
-/// One compiler-known primitive target with its concrete signature transport already planned.
+/// One compiler-known primitive target referencing a canonical, already-planned ABI entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachinePrimitiveTarget {
     role: PrimitiveRole,
     type_arguments: Box<[TypeId]>,
-    abi: MachineCallableAbi,
+    abi: MachinePrimitiveAbiId,
     dependency: MachinePrimitiveDependency,
 }
 
@@ -19,7 +20,7 @@ impl MachinePrimitiveTarget {
     pub(crate) fn new(
         role: PrimitiveRole,
         type_arguments: impl Into<Box<[TypeId]>>,
-        abi: MachineCallableAbi,
+        abi: MachinePrimitiveAbiId,
         dependency: MachinePrimitiveDependency,
     ) -> Self {
         Self {
@@ -41,8 +42,8 @@ impl MachinePrimitiveTarget {
     }
 
     #[must_use]
-    pub const fn abi(&self) -> &MachineCallableAbi {
-        &self.abi
+    pub(crate) const fn abi_id(&self) -> MachinePrimitiveAbiId {
+        self.abi
     }
 
     #[must_use]

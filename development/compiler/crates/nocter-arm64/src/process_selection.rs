@@ -1,7 +1,6 @@
 use nocter_machine::{
     MachineArgumentLocation, MachineCallTarget, MachineContextRequirement, MachineFunctionId,
-    MachineOperationId, MachinePrimitiveTarget, MachineResultAbi, MachineResultLocation,
-    MachineValueClass,
+    MachineOperationId, MachineResultAbi, MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -119,7 +118,7 @@ pub(crate) fn select_callback_current(
 
 pub(crate) fn select_primitive(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
@@ -150,7 +149,7 @@ pub(crate) fn select_primitive(
 
 fn validate_abi(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     has_index: bool,
     result_words: u8,
 ) -> Result<(), Arm64SelectionError> {

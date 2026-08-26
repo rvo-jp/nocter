@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineArgumentLocation, MachineOperationId, MachinePrimitiveTarget, MachineResultAbi,
-    MachineResultLocation, MachineValueClass,
+    MachineArgumentLocation, MachineCallableAbi, MachineOperationId, MachinePrimitiveTarget,
+    MachineResultAbi, MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -10,12 +10,46 @@ use crate::{
     Arm64SelectionError,
 };
 
+/// A primitive call paired with its canonical machine ABI entry.
+///
+/// Resolution happens once at the selection boundary. Role-specific selectors receive this closed
+/// view and cannot reinterpret a signature or consult MIR metadata.
+#[derive(Clone, Copy)]
+pub(crate) struct Arm64PrimitiveTarget<'program> {
+    target: &'program MachinePrimitiveTarget,
+    abi: &'program MachineCallableAbi,
+}
+
+impl<'program> Arm64PrimitiveTarget<'program> {
+    pub(crate) fn resolve(
+        program: &'program nocter_machine::MachineProgram,
+        target: &'program MachinePrimitiveTarget,
+    ) -> Option<Self> {
+        Some(Self {
+            target,
+            abi: program.primitive_abi(target)?,
+        })
+    }
+
+    pub(crate) const fn abi(self) -> &'program MachineCallableAbi {
+        self.abi
+    }
+}
+
+impl std::ops::Deref for Arm64PrimitiveTarget<'_> {
+    type Target = MachinePrimitiveTarget;
+
+    fn deref(&self) -> &Self::Target {
+        self.target
+    }
+}
+
 /// Expands one closed primitive role while preserving its ordinary Nocter ABI boundary.
 pub(crate) fn select(
     program: &nocter_machine::MachineProgram,
     frame: &crate::Arm64FunctionFrame,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
@@ -94,7 +128,7 @@ pub(crate) fn select(
 
 fn select_noop_destruction(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
 ) -> Result<(), Arm64SelectionError> {
     validate_type_arguments(operation, target, 1)?;
     let nocter_machine::MachinePrimitiveDependency::Destruction {
@@ -130,7 +164,7 @@ fn select_noop_destruction(
 
 fn select_context_reader(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_register_abi(operation, target, &[], 1)?;
@@ -155,7 +189,7 @@ fn select_context_reader(
 fn select_pointee_layout(
     program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_register_abi(operation, target, &[1], 1)?;
@@ -179,7 +213,7 @@ fn select_pointee_layout(
 
 fn select_string_subview(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_register_abi(operation, target, &[2, 1, 1], 2)?;
@@ -201,7 +235,7 @@ fn select_string_subview(
 
 fn select_view_length(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_register_abi(operation, target, &[2], 1)?;
@@ -216,7 +250,7 @@ fn select_view_length(
 
 fn validate_view_type_arguments(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
 ) -> Result<(), Arm64SelectionError> {
     let expected = usize::from(matches!(
         target.role(),
@@ -227,7 +261,7 @@ fn validate_view_type_arguments(
 
 pub(super) fn validate_type_arguments(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     expected: usize,
 ) -> Result<(), Arm64SelectionError> {
     if target.type_arguments().len() == expected {
@@ -239,7 +273,7 @@ pub(super) fn validate_type_arguments(
 
 fn validate_register_abi(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: Arm64PrimitiveTarget<'_>,
     argument_words: &[u8],
     result_words: u8,
 ) -> Result<(), Arm64SelectionError> {

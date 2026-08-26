@@ -1,9 +1,13 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_mir::{MirFunction, MirProgram};
+use nocter_mir::{
+    MirBody, MirCallSignature, MirCallTarget, MirFunction, MirOperationKind, MirProgram, MirRoot,
+};
 use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, TypeId};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
+use crate::identity::{MachineId, MachinePrimitiveAbiId, MachineTable};
 use crate::{MachineLayout, MachineLayoutStore, MachineTarget};
 
 /// Stored-value classification before a caller or callee assigns concrete ABI locations.
@@ -212,15 +216,62 @@ impl MachineCallableAbi {
     }
 }
 
-/// One immutable callable ABI plan per dense executable item.
+/// Temporary whole-program ABI authority used while lowering MIR into machine operations.
+///
+/// Direct callable entries are moved into their final machine functions. Primitive signatures are
+/// interned here, referenced by identity from calls, and transferred as one dense final table.
 #[derive(Debug)]
 pub struct MachineAbiPlan {
     target: MachineTarget,
     callables: Arena<ExecutableItemId, MachineCallableAbi>,
+    primitive_signatures: MachinePrimitiveSignatureIndex,
+    primitive_abis: Vec<MachineCallableAbi>,
+}
+
+/// Machine-owned lookup from a borrowed MIR signature to the canonical primitive ABI identity.
+///
+/// The two-level map permits lookup by `&[TypeId]` without requiring MIR signatures to implement
+/// ordering or allocating a temporary owned key for repeated calls.
+#[derive(Debug, Default)]
+struct MachinePrimitiveSignatureIndex {
+    by_parameters: BTreeMap<Box<[TypeId]>, BTreeMap<TypeId, MachinePrimitiveAbiId>>,
+}
+
+impl MachinePrimitiveSignatureIndex {
+    fn get(&self, signature: &MirCallSignature) -> Option<MachinePrimitiveAbiId> {
+        self.by_parameters
+            .get(signature.parameters())?
+            .get(&signature.result())
+            .copied()
+    }
+
+    fn insert(&mut self, signature: &MirCallSignature, id: MachinePrimitiveAbiId) {
+        let previous = self
+            .by_parameters
+            .entry(signature.parameters().into())
+            .or_default()
+            .insert(signature.result(), id);
+        assert!(
+            previous.is_none(),
+            "primitive ABI signature was indexed twice"
+        );
+    }
+}
+
+/// Final primitive ABI authority retained after MIR signature lookup is no longer needed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct MachinePrimitiveAbiTable {
+    values: MachineTable<MachinePrimitiveAbiId, MachineCallableAbi>,
+}
+
+impl MachinePrimitiveAbiTable {
+    pub(crate) fn get(&self, id: MachinePrimitiveAbiId) -> Option<&MachineCallableAbi> {
+        self.values.get(id)
+    }
 }
 
 impl MachineAbiPlan {
-    /// Plans every direct function from the exact parameter/result types retained by MIR.
+    /// Plans every direct function and unique primitive signature from exact MIR types.
     ///
     /// # Errors
     ///
@@ -233,15 +284,46 @@ impl MachineAbiPlan {
         let target = layouts.target();
         let types = program.types();
         let mut callables = ArenaBuilder::new();
+        let mut primitive_signatures = MachinePrimitiveSignatureIndex::default();
+        let mut primitive_abis = Vec::new();
         for (expected, function) in program.functions().iter() {
             let actual = callables.insert(plan_function(function, types, layouts)?);
             if actual != expected {
                 return Err(MachineAbiError::MismatchedFunctionIdentity { expected, actual });
             }
+            collect_primitive_abis(
+                function.body(),
+                types,
+                layouts,
+                &mut primitive_signatures,
+                &mut primitive_abis,
+            )?;
+        }
+        match program.root() {
+            MirRoot::Process(root) => collect_primitive_abis(
+                root.body(),
+                types,
+                layouts,
+                &mut primitive_signatures,
+                &mut primitive_abis,
+            )?,
+            MirRoot::Tests { cases, .. } => {
+                for root in cases {
+                    collect_primitive_abis(
+                        root.body(),
+                        types,
+                        layouts,
+                        &mut primitive_signatures,
+                        &mut primitive_abis,
+                    )?;
+                }
+            }
         }
         Ok(Self {
             target,
             callables: callables.finish(),
+            primitive_signatures,
+            primitive_abis,
         })
     }
 
@@ -259,6 +341,50 @@ impl MachineAbiPlan {
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (ExecutableItemId, &MachineCallableAbi)> {
         self.callables.iter()
     }
+
+    pub(crate) fn primitive_signature_id(
+        &self,
+        signature: &MirCallSignature,
+    ) -> Option<MachinePrimitiveAbiId> {
+        self.primitive_signatures.get(signature)
+    }
+
+    pub(crate) fn finish(self) -> MachinePrimitiveAbiTable {
+        MachinePrimitiveAbiTable {
+            values: MachineTable::from_values(self.primitive_abis),
+        }
+    }
+}
+
+fn collect_primitive_abis(
+    body: &MirBody,
+    types: &RuntimeTypeTable,
+    layouts: &MachineLayoutStore,
+    signatures: &mut MachinePrimitiveSignatureIndex,
+    abis: &mut Vec<MachineCallableAbi>,
+) -> Result<(), MachineAbiError> {
+    for (_, operation) in body.operations().iter() {
+        let MirOperationKind::Call(call) = operation.kind() else {
+            continue;
+        };
+        let MirCallTarget::StandardPrimitive { signature, .. } = call.target() else {
+            continue;
+        };
+        if signatures.get(signature).is_some() {
+            continue;
+        }
+        let id = MachinePrimitiveAbiId::new(abis.len());
+        let abi = plan_signature(
+            types,
+            layouts,
+            signature.parameters(),
+            signature.result(),
+            None,
+        )?;
+        signatures.insert(signature, id);
+        abis.push(abi);
+    }
+    Ok(())
 }
 
 fn plan_function(

@@ -2,9 +2,9 @@ use nocter_model::TestId;
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineAbiPlan, MachineAddress, MachineAddressId, MachineBlock, MachineBlockId,
-    MachineDataTable, MachineDestructionTable, MachineDropFlag, MachineDropFlagId,
-    MachineFunctionId, MachineLayoutStore, MachineLinkageId, MachineLinkageTable, MachineOperation,
+    MachineAddress, MachineAddressId, MachineBlock, MachineBlockId, MachineDataTable,
+    MachineDestructionTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId,
+    MachineLayoutStore, MachineLinkageId, MachineLinkageTable, MachineOperation,
     MachineOperationId, MachinePack, MachinePackId, MachineStackId, MachineStackObject,
     MachineValue, MachineValueId,
 };
@@ -247,7 +247,7 @@ pub enum MachineProgramRoot {
 #[derive(Debug)]
 pub struct MachineProgram {
     layouts: MachineLayoutStore,
-    abi: MachineAbiPlan,
+    primitive_abis: crate::transport::MachinePrimitiveAbiTable,
     contexts: crate::MachineContextPlans,
     destructions: MachineDestructionTable,
     linkage: MachineLinkageTable,
@@ -258,7 +258,7 @@ pub struct MachineProgram {
 
 pub(crate) struct MachineProgramParts {
     pub(crate) layouts: MachineLayoutStore,
-    pub(crate) abi: MachineAbiPlan,
+    pub(crate) primitive_abis: crate::transport::MachinePrimitiveAbiTable,
     pub(crate) contexts: crate::MachineContextPlans,
     pub(crate) destructions: MachineDestructionTable,
     pub(crate) linkage: MachineLinkageTable,
@@ -271,7 +271,7 @@ impl MachineProgram {
     pub(crate) fn new(parts: MachineProgramParts) -> Self {
         Self {
             layouts: parts.layouts,
-            abi: parts.abi,
+            primitive_abis: parts.primitive_abis,
             contexts: parts.contexts,
             destructions: parts.destructions,
             linkage: parts.linkage,
@@ -287,8 +287,11 @@ impl MachineProgram {
     }
 
     #[must_use]
-    pub const fn abi(&self) -> &MachineAbiPlan {
-        &self.abi
+    pub fn primitive_abi(
+        &self,
+        target: &crate::MachinePrimitiveTarget,
+    ) -> Option<&crate::MachineCallableAbi> {
+        self.primitive_abis.get(target.abi_id())
     }
 
     #[must_use]

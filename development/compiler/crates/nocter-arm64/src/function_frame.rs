@@ -498,7 +498,10 @@ fn call_stack_size(
 ) -> Result<u64, Arm64FunctionFrameError> {
     match target {
         MachineCallTarget::Direct(target) => direct_stack_size(program, *target),
-        MachineCallTarget::Primitive(target) => Ok(target.abi().stack_argument_size()),
+        MachineCallTarget::Primitive(target) => program
+            .primitive_abi(target)
+            .map(nocter_machine::MachineCallableAbi::stack_argument_size)
+            .ok_or(Arm64FunctionFrameError::MissingPrimitiveAbi),
     }
 }
 
@@ -521,6 +524,7 @@ fn direct_stack_size(
 pub enum Arm64FunctionFrameError {
     UnknownFunction(MachineFunctionId),
     NonCallableTarget(MachineFunctionId),
+    MissingPrimitiveAbi,
     ForeignValuePlan {
         expected: nocter_machine::MachineLinkageId,
         actual: nocter_machine::MachineLinkageId,
@@ -553,6 +557,7 @@ impl std::error::Error for Arm64FunctionFrameError {
             Self::FrameLayout(error) => Some(error),
             Self::UnknownFunction(_)
             | Self::NonCallableTarget(_)
+            | Self::MissingPrimitiveAbi
             | Self::ForeignValuePlan { .. }
             | Self::MissingAllocation(_)
             | Self::MissingProcessContext(_)

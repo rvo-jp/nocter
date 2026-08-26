@@ -1134,7 +1134,10 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
             let crate::MachineCallTarget::Primitive(target) = call.target() else {
                 return None;
             };
-            Some((target.role(), target.abi().arguments().len()))
+            Some((
+                target.role(),
+                program.primitive_abi(target).unwrap().arguments().len(),
+            ))
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -1144,6 +1147,37 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
             (PrimitiveRole::PointerAddress, 1),
         ]
     );
+}
+
+#[test]
+fn repeated_standard_primitive_signatures_share_one_machine_abi_entry() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/ptr.addr\n\
+         use std/ptr.from_ref\n\
+         func main(): usize {\n\
+             let value: i32 = 7\n\
+             let _ = from_ref(&value)\n\
+             addr(from_ref(&value))\n\
+         }\n",
+        &[&["ptr"], &["ptr"]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let abis = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter_map(|(_, operation)| {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                return None;
+            };
+            let crate::MachineCallTarget::Primitive(target) = call.target() else {
+                return None;
+            };
+            (target.role() == PrimitiveRole::PointerFromReference)
+                .then(|| program.primitive_abi(target).unwrap())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(abis.len(), 2);
+    assert!(std::ptr::eq(abis[0], abis[1]));
 }
 
 #[test]

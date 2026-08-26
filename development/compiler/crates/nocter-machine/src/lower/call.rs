@@ -84,13 +84,10 @@ pub(super) fn lower_call_target(
                     .ok_or(MachineProgramError::MissingDestruction(destruction))?;
                 return Ok(MachineCallTarget::Direct(function));
             }
-            let abi = crate::transport::plan_signature(
-                context.types,
-                context.layouts,
-                signature.parameters(),
-                signature.result(),
-                None,
-            )?;
+            let abi = context
+                .abi
+                .primitive_signature_id(signature)
+                .ok_or(MachineProgramError::MissingPrimitiveAbi(operation))?;
             let dependency = match dependency {
                 MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
                 MirPrimitiveDependency::Destruction { subject, plan } => {

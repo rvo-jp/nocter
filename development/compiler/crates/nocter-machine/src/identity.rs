@@ -51,6 +51,7 @@ machine_ids! {
     MachineDataId,
     MachineDestructionId,
     MachineTestId,
+    MachinePrimitiveAbiId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

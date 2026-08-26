@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineArgumentLocation, MachineLayoutKind, MachineOperationId, MachinePrimitiveTarget,
-    MachineResultAbi, MachineResultLocation, MachineValueClass,
+    MachineArgumentLocation, MachineLayoutKind, MachineOperationId, MachineResultAbi,
+    MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -81,7 +81,7 @@ fn select_release(
 
 pub(crate) fn select_primitive(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     frame: &crate::Arm64FunctionFrame,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
@@ -129,7 +129,7 @@ pub(crate) fn select_primitive(
 
 fn validate_arguments(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     expected: &[(u8, u8)],
 ) -> Result<(), Arm64SelectionError> {
     if target.abi().arguments().len() != expected.len() {
@@ -151,7 +151,7 @@ fn validate_arguments(
 
 fn validate_result(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     words: u8,
 ) -> Result<(), Arm64SelectionError> {
     let MachineResultAbi::Value(result) = target.abi().result() else {

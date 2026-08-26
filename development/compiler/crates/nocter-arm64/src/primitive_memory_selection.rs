@@ -1,6 +1,6 @@
 use nocter_machine::{
     MachineArgumentAbi, MachineArgumentLocation, MachineLayout, MachineOperationId,
-    MachinePrimitiveTarget, MachineResultAbi, MachineResultLocation, MachineValueClass,
+    MachineResultAbi, MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -13,7 +13,7 @@ use crate::{
 pub(super) fn select(
     program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
@@ -32,7 +32,7 @@ pub(super) fn select(
 
 fn select_string_copy(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_completion_abi(operation, target, &[1, 1, 2])?;
@@ -48,7 +48,7 @@ fn select_string_copy(
 
 fn select_pointer_copy(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_completion_abi(operation, target, &[1, 1, 1])?;
@@ -63,7 +63,7 @@ fn select_pointer_copy(
 
 fn select_byte_store(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_completion_abi(operation, target, &[1, 1, 1])?;
@@ -83,7 +83,7 @@ fn select_byte_store(
 fn select_value_store(
     program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let layout = value_layout(program, operation, target)?;
@@ -143,7 +143,7 @@ fn select_value_store(
 fn select_value_take(
     program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let layout = value_layout(program, operation, target)?;
@@ -202,7 +202,7 @@ fn select_value_take(
 fn value_layout<'program>(
     program: &'program nocter_machine::MachineProgram,
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
 ) -> Result<&'program MachineLayout, Arm64SelectionError> {
     super::primitive_selection::validate_type_arguments(operation, target, 1)?;
     program
@@ -213,7 +213,7 @@ fn value_layout<'program>(
 
 fn validate_completion_abi(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     argument_words: &[u8],
 ) -> Result<(), Arm64SelectionError> {
     validate_common_abi(operation, target, argument_words.len())?;
@@ -233,7 +233,7 @@ fn validate_completion_abi(
 
 fn validate_common_abi(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     arguments: usize,
 ) -> Result<(), Arm64SelectionError> {
     if target.abi().arguments().len() == arguments

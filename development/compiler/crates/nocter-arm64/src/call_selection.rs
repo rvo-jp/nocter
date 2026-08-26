@@ -11,6 +11,50 @@ use crate::{
     Arm64ValueStorage,
 };
 
+#[derive(Clone, Copy)]
+enum ResolvedCallTarget<'program> {
+    Direct {
+        function: MachineFunctionId,
+        abi: &'program nocter_machine::MachineCallableAbi,
+    },
+    Primitive(crate::primitive_selection::Arm64PrimitiveTarget<'program>),
+}
+
+impl<'program> ResolvedCallTarget<'program> {
+    const fn abi(self) -> &'program nocter_machine::MachineCallableAbi {
+        match self {
+            Self::Direct { abi, .. } => abi,
+            Self::Primitive(target) => target.abi(),
+        }
+    }
+}
+
+fn resolve_call_target<'program>(
+    program: &'program nocter_machine::MachineProgram,
+    operation: MachineOperationId,
+    target: &'program MachineCallTarget,
+) -> Result<ResolvedCallTarget<'program>, Arm64SelectionError> {
+    match target {
+        MachineCallTarget::Direct(target) => {
+            let target_function = program
+                .function(*target)
+                .ok_or(Arm64SelectionError::UnknownFunction(*target))?;
+            let MachineFunctionKind::Callable(abi) = target_function.kind() else {
+                return Err(Arm64SelectionError::NonCallableTarget(*target));
+            };
+            Ok(ResolvedCallTarget::Direct {
+                function: *target,
+                abi,
+            })
+        }
+        MachineCallTarget::Primitive(target) => {
+            crate::primitive_selection::Arm64PrimitiveTarget::resolve(program, target)
+                .map(ResolvedCallTarget::Primitive)
+                .ok_or(Arm64SelectionError::PrimitiveCall(operation))
+        }
+    }
+}
+
 pub(crate) fn select_parameters(
     program: &nocter_machine::MachineProgram,
     owner: MachineFunctionId,
@@ -130,19 +174,8 @@ pub(crate) fn select_call(
     result: Option<MachineValueId>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let abi = match call.target() {
-        MachineCallTarget::Direct(target) => {
-            let target_function = context
-                .program()
-                .function(*target)
-                .ok_or(Arm64SelectionError::UnknownFunction(*target))?;
-            let MachineFunctionKind::Callable(abi) = target_function.kind() else {
-                return Err(Arm64SelectionError::NonCallableTarget(*target));
-            };
-            abi
-        }
-        MachineCallTarget::Primitive(target) => target.abi(),
-    };
+    let target = resolve_call_target(context.program(), operation, call.target())?;
+    let abi = target.abi();
     crate::pack_selection::select_call_pack(context, operation, call, abi, selected)?;
     crate::allocation_selection::select_call(
         context.program(),
@@ -175,11 +208,11 @@ pub(crate) fn select_call(
         context.frame(),
         selected,
     )?;
-    match call.target() {
-        MachineCallTarget::Direct(target) => {
-            selected.push(Arm64SelectedInstruction::Call(*target));
+    match target {
+        ResolvedCallTarget::Direct { function, .. } => {
+            selected.push(Arm64SelectedInstruction::Call(function));
         }
-        MachineCallTarget::Primitive(target) => {
+        ResolvedCallTarget::Primitive(target) => {
             crate::primitive_selection::select(
                 context.program(),
                 context.frame(),

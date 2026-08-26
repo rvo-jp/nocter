@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineArgumentLocation, MachineOperationId, MachinePrimitiveTarget, MachineResultAbi,
-    MachineResultLocation, MachineValueClass,
+    MachineArgumentLocation, MachineOperationId, MachineResultAbi, MachineResultLocation,
+    MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -8,7 +8,7 @@ use crate::{Arm64SelectedInstruction, Arm64SelectionError};
 
 pub(super) fn select(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
@@ -30,7 +30,7 @@ pub(super) fn select(
 
 fn select_exit(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 1)?;
@@ -43,7 +43,7 @@ fn select_exit(
 
 fn select_syscall(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let argument_count = syscall_argument_count(target.role())
@@ -67,7 +67,7 @@ fn select_syscall(
 
 fn select_break(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 0)?;
@@ -86,7 +86,7 @@ fn select_break(
 
 fn validate_ordinary_inputs(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     count: u8,
 ) -> Result<(), Arm64SelectionError> {
     super::primitive_selection::validate_type_arguments(operation, target, 0)?;
@@ -114,7 +114,7 @@ fn validate_ordinary_inputs(
 
 fn validate_diverging(
     operation: MachineOperationId,
-    target: &MachinePrimitiveTarget,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
 ) -> Result<(), Arm64SelectionError> {
     if target.abi().result() == MachineResultAbi::Diverging {
         Ok(())
