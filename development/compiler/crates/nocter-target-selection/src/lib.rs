@@ -106,8 +106,7 @@ impl TargetSelection {
         tree: &SyntaxTree,
         item: NodeId,
     ) -> Result<(), TargetSelectionError> {
-        let mut pending = vec![item];
-        while let Some(node) = pending.pop() {
+        for node in std::iter::once(item).chain(nocter_syntax::descendant_node_iter(tree, item)) {
             let kind = tree
                 .node(node)
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?
@@ -118,7 +117,6 @@ impl TargetSelection {
             ) {
                 self.inactive_uses.insert(key(node));
             }
-            pending.extend(child_node_iter(tree, node));
         }
         Ok(())
     }
@@ -162,14 +160,9 @@ const fn key(node: NodeId) -> SyntaxKey {
 }
 
 fn descendant(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    let mut pending = vec![node];
-    while let Some(node) = pending.pop() {
-        if tree.node(node).is_some_and(|node| node.kind() == kind) {
-            return Some(node);
-        }
-        pending.extend(child_node_iter(tree, node));
-    }
-    None
+    std::iter::once(node)
+        .chain(nocter_syntax::descendant_node_iter(tree, node))
+        .find(|node| tree.node(*node).is_some_and(|node| node.kind() == kind))
 }
 
 #[cfg(test)]
@@ -207,15 +200,9 @@ mod tests {
     }
 
     fn descendants_of_kind(tree: &SyntaxTree, kind: NodeKind) -> Vec<NodeId> {
-        let mut result = Vec::new();
-        let mut pending = vec![tree.root_id()];
-        while let Some(node) = pending.pop() {
-            if tree.node(node).is_some_and(|node| node.kind() == kind) {
-                result.push(node);
-            }
-            pending.extend(child_node_iter(tree, node));
-        }
-        result.sort_unstable_by_key(|node| tree.node(*node).unwrap().range().start());
-        result
+        std::iter::once(tree.root_id())
+            .chain(nocter_syntax::descendant_node_iter(tree, tree.root_id()))
+            .filter(|node| tree.node(*node).is_some_and(|node| node.kind() == kind))
+            .collect()
     }
 }

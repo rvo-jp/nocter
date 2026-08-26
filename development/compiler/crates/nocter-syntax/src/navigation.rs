@@ -122,6 +122,23 @@ pub fn descendant_identifier_iter(
     descendant_token_iter(tree, parent).filter(|token| token.kind() == TokenKind::Identifier)
 }
 
+/// Iterates every descendant node in source order without allocating output storage.
+pub fn descendant_node_iter(
+    tree: &SyntaxTree,
+    parent: NodeId,
+) -> impl Iterator<Item = NodeId> + '_ {
+    let mut pending: Vec<_> = tree.children(parent).iter().rev().copied().collect();
+    std::iter::from_fn(move || {
+        loop {
+            let SyntaxElement::Node(node) = pending.pop()? else {
+                continue;
+            };
+            pending.extend(tree.children(node).iter().rev().copied());
+            return Some(node);
+        }
+    })
+}
+
 /// Iterates outermost descendants of one kind in source order.
 ///
 /// Once a matching node is yielded, traversal does not enter that node. The pruning rule prevents
@@ -155,7 +172,8 @@ mod tests {
     use crate::{NodeKind, ParseGoal, parse};
 
     use super::{
-        descendant_identifier_iter, direct_identifier_iter, outermost_descendant_node_iter,
+        descendant_identifier_iter, descendant_node_iter, direct_identifier_iter,
+        outermost_descendant_node_iter,
     };
 
     #[test]
@@ -185,6 +203,15 @@ mod tests {
             .map(|token| source.text_at(token.range()).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(descendants, ["main", "value", "i32", "copy", "value"]);
+
+        let descendant_kinds = descendant_node_iter(&tree, function)
+            .map(|node| tree.node(node).unwrap().kind())
+            .collect::<Vec<_>>();
+        assert_eq!(descendant_kinds.first(), Some(&NodeKind::Parameters));
+        assert_eq!(
+            descendant_kinds.last(),
+            Some(&NodeKind::ReferenceExpression)
+        );
 
         let blocks =
             outermost_descendant_node_iter(&tree, function, NodeKind::Block).collect::<Vec<_>>();
