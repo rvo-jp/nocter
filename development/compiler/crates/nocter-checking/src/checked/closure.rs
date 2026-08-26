@@ -12,14 +12,38 @@ use nocter_model::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClosureSignature {
     capability: CallableCapability,
-    parameters: Box<[TypeId]>,
+    parameters: Box<[ClosureParameter]>,
     result: TypeId,
+}
+
+/// One closure parameter whose local identity and checked type cannot diverge.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ClosureParameter {
+    binding: LocalBindingId,
+    ty: TypeId,
+}
+
+impl ClosureParameter {
+    #[must_use]
+    pub const fn new(binding: LocalBindingId, ty: TypeId) -> Self {
+        Self { binding, ty }
+    }
+
+    #[must_use]
+    pub const fn binding(self) -> LocalBindingId {
+        self.binding
+    }
+
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
 }
 
 impl ClosureSignature {
     pub(crate) fn new(
         capability: CallableCapability,
-        parameters: impl Into<Box<[TypeId]>>,
+        parameters: impl Into<Box<[ClosureParameter]>>,
         result: TypeId,
     ) -> Self {
         Self {
@@ -35,8 +59,12 @@ impl ClosureSignature {
     }
 
     #[must_use]
-    pub const fn parameters(&self) -> &[TypeId] {
+    pub const fn parameters(&self) -> &[ClosureParameter] {
         &self.parameters
+    }
+
+    pub fn parameter_types(&self) -> impl ExactSizeIterator<Item = TypeId> + '_ {
+        self.parameters.iter().copied().map(ClosureParameter::ty)
     }
 
     #[must_use]
@@ -77,7 +105,6 @@ pub struct ClosureDefinition {
     owner: BodyId,
     ty: TypeId,
     signature: ClosureSignature,
-    parameters: Box<[LocalBindingId]>,
     environment: Box<[ClosureEnvironmentField]>,
     callable_requirements: Vec<CallableContract>,
     body: BodyNodeId,
@@ -88,7 +115,6 @@ impl ClosureDefinition {
         owner: BodyId,
         ty: TypeId,
         signature: ClosureSignature,
-        parameters: impl Into<Box<[LocalBindingId]>>,
         environment: impl Into<Box<[ClosureEnvironmentField]>>,
         body: BodyNodeId,
     ) -> Self {
@@ -96,7 +122,6 @@ impl ClosureDefinition {
             owner,
             ty,
             signature,
-            parameters: parameters.into(),
             environment: environment.into(),
             callable_requirements: Vec::new(),
             body,
@@ -116,11 +141,6 @@ impl ClosureDefinition {
     #[must_use]
     pub const fn signature(&self) -> &ClosureSignature {
         &self.signature
-    }
-
-    #[must_use]
-    pub const fn parameters(&self) -> &[LocalBindingId] {
-        &self.parameters
     }
 
     #[must_use]
@@ -291,7 +311,6 @@ mod tests {
                         [],
                         types.builtin(BuiltinType::Void),
                     ),
-                    [],
                     [],
                     root,
                 ),

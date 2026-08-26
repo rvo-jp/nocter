@@ -6,8 +6,9 @@ use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
 use crate::ownership::{InitializationState, MovePath, OwnershipState, owned_body_roots};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition, CleanupPath,
-    CleanupTarget, DropTable, LocalBindingKind, PatternRemainder, PlaceRoot,
+    BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition,
+    CleanupFieldProjection, CleanupPath, CleanupTarget, DropTable, LocalBindingKind,
+    PatternRemainder, PlaceRoot,
 };
 
 pub(super) struct CleanupPlanner<'program> {
@@ -210,26 +211,22 @@ impl<'program> CleanupPlanner<'program> {
         path: &MovePath,
         expected: TypeId,
     ) -> Result<CleanupPath, BodyCheckInternalError> {
-        let mut current = self.root_type(path.root_identity())?;
-        let mut projection_types = Vec::with_capacity(path.fields().len());
+        let root_ty = self.root_type(path.root_identity())?;
+        let mut current = root_ty;
+        let mut projections = Vec::with_capacity(path.fields().len());
         for field in path.fields() {
             let next = self
                 .struct_fields(current)?
                 .into_iter()
                 .find_map(|(candidate, ty)| (candidate == *field).then_some(ty))
                 .ok_or(BodyCheckInternalError::CleanupPlanning)?;
-            projection_types.push(next);
+            projections.push(CleanupFieldProjection::new(*field, next));
             current = next;
         }
         if current != expected {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
-        Ok(CleanupPath::new(
-            path.root_identity(),
-            path.fields(),
-            projection_types,
-            expected,
-        ))
+        Ok(CleanupPath::new(path.root_identity(), root_ty, projections))
     }
 
     fn needs_cleanup(&mut self, ty: TypeId) -> Result<bool, BodyCheckInternalError> {

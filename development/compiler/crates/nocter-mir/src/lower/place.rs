@@ -29,9 +29,6 @@ impl FunctionLowerer<'_> {
             .get(place)
             .cloned()
             .ok_or(MirLoweringError::UnknownPlace(place))?;
-        if checked.projections().len() != checked.projection_types().len() {
-            return Err(MirLoweringError::InvalidProjectionTypes(place));
-        }
         let root = match checked.root() {
             PlaceRoot::Parameter(parameter) => MirPlaceRoot::Local(
                 *self
@@ -55,6 +52,7 @@ impl FunctionLowerer<'_> {
                 let (capability, referent) = self.borrow_shape(place, value_ty)?;
                 let Some(PlaceProjection::BorrowDeref {
                     capability: projected,
+                    ..
                 }) = checked.projections().first()
                 else {
                     return Err(MirLoweringError::InvalidProjectionTypes(place));
@@ -93,27 +91,23 @@ impl FunctionLowerer<'_> {
         mut path: LoweredPlacePath,
         projection_start: usize,
     ) -> Result<MirPlaceId, MirLoweringError> {
-        for (projection, source_ty) in checked
-            .projections()
-            .iter()
-            .zip(checked.projection_types())
-            .skip(projection_start)
-        {
-            let ty = self.concrete_type(*source_ty)?;
+        for projection in checked.projections().iter().skip(projection_start) {
+            let ty = self.concrete_type(projection.ty())?;
             match projection {
-                PlaceProjection::Field(field) => {
+                PlaceProjection::Field { field, .. } => {
                     path.push(MirProjectionKind::Field(*field), ty);
                 }
-                PlaceProjection::BorrowDeref { capability } => {
+                PlaceProjection::BorrowDeref { capability, .. } => {
                     path.push(MirProjectionKind::BorrowDereference(*capability), ty);
                 }
-                PlaceProjection::BuiltinIndex { index } => {
+                PlaceProjection::BuiltinIndex { index, .. } => {
                     let index = self.require_value(*index)?;
                     path.push(MirProjectionKind::DynamicIndex(index), ty);
                 }
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
                     receiver_coercion,
+                    ..
                 } => {
                     self.lower_coerced_builtin_index(
                         place,
@@ -127,6 +121,7 @@ impl FunctionLowerer<'_> {
                     index,
                     operation,
                     receiver_coercion,
+                    ..
                 } => self.lower_selected_index(
                     place,
                     &mut path,

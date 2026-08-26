@@ -103,9 +103,6 @@ impl FunctionLowerer<'_> {
         owner: BodyNodeId,
         path: &CleanupPath,
     ) -> Result<MirPlaceId, MirLoweringError> {
-        if path.fields().len() != path.projection_types().len() {
-            return Err(MirLoweringError::InvalidCleanup(owner));
-        }
         let mut lowered = match path.root() {
             PlaceRoot::Parameter(parameter) => {
                 let local = *self
@@ -137,15 +134,10 @@ impl FunctionLowerer<'_> {
             PlaceRoot::Capture(capture) => self.lower_capture_path(capture)?,
             PlaceRoot::Value(_) => return Err(MirLoweringError::InvalidCleanup(owner)),
         };
-        for (field, source_ty) in path
-            .fields()
-            .iter()
-            .copied()
-            .zip(path.projection_types().iter().copied())
-        {
+        for projection in path.projections().iter().copied() {
             lowered.push(
-                MirProjectionKind::Field(field),
-                self.concrete_type(source_ty)?,
+                MirProjectionKind::Field(projection.field()),
+                self.concrete_type(projection.ty())?,
             );
         }
         let ty = self.concrete_type(path.ty())?;

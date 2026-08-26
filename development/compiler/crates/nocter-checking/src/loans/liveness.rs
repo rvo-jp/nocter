@@ -22,9 +22,9 @@ impl LivePlace {
         let fields = place
             .projections()
             .iter()
-            .take_while(|projection| matches!(projection, PlaceProjection::Field(_)))
+            .take_while(|projection| matches!(projection, PlaceProjection::Field { .. }))
             .filter_map(|projection| match projection {
-                PlaceProjection::Field(field) => Some(*field),
+                PlaceProjection::Field { field, .. } => Some(*field),
                 _ => None,
             })
             .collect();
@@ -547,7 +547,12 @@ impl Analyzer<'_> {
                         path.ty(),
                         LiveSlot::Place(LivePlace::from_parts(
                             path.root(),
-                            path.fields().to_vec().into(),
+                            path.projections()
+                                .iter()
+                                .copied()
+                                .map(crate::CleanupFieldProjection::field)
+                                .collect::<Vec<_>>()
+                                .into(),
                         )),
                     ),
                     CleanupTarget::Place { place, ty } => {

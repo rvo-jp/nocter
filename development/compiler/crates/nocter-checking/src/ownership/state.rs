@@ -44,7 +44,7 @@ impl MovePath {
             return None;
         }
         for projection in place.projections() {
-            let PlaceProjection::Field(field) = projection else {
+            let PlaceProjection::Field { field, .. } = projection else {
                 return None;
             };
             path = path.field(*field);
@@ -59,7 +59,7 @@ impl MovePath {
         let mut path = Self::root(place.root());
         for projection in place.projections() {
             match projection {
-                PlaceProjection::Field(field) => path = path.field(*field),
+                PlaceProjection::Field { field, .. } => path = path.field(*field),
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }

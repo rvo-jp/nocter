@@ -62,7 +62,7 @@ fn explicit_drop_uses_one_path_cleanup_and_consumes_the_binding() {
     assert_eq!(action.condition(), CleanupCondition::Always);
     assert!(matches!(
         action.target(),
-        CleanupTarget::Path(path) if matches!(path.root(), PlaceRoot::Parameter(_)) && path.fields().is_empty()
+        CleanupTarget::Path(path) if matches!(path.root(), PlaceRoot::Parameter(_)) && path.projections().is_empty()
     ));
     assert!(
         body.cleanups()

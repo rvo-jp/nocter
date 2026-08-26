@@ -118,7 +118,8 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
             let CheckedOperation::Move(place) = body.nodes().get(*value)?.operation() else {
                 return None;
             };
-            let PlaceProjection::Field(field) = body.places().get(*place)?.projections()[0] else {
+            let PlaceProjection::Field { field, .. } = body.places().get(*place)?.projections()[0]
+            else {
                 return None;
             };
             Some((node, field))
@@ -153,8 +154,8 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
         panic!("remaining field cleanup must target storage");
     };
 
-    assert_eq!(path.fields().len(), 1);
-    assert_ne!(path.fields()[0], moved_field);
+    assert_eq!(path.projections().len(), 1);
+    assert_ne!(path.projections()[0].field(), moved_field);
     assert_eq!(remaining.condition(), CleanupCondition::Always);
 }
 

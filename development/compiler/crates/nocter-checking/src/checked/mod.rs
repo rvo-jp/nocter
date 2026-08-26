@@ -16,12 +16,14 @@ pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;
 pub use cleanup::{
-    CleanupAction, CleanupCondition, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
-    CleanupTiming,
+    CleanupAction, CleanupCondition, CleanupFieldProjection, CleanupPath, CleanupSchedule,
+    CleanupTable, CleanupTarget, CleanupTiming,
 };
 pub use closure::ClosureTableBuildError;
 pub(crate) use closure::ClosureTableBuilder;
-pub use closure::{ClosureDefinition, ClosureEnvironmentField, ClosureSignature, ClosureTable};
+pub use closure::{
+    ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureSignature, ClosureTable,
+};
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
 };

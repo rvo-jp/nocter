@@ -155,7 +155,7 @@ fn named_field_reads_use_the_same_postfix_place_builder() {
     assert!(body.nodes().iter().any(|(_, node)| matches!(
         node.operation(),
         CheckedOperation::Copy(place)
-            if matches!(body.places().get(*place).unwrap().projections(), [PlaceProjection::Field(_)])
+            if matches!(body.places().get(*place).unwrap().projections(), [PlaceProjection::Field { .. }])
     )));
     assert!(!body.nodes().iter().any(|(_, node)| matches!(
         node.operation(),
@@ -199,9 +199,9 @@ fn borrow_dereference_preserves_the_initialized_owned_field_prefix() {
             matches!(
                 place.projections(),
                 [
-                    PlaceProjection::Field(_),
+                    PlaceProjection::Field { .. },
                     PlaceProjection::BorrowDeref { .. },
-                    PlaceProjection::Field(_)
+                    PlaceProjection::Field { .. }
                 ]
             )
         })
@@ -212,9 +212,8 @@ fn borrow_dereference_preserves_the_initialized_owned_field_prefix() {
         place.access(),
         PlaceAccess::Borrowed(nocter_model::BorrowCapability::Readonly)
     );
-    assert_eq!(place.projection_types().len(), place.projections().len());
     assert_eq!(
-        place.projection_types().last().copied(),
+        place.projections().last().map(PlaceProjection::ty),
         Some(output.program().types().builtin(BuiltinType::I32))
     );
 }

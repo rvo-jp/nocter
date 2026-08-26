@@ -514,7 +514,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .parameters()
             .iter()
             .copied()
-            .map(|ty| self.resolver.specialize_type(ty, &substitution))
+            .map(|parameter| self.resolver.specialize_type(parameter.ty(), &substitution))
             .collect::<Result<Vec<_>, _>>()?;
         let result = self
             .resolver

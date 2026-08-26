@@ -22,32 +22,52 @@ pub enum PlaceAccess {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaceProjection {
-    Field(FieldId),
+    Field {
+        field: FieldId,
+        ty: TypeId,
+    },
     /// An implicit dereference required to continue projecting through a borrow value.
     BorrowDeref {
         capability: BorrowCapability,
+        ty: TypeId,
     },
     BuiltinIndex {
         index: BodyNodeId,
+        ty: TypeId,
     },
     CoercedBuiltinIndex {
         index: BodyNodeId,
         receiver_coercion: StaticSelection,
+        ty: TypeId,
     },
     SelectedIndex {
         index: BodyNodeId,
         operation: StaticSelection,
         receiver_coercion: Option<StaticSelection>,
+        ty: TypeId,
     },
+}
+
+impl PlaceProjection {
+    /// The checked result type after applying this projection.
+    #[must_use]
+    pub const fn ty(&self) -> TypeId {
+        match self {
+            Self::Field { ty, .. }
+            | Self::BorrowDeref { ty, .. }
+            | Self::BuiltinIndex { ty, .. }
+            | Self::CoercedBuiltinIndex { ty, .. }
+            | Self::SelectedIndex { ty, .. } => *ty,
+        }
+    }
 }
 
 /// One fully classified place. Move eligibility is further restricted to field-only projections.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedPlace {
     root: PlaceRoot,
+    root_ty: TypeId,
     projections: Box<[PlaceProjection]>,
-    projection_types: Box<[TypeId]>,
-    ty: TypeId,
     access: PlaceAccess,
     writable: bool,
 }
@@ -55,17 +75,15 @@ pub struct CheckedPlace {
 impl CheckedPlace {
     pub(super) fn new(
         root: PlaceRoot,
+        root_ty: TypeId,
         projections: impl Into<Box<[PlaceProjection]>>,
-        projection_types: impl Into<Box<[TypeId]>>,
-        ty: TypeId,
         access: PlaceAccess,
         writable: bool,
     ) -> Self {
         Self {
             root,
+            root_ty,
             projections: projections.into(),
-            projection_types: projection_types.into(),
-            ty,
             access,
             writable,
         }
@@ -77,19 +95,21 @@ impl CheckedPlace {
     }
 
     #[must_use]
+    pub const fn root_ty(&self) -> TypeId {
+        self.root_ty
+    }
+
+    #[must_use]
     pub const fn projections(&self) -> &[PlaceProjection] {
         &self.projections
     }
 
-    /// Returns the type after each projection in the same order as [`Self::projections`].
     #[must_use]
-    pub const fn projection_types(&self) -> &[TypeId] {
-        &self.projection_types
-    }
-
-    #[must_use]
-    pub const fn ty(&self) -> TypeId {
-        self.ty
+    pub fn ty(&self) -> TypeId {
+        match self.projections.last() {
+            Some(projection) => projection.ty(),
+            None => self.root_ty,
+        }
     }
 
     #[must_use]
@@ -108,7 +128,7 @@ impl CheckedPlace {
             && self
                 .projections
                 .iter()
-                .all(|projection| matches!(projection, PlaceProjection::Field(_)))
+                .all(|projection| matches!(projection, PlaceProjection::Field { .. }))
     }
 
     pub(crate) fn evaluation_nodes(&self) -> impl Iterator<Item = BodyNodeId> + '_ {
@@ -120,10 +140,10 @@ impl CheckedPlace {
             self.projections
                 .iter()
                 .filter_map(|projection| match projection {
-                    PlaceProjection::BuiltinIndex { index }
+                    PlaceProjection::BuiltinIndex { index, .. }
                     | PlaceProjection::CoercedBuiltinIndex { index, .. }
                     | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
-                    PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => None,
+                    PlaceProjection::Field { .. } | PlaceProjection::BorrowDeref { .. } => None,
                 }),
         )
     }
@@ -150,9 +170,11 @@ mod tests {
         let types = TypeStore::new();
         let owned = CheckedPlace {
             root: PlaceRoot::Local(local),
-            projections: Box::new([PlaceProjection::Field(field)]),
-            projection_types: Box::new([types.builtin(BuiltinType::I32)]),
-            ty: types.builtin(BuiltinType::I32),
+            root_ty: types.builtin(BuiltinType::I32),
+            projections: Box::new([PlaceProjection::Field {
+                field,
+                ty: types.builtin(BuiltinType::I32),
+            }]),
             access: PlaceAccess::Owned,
             writable: true,
         };

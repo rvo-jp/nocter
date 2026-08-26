@@ -200,13 +200,15 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         definition: &ClosureDefinition,
     ) -> Result<LoanState, BodyCheckInternalError> {
         let mut state = LoanState::default();
-        for (position, (binding, ty)) in definition
+        for (position, parameter) in definition
+            .signature()
             .parameters()
             .iter()
             .copied()
-            .zip(definition.signature().parameters().iter().copied())
             .enumerate()
         {
+            let binding = parameter.binding();
+            let ty = parameter.ty();
             let Some(TypeKind::Borrow { capability, .. }) = self.types.get(ty) else {
                 state.set_root(PlaceRoot::Local(binding), LoanValue::independent());
                 continue;

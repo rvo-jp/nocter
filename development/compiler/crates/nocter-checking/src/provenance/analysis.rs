@@ -597,13 +597,15 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
     fn initial_state(&self) -> Result<ProvenanceState, BodyCheckInternalError> {
         let mut state = ProvenanceState::default();
         if let Some((closure, definition)) = self.closure {
-            for (position, (binding, ty)) in definition
+            for (position, parameter) in definition
+                .signature()
                 .parameters()
                 .iter()
                 .copied()
-                .zip(definition.signature().parameters().iter().copied())
                 .enumerate()
             {
+                let binding = parameter.binding();
+                let ty = parameter.ty();
                 let value = if self.types.may_carry_storage(ty) {
                     ValueProvenance::from_source(ProvenanceSource::ClosureParameter {
                         closure,

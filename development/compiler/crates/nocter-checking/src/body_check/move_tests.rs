@@ -129,7 +129,7 @@ fn generic_named_field_move_uses_the_substituted_field_type() {
         .find(|(_, body)| !body.places().is_empty())
         .unwrap();
     let (_, place) = body.places().iter().next().unwrap();
-    let PlaceProjection::Field(field) = place.projections()[0] else {
+    let PlaceProjection::Field { field, .. } = place.projections()[0] else {
         panic!("named field move must retain its semantic field projection");
     };
 

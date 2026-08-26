@@ -56,7 +56,7 @@ fn initialized_var_assignment_drops_the_old_value_before_replacement() {
         CleanupTiming::BeforeStore
     );
     assert_eq!(action.condition(), CleanupCondition::Always);
-    assert!(matches!(action.target(), CleanupTarget::Path(path) if path.fields().is_empty()));
+    assert!(matches!(action.target(), CleanupTarget::Path(path) if path.projections().is_empty()));
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn whole_assignment_over_a_partial_parent_cleans_only_remaining_fields() {
         panic!("partial owned replacement must clean an owned field path");
     };
 
-    assert_eq!(path.fields().len(), 1);
+    assert_eq!(path.projections().len(), 1);
     assert_eq!(action.condition(), CleanupCondition::Always);
 }
 

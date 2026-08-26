@@ -197,7 +197,10 @@ fn generic_callable_contract_infers_closure_parameters_and_result() {
         .program()
         .types()
         .builtin(nocter_model::BuiltinType::I32);
-    assert_eq!(definition.signature().parameters(), &[i32_type]);
+    assert_eq!(
+        definition.signature().parameter_types().collect::<Vec<_>>(),
+        [i32_type]
+    );
     assert_eq!(definition.signature().result(), i32_type);
     assert_eq!(definition.callable_requirements().len(), 1);
 }
@@ -283,15 +286,15 @@ fn closure_identity_follows_lexical_source_order_even_when_bodies_are_nested() {
     let (_, outer) = definitions.next().unwrap();
     let (_, inner) = definitions.next().unwrap();
     assert_eq!(
-        outer.signature().parameters(),
-        &[output
+        outer.signature().parameter_types().collect::<Vec<_>>(),
+        [output
             .program()
             .types()
             .builtin(nocter_model::BuiltinType::Bool)]
     );
     assert_eq!(
-        inner.signature().parameters(),
-        &[output
+        inner.signature().parameter_types().collect::<Vec<_>>(),
+        [output
             .program()
             .types()
             .builtin(nocter_model::BuiltinType::I32)]

@@ -1,8 +1,7 @@
 use std::mem;
 
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CallableCapability, CallableContract, LocalBindingId, TypeId,
-    TypeKind,
+    BodyNodeId, BorrowCapability, CallableCapability, CallableContract, TypeId, TypeKind,
 };
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
@@ -16,12 +15,12 @@ use crate::syntax::{direct_child, direct_children, direct_identifier};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
     CallableInference, CaptureMode, CheckedClosure, CheckedClosureCapture, CheckedOperation,
-    ClosureDefinition, ClosureEnvironmentField, ClosureSignature, InferenceFailure, PlaceAccess,
+    ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureSignature,
+    InferenceFailure, PlaceAccess,
 };
 
 struct CheckedClosureHead {
-    parameters: Vec<LocalBindingId>,
-    parameter_types: Vec<TypeId>,
+    parameters: Vec<ClosureParameter>,
     environment: Vec<ClosureEnvironmentField>,
     capture_initializers: Vec<CheckedClosureCapture>,
 }
@@ -180,7 +179,7 @@ impl BodyChecker<'_, '_> {
                 .parameters()
                 .iter()
                 .copied()
-                .zip(signature.parameters().iter().copied())
+                .zip(signature.parameter_types())
             {
                 inference.constrain_exact(expected, actual);
             }
@@ -234,7 +233,12 @@ impl BodyChecker<'_, '_> {
             && !closure_contract_accepts(
                 expected,
                 capability,
-                &checked_head.parameter_types,
+                &checked_head
+                    .parameters
+                    .iter()
+                    .copied()
+                    .map(ClosureParameter::ty)
+                    .collect::<Vec<_>>(),
                 result,
             )
         {
@@ -252,13 +256,13 @@ impl BodyChecker<'_, '_> {
                     .map(ClosureEnvironmentField::ty),
             )
             .map_err(BodyCheckInternalError::Copyability)?;
+        let signature = ClosureSignature::new(capability, checked_head.parameters, result);
         self.closures.define(
             closure,
             ClosureDefinition::new(
                 self.source.body(),
                 closure_type,
-                ClosureSignature::new(capability, checked_head.parameter_types, result),
-                checked_head.parameters,
+                signature,
                 checked_head.environment,
                 body,
             ),
@@ -325,7 +329,6 @@ impl BodyChecker<'_, '_> {
             return Err(self.rule(BodyRule::TypeMismatch, head)?);
         }
         let mut parameters = Vec::with_capacity(parameter_nodes.len());
-        let mut parameter_types = Vec::with_capacity(parameter_nodes.len());
         for (position, parameter_node) in parameter_nodes.into_iter().enumerate() {
             let token = direct_identifier(self.tree(), parameter_node)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(parameter_node))?;
@@ -352,12 +355,10 @@ impl BodyChecker<'_, '_> {
                 (None, None) => return Err(self.rule(BodyRule::TypeMismatch, parameter_node)?),
             };
             self.builder.define_local(parameter, ty)?;
-            parameters.push(parameter);
-            parameter_types.push(ty);
+            parameters.push(ClosureParameter::new(parameter, ty));
         }
         Ok(CheckedClosureHead {
             parameters,
-            parameter_types,
             environment,
             capture_initializers,
         })
@@ -480,6 +481,8 @@ pub(super) fn concrete_closure_satisfies(
 ) -> bool {
     expected.capability().permits(actual.capability())
         && expected.pack().is_none()
-        && actual.parameters() == expected.parameters()
+        && actual
+            .parameter_types()
+            .eq(expected.parameters().iter().copied())
         && actual.result() == expected.result()
 }

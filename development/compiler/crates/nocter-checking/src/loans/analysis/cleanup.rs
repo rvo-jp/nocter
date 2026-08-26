@@ -164,7 +164,12 @@ impl Analyzer<'_, '_> {
         Ok(match target {
             CleanupTarget::Path(path) => state.value(&LiveSlot::Place(LivePlace::from_parts(
                 path.root(),
-                path.fields().to_vec().into(),
+                path.projections()
+                    .iter()
+                    .copied()
+                    .map(crate::CleanupFieldProjection::field)
+                    .collect::<Vec<_>>()
+                    .into(),
             ))),
             CleanupTarget::Place { place, .. } => {
                 let place = self
@@ -193,9 +198,10 @@ impl Analyzer<'_, '_> {
         Ok(match action.target() {
             CleanupTarget::Path(path) => vec![LoanPlace::new(
                 LoanRoot::Place(path.root()),
-                path.fields()
+                path.projections()
                     .iter()
                     .copied()
+                    .map(crate::CleanupFieldProjection::field)
                     .map(LoanProjection::Field)
                     .collect::<Vec<_>>(),
             )],

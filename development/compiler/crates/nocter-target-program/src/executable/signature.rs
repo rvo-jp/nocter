@@ -195,20 +195,10 @@ fn closure_signature(
         source: ExecutableInputSource::ClosureEnvironment(key.closure()),
         ty: environment,
     }];
-    if definition.parameters().len() != definition.signature().parameters().len() {
-        return Err(ExecutableProgramError::InvalidClosureSignature(
-            key.closure(),
-        ));
-    }
-    for (binding, ty) in definition
-        .parameters()
-        .iter()
-        .copied()
-        .zip(definition.signature().parameters().iter().copied())
-    {
+    for parameter in definition.signature().parameters().iter().copied() {
         inputs.push(ExecutableInput {
-            source: ExecutableInputSource::ClosureParameter(binding),
-            ty: resolver.specialize_type(ty, substitution)?,
+            source: ExecutableInputSource::ClosureParameter(parameter.binding()),
+            ty: resolver.specialize_type(parameter.ty(), substitution)?,
         });
     }
     Ok(ExecutableSignature {

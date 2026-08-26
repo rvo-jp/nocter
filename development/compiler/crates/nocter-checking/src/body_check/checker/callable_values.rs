@@ -41,12 +41,12 @@ impl BodyChecker<'_, '_> {
         let (capability, parameters, result) = match &selected {
             CallableValueContract::Closure(_, signature) => (
                 signature.capability(),
-                signature.parameters(),
+                signature.parameter_types().collect::<Vec<_>>(),
                 signature.result(),
             ),
             CallableValueContract::Structural(_, contract) => (
                 contract.capability(),
-                contract.parameters(),
+                contract.parameters().to_vec(),
                 contract.result(),
             ),
         };
@@ -64,7 +64,7 @@ impl BodyChecker<'_, '_> {
         let value = self.add_node(reference, place.ty, CheckedOperation::Place(place.id))?;
         let arguments = argument_syntax
             .into_iter()
-            .zip(parameters.iter().copied())
+            .zip(parameters)
             .map(|(argument, parameter)| self.check_expression(argument, Some(parameter)))
             .collect::<Result<Vec<_>, _>>()?;
         let target = match selected {

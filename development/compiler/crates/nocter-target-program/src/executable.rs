@@ -641,7 +641,6 @@ pub enum ExecutableProgramError {
     MissingTestName(TestId),
     MissingParameter(nocter_model::ParameterId),
     MissingRoot(BodyNodeId),
-    InvalidClosureSignature(ClosureId),
     InvalidArgumentPackSignature(nocter_model::CallableId),
     InvalidArgumentPackPlan(BodyNodeId),
     InvalidSequencePlan(BodyNodeId),
@@ -687,7 +686,6 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingTestName(_)
             | Self::MissingParameter(_)
             | Self::MissingRoot(_)
-            | Self::InvalidClosureSignature(_)
             | Self::InvalidArgumentPackSignature(_)
             | Self::InvalidArgumentPackPlan(_)
             | Self::InvalidSequencePlan(_)

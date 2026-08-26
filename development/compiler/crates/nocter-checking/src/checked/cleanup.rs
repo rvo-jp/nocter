@@ -10,27 +10,48 @@ pub enum CleanupCondition {
     IfInitialized,
 }
 
+/// One named-field step and the checked result type reached after projecting it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CleanupFieldProjection {
+    field: FieldId,
+    ty: TypeId,
+}
+
+impl CleanupFieldProjection {
+    #[must_use]
+    pub const fn new(field: FieldId, ty: TypeId) -> Self {
+        Self { field, ty }
+    }
+
+    #[must_use]
+    pub const fn field(self) -> FieldId {
+        self.field
+    }
+
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
+
 /// One owned storage path whose remaining live value is destroyed on an outgoing edge.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanupPath {
     root: PlaceRoot,
-    fields: Box<[FieldId]>,
-    projection_types: Box<[TypeId]>,
-    ty: TypeId,
+    root_ty: TypeId,
+    projections: Box<[CleanupFieldProjection]>,
 }
 
 impl CleanupPath {
     pub(crate) fn new(
         root: PlaceRoot,
-        fields: impl Into<Box<[FieldId]>>,
-        projection_types: impl Into<Box<[TypeId]>>,
-        ty: TypeId,
+        root_ty: TypeId,
+        projections: impl Into<Box<[CleanupFieldProjection]>>,
     ) -> Self {
         Self {
             root,
-            fields: fields.into(),
-            projection_types: projection_types.into(),
-            ty,
+            root_ty,
+            projections: projections.into(),
         }
     }
 
@@ -40,19 +61,16 @@ impl CleanupPath {
     }
 
     #[must_use]
-    pub const fn fields(&self) -> &[FieldId] {
-        &self.fields
-    }
-
-    /// Type after every named-field projection, in the same order as [`Self::fields`].
-    #[must_use]
-    pub const fn projection_types(&self) -> &[TypeId] {
-        &self.projection_types
+    pub const fn projections(&self) -> &[CleanupFieldProjection] {
+        &self.projections
     }
 
     #[must_use]
-    pub const fn ty(&self) -> TypeId {
-        self.ty
+    pub fn ty(&self) -> TypeId {
+        match self.projections.last() {
+            Some(projection) => projection.ty(),
+            None => self.root_ty,
+        }
     }
 }
 

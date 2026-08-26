@@ -35,7 +35,12 @@ impl CleanupIdentity {
         match target {
             CleanupTarget::Path(path) => Some(Self::Path {
                 root: path.root(),
-                fields: path.fields().into(),
+                fields: path
+                    .projections()
+                    .iter()
+                    .copied()
+                    .map(nocter_checking::CleanupFieldProjection::field)
+                    .collect(),
             }),
             CleanupTarget::Value { node, .. } => Some(Self::Value {
                 node: *node,
@@ -154,7 +159,7 @@ impl FunctionLowerer<'_> {
             .projections()
             .iter()
             .map(|projection| match projection {
-                PlaceProjection::Field(field) => Some(*field),
+                PlaceProjection::Field { field, .. } => Some(*field),
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }
@@ -246,7 +251,15 @@ impl FunctionLowerer<'_> {
         target: &CleanupTarget,
     ) -> Result<(), MirLoweringError> {
         match target {
-            CleanupTarget::Path(path) => self.set_path_flags(path.root(), path.fields(), false),
+            CleanupTarget::Path(path) => {
+                let fields = path
+                    .projections()
+                    .iter()
+                    .copied()
+                    .map(nocter_checking::CleanupFieldProjection::field)
+                    .collect::<Vec<_>>();
+                self.set_path_flags(path.root(), &fields, false)
+            }
             CleanupTarget::Value { node, .. } => self.mark_value_storage_uninitialized(*node),
             CleanupTarget::EnumResidual {
                 subject,

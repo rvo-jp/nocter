@@ -654,8 +654,8 @@ impl<'program> DependencyCollector<'program> {
             nocter_checking::PlaceRoot::Parameter(_) => {}
             nocter_checking::PlaceRoot::Value(value) => self.visit_node(value)?,
         }
-        for ty in place.projection_types() {
-            self.record_type(*ty)?;
+        for projection in place.projections() {
+            self.record_type(projection.ty())?;
         }
         self.visit_place_projections(&place)
     }
@@ -663,11 +663,12 @@ impl<'program> DependencyCollector<'program> {
     fn visit_place_projections(&mut self, place: &CheckedPlace) -> Result<(), BodyDependencyError> {
         for projection in place.projections() {
             match projection {
-                PlaceProjection::Field(_) | PlaceProjection::BorrowDeref { .. } => {}
-                PlaceProjection::BuiltinIndex { index } => self.visit_node(*index)?,
+                PlaceProjection::Field { .. } | PlaceProjection::BorrowDeref { .. } => {}
+                PlaceProjection::BuiltinIndex { index, .. } => self.visit_node(*index)?,
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
                     receiver_coercion,
+                    ..
                 } => {
                     self.visit_node(*index)?;
                     self.record_selection(receiver_coercion);
@@ -676,6 +677,7 @@ impl<'program> DependencyCollector<'program> {
                     index,
                     operation,
                     receiver_coercion,
+                    ..
                 } => {
                     self.visit_node(*index)?;
                     if let Some(receiver_coercion) = receiver_coercion {
@@ -694,8 +696,8 @@ impl<'program> DependencyCollector<'program> {
         }
         match target {
             CleanupTarget::Path(path) => {
-                for ty in path.projection_types() {
-                    self.record_type(*ty)?;
+                for projection in path.projections() {
+                    self.record_type(projection.ty())?;
                 }
             }
             CleanupTarget::Place { place, ty } => {

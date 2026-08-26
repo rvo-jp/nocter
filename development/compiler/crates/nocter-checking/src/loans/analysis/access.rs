@@ -178,7 +178,7 @@ impl Analyzer<'_, '_> {
         let prefix = place.projections()[..dereference]
             .iter()
             .filter_map(|projection| match projection {
-                PlaceProjection::Field(field) => Some(*field),
+                PlaceProjection::Field { field, .. } => Some(*field),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -225,7 +225,7 @@ impl Analyzer<'_, '_> {
         projections
             .iter()
             .map(|projection| match projection {
-                PlaceProjection::Field(field) => LoanProjection::Field(*field),
+                PlaceProjection::Field { field, .. } => LoanProjection::Field(*field),
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }

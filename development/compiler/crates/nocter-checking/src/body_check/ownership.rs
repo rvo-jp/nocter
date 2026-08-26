@@ -79,9 +79,9 @@ pub(super) fn analyze_body_ownership(
             return Err(BodyCheckInternalError::CleanupPlanning.into());
         }
         let mut state = OwnershipState::default();
-        for parameter in definition.parameters() {
+        for parameter in definition.signature().parameters().iter().copied() {
             state
-                .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*parameter)))
+                .declare_initialized(MovePath::root(crate::PlaceRoot::Local(parameter.binding())))
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
         }
         for capture in definition.environment().iter().copied() {

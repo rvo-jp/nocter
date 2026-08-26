@@ -639,9 +639,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
         let place = self.builder.add_place(
             root,
-            Vec::<PlaceProjection>::new(),
-            Vec::<TypeId>::new(),
             ty,
+            Vec::<PlaceProjection>::new(),
             PlaceAccess::Owned,
             false,
         );

@@ -14,11 +14,11 @@ use crate::{LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoo
 
 struct PlaceDraft {
     root: PlaceRoot,
+    root_ty: TypeId,
     ty: TypeId,
     access: PlaceAccess,
     writable: bool,
     projections: Vec<PlaceProjection>,
-    projection_types: Vec<TypeId>,
     partial_parents: Vec<nocter_model::NominalTypeId>,
     source_projections: Vec<NodeProjection>,
 }
@@ -167,11 +167,11 @@ impl BodyChecker<'_, '_> {
         };
         let mut draft = PlaceDraft {
             root: checked.root(),
+            root_ty: checked.root_ty(),
             ty: checked.ty(),
             access: checked.access(),
             writable: checked.is_writable(),
             projections: checked.projections().to_vec(),
-            projection_types: checked.projection_types().to_vec(),
             partial_parents: Vec::new(),
             source_projections: Vec::new(),
         };
@@ -300,11 +300,11 @@ impl BodyChecker<'_, '_> {
         };
         Ok(PlaceDraft {
             root,
+            root_ty: ty,
             ty,
             access,
             writable,
             projections: Vec::new(),
-            projection_types: Vec::new(),
             partial_parents: Vec::new(),
             source_projections: Vec::new(),
         })
@@ -352,11 +352,11 @@ impl BodyChecker<'_, '_> {
         draft
             .source_projections
             .push(NodeProjection::new(entity, origin));
-        draft
-            .projections
-            .push(PlaceProjection::Field(selected.field()));
         draft.ty = selected.ty();
-        draft.projection_types.push(draft.ty);
+        draft.projections.push(PlaceProjection::Field {
+            field: selected.field(),
+            ty: draft.ty,
+        });
         Ok(())
     }
 
@@ -382,11 +382,11 @@ impl BodyChecker<'_, '_> {
         if let Some(element) = builtin {
             let index =
                 self.check_expression(expression, Some(self.types.builtin(BuiltinType::Usize)))?;
-            draft
-                .projections
-                .push(PlaceProjection::BuiltinIndex { index });
             draft.ty = element;
-            draft.projection_types.push(draft.ty);
+            draft.projections.push(PlaceProjection::BuiltinIndex {
+                index,
+                ty: draft.ty,
+            });
             return Ok(());
         }
         let receiver_writable = draft.writable;
@@ -430,6 +430,7 @@ impl BodyChecker<'_, '_> {
                     index,
                     operation: operation.clone(),
                     receiver_coercion: receiver_coercion.cloned(),
+                    ty: selected.result(),
                 });
             }
             (None, Some(receiver_coercion)) => {
@@ -438,12 +439,12 @@ impl BodyChecker<'_, '_> {
                     .push(PlaceProjection::CoercedBuiltinIndex {
                         index,
                         receiver_coercion: receiver_coercion.clone(),
+                        ty: selected.result(),
                     });
             }
             (None, None) => return Err(BodyCheckInternalError::IndexSelection.into()),
         }
         draft.ty = selected.result();
-        draft.projection_types.push(draft.ty);
         draft.access = PlaceAccess::Borrowed(capability);
         draft.writable = capability == BorrowCapability::ReadWrite && receiver_writable;
         Ok(())
@@ -459,6 +460,7 @@ impl BodyChecker<'_, '_> {
                 }) => {
                     draft.projections.push(PlaceProjection::BorrowDeref {
                         capability: *capability,
+                        ty: *referent,
                     });
                     draft.access = PlaceAccess::Borrowed(match (draft.access, *capability) {
                         (PlaceAccess::Borrowed(BorrowCapability::Readonly), _)
@@ -473,7 +475,6 @@ impl BodyChecker<'_, '_> {
                         PlaceAccess::Borrowed(BorrowCapability::ReadWrite)
                     );
                     ty = *referent;
-                    draft.projection_types.push(ty);
                 }
                 Some(_) => return Ok(ty),
                 None => return Err(BodyCheckInternalError::UnknownType(ty).into()),
@@ -496,9 +497,8 @@ impl BodyChecker<'_, '_> {
         ResolvedPlace {
             id: self.builder.add_place(
                 draft.root,
+                draft.root_ty,
                 draft.projections,
-                draft.projection_types,
-                draft.ty,
                 draft.access,
                 draft.writable,
             ),
