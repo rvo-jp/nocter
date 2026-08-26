@@ -166,6 +166,12 @@ Source-backed declaration-header type diagnostics:
 - `E0300`: an opaque interface application supplies an associated binding in generic angle brackets.
 - `E0301`: a parsed generic requirement has a semantically invalid requirement shape.
 - `E0302`: a declaration-pattern binder refinement contains the binder that it replaces.
+- `E0303`: an interface requirement repeats an associated-type binding. The later binding is
+  primary and the first binding is related.
+- `E0304`: a declaration repeats a `copy` requirement for the same generic parameter. The later
+  parameter is primary and the first parameter is related.
+- `E0305`: a declaration repeats the same interface requirement for the same subject and type
+  arguments. The later interface name is primary and the first name is related.
 
 These rules retain their exact name token, argument container, requirement, or duplicate pair when
 type binding selects the error. Diagnostic rendering does not search the syntax tree or repeat name

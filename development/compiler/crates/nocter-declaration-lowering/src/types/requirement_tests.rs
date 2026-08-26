@@ -258,3 +258,78 @@ fn colon_cannot_encode_a_nominal_interface_requirement() {
         "{error:?}"
     );
 }
+
+#[test]
+fn rejects_repeated_requirement_identities_before_declaration_freezing() {
+    let cases = [
+        (
+            concat!(
+                "interface Source { pub type Item }\n",
+                "func invalid<T>(): void where T impl Source { .Item = i32, .Item = i32 } { return }\n",
+            ),
+            crate::TypeBindingRule::DuplicateAssociatedRequirementBinding,
+        ),
+        (
+            "func invalid<T>(): void where copy T, copy T { return }\n",
+            crate::TypeBindingRule::DuplicateCopyRequirement,
+        ),
+        (
+            concat!(
+                "interface Source {}\n",
+                "func invalid<T>(): void where T impl Source, T impl Source { return }\n",
+            ),
+            crate::TypeBindingRule::DuplicateInterfaceRequirement,
+        ),
+    ];
+
+    for (source, expected) in cases {
+        let error = binding_error(source);
+        assert!(
+            matches!(
+                error,
+                TypeBindingError::Rule(violation)
+                    if violation.rule() == expected && violation.related().is_some()
+            ),
+            "expected {expected:?}"
+        );
+    }
+}
+
+fn binding_error(text: &str) -> TypeBindingError {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
+    let app_id = add_source(&mut sources, "/app/index.nct", text);
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
+    bind(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
+        ],
+        vec![
+            module("workspace:app", &[], "/app/index.nct", &app),
+            module("builtin:std", &[], "/std/index.nct", &std_root),
+            module(
+                "builtin:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude,
+            ),
+        ],
+        vec![],
+        &prelude_identity,
+    )
+    .unwrap_err()
+}

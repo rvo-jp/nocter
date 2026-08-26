@@ -11,6 +11,7 @@ mod projection;
 mod requirements;
 mod results;
 mod syntax;
+mod uniqueness;
 mod violation;
 
 use std::collections::{HashMap, HashSet};
@@ -88,7 +89,7 @@ pub use normalization::{
     TypeNormalizationRule, TypeNormalizationViolation, normalize_header_types,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BoundInterfaceApplication {
     definition: InterfaceId,
     arguments: Box<[BoundTypeId]>,

@@ -15,10 +15,13 @@ pub enum TypeBindingRule {
     OpaqueArgumentOrder,
     InvalidRequirement,
     RecursiveBinderRefinement,
+    DuplicateAssociatedRequirementBinding,
+    DuplicateCopyRequirement,
+    DuplicateInterfaceRequirement,
 }
 
 impl TypeBindingRule {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 15] = [
         Self::UnknownTypeContextName,
         Self::InvalidTypeEntity,
         Self::InvalidTypeArguments,
@@ -31,6 +34,9 @@ impl TypeBindingRule {
         Self::OpaqueArgumentOrder,
         Self::InvalidRequirement,
         Self::RecursiveBinderRefinement,
+        Self::DuplicateAssociatedRequirementBinding,
+        Self::DuplicateCopyRequirement,
+        Self::DuplicateInterfaceRequirement,
     ];
 
     #[must_use]
@@ -48,6 +54,9 @@ impl TypeBindingRule {
             Self::OpaqueArgumentOrder => "E0300",
             Self::InvalidRequirement => "E0301",
             Self::RecursiveBinderRefinement => "E0302",
+            Self::DuplicateAssociatedRequirementBinding => "E0303",
+            Self::DuplicateCopyRequirement => "E0304",
+            Self::DuplicateInterfaceRequirement => "E0305",
         }
     }
 
@@ -68,6 +77,13 @@ impl TypeBindingRule {
             }
             Self::InvalidRequirement => "generic requirement has an invalid semantic shape",
             Self::RecursiveBinderRefinement => "binder refinement contains the binder it replaces",
+            Self::DuplicateAssociatedRequirementBinding => {
+                "interface requirement repeats an associated binding"
+            }
+            Self::DuplicateCopyRequirement => "generic requirement repeats a copy predicate",
+            Self::DuplicateInterfaceRequirement => {
+                "generic requirement repeats an interface predicate"
+            }
         }
     }
 
@@ -86,13 +102,19 @@ impl TypeBindingRule {
             Self::UnknownOpaqueBinding => {
                 "bind an associated type declared by the selected interface"
             }
-            Self::DuplicateOpaqueBinding => "remove the repeated associated binding",
+            Self::DuplicateOpaqueBinding | Self::DuplicateAssociatedRequirementBinding => {
+                "remove the repeated associated binding"
+            }
             Self::OpaqueArgumentOrder => {
                 "place every positional type argument before associated bindings"
             }
             Self::InvalidRequirement => "rewrite the requirement using a valid requirement form",
             Self::RecursiveBinderRefinement => {
                 "refine the binder to a type that does not contain that binder"
+            }
+            Self::DuplicateCopyRequirement => "remove the repeated copy predicate",
+            Self::DuplicateInterfaceRequirement => {
+                "merge or remove the repeated interface predicate"
             }
         }
     }
@@ -103,6 +125,13 @@ impl TypeBindingRule {
             Self::DuplicateCallableParameter => Some("the first parameter is named here"),
             Self::DuplicateProvenanceOrigin => Some("the first origin is named here"),
             Self::DuplicateOpaqueBinding => Some("the first associated binding is named here"),
+            Self::DuplicateAssociatedRequirementBinding => {
+                Some("the first associated binding is named here")
+            }
+            Self::DuplicateCopyRequirement => Some("the first copy predicate is named here"),
+            Self::DuplicateInterfaceRequirement => {
+                Some("the first interface predicate is named here")
+            }
             Self::UnknownTypeContextName
             | Self::InvalidTypeEntity
             | Self::InvalidTypeArguments

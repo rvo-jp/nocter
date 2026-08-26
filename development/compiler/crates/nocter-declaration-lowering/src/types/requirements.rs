@@ -11,6 +11,7 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDec
 
 use super::context::token_symbol;
 use super::normalization_origins::NormalizationOrigins;
+use super::uniqueness::AuthoredUniqueness;
 use super::{
     BoundAssociatedTypeBinding, BoundInterfaceApplication, BoundRequirementKind, BoundTypeId,
     BoundTypeKind, TypeBindingError, TypeBindingRule, projection, push,
@@ -28,6 +29,8 @@ pub(super) fn bind_all(
     origins: &mut NormalizationOrigins,
 ) -> Result<Vec<BoundRequirementKind>, TypeBindingError> {
     let mut result = Vec::new();
+    let mut copy_requirements = AuthoredUniqueness::default();
+    let mut interface_requirements = AuthoredUniqueness::default();
     for container in requirement_containers(tree, root) {
         match tree.node(container).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::WhereClause) => {
@@ -42,6 +45,8 @@ pub(super) fn bind_all(
                         interface_applications,
                         origins,
                         &mut result,
+                        &mut copy_requirements,
+                        &mut interface_requirements,
                     )?;
                 }
             }
@@ -72,32 +77,25 @@ fn bind_predicate(
     interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     origins: &mut NormalizationOrigins,
     result: &mut Vec<BoundRequirementKind>,
+    copy_requirements: &mut AuthoredUniqueness<GenericParameterId>,
+    interface_requirements: &mut AuthoredUniqueness<(
+        RequirementSubject,
+        BoundInterfaceApplication,
+    )>,
 ) -> Result<(), TypeBindingError> {
     match tree.node(predicate).map(nocter_syntax::SyntaxNode::kind) {
         Some(NodeKind::InterfacePredicate) => {
-            let subject_type = direct_node(tree, predicate, NodeKind::Type)
-                .and_then(|node| roots.get(&node).copied())
-                .ok_or(invalid_requirement(predicate))?;
-            let subject = requirement_subject(kinds, subject_type, predicate)?;
-            let application = direct_node(tree, predicate, NodeKind::InterfaceApplication)
-                .ok_or(invalid_requirement(predicate))?;
-            let associated_types = bind_associated_constraints(
+            bind_interface_predicate(
                 namespaces,
                 tree,
-                application,
-                subject_type,
+                predicate,
                 kinds,
                 roots,
+                interface_applications,
                 origins,
+                interface_requirements,
+                result,
             )?;
-            result.push(BoundRequirementKind::Interface {
-                subject,
-                application: interface_applications
-                    .get(&application)
-                    .cloned()
-                    .ok_or(invalid_requirement(predicate))?,
-                associated_types: associated_types.into_boxed_slice(),
-            });
         }
         Some(NodeKind::CallablePredicate) => {
             let types = bound_types(tree, predicate, roots)?;
@@ -111,16 +109,14 @@ fn bind_predicate(
             });
         }
         Some(NodeKind::CopyPredicate) => {
-            let token = direct_identifiers(tree, predicate)
-                .get(1)
-                .copied()
-                .ok_or(invalid_requirement(predicate))?;
-            result.push(BoundRequirementKind::Copy(generic_from_token(
+            bind_copy_predicate(
                 namespaces,
                 declaration,
                 tree,
-                token,
-            )?));
+                predicate,
+                copy_requirements,
+                result,
+            )?;
         }
         Some(NodeKind::TypeEqualityPredicate) => {
             bind_equality(
@@ -173,6 +169,73 @@ fn bind_predicate(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn bind_interface_predicate(
+    namespaces: &mut PreparedNamespaces<'_>,
+    tree: &SyntaxTree,
+    predicate: NodeId,
+    kinds: &mut Vec<BoundTypeKind>,
+    roots: &HashMap<NodeId, BoundTypeId>,
+    interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
+    origins: &mut NormalizationOrigins,
+    uniqueness: &mut AuthoredUniqueness<(RequirementSubject, BoundInterfaceApplication)>,
+    result: &mut Vec<BoundRequirementKind>,
+) -> Result<(), TypeBindingError> {
+    let subject_type = direct_node(tree, predicate, NodeKind::Type)
+        .and_then(|node| roots.get(&node).copied())
+        .ok_or(invalid_requirement(predicate))?;
+    let subject = requirement_subject(kinds, subject_type, predicate)?;
+    let application_node = direct_node(tree, predicate, NodeKind::InterfaceApplication)
+        .ok_or(invalid_requirement(predicate))?;
+    let application_origin = interface_name_origin(tree, application_node)?;
+    let associated_types = bind_associated_constraints(
+        namespaces,
+        tree,
+        application_node,
+        subject_type,
+        kinds,
+        roots,
+        origins,
+    )?;
+    let application = interface_applications
+        .get(&application_node)
+        .cloned()
+        .ok_or(invalid_requirement(predicate))?;
+    uniqueness.record(
+        (subject, application.clone()),
+        application_origin,
+        TypeBindingRule::DuplicateInterfaceRequirement,
+    )?;
+    result.push(BoundRequirementKind::Interface {
+        subject,
+        application,
+        associated_types: associated_types.into_boxed_slice(),
+    });
+    Ok(())
+}
+
+fn bind_copy_predicate(
+    namespaces: &mut PreparedNamespaces<'_>,
+    declaration: SurfaceDeclarationId,
+    tree: &SyntaxTree,
+    predicate: NodeId,
+    uniqueness: &mut AuthoredUniqueness<GenericParameterId>,
+    result: &mut Vec<BoundRequirementKind>,
+) -> Result<(), TypeBindingError> {
+    let token = direct_identifiers(tree, predicate)
+        .get(1)
+        .copied()
+        .ok_or(invalid_requirement(predicate))?;
+    let parameter = generic_from_token(namespaces, declaration, tree, token)?;
+    uniqueness.record(
+        parameter,
+        SyntaxOrigin::Token(token),
+        TypeBindingRule::DuplicateCopyRequirement,
+    )?;
+    result.push(BoundRequirementKind::Copy(parameter));
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn bind_associated_constraints(
     namespaces: &mut PreparedNamespaces<'_>,
     tree: &SyntaxTree,
@@ -186,9 +249,15 @@ fn bind_associated_constraints(
         return Ok(Vec::new());
     };
     let mut result = Vec::new();
+    let mut names = AuthoredUniqueness::default();
     for binding in direct_nodes(tree, bindings, NodeKind::AssociatedTypeBinding) {
         let token = direct_identifier(tree, binding).ok_or(invalid_requirement(binding))?;
         let name = token_symbol(namespaces, tree, token)?;
+        names.record(
+            name,
+            SyntaxOrigin::Token(token),
+            TypeBindingRule::DuplicateAssociatedRequirementBinding,
+        )?;
         let expected_node =
             direct_node(tree, binding, NodeKind::Type).ok_or(invalid_requirement(binding))?;
         let expected = roots
@@ -209,6 +278,19 @@ fn bind_associated_constraints(
         });
     }
     Ok(result)
+}
+
+fn interface_name_origin(
+    tree: &SyntaxTree,
+    application: NodeId,
+) -> Result<SyntaxOrigin, TypeBindingError> {
+    let named = direct_node(tree, application, NodeKind::NamedType)
+        .ok_or(invalid_requirement(application))?;
+    direct_identifiers(tree, named)
+        .into_iter()
+        .last()
+        .map(SyntaxOrigin::Token)
+        .ok_or(invalid_requirement(application))
 }
 
 fn bind_equality(
