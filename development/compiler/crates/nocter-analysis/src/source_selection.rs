@@ -1,14 +1,14 @@
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SourceBindingSelection {
+pub(crate) enum SourceSelection<T> {
     None,
-    Unique(SourceBinding),
+    Unique(T),
     Ambiguous,
 }
 
-impl SourceBindingSelection {
-    pub(crate) const fn unique(self) -> Option<SourceBinding> {
+impl<T> SourceSelection<T> {
+    pub(crate) fn unique(self) -> Option<T> {
         match self {
             Self::Unique(binding) => Some(binding),
             Self::None | Self::Ambiguous => None,
@@ -25,20 +25,36 @@ impl SourceBindingSelection {
 pub(crate) fn select_source_binding<'a>(
     bindings: impl Iterator<Item = &'a SourceBinding>,
     see: impl Fn(&SourceBinding) -> bool,
-) -> SourceBindingSelection {
-    let mut selected = SourceBindingSelection::None;
+) -> SourceSelection<SourceBinding> {
+    select_source_candidates(
+        bindings
+            .filter(|binding| see(binding))
+            .map(|binding| (*binding, *binding)),
+    )
+}
+
+/// Selects a payload already derived from one source binding without repeating that derivation.
+///
+/// This is the shared authority rule for semantic queries that need more than the binding itself.
+/// Distinct bindings with the same authority remain ambiguous even when their payloads compare
+/// equal.
+pub(crate) fn select_source_candidates<T>(
+    candidates: impl Iterator<Item = (SourceBinding, T)>,
+) -> SourceSelection<T> {
+    let mut selected = SourceSelection::None;
+    let mut selected_binding = None;
     let mut best = None;
-    for binding in bindings.filter(|binding| see(binding)) {
-        let key = binding_authority_key(binding);
+    for (binding, payload) in candidates {
+        let key = binding_authority_key(&binding);
         match best.map(|best| key.cmp(&best)) {
             None | Some(std::cmp::Ordering::Less) => {
                 best = Some(key);
-                selected = SourceBindingSelection::Unique(*binding);
+                selected_binding = Some(binding);
+                selected = SourceSelection::Unique(payload);
             }
             Some(std::cmp::Ordering::Equal) => {
-                if !matches!(selected, SourceBindingSelection::Unique(current) if current == *binding)
-                {
-                    selected = SourceBindingSelection::Ambiguous;
+                if selected_binding != Some(binding) {
+                    selected = SourceSelection::Ambiguous;
                 }
             }
             Some(std::cmp::Ordering::Greater) => {}
@@ -96,7 +112,7 @@ mod tests {
     use nocter_source_index::{SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole};
     use nocter_syntax::{ParseGoal, parse};
 
-    use super::{SourceBindingSelection, select_source_binding};
+    use super::{SourceSelection, select_source_binding};
 
     #[test]
     fn equal_ranges_use_role_then_entity_family_without_insertion_order() {
@@ -211,7 +227,7 @@ mod tests {
             let index = builder.finish();
             assert_eq!(
                 select_source_binding(index.bindings_at(source, ByteOffset::new(0)), |_| true),
-                SourceBindingSelection::Ambiguous
+                SourceSelection::Ambiguous
             );
         }
     }

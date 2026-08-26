@@ -9,6 +9,7 @@ use crate::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
 use crate::source_context::SourceContextError;
+use crate::source_selection::{select_source_binding, select_source_candidates};
 
 /// One compiler-selected call signature and active authored argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,9 +72,8 @@ impl AnalysisSnapshot {
         let index = authority.source_index();
         let from = authority.source_ownership().module_for_source(source)?;
         let spellings = VisibleSpellings::for_source(authority.graph(), from, index, source);
-        let Some((body_id, _node_id, _range, call)) = index
-            .bindings_in(source)
-            .filter_map(|binding| {
+        let Some((body_id, call)) =
+            select_source_candidates(index.bindings_in(source).filter_map(|binding| {
                 let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
                     return None;
                 };
@@ -85,9 +85,9 @@ impl AnalysisSnapshot {
                 let CheckedOperation::Call(call) = node.operation() else {
                     return None;
                 };
-                Some((body_id, node_id, range, call))
-            })
-            .min_by_key(|(_, _, range, _)| range.len())
+                Some((*binding, (body_id, call)))
+            }))
+            .unique()
         else {
             return Ok(None);
         };
@@ -151,12 +151,14 @@ fn active_parameter(
     let completed = arguments
         .iter()
         .filter_map(|argument| {
-            index
-                .bindings_for(SemanticEntity::BodyNode(body, *argument))
-                .iter()
-                .filter(|binding| binding.origin().source() == source)
-                .map(|binding| binding.origin().span().range())
-                .min_by_key(|range| range.len())
+            select_source_binding(
+                index
+                    .bindings_for(SemanticEntity::BodyNode(body, *argument))
+                    .iter(),
+                |binding| binding.origin().source() == source,
+            )
+            .unique()
+            .map(|binding| binding.origin().span().range())
         })
         .filter(|range| range.end() < offset)
         .count();

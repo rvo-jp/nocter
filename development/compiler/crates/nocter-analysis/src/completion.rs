@@ -17,6 +17,7 @@ use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
 use crate::semantic::SemanticAuthority;
 use crate::source_context::SourceContextError;
+use crate::source_selection::{select_source_binding, select_source_candidates};
 
 mod associated_types;
 mod automatic_imports;
@@ -428,21 +429,18 @@ fn checked_member_completions(
     offset: ByteOffset,
     module: nocter_model::ModuleId,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let member_range = index
-        .bindings_in(source)
-        .filter(|binding| {
-            binding.role() == SourceRole::Reference
-                && matches!(binding.entity(), SemanticEntity::Callable(_))
-                && binding.origin().span().range().contains_cursor(offset)
-        })
-        .map(|binding| binding.origin().span().range())
-        .min_by_key(|range| range.len());
+    let member_range = select_source_binding(index.bindings_in(source), |binding| {
+        binding.role() == SourceRole::Reference
+            && matches!(binding.entity(), SemanticEntity::Callable(_))
+            && binding.origin().span().range().contains_cursor(offset)
+    })
+    .unique()
+    .map(|binding| binding.origin().span().range());
     let Some(member_range) = member_range else {
         return Ok(None);
     };
-    let receiver_selection = index
-        .bindings_in(source)
-        .filter_map(|binding| {
+    let receiver_selection =
+        select_source_candidates(index.bindings_in(source).filter_map(|binding| {
             let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
                 return None;
             };
@@ -454,10 +452,9 @@ fn checked_member_completions(
             let CheckedOperation::Call(call) = node.operation() else {
                 return None;
             };
-            Some((body_id, range, call.receiver()?))
-        })
-        .min_by_key(|(_, range, _)| range.len())
-        .map(|(body, _, receiver)| (body, receiver));
+            Some((*binding, (body_id, call.receiver()?)))
+        }))
+        .unique();
     let Some((body_id, receiver)) = receiver_selection else {
         return Ok(None);
     };
@@ -527,17 +524,16 @@ fn containing_scope(
     source: SourceId,
     offset: ByteOffset,
 ) -> Option<(BodyId, BodyScopeId)> {
-    index
-        .bindings_in(source)
-        .filter(|binding| binding.origin().span().range().contains_cursor(offset))
-        .filter_map(|binding| match binding.entity() {
-            SemanticEntity::BodyScope(body, scope) => {
-                Some((body, scope, binding.origin().span().range()))
-            }
+    select_source_candidates(index.bindings_in(source).filter_map(|binding| {
+        if !binding.origin().span().range().contains_cursor(offset) {
+            return None;
+        }
+        match binding.entity() {
+            SemanticEntity::BodyScope(body, scope) => Some((*binding, (body, scope))),
             _ => None,
-        })
-        .min_by_key(|(_, _, range)| range.len())
-        .map(|(body, scope, _)| (body, scope))
+        }
+    }))
+    .unique()
 }
 
 fn add_module_candidates(

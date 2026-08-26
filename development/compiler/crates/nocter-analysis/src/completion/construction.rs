@@ -3,12 +3,13 @@ use nocter_checking::{
     ConstructionCompletionTarget, PreparedSemanticProgram,
 };
 use nocter_declarations::{CallableKind, DeclarationGraph};
-use nocter_source::{ByteOffset, SourceId, TextRange};
+use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use super::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
+use crate::source_selection::select_source_candidates;
 
 /// Resolves a selected checked construction member back to its type-owned use-site surface.
 pub(super) fn checked_completions(
@@ -18,11 +19,13 @@ pub(super) fn checked_completions(
     offset: ByteOffset,
     module: nocter_model::ModuleId,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let mut selected: Option<(TextRange, ConstructionCompletionTarget)> = None;
-    for binding in index.bindings_in(source).filter(|binding| {
-        binding.role() == SourceRole::Reference
-            && binding.origin().span().range().contains_cursor(offset)
-    }) {
+    let mut candidates = Vec::new();
+    for binding in index.bindings_in(source) {
+        if binding.role() != SourceRole::Reference
+            || !binding.origin().span().range().contains_cursor(offset)
+        {
+            continue;
+        }
         let target = match binding.entity() {
             SemanticEntity::Variant(variant) => ConstructionCompletionTarget::Variant(variant),
             SemanticEntity::Callable(callable) => {
@@ -39,15 +42,9 @@ pub(super) fn checked_completions(
             }
             _ => continue,
         };
-        let range = binding.origin().span().range();
-        if selected
-            .as_ref()
-            .is_none_or(|(current, _)| range.len() < current.len())
-        {
-            selected = Some((range, target));
-        }
+        candidates.push((*binding, target));
     }
-    let Some((_, target)) = selected else {
+    let Some(target) = select_source_candidates(candidates.into_iter()).unique() else {
         return Ok(None);
     };
     let owner = program.construction_completion_owner(target)?;

@@ -11,6 +11,7 @@ use nocter_syntax::{NodeKind, SyntaxTree};
 use super::{SemanticCompletion, SemanticCompletionKind};
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
+use crate::source_selection::select_source_candidates;
 
 /// Resolves the structural construction containing a checked cursor position.
 pub(super) fn checked_completions(
@@ -24,26 +25,24 @@ pub(super) fn checked_completions(
     let Some(context_range) = containing_initializer(trees, source, offset) else {
         return Ok(None);
     };
-    let selected = index
-        .bindings_in(source)
-        .filter_map(|binding| {
-            let SemanticEntity::BodyNode(body, node) = binding.entity() else {
-                return None;
-            };
-            let range = binding.origin().span().range();
-            if !range.contains_range(context_range) {
-                return None;
-            }
-            let checked = program.bodies().get(body)?.nodes().get(node)?;
-            let CheckedOperation::Aggregate(AggregateConstruction::Struct { definition, fields }) =
-                checked.operation()
-            else {
-                return None;
-            };
-            Some((range, *definition, fields.as_ref()))
-        })
-        .min_by_key(|(range, _, _)| range.len());
-    let Some((_, definition, fields)) = selected else {
+    let selected = select_source_candidates(index.bindings_in(source).filter_map(|binding| {
+        let SemanticEntity::BodyNode(body, node) = binding.entity() else {
+            return None;
+        };
+        let range = binding.origin().span().range();
+        if !range.contains_range(context_range) {
+            return None;
+        }
+        let checked = program.bodies().get(body)?.nodes().get(node)?;
+        let CheckedOperation::Aggregate(AggregateConstruction::Struct { definition, fields }) =
+            checked.operation()
+        else {
+            return None;
+        };
+        Some((*binding, (*definition, fields.as_ref())))
+    }))
+    .unique();
+    let Some((definition, fields)) = selected else {
         return Ok(None);
     };
     let used_fields = fields.iter().map(|(field, _)| *field).collect::<Vec<_>>();

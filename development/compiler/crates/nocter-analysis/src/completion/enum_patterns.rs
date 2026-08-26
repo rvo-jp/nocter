@@ -11,6 +11,7 @@ use nocter_syntax::{NodeKind, SyntaxTree};
 use super::{SemanticCompletion, SemanticCompletionKind};
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
+use crate::source_selection::select_source_candidates;
 
 pub(super) fn checked_completions(
     program: &CheckedProgram,
@@ -23,14 +24,15 @@ pub(super) fn checked_completions(
     let Some(pattern) = containing_pattern(trees, source, offset) else {
         return Ok(None);
     };
-    let variant = index.bindings_in(source).find_map(|binding| {
+    let variant = select_source_candidates(index.bindings_in(source).filter_map(|binding| {
         let SemanticEntity::Variant(variant) = binding.entity() else {
             return None;
         };
         pattern
             .contains_range(binding.origin().span().range())
-            .then_some(variant)
-    });
+            .then_some((*binding, variant))
+    }))
+    .unique();
     let Some(variant) = variant else {
         return Ok(None);
     };
