@@ -7,12 +7,11 @@ use nocter_model::{
 };
 use nocter_source::SourceId;
 
-use crate::body_check::BodyAssumptionTable;
+use crate::CheckedProgram;
 use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{
     InstanceOperationSelector, InstanceSelectionContext, MethodCompletionCandidate,
 };
-use crate::{CheckedProgram, InstanceOperationTable, InterfaceImplementationTable};
 
 /// One compiler-selected field or method visible on a receiver.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -187,12 +186,8 @@ impl CheckedProgram {
             .ty();
         select_member_completions(
             MemberCompletionAuthorities {
-                graph: self.graph(),
+                environment: self.environment(),
                 semantics: self.semantic_authority(),
-                interface_implementations: self.interface_implementations(),
-                instance_operations: self.instance_operations(),
-                body_assumptions: self.body_assumptions(),
-                source_access: self.source_access(),
                 session,
             },
             MemberCompletionContext::new(body, source, receiver, available, can_consume),
@@ -202,12 +197,8 @@ impl CheckedProgram {
 
 #[derive(Clone, Copy)]
 pub(crate) struct MemberCompletionAuthorities<'program> {
-    pub(crate) graph: &'program DeclarationGraph,
+    pub(crate) environment: &'program crate::program_environment::ProgramEnvironment,
     pub(crate) semantics: &'program crate::semantic_authority::SemanticAuthority,
-    pub(crate) interface_implementations: &'program InterfaceImplementationTable,
-    pub(crate) instance_operations: &'program InstanceOperationTable,
-    pub(crate) body_assumptions: &'program BodyAssumptionTable,
-    pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
     pub(crate) session: &'program MemberCompletionQuerySession,
 }
 
@@ -216,33 +207,30 @@ pub(crate) fn select_member_completions(
     context: MemberCompletionContext,
 ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
     let MemberCompletionAuthorities {
-        graph,
+        environment,
         semantics,
-        interface_implementations,
-        instance_operations,
-        body_assumptions,
-        source_access,
         session,
     } = authorities;
+    let graph = environment.graph();
     let mut state = session.state(semantics)?;
-    let semantic = state.semantics.access();
-    let types = semantic.types;
-    let copyabilities = semantic.copyabilities;
+    let (types, copyabilities) = state.semantics.access().into_reasoning_parts();
     let receiver = match types.get(context.receiver) {
         Some(TypeKind::Borrow { referent, .. }) => *referent,
         Some(_) => context.receiver,
         None => return Err(MemberCompletionError::UnknownReceiver(context.receiver)),
     };
-    let access = crate::SourceAccessContext::for_source(source_access, context.source)
-        .map_err(MemberCompletionError::SourceAccess)?;
+    let access =
+        crate::SourceAccessContext::for_source(environment.source_access(), context.source)
+            .map_err(MemberCompletionError::SourceAccess)?;
     let mut completions = field_completions(graph, types, access, receiver)?;
-    let assumptions = body_assumptions
+    let assumptions = environment
+        .body_assumptions()
         .get(context.body)
         .ok_or(MemberCompletionError::MissingBody(context.body))?;
     let selection = InstanceSelectionContext::new(
         graph,
-        interface_implementations,
-        instance_operations,
+        environment.interface_implementations(),
+        environment.instance_operations(),
         assumptions.declared(),
         assumptions.intrinsic(),
         access,

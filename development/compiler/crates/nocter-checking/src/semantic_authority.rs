@@ -89,14 +89,27 @@ impl SemanticTransaction {
         SemanticAuthority::seal(self.types.freeze(), self.copyabilities.freeze())
     }
 
-    pub(crate) fn freeze_types(self) -> TypeStore {
+    /// Closes specialization into the only semantic artifact consumed by executable construction.
+    /// Copyability remains a checking-time proof cache and is deliberately not exported.
+    pub(crate) fn finish_specialized_types(self) -> TypeStore {
         self.types.freeze().into_store()
     }
 }
 
 pub(crate) struct SemanticAccess<'authority> {
-    pub(crate) types: &'authority mut TypeTransaction,
-    pub(crate) copyabilities: &'authority mut CopyabilityTransaction,
+    types: &'authority mut TypeTransaction,
+    copyabilities: &'authority mut CopyabilityTransaction,
+}
+
+impl<'authority> SemanticAccess<'authority> {
+    pub(crate) fn into_reasoning_parts(
+        self,
+    ) -> (
+        &'authority mut TypeTransaction,
+        &'authority mut CopyabilityTransaction,
+    ) {
+        (self.types, self.copyabilities)
+    }
 }
 
 /// One finalized checked generation of structural types, copy facts, and closure definitions.

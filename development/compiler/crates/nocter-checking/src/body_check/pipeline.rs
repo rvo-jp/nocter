@@ -169,11 +169,11 @@ fn complete_checked_program(
             .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)
             .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
     let mut cleanup = checked_semantics.transaction();
-    let cleanup_access = cleanup.access();
+    let (cleanup_types, cleanup_copyabilities) = cleanup.access().into_reasoning_parts();
     if let Err(error) = attach_body_cleanups(
         facts,
-        cleanup_access.types,
-        cleanup_access.copyabilities,
+        cleanup_types,
+        cleanup_copyabilities,
         checked_semantics.closures(),
         &prepared.body_sources,
         &mut checked_bodies,
@@ -353,10 +353,10 @@ fn finish_checked_program(
     let source_index = extend_source_index(source_index, projections)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
     let mut semantic_completion = semantics.transaction();
-    let completion_access = semantic_completion.access();
-    completion_access
-        .copyabilities
-        .complete(graph, completion_access.types)
+    let (completion_types, completion_copyabilities) =
+        semantic_completion.access().into_reasoning_parts();
+    completion_copyabilities
+        .complete(graph, completion_types)
         .map_err(BodyCheckInternalError::Copyability)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
     semantics.accept(semantic_completion);

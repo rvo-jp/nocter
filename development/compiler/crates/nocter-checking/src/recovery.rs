@@ -284,12 +284,8 @@ impl BodyAnalysisRecovery {
         }
         Some(select_member_completions(
             crate::member_completion::MemberCompletionAuthorities {
-                graph: self.prepared.graph(),
+                environment: self.prepared.environment(),
                 semantics,
-                interface_implementations: self.prepared.interface_implementations(),
-                instance_operations: self.prepared.instance_operations(),
-                body_assumptions: self.prepared.body_assumptions(),
-                source_access: self.prepared.source_access(),
                 session,
             },
             MemberCompletionContext::new(body, source, *receiver, *available, *owned),

@@ -62,6 +62,10 @@ pub struct PreparedSemanticProgram {
 }
 
 impl PreparedSemanticProgram {
+    pub(crate) const fn environment(&self) -> &crate::program_environment::ProgramEnvironment {
+        &self.environment
+    }
+
     fn new(
         graph: DeclarationGraph,
         types: TypeAuthority,
@@ -115,10 +119,6 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
         self.environment.instance_operations()
-    }
-
-    pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
-        self.environment.body_assumptions()
     }
 
     #[must_use]

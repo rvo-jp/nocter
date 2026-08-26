@@ -260,8 +260,8 @@ impl ConcreteDispatchResolver<'_> {
             return Err(ConcreteDestructionError::RecursiveType(ty));
         }
         let graph = self.program.graph();
-        let semantic = self.semantic_access();
-        if semantic.copyabilities.classify(graph, semantic.types, ty)? == Copyability::Copy {
+        let (types, copyabilities) = self.semantic_access().into_reasoning_parts();
+        if copyabilities.classify(graph, types, ty)? == Copyability::Copy {
             active.remove(&ty);
             self.destructions.insert(ty, None);
             return Ok(None);

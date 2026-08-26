@@ -143,9 +143,9 @@ pub enum ResolvedDispatchPlan {
 /// intern types that do not exist in generic HIR. The fork preserves every checked [`TypeId`] and
 /// becomes the sole type authority for all plans produced by this resolver.
 pub struct ConcreteDispatchResolver<'program> {
-    pub(crate) program: &'program CheckedProgram,
+    pub(super) program: &'program CheckedProgram,
     semantics: crate::semantic_authority::SemanticTransaction,
-    pub(crate) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
+    pub(super) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
 }
 
 struct SpecializedOpaqueWitness {
@@ -169,17 +169,17 @@ impl<'program> ConcreteDispatchResolver<'program> {
         self.semantics.types()
     }
 
-    pub(crate) fn types_mut(&mut self) -> &mut nocter_model::TypeTransaction {
+    pub(super) fn types_mut(&mut self) -> &mut nocter_model::TypeTransaction {
         self.semantics.types_mut()
     }
 
-    pub(crate) fn semantic_access(&mut self) -> crate::semantic_authority::SemanticAccess<'_> {
+    pub(super) fn semantic_access(&mut self) -> crate::semantic_authority::SemanticAccess<'_> {
         self.semantics.access()
     }
 
     #[must_use]
     pub fn into_types(self) -> TypeStore {
-        self.semantics.freeze_types()
+        self.semantics.finish_specialized_types()
     }
 
     /// Resolves one checked dispatch edge under its enclosing callable specialization.
@@ -824,8 +824,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
     }
 
     fn evidence(&mut self) -> ConcreteEvidenceAuthority<'_> {
-        let semantic = self.semantics.access();
-        ConcreteEvidenceAuthority::new(self.program, semantic.types, semantic.copyabilities)
+        let (types, copyabilities) = self.semantics.access().into_reasoning_parts();
+        ConcreteEvidenceAuthority::new(self.program, types, copyabilities)
     }
 
     fn direct_step(

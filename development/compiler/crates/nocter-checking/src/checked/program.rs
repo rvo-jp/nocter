@@ -4,7 +4,6 @@ use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
-use crate::body_check::BodyAssumptionTable;
 use crate::{
     AssociatedTypeCompletionContext, ClosureTable, ConstructionSurfaceTable, CopyabilityTable,
     DropTable, InstanceOperationTable, InterfaceImplementationTable, LoanTable, ProvenanceTable,
@@ -33,6 +32,10 @@ pub(crate) struct CheckedProgramAuthorities {
 }
 
 impl CheckedProgram {
+    pub(crate) const fn environment(&self) -> &crate::program_environment::ProgramEnvironment {
+        &self.environment
+    }
+
     pub(crate) fn new(
         environment: crate::program_environment::ProgramEnvironment,
         semantics: crate::semantic_authority::CheckedSemanticAuthority,
@@ -73,10 +76,6 @@ impl CheckedProgram {
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
         self.environment.instance_operations()
-    }
-
-    pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
-        self.environment.body_assumptions()
     }
 
     #[must_use]

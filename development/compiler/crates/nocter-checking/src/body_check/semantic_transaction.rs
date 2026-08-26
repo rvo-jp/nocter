@@ -88,11 +88,8 @@ impl<'authority> BodySemanticAccess<'authority> {
         &'authority mut crate::copyability::CopyabilityTransaction,
         &'authority mut ClosureTransaction,
     ) {
-        (
-            self.semantics.types,
-            self.semantics.copyabilities,
-            self.closures,
-        )
+        let (types, copyabilities) = self.semantics.into_reasoning_parts();
+        (types, copyabilities, self.closures)
     }
 }
 
