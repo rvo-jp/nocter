@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_declarations::{DeclarationGraph, InterfaceApplication, ParameterRole, RequirementKind};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{TypeId, TypeStore};
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::shape::{TypePosition, TypeValidityFailure, validate_type};
 
@@ -101,7 +101,7 @@ impl std::error::Error for TypeValidityInternalError {}
 pub fn validate_declaration_types(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
 ) -> Result<(), DeclarationTypeValidityError> {
     let declarations = graph.declarations();
     validate_value_positions(graph, types, source_index)?;
@@ -188,7 +188,7 @@ pub fn validate_declaration_types(
 fn validate_value_positions(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
 ) -> Result<(), DeclarationTypeValidityError> {
     let declarations = graph.declarations();
     for (id, alias) in declarations.type_aliases().iter() {
@@ -238,7 +238,7 @@ fn validate_value_positions(
 
 fn validate_requirement(
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     requirement: &RequirementKind,
     entity: SemanticEntity,
 ) -> Result<(), DeclarationTypeValidityError> {
@@ -301,7 +301,7 @@ fn validate_requirement(
 
 fn validate_interface(
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     application: &InterfaceApplication,
     entity: SemanticEntity,
 ) -> Result<(), DeclarationTypeValidityError> {
@@ -313,7 +313,7 @@ fn validate_interface(
 
 fn validate_position(
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     ty: TypeId,
     position: TypePosition,
     entity: SemanticEntity,
@@ -333,6 +333,9 @@ fn validate_position(
     }
 }
 
-fn source_origin(source_index: &SourceIndex, entity: SemanticEntity) -> Option<SourceOrigin> {
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+fn source_origin(
+    source_index: DiagnosticOrigins<'_>,
+    entity: SemanticEntity,
+) -> Option<SourceOrigin> {
+    source_index.declaration(entity)
 }

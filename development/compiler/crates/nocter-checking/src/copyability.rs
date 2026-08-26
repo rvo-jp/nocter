@@ -6,7 +6,7 @@ use nocter_model::{
     BorrowCapability, BuiltinType, ClosureId, FieldId, GenericParameterId, NominalTypeId, TypeId,
     TypeKind, TypeStore, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use crate::CheckedPredicate;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
@@ -164,7 +164,7 @@ impl CopyabilityTable {
     pub(crate) fn build(
         graph: &DeclarationGraph,
         types: &mut TypeStore,
-        source_index: &SourceIndex,
+        source_index: DiagnosticOrigins<'_>,
     ) -> Result<Self, CopyabilityBuildError> {
         let mut table = Self::default();
         table.validate_copy_families(graph, types, source_index)?;
@@ -175,7 +175,7 @@ impl CopyabilityTable {
         &mut self,
         graph: &DeclarationGraph,
         types: &mut TypeStore,
-        source_index: &SourceIndex,
+        source_index: DiagnosticOrigins<'_>,
     ) -> Result<(), CopyabilityBuildError> {
         for (family, declaration) in graph.declarations().nominal_types().iter() {
             let NominalShape::Struct {
@@ -627,8 +627,11 @@ impl fmt::Display for CopyabilityError {
 
 impl std::error::Error for CopyabilityError {}
 
-fn source_origin(source_index: &SourceIndex, entity: SemanticEntity) -> Option<SourceOrigin> {
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+fn source_origin(
+    source_index: DiagnosticOrigins<'_>,
+    entity: SemanticEntity,
+) -> Option<SourceOrigin> {
+    source_index.declaration(entity)
 }
 
 #[cfg(test)]

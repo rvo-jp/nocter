@@ -7,7 +7,7 @@ use crate::{
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
-use nocter_source_index::SourceIndex;
+use nocter_source_index::DiagnosticOrigins;
 
 /// Immutable program-wide authorities shared by every body checker.
 #[derive(Clone, Copy)]
@@ -21,7 +21,7 @@ pub(super) struct BodyProgramFacts<'program> {
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
     source_access: &'program SourceAccessTable,
-    source_index: &'program SourceIndex,
+    diagnostic_origins: DiagnosticOrigins<'program>,
 }
 
 pub(super) fn body_result_type(
@@ -80,7 +80,7 @@ impl<'program> BodyProgramFacts<'program> {
             standard_semantics: &prepared.standard_semantics,
             source_namespaces: &prepared.source_namespaces,
             source_access: &prepared.source_access,
-            source_index: &prepared.source_index,
+            diagnostic_origins: prepared.source_index.diagnostic_origins(),
         }
     }
 
@@ -120,7 +120,7 @@ impl<'program> BodyProgramFacts<'program> {
         self.source_access
     }
 
-    pub(super) const fn source_index(self) -> &'program SourceIndex {
-        self.source_index
+    pub(super) const fn diagnostic_origins(self) -> DiagnosticOrigins<'program> {
+        self.diagnostic_origins
     }
 }

@@ -69,6 +69,12 @@ pub struct SourceIndex {
 }
 
 impl SourceIndex {
+    /// Restricts this index to diagnostic-origin projection for semantic consumers.
+    #[must_use]
+    pub const fn diagnostic_origins(&self) -> crate::DiagnosticOrigins<'_> {
+        crate::DiagnosticOrigins::new(self)
+    }
+
     #[must_use]
     pub fn bindings_for(&self, entity: SemanticEntity) -> &[SourceBinding] {
         let start = self
@@ -492,6 +498,12 @@ mod tests {
             builder
                 .insert(entity, SourceRole::Declaration, origin)
                 .is_err()
+        );
+        let index = builder.finish();
+        assert_eq!(
+            index.diagnostic_origins().declaration(entity),
+            Some(origin),
+            "diagnostic projection must prefer the authored declaration contract"
         );
     }
 

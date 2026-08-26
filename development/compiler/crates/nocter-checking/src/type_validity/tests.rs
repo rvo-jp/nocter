@@ -20,7 +20,7 @@ fn valid_special_roots_and_indirections_are_accepted() {
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, types, _admission) = program.into_parts();
 
-    validate_declaration_types(&graph, &types, &source_index).unwrap();
+    validate_declaration_types(&graph, &types, source_index.diagnostic_origins()).unwrap();
 }
 
 #[test]
@@ -39,7 +39,8 @@ fn invalid_type_positions_have_distinct_rules() {
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types, _admission) = program.into_parts();
-        let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
+        let error = validate_declaration_types(&graph, &types, source_index.diagnostic_origins())
+            .unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
     }
@@ -52,7 +53,8 @@ fn aliases_do_not_bypass_use_site_validity() {
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, types, _admission) = program.into_parts();
-    let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
+    let error =
+        validate_declaration_types(&graph, &types, source_index.diagnostic_origins()).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
 }
@@ -68,7 +70,8 @@ fn associated_bindings_and_refinements_are_data_positions() {
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types, _admission) = program.into_parts();
-        let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
+        let error = validate_declaration_types(&graph, &types, source_index.diagnostic_origins())
+            .unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
     }
@@ -84,7 +87,7 @@ fn type_validity_diagnostic_is_input_order_independent() {
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, types, _admission) = program.into_parts();
         diagnostics.push(
-            validate_declaration_types(&graph, &types, &source_index)
+            validate_declaration_types(&graph, &types, source_index.diagnostic_origins())
                 .unwrap_err()
                 .source_diagnostic()
                 .unwrap()

@@ -10,7 +10,7 @@ use nocter_model::{
     AttachmentFamily, BorrowCapability, BuiltinType, CallableCapability, CallableId, InstanceId,
     Symbol, TypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::contracts::{
     CheckedInstanceCoercion, CheckedInstanceComparison, CheckedInstanceExpansion,
@@ -113,7 +113,7 @@ impl std::error::Error for InstanceOperationInternalError {}
 pub(super) fn build_instance_operation_table(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
     let operations = crate::admitted_operations::AdmittedOperations::all(graph);
@@ -129,7 +129,7 @@ pub(super) fn build_instance_operation_table(
 pub(crate) fn build_instance_operation_table_from_ids(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     patterns: &DeclarationPatternTable,
     instances: &[InstanceId],
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
@@ -240,7 +240,7 @@ fn operations_conflict(left: &[CheckedInstanceMember], right: &[CheckedInstanceM
 fn build_member_contracts(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     instance: InstanceId,
     target: TypeId,
     members: &[CallableId],
@@ -267,7 +267,7 @@ fn build_member_contracts(
 fn build_member_contract(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     instance: InstanceId,
     target: TypeId,
     member: CallableId,
@@ -376,7 +376,7 @@ fn build_member_contract(
 
 fn build_coercion_contract(
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     member: CallableId,
     callable: &CallableDeclaration,
     receiver_capability: CallableCapability,
@@ -406,7 +406,7 @@ fn build_coercion_contract(
 #[allow(clippy::too_many_arguments)]
 fn build_comparison_contract(
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     member: CallableId,
     callable: &CallableDeclaration,
     receiver_capability: CallableCapability,
@@ -438,7 +438,7 @@ fn build_comparison_contract(
 
 fn build_index_contract(
     types: &TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     member: CallableId,
     callable: &CallableDeclaration,
     receiver_capability: CallableCapability,
@@ -470,7 +470,7 @@ fn build_index_contract(
 }
 
 fn build_expansion_contract(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     member: CallableId,
     callable: &CallableDeclaration,
     receiver_capability: CallableCapability,
@@ -492,7 +492,7 @@ fn build_expansion_contract(
 
 fn validate_coercion_identities(
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     members: &[CheckedInstanceMember],
     substitution: &crate::type_relations::TypeSubstitution,
 ) -> Result<(), InstanceOperationBuildError> {
@@ -522,7 +522,7 @@ fn validate_coercion_identities(
 }
 
 fn invalid_member_signature(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     member: CallableId,
 ) -> Result<CheckedInstanceMember, InstanceOperationBuildError> {
     Err(diagnostic::invalid_signature(entity_origin(
@@ -560,18 +560,20 @@ fn borrow_type(types: &TypeStore, ty: TypeId) -> Option<(BorrowCapability, TypeI
 }
 
 fn site_origin(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<SourceOrigin, InstanceOperationInternalError> {
     let entity = SemanticEntity::DeclarationSite(site);
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+    source_index
+        .declaration(entity)
         .ok_or(InstanceOperationInternalError::MissingSource(entity))
 }
 
 fn entity_origin(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     entity: SemanticEntity,
 ) -> Result<SourceOrigin, InstanceOperationInternalError> {
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+    source_index
+        .declaration(entity)
         .ok_or(InstanceOperationInternalError::MissingSource(entity))
 }

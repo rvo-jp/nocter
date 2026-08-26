@@ -7,7 +7,7 @@ use nocter_declarations::{
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
-use nocter_source_index::SourceIndex;
+use nocter_source_index::{DiagnosticOrigins, SourceIndex};
 
 use crate::body_check::BodyAssumptionTable;
 use crate::declaration_patterns::DeclarationPatternTable;
@@ -585,7 +585,7 @@ fn prepare_program_checking_internal<'syntax>(
         &graph,
         &mut types,
         bindings,
-        &source_index,
+        source_index.diagnostic_origins(),
         &admission,
     ) {
         Ok(authorities) => authorities,
@@ -658,18 +658,18 @@ fn build_program_authorities(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     bindings: &FrontendBindings,
-    source_index: &SourceIndex,
+    diagnostic_origins: DiagnosticOrigins<'_>,
     admission: &nocter_declarations::DeclarationAnalysisAdmission,
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
     let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
-    validate_declaration_types(graph, types, source_index)?;
-    let copyabilities = CopyabilityTable::build(graph, types, source_index)?;
+    validate_declaration_types(graph, types, diagnostic_origins)?;
+    let copyabilities = CopyabilityTable::build(graph, types, diagnostic_origins)?;
     let declaration_patterns = DeclarationPatternTable::build(graph, types)?;
     let drops = DropTable::build_from_ids(graph, types, operations.drops())?;
     let interface_implementations = build_interface_implementation_table_from_ids(
         graph,
         types,
-        source_index,
+        diagnostic_origins,
         &declaration_patterns,
         operations.interface_implementations(),
     )?;
@@ -679,7 +679,7 @@ fn build_program_authorities(
     let instance_operations = build_instance_operation_table_from_ids(
         graph,
         types,
-        source_index,
+        diagnostic_origins,
         &declaration_patterns,
         operations.instances(),
     )?;

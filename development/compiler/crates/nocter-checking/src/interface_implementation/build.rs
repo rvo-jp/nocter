@@ -10,7 +10,7 @@ use nocter_model::{
     ArenaBuilder, CallableId, GenericParameterId, InterfaceId, InterfaceImplementationId,
     ParameterId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::diagnostic;
 use super::model::{
@@ -189,7 +189,7 @@ impl std::error::Error for InterfaceImplementationInternalError {}
 pub(super) fn build_interface_implementation_table(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
 ) -> Result<InterfaceImplementationTable, InterfaceImplementationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
     let operations = crate::admitted_operations::AdmittedOperations::all(graph);
@@ -205,7 +205,7 @@ pub(super) fn build_interface_implementation_table(
 pub(crate) fn build_interface_implementation_table_from_ids(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     patterns: &DeclarationPatternTable,
     interface_implementations: &[InterfaceImplementationId],
 ) -> Result<InterfaceImplementationTable, InterfaceImplementationBuildError> {
@@ -331,7 +331,7 @@ type InterfaceImplementationPatterns = BTreeMap<InterfaceId, Vec<InterfaceImplem
 
 fn record_nonoverlapping_pattern(
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     preceding_patterns: &mut InterfaceImplementationPatterns,
     current: InterfaceImplementationPattern,
 ) -> Result<(), InterfaceImplementationBuildError> {
@@ -362,7 +362,7 @@ fn record_nonoverlapping_pattern(
 struct MethodSelectionInput<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut TypeStore,
-    source_index: &'program SourceIndex,
+    source_index: DiagnosticOrigins<'program>,
     interface_id: InterfaceId,
     interface_methods: &'program [CallableId],
     implementation_methods: &'program [CallableId],
@@ -494,7 +494,7 @@ fn interface_method_index(
 
 fn implementation_method_index(
     graph: &DeclarationGraph,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     interface: InterfaceId,
     methods: &[CallableId],
     expected: &BTreeMap<nocter_model::Symbol, CallableId>,
@@ -536,7 +536,7 @@ fn implementation_method_index(
 
 fn missing_methods_error(
     graph: &DeclarationGraph,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     interface_implementation_site: nocter_model::DeclarationSiteId,
     interface_implementation: InterfaceImplementationId,
     missing: Vec<RequiredInterfaceImplementationMethod>,
@@ -761,11 +761,12 @@ fn parameter_contract(
 }
 
 fn site_origin(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     site: nocter_model::DeclarationSiteId,
 ) -> Result<SourceOrigin, InterfaceImplementationInternalError> {
     let entity = SemanticEntity::DeclarationSite(site);
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+    source_index
+        .declaration(entity)
         .ok_or(InterfaceImplementationInternalError::MissingSource(entity))
 }
 

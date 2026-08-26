@@ -1,6 +1,6 @@
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, RequirementId, TypeStore};
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::build::{InterfaceImplementationBuildError, InterfaceImplementationInternalError};
 use super::diagnostic;
@@ -12,7 +12,7 @@ use crate::type_relations::TypeSubstitution;
 pub(super) fn validate_associated_bounds(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     table: &InterfaceImplementationTable,
 ) -> Result<(), InterfaceImplementationBuildError> {
     for (id, interface_implementation) in table.entries() {
@@ -48,7 +48,7 @@ pub(super) fn validate_associated_bounds(
 struct AssociatedValidationContext<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut TypeStore,
-    source_index: &'program SourceIndex,
+    source_index: DiagnosticOrigins<'program>,
     table: &'program InterfaceImplementationTable,
     interface_implementation: &'program CheckedInterfaceImplementation,
     interface_implementation_site: nocter_model::DeclarationSiteId,
@@ -120,16 +120,17 @@ fn interface_implementation_substitution(
 }
 
 fn requirement_origin(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     requirement: RequirementId,
 ) -> Result<SourceOrigin, InterfaceImplementationInternalError> {
     source_origin(source_index, SemanticEntity::Requirement(requirement))
 }
 
 fn source_origin(
-    source_index: &SourceIndex,
+    source_index: DiagnosticOrigins<'_>,
     entity: SemanticEntity,
 ) -> Result<SourceOrigin, InterfaceImplementationInternalError> {
-    crate::diagnostic_projection::declaration_origin(source_index, entity)
+    source_index
+        .declaration(entity)
         .ok_or(InterfaceImplementationInternalError::MissingSource(entity))
 }

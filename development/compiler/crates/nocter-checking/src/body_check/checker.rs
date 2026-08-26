@@ -8,7 +8,7 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
     TypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceAccess, SourceIndex, SourceOrigin};
+use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind,
 };
@@ -136,7 +136,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     standard_semantics: &'input crate::StandardSemanticTable,
     source_namespaces: &'input SourceNamespaceTable,
     source_access: crate::SourceAccessContext<'input>,
-    source_index: &'input SourceIndex,
+    diagnostic_origins: DiagnosticOrigins<'input>,
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     builder: CheckedBodyBuilder,
@@ -225,7 +225,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
         let source_access = body_source_access(facts, source)?;
-        let source_index = facts.source_index();
+        let diagnostic_origins = facts.diagnostic_origins();
         let mut uses = HashMap::new();
         for use_ in names.uses() {
             if uses.insert(use_.origin(), use_.target()).is_some() {
@@ -282,7 +282,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             standard_semantics,
             source_namespaces,
             source_access,
-            source_index,
+            diagnostic_origins,
             source,
             names,
             builder: CheckedBodyBuilder::new(names),
@@ -1081,7 +1081,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let primary = SourceOrigin::from_node(self.tree(), node)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         let entity = SemanticEntity::Drop(drop);
-        let related = crate::diagnostic_projection::declaration_origin(self.source_index, entity)
+        let related = self
+            .diagnostic_origins
+            .declaration(entity)
             .ok_or(BodyCheckInternalError::MissingSource(entity))?;
         Ok(BodyCheckError::from_rule(
             BodyRule::PartialMoveThroughDrop,

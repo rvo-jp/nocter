@@ -29,7 +29,9 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
-    let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
+    let table =
+        build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap();
     let definition = graph
         .declarations()
         .nominal_types()
@@ -68,7 +70,9 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
-    let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
+    let table =
+        build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap();
     let entry = table.entries().iter().next().unwrap().1;
     let [member] = entry.members() else {
         panic!("expected one indexed operation");

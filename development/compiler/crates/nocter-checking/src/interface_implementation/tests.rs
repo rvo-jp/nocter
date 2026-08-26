@@ -19,7 +19,9 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
-    let table = build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
+    let table =
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap();
     let (_, entry) = table.entries().iter().next().unwrap();
 
     assert_eq!(entry.methods().len(), 2);
@@ -81,8 +83,12 @@ fn interface_implementation_method_failures_have_distinct_rules() {
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, mut types, _admission) = program.into_parts();
-        let error =
-            build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
+        let error = build_interface_implementation_table(
+            &graph,
+            &mut types,
+            source_index.diagnostic_origins(),
+        )
+        .unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
     }
 }
@@ -105,7 +111,8 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
     let error =
-        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap_err();
     let missing = error.missing_methods().unwrap();
 
     assert_eq!(missing.required().len(), 2);
@@ -133,11 +140,15 @@ fn exact_overlap_diagnostic_is_input_order_independent() {
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, mut types, _admission) = program.into_parts();
         diagnostics.push(
-            build_interface_implementation_table(&graph, &mut types, &source_index)
-                .unwrap_err()
-                .source_diagnostic()
-                .unwrap()
-                .clone(),
+            build_interface_implementation_table(
+                &graph,
+                &mut types,
+                source_index.diagnostic_origins(),
+            )
+            .unwrap_err()
+            .source_diagnostic()
+            .unwrap()
+            .clone(),
         );
     }
     assert_eq!(diagnostics[0], diagnostics[1]);
@@ -154,7 +165,8 @@ fn refined_pattern_overlaps_a_general_generic_pattern() {
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
     let error =
-        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0353");
 }
@@ -168,7 +180,9 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
-    let table = build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
+    let table =
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap();
 
     assert_eq!(table.entries().len(), 2);
     for interface_implementation in table.entries().values() {
@@ -202,7 +216,8 @@ fn associated_type_bounds_use_the_same_interface_implementation_table() {
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
         let (graph, mut types, _admission) = program.into_parts();
 
-        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap();
     }
 }
 
@@ -216,7 +231,8 @@ fn unsatisfied_associated_type_bound_has_its_own_rule() {
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
     let (graph, mut types, _admission) = program.into_parts();
     let error =
-        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
+        build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
+            .unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0354");
 }

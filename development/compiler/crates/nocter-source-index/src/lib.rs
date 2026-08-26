@@ -4,12 +4,14 @@
 //! identities. Lowering boundaries may extend it when they create new identities; canonical
 //! declaration, checked, and machine programs never depend on it.
 
+mod diagnostic;
 mod documentation;
 mod entity;
 mod index;
 mod names;
 mod origin;
 
+pub use diagnostic::DiagnosticOrigins;
 pub use documentation::{DocumentationOwner, DuplicateDocumentation};
 pub use entity::SemanticEntity;
 pub use index::{

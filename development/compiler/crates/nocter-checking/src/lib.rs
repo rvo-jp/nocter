@@ -18,7 +18,6 @@ mod construction_completion;
 mod construction_surfaces;
 mod copyability;
 mod declaration_patterns;
-mod diagnostic_projection;
 mod enum_pattern_completion;
 mod expected;
 mod field_selection;

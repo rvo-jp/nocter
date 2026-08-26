@@ -42,6 +42,12 @@ semantic ID -> SourceIndex -> diagnostic range
 No inverse source lookup participates in type equality, dispatch, ownership, monomorphization,
 reachability, ABI selection, or code generation.
 
+Semantic validators receive `DiagnosticOrigins`, not `SourceIndex`. This narrow capability can
+project an already selected semantic identity to its authored declaration or implementation
+origin, but exposes no binding iteration, offset lookup, visible names, or reverse semantic
+selection. The checking pipeline may own and extend the complete `SourceIndex` beside its semantic
+result; checking rules cannot read it as semantic evidence.
+
 When a lowering boundary creates new semantic identities, it consumes the existing `SourceIndex`
 into its duplicate-checking builder, adds exact projections, and freezes both deterministic lookup
 orders again. It does not create a phase-specific parallel source index. Canonical semantic
