@@ -19,6 +19,7 @@ and standard-library behavior belongs exclusively in
 - [Documentation Site Generation](site-generation.md)
 - [Current Handoff](../TODO.md)
 - [v0.18.0 Construction Surface Simplification](../milestones/v0.18.0.md)
+- [Persistent Semantic Authority](persistent-semantic-authority.md)
 - [v0.18.0 Phase 0 Construction Review](../reviews/v0.18.0-phase-0.md)
 - [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
 - [v0.17.0 Release Preparation](../milestones/v0.17.0-release-preparation.md)
