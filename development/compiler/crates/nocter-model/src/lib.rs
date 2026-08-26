@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 //! Syntax-independent semantic identities and structural types.
 //!
 //! This crate deliberately has no source or syntax dependency. Source lowering may create these

@@ -284,6 +284,10 @@ impl TypeStore {
     ///
     /// Persistent snapshots use this cursor contract when an analysis has already closed an
     /// immutable prefix and needs to inspect only types appended by its own transaction.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the store's private identity sequence is internally sparse.
     #[must_use]
     pub fn iter_from(&self, start: usize) -> impl ExactSizeIterator<Item = (TypeId, &TypeKind)> {
         let end = self.kinds.len();
@@ -475,7 +479,7 @@ mod tests {
     #[test]
     fn transactions_share_the_prefix_and_isolate_sibling_extensions() {
         let base = TypeAuthority::new();
-        let value = base.builtin(BuiltinType::I32);
+        let value = base.store().builtin(BuiltinType::I32);
         let mut first = base.transaction();
         let mut second = base.transaction();
 
@@ -483,7 +487,7 @@ mod tests {
         let second_extension = second.intern(TypeKind::Fallible(value)).unwrap();
 
         assert_eq!(first_extension, second_extension);
-        assert_eq!(base.get(first_extension), None);
+        assert_eq!(base.store().get(first_extension), None);
         assert_eq!(first.get(first_extension), Some(&TypeKind::Optional(value)));
         assert_eq!(
             second.get(second_extension),

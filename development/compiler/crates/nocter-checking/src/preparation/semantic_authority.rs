@@ -15,7 +15,7 @@ pub(crate) struct SemanticAuthority {
 }
 
 impl SemanticAuthority {
-    pub(crate) const fn seal(types: TypeAuthority, copyabilities: CopyabilityTable) -> Self {
+    pub(super) const fn seal(types: TypeAuthority, copyabilities: CopyabilityTable) -> Self {
         Self {
             types,
             copyabilities,

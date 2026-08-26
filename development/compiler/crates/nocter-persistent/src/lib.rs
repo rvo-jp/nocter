@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 //! Dependency-free persistent collections used by compiler construction authorities.
 //!
 //! These collections know nothing about Nocter semantics. Semantic crates keep them behind their

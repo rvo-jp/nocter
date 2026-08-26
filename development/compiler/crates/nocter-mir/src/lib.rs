@@ -56,4 +56,5 @@ pub use validation_environment::MirValidationEnvironment;
 pub use validation_error::MirValidationError;
 
 #[cfg(test)]
+#[allow(clippy::disallowed_types)]
 mod tests;

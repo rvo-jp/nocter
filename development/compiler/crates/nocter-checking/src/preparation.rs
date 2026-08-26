@@ -1,5 +1,7 @@
 use std::fmt;
 
+pub(crate) mod semantic_authority;
+
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{
     AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram, DeclarationGraph,

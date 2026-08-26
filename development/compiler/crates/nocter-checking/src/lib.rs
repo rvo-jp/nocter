@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 //! One-way construction of the syntax-independent checked program.
 //!
 //! This crate is the only Phase 3 boundary allowed to inspect body syntax. It consumes the
@@ -34,7 +36,7 @@ mod preparation;
 mod program_environment;
 mod provenance;
 mod recovery;
-mod semantic_authority;
+pub(crate) use preparation::semantic_authority;
 mod source_visibility;
 mod standard_semantics;
 #[cfg(test)]

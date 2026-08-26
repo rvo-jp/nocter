@@ -165,20 +165,23 @@ mod tests {
     #[test]
     fn commit_preserves_the_ancestor_and_freezes_the_descendant() {
         let base = TypeAuthority::new();
-        let value = base.builtin(BuiltinType::I32);
+        let value = base.store().builtin(BuiltinType::I32);
         let mut transaction = base.transaction();
         let optional = transaction.intern(TypeKind::Optional(value)).unwrap();
 
         let descendant = transaction.commit(&base).unwrap();
 
-        assert_eq!(base.get(optional), None);
-        assert_eq!(descendant.get(optional), Some(&TypeKind::Optional(value)));
+        assert_eq!(base.store().get(optional), None);
+        assert_eq!(
+            descendant.store().get(optional),
+            Some(&TypeKind::Optional(value))
+        );
     }
 
     #[test]
     fn sibling_commit_is_rejected_after_the_accepted_authority_advances() {
         let base = TypeAuthority::new();
-        let value = base.builtin(BuiltinType::I32);
+        let value = base.store().builtin(BuiltinType::I32);
         let mut first = base.transaction();
         let mut second = base.transaction();
         first.intern(TypeKind::Optional(value)).unwrap();
@@ -192,14 +195,17 @@ mod tests {
     #[test]
     fn frozen_recovery_isolated_from_its_base() {
         let base = TypeAuthority::new();
-        let value = base.builtin(BuiltinType::I32);
+        let value = base.store().builtin(BuiltinType::I32);
         let mut transaction = base.transaction();
         let provisional = transaction.intern(TypeKind::Optional(value)).unwrap();
 
         let recovery = transaction.freeze();
 
-        assert_eq!(base.get(provisional), None);
-        assert_eq!(recovery.get(provisional), Some(&TypeKind::Optional(value)));
+        assert_eq!(base.store().get(provisional), None);
+        assert_eq!(
+            recovery.store().get(provisional),
+            Some(&TypeKind::Optional(value))
+        );
     }
 
     #[test]

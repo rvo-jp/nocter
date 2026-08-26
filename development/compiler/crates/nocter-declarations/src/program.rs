@@ -1190,10 +1190,13 @@ mod tests {
 
         assert_eq!(graph.modules().len(), 1);
         assert_eq!(
-            types.get(i32_type),
+            types.store().get(i32_type),
             Some(&TypeKind::Builtin(BuiltinType::I32))
         );
-        assert_eq!(types.get(optional), Some(&TypeKind::Optional(i32_type)));
-        assert_eq!(types.type_count(), prefix_len + 1);
+        assert_eq!(
+            types.store().get(optional),
+            Some(&TypeKind::Optional(i32_type))
+        );
+        assert_eq!(types.store().type_count(), prefix_len + 1);
     }
 }

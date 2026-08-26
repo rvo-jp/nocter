@@ -24,6 +24,10 @@ pub(crate) struct ProgramEnvironment {
 }
 
 impl ProgramEnvironment {
+    // This is the single aggregate-construction boundary for independent program-wide facts.
+    // Hiding the fields behind an artificial `Parts` value would only move the same invariant and
+    // introduce a second representation of `ProgramEnvironment`.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) const fn new(
         graph: DeclarationGraph,
         interface_implementations: InterfaceImplementationTable,

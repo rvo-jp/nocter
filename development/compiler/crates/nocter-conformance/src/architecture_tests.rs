@@ -65,35 +65,6 @@ fn crate_names() -> Vec<String> {
     names
 }
 
-fn production_rust_sources(crate_name: &str) -> Vec<(PathBuf, String)> {
-    fn visit(path: &Path, sources: &mut Vec<(PathBuf, String)>) {
-        for entry in fs::read_dir(path).expect("Rust source directory") {
-            let entry = entry.expect("Rust source entry");
-            let path = entry.path();
-            if path.is_dir() {
-                if path.file_name().is_some_and(|name| name == "tests") {
-                    continue;
-                }
-                visit(&path, sources);
-            } else if path.extension().is_some_and(|extension| extension == "rs")
-                && path.file_name().is_none_or(|name| name != "tests.rs")
-            {
-                let source = fs::read_to_string(&path)
-                    .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
-                sources.push((path, source));
-            }
-        }
-    }
-
-    let mut sources = Vec::new();
-    visit(
-        &workspace().join("crates").join(crate_name).join("src"),
-        &mut sources,
-    );
-    sources.sort_by(|left, right| left.0.cmp(&right.0));
-    sources
-}
-
 #[test]
 fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
@@ -179,58 +150,6 @@ fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
             assert!(
                 allowed.contains(crate_name.as_str()),
                 "{crate_name} must consume an immutable semantic contract, not persistent storage"
-            );
-        }
-    }
-}
-
-#[test]
-fn downstream_program_layers_do_not_own_semantic_transactions_or_storage() {
-    // Checked and executable products expose only `TypeStore`. This source-level dependency gate
-    // additionally prevents later layers from creating an unrelated construction authority and
-    // normalizing it into an accidental second semantic universe.
-    let forbidden = [
-        "BodySemanticTransaction",
-        "ClosureSequence",
-        "ClosureTransaction",
-        "CopyabilityTransaction",
-        "PersistentArena",
-        "PersistentMap",
-        "PersistentVector",
-        "TypeTransaction",
-        "TypeAuthority",
-        "nocter_persistent",
-    ];
-    for crate_name in [
-        "nocter-target-program",
-        "nocter-mir",
-        "nocter-machine",
-        "nocter-runtime-contract",
-    ] {
-        for (path, source) in production_rust_sources(crate_name) {
-            let leaked = forbidden
-                .iter()
-                .filter(|name| source.contains(**name))
-                .collect::<Vec<_>>();
-            assert!(
-                leaked.is_empty(),
-                "{} imports semantic construction internals: {leaked:?}",
-                path.display()
-            );
-        }
-    }
-}
-
-#[test]
-fn prepared_semantics_has_one_component_sealing_boundary() {
-    for (path, source) in production_rust_sources("nocter-checking") {
-        if source.contains("SemanticAuthority::seal(") {
-            let allowed =
-                path.ends_with("preparation.rs") || path.ends_with("semantic_authority.rs");
-            assert!(
-                allowed,
-                "{} pairs type and copyability outside the semantic authority boundary",
-                path.display()
             );
         }
     }

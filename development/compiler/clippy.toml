@@ -1,0 +1,7 @@
+disallowed-types = [
+    { path = "nocter_model::TypeAuthority", reason = "semantic construction ownership is restricted to model, declarations, and checking" },
+    { path = "nocter_model::TypeTransaction", reason = "downstream phases consume the immutable TypeStore contract" },
+    { path = "nocter_model::ClosureSequence", reason = "closure construction storage is restricted to model and checking" },
+    { path = "nocter_persistent::PersistentMap", reason = "persistent storage mechanics must remain behind semantic authorities" },
+    { path = "nocter_persistent::PersistentVector", reason = "persistent storage mechanics must remain behind semantic authorities" },
+]
