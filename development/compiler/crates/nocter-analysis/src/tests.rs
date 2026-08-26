@@ -183,7 +183,7 @@ fn repeated_checked_member_queries_are_semantically_identical() {
         .and_then(|authority| authority.checked())
         .expect("checked authority")
         .types()
-        .len();
+        .type_count();
 
     let first = snapshot.semantic_completions(source.id(), offset).unwrap();
     let second = snapshot.semantic_completions(source.id(), offset).unwrap();
@@ -196,7 +196,7 @@ fn repeated_checked_member_queries_are_semantically_identical() {
             .and_then(|authority| authority.checked())
             .expect("checked authority")
             .types()
-            .len(),
+            .type_count(),
         accepted_type_count
     );
 }

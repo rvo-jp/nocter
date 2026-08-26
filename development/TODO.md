@@ -6,9 +6,12 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0, Phase 1, Phase 2, and Phase 3 work](milestones/v0.18.0.md) and their adversarial
-reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with persistent
-immutable authorities and explicit type, copyability, and closure transactions. Phase 2 replaced
+The [v0.18.0 Phase 0, Phase 1, Phase 2, and reopened Phase 3 work](milestones/v0.18.0.md) and their
+adversarial reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with
+persistent immutable authorities and explicit type, copyability, and closure transactions. Its
+reopened review then separated read-only type snapshots from construction ownership, kept type and
+copyability in one semantic authority through every checking stage, bound checked member input to
+its owning body generation, and removed repeated structural work. Phase 2 replaced
 standalone `conform` declarations with instance-owned interface implementation, aggregate
 associated-binding braces, nominal `impl` requirements, and statically witnessed callable
 annotations. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
@@ -21,26 +24,26 @@ in interface-implementation code actions. Executable architecture gates now prot
 boundaries. Phase 3 changes no language behavior. v0.18.0 release qualification is the next task.
 
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
-closure construction uses an immutable internal authority and freezes into `ClosureTable` only
-after body checking. `TypeTransaction`, `CopyabilityTransaction`, and `ClosureTransaction` share
-one body-level capability and commit boundary through `BodySemanticTransaction`. Their persistent
-vector, arena, and indexes share unchanged roots and copy only changed paths. Exact-base lineage
-rejects sibling and stale commits. Declaration lowering, preparation, body checking, member
-queries, concrete specialization, type projection, and tests use these boundaries. All semantic
-checkpoints, journals, body rollback paths, and full-store recovery clones are gone. Editor query
-sessions now verify their exact type and copyability bases, reject cross-generation or
-cross-interruption reuse, and have checked plus recovery tests proving repeatable completion without
-mutating accepted types. Downstream architecture gates allow direct persistent-storage dependencies
-only in model and checking, and reject transaction or persistent collection use in Target, MIR,
-Machine, and runtime production source. Target's unused transaction-taking specialization helper is
-gone; concrete type construction remains checking-owned. The final review also made
-`BodySemanticAuthority` the inseparable owner of each accepted type/copyability/closure generation
-and split closure drafts into an immutable core plus persistent callable requirements, eliminating
-the last repeated linear clone in authority updates. Same-machine measurements against the Phase 3
-baseline remained within the five-percent gate, and the final adversarial review found no open
-correctness or architecture issue. Complete workspace tests, warnings-denied all-target Clippy,
-formatting, generated documentation, and repository whitespace validation passed on the final
-tree.
+`TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
+`SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body
+recovery, checked completion, member queries, and concrete specialization. Closure construction
+uses an immutable internal authority and freezes into `ClosureTable` only after body checking.
+`TypeTransaction`, `CopyabilityTransaction`, and `ClosureTransaction` share one body-level
+capability and commit boundary through `BodySemanticTransaction`. Their persistent vectors and
+indexes share unchanged roots and copy only changed paths. Exact-base lineage rejects sibling and
+stale commits. Declaration lowering, preparation, body checking, member queries, concrete
+specialization, type projection, and tests use these boundaries. All semantic checkpoints,
+journals, body rollback paths, and full-store recovery clones are gone. Editor query sessions
+verify their composite semantic base and reject cross-generation or cross-interruption reuse;
+checked completion resolves the receiver type through its own body node rather than accepting a raw
+`TypeId`. Downstream architecture gates allow direct persistent-storage dependencies only in model
+and checking, and reject construction authorities, transactions, or persistent collections in
+Target, MIR, Machine, and runtime production source. Persistent iteration is linear, final
+copyability closure scans only appended types, and structural storage and concreteness facts are
+computed once at interning. Closure drafts and final definitions share one immutable core. The
+reopened adversarial review found no open correctness or architecture issue. Complete workspace
+tests, warnings-denied all-target Clippy, formatting, generated documentation, and repository
+whitespace validation passed on the final tree.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a

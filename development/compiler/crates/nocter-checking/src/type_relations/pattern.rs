@@ -52,7 +52,7 @@ fn invalid_unification(error: TypeUnificationError) -> SubstitutionError {
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, BuiltinType, GenericParameterId, TypeKind, TypeStore};
+    use nocter_model::{ArenaBuilder, BuiltinType, GenericParameterId, TypeAuthority, TypeKind};
 
     use super::{match_type_pattern, type_patterns_overlap};
 
@@ -61,7 +61,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let generic = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let i32 = types.builtin(BuiltinType::I32);
         let u32 = types.builtin(BuiltinType::U32);

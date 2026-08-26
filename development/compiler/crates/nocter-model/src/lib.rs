@@ -6,12 +6,12 @@
 
 mod arena;
 mod attachment_family;
+mod closure_sequence;
 mod constant;
 mod construction_identity;
 mod id;
 mod origin;
 mod package;
-mod persistent_arena;
 mod symbol;
 mod target;
 mod type_projection;
@@ -20,6 +20,7 @@ mod type_transaction;
 
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
+pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::ConstantValue;
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
@@ -31,7 +32,6 @@ pub use id::{
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;
-pub use persistent_arena::{PersistentArena, PersistentArenaIter, UnknownPersistentId};
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};
@@ -39,4 +39,4 @@ pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
     TypeKind, TypeStore, UnknownTypeId,
 };
-pub use type_transaction::{StaleTypeTransaction, TypeTransaction};
+pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};

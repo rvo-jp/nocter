@@ -167,7 +167,7 @@ impl std::error::Error for SubstitutionError {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, GenericParameterId, TypeKind, TypeStore};
+    use nocter_model::{ArenaBuilder, GenericParameterId, TypeAuthority, TypeKind};
 
     use super::TypeSubstitution;
 
@@ -177,7 +177,7 @@ mod tests {
         let first = parameters.insert(());
         let second = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let first_type = types.intern(TypeKind::GenericParameter(first)).unwrap();
         let second_type = types.intern(TypeKind::GenericParameter(second)).unwrap();
         let expected = types.builtin(nocter_model::BuiltinType::I32);
@@ -196,7 +196,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let generic = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let mut substitution = TypeSubstitution::default();
         substitution.bind_generic(parameter, generic);

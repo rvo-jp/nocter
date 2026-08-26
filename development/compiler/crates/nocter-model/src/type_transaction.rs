@@ -1,8 +1,92 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::type_store::TypeAuthorityIdentity;
 use crate::{TypeId, TypeKind, TypeStore, UnknownTypeId};
+
+static NEXT_TYPE_AUTHORITY: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct TypeAuthorityIdentity(u64);
+
+impl TypeAuthorityIdentity {
+    fn fresh() -> Self {
+        let identity = NEXT_TYPE_AUTHORITY
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("type authority identity space exhausted");
+        Self(identity)
+    }
+}
+
+impl fmt::Debug for TypeAuthorityIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("TypeAuthorityIdentity")
+    }
+}
+
+/// Immutable ownership capability for one exact structural-type generation.
+///
+/// The contained [`TypeStore`] is the read contract. Only this authority can open or accept a
+/// construction branch, so a consumer holding a `&TypeStore` cannot extend checked semantics.
+#[derive(Clone)]
+pub struct TypeAuthority {
+    store: TypeStore,
+    identity: TypeAuthorityIdentity,
+}
+
+impl TypeAuthority {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            store: TypeStore::new(),
+            identity: TypeAuthorityIdentity::fresh(),
+        }
+    }
+
+    #[must_use]
+    pub const fn store(&self) -> &TypeStore {
+        &self.store
+    }
+
+    #[must_use]
+    pub fn transaction(&self) -> TypeTransaction {
+        TypeTransaction {
+            base: self.identity,
+            branch: self.store.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn into_store(self) -> TypeStore {
+        self.store
+    }
+}
+
+impl Default for TypeAuthority {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Deref for TypeAuthority {
+    type Target = TypeStore;
+
+    fn deref(&self) -> &Self::Target {
+        &self.store
+    }
+}
+
+impl fmt::Debug for TypeAuthority {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TypeAuthority")
+            .field("type_count", &self.store.type_count())
+            .field("identity", &self.identity)
+            .finish()
+    }
+}
 
 /// A branch-local extension of one immutable type authority.
 ///
@@ -16,13 +100,6 @@ pub struct TypeTransaction {
 }
 
 impl TypeTransaction {
-    pub(super) fn new(base: &TypeStore) -> Self {
-        Self {
-            base: base.authority(),
-            branch: base.clone(),
-        }
-    }
-
     /// Interns one structural type into this branch.
     ///
     /// # Errors
@@ -37,8 +114,8 @@ impl TypeTransaction {
     /// Query-session owners use this check to reject accidental reuse across compiler
     /// generations without exposing the authority's lineage representation.
     #[must_use]
-    pub fn is_based_on(&self, authority: &TypeStore) -> bool {
-        self.base == authority.authority()
+    pub fn is_based_on(&self, authority: &TypeAuthority) -> bool {
+        self.base == authority.identity
     }
 
     /// Consumes this branch into an immutable descendant of `base`.
@@ -47,12 +124,14 @@ impl TypeTransaction {
     ///
     /// Returns [`StaleTypeTransaction`] when `base` is not the exact authority from which this
     /// transaction was opened. In particular, a sibling's committed descendant cannot accept it.
-    pub fn commit(mut self, base: &TypeStore) -> Result<TypeStore, StaleTypeTransaction> {
-        if base.authority() != self.base {
+    pub fn commit(self, base: &TypeAuthority) -> Result<TypeAuthority, StaleTypeTransaction> {
+        if base.identity != self.base {
             return Err(StaleTypeTransaction);
         }
-        self.branch.advance_authority();
-        Ok(self.branch)
+        Ok(TypeAuthority {
+            store: self.branch,
+            identity: TypeAuthorityIdentity::fresh(),
+        })
     }
 
     /// Freezes the exact branch as an immutable recovery authority.
@@ -60,9 +139,11 @@ impl TypeTransaction {
     /// Unlike commit, freezing deliberately does not require the current accepted base: rejected
     /// editor evidence retains this descendant without promoting it into compilation semantics.
     #[must_use]
-    pub fn freeze(mut self) -> TypeStore {
-        self.branch.advance_authority();
-        self.branch
+    pub fn freeze(self) -> TypeAuthority {
+        TypeAuthority {
+            store: self.branch,
+            identity: TypeAuthorityIdentity::fresh(),
+        }
     }
 }
 
@@ -88,11 +169,11 @@ impl std::error::Error for StaleTypeTransaction {}
 
 #[cfg(test)]
 mod tests {
-    use crate::{BuiltinType, TypeKind, TypeStore};
+    use crate::{BuiltinType, TypeAuthority, TypeKind};
 
     #[test]
     fn commit_preserves_the_ancestor_and_freezes_the_descendant() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let value = base.builtin(BuiltinType::I32);
         let mut transaction = base.transaction();
         let optional = transaction.intern(TypeKind::Optional(value)).unwrap();
@@ -105,7 +186,7 @@ mod tests {
 
     #[test]
     fn sibling_commit_is_rejected_after_the_accepted_authority_advances() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let value = base.builtin(BuiltinType::I32);
         let mut first = base.transaction();
         let mut second = base.transaction();
@@ -119,7 +200,7 @@ mod tests {
 
     #[test]
     fn frozen_recovery_isolated_from_its_base() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let value = base.builtin(BuiltinType::I32);
         let mut transaction = base.transaction();
         let provisional = transaction.intern(TypeKind::Optional(value)).unwrap();
@@ -132,9 +213,9 @@ mod tests {
 
     #[test]
     fn base_compatibility_distinguishes_authorities_but_accepts_an_immutable_clone() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let same = base.clone();
-        let foreign = TypeStore::new();
+        let foreign = TypeAuthority::new();
         let transaction = base.transaction();
 
         assert!(transaction.is_based_on(&base));

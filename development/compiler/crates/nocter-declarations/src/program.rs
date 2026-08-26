@@ -3,7 +3,8 @@ use std::fmt;
 
 use nocter_model::{
     Arena, ArenaBuilder, CompilationTarget, DeclarationSiteId, ImportId, ModuleId, PackageId,
-    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeStore, TypeTransaction,
+    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeAuthority, TypeStore,
+    TypeTransaction,
 };
 
 use crate::{
@@ -87,7 +88,7 @@ pub struct DeclarationGraph {
 #[derive(Debug)]
 pub struct DeclarationProgram {
     graph: DeclarationGraph,
-    types: TypeStore,
+    types: TypeAuthority,
 }
 
 /// A declaration program whose complete integrity and authored-language validation succeeded.
@@ -338,10 +339,10 @@ impl DeclarationProgram {
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
-        &self.types
+        self.types.store()
     }
 
-    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeStore) {
+    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeAuthority) {
         (self.graph, self.types)
     }
 }
@@ -362,11 +363,17 @@ impl AcceptedDeclarationProgram {
 
     /// Opens the sole Phase 2-to-Phase 3 ownership boundary.
     ///
-    /// The returned type store keeps every declaration `TypeId` as an immutable prefix. Phase 3
-    /// may intern body and specialization types into that owned store before freezing the checked
-    /// program; no second store or ID translation is created.
+    /// The returned type authority keeps every declaration `TypeId` as an immutable prefix.
+    /// Phase 3 may open branch-local body and specialization transactions before publishing a
+    /// read-only checked snapshot; no second store or ID translation is created.
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeStore, DeclarationAnalysisAdmission) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        DeclarationGraph,
+        TypeAuthority,
+        DeclarationAnalysisAdmission,
+    ) {
         let (graph, types) = self.program.into_unvalidated_parts();
         (graph, types, self.admission)
     }
@@ -407,7 +414,7 @@ impl DeclarationProgramBuilder {
             imports: ArenaBuilder::new(),
             package_targets: ArenaBuilder::new(),
             declarations: DeclarationArenaBuilder::new(),
-            types: TypeStore::new().transaction(),
+            types: TypeAuthority::new().transaction(),
         }
     }
 
@@ -835,12 +842,12 @@ pub enum RejectedDeclarationAnalysis {
 #[derive(Debug)]
 pub struct DeclarationAnalysisProgram {
     graph: DeclarationGraph,
-    types: TypeStore,
+    types: TypeAuthority,
 }
 
 impl DeclarationAnalysisProgram {
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
+    pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority) {
         (self.graph, self.types)
     }
 }
@@ -850,13 +857,19 @@ impl DeclarationAnalysisProgram {
 #[derive(Debug)]
 pub struct BodyAnalysisDeclarationProgram {
     graph: DeclarationGraph,
-    types: TypeStore,
+    types: TypeAuthority,
     admission: DeclarationAnalysisAdmission,
 }
 
 impl BodyAnalysisDeclarationProgram {
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeStore, DeclarationAnalysisAdmission) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        DeclarationGraph,
+        TypeAuthority,
+        DeclarationAnalysisAdmission,
+    ) {
         (self.graph, self.types, self.admission)
     }
 }
@@ -1168,7 +1181,7 @@ mod tests {
             .define_module_namespace(root, ModuleNamespace::default())
             .unwrap();
         let program = builder.finish().unwrap();
-        let prefix_len = program.types().len();
+        let prefix_len = program.types().type_count();
 
         let (graph, types, _admission) = program.into_parts();
         let mut transaction = types.transaction();
@@ -1181,6 +1194,6 @@ mod tests {
             Some(&TypeKind::Builtin(BuiltinType::I32))
         );
         assert_eq!(types.get(optional), Some(&TypeKind::Optional(i32_type)));
-        assert_eq!(types.len(), prefix_len + 1);
+        assert_eq!(types.type_count(), prefix_len + 1);
     }
 }

@@ -33,6 +33,7 @@ mod pattern_requirements;
 mod preparation;
 mod provenance;
 mod recovery;
+mod semantic_authority;
 mod source_visibility;
 mod standard_semantics;
 #[cfg(test)]
@@ -121,8 +122,8 @@ pub use interface_implementation::{
     RequiredInterfaceImplementationParameter, SubstitutionError,
 };
 pub use member_completion::{
-    MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
-    MemberCompletionQuerySession, MemberCompletionTarget,
+    MemberCompletionCandidate, MemberCompletionError, MemberCompletionQuerySession,
+    MemberCompletionTarget,
 };
 pub use name_recovery::{NameAnalysisRecovery, PartialBodyNames};
 pub use names::{

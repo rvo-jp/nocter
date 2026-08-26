@@ -105,8 +105,8 @@ impl<T> PersistentVector<T> {
     #[must_use]
     pub fn iter(&self) -> PersistentVectorIter<'_, T> {
         PersistentVectorIter {
-            vector: self,
-            next: 0,
+            stack: vec![VectorIterFrame::new(self.root.as_ref())],
+            remaining: self.len,
         }
     }
 }
@@ -182,22 +182,67 @@ fn set_at<T>(
 }
 
 pub struct PersistentVectorIter<'a, T> {
-    vector: &'a PersistentVector<T>,
-    next: usize,
+    stack: Vec<VectorIterFrame<'a, T>>,
+    remaining: usize,
+}
+
+enum VectorIterFrame<'a, T> {
+    Branch {
+        children: &'a [Option<Arc<VectorNode<T>>>; BRANCH_FACTOR],
+        next: usize,
+    },
+    Leaf {
+        values: &'a [Option<Arc<T>>; BRANCH_FACTOR],
+        next: usize,
+    },
+}
+
+impl<'a, T> VectorIterFrame<'a, T> {
+    fn new(node: &'a VectorNode<T>) -> Self {
+        match node {
+            VectorNode::Branch(children) => Self::Branch { children, next: 0 },
+            VectorNode::Leaf(values) => Self::Leaf { values, next: 0 },
+        }
+    }
 }
 
 impl<'a, T> Iterator for PersistentVectorIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let value = self.vector.get(self.next)?;
-        self.next += 1;
-        Some(value)
+        while let Some(frame) = self.stack.last_mut() {
+            match frame {
+                VectorIterFrame::Branch { children, next } => {
+                    if *next == BRANCH_FACTOR {
+                        self.stack.pop();
+                        continue;
+                    }
+                    let child = children[*next].as_deref();
+                    *next += 1;
+                    if let Some(child) = child {
+                        self.stack.push(VectorIterFrame::new(child));
+                    }
+                }
+                VectorIterFrame::Leaf { values, next } => {
+                    if *next == BRANCH_FACTOR {
+                        self.stack.pop();
+                        continue;
+                    }
+                    let value = values[*next].as_deref();
+                    *next += 1;
+                    if let Some(value) = value {
+                        self.remaining -= 1;
+                        return Some(value);
+                    }
+                }
+            }
+        }
+        debug_assert_eq!(self.remaining, 0);
+        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.vector.len - self.next;
-        (remaining, Some(remaining))
+        (self.remaining, Some(self.remaining))
     }
 }
 

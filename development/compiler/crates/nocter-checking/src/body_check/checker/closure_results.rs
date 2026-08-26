@@ -298,14 +298,14 @@ pub(super) fn is_absent_expression(checker: &BodyChecker<'_, '_>, mut node: Node
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, TypeKind, TypeStore};
+    use nocter_model::{BuiltinType, TypeAuthority, TypeKind};
 
     use super::infer_result_type;
     use crate::ExpectedEvidence;
 
     #[test]
     fn a_contextual_tag_adds_one_minimal_result_layer() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let inferred = infer_result_type(
             &mut types,
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn unordered_distinct_outcome_requirements_remain_ambiguous() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         assert!(
             infer_result_type(

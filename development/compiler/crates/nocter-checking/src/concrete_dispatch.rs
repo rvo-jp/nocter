@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, ParameterRole};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
-    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore, TypeTransaction,
+    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
 use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
@@ -144,8 +144,7 @@ pub enum ResolvedDispatchPlan {
 /// becomes the sole type authority for all plans produced by this resolver.
 pub struct ConcreteDispatchResolver<'program> {
     pub(crate) program: &'program CheckedProgram,
-    pub(crate) types: TypeTransaction,
-    pub(crate) copyabilities: crate::copyability::CopyabilityTransaction,
+    semantics: crate::semantic_authority::SemanticTransaction,
     pub(crate) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
 }
 
@@ -160,20 +159,27 @@ impl<'program> ConcreteDispatchResolver<'program> {
     pub fn new(program: &'program CheckedProgram) -> Self {
         Self {
             program,
-            types: program.types().transaction(),
-            copyabilities: program.copyabilities().transaction(),
+            semantics: program.semantic_authority().transaction(),
             destructions: BTreeMap::new(),
         }
     }
 
     #[must_use]
     pub fn types(&self) -> &TypeStore {
-        &self.types
+        self.semantics.types()
+    }
+
+    pub(crate) fn types_mut(&mut self) -> &mut nocter_model::TypeTransaction {
+        self.semantics.types_mut()
+    }
+
+    pub(crate) fn semantic_access(&mut self) -> crate::semantic_authority::SemanticAccess<'_> {
+        self.semantics.access()
     }
 
     #[must_use]
     pub fn into_types(self) -> TypeStore {
-        self.types.freeze()
+        self.semantics.freeze_types()
     }
 
     /// Resolves one checked dispatch edge under its enclosing callable specialization.
@@ -209,8 +215,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 receiver,
                 method,
             } => {
-                let receiver = enclosing.apply_type(&mut self.types, receiver)?;
-                if !is_concrete_type(&self.types, receiver)? {
+                let receiver = enclosing.apply_type(self.semantics.types_mut(), receiver)?;
+                if !is_concrete_type(self.semantics.types(), receiver)? {
                     return Err(ConcreteDispatchError::SymbolicInterfaceSelf {
                         interface,
                         receiver,
@@ -243,12 +249,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .iter()
             .map(|argument| {
                 enclosing
-                    .apply_type(&mut self.types, argument.ty())
+                    .apply_type(self.semantics.types_mut(), argument.ty())
                     .map(|ty| GenericArgument::new(argument.parameter(), ty))
             })
             .collect::<Result<Vec<_>, _>>()?;
         for argument in &specialized {
-            if !is_concrete_type(&self.types, argument.ty())? {
+            if !is_concrete_type(self.semantics.types(), argument.ty())? {
                 return Err(ConcreteDispatchError::SymbolicArgument {
                     parameter: argument.parameter(),
                     ty: argument.ty(),
@@ -266,7 +272,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
     ) -> Result<CheckedPredicate, ConcreteDispatchError> {
         let [normalized] = normalize_requirements(
             self.program.graph(),
-            &mut self.types,
+            self.semantics.types_mut(),
             substitution,
             &[requirement],
         )?
@@ -323,14 +329,15 @@ impl<'program> ConcreteDispatchResolver<'program> {
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let symbolic = self
-            .types
+            .semantics
+            .types_mut()
             .intern(TypeKind::InterfaceSelf(interface))
             .map_err(|_| ConcreteDispatchError::InvalidInterfaceSelfMethod {
                 interface,
                 surface,
             })?;
-        let subject = enclosing.apply_type(&mut self.types, symbolic)?;
-        if !is_concrete_type(&self.types, subject)? {
+        let subject = enclosing.apply_type(self.semantics.types_mut(), symbolic)?;
+        if !is_concrete_type(self.semantics.types(), subject)? {
             return Err(ConcreteDispatchError::SymbolicInterfaceSelf {
                 interface,
                 receiver: subject,
@@ -525,10 +532,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => None,
             })
             .ok_or(ConcreteDispatchError::InvalidOpaqueType(opaque))?;
-        let source = opaque_receiver_type(&mut self.types, receiver, opaque)
+        let source = opaque_receiver_type(self.semantics.types_mut(), receiver, opaque)
             .map_err(|_| ConcreteDispatchError::InvalidOpaqueType(opaque))?;
-        let receiver_target = opaque_receiver_type(&mut self.types, receiver, specialized.witness)
-            .map_err(|_| ConcreteDispatchError::InvalidOpaqueType(opaque))?;
+        let receiver_target =
+            opaque_receiver_type(self.semantics.types_mut(), receiver, specialized.witness)
+                .map_err(|_| ConcreteDispatchError::InvalidOpaqueType(opaque))?;
         Ok(ResolvedDispatchPlan::OpaqueInvocation {
             receiver: ResolvedOpaqueReceiver {
                 definition,
@@ -550,11 +558,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
         opaque: TypeId,
         enclosing: &TypeSubstitution,
     ) -> Result<SpecializedOpaqueWitness, ConcreteDispatchError> {
-        let opaque = enclosing.apply_type(&mut self.types, opaque)?;
+        let opaque = enclosing.apply_type(self.semantics.types_mut(), opaque)?;
         let Some(TypeKind::Opaque {
             definition,
             arguments,
-        }) = self.types.get(opaque).cloned()
+        }) = self.semantics.types().get(opaque).cloned()
         else {
             return Err(ConcreteDispatchError::InvalidOpaqueType(opaque));
         };
@@ -583,8 +591,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .opaque_witnesses()
             .get(definition)
             .ok_or(ConcreteDispatchError::MissingOpaqueWitness(definition))?;
-        let witness = substitution.apply_type(&mut self.types, witness)?;
-        if !is_concrete_type(&self.types, witness)? {
+        let witness = substitution.apply_type(self.semantics.types_mut(), witness)?;
+        if !is_concrete_type(self.semantics.types(), witness)? {
             return Err(ConcreteDispatchError::InvalidOpaqueType(opaque));
         }
         let application = nocter_declarations::InterfaceApplication::new(
@@ -593,7 +601,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 .interface()
                 .arguments()
                 .iter()
-                .map(|argument| substitution.apply_type(&mut self.types, *argument))
+                .map(|argument| substitution.apply_type(self.semantics.types_mut(), *argument))
                 .collect::<Result<Vec<_>, _>>()?,
         );
         Ok(SpecializedOpaqueWitness {
@@ -662,7 +670,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
         let operation = match candidate.implementation() {
             ComparisonCandidateImplementation::Primitive => {
                 let operand = self
-                    .types
+                    .semantics
+                    .types_mut()
                     .intern(TypeKind::Borrow {
                         capability: BorrowCapability::Readonly,
                         referent: ty,
@@ -696,18 +705,24 @@ impl<'program> ConcreteDispatchResolver<'program> {
         index: TypeId,
         result: TypeId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let Some((result_capability, referent)) = borrow_result(&self.types, result) else {
+        let Some((result_capability, referent)) = borrow_result(self.semantics.types(), result)
+        else {
             return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
         };
         if result_capability != capability {
             return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
         }
-        if let Some(builtin) = builtin_index_result(&self.types, container, capability)
-            && index == self.types.builtin(nocter_model::BuiltinType::Usize)
+        if let Some(builtin) = builtin_index_result(self.semantics.types(), container, capability)
+            && index
+                == self
+                    .semantics
+                    .types()
+                    .builtin(nocter_model::BuiltinType::Usize)
             && referent == builtin
         {
             let receiver = self
-                .types
+                .semantics
+                .types_mut()
                 .intern(TypeKind::Borrow {
                     capability,
                     referent: container,
@@ -736,7 +751,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
             Self::direct_step(operation)?
         } else {
             let receiver = self
-                .types
+                .semantics
+                .types_mut()
                 .intern(TypeKind::Borrow {
                     capability,
                     referent: container,
@@ -762,10 +778,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
         source: TypeId,
         target: TypeId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let Some((source_capability, source_owner)) = borrow_result(&self.types, source) else {
+        let Some((source_capability, source_owner)) = borrow_result(self.semantics.types(), source)
+        else {
             return Err(ConcreteDispatchError::InvalidCoercion(requirement));
         };
-        let Some((target_capability, target_owner)) = borrow_result(&self.types, target) else {
+        let Some((target_capability, target_owner)) = borrow_result(self.semantics.types(), target)
+        else {
             return Err(ConcreteDispatchError::InvalidCoercion(requirement));
         };
         if source_owner == target_owner
@@ -806,7 +824,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
     }
 
     fn evidence(&mut self) -> ConcreteEvidenceAuthority<'_> {
-        ConcreteEvidenceAuthority::new(self.program, &mut self.types, &mut self.copyabilities)
+        let semantic = self.semantics.access();
+        ConcreteEvidenceAuthority::new(self.program, semantic.types, semantic.copyabilities)
     }
 
     fn direct_step(

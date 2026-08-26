@@ -17,31 +17,37 @@ and closure construction.
 
 ## Adopted Authority Model
 
-Prepared, checked, and recovery products own immutable semantic authorities. Body checking opens
-one branch-local transaction containing three coordinated overlays:
+Prepared, checked, and recovery products own one immutable `SemanticAuthority`. It keeps the
+construction-owning `TypeAuthority` and `CopyabilityTable` together, while exposing only
+`&TypeStore` and `&CopyabilityTable` as read contracts. Body checking adds closure construction and
+opens one branch-local transaction containing three coordinated overlays:
 
 ```text
-BodySemanticAuthority
+SemanticAuthority (TypeAuthority + CopyabilityTable)
     |
-    `-- BodySemanticTransaction
-            |-- TypeTransaction
-            |-- CopyabilityTransaction
-            `-- ClosureTransaction
+    `-- BodySemanticAuthority (+ ClosureAuthority)
+            |
+            `-- BodySemanticTransaction
+                    |-- TypeTransaction
+                    |-- CopyabilityTransaction
+                    `-- ClosureTransaction
 ```
 
-`BodySemanticAuthority` owns the accepted type, copyability, and closure generation as one value;
-callers cannot assemble a transaction from components belonging to different bodies. The
-transaction reads that immutable base and owns only branch-local additions. Success consumes the
-transaction into one descendant authority. Failure cannot modify the base: it discards the branch
-or freezes that exact branch as a tooling capability.
+`SemanticAuthority` remains intact through preparation, body recovery, checked-program completion,
+member queries, and concrete specialization. `BodySemanticAuthority` temporarily adds closure
+construction without splitting type and copyability ownership. Callers cannot assemble a
+transaction from components belonging to different bodies. Success consumes the transaction into
+one descendant authority. Failure cannot modify the base: it discards the branch or freezes that
+exact branch as a tooling capability.
 
 No compiler consumer receives a persistent chunk, intern index, mutation journal, or lineage
 implementation. The dependency-free `nocter-persistent` crate owns only path-copying collection
 mechanics. `nocter-model` wraps those mechanics in type and semantic-ID authority, while
 `nocter-checking` owns copyability, closure, and body-transaction policy. Read-only algorithms
-consume an immutable `&TypeStore`; algorithms that may intern structural types receive a
-`TypeTransaction`. The same separation applies to copyability and closure state. A second view
-abstraction is unnecessary because `TypeStore` itself has no mutating API.
+consume an immutable `&TypeStore`. `TypeStore` has no branch-opening or mutation API; only
+`TypeAuthority` can create and accept a `TypeTransaction`. Algorithms that may intern structural
+types receive that transaction through an owning semantic transaction. The same separation
+applies to copyability and closure state.
 
 ## Identity and Lineage
 
@@ -49,12 +55,12 @@ A type identity is meaningful only in its owning authority. Descendants preserve
 ancestor prefix, so checked bodies committed earlier remain valid in later sequential descendants.
 Sibling branches are independent and cannot be merged or exchange bare branch-local identities.
 
-Every component transaction records its exact base lineage. `BodySemanticTransaction` is the only
-capability that exposes all three body branches and the only body-level commit boundary. Commit
-consumes it and rejects a stale or foreign component base without mutating any accepted authority.
-Recovery freezes the required branch together with its authority; editor APIs never separate a
-provisional `TypeId` from that value. A self-contained `TypeProjection` remains the boundary for
-isolated type presentation.
+Every component transaction records its exact base lineage. `SemanticTransaction` atomically owns
+the type and copyability branches; `BodySemanticTransaction` adds the closure branch and is the
+only body-level commit boundary. Commit consumes the composite and rejects a stale or foreign
+component base without mutating any accepted authority. Recovery freezes the required branch
+together with its authority; editor APIs never separate a provisional `TypeId` from that value. A
+self-contained `TypeProjection` remains the boundary for isolated type presentation.
 
 ## Storage Contract
 
@@ -67,10 +73,16 @@ from snapshot creation to the next write. A layered linear lookup is also not a 
 its cost grows with the number of committed bodies. The selected implementation must keep lookup
 and interning bounded independently of body count and must preserve deterministic identity.
 
-Nested mutable values follow the same rule. A closure draft shares its immutable definition core
-and keeps callable requirements in a persistent sequence. Adding a requirement copies neither the
-environment nor the existing requirement list; final `ClosureTable` construction linearizes that
-sequence exactly once.
+Nested mutable values follow the same rule. A closure draft and its final definition share one
+immutable definition core and keep callable requirements in a persistent sequence. Adding a
+requirement copies neither the environment nor the existing requirement list; final
+`ClosureTable` construction linearizes that sequence exactly once. The model exposes only the
+closure-identity sequence contract, not its generic persistent arena or storage debug tree.
+
+Structural type properties that depend only on a type and its already-interned children are fixed
+at interning time. Storage-carrying and concreteness queries are therefore constant-time reads,
+rather than repeated graph traversals. Final copyability closure advances monotonically over newly
+appended type identities instead of rescanning the full store after substitution adds a type.
 
 ## Pipeline Contract
 
@@ -96,12 +108,13 @@ selected identities. Outcome repair retains one closed `TypeProjection`. Member 
 one frozen semantic branch because ordinary method selection needs provisional receiver types and
 copyability facts.
 
-Member completion opens a query transaction from that branch. Generation-local query state may
-retain the query delta, but immutable compiler products remain unchanged and no complete store is
-cloned on first use. Each query session verifies that both of its transactions were opened from the
-exact type and copyability authorities supplied by the query. Reusing a session with another
-compiler generation or another recovery interruption is an error rather than silent cross-branch
-identity reuse.
+Member completion opens one semantic query transaction from that branch. Generation-local query
+state may retain the query delta, but immutable compiler products remain unchanged and no complete
+store is cloned on first use. Each query session verifies the composite authority supplied by the
+query. Checked completion accepts a body-node identity and obtains its receiver type from the same
+checked program; callers cannot combine a current program with a stale raw `TypeId`. Reusing a
+session with another compiler generation or another recovery interruption is an error rather than
+silent cross-branch identity reuse.
 
 ## Downstream Boundary
 
@@ -109,8 +122,9 @@ identity reuse.
 `nocter-checking` may depend on it directly. Target closure, MIR, Machine, and runtime code consume
 immutable `TypeStore` and checked or executable contracts; their production source cannot name a
 type, copyability, closure, or body transaction and cannot name a persistent collection. Concrete
-specialization remains a checking-owned capability: Target code asks `ConcreteDispatchResolver`
-for specialized identities and finally receives one frozen descendant `TypeStore`.
+specialization remains a checking-owned capability: its dispatch, associated-type, copy, and
+destruction work share one `SemanticTransaction`. Target code asks `ConcreteDispatchResolver` for
+specialized identities and finally receives one frozen descendant `TypeStore`.
 
 Executable architecture tests enumerate workspace manifests and downstream production source to
 keep both restrictions active. Tests may construct isolated type authorities for fixtures, but no
@@ -127,7 +141,9 @@ clock measurements:
 | Successful body | direct mutation plus journal commit | consume-and-commit descendant |
 | Rejected body | three rollbacks | discard branch |
 | Member recovery | complete type/copy clone | shared base plus body delta |
-| First member query | complete type/copy clone | query overlay fork |
+| First member query | complete type/copy clone | one composite query fork |
+| Repeated structural property query | recursive type walk | intern-time fact lookup |
+| Final copyability closure | repeated complete-store scan | monotonic appended-type scan |
 
 Warm success, multi-error recovery, and repeated-completion timings are recorded before final
 qualification. A result above the milestone regression thresholds blocks completion until explained

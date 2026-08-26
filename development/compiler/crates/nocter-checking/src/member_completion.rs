@@ -3,7 +3,7 @@ use std::sync::{Mutex, OnceLock};
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
-    BodyId, BorrowCapability, CallableId, FieldId, Symbol, TypeId, TypeKind, TypeStore,
+    BodyId, BodyNodeId, BorrowCapability, CallableId, FieldId, Symbol, TypeId, TypeKind,
 };
 use nocter_source::SourceId;
 
@@ -12,10 +12,7 @@ use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{
     InstanceOperationSelector, InstanceSelectionContext, MethodCompletionCandidate,
 };
-use crate::{
-    CheckedProgram, CopyabilityTable, InstanceOperationTable, InterfaceImplementationTable,
-    PreparedSemanticProgram,
-};
+use crate::{CheckedProgram, InstanceOperationTable, InterfaceImplementationTable};
 
 /// One compiler-selected field or method visible on a receiver.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,7 +42,7 @@ pub enum MemberCompletionTarget {
 
 /// Exact checked receiver facts required to enumerate callable members.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MemberCompletionContext {
+pub(crate) struct MemberCompletionContext {
     body: BodyId,
     source: SourceId,
     receiver: TypeId,
@@ -55,7 +52,7 @@ pub struct MemberCompletionContext {
 
 impl MemberCompletionContext {
     #[must_use]
-    pub const fn new(
+    pub(crate) const fn new(
         body: BodyId,
         source: SourceId,
         receiver: TypeId,
@@ -123,8 +120,7 @@ impl std::error::Error for MemberCompletionError {}
 
 #[derive(Debug)]
 struct MemberCompletionQueryState {
-    types: nocter_model::TypeTransaction,
-    copyabilities: crate::copyability::CopyabilityTransaction,
+    semantics: crate::semantic_authority::SemanticTransaction,
 }
 
 /// Lazily forked, query-only semantic state for member completion.
@@ -145,21 +141,19 @@ pub struct MemberCompletionQuerySession {
 impl MemberCompletionQuerySession {
     fn state<'program>(
         &'program self,
-        types: &TypeStore,
-        copyabilities: &CopyabilityTable,
+        semantics: &crate::semantic_authority::SemanticAuthority,
     ) -> Result<std::sync::MutexGuard<'program, MemberCompletionQueryState>, MemberCompletionError>
     {
         let state = self
             .state
             .get_or_init(|| {
                 Mutex::new(MemberCompletionQueryState {
-                    types: types.transaction(),
-                    copyabilities: copyabilities.transaction(),
+                    semantics: semantics.transaction(),
                 })
             })
             .lock()
             .map_err(|_| MemberCompletionError::PoisonedQueryState)?;
-        if !state.types.is_based_on(types) || !state.copyabilities.is_based_on(copyabilities) {
+        if !state.semantics.is_based_on(semantics) {
             return Err(MemberCompletionError::AuthorityMismatch);
         }
         Ok(state)
@@ -176,48 +170,31 @@ impl CheckedProgram {
     pub fn member_completions(
         &self,
         session: &MemberCompletionQuerySession,
-        context: MemberCompletionContext,
+        body: BodyId,
+        source: SourceId,
+        receiver: BodyNodeId,
+        available: BorrowCapability,
+        can_consume: bool,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
+        let receiver = self
+            .bodies()
+            .get(body)
+            .ok_or(MemberCompletionError::MissingBody(body))?
+            .nodes()
+            .get(receiver)
+            .ok_or(MemberCompletionError::MissingReceiver(receiver))?
+            .ty();
         select_member_completions(
             MemberCompletionAuthorities {
                 graph: self.graph(),
-                types: self.types(),
+                semantics: self.semantic_authority(),
                 interface_implementations: self.interface_implementations(),
                 instance_operations: self.instance_operations(),
                 body_assumptions: self.body_assumptions(),
-                copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
                 session,
             },
-            context,
-        )
-    }
-}
-
-impl PreparedSemanticProgram {
-    /// Enumerates members from the completed pre-body semantic authority.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the immutable preparation authorities are inconsistent or
-    /// requirement proof cannot be completed for the supplied receiver context.
-    pub fn member_completions(
-        &self,
-        session: &MemberCompletionQuerySession,
-        context: MemberCompletionContext,
-    ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
-        select_member_completions(
-            MemberCompletionAuthorities {
-                graph: self.graph(),
-                types: self.types(),
-                interface_implementations: self.interface_implementations(),
-                instance_operations: self.instance_operations(),
-                body_assumptions: self.body_assumptions(),
-                copyabilities: self.copyabilities(),
-                source_access: self.source_access(),
-                session,
-            },
-            context,
+            MemberCompletionContext::new(body, source, receiver, available, can_consume),
         )
     }
 }
@@ -225,11 +202,10 @@ impl PreparedSemanticProgram {
 #[derive(Clone, Copy)]
 pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) graph: &'program DeclarationGraph,
-    pub(crate) types: &'program TypeStore,
+    pub(crate) semantics: &'program crate::semantic_authority::SemanticAuthority,
     pub(crate) interface_implementations: &'program InterfaceImplementationTable,
     pub(crate) instance_operations: &'program InstanceOperationTable,
     pub(crate) body_assumptions: &'program BodyAssumptionTable,
-    pub(crate) copyabilities: &'program CopyabilityTable,
     pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
     pub(crate) session: &'program MemberCompletionQuerySession,
 }
@@ -240,19 +216,17 @@ pub(crate) fn select_member_completions(
 ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
     let MemberCompletionAuthorities {
         graph,
-        types,
+        semantics,
         interface_implementations,
         instance_operations,
         body_assumptions,
-        copyabilities,
         source_access,
         session,
     } = authorities;
-    let mut state = session.state(types, copyabilities)?;
-    let MemberCompletionQueryState {
-        types,
-        copyabilities,
-    } = &mut *state;
+    let mut state = session.state(semantics)?;
+    let semantic = state.semantics.access();
+    let types = semantic.types;
+    let copyabilities = semantic.copyabilities;
     let receiver = match types.get(context.receiver) {
         Some(TypeKind::Borrow { referent, .. }) => *referent,
         Some(_) => context.receiver,
@@ -357,43 +331,29 @@ fn field_completions(
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::TypeStore;
-
-    use crate::copyability::CopyabilityTable;
+    use crate::semantic_authority::SemanticAuthority;
 
     use super::{MemberCompletionError, MemberCompletionQuerySession};
 
     #[test]
     fn query_session_rejects_reuse_with_another_semantic_authority() {
-        let types = TypeStore::new();
-        let copyabilities = CopyabilityTable::default();
+        let semantics = SemanticAuthority::default();
         let session = MemberCompletionQuerySession::default();
-        drop(session.state(&types, &copyabilities).unwrap());
+        drop(session.state(&semantics).unwrap());
 
-        let foreign_types = TypeStore::new();
+        let foreign = SemanticAuthority::default();
         assert!(matches!(
-            session.state(&foreign_types, &copyabilities),
-            Err(MemberCompletionError::AuthorityMismatch)
-        ));
-
-        let foreign_copyabilities = CopyabilityTable::default();
-        assert!(matches!(
-            session.state(&types, &foreign_copyabilities),
+            session.state(&foreign),
             Err(MemberCompletionError::AuthorityMismatch)
         ));
     }
 
     #[test]
     fn query_session_accepts_immutable_clones_of_the_same_authority() {
-        let types = TypeStore::new();
-        let copyabilities = CopyabilityTable::default();
+        let semantics = SemanticAuthority::default();
         let session = MemberCompletionQuerySession::default();
-        drop(session.state(&types, &copyabilities).unwrap());
+        drop(session.state(&semantics).unwrap());
 
-        drop(
-            session
-                .state(&types.clone(), &copyabilities.clone())
-                .unwrap(),
-        );
+        drop(session.state(&semantics.clone()).unwrap());
     }
 }

@@ -68,7 +68,7 @@ pub(super) fn body_source_access<'program>(
 
 impl<'program> BodyProgramFacts<'program> {
     pub(super) const fn from_prepared(
-        prepared: &'program crate::preparation::PreparedCheckingParts<'_>,
+        prepared: &'program crate::preparation::BodyCheckingParts<'_>,
     ) -> Self {
         Self {
             graph: &prepared.graph,

@@ -6,7 +6,7 @@ use nocter_declarations::{
 };
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
-use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
+use nocter_model::{Arena, BodyId, CompilationTarget, TypeAuthority, TypeStore};
 use nocter_source_index::{DiagnosticOrigins, SourceIndex};
 
 use crate::body_check::BodyAssumptionTable;
@@ -58,12 +58,11 @@ impl<'syntax> PreparedBodyAnalysis<'syntax> {
 #[derive(Debug)]
 pub struct PreparedSemanticProgram {
     graph: DeclarationGraph,
-    types: TypeStore,
+    semantics: crate::semantic_authority::SemanticAuthority,
     interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     body_assumptions: BodyAssumptionTable,
-    copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
     source_access: SourceAccessTable,
@@ -72,20 +71,27 @@ pub struct PreparedSemanticProgram {
 impl PreparedSemanticProgram {
     fn new(
         graph: DeclarationGraph,
-        types: TypeStore,
+        types: TypeAuthority,
         standard_semantics: StandardSemanticTable,
         authorities: PreparedProgramAuthorities,
         source_access: SourceAccessTable,
     ) -> Self {
+        let PreparedProgramAuthorities {
+            interface_implementations,
+            construction_surfaces,
+            instance_operations,
+            body_assumptions,
+            copyabilities,
+            drops,
+        } = authorities;
         Self {
             graph,
-            types,
-            interface_implementations: authorities.interface_implementations,
-            construction_surfaces: authorities.construction_surfaces,
-            instance_operations: authorities.instance_operations,
-            body_assumptions: authorities.body_assumptions,
-            copyabilities: authorities.copyabilities,
-            drops: authorities.drops,
+            semantics: crate::semantic_authority::SemanticAuthority::seal(types, copyabilities),
+            interface_implementations,
+            construction_surfaces,
+            instance_operations,
+            body_assumptions,
+            drops,
             standard_semantics,
             source_access,
         }
@@ -98,7 +104,7 @@ impl PreparedSemanticProgram {
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
-        &self.types
+        self.semantics.types()
     }
 
     #[must_use]
@@ -122,7 +128,7 @@ impl PreparedSemanticProgram {
 
     #[must_use]
     pub const fn copyabilities(&self) -> &CopyabilityTable {
-        &self.copyabilities
+        self.semantics.copyabilities()
     }
 
     #[must_use]
@@ -212,24 +218,22 @@ impl<'syntax> PreparedChecking<'syntax> {
     pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
         let PreparedSemanticProgram {
             graph,
-            types,
+            semantics,
             interface_implementations,
             construction_surfaces,
             instance_operations,
             body_assumptions,
-            copyabilities,
             drops,
             standard_semantics,
             source_access,
         } = self.semantic;
         PreparedCheckingParts {
             graph,
-            types,
+            semantics,
             interface_implementations,
             construction_surfaces,
             instance_operations,
             body_assumptions,
-            copyabilities,
             drops,
             standard_semantics,
             body_sources: self.body_sources,
@@ -243,12 +247,11 @@ impl<'syntax> PreparedChecking<'syntax> {
 
 pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) graph: DeclarationGraph,
-    pub(crate) types: TypeStore,
+    pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
     pub(crate) interface_implementations: InterfaceImplementationTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) body_assumptions: BodyAssumptionTable,
-    pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
@@ -258,9 +261,52 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) source_index: SourceIndex,
 }
 
-impl PreparedCheckingParts<'_> {
+impl<'syntax> PreparedCheckingParts<'syntax> {
+    pub(crate) fn into_body_parts(
+        self,
+    ) -> (
+        crate::semantic_authority::SemanticAuthority,
+        BodyCheckingParts<'syntax>,
+    ) {
+        (
+            self.semantics,
+            BodyCheckingParts {
+                graph: self.graph,
+                interface_implementations: self.interface_implementations,
+                construction_surfaces: self.construction_surfaces,
+                instance_operations: self.instance_operations,
+                body_assumptions: self.body_assumptions,
+                drops: self.drops,
+                standard_semantics: self.standard_semantics,
+                body_sources: self.body_sources,
+                body_names: self.body_names,
+                source_namespaces: self.source_namespaces,
+                source_access: self.source_access,
+                source_index: self.source_index,
+            },
+        )
+    }
+}
+
+pub(crate) struct BodyCheckingParts<'syntax> {
+    pub(crate) graph: DeclarationGraph,
+    pub(crate) interface_implementations: InterfaceImplementationTable,
+    pub(crate) construction_surfaces: ConstructionSurfaceTable,
+    pub(crate) instance_operations: InstanceOperationTable,
+    pub(crate) body_assumptions: BodyAssumptionTable,
+    pub(crate) drops: DropTable,
+    pub(crate) standard_semantics: StandardSemanticTable,
+    pub(crate) body_sources: BodySourceCatalog<'syntax>,
+    pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
+    pub(crate) source_namespaces: SourceNamespaceTable,
+    pub(crate) source_access: SourceAccessTable,
+    pub(crate) source_index: SourceIndex,
+}
+
+impl BodyCheckingParts<'_> {
     pub(crate) fn into_semantic_parts(
         self,
+        semantics: crate::semantic_authority::SemanticAuthority,
     ) -> (
         PreparedSemanticProgram,
         Arena<BodyId, ResolvedBodyNames>,
@@ -268,12 +314,11 @@ impl PreparedCheckingParts<'_> {
     ) {
         let program = PreparedSemanticProgram {
             graph: self.graph,
-            types: self.types,
+            semantics,
             interface_implementations: self.interface_implementations,
             construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
             body_assumptions: self.body_assumptions,
-            copyabilities: self.copyabilities,
             drops: self.drops,
             standard_semantics: self.standard_semantics,
             source_access: self.source_access,
@@ -512,7 +557,7 @@ impl PreparationProgram {
         self,
     ) -> (
         DeclarationGraph,
-        TypeStore,
+        TypeAuthority,
         nocter_declarations::DeclarationAnalysisAdmission,
     ) {
         match self {
@@ -550,7 +595,7 @@ fn prepare_program_checking_internal<'syntax>(
                 error,
                 retain_names,
                 graph,
-                types,
+                types.into_store(),
                 bindings.source_ownership().clone(),
                 source_index,
                 None,
@@ -564,7 +609,7 @@ fn prepare_program_checking_internal<'syntax>(
                 error.into(),
                 retain_names,
                 graph,
-                types,
+                types.into_store(),
                 bindings.source_ownership().clone(),
                 source_index,
                 None,
@@ -586,7 +631,7 @@ fn prepare_program_checking_internal<'syntax>(
                 error,
                 retain_names,
                 graph,
-                type_transaction.freeze(),
+                type_transaction.freeze().into_store(),
                 bindings.source_ownership().clone(),
                 source_index,
                 Some(standard_semantics),
@@ -611,7 +656,7 @@ fn prepare_program_checking_internal<'syntax>(
                 .map(|partial| {
                     crate::NameAnalysisRecovery::new(
                         graph,
-                        types,
+                        types.into_store(),
                         partial.bodies,
                         bindings.source_ownership().clone(),
                         partial.source_index,
@@ -799,7 +844,7 @@ mod tests {
         assert_eq!(prepared.body_sources().len(), 2);
         assert_eq!(prepared.body_names().len(), 2);
         assert!(!prepared.source_index().is_empty());
-        assert!(!prepared.types().is_empty());
+        assert!(prepared.types().type_count() >= nocter_model::BuiltinType::ALL.len());
         assert!(!prepared.graph().declarations().callables().is_empty());
     }
 

@@ -168,7 +168,7 @@ impl ConcreteDispatchResolver<'_> {
         let Some(TypeKind::Nominal {
             definition,
             arguments,
-        }) = self.types.get(ty).cloned()
+        }) = self.types().get(ty).cloned()
         else {
             return Err(ConcreteDestructionError::InvalidEnumResidual(ty));
         };
@@ -228,7 +228,7 @@ impl ConcreteDispatchResolver<'_> {
             if declaration.owner() != ParameterOwner::Variant(variant) {
                 return Err(ConcreteDestructionError::PayloadOwnerMismatch(parameter));
             }
-            let field_ty = substitution.apply_type(&mut self.types, declaration.ty())?;
+            let field_ty = substitution.apply_type(self.types_mut(), declaration.ty())?;
             if let Some(plan) = self.plan_type(field_ty, &mut active)? {
                 plans.push(ConcretePayloadDestruction { parameter, plan });
             }
@@ -259,17 +259,15 @@ impl ConcreteDispatchResolver<'_> {
         if !active.insert(ty) {
             return Err(ConcreteDestructionError::RecursiveType(ty));
         }
-        if self
-            .copyabilities
-            .classify(self.program.graph(), &mut self.types, ty)?
-            == Copyability::Copy
-        {
+        let graph = self.program.graph();
+        let semantic = self.semantic_access();
+        if semantic.copyabilities.classify(graph, semantic.types, ty)? == Copyability::Copy {
             active.remove(&ty);
             self.destructions.insert(ty, None);
             return Ok(None);
         }
         let kind = self
-            .types
+            .types()
             .get(ty)
             .cloned()
             .ok_or(ConcreteDestructionError::UnknownType(ty))?;
@@ -297,7 +295,7 @@ impl ConcreteDispatchResolver<'_> {
             }),
             TypeKind::Fallible(payload) => {
                 let success = self.plan_type(payload, active)?.map(Box::new);
-                let error = self.types.builtin(nocter_model::BuiltinType::Error);
+                let error = self.types().builtin(nocter_model::BuiltinType::Error);
                 let failure = self
                     .plan_type(error, active)?
                     .ok_or(ConcreteDestructionError::MissingBuiltinDestruction(error))?;
@@ -409,7 +407,7 @@ impl ConcreteDispatchResolver<'_> {
             if declaration.owner() != owner {
                 return Err(ConcreteDestructionError::FieldOwnerMismatch(field));
             }
-            let ty = substitution.apply_type(&mut self.types, declaration.ty())?;
+            let ty = substitution.apply_type(self.types_mut(), declaration.ty())?;
             if let Some(plan) = self.plan_type(ty, active)? {
                 plans.push(ConcreteFieldDestruction { field, plan });
             }
@@ -450,7 +448,7 @@ impl ConcreteDispatchResolver<'_> {
                 if declaration.owner() != ParameterOwner::Variant(*variant) {
                     return Err(ConcreteDestructionError::PayloadOwnerMismatch(parameter));
                 }
-                let ty = substitution.apply_type(&mut self.types, declaration.ty())?;
+                let ty = substitution.apply_type(self.types_mut(), declaration.ty())?;
                 if let Some(plan) = self.plan_type(ty, active)? {
                     payload.push(ConcretePayloadDestruction { parameter, plan });
                 }
@@ -493,7 +491,7 @@ impl ConcreteDispatchResolver<'_> {
         }
         let mut captures = Vec::new();
         for capture in closure.environment().iter().rev().copied() {
-            let capture_type = substitution.apply_type(&mut self.types, capture.ty())?;
+            let capture_type = substitution.apply_type(self.types_mut(), capture.ty())?;
             if let Some(plan) = self.plan_type(capture_type, active)? {
                 captures.push(ConcreteCaptureDestruction {
                     capture: capture.binding(),
@@ -541,7 +539,7 @@ impl ConcreteDispatchResolver<'_> {
             .opaque_witnesses()
             .get(definition)
             .ok_or(ConcreteDestructionError::MissingOpaqueWitness(definition))?;
-        let witness = substitution.apply_type(&mut self.types, witness)?;
+        let witness = substitution.apply_type(self.types_mut(), witness)?;
         Ok(self.plan_type(witness, active)?.map(|plan| {
             ConcreteDestructionPlan::new(
                 ty,
@@ -570,19 +568,19 @@ impl ConcreteDispatchResolver<'_> {
             .get(drop)
             .cloned()
             .ok_or(ConcreteDestructionError::MissingDrop(drop))?;
-        let bindings = match_type_pattern(&self.types, declaration.target(), ty)?
+        let bindings = match_type_pattern(self.types(), declaration.target(), ty)?
             .ok_or(ConcreteDestructionError::InvalidDropTarget(drop))?;
         let mut substitution = TypeSubstitution::default();
         for (parameter, ty) in bindings.iter() {
             substitution.bind_generic(parameter, ty);
         }
         let arguments = selected_generic_arguments(
-            &mut self.types,
+            self.types_mut(),
             declaration.generic_parameters(),
             &substitution,
         )?;
         for argument in arguments.as_slice() {
-            if !is_concrete_type(&self.types, argument.ty())? {
+            if !is_concrete_type(self.types(), argument.ty())? {
                 return Err(ConcreteDestructionError::SymbolicType(argument.ty()));
             }
         }

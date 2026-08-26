@@ -177,34 +177,24 @@ impl TypeKind {
     }
 }
 
-#[derive(Clone, Debug)]
+/// Immutable, read-only view of one canonical structural type sequence.
+///
+/// This value deliberately has no branch-opening or mutation API. Compiler phases that own type
+/// construction retain a [`crate::TypeAuthority`]; downstream phases receive only this snapshot.
+#[derive(Clone)]
 pub struct TypeStore {
     kinds: PersistentVector<TypeKind>,
+    properties: PersistentVector<TypeProperties>,
     interned: PersistentMap<TypeKind, TypeId>,
     builtins: [TypeId; BuiltinType::ALL.len()],
-    authority: TypeAuthorityIdentity,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(super) struct TypeAuthorityIdentity(u64);
-
-impl TypeAuthorityIdentity {
-    fn fresh() -> Self {
-        use std::sync::atomic::{AtomicU64, Ordering};
-
-        static NEXT_AUTHORITY: AtomicU64 = AtomicU64::new(1);
-        let identity = NEXT_AUTHORITY
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                current.checked_add(1)
-            })
-            .expect("type authority identity space exhausted");
-        Self(identity)
-    }
-}
-
-impl fmt::Debug for TypeAuthorityIdentity {
+impl fmt::Debug for TypeStore {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("TypeAuthorityIdentity")
+        formatter
+            .debug_struct("TypeStore")
+            .field("type_count", &self.type_count())
+            .finish()
     }
 }
 
@@ -219,21 +209,15 @@ impl TypeStore {
     pub fn new() -> Self {
         let mut store = Self {
             kinds: PersistentVector::default(),
+            properties: PersistentVector::default(),
             interned: PersistentMap::default(),
             builtins: [TypeId::new(0); BuiltinType::ALL.len()],
-            authority: TypeAuthorityIdentity::fresh(),
         };
         for (index, builtin) in BuiltinType::ALL.iter().copied().enumerate() {
             let id = store.insert_known(TypeKind::Builtin(builtin));
             store.builtins[index] = id;
         }
         store
-    }
-
-    /// Opens an isolated branch that may intern structural types.
-    #[must_use]
-    pub fn transaction(&self) -> crate::TypeTransaction {
-        crate::TypeTransaction::new(self)
     }
 
     #[must_use]
@@ -246,35 +230,20 @@ impl TypeStore {
     /// This conservative structural property does not inspect declaration bodies or allocation.
     #[must_use]
     pub fn may_carry_storage(&self, root: TypeId) -> bool {
-        let mut pending = vec![root];
-        let mut visited = std::collections::HashSet::new();
-        while let Some(ty) = pending.pop() {
-            if !visited.insert(ty) {
-                continue;
-            }
-            match self.get(ty) {
-                Some(
-                    TypeKind::Builtin(BuiltinType::Str)
-                    | TypeKind::GenericParameter(_)
-                    | TypeKind::InterfaceSelf(_)
-                    | TypeKind::Nominal { .. }
-                    | TypeKind::AssociatedProjection { .. }
-                    | TypeKind::Opaque { .. }
-                    | TypeKind::Pointer(_)
-                    | TypeKind::Borrow { .. }
-                    | TypeKind::Slice(_)
-                    | TypeKind::Closure { .. }
-                    | TypeKind::Callable(_),
-                ) => return true,
-                Some(
-                    TypeKind::FixedArray { element, .. }
-                    | TypeKind::Optional(element)
-                    | TypeKind::Fallible(element),
-                ) => pending.push(*element),
-                Some(TypeKind::Builtin(_)) | None => {}
-            }
-        }
-        false
+        self.properties
+            .get(root.index())
+            .is_some_and(|properties| properties.may_carry_storage)
+    }
+
+    /// Reports whether a type is closed over concrete semantic identities.
+    ///
+    /// The result is computed once when the type is interned. Structural type references always
+    /// point into the existing authority prefix, so this property never requires a graph walk.
+    #[must_use]
+    pub fn is_concrete(&self, root: TypeId) -> Option<bool> {
+        self.properties
+            .get(root.index())
+            .map(|properties| properties.concrete)
     }
 
     /// Interns one structural type after checking its referenced type IDs.
@@ -312,37 +281,84 @@ impl TypeStore {
     }
 
     #[must_use]
-    pub const fn len(&self) -> usize {
+    pub const fn type_count(&self) -> usize {
         self.kinds.len()
-    }
-
-    /// Returns whether the store contains no types.
-    ///
-    /// A constructed store contains the closed built-in set, so this is always false for a valid
-    /// `TypeStore`; the method accompanies [`Self::len`] for collection-style inspection.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.kinds.is_empty()
-    }
-
-    pub(super) const fn authority(&self) -> TypeAuthorityIdentity {
-        self.authority
-    }
-
-    pub(super) fn advance_authority(&mut self) {
-        self.authority = TypeAuthorityIdentity::fresh();
     }
 
     fn insert_known(&mut self, kind: TypeKind) -> TypeId {
         let id = TypeId::new(self.kinds.len());
+        let properties = TypeProperties::for_kind(self, &kind);
         let kind = Arc::new(kind);
         self.kinds.push_shared(Arc::clone(&kind));
+        self.properties.push(properties);
         assert!(
             self.interned.insert_shared_key_absent(kind, id),
             "known type insertion must be unique"
         );
         debug_assert_eq!(self.interned.len(), self.kinds.len());
+        debug_assert_eq!(self.properties.len(), self.kinds.len());
         id
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TypeProperties {
+    may_carry_storage: bool,
+    concrete: bool,
+}
+
+impl TypeProperties {
+    fn for_kind(types: &TypeStore, kind: &TypeKind) -> Self {
+        let child = |ty: TypeId| {
+            types
+                .properties
+                .get(ty.index())
+                .copied()
+                .expect("validated type references must already have structural properties")
+        };
+        let children_concrete =
+            |children: &[TypeId]| children.iter().copied().all(|ty| child(ty).concrete);
+        let concrete = match kind {
+            TypeKind::GenericParameter(_)
+            | TypeKind::InterfaceSelf(_)
+            | TypeKind::AssociatedProjection { .. } => false,
+            TypeKind::Builtin(_) => true,
+            TypeKind::Nominal { arguments, .. }
+            | TypeKind::Opaque { arguments, .. }
+            | TypeKind::Closure { arguments, .. } => children_concrete(arguments),
+            TypeKind::Pointer(base)
+            | TypeKind::Borrow { referent: base, .. }
+            | TypeKind::Slice(base)
+            | TypeKind::FixedArray { element: base, .. }
+            | TypeKind::Optional(base)
+            | TypeKind::Fallible(base) => child(*base).concrete,
+            TypeKind::Callable(contract) => {
+                child(contract.result()).concrete
+                    && children_concrete(contract.parameters())
+                    && contract.pack().is_none_or(|pack| child(pack).concrete)
+            }
+        };
+        let may_carry_storage = match kind {
+            TypeKind::Builtin(BuiltinType::Str)
+            | TypeKind::GenericParameter(_)
+            | TypeKind::InterfaceSelf(_)
+            | TypeKind::Nominal { .. }
+            | TypeKind::AssociatedProjection { .. }
+            | TypeKind::Opaque { .. }
+            | TypeKind::Pointer(_)
+            | TypeKind::Borrow { .. }
+            | TypeKind::Slice(_)
+            | TypeKind::Closure { .. }
+            | TypeKind::Callable(_) => true,
+            TypeKind::FixedArray { element, .. }
+            | TypeKind::Optional(element)
+            | TypeKind::Fallible(element) => child(*element).may_carry_storage,
+            TypeKind::Builtin(_) => false,
+        };
+        Self {
+            may_carry_storage,
+            concrete,
+        }
     }
 }
 
@@ -411,7 +427,7 @@ impl std::error::Error for InvalidParameterOrigin {}
 #[cfg(test)]
 mod tests {
     use crate::id::SemanticId;
-    use crate::{ParameterOrigin, ResultProvenance};
+    use crate::{ParameterOrigin, ResultProvenance, TypeAuthority};
 
     use super::{
         BorrowCapability, BuiltinType, CallableCapability, CallableContract, TypeKind, TypeStore,
@@ -419,7 +435,7 @@ mod tests {
 
     #[test]
     fn structural_types_are_interned_without_rendered_names() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let first = types
@@ -436,12 +452,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(first, second);
-        assert_eq!(types.len(), BuiltinType::ALL.len() + 1);
+        assert_eq!(types.type_count(), BuiltinType::ALL.len() + 1);
     }
 
     #[test]
     fn transactions_share_the_prefix_and_isolate_sibling_extensions() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let value = base.builtin(BuiltinType::I32);
         let mut first = base.transaction();
         let mut second = base.transaction();
@@ -468,13 +484,12 @@ mod tests {
                 Some(&TypeKind::Builtin(builtin))
             );
         }
-        assert_eq!(types.len(), BuiltinType::ALL.len());
-        assert!(!types.is_empty());
+        assert_eq!(types.type_count(), BuiltinType::ALL.len());
     }
 
     #[test]
     fn callable_identity_uses_parameter_positions_for_provenance() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
         let text = types.builtin(BuiltinType::Str);
         let borrowed = types
@@ -501,7 +516,7 @@ mod tests {
 
     #[test]
     fn callable_identity_distinguishes_a_final_pack_from_an_ordinary_parameter() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let ordinary = CallableContract::new(
@@ -577,9 +592,9 @@ mod tests {
 
     #[test]
     fn references_must_belong_to_the_store() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
-        let unknown = crate::TypeId::new(types.len() + 10);
+        let unknown = crate::TypeId::new(types.type_count() + 10);
         let error = types.intern(TypeKind::Optional(unknown)).unwrap_err();
 
         assert_eq!(error.id(), unknown);
@@ -587,7 +602,7 @@ mod tests {
 
     #[test]
     fn interface_self_is_keyed_by_its_declaring_interface() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
         let first_interface = crate::InterfaceId::new(0);
         let second_interface = crate::InterfaceId::new(1);
@@ -603,5 +618,23 @@ mod tests {
 
         assert_eq!(first, repeated);
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn structural_properties_are_fixed_when_a_type_is_interned() {
+        let mut types = TypeAuthority::new().transaction();
+        let generic = types
+            .intern(TypeKind::GenericParameter(crate::GenericParameterId::new(
+                0,
+            )))
+            .unwrap();
+        let generic_optional = types.intern(TypeKind::Optional(generic)).unwrap();
+        let integer = types.builtin(BuiltinType::I32);
+        let integer_optional = types.intern(TypeKind::Optional(integer)).unwrap();
+
+        assert_eq!(types.is_concrete(generic_optional), Some(false));
+        assert_eq!(types.is_concrete(integer_optional), Some(true));
+        assert!(types.may_carry_storage(generic_optional));
+        assert!(!types.may_carry_storage(integer_optional));
     }
 }

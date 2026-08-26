@@ -13,10 +13,10 @@ impl ConcreteDispatchResolver<'_> {
     /// Rejects an unknown referenced type or a kind that still contains symbolic components.
     pub fn intern_concrete(&mut self, kind: TypeKind) -> Result<TypeId, ConcreteDestructionError> {
         let ty = self
-            .types
+            .types_mut()
             .intern(kind)
             .map_err(|unknown| ConcreteDestructionError::UnknownType(unknown.id()))?;
-        if !is_concrete_type(&self.types, ty)? {
+        if !is_concrete_type(self.types(), ty)? {
             return Err(ConcreteDestructionError::SymbolicType(ty));
         }
         Ok(ty)
@@ -37,15 +37,16 @@ impl ConcreteDispatchResolver<'_> {
         ty: TypeId,
         enclosing: &TypeSubstitution,
     ) -> Result<TypeId, ConcreteDestructionError> {
-        let substituted = enclosing.apply_type(&mut self.types, ty)?;
+        let substituted = enclosing.apply_type(self.types_mut(), ty)?;
+        let program = self.program;
         let resolver = AssociatedTypeResolver::new(
-            self.program.graph(),
-            self.program.interface_implementations(),
+            program.graph(),
+            program.interface_implementations(),
             &[],
             &[],
         );
-        let reduced = resolver.reduce(&mut self.types, substituted)?;
-        if !is_concrete_type(&self.types, reduced)? {
+        let reduced = resolver.reduce(self.types_mut(), substituted)?;
+        if !is_concrete_type(self.types(), reduced)? {
             return Err(ConcreteDestructionError::SymbolicType(reduced));
         }
         Ok(reduced)

@@ -95,7 +95,7 @@ impl DeclarationLoweringRecovery {
                 (graph, types)
             }
         };
-        (graph, types, ownership, self.source_index)
+        (graph, types.into_store(), ownership, self.source_index)
     }
 
     /// Opens the editor-only declaration-to-body analysis boundary. The returned program cannot

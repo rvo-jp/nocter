@@ -186,14 +186,19 @@ fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
 
 #[test]
 fn downstream_program_layers_do_not_own_semantic_transactions_or_storage() {
+    // Checked and executable products expose only `TypeStore`. This source-level dependency gate
+    // additionally prevents later layers from creating an unrelated construction authority and
+    // normalizing it into an accidental second semantic universe.
     let forbidden = [
         "BodySemanticTransaction",
+        "ClosureSequence",
         "ClosureTransaction",
         "CopyabilityTransaction",
         "PersistentArena",
         "PersistentMap",
         "PersistentVector",
         "TypeTransaction",
+        "TypeAuthority",
         "nocter_persistent",
     ];
     for crate_name in [
@@ -210,6 +215,21 @@ fn downstream_program_layers_do_not_own_semantic_transactions_or_storage() {
             assert!(
                 leaked.is_empty(),
                 "{} imports semantic construction internals: {leaked:?}",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn prepared_semantics_has_one_component_sealing_boundary() {
+    for (path, source) in production_rust_sources("nocter-checking") {
+        if source.contains("SemanticAuthority::seal(") {
+            let allowed =
+                path.ends_with("preparation.rs") || path.ends_with("semantic_authority.rs");
+            assert!(
+                allowed,
+                "{} pairs type and copyability outside the semantic authority boundary",
                 path.display()
             );
         }

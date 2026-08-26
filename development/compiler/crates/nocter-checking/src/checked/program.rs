@@ -17,12 +17,11 @@ use super::{CheckedBody, OpaqueWitnessTable};
 #[derive(Debug)]
 pub struct CheckedProgram {
     graph: DeclarationGraph,
-    types: TypeStore,
+    semantics: crate::semantic_authority::SemanticAuthority,
     interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     body_assumptions: BodyAssumptionTable,
-    copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
     provenance: ProvenanceTable,
@@ -39,7 +38,6 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) body_assumptions: BodyAssumptionTable,
-    pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) provenance: ProvenanceTable,
@@ -53,18 +51,17 @@ pub(crate) struct CheckedProgramAuthorities {
 impl CheckedProgram {
     pub(crate) fn new(
         graph: DeclarationGraph,
-        types: TypeStore,
+        semantics: crate::semantic_authority::SemanticAuthority,
         authorities: CheckedProgramAuthorities,
         bodies: Arena<BodyId, CheckedBody>,
     ) -> Self {
         Self {
             graph,
-            types,
+            semantics,
             interface_implementations: authorities.interface_implementations,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
             body_assumptions: authorities.body_assumptions,
-            copyabilities: authorities.copyabilities,
             drops: authorities.drops,
             standard_semantics: authorities.standard_semantics,
             provenance: authorities.provenance,
@@ -84,7 +81,7 @@ impl CheckedProgram {
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
-        &self.types
+        self.semantics.types()
     }
 
     #[must_use]
@@ -108,7 +105,11 @@ impl CheckedProgram {
 
     #[must_use]
     pub const fn copyabilities(&self) -> &CopyabilityTable {
-        &self.copyabilities
+        self.semantics.copyabilities()
+    }
+
+    pub(crate) const fn semantic_authority(&self) -> &crate::semantic_authority::SemanticAuthority {
+        &self.semantics
     }
 
     #[must_use]

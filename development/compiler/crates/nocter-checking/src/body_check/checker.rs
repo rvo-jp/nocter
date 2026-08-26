@@ -206,11 +206,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     pub(super) fn new(
         input: &'input CompileUnitInput<'syntax>,
         facts: BodyProgramFacts<'input>,
-        types: &'input mut nocter_model::TypeTransaction,
-        copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
-        closures: &'input mut ClosureTransaction,
+        authority: super::semantic_transaction::BodySemanticAccess<'input>,
         unit: BodyUnitInput<'input, 'syntax>,
     ) -> Result<Self, BodyCheckError> {
+        let (types, copyabilities, closures) = authority.into_checker_parts();
         let BodyUnitInput {
             source,
             names,

@@ -149,13 +149,13 @@ impl std::error::Error for ExpectedTypeError {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, TypeKind, TypeStore};
+    use nocter_model::{BuiltinType, TypeAuthority, TypeKind};
 
     use super::{ExpectedBase, ExpectedEvidence, OutcomeLayer, plan_expected_type};
 
     #[test]
     fn exact_complete_outcome_precedes_recursive_injection() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
 
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn nested_payload_injections_are_returned_inside_out() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let fallible = types.intern(TypeKind::Fallible(i32_type)).unwrap();
         let optional_fallible = types.intern(TypeKind::Optional(fallible)).unwrap();
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn tag_selection_preserves_only_required_outer_success_layers() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
         let fallible_optional = types.intern(TypeKind::Fallible(optional)).unwrap();
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn never_is_compatible_without_constructing_any_layer() {
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let never = types.builtin(BuiltinType::Never);
         let optional = types
             .intern(TypeKind::Optional(types.builtin(BuiltinType::I32)))

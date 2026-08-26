@@ -526,12 +526,15 @@ impl CopyabilityTransaction {
         graph: &DeclarationGraph,
         types: &mut nocter_model::TypeTransaction,
     ) -> Result<(), CopyabilityError> {
+        let mut visited = 0;
         loop {
             let pending = types
                 .iter()
+                .skip(visited)
                 .map(|(ty, _)| ty)
                 .filter(|ty| !self.conditions.contains_key(ty))
                 .collect::<Vec<_>>();
+            visited = types.type_count();
             if pending.is_empty() {
                 return Ok(());
             }

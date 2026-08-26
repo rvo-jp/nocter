@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::{
-    CallableContract, InvalidParameterOrigin, TypeId, TypeKind, TypeStore, TypeTransaction,
-    UnknownTypeId,
+    CallableContract, InvalidParameterOrigin, TypeAuthority, TypeId, TypeKind, TypeStore,
+    TypeTransaction, UnknownTypeId,
 };
 
 /// Self-contained structural type authority projected from one root type.
@@ -65,10 +65,11 @@ impl TypeStore {
     /// Returns [`TypeProjectionError`] when `root` or one of its referenced type IDs is absent, or
     /// when a callable contract in the source store is internally invalid.
     pub fn project(&self, root: TypeId) -> Result<TypeProjection, TypeProjectionError> {
-        let mut types = Self::new().transaction();
+        let authority = TypeAuthority::new();
+        let mut types = authority.transaction();
         let root = project_type(self, &mut types, &mut HashMap::new(), root)?;
         Ok(TypeProjection {
-            types: types.freeze(),
+            types: types.freeze().into_store(),
             root,
         })
     }
@@ -180,11 +181,11 @@ fn project_types(
 
 #[cfg(test)]
 mod tests {
-    use crate::{BuiltinType, TypeKind, TypeStore};
+    use crate::{BuiltinType, TypeAuthority, TypeKind};
 
     #[test]
     fn projection_owns_only_transitive_root_dependencies() {
-        let base = TypeStore::new();
+        let base = TypeAuthority::new();
         let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let optional = types.intern(TypeKind::Optional(value)).unwrap();
@@ -192,7 +193,7 @@ mod tests {
         let _unrelated = types.intern(TypeKind::Pointer(value)).unwrap();
 
         let projection = types.project(fallible).unwrap();
-        assert_eq!(projection.types().len(), BuiltinType::ALL.len() + 2);
+        assert_eq!(projection.types().type_count(), BuiltinType::ALL.len() + 2);
         let Some(TypeKind::Fallible(optional)) = projection.types().get(projection.root()) else {
             panic!("projected root must remain fallible")
         };

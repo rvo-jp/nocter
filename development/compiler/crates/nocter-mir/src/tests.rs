@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{
     Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, MirBlockId,
-    NominalTypeId, TypeId, TypeKind, TypeStore, TypeTransaction,
+    NominalTypeId, TypeAuthority, TypeId, TypeKind, TypeStore, TypeTransaction,
 };
 use nocter_runtime_contract::{RuntimeTypeRepresentation, RuntimeTypeRepresentationTable};
 
@@ -26,7 +26,7 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     fn new() -> (Self, ExecutableItemId) {
-        Self::with_types(TypeStore::new().transaction())
+        Self::with_types(TypeAuthority::new().transaction())
     }
 
     fn with_types(types: TypeTransaction) -> (Self, ExecutableItemId) {
@@ -34,7 +34,7 @@ impl TestEnvironment {
         let item = items.insert(());
         (
             Self {
-                types: types.freeze(),
+                types: types.freeze().into_store(),
                 items: items.finish(),
                 allocation_items: BTreeSet::new(),
                 standard_nominals: BTreeMap::new(),
@@ -48,7 +48,7 @@ impl TestEnvironment {
 
 #[test]
 fn immutable_slots_preserve_the_write_authority_of_stored_borrows() {
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let void = types.builtin(BuiltinType::Void);
     let i32_ = types.builtin(BuiltinType::I32);
     let borrow = types
@@ -94,7 +94,7 @@ fn immutable_slots_preserve_the_write_authority_of_stored_borrows() {
 
 #[test]
 fn an_outer_readonly_borrow_remains_a_write_authority_ceiling() {
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let void = types.builtin(BuiltinType::Void);
     let i32_ = types.builtin(BuiltinType::I32);
     let readwrite = types
@@ -210,7 +210,7 @@ fn finish_validated(
 fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() {
     let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
     let allocator = nominal_ids.insert(());
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let void = types.builtin(BuiltinType::Void);
     let i32_ = types.builtin(BuiltinType::I32);
     let allocator_ty = types
@@ -263,7 +263,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
 
 #[test]
 fn pack_inputs_require_exact_types_and_destruction_on_every_return() {
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let void = types.builtin(BuiltinType::Void);
     let i32_ = types.builtin(BuiltinType::I32);
     let next = types.intern(TypeKind::Optional(i32_)).unwrap();
@@ -301,14 +301,14 @@ fn pack_inputs_require_exact_types_and_destruction_on_every_return() {
 
 #[test]
 fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let i32_ = types.builtin(BuiltinType::I32);
     let next = types.intern(TypeKind::Optional(i32_)).unwrap();
     let mut items = ArenaBuilder::new();
     let caller = items.insert(());
     let literal = items.insert(());
     let environment = TestEnvironment {
-        types: types.freeze(),
+        types: types.freeze().into_store(),
         items: items.finish(),
         allocation_items: BTreeSet::new(),
         standard_nominals: BTreeMap::new(),
@@ -407,7 +407,7 @@ fn region_test_context() -> RegionTestContext {
     let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
     let allocator = nominal_ids.insert(());
     let context = nominal_ids.insert(());
-    let mut types = TypeStore::new().transaction();
+    let mut types = TypeAuthority::new().transaction();
     let void = types.builtin(BuiltinType::Void);
     let i32_ = types.builtin(BuiltinType::I32);
     let allocator_ty = types

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use nocter_model::{
     Arena, ArenaBuilder, BodyId, BodyNodeId, CallableCapability, CallableContract, CaptureId,
-    ClosureId, LocalBindingId, PersistentArena, TypeId,
+    ClosureId, ClosureSequence, LocalBindingId, TypeId,
 };
 use nocter_persistent::PersistentVector;
 
@@ -105,11 +105,16 @@ impl ClosureEnvironmentField {
 /// One generated closure body and the exact environment bindings it operates on.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClosureDefinition {
+    core: Arc<ClosureDefinitionCore>,
+    callable_requirements: Box<[CallableContract]>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ClosureDefinitionCore {
     owner: BodyId,
     ty: TypeId,
     signature: ClosureSignature,
     environment: Box<[ClosureEnvironmentField]>,
-    callable_requirements: Vec<CallableContract>,
     body: BodyNodeId,
 }
 
@@ -122,33 +127,35 @@ impl ClosureDefinition {
         body: BodyNodeId,
     ) -> Self {
         Self {
-            owner,
-            ty,
-            signature,
-            environment: environment.into(),
-            callable_requirements: Vec::new(),
-            body,
+            core: Arc::new(ClosureDefinitionCore {
+                owner,
+                ty,
+                signature,
+                environment: environment.into(),
+                body,
+            }),
+            callable_requirements: Box::new([]),
         }
     }
 
     #[must_use]
-    pub const fn owner(&self) -> BodyId {
-        self.owner
+    pub fn owner(&self) -> BodyId {
+        self.core.owner
     }
 
     #[must_use]
-    pub const fn ty(&self) -> TypeId {
-        self.ty
+    pub fn ty(&self) -> TypeId {
+        self.core.ty
     }
 
     #[must_use]
-    pub const fn signature(&self) -> &ClosureSignature {
-        &self.signature
+    pub fn signature(&self) -> &ClosureSignature {
+        &self.core.signature
     }
 
     #[must_use]
-    pub const fn environment(&self) -> &[ClosureEnvironmentField] {
-        &self.environment
+    pub fn environment(&self) -> &[ClosureEnvironmentField] {
+        &self.core.environment
     }
 
     /// Concrete structural callable contracts this closure must satisfy at its use sites.
@@ -162,8 +169,8 @@ impl ClosureDefinition {
     }
 
     #[must_use]
-    pub const fn body(&self) -> BodyNodeId {
-        self.body
+    pub fn body(&self) -> BodyNodeId {
+        self.core.body
     }
 }
 
@@ -191,14 +198,14 @@ impl ClosureTable {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ClosureAuthority {
-    slots: PersistentArena<ClosureId, ClosureSlot>,
+    slots: ClosureSequence<ClosureSlot>,
     authority: ClosureAuthorityIdentity,
 }
 
 impl ClosureAuthority {
     pub(crate) fn new() -> Self {
         Self {
-            slots: PersistentArena::default(),
+            slots: ClosureSequence::default(),
             authority: ClosureAuthorityIdentity::fresh(),
         }
     }
@@ -212,7 +219,7 @@ impl ClosureAuthority {
 
     pub(crate) fn signature(&self, closure: ClosureId) -> Option<&ClosureSignature> {
         match self.slots.get(closure) {
-            Some(ClosureSlot::Defined(draft)) => Some(draft.definition.signature()),
+            Some(ClosureSlot::Defined(draft)) => Some(&draft.core.signature),
             Some(ClosureSlot::Reserved(_)) | None => None,
         }
     }
@@ -302,7 +309,7 @@ impl ClosureTransaction {
         let ClosureSlot::Defined(mut draft) = slot else {
             return Err(ClosureTableBuildError::IncompleteClosure(closure));
         };
-        if draft.definition.owner() != owner {
+        if draft.core.owner != owner {
             return Err(ClosureTableBuildError::OwnerMismatch(closure));
         }
         if !draft
@@ -336,7 +343,7 @@ enum ClosureSlot {
 
 #[derive(Clone, Debug)]
 struct ClosureDraft {
-    definition: Arc<ClosureDefinition>,
+    core: Arc<ClosureDefinitionCore>,
     requirements: PersistentVector<CallableContract>,
 }
 
@@ -344,15 +351,16 @@ impl ClosureDraft {
     fn new(definition: ClosureDefinition) -> Self {
         debug_assert!(definition.callable_requirements.is_empty());
         Self {
-            definition: Arc::new(definition),
+            core: definition.core,
             requirements: PersistentVector::default(),
         }
     }
 
     fn freeze(&self) -> ClosureDefinition {
-        let mut definition = self.definition.as_ref().clone();
-        definition.callable_requirements = self.requirements.iter().cloned().collect();
-        definition
+        ClosureDefinition {
+            core: Arc::clone(&self.core),
+            callable_requirements: self.requirements.iter().cloned().collect(),
+        }
     }
 }
 
@@ -402,7 +410,7 @@ impl std::error::Error for ClosureTableBuildError {}
 mod tests {
     use nocter_model::{
         ArenaBuilder, BodyId, BodyNodeId, BuiltinType, CallableCapability, CallableContract,
-        ResultProvenance, TypeKind, TypeStore,
+        ResultProvenance, TypeAuthority, TypeKind,
     };
 
     use super::{ClosureAuthority, ClosureDefinition, ClosureSignature};
@@ -415,7 +423,7 @@ mod tests {
         let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
         let root = nodes.insert(());
         let _ = nodes.finish();
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let base = ClosureAuthority::new();
         let mut closures = base.transaction();
         let closure = closures.reserve(owner);
@@ -452,7 +460,7 @@ mod tests {
         let owner = bodies.insert(());
         let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
         let root = nodes.insert(());
-        let mut types = TypeStore::new().transaction();
+        let mut types = TypeAuthority::new().transaction();
         let base = ClosureAuthority::new();
         let mut closures = base.transaction();
         let closure = closures.reserve(owner);

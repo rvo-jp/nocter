@@ -4,11 +4,11 @@ use nocter_model::{Arena, TypeProjection, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
 
-use crate::member_completion::select_member_completions;
+use crate::member_completion::{MemberCompletionContext, select_member_completions};
 use crate::{
-    CheckedBody, ConstructionCompletionCandidate, ConstructionCompletionError, CopyabilityTable,
-    MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
-    PreparedSemanticProgram, TypedBodyInterruption, TypedBodyInterruptionKind,
+    CheckedBody, ConstructionCompletionCandidate, ConstructionCompletionError,
+    MemberCompletionCandidate, MemberCompletionError, PreparedSemanticProgram,
+    TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
 /// The deepest semantic stage retained when checking preparation rejects source.
@@ -109,8 +109,7 @@ pub(crate) enum TypedInterruptionEvidence {
 
 #[derive(Debug)]
 pub(crate) struct MemberInterruptionEvidence {
-    pub(crate) types: TypeStore,
-    pub(crate) copyabilities: CopyabilityTable,
+    pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
 }
 
 /// Inconsistency between an interruption kind and its retained recovery capability.
@@ -271,10 +270,7 @@ impl BodyAnalysisRecovery {
         let TypedInterruptionEvidence::MemberSelection(evidence) = &typed.evidence else {
             return Some(Err(MemberCompletionError::InvalidRecoveryEvidence));
         };
-        let MemberInterruptionEvidence {
-            types,
-            copyabilities,
-        } = evidence.as_ref();
+        let semantics = &evidence.semantics;
         let body = typed.interruption.body();
         if self
             .prepared
@@ -289,11 +285,10 @@ impl BodyAnalysisRecovery {
         Some(select_member_completions(
             crate::member_completion::MemberCompletionAuthorities {
                 graph: self.prepared.graph(),
-                types,
+                semantics,
                 interface_implementations: self.prepared.interface_implementations(),
                 instance_operations: self.prepared.instance_operations(),
                 body_assumptions: self.prepared.body_assumptions(),
-                copyabilities,
                 source_access: self.prepared.source_access(),
                 session,
             },
