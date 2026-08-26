@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 
 use nocter_checking::{
     ConcreteDestructionKind, ConcreteDestructionPlan, ConcreteDispatchResolver, DropSelection,
@@ -26,12 +25,12 @@ use crate::{
 };
 
 pub(super) fn build_executable(
-    target: Arc<TargetProgram>,
+    target: &TargetProgram,
     selected: nocter_model::PackageTargetId,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
-    let entry = select_executable_entry(&target, selected)?;
-    let entry_key = ExecutableItemKey::Callable(CallableInstanceKey::for_entry(&target, entry)?);
-    let frozen = ExecutableClosureBuilder::new(&target).close([entry_key.clone()])?;
+    let entry = select_executable_entry(target, selected)?;
+    let entry_key = ExecutableItemKey::Callable(CallableInstanceKey::for_entry(target, entry)?);
+    let frozen = ExecutableClosureBuilder::new(target).close([entry_key.clone()])?;
     let entry_item = frozen.item_id(&entry_key)?;
     let runtime = super::build_runtime_environment(
         &frozen.types,
@@ -39,13 +38,13 @@ pub(super) fn build_executable(
         target.toolchain().abi(),
     )?;
     let semantic_environment =
-        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target.as_ref());
+        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);
+    let checked_bodies = freeze_reached_bodies(target, &frozen.items)?;
     Ok(ExecutableProgram {
-        target,
         semantic_environment,
         types: frozen.types,
+        checked_bodies,
         items: frozen.items,
-        item_ids: frozen.item_ids,
         runtime,
         root: ExecutableRoot::Process {
             target: selected,
@@ -56,15 +55,15 @@ pub(super) fn build_executable(
 }
 
 pub(super) fn build_tests(
-    target: Arc<TargetProgram>,
+    target: &TargetProgram,
     selected: nocter_model::PackageTargetId,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
-    let selection = select_test_target(&target, selected)?;
+    let selection = select_test_target(target, selected)?;
     build_selected_tests(target, &selection)
 }
 
 pub(super) fn build_selected_tests(
-    target: Arc<TargetProgram>,
+    target: &TargetProgram,
     selection: &crate::SelectedTestTarget,
 ) -> Result<ExecutableProgram, ExecutableProgramError> {
     let roots = selection
@@ -72,7 +71,7 @@ pub(super) fn build_selected_tests(
         .iter()
         .map(|test| ExecutableItemKey::Test(test.declaration()))
         .collect::<Vec<_>>();
-    let frozen = ExecutableClosureBuilder::new(&target).close(roots.iter().cloned())?;
+    let frozen = ExecutableClosureBuilder::new(target).close(roots.iter().cloned())?;
     let cases = selection
         .tests()
         .iter()
@@ -97,19 +96,39 @@ pub(super) fn build_selected_tests(
         target.toolchain().abi(),
     )?;
     let semantic_environment =
-        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target.as_ref());
+        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);
+    let checked_bodies = freeze_reached_bodies(target, &frozen.items)?;
     Ok(ExecutableProgram {
-        target,
         semantic_environment,
         types: frozen.types,
+        checked_bodies,
         items: frozen.items,
-        item_ids: frozen.item_ids,
         runtime,
         root: ExecutableRoot::Tests {
             target: selection.target(),
             cases: cases.into_boxed_slice(),
         },
     })
+}
+
+fn freeze_reached_bodies(
+    target: &TargetProgram,
+    items: &nocter_model::Arena<ExecutableItemId, ExecutableItem>,
+) -> Result<BTreeMap<BodyId, nocter_checking::CheckedBody>, ExecutableProgramError> {
+    let required = items
+        .iter()
+        .map(|(_, item)| item.body().body())
+        .collect::<BTreeSet<_>>();
+    let mut bodies = BTreeMap::new();
+    for body in required {
+        let checked = target
+            .checked()
+            .bodies()
+            .get(body)
+            .ok_or(ExecutableProgramError::UnknownBody(body))?;
+        bodies.insert(body, checked.clone());
+    }
+    Ok(bodies)
 }
 
 struct FrozenClosure {

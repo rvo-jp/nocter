@@ -170,7 +170,7 @@ impl CleanupAction {
 }
 
 /// Cleanup events keyed by the checked node that owns their exact execution point.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CleanupTable {
     schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>,
 }

@@ -41,7 +41,7 @@ impl ExecutableSemanticEnvironment {
 impl ExecutableProgram {
     #[must_use]
     pub fn checked_body(&self, body: BodyId) -> Option<&CheckedBody> {
-        self.target.checked().bodies().get(body)
+        self.checked_bodies.get(&body)
     }
 
     #[must_use]

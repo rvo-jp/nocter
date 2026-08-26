@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use nocter_checking::{CleanupTarget, ConcreteDestructionKind, SpreadMode, StaticDispatch};
 use nocter_declarations::{CallableKind, CallableOwner, LiteralShape};
 use nocter_model::BuiltinType;
@@ -25,6 +27,7 @@ fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
              return\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -33,27 +36,29 @@ fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let dead_body = target
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(named_callable(&target, "dead"))
+        .and_then(nocter_declarations::CallableDeclaration::body)
+        .unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    assert_reached_bodies_are_frozen(&executable, dead_body);
     let names = executable
         .items()
         .iter()
         .filter_map(|(_, item)| match item.key() {
-            ExecutableItemKey::Callable(key) => executable
-                .target()
+            ExecutableItemKey::Callable(key) => target
+                .as_ref()
                 .checked()
                 .graph()
                 .declarations()
                 .callables()
                 .get(key.callable())
                 .and_then(nocter_declarations::CallableDeclaration::name)
-                .and_then(|name| {
-                    executable
-                        .target()
-                        .checked()
-                        .graph()
-                        .symbols()
-                        .spelling(name)
-                }),
+                .and_then(|name| target.as_ref().checked().graph().symbols().spelling(name)),
             ExecutableItemKey::Closure(_)
             | ExecutableItemKey::Drop(_)
             | ExecutableItemKey::Test(_) => None,
@@ -113,6 +118,19 @@ fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
     );
 }
 
+fn assert_reached_bodies_are_frozen(
+    executable: &ExecutableProgram,
+    unreachable: nocter_model::BodyId,
+) {
+    assert!(executable.checked_body(unreachable).is_none());
+    assert!(
+        executable
+            .items()
+            .iter()
+            .all(|(_, item)| executable.checked_body(item.body().body()).is_some())
+    );
+}
+
 #[test]
 fn closure_and_drop_keys_inherit_the_complete_concrete_owner_domain() {
     let target = build_target_program(&Fixture::with_app(
@@ -128,6 +146,7 @@ fn closure_and_drop_keys_inherit_the_complete_concrete_owner_domain() {
              return\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -136,7 +155,7 @@ fn closure_and_drop_keys_inherit_the_complete_concrete_owner_domain() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let i32_ = executable.types().builtin(BuiltinType::I32);
     let closure = executable
         .items()
@@ -169,6 +188,7 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
         "func identity<T>(value: T): T { move value }\n\
          func main(): i32 { identity(7) }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -177,10 +197,10 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let main = named_callable(executable.target(), "main");
-    let identity = named_callable(executable.target(), "identity");
-    let selection = callable_dependencies(executable.target(), main)
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let main = named_callable(target.as_ref(), "main");
+    let identity = named_callable(target.as_ref(), "identity");
+    let selection = callable_dependencies(target.as_ref(), main)
         .selections()
         .iter()
         .find(|selection| selection.dispatch() == StaticDispatch::Direct(identity))
@@ -230,6 +250,7 @@ fn generic_associated_results_reduce_through_the_selected_implementation() {
              read(&source)\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -238,8 +259,8 @@ fn generic_associated_results_reduce_through_the_selected_implementation() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let read = named_callable(executable.target(), "read");
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let read = named_callable(target.as_ref(), "read");
     let item = executable
         .items()
         .iter()
@@ -266,6 +287,7 @@ fn callable_bound_dispatch_freezes_the_concrete_closure_body_and_cleanup() {
              finish((move value;): i32 { value.value })\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -276,7 +298,7 @@ fn callable_bound_dispatch_freezes_the_concrete_closure_body_and_cleanup() {
         .0;
     let finish = named_callable(&target, "finish");
     let selection = callable_dependencies(&target, finish).selections()[0].clone();
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let finish_item = executable
         .items()
         .iter()
@@ -312,6 +334,7 @@ fn executable_signature_specializes_even_unused_parameters() {
         "func constant<T>(unused: T): i32 { 7 }\n\
          func main(): i32 { constant(1) }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -320,10 +343,10 @@ fn executable_signature_specializes_even_unused_parameters() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let constant = named_callable(executable.target(), "constant");
-    let declaration = executable
-        .target()
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let constant = named_callable(target.as_ref(), "constant");
+    let declaration = target
+        .as_ref()
         .checked()
         .graph()
         .declarations()
@@ -362,6 +385,7 @@ fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
              0\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -370,7 +394,7 @@ fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let (literal_id, declaration, item) = executable
         .items()
         .iter()
@@ -378,8 +402,8 @@ fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
             let ExecutableItemKey::Callable(key) = item.key() else {
                 return None;
             };
-            let declaration = executable
-                .target()
+            let declaration = target
+                .as_ref()
                 .checked()
                 .graph()
                 .declarations()
@@ -452,6 +476,7 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
         &[&[], &[]],
     );
     let target = build_target_program(&fixture);
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -460,7 +485,7 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let ExecutableRoot::Process { entry, .. } = executable.root() else {
         panic!("expected process root")
     };
@@ -515,6 +540,7 @@ fn executable_signatures_materialize_receiver_capabilities() {
              value.read()\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -523,15 +549,15 @@ fn executable_signatures_materialize_receiver_capabilities() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let mut saw_method = false;
     let mut saw_drop = false;
     for (_, item) in executable.items().iter() {
         let expected = match item.key() {
             ExecutableItemKey::Callable(key)
                 if matches!(
-                    executable
-                        .target()
+                    target
+                        .as_ref()
                         .checked()
                         .graph()
                         .declarations()
@@ -575,6 +601,7 @@ fn executable_cleanup_keeps_enum_residual_distinct_from_complete_destruction() {
              return\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -583,13 +610,13 @@ fn executable_cleanup_keeps_enum_residual_distinct_from_complete_destruction() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let ExecutableRoot::Process { entry, .. } = executable.root() else {
         panic!("expected process root")
     };
     let item = executable.items().get(*entry).unwrap();
-    let checked = executable
-        .target()
+    let checked = target
+        .as_ref()
         .checked()
         .bodies()
         .get(item.body().body())
@@ -628,6 +655,7 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
          }\n",
         &[&["ptr"], &["ptr"]],
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -636,9 +664,9 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let main = named_callable(executable.target(), "main");
-    let dependencies = callable_dependencies(executable.target(), main);
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let main = named_callable(target.as_ref(), "main");
+    let dependencies = callable_dependencies(target.as_ref(), main);
     let ExecutableRoot::Process { entry, .. } = executable.root() else {
         panic!("expected process root")
     };
@@ -692,6 +720,7 @@ fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
          }\n",
         &[&["internal", "ptr"], &["ptr"]],
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -702,7 +731,7 @@ fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
         .0;
     let wrapper = named_callable(&target, "drop_value_at_ptr_for_test");
     let dependencies = callable_dependencies(&target, wrapper);
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let body = executable
         .items()
         .iter()
@@ -785,6 +814,7 @@ fn interface_dispatch_enqueues_only_the_selected_interface_implementation_body()
              read(&value)\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -793,13 +823,13 @@ fn interface_dispatch_enqueues_only_the_selected_interface_implementation_body()
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
     let owners = executable
         .items()
         .iter()
         .filter_map(|(_, item)| match item.key() {
-            ExecutableItemKey::Callable(key) => executable
-                .target()
+            ExecutableItemKey::Callable(key) => target
+                .as_ref()
                 .checked()
                 .graph()
                 .declarations()
@@ -835,6 +865,7 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
          }\n\
          test second { return }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -843,11 +874,11 @@ fn test_root_preserves_selected_case_order_without_scanning_unreachable_function
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_tests(target, selected).unwrap();
+    let executable = ExecutableProgram::for_tests(Arc::clone(&target), selected).unwrap();
     let ExecutableRoot::Tests { cases, .. } = executable.root() else {
         panic!("test selection must produce a test root")
     };
-    let graph = executable.target().checked().graph();
+    let graph = target.as_ref().checked().graph();
     assert_eq!(
         cases
             .iter()
@@ -907,6 +938,7 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
              result\n\
          }\n",
     ));
+    let target = Arc::new(target);
     let selected = target
         .checked()
         .graph()
@@ -915,8 +947,8 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
         .next()
         .unwrap()
         .0;
-    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
-    let graph = executable.target().checked().graph();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let graph = target.as_ref().checked().graph();
     let i32_ = executable.types().builtin(BuiltinType::I32);
     let u8_ = executable.types().builtin(BuiltinType::U8);
 

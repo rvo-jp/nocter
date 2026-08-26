@@ -454,11 +454,10 @@ pub enum ExecutableRoot {
 /// The complete deterministic monomorphized closure for one selected package target.
 #[derive(Debug)]
 pub struct ExecutableProgram {
-    target: Arc<TargetProgram>,
     semantic_environment: ExecutableSemanticEnvironment,
     types: TypeStore,
+    checked_bodies: BTreeMap<BodyId, nocter_checking::CheckedBody>,
     items: Arena<ExecutableItemId, ExecutableItem>,
-    item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
     runtime: RuntimeEnvironment,
     root: ExecutableRoot,
 }
@@ -473,7 +472,7 @@ impl ExecutableProgram {
         target: impl Into<Arc<TargetProgram>>,
         selected: PackageTargetId,
     ) -> Result<Self, ExecutableProgramError> {
-        build::build_executable(target.into(), selected)
+        build::build_executable(&target.into(), selected)
     }
 
     /// Selects and closes one compiler-owned test runner.
@@ -485,7 +484,7 @@ impl ExecutableProgram {
         target: impl Into<Arc<TargetProgram>>,
         selected: PackageTargetId,
     ) -> Result<Self, ExecutableProgramError> {
-        build::build_tests(target.into(), selected)
+        build::build_tests(&target.into(), selected)
     }
 
     /// Closes an already selected semantic test set.
@@ -497,13 +496,7 @@ impl ExecutableProgram {
         target: impl Into<Arc<TargetProgram>>,
         selected: &crate::SelectedTestTarget,
     ) -> Result<Self, ExecutableProgramError> {
-        build::build_selected_tests(target.into(), selected)
-    }
-
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn target(&self) -> &TargetProgram {
-        self.target.as_ref()
+        build::build_selected_tests(&target.into(), selected)
     }
 
     #[must_use]
@@ -514,11 +507,6 @@ impl ExecutableProgram {
     #[must_use]
     pub const fn items(&self) -> &Arena<ExecutableItemId, ExecutableItem> {
         &self.items
-    }
-
-    #[must_use]
-    pub fn item_id(&self, key: &ExecutableItemKey) -> Option<ExecutableItemId> {
-        self.item_ids.get(key).copied()
     }
 
     #[must_use]

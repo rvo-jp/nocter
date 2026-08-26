@@ -51,7 +51,7 @@ impl CheckedCapture {
 }
 
 /// One complete typed body. Syntax-backed name uses have been consumed before construction.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckedBody {
     scopes: Arena<BodyScopeId, BodyScope>,
     locals: Arena<LocalBindingId, CheckedLocal>,
