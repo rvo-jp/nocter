@@ -183,19 +183,22 @@ fn complete_checked_program(
         &prepared.body_sources,
         &mut checked_bodies,
     ) {
-        let recovery = retain_prepared
-            .then(|| {
-                build_body_analysis_recovery(
-                    prepared,
-                    checked_types,
-                    checked_copyabilities,
-                    Vec::new(),
-                    checked_bodies,
-                    projections,
-                )
-            })
-            .and_then(Result::ok);
-        return Err(crate::BodyCheckFailure::new(error, recovery));
+        let recovery = if retain_prepared {
+            build_body_analysis_recovery(
+                prepared,
+                checked_types,
+                checked_copyabilities,
+                Vec::new(),
+                checked_bodies,
+                projections,
+            )
+            .map(Some)
+        } else {
+            Ok(None)
+        };
+        return Err(crate::BodyCheckFailure::from_recovery_result(
+            error, recovery,
+        ));
     }
 
     let (provenance, loans) = match analyze_checked_body_relations(
@@ -209,19 +212,22 @@ fn complete_checked_program(
     ) {
         Ok(relations) => relations,
         Err(error) => {
-            let recovery = retain_prepared
-                .then(|| {
-                    build_body_analysis_recovery(
-                        prepared,
-                        checked_types,
-                        checked_copyabilities,
-                        Vec::new(),
-                        checked_bodies,
-                        projections,
-                    )
-                })
-                .and_then(Result::ok);
-            return Err(crate::BodyCheckFailure::new(error, recovery));
+            let recovery = if retain_prepared {
+                build_body_analysis_recovery(
+                    prepared,
+                    checked_types,
+                    checked_copyabilities,
+                    Vec::new(),
+                    checked_bodies,
+                    projections,
+                )
+                .map(Some)
+            } else {
+                Ok(None)
+            };
+            return Err(crate::BodyCheckFailure::from_recovery_result(
+                error, recovery,
+            ));
         }
     };
 
@@ -255,19 +261,20 @@ fn recover_body_construction_failure(
         checked_bodies,
         projections,
     } = failure;
-    let recovery = retain_prepared
-        .then(|| {
-            build_body_analysis_recovery(
-                prepared,
-                checked_types,
-                checked_copyabilities,
-                interruptions,
-                checked_bodies,
-                projections,
-            )
-        })
-        .and_then(Result::ok);
-    crate::BodyCheckFailure::new(*error, recovery)
+    let recovery = if retain_prepared {
+        build_body_analysis_recovery(
+            prepared,
+            checked_types,
+            checked_copyabilities,
+            interruptions,
+            checked_bodies,
+            projections,
+        )
+        .map(Some)
+    } else {
+        Ok(None)
+    };
+    crate::BodyCheckFailure::from_recovery_result(*error, recovery)
 }
 
 fn build_body_analysis_recovery(

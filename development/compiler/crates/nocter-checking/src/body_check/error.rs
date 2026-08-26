@@ -58,6 +58,21 @@ impl BodyCheckFailure {
         }
     }
 
+    /// Constructs a failure from an explicit recovery assembly outcome.
+    ///
+    /// Recovery is optional by policy, but a requested recovery that fails to assemble is a
+    /// compiler consistency failure. It must replace the authored error rather than disappear
+    /// behind an empty recovery value.
+    pub(crate) fn from_recovery_result(
+        error: BodyCheckError,
+        recovery: Result<Option<crate::BodyAnalysisRecovery>, BodyCheckInternalError>,
+    ) -> Self {
+        match recovery {
+            Ok(recovery) => Self::new(error, recovery),
+            Err(internal) => Self::new(internal.into(), None),
+        }
+    }
+
     #[must_use]
     pub const fn error(&self) -> &BodyCheckError {
         &self.error
