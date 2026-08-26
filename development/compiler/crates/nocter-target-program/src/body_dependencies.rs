@@ -92,7 +92,7 @@ impl PreparedBorrow {
 }
 
 /// The representation work selected by one checked cleanup target.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CheckedDestruction {
     Complete(TypeId),
     EnumResidual {

@@ -53,10 +53,7 @@ pub(super) fn lower_function(
             }
         }
     }
-    lowerer
-        .builder
-        .finish(lowerer.entry, executable)
-        .map_err(Into::into)
+    lowerer.builder.finish(lowerer.entry).map_err(Into::into)
 }
 
 pub(super) struct FunctionLowerer<'a> {

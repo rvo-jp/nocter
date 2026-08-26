@@ -839,7 +839,7 @@ fn freeze_body(
 > {
     let signature = draft.signature;
     let closure = draft.closure;
-    let dispatches = draft
+    let mut dispatches = draft
         .dispatches
         .into_iter()
         .map(|edge| {
@@ -849,7 +849,8 @@ fn freeze_body(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
-    let closures = draft
+    dispatches.sort_unstable_by(|left, right| left.source.cmp(&right.source));
+    let mut closures = draft
         .closures
         .into_iter()
         .map(|(closure, key)| {
@@ -859,7 +860,8 @@ fn freeze_body(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
-    let drops = draft
+    closures.sort_unstable_by_key(|edge| edge.closure);
+    let mut drops = draft
         .drops
         .into_iter()
         .map(|(selection, key)| {
@@ -869,11 +871,25 @@ fn freeze_body(
             })
         })
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
-    let sequences = draft
+    drops.sort_unstable_by(|left, right| left.selection.cmp(&right.selection));
+    let mut types = draft.types;
+    types.sort_unstable_by_key(|edge| edge.source);
+    let mut prepared_borrows = draft.prepared_borrows;
+    prepared_borrows.sort_unstable_by_key(|edge| (edge.source, edge.capability));
+    let mut destructions = draft
+        .destructions
+        .into_iter()
+        .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
+        .collect::<Vec<_>>();
+    destructions.sort_unstable_by(|left, right| left.source.cmp(&right.source));
+    let mut sequences = draft
         .sequences
         .into_iter()
         .map(|plan| plan.freeze(item_ids))
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    sequences.sort_unstable_by_key(super::ExecutableSequencePlan::source);
+    let mut argument_packs = draft.argument_packs;
+    argument_packs.sort_unstable_by_key(super::ExecutableArgumentPackPlan::source);
     Ok((
         signature,
         closure,
@@ -884,16 +900,11 @@ fn freeze_body(
             dispatches: dispatches.into_boxed_slice(),
             closures: closures.into_boxed_slice(),
             drops: drops.into_boxed_slice(),
-            types: draft.types.into_boxed_slice(),
-            prepared_borrows: draft.prepared_borrows.into_boxed_slice(),
-            destructions: draft
-                .destructions
-                .into_iter()
-                .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
+            types: types.into_boxed_slice(),
+            prepared_borrows: prepared_borrows.into_boxed_slice(),
+            destructions: destructions.into_boxed_slice(),
             sequences: sequences.into_boxed_slice(),
-            argument_packs: draft.argument_packs.into_boxed_slice(),
+            argument_packs: argument_packs.into_boxed_slice(),
         },
     ))
 }

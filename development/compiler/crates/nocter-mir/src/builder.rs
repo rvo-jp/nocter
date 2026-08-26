@@ -10,8 +10,8 @@ use nocter_model::{
 use crate::schema::MirBodyDomains;
 use crate::{
     MirBlock, MirBody, MirDropFlag, MirFunction, MirLocal, MirLocalKind, MirOperation,
-    MirOperationKind, MirPackInput, MirPlace, MirPlaceRoot, MirTerminator,
-    MirValidationEnvironment, MirValidationError, MirValue, MirValueDefinition, validate_function,
+    MirOperationKind, MirPackInput, MirPlace, MirPlaceRoot, MirTerminator, MirValue,
+    MirValueDefinition,
 };
 
 /// Mutable state for one basic block while a function is being built.
@@ -284,7 +284,6 @@ pub enum MirBodyBuildError {
     EffectKindUsedAsValue,
     ValueKindUsedAsEffect,
     DuplicatePackInput,
-    Validation(MirValidationError),
 }
 
 impl fmt::Display for MirBodyBuildError {
@@ -296,7 +295,6 @@ impl fmt::Display for MirBodyBuildError {
 impl std::error::Error for MirBodyBuildError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Validation(error) => Some(error),
             Self::UnknownBlock(_)
             | Self::AlreadyTerminated
             | Self::UnterminatedBlock(_)
@@ -304,12 +302,6 @@ impl std::error::Error for MirBodyBuildError {
             | Self::ValueKindUsedAsEffect
             | Self::DuplicatePackInput => None,
         }
-    }
-}
-
-impl From<MirValidationError> for MirBodyBuildError {
-    fn from(error: MirValidationError) -> Self {
-        Self::Validation(error)
     }
 }
 
@@ -331,19 +323,19 @@ impl MirFunctionBuilder {
         }
     }
 
-    /// Freezes and validates the complete function.
+    /// Freezes the complete function.
     ///
     /// # Errors
     ///
-    /// Returns an error for an unterminated block or any closed MIR invariant violation.
-    pub fn finish(
-        self,
-        entry: MirBlockId,
-        environment: &impl MirValidationEnvironment,
-    ) -> Result<MirFunction, MirBodyBuildError> {
-        let function = MirFunction::new(self.item, self.result, self.body.finish(entry)?);
-        validate_function(&function, environment)?;
-        Ok(function)
+    /// Returns an error for an unterminated block. Whole-function semantic validation belongs to
+    /// [`crate::MirProgramBuilder`], which owns the exact executable environment and validates each
+    /// definition once when it is installed.
+    pub fn finish(self, entry: MirBlockId) -> Result<MirFunction, MirBodyBuildError> {
+        Ok(MirFunction::new(
+            self.item,
+            self.result,
+            self.body.finish(entry)?,
+        ))
     }
 }
 

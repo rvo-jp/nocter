@@ -276,9 +276,9 @@ impl ExecutableBody {
     #[must_use]
     pub fn dispatch(&self, source: &StaticSelection) -> Option<&ExecutableDispatchPlan> {
         self.dispatches
-            .iter()
-            .find(|edge| edge.source == *source)
-            .map(|edge| &edge.plan)
+            .binary_search_by(|edge| edge.source.cmp(source))
+            .ok()
+            .map(|index| &self.dispatches[index].plan)
     }
 
     #[must_use]
@@ -289,9 +289,9 @@ impl ExecutableBody {
     #[must_use]
     pub fn closure_item(&self, closure: ClosureId) -> Option<ExecutableItemId> {
         self.closures
-            .iter()
-            .find(|edge| edge.closure == closure)
-            .map(|edge| edge.item)
+            .binary_search_by_key(&closure, |edge| edge.closure)
+            .ok()
+            .map(|index| self.closures[index].item)
     }
 
     #[must_use]
@@ -305,9 +305,9 @@ impl ExecutableBody {
         selection: &nocter_checking::DropSelection,
     ) -> Option<ExecutableItemId> {
         self.drops
-            .iter()
-            .find(|edge| edge.selection == *selection)
-            .map(|edge| edge.item)
+            .binary_search_by(|edge| edge.selection.cmp(selection))
+            .ok()
+            .map(|index| self.drops[index].item)
     }
 
     #[must_use]
@@ -318,17 +318,17 @@ impl ExecutableBody {
     #[must_use]
     pub fn concrete_type(&self, source: TypeId) -> Option<TypeId> {
         self.types
-            .iter()
-            .find(|edge| edge.source == source)
-            .map(|edge| edge.concrete)
+            .binary_search_by_key(&source, |edge| edge.source)
+            .ok()
+            .map(|index| self.types[index].concrete)
     }
 
     #[must_use]
     pub fn prepared_borrow(&self, source: TypeId, capability: BorrowCapability) -> Option<TypeId> {
         self.prepared_borrows
-            .iter()
-            .find(|edge| edge.source == source && edge.capability == capability)
-            .map(|edge| edge.concrete)
+            .binary_search_by_key(&(source, capability), |edge| (edge.source, edge.capability))
+            .ok()
+            .map(|index| self.prepared_borrows[index].concrete)
     }
 
     #[must_use]
@@ -337,9 +337,9 @@ impl ExecutableBody {
         source: TypeId,
     ) -> Option<&ConcreteDestructionPlan> {
         self.destructions
-            .iter()
-            .find(|edge| edge.source == CheckedDestruction::Complete(source))
-            .map(|edge| &edge.plan)
+            .binary_search_by(|edge| edge.source.cmp(&CheckedDestruction::Complete(source)))
+            .ok()
+            .map(|index| &self.destructions[index].plan)
     }
 
     #[must_use]
@@ -349,9 +349,9 @@ impl ExecutableBody {
     ) -> Option<&ConcreteDestructionPlan> {
         let source = CheckedDestruction::for_cleanup(target)?;
         self.destructions
-            .iter()
-            .find(|edge| edge.source == source)
-            .map(|edge| &edge.plan)
+            .binary_search_by(|edge| edge.source.cmp(&source))
+            .ok()
+            .map(|index| &self.destructions[index].plan)
     }
 
     #[must_use]
@@ -361,14 +361,18 @@ impl ExecutableBody {
 
     #[must_use]
     pub fn sequence(&self, source: BodyNodeId) -> Option<&ExecutableSequencePlan> {
-        self.sequences.iter().find(|plan| plan.source() == source)
+        self.sequences
+            .binary_search_by_key(&source, ExecutableSequencePlan::source)
+            .ok()
+            .map(|index| &self.sequences[index])
     }
 
     #[must_use]
     pub fn argument_pack(&self, source: BodyNodeId) -> Option<&ExecutableArgumentPackPlan> {
         self.argument_packs
-            .iter()
-            .find(|plan| plan.source() == source)
+            .binary_search_by_key(&source, ExecutableArgumentPackPlan::source)
+            .ok()
+            .map(|index| &self.argument_packs[index])
     }
 }
 

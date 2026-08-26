@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_model::{CallableId, DropId, GenericParameterId, InterfaceId, RequirementId, TypeId};
 
 /// Static operation selected during body checking.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum StaticDispatch {
     Direct(CallableId),
     InterfaceMethod {
@@ -92,7 +92,7 @@ impl GenericArguments {
 }
 
 /// One exact static dispatch edge and the complete declaration-generic substitution it requires.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct StaticSelection {
     dispatch: StaticDispatch,
     generic_arguments: GenericArguments,
