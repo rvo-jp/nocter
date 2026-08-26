@@ -9,6 +9,7 @@ mod control;
 mod dataflow;
 mod destruction;
 mod destruction_table;
+mod function_domain;
 mod generated_destruction;
 mod identity;
 mod layout;

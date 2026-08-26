@@ -60,8 +60,7 @@ pub(super) fn lower_call_target(
     match target {
         MirCallTarget::Direct(target) => context
             .functions
-            .get(target)
-            .copied()
+            .for_item(*target)
             .map(MachineCallTarget::Direct)
             .ok_or(MachineProgramError::MissingItemFunction(*target)),
         MirCallTarget::StandardPrimitive {
@@ -80,9 +79,8 @@ pub(super) fn lower_call_target(
                     MachineProgramError::MissingGeneratedDestruction(ids.owner(), operation),
                 )?;
                 let function = context
-                    .destruction_functions
-                    .get(&destruction)
-                    .copied()
+                    .functions
+                    .for_destruction(destruction)
                     .ok_or(MachineProgramError::MissingDestruction(destruction))?;
                 return Ok(MachineCallTarget::Direct(function));
             }

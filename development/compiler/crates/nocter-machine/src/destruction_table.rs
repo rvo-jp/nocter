@@ -3,14 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use nocter_mir::{
     MirBody, MirCallTarget, MirOperationKind, MirPackSegment, MirPrimitiveDependency, MirProgram,
 };
-use nocter_model::{ExecutableItemId, MirOperationId};
+use nocter_model::MirOperationId;
 use nocter_runtime_contract::{PrimitiveRole, RuntimePrimitive, RuntimeType};
 
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineCallableAbi, MachineDestructionId, MachineDestructionPlan, MachineFunctionId,
-    MachineLayoutStore, MachineLinkageId, MachineLinkageKey, MachineLinkageTable,
-    MachineProgramError,
+    MachineCallableAbi, MachineDestructionId, MachineDestructionPlan, MachineLayoutStore,
+    MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgramError,
 };
 
 /// One canonical compiler-generated destruction function contract.
@@ -47,7 +46,7 @@ impl MachineDestructionTable {
         program: &MirProgram,
         layouts: &MachineLayoutStore,
         linkage: &MachineLinkageTable,
-        functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+        functions: crate::function_domain::MachineFunctionDomain<'_>,
     ) -> Result<Self, MachineProgramError> {
         let mut plans = BTreeSet::new();
         let mut calls = BTreeMap::new();
@@ -168,7 +167,7 @@ fn collect_body(
     owner: MachineLinkageId,
     body: &MirBody,
     layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
     plans: &mut BTreeSet<MachineDestructionPlan>,
     calls: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
     pack_segments: &mut BTreeMap<(MachineLinkageId, MirOperationId, usize), MachineDestructionPlan>,
@@ -226,7 +225,7 @@ fn lower_plan(
     owner: MachineLinkageId,
     operation: MirOperationId,
     layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineDestructionPlan, MachineProgramError> {
     crate::lower::destruction::lower_destruction(plan, owner, operation, layouts, functions)
 }

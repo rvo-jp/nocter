@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use nocter_mir::{MirDestructionKind, MirDestructionPlan};
 use nocter_model::{ExecutableItemId, MirOperationId};
 
@@ -16,7 +14,7 @@ struct DestructionContext<'a> {
     owner: MachineLinkageId,
     operation: MirOperationId,
     layouts: &'a MachineLayoutStore,
-    functions: &'a BTreeMap<ExecutableItemId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'a>,
 }
 
 impl DestructionContext<'_> {
@@ -34,7 +32,7 @@ pub(crate) fn lower_destruction(
     owner: MachineLinkageId,
     operation: MirOperationId,
     layouts: &MachineLayoutStore,
-    functions: &BTreeMap<ExecutableItemId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineDestructionPlan, MachineProgramError> {
     lower_plan(
         plan,
@@ -252,8 +250,7 @@ fn lower_drop(
     drop.map(|drop| {
         context
             .functions
-            .get(&drop)
-            .copied()
+            .for_item(drop)
             .ok_or(MachineProgramError::MissingItemFunction(drop))
     })
     .transpose()

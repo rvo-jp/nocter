@@ -67,8 +67,7 @@ fn lower_pack(
                 };
                 let target = context
                     .functions
-                    .get(item)
-                    .copied()
+                    .for_item(*item)
                     .ok_or(MachineProgramError::MissingItemFunction(*item))?;
                 let abi = context
                     .abi
@@ -282,9 +281,8 @@ fn pack_destruction(
             segment,
         })?;
     context
-        .destruction_functions
-        .get(&destruction)
-        .copied()
+        .functions
+        .for_destruction(destruction)
         .map(Some)
         .ok_or(MachineProgramError::MissingDestruction(destruction))
 }

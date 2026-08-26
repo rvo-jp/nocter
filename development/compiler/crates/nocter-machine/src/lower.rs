@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_mir::{MirBody, MirProgram, MirRoot};
@@ -7,10 +6,9 @@ use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId}
 use crate::identity::{MachineId, MachineTable};
 use crate::{
     MachineAbiError, MachineAbiPlan, MachineContextError, MachineContextPlans, MachineDataTable,
-    MachineDestructionId, MachineDestructionTable, MachineFunction, MachineFunctionId,
-    MachineFunctionKind, MachineLayoutError, MachineLayoutStore, MachineLinkageError,
-    MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgram, MachineProgramRoot,
-    MachineTestProgram,
+    MachineDestructionTable, MachineFunction, MachineFunctionId, MachineFunctionKind,
+    MachineLayoutError, MachineLayoutStore, MachineLinkageError, MachineLinkageId,
+    MachineLinkageKey, MachineLinkageTable, MachineProgram, MachineProgramRoot, MachineTestProgram,
 };
 
 mod address;
@@ -39,11 +37,11 @@ impl MachineProgram {
         let abi = MachineAbiPlan::build(program, &layouts)?;
         let linkage = MachineLinkageTable::build(program)?;
         let data = MachineDataTable::build(program);
-        let source_domains = assign_function_domains(&linkage)?;
+        let source_functions = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let destructions =
-            MachineDestructionTable::build(program, &layouts, &linkage, &source_domains.items)?;
+            MachineDestructionTable::build(program, &layouts, &linkage, source_functions)?;
         let linkage = linkage.with_destructions(&destructions)?;
-        let domains = assign_function_domains(&linkage)?;
+        let function_domain = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let linkage_entries = linkage.iter().collect::<Vec<_>>();
 
         let functions = linkage_entries
@@ -71,9 +69,8 @@ impl MachineProgram {
                             layouts: &layouts,
                             abi: &abi,
                             data: &data,
-                            functions: &domains.items,
+                            functions: function_domain,
                             destructions: &destructions,
-                            destruction_functions: &domains.destructions,
                         },
                     )?;
                     MachineFunction::new(linkage_id, kind, body).map_err(|error| {
@@ -85,9 +82,9 @@ impl MachineProgram {
                 }
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
-        let root = lower_root(linkage.root(), &domains.linkages)?;
-        let functions = MachineTable::from_values(functions);
-        let contexts = MachineContextPlans::build(&functions)?;
+        let root = lower_root(linkage.root(), function_domain)?;
+        let function_table = MachineTable::from_values(functions);
+        let contexts = MachineContextPlans::build(&function_table)?;
 
         Ok(Self::new(crate::program::MachineProgramParts {
             layouts,
@@ -96,8 +93,7 @@ impl MachineProgram {
             destructions,
             linkage,
             data,
-            functions,
-            functions_by_linkage: domains.linkages,
+            functions: function_table,
             root,
         }))
     }
@@ -151,49 +147,9 @@ fn function_source<'program>(
     }
 }
 
-struct FunctionDomains {
-    linkages: BTreeMap<MachineLinkageId, MachineFunctionId>,
-    items: BTreeMap<ExecutableItemId, MachineFunctionId>,
-    destructions: BTreeMap<MachineDestructionId, MachineFunctionId>,
-}
-
-fn assign_function_domains(
-    linkage: &MachineLinkageTable,
-) -> Result<FunctionDomains, MachineProgramError> {
-    let mut by_linkage = BTreeMap::new();
-    let mut by_item = BTreeMap::new();
-    let mut by_destruction = BTreeMap::new();
-    for (index, (linkage_id, entry)) in linkage.iter().enumerate() {
-        let function = MachineFunctionId::new(index);
-        if by_linkage.insert(linkage_id, function).is_some() {
-            return Err(MachineProgramError::DuplicateFunctionLinkage(linkage_id));
-        }
-        match entry.key() {
-            MachineLinkageKey::Item(item) => {
-                if by_item.insert(item, function).is_some() {
-                    return Err(MachineProgramError::DuplicateItemFunction(item));
-                }
-            }
-            MachineLinkageKey::Destruction(destruction) => {
-                if by_destruction.insert(destruction, function).is_some() {
-                    return Err(MachineProgramError::DuplicateDestructionFunction(
-                        destruction,
-                    ));
-                }
-            }
-            MachineLinkageKey::ProcessRoot(_) | MachineLinkageKey::TestRoot(_) => {}
-        }
-    }
-    Ok(FunctionDomains {
-        linkages: by_linkage,
-        items: by_item,
-        destructions: by_destruction,
-    })
-}
-
 fn lower_root(
     root: &crate::MachineRootLinkage,
-    functions: &BTreeMap<MachineLinkageId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineProgramRoot, MachineProgramError> {
     match root {
         crate::MachineRootLinkage::Process { process, entry, .. } => {
@@ -219,12 +175,11 @@ fn lower_root(
 }
 
 fn require_function(
-    functions: &BTreeMap<MachineLinkageId, MachineFunctionId>,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
     linkage: MachineLinkageId,
 ) -> Result<MachineFunctionId, MachineProgramError> {
     functions
-        .get(&linkage)
-        .copied()
+        .for_linkage(linkage)
         .ok_or(MachineProgramError::MissingFunctionLinkage(linkage))
 }
 
@@ -252,9 +207,6 @@ pub enum MachineProgramError {
         owner: MachineLinkageId,
         error: crate::MachineDataflowError,
     },
-    DuplicateFunctionLinkage(MachineLinkageId),
-    DuplicateItemFunction(ExecutableItemId),
-    DuplicateDestructionFunction(MachineDestructionId),
     DuplicateDestructionCall(MachineLinkageId, MirOperationId),
     DuplicatePackDestruction {
         owner: MachineLinkageId,
@@ -336,10 +288,7 @@ impl std::error::Error for MachineProgramError {
             Self::Linkage(error) => Some(error),
             Self::Context(error) => Some(error),
             Self::Dataflow { error, .. } => Some(error),
-            Self::DuplicateFunctionLinkage(_)
-            | Self::DuplicateItemFunction(_)
-            | Self::DuplicateDestructionFunction(_)
-            | Self::DuplicateDestructionCall(_, _)
+            Self::DuplicateDestructionCall(_, _)
             | Self::DuplicatePackDestruction { .. }
             | Self::MissingFunctionLinkage(_)
             | Self::MissingItemFunction(_)

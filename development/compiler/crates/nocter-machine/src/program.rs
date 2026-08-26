@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
-
 use nocter_model::TestId;
 
-use crate::identity::MachineTable;
+use crate::identity::{MachineId, MachineTable};
 use crate::{
     MachineAbiPlan, MachineAddress, MachineAddressId, MachineBlock, MachineBlockId,
     MachineDataTable, MachineDestructionTable, MachineDropFlag, MachineDropFlagId,
@@ -255,7 +253,6 @@ pub struct MachineProgram {
     linkage: MachineLinkageTable,
     data: MachineDataTable,
     functions: MachineTable<MachineFunctionId, MachineFunction>,
-    functions_by_linkage: BTreeMap<MachineLinkageId, MachineFunctionId>,
     root: MachineProgramRoot,
 }
 
@@ -267,7 +264,6 @@ pub(crate) struct MachineProgramParts {
     pub(crate) linkage: MachineLinkageTable,
     pub(crate) data: MachineDataTable,
     pub(crate) functions: MachineTable<MachineFunctionId, MachineFunction>,
-    pub(crate) functions_by_linkage: BTreeMap<MachineLinkageId, MachineFunctionId>,
     pub(crate) root: MachineProgramRoot,
 }
 
@@ -281,7 +277,6 @@ impl MachineProgram {
             linkage: parts.linkage,
             data: parts.data,
             functions: parts.functions,
-            functions_by_linkage: parts.functions_by_linkage,
             root: parts.root,
         }
     }
@@ -323,7 +318,9 @@ impl MachineProgram {
 
     #[must_use]
     pub fn function_for_linkage(&self, linkage: MachineLinkageId) -> Option<MachineFunctionId> {
-        self.functions_by_linkage.get(&linkage).copied()
+        self.linkage.get(linkage)?;
+        let function = MachineFunctionId::new(linkage.index());
+        self.functions.get(function).map(|_| function)
     }
 
     #[must_use]

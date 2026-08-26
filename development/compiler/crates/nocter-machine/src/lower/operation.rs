@@ -84,8 +84,7 @@ fn lower_operation(
         } => MachineOperationKind::InvokeDrop {
             target: program
                 .functions
-                .get(body)
-                .copied()
+                .for_item(*body)
                 .ok_or(MachineProgramError::MissingItemFunction(*body))?,
             place: ids.address(*place)?,
             allocation: match allocation {
