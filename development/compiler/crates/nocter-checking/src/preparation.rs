@@ -57,15 +57,8 @@ impl<'syntax> PreparedBodyAnalysis<'syntax> {
 /// provenance are deliberately absent.
 #[derive(Debug)]
 pub struct PreparedSemanticProgram {
-    graph: DeclarationGraph,
+    environment: crate::program_environment::ProgramEnvironment,
     semantics: crate::semantic_authority::SemanticAuthority,
-    interface_implementations: InterfaceImplementationTable,
-    construction_surfaces: ConstructionSurfaceTable,
-    instance_operations: InstanceOperationTable,
-    body_assumptions: BodyAssumptionTable,
-    drops: DropTable,
-    standard_semantics: StandardSemanticTable,
-    source_access: SourceAccessTable,
 }
 
 impl PreparedSemanticProgram {
@@ -85,21 +78,23 @@ impl PreparedSemanticProgram {
             drops,
         } = authorities;
         Self {
-            graph,
+            environment: crate::program_environment::ProgramEnvironment::new(
+                graph,
+                interface_implementations,
+                construction_surfaces,
+                instance_operations,
+                body_assumptions,
+                drops,
+                standard_semantics,
+                source_access,
+            ),
             semantics: crate::semantic_authority::SemanticAuthority::seal(types, copyabilities),
-            interface_implementations,
-            construction_surfaces,
-            instance_operations,
-            body_assumptions,
-            drops,
-            standard_semantics,
-            source_access,
         }
     }
 
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
-        &self.graph
+        self.environment.graph()
     }
 
     #[must_use]
@@ -109,21 +104,21 @@ impl PreparedSemanticProgram {
 
     #[must_use]
     pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
-        &self.interface_implementations
+        self.environment.interface_implementations()
     }
 
     #[must_use]
     pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
-        &self.construction_surfaces
+        self.environment.construction_surfaces()
     }
 
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
-        &self.instance_operations
+        self.environment.instance_operations()
     }
 
     pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
-        &self.body_assumptions
+        self.environment.body_assumptions()
     }
 
     #[must_use]
@@ -133,22 +128,22 @@ impl PreparedSemanticProgram {
 
     #[must_use]
     pub const fn drops(&self) -> &DropTable {
-        &self.drops
+        self.environment.drops()
     }
 
     #[must_use]
     pub const fn standard_semantics(&self) -> &StandardSemanticTable {
-        &self.standard_semantics
+        self.environment.standard_semantics()
     }
 
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
-        &self.source_access
+        self.environment.source_access()
     }
 
     #[must_use]
     pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
-        self.source_access.ownership()
+        self.environment.source_access().ownership()
     }
 }
 
@@ -217,47 +212,26 @@ impl<'syntax> PreparedChecking<'syntax> {
 
     pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
         let PreparedSemanticProgram {
-            graph,
+            environment,
             semantics,
-            interface_implementations,
-            construction_surfaces,
-            instance_operations,
-            body_assumptions,
-            drops,
-            standard_semantics,
-            source_access,
         } = self.semantic;
         PreparedCheckingParts {
-            graph,
+            environment,
             semantics,
-            interface_implementations,
-            construction_surfaces,
-            instance_operations,
-            body_assumptions,
-            drops,
-            standard_semantics,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_namespaces: self.source_namespaces,
-            source_access,
             source_index: self.source_index,
         }
     }
 }
 
 pub(crate) struct PreparedCheckingParts<'syntax> {
-    pub(crate) graph: DeclarationGraph,
+    pub(crate) environment: crate::program_environment::ProgramEnvironment,
     pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
-    pub(crate) interface_implementations: InterfaceImplementationTable,
-    pub(crate) construction_surfaces: ConstructionSurfaceTable,
-    pub(crate) instance_operations: InstanceOperationTable,
-    pub(crate) body_assumptions: BodyAssumptionTable,
-    pub(crate) drops: DropTable,
-    pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
-    pub(crate) source_access: SourceAccessTable,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -271,17 +245,10 @@ impl<'syntax> PreparedCheckingParts<'syntax> {
         (
             self.semantics,
             BodyCheckingParts {
-                graph: self.graph,
-                interface_implementations: self.interface_implementations,
-                construction_surfaces: self.construction_surfaces,
-                instance_operations: self.instance_operations,
-                body_assumptions: self.body_assumptions,
-                drops: self.drops,
-                standard_semantics: self.standard_semantics,
+                environment: self.environment,
                 body_sources: self.body_sources,
                 body_names: self.body_names,
                 source_namespaces: self.source_namespaces,
-                source_access: self.source_access,
                 source_index: self.source_index,
             },
         )
@@ -289,17 +256,10 @@ impl<'syntax> PreparedCheckingParts<'syntax> {
 }
 
 pub(crate) struct BodyCheckingParts<'syntax> {
-    pub(crate) graph: DeclarationGraph,
-    pub(crate) interface_implementations: InterfaceImplementationTable,
-    pub(crate) construction_surfaces: ConstructionSurfaceTable,
-    pub(crate) instance_operations: InstanceOperationTable,
-    pub(crate) body_assumptions: BodyAssumptionTable,
-    pub(crate) drops: DropTable,
-    pub(crate) standard_semantics: StandardSemanticTable,
+    pub(crate) environment: crate::program_environment::ProgramEnvironment,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
-    pub(crate) source_access: SourceAccessTable,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -313,15 +273,8 @@ impl BodyCheckingParts<'_> {
         SourceIndex,
     ) {
         let program = PreparedSemanticProgram {
-            graph: self.graph,
+            environment: self.environment,
             semantics,
-            interface_implementations: self.interface_implementations,
-            construction_surfaces: self.construction_surfaces,
-            instance_operations: self.instance_operations,
-            body_assumptions: self.body_assumptions,
-            drops: self.drops,
-            standard_semantics: self.standard_semantics,
-            source_access: self.source_access,
         };
         (program, self.body_names, self.source_index)
     }
@@ -602,7 +555,7 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let standard_semantics = match StandardSemanticTable::build(&graph, &types) {
+    let standard_semantics = match StandardSemanticTable::build(&graph, types.store()) {
         Ok(semantics) => semantics,
         Err(error) => {
             return Err(declaration_failure(

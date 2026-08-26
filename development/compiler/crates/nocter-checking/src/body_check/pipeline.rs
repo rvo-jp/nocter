@@ -76,7 +76,7 @@ pub fn analyze_prepared_program_bodies<'syntax>(
         },
     ) {
         Ok(output) => {
-            let (checked_semantics, _) = semantics.finish();
+            let checked_semantics = semantics.finish_recovery();
             build_body_analysis_recovery(
                 prepared,
                 checked_semantics,
@@ -87,7 +87,7 @@ pub fn analyze_prepared_program_bodies<'syntax>(
             .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))
         }
         Err(failure) => {
-            let (checked_semantics, _) = semantics.finish();
+            let checked_semantics = semantics.finish_recovery();
             Err(recover_body_construction_failure(
                 failure,
                 true,
@@ -124,7 +124,7 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         Ok(checked) => checked,
         Err(failure) => {
-            let (checked_semantics, _) = semantics.finish();
+            let checked_semantics = semantics.finish_recovery();
             return Err(recover_body_construction_failure(
                 failure,
                 retain_prepared,
@@ -134,12 +134,9 @@ fn check_prepared_program_internal<'syntax>(
         }
     };
 
-    let (checked_semantics, closures) = semantics.finish();
-
     complete_checked_program(
         prepared,
-        checked_semantics,
-        closures,
+        semantics,
         CheckedBodiesOutput {
             bodies: checked_bodies,
             projections,
@@ -152,8 +149,7 @@ fn check_prepared_program_internal<'syntax>(
 
 fn complete_checked_program(
     prepared: BodyCheckingParts<'_>,
-    mut checked_semantics: crate::semantic_authority::SemanticAuthority,
-    closures: ClosureAuthority,
+    checked_semantics: BodySemanticAuthority,
     output: CheckedBodiesOutput,
     retain_prepared: bool,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
@@ -165,27 +161,28 @@ fn complete_checked_program(
     } = output;
     let facts = BodyProgramFacts::from_prepared(&prepared);
 
-    let closures = closures
-        .finish()
+    let mut checked_semantics = checked_semantics
+        .finish_checked()
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
-    let opaque_witnesses = crate::OpaqueWitnessTable::build(&prepared.graph, opaque_witnesses)
-        .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)
-        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    let opaque_witnesses =
+        crate::OpaqueWitnessTable::build(prepared.environment.graph(), opaque_witnesses)
+            .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
     let mut cleanup = checked_semantics.transaction();
     let cleanup_access = cleanup.access();
     if let Err(error) = attach_body_cleanups(
         facts,
         cleanup_access.types,
         cleanup_access.copyabilities,
-        &closures,
+        checked_semantics.closures(),
         &prepared.body_sources,
         &mut checked_bodies,
     ) {
-        checked_semantics = cleanup.freeze();
+        checked_semantics.retain_recovery_branch(cleanup);
         let recovery = if retain_prepared {
             build_body_analysis_recovery(
                 prepared,
-                checked_semantics,
+                checked_semantics.semantics().clone(),
                 Vec::new(),
                 checked_bodies,
                 projections,
@@ -198,16 +195,14 @@ fn complete_checked_program(
             error, recovery,
         ));
     }
-    checked_semantics = cleanup
-        .commit(&checked_semantics)
-        .expect("cleanup transaction must commit to its exact checked-body authority");
+    checked_semantics.accept(cleanup);
 
     let (provenance, loans) = match analyze_checked_body_relations(
-        &prepared.graph,
-        checked_semantics.types(),
-        &prepared.drops,
-        &prepared.interface_implementations,
-        &closures,
+        prepared.environment.graph(),
+        checked_semantics.semantics().types(),
+        prepared.environment.drops(),
+        prepared.environment.interface_implementations(),
+        checked_semantics.closures(),
         &prepared.body_sources,
         &checked_bodies,
     ) {
@@ -216,7 +211,7 @@ fn complete_checked_program(
             let recovery = if retain_prepared {
                 build_body_analysis_recovery(
                     prepared,
-                    checked_semantics,
+                    checked_semantics.semantics().clone(),
                     Vec::new(),
                     checked_bodies,
                     projections,
@@ -237,7 +232,6 @@ fn complete_checked_program(
             semantics: checked_semantics,
             bodies: checked_bodies,
             projections,
-            closures,
             opaque_witnesses,
             associated_type_completion_contexts: associated_type_completion_contexts
                 .into_boxed_slice(),
@@ -287,7 +281,7 @@ fn build_body_analysis_recovery(
     prepared.source_index = extend_source_index(prepared.source_index, projections)?;
     let mut checked_bodies = checked_bodies.into_iter().peekable();
     let mut recovered = ArenaBuilder::<BodyId, Option<CheckedBody>>::new();
-    for (body, _) in prepared.graph.declarations().bodies().iter() {
+    for (body, _) in prepared.environment.graph().declarations().bodies().iter() {
         let value = if checked_bodies
             .peek()
             .is_some_and(|(candidate, _)| *candidate == body)
@@ -315,10 +309,9 @@ fn build_body_analysis_recovery(
 }
 
 struct CheckedProgramCompletion {
-    semantics: crate::semantic_authority::SemanticAuthority,
+    semantics: crate::semantic_authority::CheckedSemanticAuthority,
     bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
-    closures: crate::ClosureTable,
     opaque_witnesses: crate::OpaqueWitnessTable,
     associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
     provenance: crate::ProvenanceTable,
@@ -330,10 +323,9 @@ fn finish_checked_program(
     completion: CheckedProgramCompletion,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let CheckedProgramCompletion {
-        semantics,
+        mut semantics,
         bodies: checked_bodies,
         projections,
-        closures,
         opaque_witnesses,
         associated_type_completion_contexts,
         provenance,
@@ -351,48 +343,32 @@ fn finish_checked_program(
     }
 
     let BodyCheckingParts {
-        graph,
-        interface_implementations,
-        construction_surfaces,
-        instance_operations,
-        body_assumptions,
-        drops,
-        standard_semantics,
+        environment,
         body_sources: _,
         body_names: _,
         source_namespaces: _,
-        source_access,
         source_index,
     } = prepared;
+    let graph = environment.graph();
     let source_index = extend_source_index(source_index, projections)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
     let mut semantic_completion = semantics.transaction();
     let completion_access = semantic_completion.access();
     completion_access
         .copyabilities
-        .complete(&graph, completion_access.types)
+        .complete(graph, completion_access.types)
         .map_err(BodyCheckInternalError::Copyability)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
-    let semantics = semantic_completion
-        .commit(&semantics)
-        .expect("semantic completion must commit to its exact body authority");
+    semantics.accept(semantic_completion);
     Ok(CheckedProgramOutput::new(
         CheckedProgram::new(
-            graph,
+            environment,
             semantics,
             CheckedProgramAuthorities {
-                interface_implementations,
-                construction_surfaces,
-                instance_operations,
-                body_assumptions,
-                drops,
-                standard_semantics,
                 provenance,
                 loans,
-                closures,
                 opaque_witnesses,
                 associated_type_completion_contexts,
-                source_access,
             },
             bodies.finish(),
         ),

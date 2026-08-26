@@ -1,4 +1,6 @@
-use crate::checked::{ClosureAuthority, ClosureTransaction, StaleClosureTransaction};
+use crate::checked::{
+    ClosureAuthority, ClosureTableBuildError, ClosureTransaction, StaleClosureTransaction,
+};
 use crate::semantic_authority::{
     SemanticAccess, SemanticAuthority, SemanticCommitError, SemanticTransaction,
 };
@@ -24,8 +26,17 @@ impl BodySemanticAuthority {
         }
     }
 
-    pub(super) fn finish(self) -> (SemanticAuthority, ClosureAuthority) {
-        (self.semantics, self.closures)
+    pub(super) fn finish_checked(
+        self,
+    ) -> Result<crate::semantic_authority::CheckedSemanticAuthority, ClosureTableBuildError> {
+        Ok(crate::semantic_authority::CheckedSemanticAuthority::new(
+            self.semantics,
+            self.closures.finish()?,
+        ))
+    }
+
+    pub(super) fn finish_recovery(self) -> SemanticAuthority {
+        self.semantics
     }
 }
 

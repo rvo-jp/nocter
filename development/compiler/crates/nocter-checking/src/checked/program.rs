@@ -16,110 +16,86 @@ use super::{CheckedBody, OpaqueWitnessTable};
 /// Complete syntax-independent Phase 3 program.
 #[derive(Debug)]
 pub struct CheckedProgram {
-    graph: DeclarationGraph,
-    semantics: crate::semantic_authority::SemanticAuthority,
-    interface_implementations: InterfaceImplementationTable,
-    construction_surfaces: ConstructionSurfaceTable,
-    instance_operations: InstanceOperationTable,
-    body_assumptions: BodyAssumptionTable,
-    drops: DropTable,
-    standard_semantics: StandardSemanticTable,
+    environment: crate::program_environment::ProgramEnvironment,
+    semantics: crate::semantic_authority::CheckedSemanticAuthority,
     provenance: ProvenanceTable,
     loans: LoanTable,
-    closures: ClosureTable,
     opaque_witnesses: OpaqueWitnessTable,
     bodies: Arena<BodyId, CheckedBody>,
     associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
-    source_access: SourceAccessTable,
 }
 
 pub(crate) struct CheckedProgramAuthorities {
-    pub(crate) interface_implementations: InterfaceImplementationTable,
-    pub(crate) construction_surfaces: ConstructionSurfaceTable,
-    pub(crate) instance_operations: InstanceOperationTable,
-    pub(crate) body_assumptions: BodyAssumptionTable,
-    pub(crate) drops: DropTable,
-    pub(crate) standard_semantics: StandardSemanticTable,
     pub(crate) provenance: ProvenanceTable,
     pub(crate) loans: LoanTable,
-    pub(crate) closures: ClosureTable,
     pub(crate) opaque_witnesses: OpaqueWitnessTable,
     pub(crate) associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
-    pub(crate) source_access: SourceAccessTable,
 }
 
 impl CheckedProgram {
     pub(crate) fn new(
-        graph: DeclarationGraph,
-        semantics: crate::semantic_authority::SemanticAuthority,
+        environment: crate::program_environment::ProgramEnvironment,
+        semantics: crate::semantic_authority::CheckedSemanticAuthority,
         authorities: CheckedProgramAuthorities,
         bodies: Arena<BodyId, CheckedBody>,
     ) -> Self {
         Self {
-            graph,
+            environment,
             semantics,
-            interface_implementations: authorities.interface_implementations,
-            construction_surfaces: authorities.construction_surfaces,
-            instance_operations: authorities.instance_operations,
-            body_assumptions: authorities.body_assumptions,
-            drops: authorities.drops,
-            standard_semantics: authorities.standard_semantics,
             provenance: authorities.provenance,
             loans: authorities.loans,
-            closures: authorities.closures,
             opaque_witnesses: authorities.opaque_witnesses,
             bodies,
             associated_type_completion_contexts: authorities.associated_type_completion_contexts,
-            source_access: authorities.source_access,
         }
     }
 
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
-        &self.graph
+        self.environment.graph()
     }
 
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
-        self.semantics.types()
+        self.semantics.semantics().types()
     }
 
     #[must_use]
     pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
-        &self.interface_implementations
+        self.environment.interface_implementations()
     }
 
     #[must_use]
     pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
-        &self.construction_surfaces
+        self.environment.construction_surfaces()
     }
 
     #[must_use]
     pub const fn instance_operations(&self) -> &InstanceOperationTable {
-        &self.instance_operations
+        self.environment.instance_operations()
     }
 
     pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
-        &self.body_assumptions
+        self.environment.body_assumptions()
     }
 
     #[must_use]
     pub const fn copyabilities(&self) -> &CopyabilityTable {
-        self.semantics.copyabilities()
+        self.semantics.semantics().copyabilities()
     }
 
     pub(crate) const fn semantic_authority(&self) -> &crate::semantic_authority::SemanticAuthority {
-        &self.semantics
+        self.semantics.semantics()
     }
 
     #[must_use]
     pub const fn drops(&self) -> &DropTable {
-        &self.drops
+        self.environment.drops()
     }
 
     #[must_use]
     pub const fn standard_semantics(&self) -> &StandardSemanticTable {
-        &self.standard_semantics
+        self.environment.standard_semantics()
     }
 
     #[must_use]
@@ -134,17 +110,17 @@ impl CheckedProgram {
 
     #[must_use]
     pub const fn closures(&self) -> &ClosureTable {
-        &self.closures
+        self.semantics.closures()
     }
 
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
-        &self.source_access
+        self.environment.source_access()
     }
 
     #[must_use]
     pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
-        self.source_access.ownership()
+        self.environment.source_access().ownership()
     }
 
     /// Creates the semantic visibility contract for one exact source in this checked program.
@@ -156,7 +132,7 @@ impl CheckedProgram {
         &self,
         source: SourceId,
     ) -> Result<crate::SourceAccessContext<'_>, crate::SourceVisibilityError> {
-        crate::SourceAccessContext::for_source(&self.source_access, source)
+        crate::SourceAccessContext::for_source(self.environment.source_access(), source)
             .map_err(crate::SourceVisibilityError::Access)
     }
 

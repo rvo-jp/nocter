@@ -1,5 +1,4 @@
 use std::fmt;
-use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{TypeId, TypeKind, TypeStore, UnknownTypeId};
@@ -67,14 +66,6 @@ impl TypeAuthority {
 impl Default for TypeAuthority {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Deref for TypeAuthority {
-    type Target = TypeStore;
-
-    fn deref(&self) -> &Self::Target {
-        &self.store
     }
 }
 
@@ -147,7 +138,7 @@ impl TypeTransaction {
     }
 }
 
-impl Deref for TypeTransaction {
+impl std::ops::Deref for TypeTransaction {
     type Target = TypeStore;
 
     fn deref(&self) -> &Self::Target {

@@ -31,6 +31,7 @@ mod names;
 mod ownership;
 mod pattern_requirements;
 mod preparation;
+mod program_environment;
 mod provenance;
 mod recovery;
 mod semantic_authority;

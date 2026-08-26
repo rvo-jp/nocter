@@ -70,16 +70,17 @@ impl<'program> BodyProgramFacts<'program> {
     pub(super) const fn from_prepared(
         prepared: &'program crate::preparation::BodyCheckingParts<'_>,
     ) -> Self {
+        let environment = &prepared.environment;
         Self {
-            graph: &prepared.graph,
-            drops: &prepared.drops,
-            interface_implementations: &prepared.interface_implementations,
-            construction_surfaces: &prepared.construction_surfaces,
-            instance_operations: &prepared.instance_operations,
-            body_assumptions: &prepared.body_assumptions,
-            standard_semantics: &prepared.standard_semantics,
+            graph: environment.graph(),
+            drops: environment.drops(),
+            interface_implementations: environment.interface_implementations(),
+            construction_surfaces: environment.construction_surfaces(),
+            instance_operations: environment.instance_operations(),
+            body_assumptions: environment.body_assumptions(),
+            standard_semantics: environment.standard_semantics(),
             source_namespaces: &prepared.source_namespaces,
-            source_access: &prepared.source_access,
+            source_access: environment.source_access(),
             diagnostic_origins: prepared.source_index.diagnostic_origins(),
         }
     }
