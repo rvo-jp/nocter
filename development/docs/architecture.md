@@ -1379,7 +1379,11 @@ input type; no public checking entry accepts the former and no caller-controlled
 opens that boundary.
 Body checking is transactional per body: independently successful bodies and their source
 projections remain as sparse editor evidence when another body fails, while executable dispatch and
-target closure remain unavailable.
+target closure remain unavailable. Type-store, copyability, and closure-table rollback boundaries
+are captured together. Each journaled copyability or closure authority issues a fresh opaque
+transaction identity and validates it before commit or rollback; a token from another store or an
+earlier transaction cannot control the active journal. Transaction identities are construction
+state and never survive in a checked program or recovery snapshot.
 
 Full semantic-token results retain that snapshot identity at the protocol boundary. The language
 server passes the exact accepted analysis generation to the neutral LSP encoder as an opaque

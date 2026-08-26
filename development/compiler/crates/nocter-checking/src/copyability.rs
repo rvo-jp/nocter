@@ -117,11 +117,15 @@ impl Clone for CopyabilityTable {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct CopyabilityMutationJournal {
+    identity: crate::transaction_identity::TransactionIdentity,
     conditions: Vec<TypeId>,
     closures: Vec<ClosureId>,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CopyabilityTransaction(crate::transaction_identity::TransactionIdentity);
 
 #[derive(Clone, Debug)]
 struct ClosureCopyCondition {
@@ -130,21 +134,43 @@ struct ClosureCopyCondition {
 }
 
 impl CopyabilityTable {
-    pub(crate) fn begin_transaction(&mut self) {
+    pub(crate) fn begin_transaction(&mut self) -> CopyabilityTransaction {
         assert!(
             self.transaction.is_none(),
             "copyability transactions cannot overlap"
         );
-        self.transaction = Some(CopyabilityMutationJournal::default());
+        let identity = crate::transaction_identity::TransactionIdentity::fresh();
+        self.transaction = Some(CopyabilityMutationJournal {
+            identity,
+            conditions: Vec::new(),
+            closures: Vec::new(),
+        });
+        CopyabilityTransaction(identity)
     }
 
-    pub(crate) fn commit_transaction(&mut self) {
+    pub(crate) fn commit_transaction(&mut self, transaction: CopyabilityTransaction) {
+        let active = self
+            .transaction
+            .as_ref()
+            .expect("copyability transaction must be active before commit");
+        assert_eq!(
+            active.identity, transaction.0,
+            "copyability transaction belongs to another owner or generation"
+        );
         self.transaction
             .take()
             .expect("copyability transaction must be active before commit");
     }
 
-    pub(crate) fn rollback_transaction(&mut self) {
+    pub(crate) fn rollback_transaction(&mut self, transaction: CopyabilityTransaction) {
+        let active = self
+            .transaction
+            .as_ref()
+            .expect("copyability transaction must be active before rollback");
+        assert_eq!(
+            active.identity, transaction.0,
+            "copyability transaction belongs to another owner or generation"
+        );
         let journal = self
             .transaction
             .take()
@@ -647,10 +673,10 @@ mod tests {
         let discarded = types.builtin(BuiltinType::I32);
         let mut table = CopyabilityTable::default();
         table.insert_condition(retained, CopyCondition::Always);
-        table.begin_transaction();
+        let transaction = table.begin_transaction();
         table.insert_condition(discarded, CopyCondition::Always);
 
-        table.rollback_transaction();
+        table.rollback_transaction(transaction);
 
         assert_eq!(table.get(retained), Some(Copyability::Copy));
         assert_eq!(table.get(discarded), None);
@@ -659,12 +685,43 @@ mod tests {
     #[test]
     fn cloned_snapshot_does_not_retain_transaction_control_state() {
         let mut canonical = CopyabilityTable::default();
-        canonical.begin_transaction();
+        let canonical_transaction = canonical.begin_transaction();
 
         let mut snapshot = canonical.clone();
-        snapshot.begin_transaction();
+        let snapshot_transaction = snapshot.begin_transaction();
 
-        snapshot.rollback_transaction();
-        canonical.rollback_transaction();
+        snapshot.rollback_transaction(snapshot_transaction);
+        canonical.rollback_transaction(canonical_transaction);
+    }
+
+    #[test]
+    fn transaction_token_cannot_control_another_table() {
+        let mut first = CopyabilityTable::default();
+        let mut second = CopyabilityTable::default();
+        let first_transaction = first.begin_transaction();
+        let second_transaction = second.begin_transaction();
+
+        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            first.commit_transaction(second_transaction);
+        }));
+        assert!(mismatch.is_err());
+
+        first.commit_transaction(first_transaction);
+        second.commit_transaction(second_transaction);
+    }
+
+    #[test]
+    fn stale_transaction_token_cannot_control_a_later_generation() {
+        let mut table = CopyabilityTable::default();
+        let stale = table.begin_transaction();
+        table.commit_transaction(stale);
+        let current = table.begin_transaction();
+
+        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            table.rollback_transaction(stale);
+        }));
+        assert!(mismatch.is_err());
+
+        table.commit_transaction(current);
     }
 }

@@ -617,6 +617,7 @@ enum BodyAttemptFailure {
 /// interruption.
 struct BodySemanticCheckpoint {
     types: nocter_model::TypeStoreCheckpoint,
+    copyabilities: crate::copyability::CopyabilityTransaction,
     closures: ClosureTableCheckpoint,
 }
 
@@ -626,15 +627,15 @@ impl BodySemanticCheckpoint {
         copyabilities: &mut CopyabilityTable,
         closures: &mut ClosureTableBuilder,
     ) -> Self {
-        copyabilities.begin_transaction();
         Self {
             types: types.checkpoint(),
+            copyabilities: copyabilities.begin_transaction(),
             closures: closures.checkpoint(),
         }
     }
 
     fn commit(self, copyabilities: &mut CopyabilityTable, closures: &mut ClosureTableBuilder) {
-        copyabilities.commit_transaction();
+        copyabilities.commit_transaction(self.copyabilities);
         closures.commit(self.closures);
     }
 
@@ -644,7 +645,7 @@ impl BodySemanticCheckpoint {
         copyabilities: &mut CopyabilityTable,
         closures: &mut ClosureTableBuilder,
     ) {
-        copyabilities.rollback_transaction();
+        copyabilities.rollback_transaction(self.copyabilities);
         closures.rollback(self.closures);
         types.rollback(self.types);
     }

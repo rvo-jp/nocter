@@ -188,7 +188,7 @@ impl ClosureTable {
 
 pub(crate) struct ClosureTableBuilder {
     slots: ArenaBuilder<ClosureId, ClosureSlot>,
-    transaction: Option<Vec<ClosureMutation>>,
+    transaction: Option<ClosureMutationJournal>,
 }
 
 impl ClosureTableBuilder {
@@ -208,33 +208,47 @@ impl ClosureTableBuilder {
             self.transaction.is_none(),
             "closure-table transactions cannot overlap"
         );
-        self.transaction = Some(Vec::new());
+        let identity = crate::transaction_identity::TransactionIdentity::fresh();
+        self.transaction = Some(ClosureMutationJournal {
+            identity,
+            mutations: Vec::new(),
+        });
         ClosureTableCheckpoint {
             slots: self.slots.checkpoint(),
-            transaction: ClosureTransactionToken(std::marker::PhantomData),
+            transaction: ClosureTransactionToken(identity),
         }
     }
 
     pub(crate) fn commit(&mut self, checkpoint: ClosureTableCheckpoint) {
-        let ClosureTableCheckpoint {
-            transaction: _transaction,
-            ..
-        } = checkpoint;
+        let ClosureTableCheckpoint { transaction, .. } = checkpoint;
+        let active = self
+            .transaction
+            .as_ref()
+            .expect("closure-table transaction must be active before commit");
+        assert_eq!(
+            active.identity, transaction.0,
+            "closure-table transaction belongs to another owner or generation"
+        );
         self.transaction
             .take()
             .expect("closure-table transaction must be active before commit");
     }
 
     pub(crate) fn rollback(&mut self, checkpoint: ClosureTableCheckpoint) {
-        let ClosureTableCheckpoint {
-            slots,
-            transaction: _transaction,
-        } = checkpoint;
-        let mutations = self
+        let ClosureTableCheckpoint { slots, transaction } = checkpoint;
+        let active = self
+            .transaction
+            .as_ref()
+            .expect("closure-table transaction must be active before rollback");
+        assert_eq!(
+            active.identity, transaction.0,
+            "closure-table transaction belongs to another owner or generation"
+        );
+        let journal = self
             .transaction
             .take()
             .expect("closure-table transaction must be active before rollback");
-        for mutation in mutations.into_iter().rev() {
+        for mutation in journal.mutations.into_iter().rev() {
             match mutation {
                 ClosureMutation::Definition { closure, owner } => {
                     let slot = self
@@ -273,7 +287,7 @@ impl ClosureTableBuilder {
             return Err(ClosureTableBuildError::OwnerMismatch(closure));
         }
         if let Some(transaction) = &mut self.transaction {
-            transaction.push(ClosureMutation::Definition {
+            transaction.mutations.push(ClosureMutation::Definition {
                 closure,
                 owner: *owner,
             });
@@ -307,10 +321,12 @@ impl ClosureTableBuilder {
         }
         if !definition.callable_requirements.contains(&contract) {
             if let Some(transaction) = &mut self.transaction {
-                transaction.push(ClosureMutation::CallableRequirement {
-                    closure,
-                    previous_len: definition.callable_requirements.len(),
-                });
+                transaction
+                    .mutations
+                    .push(ClosureMutation::CallableRequirement {
+                        closure,
+                        previous_len: definition.callable_requirements.len(),
+                    });
             }
             definition.callable_requirements.push(contract);
         }
@@ -337,7 +353,12 @@ pub(crate) struct ClosureTableCheckpoint {
     transaction: ClosureTransactionToken,
 }
 
-struct ClosureTransactionToken(std::marker::PhantomData<std::cell::Cell<()>>);
+struct ClosureTransactionToken(crate::transaction_identity::TransactionIdentity);
+
+struct ClosureMutationJournal {
+    identity: crate::transaction_identity::TransactionIdentity,
+    mutations: Vec<ClosureMutation>,
+}
 
 enum ClosureMutation {
     Definition {
@@ -468,5 +489,20 @@ mod tests {
                 .callable_requirements()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn checkpoint_cannot_commit_another_builder() {
+        let mut first = ClosureTableBuilder::new();
+        let mut second = ClosureTableBuilder::new();
+        let first_checkpoint = first.checkpoint();
+        let second_checkpoint = second.checkpoint();
+
+        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            first.commit(second_checkpoint);
+        }));
+        assert!(mismatch.is_err());
+
+        first.commit(first_checkpoint);
     }
 }
