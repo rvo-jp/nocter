@@ -267,9 +267,7 @@ impl BodyChecker<'_, '_> {
             .into_iter()
             .zip(destination_types)
             .map(|(value, destination)| {
-                let destination = substitution
-                    .apply_type(self.types, destination)
-                    .map_err(BodyCheckInternalError::CallSubstitution)?;
+                let destination = self.apply_type_substitution(substitution, destination)?;
                 match value {
                     ValueDraft::Checked { syntax, value } => {
                         self.apply_expected(syntax, value, destination)

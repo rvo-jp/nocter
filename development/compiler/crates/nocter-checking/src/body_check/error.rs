@@ -207,6 +207,7 @@ pub enum BodyCheckInternalError {
     IndexSelection,
     BodyAssumptions(crate::SubstitutionError),
     CallSubstitution(crate::SubstitutionError),
+    AssociatedTypeResolution(crate::AssociatedTypeResolutionError),
     CallInference(crate::InferenceFailure),
     CallGenericArguments(crate::DuplicateGenericArgument),
     CallContractSelection,
@@ -268,6 +269,12 @@ impl From<CopyabilityError> for BodyCheckInternalError {
 impl From<InstanceSelectionError> for BodyCheckInternalError {
     fn from(error: InstanceSelectionError) -> Self {
         Self::InstanceSelection(error)
+    }
+}
+
+impl From<crate::AssociatedTypeResolutionError> for BodyCheckInternalError {
+    fn from(error: crate::AssociatedTypeResolutionError) -> Self {
+        Self::AssociatedTypeResolution(error)
     }
 }
 

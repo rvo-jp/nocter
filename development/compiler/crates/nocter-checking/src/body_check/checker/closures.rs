@@ -82,9 +82,7 @@ impl BodyChecker<'_, '_> {
         substitution: &TypeSubstitution,
     ) -> Result<bool, BodyCheckInternalError> {
         for parameter in contract.parameters().iter().copied() {
-            let parameter = substitution
-                .apply_type(self.types, parameter)
-                .map_err(BodyCheckInternalError::CallSubstitution)?;
+            let parameter = self.apply_type_substitution(substitution, parameter)?;
             let known = collect_generic_parameters(self.types, [parameter])
                 .map(|generics| {
                     !generics
@@ -134,15 +132,9 @@ impl BodyChecker<'_, '_> {
                 .parameters()
                 .iter()
                 .copied()
-                .map(|parameter| {
-                    substitution
-                        .apply_type(self.types, parameter)
-                        .map_err(BodyCheckInternalError::CallSubstitution)
-                })
+                .map(|parameter| self.apply_type_substitution(&substitution, parameter))
                 .collect::<Result<Vec<_>, _>>()?;
-            let result = substitution
-                .apply_type(self.types, contract.result())
-                .map_err(BodyCheckInternalError::CallSubstitution)?;
+            let result = self.apply_type_substitution(&substitution, contract.result())?;
             let result_generics = collect_generic_parameters(self.types, [result])
                 .map_err(InferenceFailure::from)
                 .map_err(BodyCheckInternalError::CallInference)?;

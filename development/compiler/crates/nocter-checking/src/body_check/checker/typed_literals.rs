@@ -46,14 +46,10 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let allocation = self.literal_allocation(node)?;
 
-        let element_pattern = plan
-            .substitution
-            .apply_type(self.types, plan.parameter_type)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
-        let result_pattern = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let element_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.parameter_type)?;
+        let result_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let requirements = normalize_requirements(
             self.graph,
             self.types,
@@ -113,10 +109,7 @@ impl BodyChecker<'_, '_> {
                 },
             })
             .collect::<Vec<_>>();
-        let result = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let selection = self.finish_literal_selection(node, &plan, result)?;
         self.project_literal_constructor(sequence_open(self.tree(), body)?, plan.constructor)?;
         let checked = self.add_node(
@@ -147,10 +140,8 @@ impl BodyChecker<'_, '_> {
             literal,
         )
         .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?;
-        let result_pattern = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let mut inference = CallableInference::new(plan.inference_parameters.clone());
         if let Some(expected) = expected {
             inference
@@ -163,10 +154,7 @@ impl BodyChecker<'_, '_> {
             .finish(self.types)
             .map_err(|error| self.inference_error(node, error, BodyRule::InvalidConstruction))?;
         bind_inferred_arguments(&mut plan.substitution, &inferred);
-        let result = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let selection = self.finish_literal_selection(node, &plan, result)?;
         self.project_literal_constructor(string_open(self.tree(), literal)?, plan.constructor)?;
         let checked = self.add_node(
@@ -226,9 +214,8 @@ impl BodyChecker<'_, '_> {
                 (Vec::new(), substitution)
             }
         };
-        let specialized_target = substitution
-            .apply_type(self.types, constructor.construction_target())
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let specialized_target =
+            self.apply_type_substitution(&substitution, constructor.construction_target())?;
         if !matches!(
             self.types.get(specialized_target),
             Some(TypeKind::Nominal { definition, .. }) if *definition == owner.definition
@@ -273,10 +260,7 @@ impl BodyChecker<'_, '_> {
                         .types
                         .intern(TypeKind::GenericParameter(parameter))
                         .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-                    let ty = plan
-                        .substitution
-                        .apply_type(self.types, pattern)
-                        .map_err(BodyCheckInternalError::CallSubstitution)?;
+                    let ty = self.apply_type_substitution(&plan.substitution, pattern)?;
                     Ok(GenericArgument::new(parameter, ty))
                 })
                 .collect::<Result<Vec<_>, BodyCheckInternalError>>()?,

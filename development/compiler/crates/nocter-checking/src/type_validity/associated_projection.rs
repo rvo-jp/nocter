@@ -52,7 +52,8 @@ pub(crate) fn validate_associated_projection_uses(
             AssociatedImplementationSelection::Ambiguous => {
                 Some(TypeValidityRule::AmbiguousAssociatedProjection)
             }
-            AssociatedImplementationSelection::Unique(implementation) => {
+            AssociatedImplementationSelection::Unique(selection) => {
+                let implementation = selection.declaration();
                 let entry = implementations.entries().get(&implementation).ok_or(
                     TypeValidityInternalError::MissingInterfaceImplementation(implementation),
                 )?;

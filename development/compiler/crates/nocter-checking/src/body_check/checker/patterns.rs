@@ -330,10 +330,7 @@ impl BodyChecker<'_, '_> {
             }
             let token = direct_identifier(self.tree(), slot)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(slot))?;
-            let payload = resolved
-                .substitution
-                .apply_type(self.types, declaration.ty())
-                .map_err(BodyCheckInternalError::CallSubstitution)?;
+            let payload = self.apply_type_substitution(&resolved.substitution, declaration.ty())?;
             let binding = if self.token_text(token)? == "_" {
                 if matches!(
                     subject.checked.preparation(),

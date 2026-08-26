@@ -121,23 +121,13 @@ impl BodyChecker<'_, '_> {
             .fixed
             .iter()
             .copied()
-            .map(|parameter| {
-                substitution
-                    .apply_type(self.types, parameter)
-                    .map_err(BodyCheckInternalError::CallSubstitution)
-            })
+            .map(|parameter| self.apply_type_substitution(&substitution, parameter))
             .collect::<Result<Vec<_>, _>>()?;
         let pack_pattern = parameters
             .pack
-            .map(|parameter| {
-                substitution
-                    .apply_type(self.types, parameter)
-                    .map_err(BodyCheckInternalError::CallSubstitution)
-            })
+            .map(|parameter| self.apply_type_substitution(&substitution, parameter))
             .transpose()?;
-        let result = substitution
-            .apply_type(self.types, callable.result())
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result = self.apply_type_substitution(&substitution, callable.result())?;
         let requirements = normalize_requirements(
             self.graph,
             self.types,
@@ -192,9 +182,7 @@ impl BodyChecker<'_, '_> {
         let pack = pack
             .map(|pack| materialize_argument_pack(node, pack, &values))
             .transpose()?;
-        let result = substitution
-            .apply_type(self.types, result)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result = self.apply_type_substitution(&substitution, result)?;
         Ok(DeclaredCallPlan {
             arguments,
             pack,

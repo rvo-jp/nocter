@@ -417,7 +417,10 @@ fn associated_method_results_specialize_for_concrete_and_generic_receivers() {
              impl Source { .Item = i32 }\n\
              method &self.get(): i32 { 0 }\n\
          }\n\
-         func concrete(source: &Buffer): i32 { source.get() }\n\
+         func concrete(source: &Buffer): i32 {\n\
+             let item: Buffer.Item = source.get()\n\
+             item\n\
+         }\n\
          func generic<S>(source: &S): S.Item where S impl Source { source.get() }\n",
     )
     .unwrap();

@@ -162,6 +162,28 @@ pub(super) struct BodyChecker<'input, 'syntax> {
 }
 
 impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
+    fn reduce_associated_type(&mut self, ty: TypeId) -> Result<TypeId, BodyCheckInternalError> {
+        crate::associated_type_resolution::AssociatedTypeResolver::new(
+            self.graph,
+            self.interface_implementations,
+            &self.assumptions,
+            &self.intrinsic_facts,
+        )
+        .reduce(self.types, ty)
+        .map_err(Into::into)
+    }
+
+    fn apply_type_substitution(
+        &mut self,
+        substitution: &crate::TypeSubstitution,
+        ty: TypeId,
+    ) -> Result<TypeId, BodyCheckInternalError> {
+        let substituted = substitution
+            .apply_type(self.types, ty)
+            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        self.reduce_associated_type(substituted)
+    }
+
     fn source_access_context(&self) -> crate::SourceAccessContext<'input> {
         self.source_access
     }

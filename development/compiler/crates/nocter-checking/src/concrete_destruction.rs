@@ -133,40 +133,6 @@ impl ConcreteCaptureDestruction {
 }
 
 impl ConcreteDispatchResolver<'_> {
-    /// Interns one newly assembled concrete type in the specialization store.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an unknown referenced type or a kind that still contains symbolic components.
-    pub fn intern_concrete(&mut self, kind: TypeKind) -> Result<TypeId, ConcreteDestructionError> {
-        let ty = self
-            .types
-            .intern(kind)
-            .map_err(|unknown| ConcreteDestructionError::UnknownType(unknown.id()))?;
-        if !is_concrete_type(&self.types, ty)? {
-            return Err(ConcreteDestructionError::SymbolicType(ty));
-        }
-        Ok(ty)
-    }
-
-    /// Applies one enclosing specialization and requires a fully concrete result.
-    ///
-    /// # Errors
-    ///
-    /// Returns a typed invariant failure when substitution cannot rebuild the type or leaves a
-    /// symbolic identity at the executable boundary.
-    pub fn specialize_type(
-        &mut self,
-        ty: TypeId,
-        enclosing: &TypeSubstitution,
-    ) -> Result<TypeId, ConcreteDestructionError> {
-        let ty = enclosing.apply_type(&mut self.types, ty)?;
-        if !is_concrete_type(&self.types, ty)? {
-            return Err(ConcreteDestructionError::SymbolicType(ty));
-        }
-        Ok(ty)
-    }
-
     /// Resolves the exact recursive glue required to destroy one specialized type.
     ///
     /// # Errors
@@ -629,6 +595,16 @@ pub enum ConcreteDestructionError {
     UnknownType(TypeId),
     SymbolicType(TypeId),
     RecursiveType(TypeId),
+    RecursiveAssociatedProjection(TypeId),
+    MissingAssociatedType(nocter_model::AssociatedTypeId),
+    UnavailableAssociatedImplementation {
+        base: TypeId,
+        associated: nocter_model::AssociatedTypeId,
+    },
+    AmbiguousAssociatedImplementation {
+        base: TypeId,
+        associated: nocter_model::AssociatedTypeId,
+    },
     MissingNominal(nocter_model::NominalTypeId),
     InvalidNominalDomain(nocter_model::NominalTypeId),
     MissingField(FieldId),

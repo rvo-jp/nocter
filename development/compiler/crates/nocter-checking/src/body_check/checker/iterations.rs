@@ -374,10 +374,7 @@ impl BodyChecker<'_, '_> {
             .callables()
             .get(next.callable())
             .ok_or(BodyCheckInternalError::MissingCallable(next.callable()))?;
-        let result = next
-            .substitution()
-            .apply_type(self.types, callable.result())
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result = self.apply_type_substitution(next.substitution(), callable.result())?;
         let Some(TypeKind::Optional(item)) = self.types.get(result) else {
             return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
         };

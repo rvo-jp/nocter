@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use nocter_model::{
-    CallableContract, GenericParameterId, InterfaceId, TypeId, TypeKind, TypeStore,
-};
+use nocter_model::{GenericParameterId, InterfaceId, TypeId, TypeKind, TypeStore};
+
+use super::{map_type_children, visit_type_children};
 
 #[derive(Clone, Debug, Default)]
 pub struct TypeSubstitution {
@@ -87,7 +87,7 @@ impl TypeSubstitution {
                         pending.push(Action::Enter(replacement));
                     } else {
                         let mut children = Vec::new();
-                        kind.references(|child| children.push(child));
+                        visit_type_children(&kind, |child| children.push(child));
                         pending.push(Action::Rebuild { source: ty, kind });
                         pending.extend(children.into_iter().rev().map(Action::Enter));
                     }
@@ -101,7 +101,12 @@ impl TypeSubstitution {
                     finished.insert(source, replacement);
                 }
                 Action::Rebuild { source, kind } => {
-                    let rebuilt = rebuild(kind, &finished)?;
+                    let rebuilt = map_type_children(kind, |ty| {
+                        finished
+                            .get(&ty)
+                            .copied()
+                            .ok_or(SubstitutionError::InvalidStore)
+                    })?;
                     let normalized = types
                         .intern(rebuilt)
                         .map_err(|_| SubstitutionError::InvalidStore)?;
@@ -132,126 +137,6 @@ impl TypeSubstitution {
                 self.associated.get(associated).copied()
             }
             _ => None,
-        }
-    }
-}
-
-fn rebuild(
-    kind: TypeKind,
-    finished: &HashMap<TypeId, TypeId>,
-) -> Result<TypeKind, SubstitutionError> {
-    let mapped = |ty: TypeId| {
-        finished
-            .get(&ty)
-            .copied()
-            .ok_or(SubstitutionError::InvalidStore)
-    };
-    Ok(match kind {
-        TypeKind::Builtin(builtin) => TypeKind::Builtin(builtin),
-        TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
-        TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
-        TypeKind::Closure {
-            definition,
-            arguments,
-        } => TypeKind::Closure {
-            definition,
-            arguments: arguments
-                .iter()
-                .map(|argument| mapped(*argument))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_boxed_slice(),
-        },
-        TypeKind::Nominal {
-            definition,
-            arguments,
-        } => TypeKind::Nominal {
-            definition,
-            arguments: arguments
-                .iter()
-                .map(|argument| mapped(*argument))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_boxed_slice(),
-        },
-        TypeKind::AssociatedProjection { base, associated } => TypeKind::AssociatedProjection {
-            base: mapped(base)?,
-            associated,
-        },
-        TypeKind::Opaque {
-            definition,
-            arguments,
-        } => TypeKind::Opaque {
-            definition,
-            arguments: arguments
-                .iter()
-                .map(|argument| mapped(*argument))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_boxed_slice(),
-        },
-        TypeKind::Pointer(base) => TypeKind::Pointer(mapped(base)?),
-        TypeKind::Borrow {
-            capability,
-            referent,
-        } => TypeKind::Borrow {
-            capability,
-            referent: mapped(referent)?,
-        },
-        TypeKind::Slice(element) => TypeKind::Slice(mapped(element)?),
-        TypeKind::FixedArray { element, length } => TypeKind::FixedArray {
-            element: mapped(element)?,
-            length,
-        },
-        TypeKind::Callable(contract) => TypeKind::Callable(
-            CallableContract::new(
-                contract.capability(),
-                contract
-                    .parameters()
-                    .iter()
-                    .map(|parameter| mapped(*parameter))
-                    .collect::<Result<Vec<_>, _>>()?,
-                contract
-                    .pack()
-                    .map(|pack| {
-                        finished
-                            .get(&pack)
-                            .copied()
-                            .ok_or(SubstitutionError::InvalidStore)
-                    })
-                    .transpose()?,
-                mapped(contract.result())?,
-                contract.provenance().clone(),
-            )
-            .map_err(|_| SubstitutionError::InvalidStore)?,
-        ),
-        TypeKind::Optional(payload) => TypeKind::Optional(mapped(payload)?),
-        TypeKind::Fallible(payload) => TypeKind::Fallible(mapped(payload)?),
-    })
-}
-
-trait TypeReferences {
-    fn references(&self, visit: impl FnMut(TypeId));
-}
-
-impl TypeReferences for TypeKind {
-    fn references(&self, mut visit: impl FnMut(TypeId)) {
-        match self {
-            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
-            Self::Nominal { arguments, .. }
-            | Self::Opaque { arguments, .. }
-            | Self::Closure { arguments, .. } => {
-                arguments.iter().copied().for_each(&mut visit);
-            }
-            Self::AssociatedProjection { base, .. }
-            | Self::Pointer(base)
-            | Self::Borrow { referent: base, .. }
-            | Self::Slice(base)
-            | Self::FixedArray { element: base, .. }
-            | Self::Optional(base)
-            | Self::Fallible(base) => visit(*base),
-            Self::Callable(contract) => {
-                contract.parameters().iter().copied().for_each(&mut visit);
-                contract.pack().into_iter().for_each(&mut visit);
-                visit(contract.result());
-            }
         }
     }
 }

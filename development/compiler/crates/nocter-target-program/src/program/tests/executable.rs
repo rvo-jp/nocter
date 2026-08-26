@@ -213,6 +213,49 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
 }
 
 #[test]
+fn generic_associated_results_reduce_through_the_selected_implementation() {
+    let target = build_target_program(&Fixture::with_app(
+        "pub interface Source {\n\
+             pub type Item\n\
+             pub method &self.get(): Self.Item\n\
+         }\n\
+         struct Buffer {}\n\
+         instance Buffer {\n\
+             impl Source { .Item = i32 }\n\
+             method &self.get(): i32 { 7 }\n\
+         }\n\
+         func read<S>(source: &S): S.Item where S impl Source { source.get() }\n\
+         func main(): i32 {\n\
+             let source = Buffer {}\n\
+             read(&source)\n\
+         }\n",
+    ));
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(target, selected).unwrap();
+    let read = named_callable(executable.target(), "read");
+    let item = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.key() {
+            ExecutableItemKey::Callable(key) if key.callable() == read => Some(item),
+            _ => None,
+        })
+        .expect("generic associated-result specialization");
+
+    assert_eq!(
+        item.signature().result(),
+        executable.types().builtin(BuiltinType::I32)
+    );
+}
+
+#[test]
 fn callable_bound_dispatch_freezes_the_concrete_closure_body_and_cleanup() {
     let target = build_target_program(&Fixture::with_app(
         "struct Owned { value: i32 }\n\

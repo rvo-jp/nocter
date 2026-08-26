@@ -31,5 +31,6 @@ pub use required_method::{
 };
 pub(crate) use selection::{
     AssociatedImplementationSelection, proves as proves_predicate,
-    select_associated_implementation, select_interface_implementation,
+    resolve_selected_associated_type, select_associated_implementation,
+    select_interface_implementation,
 };

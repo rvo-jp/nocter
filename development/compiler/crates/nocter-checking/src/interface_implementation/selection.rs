@@ -16,10 +16,9 @@ pub(crate) struct InterfaceImplementationSelection {
 
 /// Applicability of one concrete associated projection across every application of its owner
 /// interface.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AssociatedImplementationSelection {
     None,
-    Unique(InterfaceImplementationId),
+    Unique(InterfaceImplementationSelection),
     Ambiguous,
 }
 
@@ -84,6 +83,26 @@ pub(crate) fn select_associated_implementation(
     interface: nocter_model::InterfaceId,
 ) -> Result<AssociatedImplementationSelection, SubstitutionError> {
     Prover::new(types, table, assumptions, intrinsic_facts).select_associated(subject, interface)
+}
+
+/// Resolves one associated declaration through an already-selected concrete implementation.
+///
+/// Selection and binding substitution deliberately remain one authority. Callers must not look up
+/// an implementation entry and reconstruct its pattern substitution independently.
+pub(crate) fn resolve_selected_associated_type(
+    types: &mut TypeStore,
+    table: &InterfaceImplementationTable,
+    selection: &InterfaceImplementationSelection,
+    associated: nocter_model::AssociatedTypeId,
+) -> Result<TypeId, SubstitutionError> {
+    let implementation = table
+        .entries()
+        .get(&selection.declaration())
+        .ok_or(SubstitutionError::InvalidStore)?;
+    let bound = implementation
+        .associated_type(associated)
+        .ok_or(SubstitutionError::InvalidStore)?;
+    selection.substitution().apply_type(types, bound)
 }
 
 struct Prover<'program> {
@@ -271,7 +290,11 @@ impl<'program> Prover<'program> {
             if !applicable {
                 continue;
             }
-            if selected.replace(declaration).is_some() {
+            let selection = InterfaceImplementationSelection {
+                declaration,
+                substitution,
+            };
+            if selected.replace(selection).is_some() {
                 return Ok(AssociatedImplementationSelection::Ambiguous);
             }
         }

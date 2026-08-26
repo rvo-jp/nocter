@@ -7,11 +7,13 @@
 
 mod admitted_operations;
 mod associated_type_completion;
+mod associated_type_resolution;
 mod body_check;
 mod body_sources;
 mod checked;
 mod concrete_destruction;
 mod concrete_dispatch;
+mod concrete_type;
 mod construction_completion;
 mod construction_surfaces;
 mod copyability;
@@ -50,6 +52,7 @@ pub use associated_type_completion::{
     AssociatedTypeCompletionCandidate, AssociatedTypeCompletionContext,
     AssociatedTypeCompletionError,
 };
+pub use associated_type_resolution::AssociatedTypeResolutionError;
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, TypedBodyInterruption,
     TypedBodyInterruptionKind, analyze_prepared_program_bodies, check_prepared_program,

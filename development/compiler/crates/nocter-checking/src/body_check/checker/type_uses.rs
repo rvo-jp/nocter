@@ -17,7 +17,7 @@ use crate::syntax::{
 use crate::type_relations::TypeSubstitution;
 use crate::{
     NameTarget, TypePosition, TypeValidityFailure, TypedBodyInterruption,
-    TypedBodyInterruptionKind, validate_type,
+    TypedBodyInterruptionKind, is_concrete_type, validate_type,
 };
 
 pub(super) struct ExplicitConstructionOwner {
@@ -524,7 +524,7 @@ impl BodyChecker<'_, '_> {
                 None
             };
             if let Some(base) = base {
-                let candidates = self.associated_type_candidates(base);
+                let candidates = self.associated_type_candidates(base)?;
                 let missing_member = self.tree().children(node).iter().any(|element| {
                     matches!(
                         element,
@@ -552,37 +552,42 @@ impl BodyChecker<'_, '_> {
             }
         }
 
-        let first = segments.remove(0);
-        let first_name = self.segment_symbol(first.token)?;
-        let mut entity = self.resolve_type_base(node, first.token, first_name)?;
-        if !first.arguments.is_empty() {
-            if !segments.is_empty() {
+        let mut segment = segments.remove(0);
+        let first_name = self.segment_symbol(segment.token)?;
+        let mut entity = self.resolve_type_base(node, segment.token, first_name)?;
+        while matches!(entity, ExportedEntity::Module(_)) {
+            if !segment.arguments.is_empty() {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             }
-            return self.resolve_type_entity(node, entity, first.arguments);
-        }
-        while matches!(entity, ExportedEntity::Module(_)) {
-            let ExportedEntity::Module(_) = entity else {
-                unreachable!()
-            };
-            let Some(segment) = (!segments.is_empty()).then(|| segments.remove(0)) else {
+            let Some(next) = (!segments.is_empty()).then(|| segments.remove(0)) else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
-            let NameTarget::Exported(selected) = self.consume_name_use(node, segment.token)? else {
+            let NameTarget::Exported(selected) = self.consume_name_use(node, next.token)? else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
             };
             entity = selected;
-            if !segment.arguments.is_empty() {
-                if !segments.is_empty() {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-                }
-                return self.resolve_type_entity(node, entity, segment.arguments);
-            }
+            segment = next;
         }
-        if !segments.is_empty() {
+        let base = self.resolve_type_entity(node, entity, segment.arguments)?;
+        let candidates = self.associated_type_candidates(base)?;
+        let missing_member = self.tree().children(node).iter().any(|element| {
+            matches!(
+                element,
+                SyntaxElement::Missing(missing) if missing.expected() == ExpectedSyntax::Name
+            )
+        });
+        if missing_member {
+            self.record_associated_type_interruption(node, &candidates)?;
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         }
-        self.resolve_type_entity(node, entity, Vec::new())
+        match segments.as_slice() {
+            [] => Ok(base),
+            [associated] if associated.arguments.is_empty() => {
+                self.record_associated_type_interruption(node, &candidates)?;
+                self.resolve_associated_projection(node, base, associated.token, &candidates)
+            }
+            _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
+        }
     }
 
     fn resolve_associated_projection(
@@ -608,15 +613,20 @@ impl BodyChecker<'_, '_> {
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
         };
         self.project_type_entity(token, SemanticEntity::AssociatedType(*associated))?;
-        self.types
+        let projection = self
+            .types
             .intern(TypeKind::AssociatedProjection {
                 base,
                 associated: *associated,
             })
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        self.reduce_associated_type(projection).map_err(Into::into)
     }
 
-    fn associated_type_candidates(&self, base: TypeId) -> Vec<AssociatedTypeId> {
+    fn associated_type_candidates(
+        &mut self,
+        base: TypeId,
+    ) -> Result<Vec<AssociatedTypeId>, BodyCheckError> {
         let declarations = self.graph.declarations();
         let mut candidates = self
             .assumptions
@@ -644,9 +654,35 @@ impl BodyChecker<'_, '_> {
                     .copied()
             })
             .collect::<Vec<_>>();
+        if is_concrete_type(self.types, base)
+            .map_err(|_| BodyCheckInternalError::UnknownType(base))?
+        {
+            let associated = declarations
+                .associated_types()
+                .iter()
+                .map(|(associated, declaration)| (associated, declaration.interface()))
+                .collect::<Vec<_>>();
+            for (associated, interface) in associated {
+                let selection = crate::interface_implementation::select_associated_implementation(
+                    self.types,
+                    self.interface_implementations,
+                    &self.assumptions,
+                    &self.intrinsic_facts,
+                    base,
+                    interface,
+                )
+                .map_err(|_| BodyCheckInternalError::UnknownType(base))?;
+                if matches!(
+                    selection,
+                    crate::interface_implementation::AssociatedImplementationSelection::Unique(_)
+                ) {
+                    candidates.push(associated);
+                }
+            }
+        }
         candidates.sort_unstable();
         candidates.dedup();
-        candidates
+        Ok(candidates)
     }
 
     fn record_associated_type_interruption(
@@ -785,9 +821,7 @@ impl BodyChecker<'_, '_> {
                 if !self.requirements_hold(&requirements, &substitution)? {
                     return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
                 }
-                substitution
-                    .apply_type(self.types, target)
-                    .map_err(BodyCheckInternalError::CallSubstitution)
+                self.apply_type_substitution(&substitution, target)
                     .map_err(Into::into)
             }
             _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),

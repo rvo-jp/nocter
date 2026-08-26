@@ -304,15 +304,11 @@ impl BodyChecker<'_, '_> {
                 {
                     return Err(BodyCheckInternalError::InvalidSyntax(node));
                 }
-                plan.substitution
-                    .apply_type(self.types, parameter.ty())
-                    .map_err(BodyCheckInternalError::CallSubstitution)
+                self.apply_type_substitution(&plan.substitution, parameter.ty())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let result_pattern = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let (drafts, inferred) = self.infer_positional_values(
             argument_syntax,
             PositionalValueContext {
@@ -331,10 +327,7 @@ impl BodyChecker<'_, '_> {
         }
         let values =
             self.materialize_positional_values(drafts, destination_types, &plan.substitution)?;
-        let ty = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let ty = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         self.project_variant_member(member_token, variant)?;
         let aggregate = self.add_node(
             node,
@@ -544,9 +537,7 @@ impl BodyChecker<'_, '_> {
         for argument in arguments.as_slice() {
             construction_substitution.bind_generic(argument.parameter(), argument.ty());
         }
-        let target = construction_substitution
-            .apply_type(self.types, target)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let target = self.apply_type_substitution(&construction_substitution, target)?;
         let Some(TypeKind::Nominal {
             definition,
             arguments,

@@ -36,17 +36,11 @@ impl BodyChecker<'_, '_> {
 
         let destination_types = selected
             .iter()
-            .map(|field| {
-                plan.substitution
-                    .apply_type(self.types, field.ty)
-                    .map_err(BodyCheckInternalError::CallSubstitution)
-            })
+            .map(|field| self.apply_type_substitution(&plan.substitution, field.ty))
             .collect::<Result<Vec<_>, _>>()?;
         let value_syntax = selected.iter().map(|field| field.expression).collect();
-        let result_pattern = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let result_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let (drafts, inferred) = self.infer_positional_values(
             value_syntax,
             PositionalValueContext {
@@ -65,10 +59,7 @@ impl BodyChecker<'_, '_> {
         }
         let values =
             self.materialize_positional_values(drafts, destination_types, &plan.substitution)?;
-        let ty = plan
-            .substitution
-            .apply_type(self.types, plan.result_pattern)
-            .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let ty = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let fields = selected
             .into_iter()
             .map(|field| field.field)
