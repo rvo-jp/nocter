@@ -1,5 +1,5 @@
 use nocter_declarations::{BodyOwner, CallableOwner, DeclarationGraph, InterfaceApplication};
-use nocter_model::{TypeKind, TypeStore};
+use nocter_model::{Arena, ArenaBuilder, BodyId, TypeKind, TypeStore};
 
 use crate::copyability::CopyProofs;
 use crate::declaration_patterns::DeclarationPatternTable;
@@ -12,10 +12,50 @@ use crate::{CheckedPredicate, CheckedRequirement};
 /// Declared requirements retain source identities for structural dispatch. Intrinsic facts are
 /// language truths, such as an interface default body's `Self` satisfying that same interface,
 /// and deliberately cannot masquerade as authored requirements.
+#[derive(Debug)]
 pub(crate) struct BodyAssumptions {
-    declared: Vec<CheckedRequirement>,
-    intrinsic: Vec<CheckedPredicate>,
+    declared: Box<[CheckedRequirement]>,
+    intrinsic: Box<[CheckedPredicate]>,
     copy_proofs: CopyProofs,
+}
+
+/// Sole normalized lexical-proof authority for declaration bodies.
+///
+/// Declaration patterns remain preparation inputs only. This table freezes the exact facts each
+/// body checker and editor completion query consumes, so neither consumer re-normalizes callable
+/// or interface requirements.
+#[derive(Debug)]
+pub(crate) struct BodyAssumptionTable {
+    entries: Arena<BodyId, BodyAssumptions>,
+}
+
+impl BodyAssumptionTable {
+    pub(crate) fn build(
+        graph: &DeclarationGraph,
+        types: &mut TypeStore,
+        declaration_patterns: &DeclarationPatternTable,
+    ) -> Result<Self, SubstitutionError> {
+        let mut entries = ArenaBuilder::new();
+        for (body_id, body) in graph.declarations().bodies().iter() {
+            let owner = body.owner();
+            let actual = entries.insert(normalize_body_assumptions(
+                graph,
+                types,
+                declaration_patterns,
+                owner,
+            )?);
+            if actual != body_id {
+                return Err(SubstitutionError::InvalidStore);
+            }
+        }
+        Ok(Self {
+            entries: entries.finish(),
+        })
+    }
+
+    pub(crate) fn get(&self, body: BodyId) -> Option<&BodyAssumptions> {
+        self.entries.get(body)
+    }
 }
 
 impl BodyAssumptions {
@@ -33,7 +73,7 @@ impl BodyAssumptions {
 }
 
 /// Collects the normalized lexical predicate environment for one checked body.
-pub(crate) fn body_assumptions(
+fn normalize_body_assumptions(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     declaration_patterns: &DeclarationPatternTable,
@@ -41,8 +81,8 @@ pub(crate) fn body_assumptions(
 ) -> Result<BodyAssumptions, SubstitutionError> {
     let BodyOwner::Callable(callable_id) = owner else {
         return Ok(BodyAssumptions {
-            declared: Vec::new(),
-            intrinsic: Vec::new(),
+            declared: Box::new([]),
+            intrinsic: Box::new([]),
             copy_proofs: CopyProofs::default(),
         });
     };
@@ -110,8 +150,8 @@ pub(crate) fn body_assumptions(
             .chain(intrinsic.iter()),
     );
     Ok(BodyAssumptions {
-        declared,
-        intrinsic,
+        declared: declared.into_boxed_slice(),
+        intrinsic: intrinsic.into_boxed_slice(),
         copy_proofs,
     })
 }

@@ -13,7 +13,6 @@ use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
 
-use super::assumptions::body_assumptions;
 use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
@@ -200,7 +199,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let interface_implementations = facts.interface_implementations();
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
-        let declaration_patterns = facts.declaration_patterns();
+        let body_assumptions = facts.body_assumptions();
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
         let source_access = body_source_access(facts, source)?;
@@ -244,8 +243,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
-        let assumptions = body_assumptions(graph, types, declaration_patterns, source.owner())
-            .map_err(BodyCheckInternalError::BodyAssumptions)?;
+        let assumptions = body_assumptions
+            .get(source.body())
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?;
         let opaque_result = OpaqueResultState::for_body(graph, types, source, result_type)?;
         Ok(Self {
             input,

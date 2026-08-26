@@ -169,6 +169,11 @@ Declaration lowering resolves only the identity named by an associated selection
 syntax-linked projection-use fact beside the semantic program. After the implementation table is
 complete, type validity consumes those facts to validate concrete applicability through that table.
 It neither repeats implementation refinements nor searches declaration patterns independently.
+Normalized declaration patterns are preparation inputs, not a second retained dispatch model.
+Preparation consumes them while building interface and instance authorities, then freezes each
+declared body's lexical requirements, intrinsic interface facts, refinements, and copy proofs in
+one `BodyAssumptionTable`. Body checking, recovery completion, and checked-program completion all
+read that table; none re-normalizes requirements from the declaration graph.
 
 Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
 opens `AcceptedDeclarationProgram` once, retains the same extended `TypeStore`, and owns the interface-implementation

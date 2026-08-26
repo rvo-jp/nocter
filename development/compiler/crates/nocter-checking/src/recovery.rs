@@ -219,21 +219,27 @@ impl BodyAnalysisRecovery {
             return None;
         };
         let body = typed.interruption.body();
-        let owner = match self.prepared.graph().declarations().bodies().get(body) {
-            Some(body) => body.owner(),
-            None => return Some(Err(MemberCompletionError::MissingBody(body))),
-        };
+        if self
+            .prepared
+            .graph()
+            .declarations()
+            .bodies()
+            .get(body)
+            .is_none()
+        {
+            return Some(Err(MemberCompletionError::MissingBody(body)));
+        }
         Some(select_member_completions(
             crate::member_completion::MemberCompletionAuthorities {
                 graph: self.prepared.graph(),
                 types: &typed.types,
                 interface_implementations: self.prepared.interface_implementations(),
                 instance_operations: self.prepared.instance_operations(),
-                declaration_patterns: self.prepared.declaration_patterns(),
+                body_assumptions: self.prepared.body_assumptions(),
                 copyabilities: &typed.copyabilities,
                 source_access: self.prepared.source_access(),
             },
-            MemberCompletionContext::new(owner, source, *receiver, *available, *owned),
+            MemberCompletionContext::new(body, source, *receiver, *available, *owned),
         ))
     }
 

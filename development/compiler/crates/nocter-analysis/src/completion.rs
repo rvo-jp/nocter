@@ -461,12 +461,6 @@ fn checked_member_completions(
     let Some((body_id, receiver)) = receiver_selection else {
         return Ok(None);
     };
-    let body = program
-        .graph()
-        .declarations()
-        .bodies()
-        .get(body_id)
-        .ok_or(MemberCompletionError::MissingBody(body_id))?;
     let receiver_type = program
         .bodies()
         .get(body_id)
@@ -477,7 +471,7 @@ fn checked_member_completions(
         .ty();
     let (available, owned) = receiver_access(receiver.preparation());
     let candidates = program.member_completions(MemberCompletionContext::new(
-        body.owner(),
+        body_id,
         source,
         receiver_type,
         available,

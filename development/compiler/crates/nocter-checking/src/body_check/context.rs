@@ -1,5 +1,5 @@
+use super::BodyAssumptionTable;
 use super::error::BodyCheckInternalError;
-use crate::declaration_patterns::DeclarationPatternTable;
 use crate::{
     BodySource, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     InterfaceImplementationTable, StandardSemanticTable,
@@ -17,7 +17,7 @@ pub(super) struct BodyProgramFacts<'program> {
     interface_implementations: &'program InterfaceImplementationTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
-    declaration_patterns: &'program DeclarationPatternTable,
+    body_assumptions: &'program BodyAssumptionTable,
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
     source_access: &'program SourceAccessTable,
@@ -76,7 +76,7 @@ impl<'program> BodyProgramFacts<'program> {
             interface_implementations: &prepared.interface_implementations,
             construction_surfaces: &prepared.construction_surfaces,
             instance_operations: &prepared.instance_operations,
-            declaration_patterns: &prepared.declaration_patterns,
+            body_assumptions: &prepared.body_assumptions,
             standard_semantics: &prepared.standard_semantics,
             source_namespaces: &prepared.source_namespaces,
             source_access: &prepared.source_access,
@@ -104,8 +104,8 @@ impl<'program> BodyProgramFacts<'program> {
         self.instance_operations
     }
 
-    pub(super) const fn declaration_patterns(self) -> &'program DeclarationPatternTable {
-        self.declaration_patterns
+    pub(super) const fn body_assumptions(self) -> &'program BodyAssumptionTable {
+        self.body_assumptions
     }
 
     pub(super) const fn standard_semantics(self) -> &'program StandardSemanticTable {

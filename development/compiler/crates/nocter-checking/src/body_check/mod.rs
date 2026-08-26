@@ -73,4 +73,4 @@ pub use pipeline::{
     analyze_prepared_program_bodies, check_prepared_program, check_prepared_program_recovering,
 };
 mod assumptions;
-pub(crate) use assumptions::body_assumptions;
+pub(crate) use assumptions::BodyAssumptionTable;

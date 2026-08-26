@@ -9,6 +9,7 @@ use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamesp
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
+use crate::body_check::BodyAssumptionTable;
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::instance_operations::build_instance_operation_table_from_ids;
 use crate::interface_implementation::build_interface_implementation_table_from_ids;
@@ -61,7 +62,7 @@ pub struct PreparedSemanticProgram {
     interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
-    declaration_patterns: DeclarationPatternTable,
+    body_assumptions: BodyAssumptionTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -82,7 +83,7 @@ impl PreparedSemanticProgram {
             interface_implementations: authorities.interface_implementations,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
-            declaration_patterns: authorities.declaration_patterns,
+            body_assumptions: authorities.body_assumptions,
             copyabilities: authorities.copyabilities,
             drops: authorities.drops,
             standard_semantics,
@@ -115,8 +116,8 @@ impl PreparedSemanticProgram {
         &self.instance_operations
     }
 
-    pub(crate) const fn declaration_patterns(&self) -> &DeclarationPatternTable {
-        &self.declaration_patterns
+    pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
+        &self.body_assumptions
     }
 
     #[must_use]
@@ -210,7 +211,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             interface_implementations,
             construction_surfaces,
             instance_operations,
-            declaration_patterns,
+            body_assumptions,
             copyabilities,
             drops,
             standard_semantics,
@@ -222,7 +223,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             interface_implementations,
             construction_surfaces,
             instance_operations,
-            declaration_patterns,
+            body_assumptions,
             copyabilities,
             drops,
             standard_semantics,
@@ -241,7 +242,7 @@ pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) interface_implementations: InterfaceImplementationTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
-    pub(crate) declaration_patterns: DeclarationPatternTable,
+    pub(crate) body_assumptions: BodyAssumptionTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
@@ -266,7 +267,7 @@ impl PreparedCheckingParts<'_> {
             interface_implementations: self.interface_implementations,
             construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
-            declaration_patterns: self.declaration_patterns,
+            body_assumptions: self.body_assumptions,
             copyabilities: self.copyabilities,
             drops: self.drops,
             standard_semantics: self.standard_semantics,
@@ -520,7 +521,7 @@ struct PreparedProgramAuthorities {
     interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
-    declaration_patterns: DeclarationPatternTable,
+    body_assumptions: BodyAssumptionTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
 }
@@ -671,11 +672,12 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.instances(),
     )?;
+    let body_assumptions = BodyAssumptionTable::build(graph, types, &declaration_patterns)?;
     Ok(PreparedProgramAuthorities {
         interface_implementations,
         construction_surfaces,
         instance_operations,
-        declaration_patterns,
+        body_assumptions,
         copyabilities,
         drops,
     })

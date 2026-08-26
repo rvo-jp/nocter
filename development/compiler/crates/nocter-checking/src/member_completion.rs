@@ -1,12 +1,12 @@
 use std::fmt;
 
-use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_declarations::DeclarationGraph;
 use nocter_model::{
     BodyId, BorrowCapability, CallableId, FieldId, Symbol, TypeId, TypeKind, TypeStore,
 };
 use nocter_source::SourceId;
 
-use crate::body_check::body_assumptions;
+use crate::body_check::BodyAssumptionTable;
 use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{
     InstanceOperationSelector, InstanceSelectionContext, MethodCompletionCandidate,
@@ -45,7 +45,7 @@ pub enum MemberCompletionTarget {
 /// Exact checked receiver facts required to enumerate callable members.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MemberCompletionContext {
-    owner: BodyOwner,
+    body: BodyId,
     source: SourceId,
     receiver: TypeId,
     available: BorrowCapability,
@@ -55,14 +55,14 @@ pub struct MemberCompletionContext {
 impl MemberCompletionContext {
     #[must_use]
     pub const fn new(
-        owner: BodyOwner,
+        body: BodyId,
         source: SourceId,
         receiver: TypeId,
         available: BorrowCapability,
         can_consume: bool,
     ) -> Self {
         Self {
-            owner,
+            body,
             source,
             receiver,
             available,
@@ -75,7 +75,6 @@ impl MemberCompletionContext {
 #[derive(Debug)]
 pub enum MemberCompletionError {
     SourceAccess(nocter_frontend_bindings::SourceAccessError),
-    Assumptions(crate::SubstitutionError),
     FieldSelection,
     Selection(crate::InstanceSelectionError),
     MissingBody(BodyId),
@@ -87,7 +86,6 @@ impl fmt::Display for MemberCompletionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SourceAccess(error) => error.fmt(formatter),
-            Self::Assumptions(error) => error.fmt(formatter),
             Self::FieldSelection => formatter.write_str("member field selection is inconsistent"),
             Self::Selection(error) => error.fmt(formatter),
             Self::MissingBody(body) => {
@@ -128,7 +126,7 @@ impl CheckedProgram {
                 types: self.types(),
                 interface_implementations: self.interface_implementations(),
                 instance_operations: self.instance_operations(),
-                declaration_patterns: self.declaration_patterns(),
+                body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
             },
@@ -154,7 +152,7 @@ impl PreparedSemanticProgram {
                 types: self.types(),
                 interface_implementations: self.interface_implementations(),
                 instance_operations: self.instance_operations(),
-                declaration_patterns: self.declaration_patterns(),
+                body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
             },
@@ -169,7 +167,7 @@ pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) types: &'program TypeStore,
     pub(crate) interface_implementations: &'program InterfaceImplementationTable,
     pub(crate) instance_operations: &'program InstanceOperationTable,
-    pub(crate) declaration_patterns: &'program crate::declaration_patterns::DeclarationPatternTable,
+    pub(crate) body_assumptions: &'program BodyAssumptionTable,
     pub(crate) copyabilities: &'program CopyabilityTable,
     pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
 }
@@ -183,7 +181,7 @@ pub(crate) fn select_member_completions(
         types,
         interface_implementations,
         instance_operations,
-        declaration_patterns,
+        body_assumptions,
         copyabilities,
         source_access,
     } = authorities;
@@ -197,8 +195,9 @@ pub(crate) fn select_member_completions(
     let access = crate::SourceAccessContext::for_source(source_access, context.source)
         .map_err(MemberCompletionError::SourceAccess)?;
     let mut completions = field_completions(graph, &mut types, access, receiver)?;
-    let assumptions = body_assumptions(graph, &mut types, declaration_patterns, context.owner)
-        .map_err(MemberCompletionError::Assumptions)?;
+    let assumptions = body_assumptions
+        .get(context.body)
+        .ok_or(MemberCompletionError::MissingBody(context.body))?;
     let selection = InstanceSelectionContext::new(
         graph,
         interface_implementations,

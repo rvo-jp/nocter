@@ -4,7 +4,7 @@ use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
-use crate::declaration_patterns::DeclarationPatternTable;
+use crate::body_check::BodyAssumptionTable;
 use crate::{
     AssociatedTypeCompletionContext, ClosureTable, ConstructionSurfaceTable, CopyabilityTable,
     DropTable, InstanceOperationTable, InterfaceImplementationTable, LoanTable, ProvenanceTable,
@@ -21,7 +21,7 @@ pub struct CheckedProgram {
     interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
-    declaration_patterns: DeclarationPatternTable,
+    body_assumptions: BodyAssumptionTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
@@ -38,7 +38,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) interface_implementations: InterfaceImplementationTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
-    pub(crate) declaration_patterns: DeclarationPatternTable,
+    pub(crate) body_assumptions: BodyAssumptionTable,
     pub(crate) copyabilities: CopyabilityTable,
     pub(crate) drops: DropTable,
     pub(crate) standard_semantics: StandardSemanticTable,
@@ -63,7 +63,7 @@ impl CheckedProgram {
             interface_implementations: authorities.interface_implementations,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
-            declaration_patterns: authorities.declaration_patterns,
+            body_assumptions: authorities.body_assumptions,
             copyabilities: authorities.copyabilities,
             drops: authorities.drops,
             standard_semantics: authorities.standard_semantics,
@@ -102,8 +102,8 @@ impl CheckedProgram {
         &self.instance_operations
     }
 
-    pub(crate) const fn declaration_patterns(&self) -> &DeclarationPatternTable {
-        &self.declaration_patterns
+    pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
+        &self.body_assumptions
     }
 
     #[must_use]
