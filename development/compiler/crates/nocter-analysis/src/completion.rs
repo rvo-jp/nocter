@@ -287,13 +287,20 @@ impl AnalysisSnapshot {
             {
                 return Ok(completions);
             }
-            if let Some(completions) =
-                checked_member_completions(checked, index, source, offset, module)?
-            {
+            if let Some(completions) = checked_member_completions(
+                checked,
+                &self.queries.checked_members,
+                index,
+                source,
+                offset,
+                module,
+            )? {
                 return Ok(completions);
             }
         }
-        if let Some(completions) = interrupted_completions(program, source, offset, module)? {
+        if let Some(completions) =
+            interrupted_completions(program, &self.queries, source, offset, module)?
+        {
             return Ok(completions);
         }
         let mut candidates = BTreeMap::new();
@@ -326,6 +333,7 @@ impl AnalysisSnapshot {
 
 fn interrupted_completions(
     authority: SemanticAuthority<'_>,
+    queries: &crate::AnalysisQuerySession,
     source: SourceId,
     offset: ByteOffset,
     module: nocter_model::ModuleId,
@@ -333,7 +341,9 @@ fn interrupted_completions(
     let Some(recovery) = authority.body_analysis() else {
         return Ok(None);
     };
-    let Some(interruption) = recovery.interruption_at(source, offset) else {
+    let Some((interruption_index, interruption)) =
+        recovery.interruption_position_at(source, offset)
+    else {
         return Ok(None);
     };
     let index = recovery.source_index();
@@ -341,7 +351,11 @@ fn interrupted_completions(
         VisibleSpellings::for_source(recovery.prepared().graph(), module, index, source);
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
-            let Some(candidates) = recovery.interrupted_member_completions(interruption, source)
+            let Some(session) = queries.interrupted_members(interruption_index) else {
+                return Ok(None);
+            };
+            let Some(candidates) =
+                recovery.interrupted_member_completions(session, interruption, source)
             else {
                 return Ok(None);
             };
@@ -424,6 +438,7 @@ fn interrupted_completions(
 
 fn checked_member_completions(
     program: &CheckedProgram,
+    session: &nocter_checking::MemberCompletionQuerySession,
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,
@@ -467,13 +482,10 @@ fn checked_member_completions(
         .ok_or(MemberCompletionError::MissingReceiver(receiver.value()))?
         .ty();
     let (available, owned) = receiver_access(receiver.preparation());
-    let candidates = program.member_completions(MemberCompletionContext::new(
-        body_id,
-        source,
-        receiver_type,
-        available,
-        owned,
-    ))?;
+    let candidates = program.member_completions(
+        session,
+        MemberCompletionContext::new(body_id, source, receiver_type, available, owned),
+    )?;
     let spellings = VisibleSpellings::for_source(program.graph(), module, index, source);
     Ok(Some(
         candidates

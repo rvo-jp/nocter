@@ -125,12 +125,17 @@ struct MemberCompletionQueryState {
 /// The canonical program remains immutable. Structural types interned while proving completion
 /// candidates and memoized copy conditions are retained across queries in the same generation,
 /// avoiding a full program-store clone for every keystroke.
+/// Per-generation mutable state used only while answering member-completion queries.
+///
+/// This session deliberately lives outside [`CheckedProgram`] and [`PreparedSemanticProgram`].
+/// Each session belongs to exactly one immutable semantic authority. Callers that retain multiple
+/// checked or recovery authorities must retain one session for each authority.
 #[derive(Debug, Default)]
-pub(crate) struct MemberCompletionCache {
+pub struct MemberCompletionQuerySession {
     state: OnceLock<Mutex<MemberCompletionQueryState>>,
 }
 
-impl MemberCompletionCache {
+impl MemberCompletionQuerySession {
     fn state<'program>(
         &'program self,
         types: &TypeStore,
@@ -158,6 +163,7 @@ impl CheckedProgram {
     /// proof cannot be completed for the supplied checked receiver context.
     pub fn member_completions(
         &self,
+        session: &MemberCompletionQuerySession,
         context: MemberCompletionContext,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
         select_member_completions(
@@ -169,7 +175,7 @@ impl CheckedProgram {
                 body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
-                cache: self.member_completion_cache(),
+                session,
             },
             context,
         )
@@ -185,6 +191,7 @@ impl PreparedSemanticProgram {
     /// requirement proof cannot be completed for the supplied receiver context.
     pub fn member_completions(
         &self,
+        session: &MemberCompletionQuerySession,
         context: MemberCompletionContext,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
         select_member_completions(
@@ -196,7 +203,7 @@ impl PreparedSemanticProgram {
                 body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
-                cache: self.member_completion_cache(),
+                session,
             },
             context,
         )
@@ -212,7 +219,7 @@ pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) body_assumptions: &'program BodyAssumptionTable,
     pub(crate) copyabilities: &'program CopyabilityTable,
     pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
-    pub(crate) cache: &'program MemberCompletionCache,
+    pub(crate) session: &'program MemberCompletionQuerySession,
 }
 
 pub(crate) fn select_member_completions(
@@ -227,9 +234,9 @@ pub(crate) fn select_member_completions(
         body_assumptions,
         copyabilities,
         source_access,
-        cache,
+        session,
     } = authorities;
-    let mut state = cache.state(types, copyabilities)?;
+    let mut state = session.state(types, copyabilities)?;
     let MemberCompletionQueryState {
         types,
         copyabilities,

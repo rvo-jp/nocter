@@ -123,7 +123,7 @@ pub use interface_implementation::{
 };
 pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,
-    MemberCompletionTarget,
+    MemberCompletionQuerySession, MemberCompletionTarget,
 };
 pub use name_recovery::{NameAnalysisRecovery, PartialBodyNames};
 pub use names::{

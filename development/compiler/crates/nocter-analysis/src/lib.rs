@@ -89,6 +89,45 @@ struct CurrentAnalysis {
     authority: CurrentSemanticAuthority,
 }
 
+#[derive(Debug, Default)]
+struct AnalysisQuerySession {
+    checked_members: nocter_checking::MemberCompletionQuerySession,
+    interrupted_members: Box<[nocter_checking::MemberCompletionQuerySession]>,
+}
+
+impl AnalysisQuerySession {
+    fn for_state(state: &AnalysisState) -> Self {
+        let interruption_count = match state {
+            AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::Semantic(semantic),
+                ..
+            }) => semantic
+                .bodies()
+                .map_or(0, |recovery| recovery.interruptions().len()),
+            AnalysisState::DiscoveryFailed(_)
+            | AnalysisState::Current(CurrentAnalysis {
+                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),
+                ..
+            }) => 0,
+        };
+        Self {
+            checked_members: nocter_checking::MemberCompletionQuerySession::default(),
+            interrupted_members: std::iter::repeat_with(
+                nocter_checking::MemberCompletionQuerySession::default,
+            )
+            .take(interruption_count)
+            .collect(),
+        }
+    }
+
+    fn interrupted_members(
+        &self,
+        index: usize,
+    ) -> Option<&nocter_checking::MemberCompletionQuerySession> {
+        self.interrupted_members.get(index)
+    }
+}
+
 #[derive(Debug)]
 enum CurrentAnalysisFailure {
     Syntax(Option<CompileSessionError>),
@@ -146,6 +185,7 @@ pub struct AnalysisSnapshot {
     generation: GenerationId,
     diagnostics: Box<[SourceDiagnostic]>,
     state: AnalysisState,
+    queries: AnalysisQuerySession,
 }
 
 impl AnalysisSnapshot {
@@ -159,10 +199,13 @@ impl AnalysisSnapshot {
     /// Retains a failed discovery rather than falling back to an older source graph.
     #[must_use]
     pub fn from_discovery_failure(generation: GenerationId, failure: DiscoveryFailure) -> Self {
+        let diagnostics = failure.diagnostics().into();
+        let state = AnalysisState::DiscoveryFailed(failure);
         Self {
             generation,
-            diagnostics: failure.diagnostics().into(),
-            state: AnalysisState::DiscoveryFailed(failure),
+            diagnostics,
+            queries: AnalysisQuerySession::for_state(&state),
+            state,
         }
     }
 
@@ -184,27 +227,34 @@ impl AnalysisSnapshot {
                     .collect::<Vec<_>>();
                 diagnostics.extend(independent);
             }
+            let state = AnalysisState::Current(CurrentAnalysis::syntax(unit, failure, semantic));
             return Self {
                 generation,
                 diagnostics: diagnostics.into_boxed_slice(),
-                state: AnalysisState::Current(CurrentAnalysis::syntax(unit, failure, semantic)),
+                queries: AnalysisQuerySession::for_state(&state),
+                state,
             };
         }
         match analyze_target(&unit) {
-            Ok(target) => Self {
-                generation,
-                diagnostics: Box::new([]),
-                state: AnalysisState::Current(CurrentAnalysis::complete(unit, target)),
-            },
+            Ok(target) => {
+                let state = AnalysisState::Current(CurrentAnalysis::complete(unit, target));
+                Self {
+                    generation,
+                    diagnostics: Box::new([]),
+                    queries: AnalysisQuerySession::for_state(&state),
+                    state,
+                }
+            }
             Err(failure) => {
                 let (error, semantic) = (*failure).into_parts();
                 let diagnostics = error.source_diagnostics().into();
+                let state =
+                    AnalysisState::Current(CurrentAnalysis::compilation(unit, error, semantic));
                 Self {
                     generation,
                     diagnostics,
-                    state: AnalysisState::Current(CurrentAnalysis::compilation(
-                        unit, error, semantic,
-                    )),
+                    queries: AnalysisQuerySession::for_state(&state),
+                    state,
                 }
             }
         }

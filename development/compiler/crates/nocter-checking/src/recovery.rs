@@ -93,7 +93,6 @@ struct TypedInterruptionSnapshot {
     interruption: TypedBodyInterruption,
     types: TypeStore,
     copyabilities: CopyabilityTable,
-    member_completion_cache: crate::member_completion::MemberCompletionCache,
 }
 
 /// Immutable current-generation semantic authority retained after typed-body failure.
@@ -131,8 +130,6 @@ impl BodyAnalysisRecovery {
                         interruption,
                         types,
                         copyabilities,
-                        member_completion_cache:
-                            crate::member_completion::MemberCompletionCache::default(),
                     },
                 )
                 .collect::<Vec<_>>()
@@ -178,14 +175,26 @@ impl BodyAnalysisRecovery {
         source: SourceId,
         offset: ByteOffset,
     ) -> Option<&TypedBodyInterruption> {
+        self.interruption_position_at(source, offset)
+            .map(|(_, interruption)| interruption)
+    }
+
+    /// Selects the narrowest typed interruption and its stable recovery position.
+    #[must_use]
+    pub fn interruption_position_at(
+        &self,
+        source: SourceId,
+        offset: ByteOffset,
+    ) -> Option<(usize, &TypedBodyInterruption)> {
         self.typed
             .iter()
+            .enumerate()
             .filter(|typed| {
-                let origin = typed.interruption.origin();
+                let origin = typed.1.interruption.origin();
                 origin.source() == source && origin.span().range().contains_cursor(offset)
             })
-            .min_by_key(|typed| typed.interruption.origin().span().range().len())
-            .map(|typed| &typed.interruption)
+            .min_by_key(|typed| typed.1.interruption.origin().span().range().len())
+            .map(|(position, typed)| (position, &typed.interruption))
     }
 
     /// Selects the narrowest typed interruption associated with one diagnostic range.
@@ -219,6 +228,7 @@ impl BodyAnalysisRecovery {
     #[must_use]
     pub fn interrupted_member_completions(
         &self,
+        session: &crate::MemberCompletionQuerySession,
         interruption: &TypedBodyInterruption,
         source: SourceId,
     ) -> Option<Result<Box<[MemberCompletionCandidate]>, MemberCompletionError>> {
@@ -251,7 +261,7 @@ impl BodyAnalysisRecovery {
                 body_assumptions: self.prepared.body_assumptions(),
                 copyabilities: &typed.copyabilities,
                 source_access: self.prepared.source_access(),
-                cache: &typed.member_completion_cache,
+                session,
             },
             MemberCompletionContext::new(body, source, *receiver, *available, *owned),
         ))
