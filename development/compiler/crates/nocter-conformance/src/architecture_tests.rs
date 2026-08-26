@@ -69,7 +69,6 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
             "nocter-mir",
             &[
                 "nocter-checking",
-                "nocter-declarations",
                 "nocter-model",
                 "nocter-runtime-contract",
                 "nocter-target-program",

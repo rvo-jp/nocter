@@ -10,8 +10,8 @@ use crate::validation_region::{
 };
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{
-    is_integer, matches_nominal_member, matches_opaque_projection, matches_opaque_witness,
-    nominal_application,
+    capture_type, field_type, is_integer, matches_opaque_projection, matches_opaque_witness,
+    payload_type, variant_representation,
 };
 use crate::{
     MirAggregate, MirBinaryOperation, MirBody, MirBranchTarget, MirConstant, MirFunction,
@@ -19,7 +19,6 @@ use crate::{
     MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
 };
 use crate::{MirValidationEnvironment, MirValidationError};
-use nocter_declarations::{NominalShape, ParameterOwner};
 use nocter_model::{
     BorrowCapability, BuiltinType, ExecutableItemId, FieldId, MirBlockId, MirDropFlagId,
     MirLocalId, MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
@@ -241,7 +240,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 self.validate_declared_field_projection(place, source, field, result)?;
             }
             MirProjectionKind::ClosureCapture(capture) => {
-                if self.environment.closure_capture_type(source, capture) != Some(result) {
+                if capture_type(self.environment, source, capture) != Some(result) {
                     return Err(MirValidationError::InvalidProjection { place });
                 }
             }
@@ -249,26 +248,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 variant: variant_id,
                 parameter: parameter_id,
             } => {
-                let (definition, arguments) = nominal_application(self.types, source, place)?;
-                let variant = self
-                    .environment
-                    .variant(variant_id)
-                    .ok_or(MirValidationError::UnknownVariant(variant_id))?;
-                let parameter = self
-                    .environment
-                    .parameter(parameter_id)
-                    .ok_or(MirValidationError::UnknownParameter(parameter_id))?;
-                if variant.owner() != definition
-                    || parameter.owner() != ParameterOwner::Variant(variant_id)
-                    || !variant.payload().contains(&parameter_id)
-                    || !matches_nominal_member(
-                        self.environment,
-                        self.types,
-                        definition,
-                        arguments,
-                        parameter.ty(),
-                        result,
-                    )
+                if payload_type(self.environment, source, variant_id, parameter_id) != Some(result)
                 {
                     return Err(MirValidationError::InvalidProjection { place });
                 }
@@ -327,21 +307,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         field: FieldId,
         result: TypeId,
     ) -> Result<(), MirValidationError> {
-        let (definition, arguments) = nominal_application(self.types, source, place)?;
-        let declaration = self
-            .environment
-            .field(field)
-            .ok_or(MirValidationError::UnknownField(field))?;
-        if declaration.owner() == definition
-            && matches_nominal_member(
-                self.environment,
-                self.types,
-                definition,
-                arguments,
-                declaration.ty(),
-                result,
-            )
-        {
+        if field_type(self.environment, source, field) == Some(result) {
             Ok(())
         } else {
             Err(MirValidationError::InvalidProjection { place })
@@ -735,19 +701,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         match aggregate {
             MirAggregate::Struct { definition, fields } => {
                 let Some(TypeKind::Nominal {
-                    definition: actual,
-                    arguments,
+                    definition: actual, ..
                 }) = self.types.get(result)
                 else {
                     return Err(invalid());
                 };
-                let nominal = self
-                    .environment
-                    .nominal_type(*definition)
-                    .ok_or_else(invalid)?;
-                let NominalShape::Struct {
-                    fields: declared, ..
-                } = nominal.shape()
+                let Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct {
+                    fields: declared,
+                }) = self.environment.type_representation(result)
                 else {
                     return Err(invalid());
                 };
@@ -755,48 +716,27 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
                 for ((field, value), expected) in fields.iter().zip(declared) {
-                    let declaration = self.environment.field(*field).ok_or_else(invalid)?;
-                    if field != expected
-                        || !matches_nominal_member(
-                            self.environment,
-                            self.types,
-                            *definition,
-                            arguments,
-                            declaration.ty(),
-                            self.value_type(*value)?,
-                        )
-                    {
+                    if *field != expected.field() || self.value_type(*value)? != expected.ty() {
                         return Err(invalid());
                     }
                 }
             }
             MirAggregate::Enum { variant, payload } => {
-                let Some(TypeKind::Nominal {
-                    definition,
-                    arguments,
-                }) = self.types.get(result)
-                else {
-                    return Err(invalid());
-                };
-                let variant = self.environment.variant(*variant).ok_or_else(invalid)?;
-                if variant.owner() != *definition || variant.payload().len() != payload.len() {
+                if !matches!(self.types.get(result), Some(TypeKind::Nominal { .. })) {
                     return Err(invalid());
                 }
-                for (parameter, value) in variant
+                let declared = variant_representation(self.environment, result, *variant)
+                    .ok_or_else(invalid)?;
+                if declared.payload().len() != payload.len() {
+                    return Err(invalid());
+                }
+                for (parameter, value) in declared
                     .payload()
                     .iter()
                     .copied()
                     .zip(payload.iter().copied())
                 {
-                    let parameter = self.environment.parameter(parameter).ok_or_else(invalid)?;
-                    if !matches_nominal_member(
-                        self.environment,
-                        self.types,
-                        *definition,
-                        arguments,
-                        parameter.ty(),
-                        self.value_type(value)?,
-                    ) {
+                    if parameter.ty() != self.value_type(value)? {
                         return Err(invalid());
                     }
                 }

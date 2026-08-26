@@ -20,6 +20,7 @@ use crate::{
     EntrySelectionError, PrimitiveRole, ProcessResultContract, RuntimeTypeRepresentationTable,
     TargetProgram, TestSelectionError,
 };
+use semantic_environment::ExecutableSemanticEnvironment;
 
 mod argument_pack;
 mod build;
@@ -376,6 +377,7 @@ impl ExecutableBody {
 pub struct ExecutableItem {
     key: ExecutableItemKey,
     signature: ExecutableSignature,
+    accepts_allocation_override: bool,
     closure: Option<ExecutableClosureLayout>,
     body: ExecutableBody,
 }
@@ -389,6 +391,11 @@ impl ExecutableItem {
     #[must_use]
     pub const fn signature(&self) -> &ExecutableSignature {
         &self.signature
+    }
+
+    #[must_use]
+    pub const fn accepts_allocation_override(&self) -> bool {
+        self.accepts_allocation_override
     }
 
     #[must_use]
@@ -444,10 +451,10 @@ pub enum ExecutableRoot {
 #[derive(Debug)]
 pub struct ExecutableProgram {
     target: Arc<TargetProgram>,
+    semantic_environment: ExecutableSemanticEnvironment,
     types: TypeStore,
     items: Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
-    closure_layouts: BTreeMap<TypeId, ExecutableItemId>,
     runtime: RuntimeEnvironment,
     root: ExecutableRoot,
 }
@@ -513,24 +520,6 @@ impl ExecutableProgram {
     #[must_use]
     pub fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
         self.items.get(item)?.closure_layout()
-    }
-
-    #[must_use]
-    pub fn closure_capture_type(
-        &self,
-        closure_ty: TypeId,
-        capture: nocter_model::CaptureId,
-    ) -> Option<TypeId> {
-        self.closure_layout_for_type(closure_ty)
-            .and_then(|layout| layout.capture(capture))
-            .map(ExecutableClosureCapture::ty)
-    }
-
-    #[must_use]
-    pub fn closure_layout_for_type(&self, closure_ty: TypeId) -> Option<&ExecutableClosureLayout> {
-        self.closure_layouts
-            .get(&closure_ty)
-            .and_then(|item| self.closure_layout(*item))
     }
 
     #[must_use]

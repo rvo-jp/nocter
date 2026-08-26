@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::{NominalShape, ParameterOwner};
 use nocter_model::{BuiltinType, TypeKind, TypeStore};
+use nocter_runtime_contract::RuntimeTypeRepresentation;
 
-use crate::validation_types::{matches_nominal_member, matches_opaque_projection};
+use crate::validation_types::matches_opaque_projection;
 use crate::{MirDestructionKind, MirDestructionPlan, MirValidationEnvironment, MirValidationError};
 
 pub(crate) fn validate_destruction_plan(
@@ -80,41 +80,25 @@ fn validate_struct(
     plan: &MirDestructionPlan,
     fields: &[crate::MirFieldDestruction],
 ) -> Result<(), MirValidationError> {
-    let Some(TypeKind::Nominal {
-        definition,
-        arguments,
-    }) = types.get(plan.ty())
-    else {
+    if !matches!(types.get(plan.ty()), Some(TypeKind::Nominal { .. })) {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
-    };
-    let Some(NominalShape::Struct {
-        fields: declared, ..
-    }) = environment
-        .nominal_type(*definition)
-        .map(nocter_declarations::NominalTypeDeclaration::shape)
+    }
+    let Some(RuntimeTypeRepresentation::Struct { fields: declared }) =
+        environment.type_representation(plan.ty())
     else {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     };
     let mut seen = BTreeSet::new();
     let mut previous = declared.len();
     for field in fields {
-        let declaration = environment
-            .field(field.field())
-            .ok_or(MirValidationError::UnknownField(field.field()))?;
-        let Some(position) = descending_position(&field.field(), declared, previous) else {
+        let Some(position) = declared
+            .iter()
+            .position(|candidate| candidate.field() == field.field())
+            .filter(|position| *position < previous)
+        else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen.insert(field.field())
-            || declaration.owner() != *definition
-            || !matches_nominal_member(
-                environment,
-                types,
-                *definition,
-                arguments,
-                declaration.ty(),
-                field.plan().ty(),
-            )
-        {
+        if !seen.insert(field.field()) || declared[position].ty() != field.plan().ty() {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -132,24 +116,22 @@ fn validate_closure(
     if !matches!(types.get(plan.ty()), Some(TypeKind::Closure { .. })) {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     }
-    let layout = environment
-        .closure_layout_for_type(plan.ty())
-        .ok_or(MirValidationError::InvalidDestruction(plan.ty()))?;
-    let bindings = layout
-        .captures()
-        .iter()
-        .map(|capture| capture.binding())
-        .collect::<Vec<_>>();
+    let Some(RuntimeTypeRepresentation::Closure { captures: declared }) =
+        environment.type_representation(plan.ty())
+    else {
+        return Err(MirValidationError::InvalidDestruction(plan.ty()));
+    };
     let mut seen = BTreeSet::new();
-    let mut previous = bindings.len();
+    let mut previous = declared.len();
     for capture in captures {
-        let Some(position) = descending_position(&capture.capture(), &bindings, previous) else {
+        let Some(position) = declared
+            .iter()
+            .position(|candidate| candidate.capture() == capture.capture())
+            .filter(|position| *position < previous)
+        else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen.insert(capture.capture())
-            || environment.closure_capture_type(plan.ty(), capture.capture())
-                != Some(capture.plan().ty())
-        {
+        if !seen.insert(capture.capture()) || declared[position].ty() != capture.plan().ty() {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -164,59 +146,42 @@ fn validate_enum(
     plan: &MirDestructionPlan,
     variants: &[crate::MirVariantDestruction],
 ) -> Result<(), MirValidationError> {
-    let Some(TypeKind::Nominal {
-        definition,
-        arguments,
-    }) = types.get(plan.ty())
-    else {
+    if !matches!(types.get(plan.ty()), Some(TypeKind::Nominal { .. })) {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
-    };
-    let Some(NominalShape::Enum { variants: declared }) = environment
-        .nominal_type(*definition)
-        .map(nocter_declarations::NominalTypeDeclaration::shape)
+    }
+    let Some(RuntimeTypeRepresentation::Enum { variants: declared }) =
+        environment.type_representation(plan.ty())
     else {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     };
     let mut seen_variants = BTreeSet::new();
     let mut previous_variant = None;
     for variant in variants {
-        let declaration = environment
-            .variant(variant.variant())
-            .ok_or(MirValidationError::UnknownVariant(variant.variant()))?;
         let position = declared
             .iter()
-            .position(|candidate| candidate == &variant.variant())
+            .position(|candidate| candidate.variant() == variant.variant())
             .filter(|position| previous_variant.is_none_or(|old| old < *position));
         let Some(position) = position else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen_variants.insert(variant.variant()) || declaration.owner() != *definition {
+        if !seen_variants.insert(variant.variant()) {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous_variant = Some(position);
+        let declaration = &declared[position];
         let mut seen_payload = BTreeSet::new();
         let mut previous_payload = declaration.payload().len();
         for payload in variant.payload() {
-            let parameter = environment
-                .parameter(payload.parameter())
-                .ok_or(MirValidationError::UnknownParameter(payload.parameter()))?;
-            let Some(position) = descending_position(
-                &payload.parameter(),
-                declaration.payload(),
-                previous_payload,
-            ) else {
+            let Some(position) = declaration
+                .payload()
+                .iter()
+                .position(|candidate| candidate.parameter() == payload.parameter())
+                .filter(|position| *position < previous_payload)
+            else {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             };
             if !seen_payload.insert(payload.parameter())
-                || parameter.owner() != ParameterOwner::Variant(variant.variant())
-                || !matches_nominal_member(
-                    environment,
-                    types,
-                    *definition,
-                    arguments,
-                    parameter.ty(),
-                    payload.plan().ty(),
-                )
+                || declaration.payload()[position].ty() != payload.plan().ty()
             {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
@@ -225,13 +190,6 @@ fn validate_enum(
         }
     }
     Ok(())
-}
-
-fn descending_position<T: Eq>(value: &T, declared: &[T], before: usize) -> Option<usize> {
-    declared
-        .iter()
-        .position(|candidate| candidate == value)
-        .filter(|position| *position < before)
 }
 
 fn require_drop_items(

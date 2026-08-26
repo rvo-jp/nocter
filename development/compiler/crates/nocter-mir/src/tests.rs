@@ -1,13 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_declarations::{
-    FieldDeclaration, NominalTypeDeclaration, Parameter, StandardDeclarationRole,
-    VariantDeclaration,
-};
+use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{
-    Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, FieldId, NominalTypeId,
-    ParameterId, TypeId, TypeKind, TypeStore, VariantId,
+    Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, NominalTypeId, TypeId,
+    TypeKind, TypeStore,
 };
+use nocter_runtime_contract::{RuntimeTypeRepresentation, RuntimeTypeRepresentationTable};
 
 use crate::{
     MirBinaryOperation, MirBodyBuildError, MirBodyBuilder, MirBranchTarget, MirCall,
@@ -23,6 +21,7 @@ struct TestEnvironment {
     allocation_items: BTreeSet<ExecutableItemId>,
     standard_nominals: BTreeMap<StandardDeclarationRole, NominalTypeId>,
     pack_inputs: BTreeMap<ExecutableItemId, (TypeId, TypeId)>,
+    representations: RuntimeTypeRepresentationTable,
 }
 
 impl TestEnvironment {
@@ -40,6 +39,7 @@ impl TestEnvironment {
                 allocation_items: BTreeSet::new(),
                 standard_nominals: BTreeMap::new(),
                 pack_inputs: BTreeMap::new(),
+                representations: RuntimeTypeRepresentationTable::default(),
             },
             item,
         )
@@ -172,38 +172,26 @@ impl MirValidationEnvironment for TestEnvironment {
         self.pack_inputs.get(&item).copied()
     }
 
-    fn nominal_type(&self, _id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
-        None
+    fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
+        self.representations.get(ty)
     }
 
-    fn field(&self, _id: FieldId) -> Option<&FieldDeclaration> {
-        None
+    fn allocation_context_nominal(&self) -> Option<NominalTypeId> {
+        self.standard_nominals
+            .get(&StandardDeclarationRole::AllocationContext)
+            .copied()
     }
 
-    fn variant(&self, _id: VariantId) -> Option<&VariantDeclaration> {
-        None
-    }
-
-    fn parameter(&self, _id: ParameterId) -> Option<&Parameter> {
-        None
-    }
-
-    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
-        self.standard_nominals.get(&role).copied()
+    fn aborting_allocator_nominal(&self) -> Option<NominalTypeId> {
+        self.standard_nominals
+            .get(&StandardDeclarationRole::AbortingAllocator)
+            .copied()
     }
 
     fn closure_layout(
         &self,
         _item: ExecutableItemId,
     ) -> Option<&nocter_target_program::ExecutableClosureLayout> {
-        None
-    }
-
-    fn closure_capture_type(
-        &self,
-        _closure_ty: TypeId,
-        _capture: nocter_model::CaptureId,
-    ) -> Option<TypeId> {
         None
     }
 }
@@ -234,6 +222,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
             allocation_items: accepted.then_some(item).into_iter().collect(),
             standard_nominals: environment.standard_nominals.clone(),
             pack_inputs: environment.pack_inputs.clone(),
+            representations: environment.representations.clone(),
         };
         let mut builder = MirFunctionBuilder::new(item, void);
         let parameter = builder.add_parameter(place_ty, false);
@@ -323,6 +312,7 @@ fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
         allocation_items: BTreeSet::new(),
         standard_nominals: BTreeMap::new(),
         pack_inputs: BTreeMap::from([(literal, (i32_, next))]),
+        representations: RuntimeTypeRepresentationTable::default(),
     };
 
     assert!(build_pack_call(&environment, caller, literal, i32_, next, true, None).is_ok());

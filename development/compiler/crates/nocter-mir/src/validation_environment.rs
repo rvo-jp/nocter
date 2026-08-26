@@ -1,11 +1,5 @@
-use nocter_declarations::{
-    FieldDeclaration, NominalTypeDeclaration, OpaqueTypeDeclaration, Parameter,
-    StandardDeclarationRole, VariantDeclaration,
-};
-use nocter_model::{
-    CaptureId, ExecutableItemId, FieldId, NominalTypeId, OpaqueTypeId, ParameterId, TypeId,
-    TypeStore, VariantId,
-};
+use nocter_model::{ExecutableItemId, NominalTypeId, TypeId, TypeStore};
+use nocter_runtime_contract::RuntimeTypeRepresentation;
 use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 
 /// The immutable semantic authority required to validate one MIR function.
@@ -21,22 +15,10 @@ pub trait MirValidationEnvironment {
     fn item_accepts_allocation_override(&self, _item: ExecutableItemId) -> bool {
         false
     }
-    fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration>;
-    fn opaque_type(&self, _id: OpaqueTypeId) -> Option<&OpaqueTypeDeclaration> {
-        None
-    }
-    fn opaque_witness(&self, _id: OpaqueTypeId) -> Option<TypeId> {
-        None
-    }
-    fn field(&self, id: FieldId) -> Option<&FieldDeclaration>;
-    fn variant(&self, id: VariantId) -> Option<&VariantDeclaration>;
-    fn parameter(&self, id: ParameterId) -> Option<&Parameter>;
-    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId>;
+    fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation>;
+    fn allocation_context_nominal(&self) -> Option<NominalTypeId>;
+    fn aborting_allocator_nominal(&self) -> Option<NominalTypeId>;
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout>;
-    fn closure_layout_for_type(&self, _ty: TypeId) -> Option<&ExecutableClosureLayout> {
-        None
-    }
-    fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId>;
 }
 
 impl MirValidationEnvironment for ExecutableProgram {
@@ -59,43 +41,19 @@ impl MirValidationEnvironment for ExecutableProgram {
         ExecutableProgram::item_accepts_allocation_override(self, item)
     }
 
-    fn nominal_type(&self, id: NominalTypeId) -> Option<&NominalTypeDeclaration> {
-        ExecutableProgram::nominal_type(self, id)
+    fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
+        ExecutableProgram::type_representation(self, ty)
     }
 
-    fn opaque_type(&self, id: OpaqueTypeId) -> Option<&OpaqueTypeDeclaration> {
-        ExecutableProgram::opaque_type(self, id)
+    fn allocation_context_nominal(&self) -> Option<NominalTypeId> {
+        ExecutableProgram::allocation_context_nominal(self)
     }
 
-    fn opaque_witness(&self, id: OpaqueTypeId) -> Option<TypeId> {
-        ExecutableProgram::opaque_witness(self, id)
-    }
-
-    fn field(&self, id: FieldId) -> Option<&FieldDeclaration> {
-        ExecutableProgram::field(self, id)
-    }
-
-    fn variant(&self, id: VariantId) -> Option<&VariantDeclaration> {
-        ExecutableProgram::variant(self, id)
-    }
-
-    fn parameter(&self, id: ParameterId) -> Option<&Parameter> {
-        ExecutableProgram::parameter(self, id)
-    }
-
-    fn standard_nominal(&self, role: StandardDeclarationRole) -> Option<NominalTypeId> {
-        ExecutableProgram::standard_nominal(self, role)
+    fn aborting_allocator_nominal(&self) -> Option<NominalTypeId> {
+        ExecutableProgram::aborting_allocator_nominal(self)
     }
 
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
         self.closure_layout(item)
-    }
-
-    fn closure_layout_for_type(&self, ty: TypeId) -> Option<&ExecutableClosureLayout> {
-        self.closure_layout_for_type(ty)
-    }
-
-    fn closure_capture_type(&self, closure_ty: TypeId, capture: CaptureId) -> Option<TypeId> {
-        self.closure_capture_type(closure_ty, capture)
     }
 }

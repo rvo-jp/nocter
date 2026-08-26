@@ -1,4 +1,3 @@
-use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, TypeId, TypeKind};
 
 use crate::validation_pack::validate_call_pack;
@@ -142,11 +141,11 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
             return Err(self.invalid());
         };
         let valid_role = [
-            StandardDeclarationRole::AbortingAllocator,
-            StandardDeclarationRole::AllocationContext,
+            self.environment.aborting_allocator_nominal(),
+            self.environment.allocation_context_nominal(),
         ]
         .into_iter()
-        .filter_map(|role| self.environment.standard_nominal(role))
+        .flatten()
         .any(|expected| expected == *definition);
         if !arguments.is_empty() || !valid_role {
             return Err(self.invalid());

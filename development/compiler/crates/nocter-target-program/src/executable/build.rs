@@ -38,12 +38,14 @@ pub(super) fn build_executable(
         frozen.type_representations,
         target.toolchain().abi(),
     )?;
+    let semantic_environment =
+        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target.as_ref());
     Ok(ExecutableProgram {
         target,
+        semantic_environment,
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
-        closure_layouts: frozen.closure_layouts,
         runtime,
         root: ExecutableRoot::Process {
             target: selected,
@@ -94,12 +96,14 @@ pub(super) fn build_selected_tests(
         frozen.type_representations,
         target.toolchain().abi(),
     )?;
+    let semantic_environment =
+        super::semantic_environment::ExecutableSemanticEnvironment::freeze(target.as_ref());
     Ok(ExecutableProgram {
         target,
+        semantic_environment,
         types: frozen.types,
         items: frozen.items,
         item_ids: frozen.item_ids,
-        closure_layouts: frozen.closure_layouts,
         runtime,
         root: ExecutableRoot::Tests {
             target: selection.target(),
@@ -112,7 +116,6 @@ struct FrozenClosure {
     types: nocter_model::TypeStore,
     items: nocter_model::Arena<ExecutableItemId, ExecutableItem>,
     item_ids: BTreeMap<ExecutableItemKey, ExecutableItemId>,
-    closure_layouts: BTreeMap<nocter_model::TypeId, ExecutableItemId>,
     type_representations: super::RuntimeTypeRepresentationTable,
 }
 
@@ -180,6 +183,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
     fn build_item(&mut self, key: &ExecutableItemKey) -> Result<DraftItem, ExecutableProgramError> {
         let context = item_context(self.target, key)?;
         let signature = build_signature(self.target, &mut self.resolver, key)?;
+        let accepts_allocation_override = accepts_allocation_override(self.target, key);
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
         let substitution = item_substitution(key);
         let mut drops = BTreeMap::new();
@@ -265,6 +269,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
 
         Ok(DraftItem {
             signature,
+            accepts_allocation_override,
             closure,
             body: context.body,
             root: context.root,
@@ -593,6 +598,24 @@ impl<'program> ExecutableClosureBuilder<'program> {
     }
 }
 
+fn accepts_allocation_override(target: &TargetProgram, key: &ExecutableItemKey) -> bool {
+    let ExecutableItemKey::Callable(key) = key else {
+        return false;
+    };
+    target
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(key.callable())
+        .is_some_and(|callable| {
+            matches!(
+                callable.kind(),
+                nocter_declarations::CallableKind::Literal(_)
+            )
+        })
+}
+
 struct ItemContext {
     body: BodyId,
     root: BodyNodeId,
@@ -719,6 +742,7 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
 
 struct DraftItem {
     signature: super::ExecutableSignature,
+    accepts_allocation_override: bool,
     closure: Option<super::ExecutableClosureLayout>,
     body: BodyId,
     root: BodyNodeId,
@@ -780,20 +804,16 @@ fn freeze_items(
         let id = key_arena.insert(key.clone());
         item_ids.insert(key.clone(), id);
     }
-    let mut closure_layouts = BTreeMap::new();
-    let items = key_arena.try_finish_with(|item, key| {
+    let items = key_arena.try_finish_with(|_item, key| {
         let draft = drafts
             .remove(&key)
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
+        let accepts_allocation_override = draft.accepts_allocation_override;
         let (signature, closure, body) = freeze_body(draft, &item_ids)?;
-        if let Some(closure_ty) = closure.as_ref().map(super::ExecutableClosureLayout::ty)
-            && closure_layouts.insert(closure_ty, item).is_some()
-        {
-            return Err(ExecutableProgramError::DuplicateClosureLayout(closure_ty));
-        }
-        Ok(ExecutableItem {
+        Ok::<_, ExecutableProgramError>(ExecutableItem {
             key,
             signature,
+            accepts_allocation_override,
             closure,
             body,
         })
@@ -802,7 +822,6 @@ fn freeze_items(
         types,
         items,
         item_ids,
-        closure_layouts,
         type_representations,
     })
 }

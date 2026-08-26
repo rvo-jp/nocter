@@ -1,5 +1,5 @@
-use nocter_declarations::NominalShape;
 use nocter_model::{MirBlockId, TypeKind};
+use nocter_runtime_contract::RuntimeTypeRepresentation;
 
 use crate::validation_types::is_integer;
 use crate::{
@@ -34,20 +34,16 @@ pub(crate) fn validate_switch_subject(
                 .ok_or(MirValidationError::UnknownPlace(place))?
                 .ty();
             match types.get(ty) {
-                Some(TypeKind::Nominal { definition, .. }) => {
-                    let Some(nominal) = environment.nominal_type(*definition) else {
-                        return Err(MirValidationError::InvalidSwitchSubject(block));
-                    };
-                    matches!(nominal.shape(), NominalShape::Enum { .. })
-                        && cases.iter().all(|case| {
+                Some(TypeKind::Nominal { .. }) => matches!(
+                    environment.type_representation(ty),
+                    Some(RuntimeTypeRepresentation::Enum { variants })
+                        if cases.iter().all(|case| {
                             let MirSwitchValue::Variant(variant) = case.value() else {
                                 return false;
                             };
-                            environment
-                                .variant(variant)
-                                .is_some_and(|variant| variant.owner() == *definition)
+                            variants.iter().any(|candidate| candidate.variant() == variant)
                         })
-                }
+                ),
                 Some(TypeKind::Optional(_)) => cases.iter().all(|case| {
                     matches!(
                         case.value(),

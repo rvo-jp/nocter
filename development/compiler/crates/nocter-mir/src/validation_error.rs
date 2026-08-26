@@ -1,8 +1,8 @@
 use std::fmt;
 
 use nocter_model::{
-    ExecutableItemId, FieldId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
-    MirValueId, ParameterId, TypeId, VariantId,
+    ExecutableItemId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
+    MirValueId, TypeId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -15,9 +15,6 @@ pub enum MirValidationError {
     UnknownValue(MirValueId),
     UnknownOperation(MirOperationId),
     UnknownBlock(MirBlockId),
-    UnknownField(FieldId),
-    UnknownVariant(VariantId),
-    UnknownParameter(ParameterId),
     NonStorableLocal(MirLocalId),
     NonStorablePlace(MirPlaceId),
     DuplicateParameter(MirLocalId),

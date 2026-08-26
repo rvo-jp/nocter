@@ -1,4 +1,3 @@
-use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{MirBlockId, MirLocalId, MirOperationId, MirValueId, TypeId, TypeKind};
 
 use std::collections::{BTreeMap, VecDeque};
@@ -120,10 +119,10 @@ pub(crate) fn validate_region_creation(
     result: Option<TypeId>,
 ) -> Result<(), MirValidationError> {
     let context = environment
-        .standard_nominal(StandardDeclarationRole::AllocationContext)
+        .allocation_context_nominal()
         .ok_or(MirValidationError::OperationType(operation))?;
     let allocator = environment
-        .standard_nominal(StandardDeclarationRole::AbortingAllocator)
+        .aborting_allocator_nominal()
         .ok_or(MirValidationError::OperationType(operation))?;
     if result.is_some() {
         return Err(MirValidationError::OperationType(operation));
@@ -165,7 +164,7 @@ pub(crate) fn validate_region_selection(
     region: MirLocalId,
 ) -> Result<(), MirValidationError> {
     let context = environment
-        .standard_nominal(StandardDeclarationRole::AllocationContext)
+        .allocation_context_nominal()
         .ok_or(MirValidationError::OperationType(operation))?;
     let local = function
         .locals()

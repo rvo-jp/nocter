@@ -95,9 +95,7 @@ pub(super) fn close_type_representations(
             .insert(layout.ty(), RuntimeTypeRepresentation::Closure { captures })
             .is_some()
         {
-            return Err(ExecutableProgramError::InvalidTypeRepresentation(
-                layout.ty(),
-            ));
+            return Err(ExecutableProgramError::DuplicateClosureLayout(layout.ty()));
         }
     }
     Ok(RuntimeTypeRepresentationTable::new(entries))
