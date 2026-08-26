@@ -391,11 +391,12 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
          struct Item {}\n\
          drop Item(&+self) { return }\n\
          struct Iter {}\n\
-         conform Iterator for Iter {\n\
-             type Item = Item\n\
+         instance Iter {\n\
+             impl Iterator { Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) { return }\n\
@@ -727,14 +728,15 @@ fn dispatch_steps(plan: &ExecutableDispatchPlan) -> Vec<&ExecutableDispatchStep>
 }
 
 #[test]
-fn interface_dispatch_enqueues_only_the_selected_conformance_body() {
+fn interface_dispatch_enqueues_only_the_selected_interface_implementation_body() {
     let target = build_target_program(&Fixture::with_app(
         "pub interface Readable { pub method &self.read(): i32 }\n\
          struct Value {}\n\
-         conform Readable for Value {\n\
+         instance Value {\n\
+             impl Readable\n\
              method &self.read(): i32 { 42 }\n\
          }\n\
-         func read<T>(value: &T): i32 where T: Readable { value.read() }\n\
+         func read<T>(value: &T): i32 where T impl Readable { value.read() }\n\
          func main(): i32 {\n\
              let value = Value {}\n\
              read(&value)\n\
@@ -770,7 +772,7 @@ fn interface_dispatch_enqueues_only_the_selected_conformance_body() {
     assert!(
         owners
             .iter()
-            .any(|owner| matches!(owner, CallableOwner::Conformance(_)))
+            .any(|owner| matches!(owner, CallableOwner::Instance(_)))
     );
     assert!(
         !owners

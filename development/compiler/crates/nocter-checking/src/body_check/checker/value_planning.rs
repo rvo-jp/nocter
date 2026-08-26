@@ -1,4 +1,3 @@
-use nocter_declarations::StructuralCapability;
 use nocter_model::{
     BodyNodeId, BorrowCapability, CallableContract, GenericParameterId, PlaceId, TypeId,
 };
@@ -343,11 +342,7 @@ fn contextual_callable_contract(
     destination: TypeId,
 ) -> Result<Option<CallableContract>, BodyCheckError> {
     let mut contracts = requirements.iter().filter_map(|requirement| {
-        let CheckedPredicate::Capability {
-            subject,
-            capability: StructuralCapability::Callable(contract),
-        } = requirement.predicate()
-        else {
+        let CheckedPredicate::Callable { subject, contract } = requirement.predicate() else {
             return None;
         };
         (*subject == destination).then(|| contract.clone())

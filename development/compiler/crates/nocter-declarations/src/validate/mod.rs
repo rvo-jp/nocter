@@ -45,7 +45,7 @@ pub enum DeclarationDomain {
     Callable,
     Construction,
     Instance,
-    Conformance,
+    InterfaceImplementation,
     Drop,
     Test,
     Field,
@@ -126,7 +126,7 @@ pub(crate) fn validate_integrity(
     types::validate_aliases_interfaces(program)?;
     validate_constants(program)?;
     callables::validate(program)?;
-    validate_constructions_instances_conformances(program)?;
+    validate_constructions_instances_interface_implementations(program)?;
     validate_drops_tests(program)?;
     attachments::validate_ownership(program)?;
     validate_generic_parameters(program)?;
@@ -195,7 +195,7 @@ fn constant_integer_fits(value: i128, builtin: BuiltinType) -> bool {
     }
 }
 
-fn validate_constructions_instances_conformances(
+fn validate_constructions_instances_interface_implementations(
     program: &DeclarationProgram,
 ) -> Result<(), ProgramIntegrityError> {
     let declarations = program.declarations();
@@ -238,6 +238,10 @@ fn validate_constructions_instances_conformances(
         require_type(program, instance.target(), DeclarationDomain::Instance)?;
         unique(instance.generic_parameters(), DeclarationDomain::Instance)?;
         unique(instance.requirements(), DeclarationDomain::Instance)?;
+        unique(
+            instance.interface_implementations(),
+            DeclarationDomain::Instance,
+        )?;
         unique(instance.members(), DeclarationDomain::Instance)?;
         for member in instance.members() {
             let member = require(
@@ -251,52 +255,54 @@ fn validate_constructions_instances_conformances(
                 ));
             }
         }
-    }
-    for (id, conformance) in declarations.conformances().iter() {
-        require_site(program, conformance.site(), DeclarationDomain::Conformance)?;
-        requirements::validate_interface_application(
-            program,
-            conformance.interface(),
-            DeclarationDomain::Conformance,
-        )?;
-        require_type(
-            program,
-            conformance.target(),
-            DeclarationDomain::Conformance,
-        )?;
-        unique(
-            conformance.generic_parameters(),
-            DeclarationDomain::Conformance,
-        )?;
-        unique(conformance.requirements(), DeclarationDomain::Conformance)?;
-        unique(conformance.methods(), DeclarationDomain::Conformance)?;
-        validate_complete_conformance(program, conformance)?;
-        for method in conformance.methods() {
-            let method = require(
-                declarations.callables().get(*method),
-                DeclarationDomain::Conformance,
-                DeclarationDomain::Callable,
+        for implementation in instance.interface_implementations() {
+            let implementation = require(
+                declarations
+                    .interface_implementations()
+                    .get(*implementation),
+                DeclarationDomain::Instance,
+                DeclarationDomain::InterfaceImplementation,
             )?;
-            if method.owner() != CallableOwner::Conformance(id) {
+            if implementation.owner() != id {
                 return Err(ProgramIntegrityError::OwnerMismatch(
-                    DeclarationDomain::Callable,
+                    DeclarationDomain::InterfaceImplementation,
                 ));
             }
         }
     }
+    for (_, interface_implementation) in declarations.interface_implementations().iter() {
+        require_site(
+            program,
+            interface_implementation.site(),
+            DeclarationDomain::InterfaceImplementation,
+        )?;
+        requirements::validate_interface_application(
+            program,
+            interface_implementation.interface(),
+            DeclarationDomain::InterfaceImplementation,
+        )?;
+        require(
+            declarations
+                .instances()
+                .get(interface_implementation.owner()),
+            DeclarationDomain::InterfaceImplementation,
+            DeclarationDomain::Instance,
+        )?;
+        validate_complete_interface_implementation(program, interface_implementation)?;
+    }
     Ok(())
 }
 
-fn validate_complete_conformance(
+fn validate_complete_interface_implementation(
     program: &DeclarationProgram,
-    conformance: &crate::ConformanceDeclaration,
+    interface_implementation: &crate::InterfaceImplementationDeclaration,
 ) -> Result<(), ProgramIntegrityError> {
-    let interface_id = conformance.interface().interface();
+    let interface_id = interface_implementation.interface().interface();
     requirements::validate_associated_bindings(
         program,
-        conformance.associated_types(),
+        interface_implementation.associated_types(),
         interface_id,
-        DeclarationDomain::Conformance,
+        DeclarationDomain::InterfaceImplementation,
     )?;
     Ok(())
 }
@@ -397,10 +403,6 @@ fn generic_owner_list(
             .instances()
             .get(owner)
             .map(crate::InstanceDeclaration::generic_parameters),
-        GenericOwner::Conformance(owner) => declarations
-            .conformances()
-            .get(owner)
-            .map(crate::ConformanceDeclaration::generic_parameters),
         GenericOwner::Drop(owner) => declarations
             .drops()
             .get(owner)

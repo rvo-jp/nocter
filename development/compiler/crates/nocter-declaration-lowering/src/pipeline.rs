@@ -1434,7 +1434,7 @@ mod tests {
     fn production_pipeline_projects_the_exact_unknown_associated_name() {
         let text = concat!(
             "interface Source { pub type Item }\n",
-            "func read<T>(value: &T): T.Missing where T: Source { return value }\n",
+            "func read<T>(value: &T): T.Missing where T impl Source { return value }\n",
         );
         let mut sources = SourceMap::new();
         let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
@@ -1501,13 +1501,13 @@ mod tests {
                 None,
             ),
             (
-                "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Missing = i32\n}\n",
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Missing = i32 } }\n",
                 DefinitionRule::UnknownAssociatedTypeBinding,
                 "Missing",
                 None,
             ),
             (
-                "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Item = i32\n    type Item = i64\n}\n",
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Item = i32, Item = i64 } }\n",
                 DefinitionRule::DuplicateAssociatedTypeBinding,
                 "Item = i64",
                 Some("Item = i32"),
@@ -1599,7 +1599,7 @@ mod tests {
             ("G012", "drop str(&+self) {}\n", "declaration", "E0204"),
             (
                 "G013",
-                "interface Source {\n    pub type Item\n}\nfunc read<T>(value: T): T.Item<i32> where T: Source { return value }\n",
+                "interface Source {\n    pub type Item\n}\nfunc read<T>(value: T): T.Item<i32> where T impl Source { return value }\n",
                 "type-binding",
                 "E0292",
             ),
@@ -1619,8 +1619,8 @@ mod tests {
             (
                 "G018",
                 "func equality<T, U>(): T where T = U { return }\n",
-                "type-normalization",
-                "E0320",
+                "type-binding",
+                "E0301",
             ),
         ];
 

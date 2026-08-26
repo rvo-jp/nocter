@@ -624,9 +624,10 @@ impl BodyChecker<'_, '_> {
             .map(crate::CheckedRequirement::predicate)
             .chain(self.intrinsic_facts.iter())
             .filter_map(|predicate| {
-                let crate::CheckedPredicate::Capability {
+                let crate::CheckedPredicate::Interface {
                     subject,
-                    capability: nocter_declarations::StructuralCapability::Interface(application),
+                    application,
+                    ..
                 } = predicate
                 else {
                     return None;
@@ -837,11 +838,6 @@ impl BodyChecker<'_, '_> {
                         .get(owner)
                         .map(nocter_declarations::InterfaceDeclaration::generic_parameters)
                         .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?,
-                    CallableOwner::Conformance(owner) => declarations
-                        .conformances()
-                        .get(owner)
-                        .map(nocter_declarations::ConformanceDeclaration::generic_parameters)
-                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?,
                 };
                 Ok(owner
                     .iter()
@@ -884,13 +880,6 @@ impl BodyChecker<'_, '_> {
                             .get(owner)
                             .map(nocter_declarations::InstanceDeclaration::target),
                         Some(SemanticEntity::Instance(owner)),
-                    ),
-                    CallableOwner::Conformance(owner) => (
-                        declarations
-                            .conformances()
-                            .get(owner)
-                            .map(nocter_declarations::ConformanceDeclaration::target),
-                        Some(SemanticEntity::Conformance(owner)),
                     ),
                     CallableOwner::Interface(owner) => (
                         self.types.intern(TypeKind::InterfaceSelf(owner)).ok(),

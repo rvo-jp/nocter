@@ -176,7 +176,7 @@ fn classify(
         | SemanticEntity::DeclarationSite(_)
         | SemanticEntity::Construction(_)
         | SemanticEntity::Instance(_)
-        | SemanticEntity::Conformance(_)
+        | SemanticEntity::InterfaceImplementation(_)
         | SemanticEntity::Drop(_)
         | SemanticEntity::Requirement(_)
         | SemanticEntity::Body(_)

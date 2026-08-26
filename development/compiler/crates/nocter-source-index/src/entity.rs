@@ -1,7 +1,7 @@
 use nocter_model::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, BuiltinType, CallableId, CaptureId,
-    ConformanceId, ConstantId, ConstructionId, DeclarationSiteId, DropId, FieldId,
-    GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, ModuleId, NominalTypeId,
+    ConstantId, ConstructionId, DeclarationSiteId, DropId, FieldId, GenericParameterId, ImportId,
+    InstanceId, InterfaceId, InterfaceImplementationId, LocalBindingId, ModuleId, NominalTypeId,
     OpaqueTypeId, PackageId, PackageTargetId, ParameterId, RequirementId, TestId, TypeAliasId,
     VariantId,
 };
@@ -27,7 +27,7 @@ pub enum SemanticEntity {
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),
-    Conformance(ConformanceId),
+    InterfaceImplementation(InterfaceImplementationId),
     Drop(DropId),
     Test(TestId),
     Field(FieldId),

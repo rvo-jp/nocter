@@ -198,19 +198,23 @@
   <code>Vec&lt;i32&gt;.with_capacity(16)</code> and <code>Vec&lt;i32&gt; []</code>.</li><li>A call never prints explicit arguments for the callable's own generic parameters; those parameters
   are inferred.</li><li>An interface predicate uses one space around <code>impl</code>:
   <code>where T impl Interface&lt;U&gt;</code>.</li><li>Separate interface requirements use comma-space separation:
-  <code>where T impl Iterator, T impl ExactSizeIterator</code>.</li><li>An intrinsic copy predicate is <code>where copy T</code>. <code>copy</code> never follows <code>impl</code>.</li><li>A requirement clause remains on the signature line after result provenance:
+  <code>where T impl Iterator, T impl ExactSizeIterator</code>.</li><li>A callable requirement uses the ordinary annotation separator:
+  <code>where F: &amp;+func(T): U</code>. <code>impl func(...)</code> is never used.</li><li>An intrinsic copy predicate is <code>where copy T</code>. <code>copy</code> never follows <code>impl</code>.</li><li>A requirement clause remains on the signature line after result provenance:
   <code>: Self! from allocator where copy T</code>. Requirements use comma-space separation.</li><li>A result provenance clause follows the return type on the same line with one space before
   <code>from</code>. Union origins use one space around <code>|</code>.</li><li>An associated type declaration is <code>pub type Name</code> or <code>pub type Name impl Bound + Bound</code> on its own
-  interface-member line.</li><li>An associated type binding is <code>type Name = Type</code> inside braces following its interface
-  application: <code>impl Iterator { type Item = T }</code>.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li><li>An associated equality is written as an interface binding:
-  <code>R impl Iterator { type Item = L.Item }</code>.</li><li>An operator requirement encloses its expression and writes an explicit result type:
+  interface-member line.</li><li>An associated type binding is <code>Name = Type</code> inside braces following its interface
+  application: <code>impl Iterator { Item = T }</code>.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li><li>An associated equality is written as an interface binding:
+  <code>R impl Iterator { Item = L.Item }</code>.</li><li>An operator requirement encloses its expression and writes an explicit result type:
   <code>where (&amp;T == &amp;T): bool</code>, <code>where (&amp;T &lt; &amp;T): bool</code>, or <code>where (&amp;C[K]): &amp;V</code>.</li><li>An equality declaration is <code>operator (&amp;self == other: &amp;Self): bool</code>; spaces surround <code>==</code>, the
   named right binding follows it, and the complete operand expression stays in parentheses.</li><li>A strict-order declaration is <code>operator (&amp;self &lt; other: &amp;Self): bool</code>; spaces surround <code>&lt;</code>, the
   named right binding follows it, and <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> have no declaration forms.</li><li>A drop declaration is <code>drop TypePattern(&amp;+self) { ... }</code>. It has no visibility, generic prefix,
-  <code>where</code> clause, or result annotation, and follows ordinary top-level brace formatting.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
+  <code>where</code> clause, or result annotation, and follows ordinary top-level brace formatting.</li><li>Put all <code>impl Interface</code> facts and public inherent members for one exact instance header in one
+  root-source <code>instance</code> block. Use another block only when its target pattern or <code>where</code> clause
+  differs. A private implementation source mirrors that exact header and keeps its method bodies
+  together when practical.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
   <code>operator (&amp;+self[index: K]): &amp;+V</code>. There is no space before <code>[</code>, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
-  result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface { type Item = Type }</code>. Generic arguments
+  result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface { Item = Type }</code>. Generic arguments
   remain in angle brackets and associated bindings remain in braces. Binding <code>=</code> uses one space on
   each side, and <code>?</code> or <code>!</code> attaches to the complete opaque type without extra parentheses.</li><li>Closure captures precede one semicolon and parameters follow it: <code>(&amp;limit, move prefix; value)</code>.
   Capture and parameter segments independently use the common single-line or multi-line comma

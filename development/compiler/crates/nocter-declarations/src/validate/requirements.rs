@@ -4,7 +4,7 @@ use nocter_model::RequirementId;
 
 use crate::{
     AssociatedTypeBinding, DeclarationProgram, RequirementKind, RequirementOwner,
-    RequirementSubject, StructuralCapability,
+    RequirementSubject,
 };
 
 use super::{DeclarationDomain, ProgramIntegrityError, require, require_type};
@@ -17,27 +17,37 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
             ));
         }
         match requirement.kind() {
-            RequirementKind::Capability {
+            RequirementKind::Interface {
                 subject,
-                capability,
+                application,
+                associated_types,
             } => {
                 validate_subject(program, *subject)?;
-                match capability {
-                    StructuralCapability::Interface(interface) => validate_interface_application(
-                        program,
-                        interface,
-                        DeclarationDomain::Requirement,
-                    )?,
-                    StructuralCapability::Callable(contract) => {
-                        for parameter in contract.parameters() {
-                            require_type(program, *parameter, DeclarationDomain::Requirement)?;
-                        }
-                        if let Some(pack) = contract.pack() {
-                            require_type(program, pack, DeclarationDomain::Requirement)?;
-                        }
-                        require_type(program, contract.result(), DeclarationDomain::Requirement)?;
-                    }
+                validate_interface_application(
+                    program,
+                    application,
+                    DeclarationDomain::Requirement,
+                )?;
+                validate_associated_bindings(
+                    program,
+                    associated_types,
+                    application.interface(),
+                    DeclarationDomain::Requirement,
+                )?;
+            }
+            RequirementKind::Callable { subject, contract } => {
+                require(
+                    program.declarations().generic_parameters().get(*subject),
+                    DeclarationDomain::Requirement,
+                    DeclarationDomain::GenericParameter,
+                )?;
+                for parameter in contract.parameters() {
+                    require_type(program, *parameter, DeclarationDomain::Requirement)?;
                 }
+                if let Some(pack) = contract.pack() {
+                    require_type(program, pack, DeclarationDomain::Requirement)?;
+                }
+                require_type(program, contract.result(), DeclarationDomain::Requirement)?;
             }
             RequirementKind::Copy(parameter)
             | RequirementKind::Equality { operand: parameter }
@@ -47,10 +57,6 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                     DeclarationDomain::Requirement,
                     DeclarationDomain::GenericParameter,
                 )?;
-            }
-            RequirementKind::TypeEquality { left, right } => {
-                require_type(program, *left, DeclarationDomain::Requirement)?;
-                require_type(program, *right, DeclarationDomain::Requirement)?;
             }
             RequirementKind::Index {
                 container,
@@ -111,6 +117,12 @@ fn validate_subject(
             DeclarationDomain::AssociatedType,
         )
         .map(|_| ()),
+        RequirementSubject::InterfaceSelf(interface) => require(
+            program.declarations().interfaces().get(interface),
+            DeclarationDomain::Requirement,
+            DeclarationDomain::Interface,
+        )
+        .map(|_| ()),
     }
 }
 
@@ -146,10 +158,6 @@ fn owner_contains(
             .is_some_and(|owner| owner.requirements().contains(&requirement)),
         RequirementOwner::Instance(owner) => declarations
             .instances()
-            .get(owner)
-            .is_some_and(|owner| owner.requirements().contains(&requirement)),
-        RequirementOwner::Conformance(owner) => declarations
-            .conformances()
             .get(owner)
             .is_some_and(|owner| owner.requirements().contains(&requirement)),
     }

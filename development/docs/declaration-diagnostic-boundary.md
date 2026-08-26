@@ -30,7 +30,7 @@ After graph integrity succeeds, the validation pass produces one immutable outco
 
 - every declaration-rule violation found in the structurally valid graph;
 - exact declaration-site subjects for source projection;
-- admission facts for construction, instance, conformance, and destruction containers; and
+- admission facts for construction, inherent-instance, interface-implementation, and destruction containers; and
 - a closed editor-analysis outcome that is either declaration-only or carries the sole
   body-analysis input after inadmissible containers have been quarantined.
 
@@ -92,7 +92,7 @@ one row have the same classification and boundary reason.
 | Contract/reservation error | Class | Reason |
 |---|---|---|
 | `DeclarationContractError::MissingBody`, `MismatchedBody`, `DuplicateBody`, `InvalidBodyOmission` | authored rule | `E0250`-`E0253` distinguish public callable contracts from their private definitions. Private implementation-only members need no public contract. |
-| `DeclarationContractError::UncontractedConformance`, `DuplicateConformanceDefinition`, `AmbiguousConformanceContract`, `InvalidConformanceSplit` | authored rule | `E0254` and `E0264`-`E0266` make the root conformance head the single public fact, join it to exactly one private implementation container, and keep bindings and methods on their owning side. |
+| `DeclarationContractError::InterfaceImplementationOutsideRoot` | authored rule | `E0254` keeps each `impl Interface` fact in the module root while exact-header open instance fragments let private sources provide the ordinary method bodies. The authored source role is validated before representative selection. |
 | `DeclarationContractError::MissingRepresentation`, `MismatchedRepresentation`, `DuplicateRepresentation`, `RepresentationCompletedAgain` | authored rule | `E0255`-`E0258` distinguish public nominal contracts from their one private representation definition. |
 | `DeclarationContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
 | every `ReservationError` variant: `Contract`, `Program`, `DuplicateSourceBinding`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, valid owners, and unused builder/source-index slots. |
@@ -115,8 +115,8 @@ one row have the same classification and boundary reason.
 |---|---|---|
 | `TypeBindingError::Rule` | authored rule | `E0290`-`E0302` retain exact type, name, argument, requirement, and duplicate subjects. |
 | `TypeBindingError::MissingSource`, `InvalidSyntax`, `InconsistentSource`, `DuplicateSourceBinding` | compiler integrity | Binding accepts syntax-complete declarations and canonical source/symbol projections. |
-| `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0313` and `E0320` consume subjects retained in `NormalizationOrigins`. |
-| `TypeNormalizationError::InvalidBoundType`, `InconsistentTypeStore`, `MissingCapabilityContext`, `MissingAlias`, `InvalidSelf`, `InconsistentAssociatedIndex` | compiler integrity | Every item is a broken binding-arena, canonical-store, declaration-context, or semantic-index invariant. |
+| `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0314` consume subjects retained in `NormalizationOrigins`. |
+| `TypeNormalizationError::InvalidBoundType`, `InconsistentTypeStore`, `MissingInterfaceApplicationContext`, `MissingAlias`, `InvalidSelf`, `InconsistentAssociatedIndex` | compiler integrity | Every item is a broken binding-arena, canonical-store, declaration-context, or semantic-index invariant. |
 
 | Definition/freeze error | Class | Reason |
 |---|---|---|
@@ -153,7 +153,7 @@ follows:
 | G002-G004, G006-G013, G015-G018 where the current rule concerns declarations, names, imports, headers, or header types | declaration lowering and the diagnostic families classified above |
 | G005 | target selection after the declaration program has retained target gates |
 | G014 and the data-position part of G016/G018 | checked-program type well-formedness |
-| body/conformance behavior not decidable from headers | checked-program body and conformance checking |
+| body/interface-implementation behavior not decidable from headers | checked-program body and interface-implementation checking |
 
 Tests for a row must enter its owning facade. Reusing the declaration facade for a later semantic
 row would either guess behavior early or turn a valid intermediate program into an error.

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use nocter_model::ModuleId;
 
 use super::attachment_rules::{
-    attachment_target, conformance_target_is_authorized, inherent_target_is_authorized,
+    attachment_target, inherent_target_is_authorized, interface_is_owned_by_module,
     is_standard_package_module, outcome_payload, valid_literal_signature,
 };
 use crate::{CallableKind, CallableOwner, DeclarationProgram, NominalShape};
@@ -24,7 +24,7 @@ pub(super) fn validate_rules(
     validate_primitives(program, collector)?;
     validate_constructions(program, collector)?;
     validate_instances(program, collector)?;
-    validate_conformances(program, collector)?;
+    validate_interface_implementations(program, collector)?;
     validate_drops(program, collector)
 }
 
@@ -87,10 +87,6 @@ fn validate_owned_declaration_sites(
                 .interfaces()
                 .get(owner)
                 .map(crate::InterfaceDeclaration::site),
-            CallableOwner::Conformance(owner) => declarations
-                .conformances()
-                .get(owner)
-                .map(crate::ConformanceDeclaration::site),
         };
         require_same_site_module(
             program,
@@ -220,6 +216,27 @@ fn validate_instances(
     for (id, instance) in program.declarations().instances().iter() {
         let module = site_module(program, instance.site(), DeclarationDomain::Instance)?;
         if !inherent_target_is_authorized(program, instance.target(), module) {
+            let owns_every_interface = !instance.interface_implementations().is_empty()
+                && instance
+                    .interface_implementations()
+                    .iter()
+                    .all(|implementation| {
+                        program
+                            .declarations()
+                            .interface_implementations()
+                            .get(*implementation)
+                            .is_some_and(|implementation| {
+                                interface_is_owned_by_module(
+                                    program,
+                                    implementation.interface().interface(),
+                                    module,
+                                )
+                            })
+                    });
+            if owns_every_interface {
+                collector.restrict_instance_to_interfaces(id);
+                continue;
+            }
             let related = match attachment_target(program, instance.target()) {
                 Some(nocter_model::AttachmentFamily::Nominal(definition)) => Some(
                     require(
@@ -247,29 +264,47 @@ fn validate_instances(
     Ok(())
 }
 
-fn validate_conformances(
+fn validate_interface_implementations(
     program: &DeclarationProgram,
     collector: &mut ValidationCollector,
 ) -> Result<(), ProgramIntegrityError> {
-    for (id, conformance) in program.declarations().conformances().iter() {
-        let module = site_module(program, conformance.site(), DeclarationDomain::Conformance)?;
-        match attachment_target(program, conformance.target()) {
-            Some(
-                nocter_model::AttachmentFamily::Builtin(_) | nocter_model::AttachmentFamily::Slice,
-            ) if !conformance_target_is_authorized(program, conformance.target(), module) => {
-                collector.reject_conformance(
+    for (id, interface_implementation) in program.declarations().interface_implementations().iter()
+    {
+        let module = site_module(
+            program,
+            interface_implementation.site(),
+            DeclarationDomain::InterfaceImplementation,
+        )?;
+        let Some(owner) = program
+            .declarations()
+            .instances()
+            .get(interface_implementation.owner())
+        else {
+            return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::InterfaceImplementation,
+            ));
+        };
+        let interface_owned = interface_is_owned_by_module(
+            program,
+            interface_implementation.interface().interface(),
+            module,
+        );
+        let target_owned = inherent_target_is_authorized(program, owner.target(), module);
+        match attachment_target(program, owner.target()) {
+            Some(_) if !interface_owned && !target_owned => {
+                collector.reject_interface_implementation(
                     id,
                     violation(
-                        DeclarationRule::BuiltinConformanceAuthority,
-                        conformance.site(),
+                        DeclarationRule::BuiltinInterfaceImplementationAuthority,
+                        interface_implementation.site(),
                     ),
                 );
             }
-            None => collector.reject_conformance(
+            None => collector.reject_interface_implementation(
                 id,
                 violation(
-                    DeclarationRule::InvalidConformanceTarget,
-                    conformance.site(),
+                    DeclarationRule::InvalidInterfaceImplementationTarget,
+                    interface_implementation.site(),
                 ),
             ),
             Some(

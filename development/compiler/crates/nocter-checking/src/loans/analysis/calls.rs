@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::{ProvenanceOrigin, RequirementKind, StructuralCapability};
+use nocter_declarations::{ProvenanceOrigin, RequirementKind};
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
@@ -376,10 +376,7 @@ impl Analyzer<'_, '_> {
                     .requirements()
                     .get(requirement)
                     .and_then(|requirement| match requirement.kind() {
-                        RequirementKind::Capability {
-                            capability: StructuralCapability::Callable(contract),
-                            ..
-                        } => Some(contract),
+                        RequirementKind::Callable { contract, .. } => Some(contract),
                         _ => None,
                     })
                     .ok_or(BodyCheckInternalError::LoanAnalysis)?;

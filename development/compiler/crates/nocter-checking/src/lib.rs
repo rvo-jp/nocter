@@ -12,7 +12,6 @@ mod body_sources;
 mod checked;
 mod concrete_destruction;
 mod concrete_dispatch;
-mod conformance;
 mod construction_completion;
 mod construction_surfaces;
 mod copyability;
@@ -23,6 +22,7 @@ mod expected;
 mod field_selection;
 mod inference;
 mod instance_operations;
+mod interface_implementation;
 mod loans;
 mod member_completion;
 mod name_recovery;
@@ -89,12 +89,6 @@ pub use concrete_dispatch::{
     ConcreteDispatchError, ConcreteDispatchResolver, ResolvedCallableDispatch,
     ResolvedDispatchPlan, ResolvedDispatchStep, ResolvedOpaqueReceiver, ResolvedPrimitiveDispatch,
 };
-pub use conformance::{
-    CheckedConformance, CheckedPredicate, CheckedRequirement, ConformanceBuildError,
-    ConformanceInternalError, ConformanceMethod, ConformanceRule, ConformanceTable,
-    MethodSelection, MissingConformanceMethods, RequiredConformanceMethod,
-    RequiredConformanceParameter, SubstitutionError,
-};
 pub use construction_completion::{
     ConstructionCompletionCandidate, ConstructionCompletionError, ConstructionCompletionOwner,
     ConstructionCompletionTarget,
@@ -116,6 +110,13 @@ pub use instance_operations::{
     CheckedInstanceIndex, CheckedInstanceMember, CheckedInstanceMethod, CheckedInstanceOperations,
     InstanceOperationBuildError, InstanceOperationInternalError, InstanceOperationRule,
     InstanceOperationTable, InstanceSelectionError,
+};
+pub use interface_implementation::{
+    CheckedInterfaceImplementation, CheckedPredicate, CheckedRequirement,
+    InterfaceImplementationBuildError, InterfaceImplementationInternalError,
+    InterfaceImplementationMethod, InterfaceImplementationRule, InterfaceImplementationTable,
+    MethodSelection, MissingInterfaceImplementationMethods, RequiredInterfaceImplementationMethod,
+    RequiredInterfaceImplementationParameter, SubstitutionError,
 };
 pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionContext, MemberCompletionError,

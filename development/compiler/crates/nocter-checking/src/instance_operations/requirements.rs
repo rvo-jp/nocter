@@ -4,8 +4,8 @@ use super::selection::{
     InstanceOperationSelector, InstanceSelectionError, borrow_result, builtin_index_result,
     retain_direct_candidates,
 };
-use crate::conformance::{proves_predicate, substitute_predicate};
 use crate::copyability::CopyProofs;
+use crate::interface_implementation::{proves_predicate, substitute_predicate};
 use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
@@ -72,7 +72,7 @@ impl InstanceOperationSelector<'_> {
             }
             _ => proves_predicate(
                 self.types,
-                self.conformances,
+                self.interface_implementations,
                 self.assumptions,
                 self.intrinsic_facts,
                 predicate,

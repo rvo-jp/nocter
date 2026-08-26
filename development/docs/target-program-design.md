@@ -25,7 +25,7 @@ this boundary. It does not receive a synthetic entry.
 `ExecutableProgram` retains immutable shared ownership of one `TargetProgram` and consumes one
 exact executable or test selection. Multiple package targets therefore reuse the same checked and
 target-validated graph while each builds an independent entry-driven reachable closure. Each
-executable owns its monomorphized item table and freezes every concrete conformance dispatch. It
+executable owns its monomorphized item table and freezes every concrete interface-implementation dispatch. It
 cannot retain a callable requirement that MIR would have to resolve again.
 
 The implemented executable root is compiler-owned metadata, not a synthetic source declaration. A
@@ -126,7 +126,7 @@ modules and dependencies are not traversed, and no callable or synthetic source 
 
 A monomorphized callable key contains callable identity and the complete owner-plus-callable
 generic domain keyed by `GenericParameterId`. Receiver type is not stored a second time: an
-instance, construction, or conformance target is reconstructed from its declaration and that one
+instance, construction, or interface-implementation target is reconstructed from its declaration and that one
 substitution. The canonical key rejects missing, extra, duplicate, and still-symbolic arguments.
 The work queue is deterministic by the complete key.
 
@@ -138,7 +138,7 @@ callable-value steps. A plain invocation contains one step. A comparison retains
 left-operand coercion, right-operand coercion, and operation lanes. An index projection retains an
 independent receiver coercion and operation lane. This shape prevents ordered step arrays from
 losing which value a coercion consumes. Interface requirements resolve through the retained
-conformance authority, including required/default method selection. MIR never receives an
+interface-implementation authority, including required/default method selection. MIR never receives an
 unresolved `RequirementId`.
 
 An opaque method invocation is a distinct representation lane rather than an ordinary invocation
@@ -173,7 +173,7 @@ An explicit pattern drop retains both its `DropId` and the complete declaration-
 substitution selected from the subject type; a later stage never rematches a source type pattern.
 
 Instantiation substitutes the checked signature and body, proves retained requirements through
-the checked program's conformance authority, resolves abstract dispatch once, and enqueues exact
+the checked program's interface-implementation authority, resolves abstract dispatch once, and enqueues exact
 callees, drop bodies, construction members, closures, and compiler-generated semantic operations.
 Opaque witnesses become concrete at this boundary. Unreachable generic declarations are not
 instantiated and cannot create target code.
@@ -421,6 +421,6 @@ semantics.
 - matching a toolchain, standard package, primitive, entry, or runtime item by display spelling
 - allowing checking input and declaration/checked graphs to carry different targets
 - reparsing package target paths after discovery
-- creating separate generic-instance or conformance indexes for MIR and code generation
+- creating separate generic-instance or interface-implementation indexes for MIR and code generation
 - representing composite dispatch as a flat step sequence that loses operand ownership
 - returning public `check` success before selected-target buildability is complete

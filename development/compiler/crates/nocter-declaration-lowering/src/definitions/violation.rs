@@ -67,10 +67,10 @@ impl DefinitionRule {
                 "bodyless callable result provenance cannot be inferred uniquely"
             }
             Self::UnknownAssociatedTypeBinding => {
-                "conformance binds an associated type not declared by its interface"
+                "interface implementation binds an associated type not declared by its interface"
             }
             Self::DuplicateAssociatedTypeBinding => {
-                "conformance repeats an associated type binding"
+                "interface implementation repeats an associated type binding"
             }
             Self::InvalidArgumentPackParameter => {
                 "an argument pack must be the one final parameter of a supported callable"
@@ -94,7 +94,7 @@ impl DefinitionRule {
                 "add a from clause naming the inputs whose storage the result may retain"
             }
             Self::UnknownAssociatedTypeBinding => {
-                "bind an associated type declared by the conformed interface"
+                "bind an associated type declared by the implemented interface"
             }
             Self::DuplicateAssociatedTypeBinding => "remove the repeated associated type binding",
             Self::InvalidArgumentPackParameter => {

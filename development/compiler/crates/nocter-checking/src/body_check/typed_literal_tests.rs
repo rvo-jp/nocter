@@ -274,18 +274,20 @@ instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
     pub operator (...self): OwnedIter { return OwnedIter {} }
 }
-conform Iterator for RefIter {
-    type Item = &i32
+instance RefIter {
+    impl Iterator { Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
-conform ExactSizeIterator for RefIter {
+instance RefIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
-conform Iterator for OwnedIter {
-    type Item = i32
+instance OwnedIter {
+    impl Iterator { Item = i32 }
     method &+self.next(): i32? { return none }
 }
-conform ExactSizeIterator for OwnedIter {
+instance OwnedIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func copy_spread(source: Source): Vec<i32> { Vec [0, ...source, 4] }
@@ -371,11 +373,12 @@ struct RefIter {}
 instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
-conform Iterator for RefIter {
-    type Item = &i32
+instance RefIter {
+    impl Iterator { Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
-conform ExactSizeIterator for RefIter {
+instance RefIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func discard(...items: i32): void {
@@ -417,7 +420,7 @@ func apply(source: Source): void {
 fn generic_spread_uses_only_lexical_expansion_and_iterator_evidence() {
     let output = checked_with_iteration_standard(&iteration_standard(
         r"
-func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I: Iterator, I: ExactSizeIterator, I.Item = &T, copy T {
+func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I impl Iterator { Item = &T }, I impl ExactSizeIterator, copy T {
     Vec [...source]
 }
 ",
@@ -475,15 +478,16 @@ struct FallbackIter {}
 instance DirectIter {
     pub operator (...self): FallbackIter { return FallbackIter {} }
 }
-conform Iterator for DirectIter {
-    type Item = i32
+instance DirectIter {
+    impl Iterator { Item = i32 }
     method &+self.next(): i32? { return none }
 }
-conform Iterator for FallbackIter {
-    type Item = i32
+instance FallbackIter {
+    impl Iterator { Item = i32 }
     method &+self.next(): i32? { return none }
 }
-conform ExactSizeIterator for FallbackIter {
+instance FallbackIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func invalid(source: DirectIter): Vec<i32> { Vec [...move source] }
@@ -505,11 +509,12 @@ struct RefIter {}
 instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
-conform Iterator for RefIter {
-    type Item = &Value
+instance RefIter {
+    impl Iterator { Item = &Value }
     method &+self.next(): &Value? { return none }
 }
-conform ExactSizeIterator for RefIter {
+instance RefIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func invalid(source: Source): Vec<Value> { Vec [...source] }
@@ -526,11 +531,12 @@ fn direct_iterator_cannot_export_a_borrow_into_its_consumed_temporary() {
     let error = checked_with_iteration_standard(&iteration_standard(
         r"
 struct DirectIter {}
-conform Iterator for DirectIter {
-    type Item = &i32
+instance DirectIter {
+    impl Iterator { Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
-conform ExactSizeIterator for DirectIter {
+instance DirectIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func invalid(source: DirectIter): Vec<&i32> { Vec [...move source] }
@@ -552,11 +558,12 @@ instance Source {
     pub operator (...&self): RefIter from self { return RefIter { source: self } }
     pub method &+self.clear(): void { return }
 }
-conform Iterator for RefIter {
-    type Item = &i32
+instance RefIter {
+    impl Iterator { Item = &i32 }
     method &+self.next(): &i32? from self { return none }
 }
-conform ExactSizeIterator for RefIter {
+instance RefIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 func invalid(source: Source): void {
@@ -583,11 +590,12 @@ struct RefIter {}
 instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
-conform Iterator for RefIter {
-    type Item = &i32
+instance RefIter {
+    impl Iterator { Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
-conform ExactSizeIterator for RefIter {
+instance RefIter {
+    impl ExactSizeIterator
     method &self.remaining_len(): usize { 0 }
 }
 drop RefIter(&+self) { return }

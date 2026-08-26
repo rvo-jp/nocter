@@ -350,16 +350,17 @@ fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
 }
 
 #[test]
-fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
+fn concrete_dispatch_maps_a_lexical_interface_method_to_its_interface_implementation_body() {
     let target = build_target_program(&Fixture::with_app(
         "pub interface Readable {\n\
              pub method &self.read(): i32\n\
          }\n\
          struct Value {}\n\
-         conform Readable for Value {\n\
+         instance Value {\n\
+             impl Readable\n\
              method &self.read(): i32 { return 42 }\n\
          }\n\
-         func generic<T>(input: &T): i32 where T: Readable {\n\
+         func generic<T>(input: &T): i32 where T impl Readable {\n\
              return input.read()\n\
          }\n\
          func main(): i32 {\n\
@@ -394,7 +395,7 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
         .unwrap();
     let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method_dispatch)) = plan
     else {
-        panic!("interface dispatch must resolve to one conformance method")
+        panic!("interface dispatch must resolve to one interface_implementation method")
     };
 
     assert!(matches!(
@@ -404,7 +405,7 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_conformance_body() {
             .get(method_dispatch.callable())
             .unwrap()
             .owner(),
-        CallableOwner::Conformance(_)
+        CallableOwner::Instance(_)
     ));
     assert!(method_dispatch.generic_arguments().as_slice().is_empty());
 }
@@ -416,10 +417,11 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
              pub method &self.read(): i32\n\
          }\n\
          struct Value {}\n\
-         conform Readable for Value {\n\
+         instance Value {\n\
+             impl Readable\n\
              method &self.read(): i32 { 42 }\n\
          }\n\
-         func hide<T>(value: T): some Readable where T: Readable { move value }\n\
+         func hide<T>(value: T): some Readable where T impl Readable { move value }\n\
          func main(): i32 { hide(Value {}).read() }\n",
     ));
     let main = named_callable(&target, "main");
@@ -438,7 +440,7 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
         operation: ResolvedDispatchStep::Direct(method),
     } = plan
     else {
-        panic!("opaque dispatch must resolve to one conformance method")
+        panic!("opaque dispatch must resolve to one interface_implementation method")
     };
 
     assert!(matches!(
@@ -459,7 +461,7 @@ fn concrete_dispatch_opens_an_opaque_witness_only_during_specialization() {
             .get(method.callable())
             .unwrap()
             .owner(),
-        CallableOwner::Conformance(_)
+        CallableOwner::Instance(_)
     ));
 }
 

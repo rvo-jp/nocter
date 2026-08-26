@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_model::{ConformanceId, ConstructionId, DropId, InstanceId};
+use nocter_model::{ConstructionId, DropId, InstanceId, InterfaceImplementationId};
 
 /// Exact declaration containers admitted by declaration validation for editor-only analysis.
 ///
@@ -11,7 +11,8 @@ use nocter_model::{ConformanceId, ConstructionId, DropId, InstanceId};
 pub struct DeclarationAnalysisAdmission {
     constructions: BTreeSet<ConstructionId>,
     instances: BTreeSet<InstanceId>,
-    conformances: BTreeSet<ConformanceId>,
+    inherent_instances: BTreeSet<InstanceId>,
+    interface_implementations: BTreeSet<InterfaceImplementationId>,
     drops: BTreeSet<DropId>,
 }
 
@@ -19,13 +20,15 @@ impl DeclarationAnalysisAdmission {
     pub(crate) fn new(
         constructions: BTreeSet<ConstructionId>,
         instances: BTreeSet<InstanceId>,
-        conformances: BTreeSet<ConformanceId>,
+        inherent_instances: BTreeSet<InstanceId>,
+        interface_implementations: BTreeSet<InterfaceImplementationId>,
         drops: BTreeSet<DropId>,
     ) -> Self {
         Self {
             constructions,
             instances,
-            conformances,
+            inherent_instances,
+            interface_implementations,
             drops,
         }
     }
@@ -40,9 +43,18 @@ impl DeclarationAnalysisAdmission {
         self.instances.contains(&declaration)
     }
 
+    /// Returns whether this instance may contribute ordinary inherent operations.
+    ///
+    /// An interface-owned instance remains available to interface implementation checking, but
+    /// its methods cannot leak into the target type's inherent method namespace.
     #[must_use]
-    pub fn admits_conformance(&self, declaration: ConformanceId) -> bool {
-        self.conformances.contains(&declaration)
+    pub fn admits_inherent_instance(&self, declaration: InstanceId) -> bool {
+        self.inherent_instances.contains(&declaration)
+    }
+
+    #[must_use]
+    pub fn admits_interface_implementation(&self, declaration: InterfaceImplementationId) -> bool {
+        self.interface_implementations.contains(&declaration)
     }
 
     #[must_use]

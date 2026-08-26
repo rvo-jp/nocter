@@ -18,7 +18,7 @@ use super::{ProvenanceBodyInput, input_for_body};
 use crate::{
     AmbientStorageDependence, BodyCheckError, BodyCheckInternalError, BodyRule,
     CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedOperation,
-    ClosureProvenanceTable, ClosureTable, ConformanceTable, MethodSelection, PlaceRoot,
+    ClosureProvenanceTable, ClosureTable, InterfaceImplementationTable, MethodSelection, PlaceRoot,
     PrimitiveOperation, ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
 };
 
@@ -123,12 +123,13 @@ struct LoopFlow {
 pub(super) fn analyze_program(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    conformances: &ConformanceTable,
+    interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
     let summaries = infer_program_summaries(graph, types, closures, inputs)?;
-    let conformance_bounds = conformance_origin_bounds(conformances, &summaries.callables)?;
+    let interface_implementation_bounds =
+        interface_implementation_origin_bounds(interface_implementations, &summaries.callables)?;
     let bodies = build_body_provenance(
         graph,
         types,
@@ -136,7 +137,7 @@ pub(super) fn analyze_program(
         inputs,
         &summaries.callables,
         &summaries.closures,
-        &conformance_bounds,
+        &interface_implementation_bounds,
     )?;
     let callables = build_callable_provenance(graph, &summaries.callables)?;
     let checked_closures = build_closure_provenance(closures, &summaries.closures)?;
@@ -216,7 +217,7 @@ fn build_body_provenance(
     inputs: &[ProvenanceBodyInput<'_, '_>],
     summaries: &BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
-    conformance_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
+    interface_implementation_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
 ) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyCheckError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyProvenance>::new();
     for (body, declaration) in graph.declarations().bodies().iter() {
@@ -230,7 +231,7 @@ fn build_body_provenance(
                 input,
                 callable,
                 summaries,
-                conformance_bounds.get(&callable),
+                interface_implementation_bounds.get(&callable),
                 &analysis,
             )?;
         }
@@ -323,13 +324,13 @@ fn build_closure_provenance(
     Ok(checked_closures.finish())
 }
 
-fn conformance_origin_bounds(
-    conformances: &ConformanceTable,
+fn interface_implementation_origin_bounds(
+    interface_implementations: &InterfaceImplementationTable,
     summaries: &BTreeMap<CallableId, CallableSummary>,
 ) -> Result<BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>, BodyCheckError> {
     let mut bounds = BTreeMap::<CallableId, BTreeSet<ProvenanceOrigin>>::new();
-    for conformance in conformances.entries().values() {
-        for method in conformance.methods() {
+    for interface_implementation in interface_implementations.entries().values() {
+        for method in interface_implementation.methods() {
             let MethodSelection::Implementation(implementation) = method.selection() else {
                 continue;
             };
@@ -387,7 +388,7 @@ fn validate_callable_returns(
     input: &ProvenanceBodyInput<'_, '_>,
     callable: CallableId,
     summaries: &BTreeMap<CallableId, CallableSummary>,
-    conformance_bound: Option<&BTreeSet<ProvenanceOrigin>>,
+    interface_implementation_bound: Option<&BTreeSet<ProvenanceOrigin>>,
     analysis: &BodyAnalysis,
 ) -> Result<(), BodyCheckError> {
     let allowed = summaries
@@ -404,7 +405,8 @@ fn validate_callable_returns(
             .any(|source| match source {
                 ProvenanceSource::Callable(origin) => {
                     !allowed.origins.contains(&origin)
-                        || conformance_bound.is_some_and(|bound| !bound.contains(&origin))
+                        || interface_implementation_bound
+                            .is_some_and(|bound| !bound.contains(&origin))
                 }
                 ProvenanceSource::CurrentAllocation => false,
                 ProvenanceSource::Local(_)

@@ -12,7 +12,7 @@ use crate::instance_operations::{
     InstanceOperationSelector, InstanceSelectionContext, MethodCompletionCandidate,
 };
 use crate::{
-    CheckedProgram, ConformanceTable, CopyabilityTable, InstanceOperationTable,
+    CheckedProgram, CopyabilityTable, InstanceOperationTable, InterfaceImplementationTable,
     PreparedSemanticProgram,
 };
 
@@ -126,7 +126,7 @@ impl CheckedProgram {
             MemberCompletionAuthorities {
                 graph: self.graph(),
                 types: self.types(),
-                conformances: self.conformances(),
+                interface_implementations: self.interface_implementations(),
                 instance_operations: self.instance_operations(),
                 declaration_patterns: self.declaration_patterns(),
                 copyabilities: self.copyabilities(),
@@ -152,7 +152,7 @@ impl PreparedSemanticProgram {
             MemberCompletionAuthorities {
                 graph: self.graph(),
                 types: self.types(),
-                conformances: self.conformances(),
+                interface_implementations: self.interface_implementations(),
                 instance_operations: self.instance_operations(),
                 declaration_patterns: self.declaration_patterns(),
                 copyabilities: self.copyabilities(),
@@ -167,7 +167,7 @@ impl PreparedSemanticProgram {
 pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) graph: &'program DeclarationGraph,
     pub(crate) types: &'program TypeStore,
-    pub(crate) conformances: &'program ConformanceTable,
+    pub(crate) interface_implementations: &'program InterfaceImplementationTable,
     pub(crate) instance_operations: &'program InstanceOperationTable,
     pub(crate) declaration_patterns: &'program crate::declaration_patterns::DeclarationPatternTable,
     pub(crate) copyabilities: &'program CopyabilityTable,
@@ -181,7 +181,7 @@ pub(crate) fn select_member_completions(
     let MemberCompletionAuthorities {
         graph,
         types,
-        conformances,
+        interface_implementations,
         instance_operations,
         declaration_patterns,
         copyabilities,
@@ -201,7 +201,7 @@ pub(crate) fn select_member_completions(
         .map_err(MemberCompletionError::Assumptions)?;
     let selection = InstanceSelectionContext::new(
         graph,
-        conformances,
+        interface_implementations,
         instance_operations,
         assumptions.declared(),
         assumptions.intrinsic(),

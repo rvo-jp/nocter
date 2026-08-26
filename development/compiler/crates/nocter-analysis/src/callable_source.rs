@@ -128,10 +128,9 @@ const fn declaration_matches(callable: CallableKind, syntax: NodeKind) -> bool {
         CallableKind::Function | CallableKind::Primitive => {
             matches!(syntax, NodeKind::FunctionDeclaration)
         }
-        CallableKind::Method => matches!(
-            syntax,
-            NodeKind::InterfaceMethod | NodeKind::InherentMethod | NodeKind::ConformMethod
-        ),
+        CallableKind::Method => {
+            matches!(syntax, NodeKind::InterfaceMethod | NodeKind::InherentMethod)
+        }
         CallableKind::ConstructionFunction => matches!(syntax, NodeKind::ConstructionFunction),
         CallableKind::Literal(_) => matches!(syntax, NodeKind::LiteralDeclaration),
         CallableKind::Coercion => matches!(syntax, NodeKind::CoercionDeclaration),

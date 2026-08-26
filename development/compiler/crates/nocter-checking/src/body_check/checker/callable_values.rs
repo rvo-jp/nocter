@@ -1,4 +1,3 @@
-use nocter_declarations::StructuralCapability;
 use nocter_model::{BodyNodeId, CallableCapability, ClosureId, TypeId, TypeKind};
 use nocter_syntax::NodeId;
 
@@ -112,9 +111,9 @@ impl BodyChecker<'_, '_> {
             ));
         }
         let mut candidates = self.assumptions.iter().filter_map(|requirement| {
-            let CheckedPredicate::Capability {
+            let CheckedPredicate::Callable {
                 subject: required_subject,
-                capability: StructuralCapability::Callable(contract),
+                contract,
             } = requirement.predicate()
             else {
                 return None;

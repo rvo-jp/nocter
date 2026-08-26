@@ -160,9 +160,7 @@ fn validate_shape(callable: &crate::CallableDeclaration) -> Result<(), ProgramIn
                 | CallableKind::Index
                 | CallableKind::Expansion
         ),
-        CallableOwner::Interface(_) | CallableOwner::Conformance(_) => {
-            callable.kind() == CallableKind::Method
-        }
+        CallableOwner::Interface(_) => callable.kind() == CallableKind::Method,
     };
     let target_gate_allowed = callable.target_gate().is_none()
         || matches!(callable.owner(), CallableOwner::Module(_))
@@ -200,10 +198,6 @@ fn validate_owner(
             .is_some_and(|owner| owner.members().contains(&callable)),
         CallableOwner::Interface(owner) => declarations
             .interfaces()
-            .get(owner)
-            .is_some_and(|owner| owner.methods().contains(&callable)),
-        CallableOwner::Conformance(owner) => declarations
-            .conformances()
             .get(owner)
             .is_some_and(|owner| owner.methods().contains(&callable)),
     };

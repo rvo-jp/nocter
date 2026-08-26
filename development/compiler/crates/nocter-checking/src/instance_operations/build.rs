@@ -116,7 +116,7 @@ pub(super) fn build_instance_operation_table(
     source_index: &SourceIndex,
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
-    let operations = crate::admitted_operations::AdmittedOperations::new(graph, None);
+    let operations = crate::admitted_operations::AdmittedOperations::all(graph);
     build_instance_operation_table_from_ids(
         graph,
         types,
@@ -150,12 +150,24 @@ pub(crate) fn build_instance_operation_table_from_ids(
         let target = pattern.target();
         let family = AttachmentFamily::of(types, target)
             .ok_or(InstanceOperationInternalError::InvalidTarget(target))?;
+        let members = build_member_contracts(
+            graph,
+            types,
+            source_index,
+            id,
+            target,
+            instance.members(),
+            pattern.substitution(),
+        )?;
+        validate_coercion_identities(types, source_index, &members, pattern.substitution())?;
         if let Some(previous) = by_family.get(&family) {
             for previous in previous {
                 let previous_entry = entries
                     .get(previous)
                     .ok_or(InstanceOperationInternalError::MissingInstance(*previous))?;
-                if type_patterns_overlap(types, previous_entry.target(), target)? {
+                if operations_conflict(previous_entry.members(), &members)
+                    && type_patterns_overlap(types, previous_entry.target(), target)?
+                {
                     let previous = declarations
                         .instances()
                         .get(*previous)
@@ -168,16 +180,6 @@ pub(crate) fn build_instance_operation_table_from_ids(
                 }
             }
         }
-        let members = build_member_contracts(
-            graph,
-            types,
-            source_index,
-            id,
-            target,
-            instance.members(),
-            pattern.substitution(),
-        )?;
-        validate_coercion_identities(types, source_index, &members, pattern.substitution())?;
         for member in &members {
             if let CheckedInstanceMember::Method(method) = member {
                 method_names_by_family
@@ -211,6 +213,28 @@ pub(crate) fn build_instance_operation_table_from_ids(
             .map(|(family, names)| (family, names.into_iter().collect()))
             .collect(),
     ))
+}
+
+fn operations_conflict(left: &[CheckedInstanceMember], right: &[CheckedInstanceMember]) -> bool {
+    left.iter().any(|left| {
+        right.iter().any(|right| match (left, right) {
+            (CheckedInstanceMember::Method(left), CheckedInstanceMember::Method(right)) => {
+                left.name() == right.name()
+            }
+            (CheckedInstanceMember::Coercion(left), CheckedInstanceMember::Coercion(right)) => {
+                left.receiver_capability() == right.receiver_capability()
+                    && left.result_capability() == right.result_capability()
+                    && left.target() == right.target()
+            }
+            (CheckedInstanceMember::Equality(_), CheckedInstanceMember::Equality(_))
+            | (CheckedInstanceMember::Ordering(_), CheckedInstanceMember::Ordering(_))
+            | (CheckedInstanceMember::Index(_), CheckedInstanceMember::Index(_)) => true,
+            (CheckedInstanceMember::Expansion(left), CheckedInstanceMember::Expansion(right)) => {
+                left.capability() == right.capability()
+            }
+            _ => false,
+        })
+    })
 }
 
 fn build_member_contracts(

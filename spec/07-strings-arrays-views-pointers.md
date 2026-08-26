@@ -455,7 +455,7 @@ instance str {
     pub method &self.find(needle: &str): usize?
     pub method &self.contains(needle: &str): bool
     pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator { type Item = &str }
+    pub method &self.lines(): some Iterator { Item = &str }
     pub method &self.bytes_iter(): ViewIter<u8>
 }
 
@@ -506,7 +506,7 @@ instance str {
     pub method &self.strip_prefix(prefix: &str): &str? from self
     pub method &self.strip_suffix(suffix: &str): &str? from self
     pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator { type Item = &str }
+    pub method &self.lines(): some Iterator { Item = &str }
 }
 ```
 

@@ -3,7 +3,7 @@ use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
 
 use super::CheckedInstanceMember;
 use super::selection::{InstanceOperationSelector, InstanceSelectionError};
-use crate::conformance::normalize_requirements;
+use crate::interface_implementation::normalize_requirements;
 use crate::type_relations::TypeSubstitution;
 use crate::{
     CheckedPredicate, ComparisonOperation, GenericArguments, StaticDispatch, StaticSelection,

@@ -202,7 +202,7 @@ An associated type declaration owns the identity shared by its implementation bi
 uses. Definition, references, and rename cross imports through that identity rather than treating
 each `Item` spelling as a separate symbol.
 
-In `some Interface { type Item = T }`, semantic tokens classify `some` as a contextual keyword and
+In `some Interface { Item = T }`, semantic tokens classify `some` as a contextual keyword and
 `type` as a keyword. The
 interface and associated binding names use their declaration identities. Hover, signature help,
 completion, navigation, references, rename, and inlay text render the authored opaque contract and

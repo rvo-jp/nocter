@@ -9,4 +9,4 @@ use /vec.Vec
 see ./collection.nct
 
 /// Consumes `source` into a newly allocated Vec.
-pub func to_vec<I>(source: I): Vec<I.Item> from source where I: Iterator
+pub func to_vec<I>(source: I): Vec<I.Item> from source where I impl Iterator

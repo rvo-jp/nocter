@@ -457,8 +457,7 @@ fn validate_argument_pack_shape(
         SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::ConstructionFunction
         | SurfaceDeclarationKind::InterfaceMethod
-        | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod => packs.is_empty() || one_final,
+        | SurfaceDeclarationKind::InherentMethod => packs.is_empty() || one_final,
         _ => packs.is_empty(),
     };
     if valid {
@@ -501,7 +500,6 @@ fn receiver_syntax(
     let capability = match kind {
         SurfaceDeclarationKind::InterfaceMethod
         | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod
         | SurfaceDeclarationKind::Coercion
         | SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
@@ -561,7 +559,7 @@ fn owner_self_type(
             .intern(TypeKind::InterfaceSelf(interface))
             .map_err(|_| HeaderDefinitionError::InvalidTypePattern(owner)),
         Some(ReservedEntity::Instance(_)) => pattern_type(types, owner, 0),
-        Some(ReservedEntity::Conformance(_)) => pattern_type(types, owner, 1),
+        Some(ReservedEntity::InterfaceImplementation(_)) => pattern_type(types, owner, 1),
         _ => Err(HeaderDefinitionError::InvalidOwner(declaration)),
     }
 }
@@ -645,7 +643,6 @@ fn requirement_owner(
         }
         Some(ReservedEntity::Callable(owner)) => Ok(RequirementOwner::Callable(owner)),
         Some(ReservedEntity::Instance(owner)) => Ok(RequirementOwner::Instance(owner)),
-        Some(ReservedEntity::Conformance(owner)) => Ok(RequirementOwner::Conformance(owner)),
         Some(_) | None => Err(HeaderDefinitionError::InvalidOwner(declaration)),
     }
 }

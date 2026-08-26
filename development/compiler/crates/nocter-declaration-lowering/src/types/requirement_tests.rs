@@ -4,7 +4,8 @@ use nocter_syntax::ParseGoal;
 
 use super::test_support::{add_source, bind, module, package, parse_source};
 use super::{
-    BoundCapability, BoundRequirementKind, BoundTypeKind, PreparedTypeBindings, TypeBindingError,
+    BoundInterfaceApplication, BoundRequirementKind, BoundTypeKind, PreparedTypeBindings,
+    TypeBindingError,
 };
 use crate::{ModuleIdentity, PackageIdentity, SurfaceDeclarationId};
 
@@ -18,10 +19,10 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
         "/app/index.nct",
         concat!(
             "interface Show<T> {}\n",
-            "interface Source {\n    pub type Item: Show<i32>\n}\n",
+            "interface Source {\n    pub type Item impl Show<i32>\n}\n",
             "func inspect<T, U, C, I>(value: T): void where ",
-            "T: Show<U> + &func(value: &T): &T from value, ",
-            "copy U, T.Item = U, (&T == &T): bool, (&T < &T): bool, ",
+            "T impl Show<U>, T: &func(value: &T): &T from value, ",
+            "copy U, T impl Source { Item = U }, (&T == &T): bool, (&T < &T): bool, ",
             "(&C[usize]): &U, &T as &str, (...&C): I { return }\n",
         ),
     );
@@ -69,10 +70,12 @@ fn assert_requirement_families(bound: &PreparedTypeBindings<'_>) {
         .unwrap();
     assert!(matches!(
         associated,
-        [BoundRequirementKind::Capability {
+        [BoundRequirementKind::Interface {
             subject: RequirementSubject::AssociatedType(_),
-            capability: BoundCapability::Interface { arguments, .. },
+            application: BoundInterfaceApplication { arguments, .. },
+            associated_types,
         }] if arguments.len() == 1
+            && associated_types.is_empty()
     ));
     let requirements = bound
         .declaration_requirements(SurfaceDeclarationId::from_index(
@@ -82,16 +85,17 @@ fn assert_requirement_families(bound: &PreparedTypeBindings<'_>) {
     assert_eq!(requirements.len(), 9);
     assert!(matches!(
         requirements[0],
-        BoundRequirementKind::Capability { .. }
+        BoundRequirementKind::Interface { .. }
     ));
     assert!(matches!(
         requirements[1],
-        BoundRequirementKind::Capability { .. }
+        BoundRequirementKind::Callable { .. }
     ));
     assert!(matches!(requirements[2], BoundRequirementKind::Copy(_)));
     assert!(matches!(
         requirements[3],
-        BoundRequirementKind::TypeEquality { .. }
+        BoundRequirementKind::Interface { ref associated_types, .. }
+            if associated_types.len() == 1
     ));
     assert!(matches!(
         requirements[4],
@@ -200,4 +204,57 @@ fn pattern_equalities_are_directed_refinements_and_cannot_retain_their_binder() 
         TypeBindingError::Rule(violation)
             if violation.rule() == crate::TypeBindingRule::RecursiveBinderRefinement
     ));
+}
+
+#[test]
+fn colon_cannot_encode_a_nominal_interface_requirement() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
+    let app_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "interface Source {}\nfunc invalid<T>(): void where T: Source { return }\n",
+    );
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
+    let error = bind(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
+        ],
+        vec![
+            module("workspace:app", &[], "/app/index.nct", &app),
+            module("builtin:std", &[], "/std/index.nct", &std_root),
+            module(
+                "builtin:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude,
+            ),
+        ],
+        vec![],
+        &prelude_identity,
+    )
+    .unwrap_err();
+
+    assert!(
+        matches!(
+            &error,
+            TypeBindingError::Rule(violation)
+                if violation.rule() == crate::TypeBindingRule::InvalidTypeEntity
+        ),
+        "{error:?}"
+    );
 }

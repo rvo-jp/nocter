@@ -1,6 +1,6 @@
 use nocter_declarations::{
-    DeclarationGraph, ExpansionCapability, InterfaceApplication, RequirementKind,
-    RequirementSubject, StructuralCapability,
+    AssociatedTypeBinding, DeclarationGraph, ExpansionCapability, InterfaceApplication,
+    RequirementKind, RequirementSubject,
 };
 use nocter_model::{
     BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind, TypeStore,
@@ -11,14 +11,19 @@ use crate::type_relations::{SubstitutionError, TypeSubstitution};
 /// A declaration requirement normalized to type identities after owner substitution.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum CheckedPredicate {
-    Capability {
+    Interface {
         subject: TypeId,
-        capability: StructuralCapability,
+        application: InterfaceApplication,
+        associated_types: Box<[AssociatedTypeBinding]>,
+    },
+    Callable {
+        subject: TypeId,
+        contract: CallableContract,
     },
     Copy(TypeId),
-    TypeEquality {
-        left: TypeId,
-        right: TypeId,
+    BinderRefinement {
+        binder: TypeId,
+        replacement: TypeId,
     },
     Equality(TypeId),
     Ordering(TypeId),
@@ -91,31 +96,42 @@ pub(crate) fn substitute_predicate(
     predicate: &CheckedPredicate,
 ) -> Result<CheckedPredicate, SubstitutionError> {
     Ok(match predicate {
-        CheckedPredicate::Capability {
+        CheckedPredicate::Interface {
             subject,
-            capability,
-        } => CheckedPredicate::Capability {
+            application,
+            associated_types,
+        } => CheckedPredicate::Interface {
             subject: substitution.apply_type(types, *subject)?,
-            capability: match capability {
-                StructuralCapability::Interface(application) => {
-                    StructuralCapability::Interface(InterfaceApplication::new(
-                        application.interface(),
-                        application
-                            .arguments()
-                            .iter()
-                            .map(|argument| substitution.apply_type(types, *argument))
-                            .collect::<Result<Vec<_>, _>>()?,
+            application: InterfaceApplication::new(
+                application.interface(),
+                application
+                    .arguments()
+                    .iter()
+                    .map(|argument| substitution.apply_type(types, *argument))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            associated_types: associated_types
+                .iter()
+                .map(|binding| {
+                    Ok(AssociatedTypeBinding::new(
+                        binding.declaration(),
+                        substitution.apply_type(types, binding.ty())?,
                     ))
-                }
-                StructuralCapability::Callable(contract) => StructuralCapability::Callable(
-                    substitute_callable(types, substitution, contract)?,
-                ),
-            },
+                })
+                .collect::<Result<Vec<_>, SubstitutionError>>()?
+                .into_boxed_slice(),
+        },
+        CheckedPredicate::Callable { subject, contract } => CheckedPredicate::Callable {
+            subject: substitution.apply_type(types, *subject)?,
+            contract: substitute_callable(types, substitution, contract)?,
         },
         CheckedPredicate::Copy(ty) => CheckedPredicate::Copy(substitution.apply_type(types, *ty)?),
-        CheckedPredicate::TypeEquality { left, right } => CheckedPredicate::TypeEquality {
-            left: substitution.apply_type(types, *left)?,
-            right: substitution.apply_type(types, *right)?,
+        CheckedPredicate::BinderRefinement {
+            binder,
+            replacement,
+        } => CheckedPredicate::BinderRefinement {
+            binder: substitution.apply_type(types, *binder)?,
+            replacement: substitution.apply_type(types, *replacement)?,
         },
         CheckedPredicate::Equality(ty) => {
             CheckedPredicate::Equality(substitution.apply_type(types, *ty)?)
@@ -157,34 +173,38 @@ fn normalize_predicate(
     requirement: &RequirementKind,
 ) -> Result<CheckedPredicate, SubstitutionError> {
     Ok(match requirement {
-        RequirementKind::Capability {
+        RequirementKind::Interface {
             subject,
-            capability,
-        } => CheckedPredicate::Capability {
+            application,
+            associated_types,
+        } => CheckedPredicate::Interface {
             subject: subject_type(graph, types, substitution, *subject)?,
-            capability: match capability {
-                StructuralCapability::Interface(application) => {
-                    StructuralCapability::Interface(InterfaceApplication::new(
-                        application.interface(),
-                        application
-                            .arguments()
-                            .iter()
-                            .map(|argument| substitution.apply_type(types, *argument))
-                            .collect::<Result<Vec<_>, _>>()?,
+            application: InterfaceApplication::new(
+                application.interface(),
+                application
+                    .arguments()
+                    .iter()
+                    .map(|argument| substitution.apply_type(types, *argument))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            associated_types: associated_types
+                .iter()
+                .map(|binding| {
+                    Ok(AssociatedTypeBinding::new(
+                        binding.declaration(),
+                        substitution.apply_type(types, binding.ty())?,
                     ))
-                }
-                StructuralCapability::Callable(contract) => StructuralCapability::Callable(
-                    substitute_callable(types, substitution, contract)?,
-                ),
-            },
+                })
+                .collect::<Result<Vec<_>, SubstitutionError>>()?
+                .into_boxed_slice(),
+        },
+        RequirementKind::Callable { subject, contract } => CheckedPredicate::Callable {
+            subject: generic_type(types, substitution, *subject)?,
+            contract: substitute_callable(types, substitution, contract)?,
         },
         RequirementKind::Copy(parameter) => {
             CheckedPredicate::Copy(generic_type(types, substitution, *parameter)?)
         }
-        RequirementKind::TypeEquality { left, right } => CheckedPredicate::TypeEquality {
-            left: substitution.apply_type(types, *left)?,
-            right: substitution.apply_type(types, *right)?,
-        },
         RequirementKind::Equality { operand } => {
             CheckedPredicate::Equality(generic_type(types, substitution, *operand)?)
         }
@@ -218,9 +238,9 @@ fn normalize_predicate(
         RequirementKind::BinderRefinement {
             parameter,
             replacement,
-        } => CheckedPredicate::TypeEquality {
-            left: generic_type(types, substitution, *parameter)?,
-            right: substitution.apply_type(types, *replacement)?,
+        } => CheckedPredicate::BinderRefinement {
+            binder: generic_type(types, substitution, *parameter)?,
+            replacement: substitution.apply_type(types, *replacement)?,
         },
     })
 }
@@ -259,6 +279,9 @@ fn subject_type(
                 .intern(TypeKind::AssociatedProjection { base, associated })
                 .map_err(|_| SubstitutionError::InvalidStore)?
         }
+        RequirementSubject::InterfaceSelf(interface) => types
+            .intern(TypeKind::InterfaceSelf(interface))
+            .map_err(|_| SubstitutionError::InvalidStore)?,
     };
     substitution.apply_type(types, ty)
 }

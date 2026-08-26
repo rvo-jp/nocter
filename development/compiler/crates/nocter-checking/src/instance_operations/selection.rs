@@ -5,14 +5,14 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{BorrowCapability, TypeId, TypeKind, TypeStore};
 
 use super::{CheckedInstanceMember, InstanceOperationTable};
-use crate::conformance::normalize_requirements;
+use crate::interface_implementation::normalize_requirements;
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, collect_generic_parameters,
     match_type_pattern,
 };
 use crate::{
-    CheckedPredicate, CheckedRequirement, ConformanceTable, CopyabilityError, CopyabilityTable,
-    GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+    CheckedPredicate, CheckedRequirement, CopyabilityError, CopyabilityTable, GenericArgument,
+    GenericArguments, InterfaceImplementationTable, StaticDispatch, StaticSelection,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,7 +79,7 @@ impl CoercionCandidate {
 #[derive(Debug)]
 pub enum InstanceSelectionError {
     MissingInstance(nocter_model::InstanceId),
-    MissingConformance(nocter_model::ConformanceId),
+    MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
     MissingInterface(nocter_model::InterfaceId),
     MissingCallable(nocter_model::CallableId),
     MissingNominal(nocter_model::NominalTypeId),
@@ -105,8 +105,11 @@ impl fmt::Display for InstanceSelectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingInstance(instance) => write!(formatter, "missing instance {instance:?}"),
-            Self::MissingConformance(conformance) => {
-                write!(formatter, "missing conformance {conformance:?}")
+            Self::MissingInterfaceImplementation(interface_implementation) => {
+                write!(
+                    formatter,
+                    "missing interface implementation {interface_implementation:?}"
+                )
             }
             Self::MissingInterface(interface) => {
                 write!(formatter, "missing interface {interface:?}")
@@ -177,7 +180,7 @@ enum CandidateVisibility<'program> {
 #[derive(Clone, Copy)]
 pub(crate) struct InstanceSelectionContext<'program> {
     graph: &'program DeclarationGraph,
-    conformances: &'program ConformanceTable,
+    interface_implementations: &'program InterfaceImplementationTable,
     table: &'program InstanceOperationTable,
     assumptions: &'program [CheckedRequirement],
     intrinsic_facts: &'program [CheckedPredicate],
@@ -187,7 +190,7 @@ pub(crate) struct InstanceSelectionContext<'program> {
 impl<'program> InstanceSelectionContext<'program> {
     pub(crate) const fn new(
         graph: &'program DeclarationGraph,
-        conformances: &'program ConformanceTable,
+        interface_implementations: &'program InterfaceImplementationTable,
         table: &'program InstanceOperationTable,
         assumptions: &'program [CheckedRequirement],
         intrinsic_facts: &'program [CheckedPredicate],
@@ -195,7 +198,7 @@ impl<'program> InstanceSelectionContext<'program> {
     ) -> Self {
         Self {
             graph,
-            conformances,
+            interface_implementations,
             table,
             assumptions,
             intrinsic_facts,
@@ -208,12 +211,12 @@ impl<'program> InstanceSelectionContext<'program> {
     /// Concrete specialization has no lexical module and cannot repeat source visibility.
     pub(crate) const fn for_concrete_evidence(
         graph: &'program DeclarationGraph,
-        conformances: &'program ConformanceTable,
+        interface_implementations: &'program InterfaceImplementationTable,
         table: &'program InstanceOperationTable,
     ) -> Self {
         Self {
             graph,
-            conformances,
+            interface_implementations,
             table,
             assumptions: &[],
             intrinsic_facts: &[],
@@ -225,7 +228,7 @@ impl<'program> InstanceSelectionContext<'program> {
 pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) graph: &'program DeclarationGraph,
     pub(super) types: &'program mut TypeStore,
-    pub(super) conformances: &'program ConformanceTable,
+    pub(super) interface_implementations: &'program InterfaceImplementationTable,
     pub(super) copyabilities: &'program mut CopyabilityTable,
     pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
@@ -243,7 +246,7 @@ impl<'program> InstanceOperationSelector<'program> {
         Self {
             graph: context.graph,
             types,
-            conformances: context.conformances,
+            interface_implementations: context.interface_implementations,
             copyabilities,
             table: context.table,
             assumptions: context.assumptions,

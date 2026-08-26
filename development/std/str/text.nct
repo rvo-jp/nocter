@@ -104,7 +104,7 @@ instance str {
         return split_views(self, separator)?
     }
 
-    method &self.lines(): some Iterator<Item = &str> {
+    method &self.lines(): some Iterator { Item = &str } {
         return lines(self)
     }
 

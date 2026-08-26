@@ -31,24 +31,22 @@ pub use callable::{
 };
 pub use constant::ConstantDeclaration;
 pub use declaration::{
-    AssociatedTypeBinding, AssociatedTypeDeclaration, ConformanceDeclaration,
-    ConstructionDeclaration, DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter,
-    InstanceDeclaration, InterfaceApplication, InterfaceDeclaration, NominalShape,
-    NominalTypeDeclaration, OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration,
-    VariantDeclaration,
+    AssociatedTypeBinding, AssociatedTypeDeclaration, ConstructionDeclaration, DropDeclaration,
+    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, InterfaceApplication,
+    InterfaceDeclaration, InterfaceImplementationDeclaration, NominalShape, NominalTypeDeclaration,
+    OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{
-    BodyAnalysisDeclarationProgram, DeclarationAnalysisProgram, DeclarationGraph,
-    DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module, Package,
-    ProgramBuildError, ProgramBuildFailure, RejectedDeclarationAnalysis,
+    AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram, DeclarationAnalysisProgram,
+    DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,
+    Package, ProgramBuildError, ProgramBuildFailure, RejectedDeclarationAnalysis,
     RejectedDeclarationProgram,
 };
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,
-    StructuralCapability,
 };
 pub use standard::{
     StandardDeclaration, StandardDeclarationRole, StandardLibrary, StructuralAttachment,

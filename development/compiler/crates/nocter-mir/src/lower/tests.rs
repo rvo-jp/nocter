@@ -457,11 +457,12 @@ fn lowers_exact_size_spreads_with_deferred_residual_destruction() {
          drop Leaf(&+self) { return }\n\
          struct Item { leaf: Leaf }\n\
          struct Iter {}\n\
-         conform Iterator for Iter {\n\
-             type Item = Item\n\
+         instance Iter {\n\
+             impl Iterator { Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) { return }\n\
@@ -587,7 +588,9 @@ fn lowers_opaque_results_with_their_specialized_witness() {
     let program = lower_fixture(
         "pub interface Show { pub method &self.show(): i32 }\n\
          struct Value {}\n\
-         conform Show for Value { method &self.show(): i32 { 7 } }\n\
+         instance Value {
+             impl Show
+             method &self.show(): i32 { 7 } }\n\
          func make(): some Show { Value {} }\n\
          func main(): i32 { make().show() }\n",
     )
@@ -618,8 +621,11 @@ fn opens_owned_and_readwrite_opaque_receivers_without_erasing_capability() {
          pub interface Mutate { pub method &+self.bump(): i32 }\n\
          struct OwnedValue {}\n\
          struct MutableValue { value: i32 }\n\
-         conform Consume for OwnedValue { method self.consume(): i32 { 2 } }\n\
-         conform Mutate for MutableValue {\n\
+         instance OwnedValue {
+             impl Consume
+             method self.consume(): i32 { 2 } }\n\
+         instance MutableValue {\n\
+             impl Mutate\n\
              method &+self.bump(): i32 {\n\
                  self.value += 1\n\
                  self.value\n\
@@ -1315,8 +1321,8 @@ fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
                  return Iter { remaining: self.remaining }\n\
              }\n\
          }\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -1366,8 +1372,8 @@ fn collection_iteration_opens_an_opaque_iterator_receiver() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          struct Iter { remaining: i32 }\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -1376,7 +1382,7 @@ fn collection_iteration_opens_an_opaque_iterator_receiver() {
                  return self.remaining\n\
              }\n\
          }\n\
-         func make(): some Iterator<Item = i32> { Iter { remaining: 2 } }\n\
+         func make(): some Iterator { Item = i32 } { Iter { remaining: 2 } }\n\
          func main(): void {\n\
              var iterator = make()\n\
              for item in move iterator {\n\

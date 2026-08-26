@@ -1,29 +1,32 @@
 use std::fmt;
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{BodyAnalysisDeclarationProgram, DeclarationGraph, DeclarationProgram};
+use nocter_declarations::{
+    AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram, DeclarationGraph,
+};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::conformance::build_conformance_table_from_ids;
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::instance_operations::build_instance_operation_table_from_ids;
+use crate::interface_implementation::build_interface_implementation_table_from_ids;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::{
-    BodySourceCatalog, ConformanceBuildError, ConformanceTable, ConstructionSurfaceBuildError,
-    ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
-    DeclarationTypeValidityError, DropTable, DropTableError, InstanceOperationBuildError,
-    InstanceOperationTable, NameResolutionError, ResolvedBodyNames, StandardSemanticError,
-    StandardSemanticTable, catalog_body_sources, validate_declaration_types,
+    BodySourceCatalog, ConstructionSurfaceBuildError, ConstructionSurfaceTable,
+    CopyabilityBuildError, CopyabilityTable, DeclarationTypeValidityError, DropTable,
+    DropTableError, InstanceOperationBuildError, InstanceOperationTable,
+    InterfaceImplementationBuildError, InterfaceImplementationTable, NameResolutionError,
+    ResolvedBodyNames, StandardSemanticError, StandardSemanticTable, catalog_body_sources,
+    validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
 ///
 /// This value is deliberately not a partial `CheckedProgram`. It retains temporary syntax-backed
 /// name uses and body sources, while owning the one declaration graph, extended type store, and
-/// conformance authority that the final checked program will consume.
+/// interface implementation authority that the final checked program will consume.
 #[derive(Debug)]
 pub struct PreparedChecking<'syntax> {
     semantic: PreparedSemanticProgram,
@@ -54,7 +57,7 @@ impl<'syntax> PreparedBodyAnalysis<'syntax> {
 pub struct PreparedSemanticProgram {
     graph: DeclarationGraph,
     types: TypeStore,
-    conformances: ConformanceTable,
+    interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     declaration_patterns: DeclarationPatternTable,
@@ -75,7 +78,7 @@ impl PreparedSemanticProgram {
         Self {
             graph,
             types,
-            conformances: authorities.conformances,
+            interface_implementations: authorities.interface_implementations,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
             declaration_patterns: authorities.declaration_patterns,
@@ -97,8 +100,8 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn conformances(&self) -> &ConformanceTable {
-        &self.conformances
+    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+        &self.interface_implementations
     }
 
     #[must_use]
@@ -148,8 +151,8 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
-    pub const fn conformances(&self) -> &ConformanceTable {
-        self.semantic.conformances()
+    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+        self.semantic.interface_implementations()
     }
 
     #[cfg(test)]
@@ -203,7 +206,7 @@ impl<'syntax> PreparedChecking<'syntax> {
         let PreparedSemanticProgram {
             graph,
             types,
-            conformances,
+            interface_implementations,
             construction_surfaces,
             instance_operations,
             declaration_patterns,
@@ -215,7 +218,7 @@ impl<'syntax> PreparedChecking<'syntax> {
         PreparedCheckingParts {
             graph,
             types,
-            conformances,
+            interface_implementations,
             construction_surfaces,
             instance_operations,
             declaration_patterns,
@@ -234,7 +237,7 @@ impl<'syntax> PreparedChecking<'syntax> {
 pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) graph: DeclarationGraph,
     pub(crate) types: TypeStore,
-    pub(crate) conformances: ConformanceTable,
+    pub(crate) interface_implementations: InterfaceImplementationTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) declaration_patterns: DeclarationPatternTable,
@@ -259,7 +262,7 @@ impl PreparedCheckingParts<'_> {
         let program = PreparedSemanticProgram {
             graph: self.graph,
             types: self.types,
-            conformances: self.conformances,
+            interface_implementations: self.interface_implementations,
             construction_surfaces: self.construction_surfaces,
             instance_operations: self.instance_operations,
             declaration_patterns: self.declaration_patterns,
@@ -282,7 +285,7 @@ pub enum PreparationError {
     TypeValidity(DeclarationTypeValidityError),
     Copyability(CopyabilityBuildError),
     DropTable(DropTableError),
-    Conformance(ConformanceBuildError),
+    InterfaceImplementation(InterfaceImplementationBuildError),
     ConstructionSurfaces(ConstructionSurfaceBuildError),
     InstanceOperations(InstanceOperationBuildError),
     DeclarationPatterns(crate::SubstitutionError),
@@ -335,7 +338,7 @@ impl PreparationError {
             | Self::ConstructionSurfaces(_)
             | Self::DeclarationPatterns(_)
             | Self::StandardSemantics(_) => None,
-            Self::Conformance(error) => error.source_diagnostic(),
+            Self::InterfaceImplementation(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
         }
@@ -353,7 +356,7 @@ impl fmt::Display for PreparationError {
             Self::TypeValidity(error) => error.fmt(formatter),
             Self::Copyability(error) => error.fmt(formatter),
             Self::DropTable(error) => error.fmt(formatter),
-            Self::Conformance(error) => error.fmt(formatter),
+            Self::InterfaceImplementation(error) => error.fmt(formatter),
             Self::ConstructionSurfaces(error) => error.fmt(formatter),
             Self::InstanceOperations(error) => error.fmt(formatter),
             Self::DeclarationPatterns(error) => error.fmt(formatter),
@@ -371,9 +374,9 @@ impl From<DeclarationTypeValidityError> for PreparationError {
     }
 }
 
-impl From<ConformanceBuildError> for PreparationError {
-    fn from(error: ConformanceBuildError) -> Self {
-        Self::Conformance(error)
+impl From<InterfaceImplementationBuildError> for PreparationError {
+    fn from(error: InterfaceImplementationBuildError) -> Self {
+        Self::InterfaceImplementation(error)
     }
 }
 
@@ -422,17 +425,17 @@ impl From<NameResolutionError> for PreparationError {
 /// Opens the Phase 2 program exactly once and prepares every program-wide Phase 3 authority.
 ///
 /// Body-source integrity is checked first. Authored normalized type, conditional copyability, and
-/// conformance rules are then selected before body-local name rules. No failure returns a
+/// interface implementation rules are then selected before body-local name rules. No failure returns a
 /// partially prepared value.
 ///
 /// # Errors
 ///
 /// Returns the exact authored or internal failure selected by body-source cataloging, normalized
-/// type validation, copyability construction, conformance construction, or lexical name
+/// type validation, copyability construction, interface implementation construction, or lexical name
 /// resolution.
 pub fn prepare_program_checking<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    program: DeclarationProgram,
+    program: AcceptedDeclarationProgram,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationError> {
@@ -454,7 +457,7 @@ pub fn prepare_program_checking<'syntax>(
 /// completed explicit scopes and bindings before rejecting authored source.
 pub fn prepare_program_checking_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    program: DeclarationProgram,
+    program: AcceptedDeclarationProgram,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
@@ -469,7 +472,7 @@ pub fn prepare_program_checking_recovering<'syntax>(
 
 /// Prepares structurally valid declarations rejected by a recoverable authored authority rule.
 ///
-/// Unauthorized construction, instance, and conformance containers retain bodies and lexical
+/// Unauthorized construction, instance, and interface implementation containers retain bodies and lexical
 /// identities but are quarantined from global operation lookup. The input type has no production
 /// transition, so successful editor checking cannot authorize compilation.
 ///
@@ -493,7 +496,7 @@ pub fn prepare_analysis_program_checking_recovering<'syntax>(
 }
 
 enum PreparationProgram {
-    Accepted(DeclarationProgram),
+    Accepted(AcceptedDeclarationProgram),
     Analysis(BodyAnalysisDeclarationProgram),
 }
 
@@ -503,23 +506,17 @@ impl PreparationProgram {
     ) -> (
         DeclarationGraph,
         TypeStore,
-        Option<nocter_declarations::DeclarationAnalysisAdmission>,
+        nocter_declarations::DeclarationAnalysisAdmission,
     ) {
         match self {
-            Self::Accepted(program) => {
-                let (graph, types) = program.into_parts();
-                (graph, types, None)
-            }
-            Self::Analysis(program) => {
-                let (graph, types, admission) = program.into_parts();
-                (graph, types, Some(admission))
-            }
+            Self::Accepted(program) => program.into_parts(),
+            Self::Analysis(program) => program.into_parts(),
         }
     }
 }
 
 struct PreparedProgramAuthorities {
-    conformances: ConformanceTable,
+    interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     declaration_patterns: DeclarationPatternTable,
@@ -571,20 +568,20 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let authorities =
-        match build_program_authorities(&graph, &mut types, &source_index, admission.as_ref()) {
-            Ok(authorities) => authorities,
-            Err(error) => {
-                return Err(declaration_failure(
-                    error,
-                    retain_names,
-                    graph,
-                    types,
-                    source_index,
-                    Some(standard_semantics),
-                ));
-            }
-        };
+    let authorities = match build_program_authorities(&graph, &mut types, &source_index, &admission)
+    {
+        Ok(authorities) => authorities,
+        Err(error) => {
+            return Err(declaration_failure(
+                error,
+                retain_names,
+                graph,
+                types,
+                source_index,
+                Some(standard_semantics),
+            ));
+        }
+    };
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -642,19 +639,19 @@ fn build_program_authorities(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
-    admission: Option<&nocter_declarations::DeclarationAnalysisAdmission>,
+    admission: &nocter_declarations::DeclarationAnalysisAdmission,
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
     let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
     validate_declaration_types(graph, types, source_index)?;
     let copyabilities = CopyabilityTable::build(graph, types, source_index)?;
     let declaration_patterns = DeclarationPatternTable::build(graph, types)?;
     let drops = DropTable::build_from_ids(graph, types, operations.drops())?;
-    let conformances = build_conformance_table_from_ids(
+    let interface_implementations = build_interface_implementation_table_from_ids(
         graph,
         types,
         source_index,
         &declaration_patterns,
-        operations.conformances(),
+        operations.interface_implementations(),
     )?;
     let construction_surfaces =
         ConstructionSurfaceTable::build_from_ids(graph, types, operations.constructions())?;
@@ -666,7 +663,7 @@ fn build_program_authorities(
         operations.instances(),
     )?;
     Ok(PreparedProgramAuthorities {
-        conformances,
+        interface_implementations,
         construction_surfaces,
         instance_operations,
         declaration_patterns,
@@ -752,7 +749,7 @@ mod tests {
     #[test]
     fn preparation_owns_every_program_wide_checking_authority() {
         let fixture = Fixture::new(
-            "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\n\
+            "pub interface Marker {}\nstruct Value {}\ninstance Value { impl Marker }\n\
              construct Value { pub func new(): Self { loop {} } }\n\
              func main(): void { return }\n",
         );
@@ -762,7 +759,7 @@ mod tests {
         let prepared =
             prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
 
-        assert_eq!(prepared.conformances().entries().len(), 1);
+        assert_eq!(prepared.interface_implementations().entries().len(), 1);
         assert_eq!(prepared.construction_surfaces().len(), 1);
         assert_eq!(prepared.body_sources().len(), 2);
         assert_eq!(prepared.body_names().len(), 2);

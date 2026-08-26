@@ -1,8 +1,6 @@
 use std::fmt;
 
-use nocter_declarations::{
-    DeclarationGraph, InterfaceApplication, ParameterRole, RequirementKind, StructuralCapability,
-};
+use nocter_declarations::{DeclarationGraph, InterfaceApplication, ParameterRole, RequirementKind};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{TypeId, TypeStore};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
@@ -94,17 +92,26 @@ pub fn validate_declaration_types(
             SemanticEntity::Instance(id),
         )?;
     }
-    for (id, conformance) in declarations.conformances().iter() {
-        let entity = SemanticEntity::Conformance(id);
+    for (id, interface_implementation) in declarations.interface_implementations().iter() {
+        let entity = SemanticEntity::InterfaceImplementation(id);
+        let owner = declarations
+            .instances()
+            .get(interface_implementation.owner())
+            .ok_or(TypeValidityInternalError::MissingSource(entity))?;
         validate_position(
             types,
             source_index,
-            conformance.target(),
+            owner.target(),
             TypePosition::TypeOperand,
             entity,
         )?;
-        validate_interface(types, source_index, conformance.interface(), entity)?;
-        for binding in conformance.associated_types() {
+        validate_interface(
+            types,
+            source_index,
+            interface_implementation.interface(),
+            entity,
+        )?;
+        for binding in interface_implementation.associated_types() {
             validate_position(
                 types,
                 source_index,
@@ -205,29 +212,37 @@ fn validate_requirement(
     entity: SemanticEntity,
 ) -> Result<(), DeclarationTypeValidityError> {
     match requirement {
-        RequirementKind::Capability { capability, .. } => match capability {
-            StructuralCapability::Interface(application) => {
-                validate_interface(types, source_index, application, entity)
-            }
-            StructuralCapability::Callable(contract) => {
-                for parameter in contract.parameters() {
-                    validate_position(types, source_index, *parameter, TypePosition::Data, entity)?;
-                }
-                if let Some(pack) = contract.pack() {
-                    validate_position(types, source_index, pack, TypePosition::Data, entity)?;
-                }
+        RequirementKind::Interface {
+            application,
+            associated_types,
+            ..
+        } => {
+            validate_interface(types, source_index, application, entity)?;
+            for binding in associated_types {
                 validate_position(
                     types,
                     source_index,
-                    contract.result(),
-                    TypePosition::CallableResult,
+                    binding.ty(),
+                    TypePosition::Data,
                     entity,
-                )
+                )?;
             }
-        },
-        RequirementKind::TypeEquality { left, right } => {
-            validate_position(types, source_index, *left, TypePosition::Data, entity)?;
-            validate_position(types, source_index, *right, TypePosition::Data, entity)
+            Ok(())
+        }
+        RequirementKind::Callable { contract, .. } => {
+            for parameter in contract.parameters() {
+                validate_position(types, source_index, *parameter, TypePosition::Data, entity)?;
+            }
+            if let Some(pack) = contract.pack() {
+                validate_position(types, source_index, pack, TypePosition::Data, entity)?;
+            }
+            validate_position(
+                types,
+                source_index,
+                contract.result(),
+                TypePosition::CallableResult,
+                entity,
+            )
         }
         RequirementKind::Index { index, result, .. } => {
             validate_position(types, source_index, *index, TypePosition::Data, entity)?;

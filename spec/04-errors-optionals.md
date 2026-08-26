@@ -352,7 +352,7 @@ Rules:
 - `match` and `if expr is Pattern` do not apply to `T?`.
 - `some(value)` is not language syntax.
 - `some` is not a reserved keyword. It is contextual only at the start of a static opaque result
-  type such as `some Iterator { type Item = T }`; in value position it remains an ordinary identifier.
+  type such as `some Iterator { Item = T }`; in value position it remains an ordinary identifier.
 
 ## Composing Optionals and Fallible Types
 

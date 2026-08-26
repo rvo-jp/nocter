@@ -84,18 +84,17 @@ pub(super) fn inherent_target_is_authorized(
     }
 }
 
-pub(super) fn conformance_target_is_authorized(
+pub(super) fn interface_is_owned_by_module(
     program: &DeclarationProgram,
-    ty: TypeId,
+    interface: nocter_model::InterfaceId,
     module: ModuleId,
 ) -> bool {
-    match attachment_target(program, ty) {
-        Some(AttachmentFamily::Nominal(_)) => true,
-        Some(AttachmentFamily::Builtin(_) | AttachmentFamily::Slice) => {
-            is_standard_package_module(program, module)
-        }
-        None => false,
-    }
+    program
+        .declarations()
+        .interfaces()
+        .get(interface)
+        .and_then(|declaration| program.graph().declaration_sites().get(declaration.site()))
+        .is_some_and(|site| site.module() == module)
 }
 
 fn is_structural_attachment_module(

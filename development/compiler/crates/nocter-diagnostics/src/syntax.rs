@@ -172,7 +172,7 @@ fn expected_message(expected: ExpectedSyntax) -> Box<str> {
         ExpectedSyntax::EnumPattern => "expected an enum pattern".into(),
         ExpectedSyntax::ClosureHead => "expected a closure parameter list".into(),
         ExpectedSyntax::Predicate => "expected a `where` predicate".into(),
-        ExpectedSyntax::Capability => "expected a borrow capability".into(),
+        ExpectedSyntax::Interface => "expected an interface".into(),
         ExpectedSyntax::Newline => "expected a newline".into(),
     }
 }

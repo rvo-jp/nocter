@@ -5,7 +5,7 @@ see ./index.nct
 use /iter.Iterator
 use /vec.Vec
 
-func to_vec<I>(source: I): Vec<I.Item> from source where I: Iterator {
+func to_vec<I>(source: I): Vec<I.Item> from source where I impl Iterator {
     var iterator = move source
     var result: Vec<I.Item> = Vec.empty()
     while true {

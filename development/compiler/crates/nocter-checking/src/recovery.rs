@@ -19,7 +19,7 @@ pub enum PreparationRecovery {
 
 /// The complete declaration graph retained when a program-wide preparation rule rejects source.
 ///
-/// This boundary contains no conformance, construction, instance-operation, name, or body result.
+/// This boundary contains no interface implementation, construction, instance-operation, name, or body result.
 /// It may retain the independently completed standard contract capability when a later preparation
 /// authority rejects source. Tooling can inspect these exact facts without rerunning lowering or
 /// pretending that the rejecting authority completed.
@@ -227,7 +227,7 @@ impl BodyAnalysisRecovery {
             crate::member_completion::MemberCompletionAuthorities {
                 graph: self.prepared.graph(),
                 types: &typed.types,
-                conformances: self.prepared.conformances(),
+                interface_implementations: self.prepared.interface_implementations(),
                 instance_operations: self.prepared.instance_operations(),
                 declaration_patterns: self.prepared.declaration_patterns(),
                 copyabilities: &typed.copyabilities,

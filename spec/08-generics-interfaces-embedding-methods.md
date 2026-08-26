@@ -21,7 +21,7 @@ func first<T>(items: &[T]): T? {
 ```
 
 A generic parameter list declares names and arity only. A `where` clause declares every nominal
-interface implementation, intrinsic copy, operator, coercion, expansion, and pattern-refinement
+interface, structural callable, intrinsic copy, operator, coercion, expansion, and pattern-refinement
 requirement. The complete
 recognition grammar is centralized under
 [Generic Requirements](25-syntactic-grammar.md#generic-requirements).
@@ -33,7 +33,7 @@ occurrence declares a binder and later occurrences refer to that same binder, as
 
 Every nominal interface requirement must resolve to an accessible interface with the declared type
 arity. Requirement order is formatting information; semantics use specialized interface
-declaration identities and associated bindings. Duplicate interface applications are invalid.
+declaration identities and associated bindings. Duplicate interface requirements are invalid.
 
 `copy` is an intrinsic requirement, not an interface or a type modifier. A callable may rely on
 implicit copies of `T` only when its contract contains `where copy T`. A concrete call satisfies the
@@ -54,13 +54,13 @@ The clause follows result provenance and precedes a callable body. On a struct, 
 it follows the generic parameter list and precedes the body. On an `instance`, it follows the
 target. On a type alias, it follows the aliased type. A requirement target must be a generic
 parameter or associated projection visible to that declaration. Duplicate `copy` requirements and
-duplicate interface implementations are invalid. `copy` is unavailable after `impl` and is invalid
+duplicate interface requirements are invalid. `copy` is unavailable after `impl` and is invalid
 inside a type expression such as `&[copy T]`.
 
 An interface requirement uses `impl` and may bind that interface's associated types in braces:
 
 ```nct
-where T impl Iterator { type Item = &str }
+where T impl Iterator { Item = &str }
 ```
 
 `impl` is reserved for nominal interfaces. It cannot introduce an intrinsic copy, callable,
@@ -286,7 +286,7 @@ pub interface Source {
 }
 
 instance BufferSource<T> {
-    impl Source { type Item = T }
+    impl Source { Item = T }
 
     method &+self.next(): T? {
         ...
@@ -317,7 +317,7 @@ associated-type declaration:
 
 ```nct
 func chain<L, R>(left: L, right: R): ChainIter<L, R>
-where L impl Iterator, R impl Iterator { type Item = L.Item } {
+where L impl Iterator, R impl Iterator { Item = L.Item } {
     ...
 }
 ```
@@ -328,7 +328,7 @@ where L impl Iterator, R impl Iterator { type Item = L.Item } {
 result type out of the API:
 
 ```nct
-pub func lines(text: &str): some Iterator { type Item = &str } from text {
+pub func lines(text: &str): some Iterator { Item = &str } from text {
     return LinesIter.new(text)
 }
 ```
@@ -344,7 +344,7 @@ The `some` result source form is defined by
 Ordinary interface type arguments precede associated bindings when both are present:
 
 ```nct
-func values<T>(): some Source<T> { type Item = &T } { ... }
+func values<T>(): some Source<T> { Item = &T } { ... }
 ```
 
 Rules:
@@ -410,7 +410,7 @@ instance ValuesIter<T> {
 }
 
 instance ValuesIter<T> {
-    impl Iterator { type Item = T }
+    impl Iterator { Item = T }
 }
 ```
 

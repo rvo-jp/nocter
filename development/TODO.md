@@ -6,17 +6,17 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0 and Phase 1 work](milestones/v0.18.0.md) and their adversarial reviews are
-complete. Phase 2 is active and replaces standalone conformances with instance-owned interface
-implementation, associated-binding braces, nominal `impl` requirements, and statically witnessed
-callable annotations. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
+The [v0.18.0 Phase 0, Phase 1, and Phase 2 work](milestones/v0.18.0.md) and their adversarial reviews
+are complete. Phase 2 replaced standalone `conform` declarations with instance-owned interface
+implementation, aggregate associated-binding braces, nominal `impl` requirements, and statically
+witnessed callable annotations. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
 every named builtin and adopts `primitive func`; named inherent ownership now derives from the
 selected declaration, while only anonymous slices retain structural attachment authority. The
 post-phase architecture audit then removed repeated target-directive parsing, source-index-based
 primitive and standard-role selection, repeated package-target validation, source projection from
 prepared semantic state, duplicated built-in type vocabularies, and standard-API spelling checks
-in conformance code actions. Executable architecture gates now protect these boundaries. No
-subsequent v0.18.0 language phase follows Phase 2 until its completion review closes.
+in interface-implementation code actions. Executable architecture gates now protect these boundaries.
+No further v0.18.0 language phase is planned before release qualification.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
@@ -39,7 +39,7 @@ behavioral oracle or implementation reference.
 - Editor queries consume one immutable generation. Hover and semantic tokens share one deterministic
   source-binding authority; semantic ranges, cursor containment, containment, and overlap belong to
   `nocter-source`.
-- Compiler-owned quick fixes cover imports, required conformance methods, and optional/fallible
+- Compiler-owned quick fixes cover imports, required interface methods, and optional/fallible
   callable result contracts. Every edit is applied to an isolated overlay and must reach checked
   full-package semantics before publication; target-specific completion is not required for a
   source-semantic edit.

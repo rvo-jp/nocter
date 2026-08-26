@@ -46,10 +46,8 @@ construct File {
 
 instance File {
     pub method &+self.close(): void
+    impl Reader
+    impl Writer
 }
-
-conform Reader for File {}
-
-conform Writer for File {}
 
 pub func print(text: &str): void!

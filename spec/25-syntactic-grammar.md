@@ -354,7 +354,7 @@ InterfaceImplementation = "impl" InterfaceApplication
 InterfaceApplication = NamedType AssociatedBindings?
 AssociatedBindings = "{" AssociatedTypeBinding
                      ("," AssociatedTypeBinding)* ","? "}"
-AssociatedTypeBinding = "type" Name "=" Type
+AssociatedTypeBinding = Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"
@@ -558,6 +558,7 @@ it remains logical conjunction.
 WhereClause = "where" Predicate ("," Predicate)*
 
 Predicate = InterfacePredicate
+          | CallablePredicate
           | CopyPredicate
           | TypeEqualityPredicate
           | OperatorPredicate
@@ -566,6 +567,7 @@ Predicate = InterfacePredicate
 
 InterfacePredicate = RequirementSubject "impl" InterfaceApplication
 RequirementSubject = Name ("." Name)*
+CallablePredicate = Name ":" Type
 CopyPredicate = "copy" Name
 TypeEqualityPredicate = Type "=" Type
 
@@ -584,10 +586,15 @@ declarations, construction members, instances, and operators wherever their
 declaration production includes `WhereClause`. A newline is not a predicate separator.
 
 The parser records the predicate form without proving it. Later validation distinguishes a
-a declaration-pattern binder refinement from other predicates, restricts structural operator
+declaration-pattern binder refinement from other predicates, restricts structural operator
 operands, and rejects duplicate or unsatisfied requirements. A type equality is accepted only as a
 directed binder refinement belonging to a declaration type pattern; associated projection equality
 is expressed by `AssociatedBindings` on the relevant interface application.
+
+`impl` introduces only a nominal interface requirement. The colon in `CallablePredicate` is the
+ordinary type-annotation separator and its right operand must normalize to a structural callable
+type; this permits a callable type alias but not a nominal interface. Conversely, `func(...)` is
+not an interface application and cannot follow `impl`.
 
 An expansion requirement's source is syntactically one binder name with optional readonly or
 readwrite capability. Semantic validation requires that name to be a visible generic parameter;

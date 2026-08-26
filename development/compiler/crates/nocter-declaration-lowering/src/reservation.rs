@@ -3,9 +3,9 @@ use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
 use nocter_model::{
-    AssociatedTypeId, BuiltinType, CallableId, ConformanceId, ConstantId, ConstructionId, DropId,
-    InstanceId, InterfaceId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, TestId, TypeAliasId,
-    VariantId,
+    AssociatedTypeId, BuiltinType, CallableId, ConstantId, ConstructionId, DropId, InstanceId,
+    InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
+    TestId, TypeAliasId, VariantId,
 };
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::{SourceId, SourceMap};
@@ -34,7 +34,7 @@ pub enum ReservedEntity {
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),
-    Conformance(ConformanceId),
+    InterfaceImplementation(InterfaceImplementationId),
     Drop(DropId),
     Test(TestId),
     Variant(VariantId),
@@ -105,7 +105,7 @@ impl ReservedEntity {
             Self::Callable(id) => SemanticEntity::Callable(id),
             Self::Construction(id) => SemanticEntity::Construction(id),
             Self::Instance(id) => SemanticEntity::Instance(id),
-            Self::Conformance(id) => SemanticEntity::Conformance(id),
+            Self::InterfaceImplementation(id) => SemanticEntity::InterfaceImplementation(id),
             Self::Drop(id) => SemanticEntity::Drop(id),
             Self::Test(id) => SemanticEntity::Test(id),
             Self::Variant(id) => SemanticEntity::Variant(id),
@@ -676,8 +676,7 @@ fn reserve_entity(
         | SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
         | SurfaceDeclarationKind::Index
-        | SurfaceDeclarationKind::Expansion
-        | SurfaceDeclarationKind::ConformanceMethod => {
+        | SurfaceDeclarationKind::Expansion => {
             Some(ReservedEntity::Callable(declarations.reserve_callable()))
         }
         SurfaceDeclarationKind::Construction => Some(ReservedEntity::Construction(
@@ -686,9 +685,11 @@ fn reserve_entity(
         SurfaceDeclarationKind::Instance => {
             Some(ReservedEntity::Instance(declarations.reserve_instance()))
         }
-        SurfaceDeclarationKind::Conformance => Some(ReservedEntity::Conformance(
-            declarations.reserve_conformance(),
-        )),
+        SurfaceDeclarationKind::InterfaceImplementation => {
+            Some(ReservedEntity::InterfaceImplementation(
+                declarations.reserve_interface_implementation(),
+            ))
+        }
         SurfaceDeclarationKind::Drop => Some(ReservedEntity::Drop(declarations.reserve_drop())),
         SurfaceDeclarationKind::Test => Some(ReservedEntity::Test(declarations.reserve_test())),
         SurfaceDeclarationKind::Variant => {
@@ -723,11 +724,9 @@ fn validate_owner(
         | SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
         | SurfaceDeclarationKind::Index
-        | SurfaceDeclarationKind::Expansion => {
+        | SurfaceDeclarationKind::Expansion
+        | SurfaceDeclarationKind::InterfaceImplementation => {
             actual == Some(Some(SurfaceDeclarationKind::Instance))
-        }
-        SurfaceDeclarationKind::ConformanceMethod => {
-            actual == Some(Some(SurfaceDeclarationKind::Conformance))
         }
         SurfaceDeclarationKind::OpaqueType => actual.is_some_and(|kind| {
             kind.is_some_and(|kind| {
@@ -744,7 +743,6 @@ fn validate_owner(
                         | SurfaceDeclarationKind::Ordering
                         | SurfaceDeclarationKind::Index
                         | SurfaceDeclarationKind::Expansion
-                        | SurfaceDeclarationKind::ConformanceMethod
                 )
             })
         }),
@@ -757,7 +755,6 @@ fn validate_owner(
         | SurfaceDeclarationKind::Interface
         | SurfaceDeclarationKind::Construction
         | SurfaceDeclarationKind::Instance
-        | SurfaceDeclarationKind::Conformance
         | SurfaceDeclarationKind::Drop
         | SurfaceDeclarationKind::Test
         | SurfaceDeclarationKind::PrimitiveType => actual.is_none(),

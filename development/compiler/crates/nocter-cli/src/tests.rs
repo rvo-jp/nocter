@@ -218,7 +218,7 @@ fn graph_uses_the_validated_home_and_projects_one_read_only_selection() {
 
 #[test]
 fn both_initialized_templates_pass_public_check_and_test() {
-    let tree = TempTree::new("init-conformance");
+    let tree = TempTree::new("init-interface_implementation");
     let home = tree.installation("arm64-darwin", true);
     for (name, arguments) in [
         ("application", vec!["init", "application"]),

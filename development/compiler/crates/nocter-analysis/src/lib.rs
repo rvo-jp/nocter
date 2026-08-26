@@ -32,7 +32,8 @@ mod source_edits;
 mod source_selection;
 
 pub use code_actions::{
-    ConformanceActionError, OutcomeActionError, SemanticCodeAction, SemanticCodeActionError,
+    InterfaceImplementationActionError, OutcomeActionError, SemanticCodeAction,
+    SemanticCodeActionError,
 };
 pub use completion::{
     SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,

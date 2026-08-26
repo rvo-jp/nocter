@@ -1,7 +1,7 @@
 use nocter_checking::{
     CheckedProgram, ClosureParameter, GenericArguments, StaticDispatch, StaticSelection,
 };
-use nocter_declarations::{RequirementKind, StructuralCapability};
+use nocter_declarations::RequirementKind;
 use nocter_model::{CallableCapability, TypeId, TypeStore};
 
 use super::{Renderer, SemanticPresentation};
@@ -35,11 +35,7 @@ pub(crate) fn static_signature_presentation(
         } => renderer.callable(callable)?,
         StaticDispatch::StructuralRequirement(requirement) => {
             let requirement = graph.declarations().requirements().get(requirement)?;
-            let RequirementKind::Capability {
-                capability: StructuralCapability::Callable(contract),
-                ..
-            } = requirement.kind()
-            else {
+            let RequirementKind::Callable { contract, .. } = requirement.kind() else {
                 return None;
             };
             renderer.callable_contract(contract)?;

@@ -7,7 +7,7 @@ pub enum TypeNormalizationRule {
     UnknownAssociatedType,
     AmbiguousAssociatedType,
     AmbiguousCallableProvenance,
-    EqualityWithoutAssociatedProjection,
+    InvalidCallableRequirement,
 }
 
 impl TypeNormalizationRule {
@@ -16,7 +16,7 @@ impl TypeNormalizationRule {
         Self::UnknownAssociatedType,
         Self::AmbiguousAssociatedType,
         Self::AmbiguousCallableProvenance,
-        Self::EqualityWithoutAssociatedProjection,
+        Self::InvalidCallableRequirement,
     ];
 
     #[must_use]
@@ -26,7 +26,7 @@ impl TypeNormalizationRule {
             Self::UnknownAssociatedType => "E0311",
             Self::AmbiguousAssociatedType => "E0312",
             Self::AmbiguousCallableProvenance => "E0313",
-            Self::EqualityWithoutAssociatedProjection => "E0320",
+            Self::InvalidCallableRequirement => "E0314",
         }
     }
 
@@ -39,8 +39,8 @@ impl TypeNormalizationRule {
             Self::AmbiguousCallableProvenance => {
                 "structural callable result provenance cannot be inferred uniquely"
             }
-            Self::EqualityWithoutAssociatedProjection => {
-                "type equality contains no associated projection"
+            Self::InvalidCallableRequirement => {
+                "callable requirement does not resolve to a callable type"
             }
         }
     }
@@ -58,8 +58,8 @@ impl TypeNormalizationRule {
             Self::AmbiguousCallableProvenance => {
                 "add an explicit from clause naming the result's parameter origins"
             }
-            Self::EqualityWithoutAssociatedProjection => {
-                "use type equality only to constrain an associated projection"
+            Self::InvalidCallableRequirement => {
+                "use a callable type or an alias that resolves to one after the colon"
             }
         }
     }
@@ -71,7 +71,7 @@ impl TypeNormalizationRule {
             Self::UnknownAssociatedType
             | Self::AmbiguousAssociatedType
             | Self::AmbiguousCallableProvenance
-            | Self::EqualityWithoutAssociatedProjection => None,
+            | Self::InvalidCallableRequirement => None,
         }
     }
 }

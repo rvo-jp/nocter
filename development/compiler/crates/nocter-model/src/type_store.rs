@@ -140,8 +140,8 @@ pub enum TypeKind {
     /// One concrete anonymous closure environment and its statically generated body.
     ///
     /// The signature and environment layout live in the checked-program closure authority. A
-    /// structural [`CallableContract`] remains a generic bound and is never used as storage for a
-    /// closure value.
+    /// [`CallableContract`] may provide the source annotation, but the value retains this concrete
+    /// closure identity; callable annotations do not erase or replace its storage layout.
     Closure {
         definition: ClosureId,
         arguments: Box<[TypeId]>,

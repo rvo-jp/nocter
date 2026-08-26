@@ -371,7 +371,7 @@ fn expected_parts(expected: ExpectedSyntax) -> (&'static str, Option<&'static st
         ExpectedSyntax::EnumPattern => ("enum_pattern", None),
         ExpectedSyntax::ClosureHead => ("closure_head", None),
         ExpectedSyntax::Predicate => ("predicate", None),
-        ExpectedSyntax::Capability => ("capability", None),
+        ExpectedSyntax::Interface => ("interface", None),
         ExpectedSyntax::Newline => ("newline", None),
     }
 }

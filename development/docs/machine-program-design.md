@@ -23,7 +23,7 @@ stack objects, calls, control flow, and deterministic linkage without assigning 
 registers. `Arm64Program` owns instruction selection, physical registers, frame layout, branch
 fixups, and encoded sections. `MachOImage` owns file-format tables and bytes.
 
-No boundary may inspect syntax, source paths, source names, generic requirements, conformance
+No boundary may inspect syntax, source paths, source names, generic requirements, interface-implementation
 tables, or archived compiler behavior. A later boundary consumes the decision made by the prior
 one; it cannot reconstruct it from a type spelling or operation shape.
 

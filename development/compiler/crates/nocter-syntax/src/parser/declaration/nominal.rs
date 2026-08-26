@@ -94,12 +94,12 @@ fn associated_type(parser: &mut Parser<'_>) {
     optional_visibility(parser);
     parser.bump();
     parser.expect_name();
-    if parser.at_punctuation(Punctuation::Colon) {
+    if parser.at_keyword(Keyword::Impl) {
         let bounds = parser.start();
         parser.bump();
-        types::capability(parser);
+        types::interface_application(parser);
         while parser.eat_punctuation(Punctuation::Plus) {
-            types::capability(parser);
+            types::interface_application(parser);
         }
         parser.complete(bounds, NodeKind::InterfaceBounds);
     }

@@ -1,6 +1,4 @@
-use nocter_declarations::{
-    CallableDeclaration, ExportedEntity, ParameterRole, StructuralCapability,
-};
+use nocter_declarations::{CallableDeclaration, ExportedEntity, ParameterRole};
 use nocter_model::{BodyNodeId, GenericParameterId, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
 
@@ -9,7 +7,7 @@ use super::iterations::CheckedSpreadDraft;
 use super::value_planning::{CallResultContext, PositionalValueContext, ValueDraft};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::conformance::normalize_requirements;
+use crate::interface_implementation::normalize_requirements;
 use crate::syntax::direct_nodes;
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -321,11 +319,7 @@ impl BodyChecker<'_, '_> {
                 .map_err(BodyCheckInternalError::CallSubstitution)?;
         let mut ordinary = Vec::with_capacity(requirements.len());
         for requirement in requirements {
-            let CheckedPredicate::Capability {
-                subject,
-                capability: StructuralCapability::Callable(contract),
-            } = requirement.predicate()
-            else {
+            let CheckedPredicate::Callable { subject, contract } = requirement.predicate() else {
                 ordinary.push(requirement);
                 continue;
             };

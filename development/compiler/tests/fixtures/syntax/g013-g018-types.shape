@@ -41,28 +41,31 @@ SourceFile
               ProvenanceClause
       CallableTail
         OpaqueResult
-          OpaqueArguments
-            OpaqueArgument
-              Type
-                NamedType
-            OpaqueArgument
-              Type
-                BorrowType
+          InterfaceApplication
+            NamedType
+              TypeArguments
+                Type
                   NamedType
+            AssociatedBindings
+              AssociatedTypeBinding
+                Type
+                  BorrowType
+                    NamedType
         ProvenanceClause
         WhereClause
-          CapabilityPredicate
-            Capability
+          InterfacePredicate
+            Type
+              NamedType
+            InterfaceApplication
               NamedType
                 TypeArguments
                   Type
                     NamedType
+              AssociatedBindings
+                AssociatedTypeBinding
+                  Type
+                    NamedType
           CopyPredicate
-          TypeEqualityPredicate
-            Type
-              NamedType
-            Type
-              NamedType
           OperatorPredicate
             Type
               NamedType

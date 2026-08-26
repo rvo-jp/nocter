@@ -12,7 +12,7 @@ use crate::{CheckedProgram, ComparisonOperation, CopyabilityTable, InstanceSelec
 ///
 /// This authority has no lookup by spelling and receives no source namespace. Every operation is
 /// anchored by a checked interface application or structural requirement shape and is restricted
-/// to the already validated conformance and instance-operation tables.
+/// to the already validated interface implementation and instance-operation tables.
 pub(crate) struct ConcreteEvidenceAuthority<'authority> {
     selector: InstanceOperationSelector<'authority>,
 }
@@ -27,7 +27,7 @@ impl<'authority> ConcreteEvidenceAuthority<'authority> {
             selector: InstanceOperationSelector::new(
                 InstanceSelectionContext::for_concrete_evidence(
                     program.graph(),
-                    program.conformances(),
+                    program.interface_implementations(),
                     program.instance_operations(),
                 ),
                 types,
@@ -43,7 +43,7 @@ impl<'authority> ConcreteEvidenceAuthority<'authority> {
         method: CallableId,
     ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
         self.selector
-            .select_conformance_method_for_application(subject, application, method)
+            .select_interface_implementation_method_for_application(subject, application, method)
     }
 
     pub(crate) fn comparison(

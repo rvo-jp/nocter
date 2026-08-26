@@ -26,21 +26,27 @@ fn predicate(parser: &mut Parser<'_>) {
     } else if parser.at(TokenKind::Identifier)
         && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Colon)
     {
-        capability_predicate(parser);
+        callable_predicate(parser);
+    } else if parser.at(TokenKind::Identifier) && parser.attempt(interface_predicate) {
     } else {
         type_equality_predicate(parser);
     }
 }
 
-fn capability_predicate(parser: &mut Parser<'_>) {
+fn callable_predicate(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    parser.bump();
-    parser.bump();
-    types::capability(parser);
-    while parser.eat_punctuation(Punctuation::Plus) {
-        types::capability(parser);
-    }
-    parser.complete(marker, NodeKind::CapabilityPredicate);
+    types::type_(parser);
+    parser.expect_punctuation(Punctuation::Colon);
+    types::type_(parser);
+    parser.complete(marker, NodeKind::CallablePredicate);
+}
+
+fn interface_predicate(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    types::type_(parser);
+    parser.expect_keyword(crate::Keyword::Impl);
+    types::interface_application(parser);
+    parser.complete(marker, NodeKind::InterfacePredicate);
 }
 
 fn copy_predicate(parser: &mut Parser<'_>) {

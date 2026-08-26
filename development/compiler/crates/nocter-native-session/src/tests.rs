@@ -219,7 +219,7 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
 }
 
 #[test]
-fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
+fn interface_implementation_failure_retains_declarations_without_claiming_later_semantics() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
@@ -228,7 +228,7 @@ fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
         concat!(
             "pub interface Readable { pub method &self.read(): i32 }\n",
             "struct Value {}\n",
-            "conform Readable for Value {}\n",
+            "instance Value { impl Readable }\n",
         ),
     );
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -247,7 +247,7 @@ fn conformance_failure_retains_declarations_without_claiming_later_semantics() {
         !declarations
             .graph()
             .declarations()
-            .conformances()
+            .interface_implementations()
             .is_empty()
     );
     assert!(!declarations.source_index().is_empty());
@@ -311,7 +311,7 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
         concat!(
             "pub interface Readable { pub method &self.read(): i32 }\n",
             "struct Value {}\n",
-            "conform Readable for Value {}\n",
+            "instance Value { impl Readable }\n",
             "func inspect(value: &Value): void {\n",
             "    value.\n",
             "    return\n",
@@ -345,7 +345,7 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
         !declarations
             .graph()
             .declarations()
-            .conformances()
+            .interface_implementations()
             .is_empty()
     );
 }

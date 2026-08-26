@@ -12,8 +12,8 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDec
 use super::context::token_symbol;
 use super::normalization_origins::NormalizationOrigins;
 use super::{
-    BoundCapability, BoundRequirementKind, BoundTypeId, BoundTypeKind, TypeBindingError,
-    TypeBindingRule, projection, push,
+    BoundAssociatedTypeBinding, BoundInterfaceApplication, BoundRequirementKind, BoundTypeId,
+    BoundTypeKind, TypeBindingError, TypeBindingRule, projection, push,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -24,7 +24,7 @@ pub(super) fn bind_all(
     root: NodeId,
     kinds: &mut Vec<BoundTypeKind>,
     roots: &HashMap<NodeId, BoundTypeId>,
-    capabilities: &HashMap<NodeId, BoundCapability>,
+    interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     origins: &mut NormalizationOrigins,
 ) -> Result<Vec<BoundRequirementKind>, TypeBindingError> {
     let mut result = Vec::new();
@@ -39,7 +39,7 @@ pub(super) fn bind_all(
                         predicate,
                         kinds,
                         roots,
-                        capabilities,
+                        interface_applications,
                         origins,
                         &mut result,
                     )?;
@@ -51,7 +51,7 @@ pub(super) fn bind_all(
                     declaration,
                     tree,
                     container,
-                    capabilities,
+                    interface_applications,
                     &mut result,
                 )?;
             }
@@ -69,27 +69,46 @@ fn bind_predicate(
     predicate: NodeId,
     kinds: &mut Vec<BoundTypeKind>,
     roots: &HashMap<NodeId, BoundTypeId>,
-    capabilities: &HashMap<NodeId, BoundCapability>,
+    interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     origins: &mut NormalizationOrigins,
     result: &mut Vec<BoundRequirementKind>,
 ) -> Result<(), TypeBindingError> {
     match tree.node(predicate).map(nocter_syntax::SyntaxNode::kind) {
-        Some(NodeKind::CapabilityPredicate) => {
-            let subject = generic_from_token(
+        Some(NodeKind::InterfacePredicate) => {
+            let subject_type = direct_node(tree, predicate, NodeKind::Type)
+                .and_then(|node| roots.get(&node).copied())
+                .ok_or(invalid_requirement(predicate))?;
+            let subject = requirement_subject(kinds, subject_type, predicate)?;
+            let application = direct_node(tree, predicate, NodeKind::InterfaceApplication)
+                .ok_or(invalid_requirement(predicate))?;
+            let associated_types = bind_associated_constraints(
                 namespaces,
-                declaration,
                 tree,
-                direct_identifier(tree, predicate).ok_or(invalid_requirement(predicate))?,
+                application,
+                subject_type,
+                kinds,
+                roots,
+                origins,
             )?;
-            for capability in direct_nodes(tree, predicate, NodeKind::Capability) {
-                result.push(BoundRequirementKind::Capability {
-                    subject: RequirementSubject::GenericParameter(subject),
-                    capability: capabilities
-                        .get(&capability)
-                        .cloned()
-                        .ok_or(invalid_requirement(predicate))?,
-                });
-            }
+            result.push(BoundRequirementKind::Interface {
+                subject,
+                application: interface_applications
+                    .get(&application)
+                    .cloned()
+                    .ok_or(invalid_requirement(predicate))?,
+                associated_types: associated_types.into_boxed_slice(),
+            });
+        }
+        Some(NodeKind::CallablePredicate) => {
+            let types = bound_types(tree, predicate, roots)?;
+            let [subject_type, callable] = types.as_slice() else {
+                return Err(invalid_requirement(predicate));
+            };
+            let subject = generic_type(kinds, *subject_type, predicate)?;
+            result.push(BoundRequirementKind::Callable {
+                subject,
+                contract: *callable,
+            });
         }
         Some(NodeKind::CopyPredicate) => {
             let token = direct_identifiers(tree, predicate)
@@ -104,7 +123,6 @@ fn bind_predicate(
             )?));
         }
         Some(NodeKind::TypeEqualityPredicate) => {
-            let position = result.len();
             bind_equality(
                 namespaces,
                 declaration,
@@ -114,12 +132,6 @@ fn bind_predicate(
                 roots,
                 result,
             )?;
-            if matches!(
-                result.get(position),
-                Some(BoundRequirementKind::TypeEquality { .. })
-            ) {
-                origins.record_requirement(declaration, position, SyntaxOrigin::Node(predicate));
-            }
         }
         Some(NodeKind::OperatorPredicate) => {
             bind_operator(tree, predicate, kinds, roots, result)?;
@@ -160,6 +172,45 @@ fn bind_predicate(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn bind_associated_constraints(
+    namespaces: &mut PreparedNamespaces<'_>,
+    tree: &SyntaxTree,
+    application: NodeId,
+    subject: BoundTypeId,
+    kinds: &mut Vec<BoundTypeKind>,
+    roots: &HashMap<NodeId, BoundTypeId>,
+    origins: &mut NormalizationOrigins,
+) -> Result<Vec<BoundAssociatedTypeBinding>, TypeBindingError> {
+    let Some(bindings) = direct_node(tree, application, NodeKind::AssociatedBindings) else {
+        return Ok(Vec::new());
+    };
+    let mut result = Vec::new();
+    for binding in direct_nodes(tree, bindings, NodeKind::AssociatedTypeBinding) {
+        let token = direct_identifier(tree, binding).ok_or(invalid_requirement(binding))?;
+        let name = token_symbol(namespaces, tree, token)?;
+        let expected_node =
+            direct_node(tree, binding, NodeKind::Type).ok_or(invalid_requirement(binding))?;
+        let expected = roots
+            .get(&expected_node)
+            .copied()
+            .ok_or(invalid_requirement(binding))?;
+        let projection = push(
+            kinds,
+            BoundTypeKind::AssociatedSelection {
+                base: subject,
+                name,
+            },
+        );
+        origins.record_bound(projection, SyntaxOrigin::Token(token));
+        result.push(BoundAssociatedTypeBinding {
+            projection,
+            value: expected,
+        });
+    }
+    Ok(result)
+}
+
 fn bind_equality(
     namespaces: &PreparedNamespaces<'_>,
     declaration: SurfaceDeclarationId,
@@ -184,7 +235,7 @@ fn bind_equality(
         .is_some_and(|surface| {
             matches!(
                 surface.kind(),
-                SurfaceDeclarationKind::Instance | SurfaceDeclarationKind::Conformance
+                SurfaceDeclarationKind::Instance | SurfaceDeclarationKind::InterfaceImplementation
             )
         });
     let own = namespaces
@@ -207,7 +258,7 @@ fn bind_equality(
             replacement: right,
         });
     } else {
-        result.push(BoundRequirementKind::TypeEquality { left, right });
+        return Err(invalid_requirement(predicate));
     }
     Ok(())
 }
@@ -261,7 +312,7 @@ fn bind_associated_bounds(
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
     bounds: NodeId,
-    capabilities: &HashMap<NodeId, BoundCapability>,
+    interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     result: &mut Vec<BoundRequirementKind>,
 ) -> Result<(), TypeBindingError> {
     let Some(ReservedEntity::AssociatedType(subject)) = namespaces
@@ -273,13 +324,14 @@ fn bind_associated_bounds(
     else {
         return Err(invalid_requirement(bounds));
     };
-    for capability in direct_nodes(tree, bounds, NodeKind::Capability) {
-        result.push(BoundRequirementKind::Capability {
+    for application in direct_nodes(tree, bounds, NodeKind::InterfaceApplication) {
+        result.push(BoundRequirementKind::Interface {
             subject: RequirementSubject::AssociatedType(subject),
-            capability: capabilities
-                .get(&capability)
+            application: interface_applications
+                .get(&application)
                 .cloned()
                 .ok_or(invalid_requirement(bounds))?,
+            associated_types: Box::new([]),
         });
     }
     Ok(())
@@ -311,6 +363,22 @@ fn generic_type(
 ) -> Result<GenericParameterId, TypeBindingError> {
     match kinds.get(ty.index()) {
         Some(BoundTypeKind::GenericParameter(parameter)) => Ok(*parameter),
+        _ => Err(invalid_requirement(predicate)),
+    }
+}
+
+fn requirement_subject(
+    kinds: &[BoundTypeKind],
+    ty: BoundTypeId,
+    predicate: NodeId,
+) -> Result<RequirementSubject, TypeBindingError> {
+    match kinds.get(ty.index()) {
+        Some(BoundTypeKind::GenericParameter(parameter)) => {
+            Ok(RequirementSubject::GenericParameter(*parameter))
+        }
+        Some(BoundTypeKind::SelfType(ReservedEntity::Interface(interface))) => {
+            Ok(RequirementSubject::InterfaceSelf(*interface))
+        }
         _ => Err(invalid_requirement(predicate)),
     }
 }
@@ -422,6 +490,10 @@ fn direct_identifier(tree: &SyntaxTree, node: NodeId) -> Option<SyntaxToken> {
     direct_identifiers(tree, node).into_iter().next()
 }
 
+fn direct_node(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
+    direct_nodes(tree, node, kind).into_iter().next()
+}
+
 fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
     tree.children(node)
         .iter()
@@ -481,9 +553,8 @@ const fn is_declaration(kind: NodeKind) -> bool {
             | NodeKind::OrderingOperator
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
-            | NodeKind::ConformDeclaration
+            | NodeKind::InterfaceImplementation
             | NodeKind::AssociatedTypeBinding
-            | NodeKind::ConformMethod
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration
     )

@@ -6,8 +6,8 @@ use nocter_source_index::SourceIndex;
 
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::{
-    AssociatedTypeCompletionContext, ClosureTable, ConformanceTable, ConstructionSurfaceTable,
-    CopyabilityTable, DropTable, InstanceOperationTable, LoanTable, ProvenanceTable,
+    AssociatedTypeCompletionContext, ClosureTable, ConstructionSurfaceTable, CopyabilityTable,
+    DropTable, InstanceOperationTable, InterfaceImplementationTable, LoanTable, ProvenanceTable,
     StandardSemanticTable,
 };
 
@@ -18,7 +18,7 @@ use super::{CheckedBody, OpaqueWitnessTable};
 pub struct CheckedProgram {
     graph: DeclarationGraph,
     types: TypeStore,
-    conformances: ConformanceTable,
+    interface_implementations: InterfaceImplementationTable,
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     declaration_patterns: DeclarationPatternTable,
@@ -35,7 +35,7 @@ pub struct CheckedProgram {
 }
 
 pub(crate) struct CheckedProgramAuthorities {
-    pub(crate) conformances: ConformanceTable,
+    pub(crate) interface_implementations: InterfaceImplementationTable,
     pub(crate) construction_surfaces: ConstructionSurfaceTable,
     pub(crate) instance_operations: InstanceOperationTable,
     pub(crate) declaration_patterns: DeclarationPatternTable,
@@ -60,7 +60,7 @@ impl CheckedProgram {
         Self {
             graph,
             types,
-            conformances: authorities.conformances,
+            interface_implementations: authorities.interface_implementations,
             construction_surfaces: authorities.construction_surfaces,
             instance_operations: authorities.instance_operations,
             declaration_patterns: authorities.declaration_patterns,
@@ -88,8 +88,8 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn conformances(&self) -> &ConformanceTable {
-        &self.conformances
+    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+        &self.interface_implementations
     }
 
     #[must_use]

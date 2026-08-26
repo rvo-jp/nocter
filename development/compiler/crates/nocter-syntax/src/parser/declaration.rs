@@ -1,4 +1,3 @@
-mod conform;
 mod construct;
 mod instance;
 mod nominal;
@@ -29,7 +28,6 @@ fn declaration(parser: &mut Parser<'_>) {
         Some(DeclarationKind::Interface) => nominal::interface_declaration(parser),
         Some(DeclarationKind::Construct) => construct::declaration(parser),
         Some(DeclarationKind::Instance) => instance::declaration(parser),
-        Some(DeclarationKind::Conform) => conform::declaration(parser),
         Some(DeclarationKind::Drop) => drop_declaration(parser),
         Some(DeclarationKind::Test) => test_declaration(parser),
         None => parser.error_token(ExpectedSyntax::Item),
@@ -78,7 +76,6 @@ enum DeclarationKind {
     Interface,
     Construct,
     Instance,
-    Conform,
     Drop,
     Test,
 }
@@ -87,7 +84,6 @@ fn declaration_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     targetable_kind(parser).or_else(|| match parser.current_kind() {
         TokenKind::Keyword(Keyword::Construct) => Some(DeclarationKind::Construct),
         TokenKind::Keyword(Keyword::Instance) => Some(DeclarationKind::Instance),
-        TokenKind::Keyword(Keyword::Conform) => Some(DeclarationKind::Conform),
         TokenKind::Keyword(Keyword::Test) => Some(DeclarationKind::Test),
         TokenKind::Identifier if parser.current_text() == "drop" => Some(DeclarationKind::Drop),
         _ => None,

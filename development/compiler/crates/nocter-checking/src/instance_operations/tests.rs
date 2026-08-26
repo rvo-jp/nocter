@@ -7,9 +7,10 @@ use crate::prepare_program_checking;
 use crate::test_support::Fixture;
 
 #[test]
-fn overlapping_instance_patterns_are_rejected_before_body_checking() {
-    let fixture =
-        Fixture::new("struct Box<T> {}\ninstance Box<T> {}\ninstance Box<U> where U = i32 {}\n");
+fn overlapping_operation_patterns_are_rejected_before_body_checking() {
+    let fixture = Fixture::new(
+        "struct Box<T> {}\ninstance Box<T> { method &self.value(): i32 { return 0 } }\ninstance Box<U> where U = i32 { method &self.value(): i32 { return 1 } }\n",
+    );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts(&input);
@@ -27,7 +28,7 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
+    let (graph, mut types, _admission) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
     let definition = graph
         .declarations()
@@ -66,7 +67,7 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
+    let (graph, mut types, _admission) = program.into_parts();
     let table = build_instance_operation_table(&graph, &mut types, &source_index).unwrap();
     let entry = table.entries().iter().next().unwrap().1;
     let [member] = entry.members() else {

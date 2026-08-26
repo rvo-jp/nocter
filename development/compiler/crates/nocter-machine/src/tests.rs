@@ -329,7 +329,8 @@ fn opaque_layout_is_exactly_its_specialized_witness_layout() {
              marker: u8\n\
              value: u64\n\
          }\n\
-         conform Show for Value {\n\
+         instance Value {\n\
+             impl Show\n\
              method &self.show(): i32 { 7 }\n\
          }\n\
          func make(): some Show { Value { marker: 1, value: 2 } }\n\
@@ -1227,11 +1228,12 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
          drop Leaf(&+self) { return }\n\
          struct Item { leaf: Leaf }\n\
          struct Iter {}\n\
-         conform Iterator for Iter {\n\
-             type Item = Item\n\
+         instance Iter {\n\
+             impl Iterator { Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) { return }\n\
@@ -1530,11 +1532,12 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
              }\n\
          }\n\
          struct Iter {}\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? { return none }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) {\n\

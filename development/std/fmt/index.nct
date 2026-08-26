@@ -4,7 +4,7 @@
 //! return allocation errors. Both surfaces share the same formatting core.
 
 use /string.String
-see ./conformances.nct
+see ./implementations.nct
 see ./formatting.nct
 
 /// Appends the ordinary textual representation of a value.
@@ -12,31 +12,57 @@ pub interface Format {
     pub method &self.format_into(output: &+String): void
 }
 
-conform Format for str {}
+instance str {
+    impl Format
+}
 
-conform Format for String {}
+instance String {
+    impl Format
+}
 
-conform Format for bool {}
+instance bool {
+    impl Format
+}
 
-conform Format for i8 {}
+instance i8 {
+    impl Format
+}
 
-conform Format for i16 {}
+instance i16 {
+    impl Format
+}
 
-conform Format for i32 {}
+instance i32 {
+    impl Format
+}
 
-conform Format for i64 {}
+instance i64 {
+    impl Format
+}
 
-conform Format for isize {}
+instance isize {
+    impl Format
+}
 
-conform Format for u8 {}
+instance u8 {
+    impl Format
+}
 
-conform Format for u16 {}
+instance u16 {
+    impl Format
+}
 
-conform Format for u32 {}
+instance u32 {
+    impl Format
+}
 
-conform Format for u64 {}
+instance u64 {
+    impl Format
+}
 
-conform Format for usize {}
+instance usize {
+    impl Format
+}
 
 pub func try_append_str(out: &+String, value: &str): void!
 

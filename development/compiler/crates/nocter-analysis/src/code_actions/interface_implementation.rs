@@ -1,59 +1,66 @@
 use std::fmt;
 
-use nocter_checking::MissingConformanceMethods;
+use nocter_checking::MissingInterfaceImplementationMethods;
 use nocter_declarations::StandardDeclarationRole;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, TokenKind};
 
 use super::SemanticCodeAction;
-use crate::presentation::required_conformance_method_presentation;
+use crate::presentation::required_interface_implementation_method_presentation;
 use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
 
 #[derive(Debug)]
-pub enum ConformanceActionError {
+pub enum InterfaceImplementationActionError {
     MissingRecovery,
-    MissingConformance(nocter_model::ConformanceId),
+    MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
     MissingDeclarationSite(nocter_model::DeclarationSiteId),
-    MissingSourceBinding(nocter_model::ConformanceId),
+    MissingSourceBinding(nocter_model::InterfaceImplementationId),
+    MissingInstanceSource(nocter_model::InstanceId),
     MissingSyntax(SourceId),
-    InvalidConformanceNode,
+    InvalidInstanceNode,
     MissingClosingBrace,
     InvalidSourceRange { source: SourceId, range: TextRange },
     MissingMethodName(nocter_model::CallableId),
     Completion(SemanticCompletionError),
 }
 
-impl fmt::Display for ConformanceActionError {
+impl fmt::Display for InterfaceImplementationActionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingRecovery => {
                 formatter.write_str("missing-method code action has no declaration recovery")
             }
-            Self::MissingConformance(id) => {
-                write!(formatter, "missing conformance declaration {id:?}")
+            Self::MissingInterfaceImplementation(id) => {
+                write!(formatter, "missing interface implementation {id:?}")
             }
             Self::MissingDeclarationSite(id) => {
-                write!(formatter, "missing conformance declaration site {id:?}")
+                write!(formatter, "missing interface implementation site {id:?}")
             }
             Self::MissingSourceBinding(id) => {
-                write!(formatter, "missing source binding for conformance {id:?}")
+                write!(
+                    formatter,
+                    "missing source binding for interface implementation {id:?}"
+                )
+            }
+            Self::MissingInstanceSource(id) => {
+                write!(formatter, "missing editable source for instance {id:?}")
             }
             Self::MissingSyntax(source) => {
                 write!(
                     formatter,
-                    "missing syntax tree for conformance source {source}"
+                    "missing syntax tree for interface implementation source {source}"
                 )
             }
-            Self::InvalidConformanceNode => {
-                formatter.write_str("conformance source binding is not a conformance node")
+            Self::InvalidInstanceNode => {
+                formatter.write_str("editable instance source binding is not an instance node")
             }
             Self::MissingClosingBrace => {
-                formatter.write_str("conformance declaration has no closing brace")
+                formatter.write_str("editable instance declaration has no closing brace")
             }
             Self::InvalidSourceRange { source, range } => write!(
                 formatter,
-                "invalid conformance insertion range in {source}: {}..{}",
+                "invalid interface implementation insertion range in {source}: {}..{}",
                 range.start().get(),
                 range.end().get(),
             ),
@@ -65,16 +72,17 @@ impl fmt::Display for ConformanceActionError {
     }
 }
 
-impl std::error::Error for ConformanceActionError {
+impl std::error::Error for InterfaceImplementationActionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Completion(error) => Some(error),
             Self::MissingRecovery
-            | Self::MissingConformance(_)
+            | Self::MissingInterfaceImplementation(_)
             | Self::MissingDeclarationSite(_)
             | Self::MissingSourceBinding(_)
+            | Self::MissingInstanceSource(_)
             | Self::MissingSyntax(_)
-            | Self::InvalidConformanceNode
+            | Self::InvalidInstanceNode
             | Self::MissingClosingBrace
             | Self::InvalidSourceRange { .. }
             | Self::MissingMethodName(_) => None,
@@ -82,7 +90,7 @@ impl std::error::Error for ConformanceActionError {
     }
 }
 
-impl From<SemanticCompletionError> for ConformanceActionError {
+impl From<SemanticCompletionError> for InterfaceImplementationActionError {
     fn from(error: SemanticCompletionError) -> Self {
         Self::Completion(error)
     }
@@ -93,19 +101,22 @@ pub(super) fn missing_method_action(
     requested_source: SourceId,
     diagnostic_code: &str,
     diagnostic_range: TextRange,
-    missing: &MissingConformanceMethods,
-) -> Result<Option<SemanticCodeAction>, ConformanceActionError> {
+    missing: &MissingInterfaceImplementationMethods,
+) -> Result<Option<SemanticCodeAction>, InterfaceImplementationActionError> {
     let context = insertion_context(snapshot, requested_source, missing)?;
     let Some(context) = context else {
         return Ok(None);
     };
     let mut signatures = Vec::with_capacity(missing.required().len());
     for required in missing.required() {
-        let presentation =
-            required_conformance_method_presentation(context.recovery, required, context.module)
-                .ok_or(ConformanceActionError::MissingMethodName(
-                    required.interface_method(),
-                ))?;
+        let presentation = required_interface_implementation_method_presentation(
+            context.recovery,
+            required,
+            context.module,
+        )
+        .ok_or(InterfaceImplementationActionError::MissingMethodName(
+            required.interface_method(),
+        ))?;
         signatures.push(presentation.code().to_owned());
     }
     let Some(abort) = context
@@ -123,6 +134,7 @@ pub(super) fn missing_method_action(
     };
     let method_edit = method_insertion(
         context.source,
+        context.opening,
         context.closing,
         &signatures,
         &terminator.name,
@@ -140,86 +152,128 @@ struct InsertionContext<'snapshot> {
     recovery: &'snapshot nocter_checking::DeclarationAnalysisRecovery,
     module: nocter_model::ModuleId,
     source: &'snapshot nocter_source::SourceFile,
+    opening: ByteOffset,
     closing: ByteOffset,
 }
 
 fn insertion_context<'snapshot>(
     snapshot: &'snapshot AnalysisSnapshot,
     requested_source: SourceId,
-    missing: &MissingConformanceMethods,
-) -> Result<Option<InsertionContext<'snapshot>>, ConformanceActionError> {
+    missing: &MissingInterfaceImplementationMethods,
+) -> Result<Option<InsertionContext<'snapshot>>, InterfaceImplementationActionError> {
     let recovery = snapshot
         .semantic_authority()
         .and_then(|authority| authority.declaration_analysis())
-        .ok_or(ConformanceActionError::MissingRecovery)?;
+        .ok_or(InterfaceImplementationActionError::MissingRecovery)?;
     let graph = recovery.graph();
-    let conformance = graph
+    let interface_implementation = graph
         .declarations()
-        .conformances()
-        .get(missing.conformance())
-        .ok_or(ConformanceActionError::MissingConformance(
-            missing.conformance(),
-        ))?;
+        .interface_implementations()
+        .get(missing.interface_implementation())
+        .ok_or(
+            InterfaceImplementationActionError::MissingInterfaceImplementation(
+                missing.interface_implementation(),
+            ),
+        )?;
     let module = graph
         .declaration_sites()
-        .get(conformance.site())
+        .get(interface_implementation.site())
         .map(|site| site.module())
-        .ok_or(ConformanceActionError::MissingDeclarationSite(
-            conformance.site(),
+        .ok_or(InterfaceImplementationActionError::MissingDeclarationSite(
+            interface_implementation.site(),
         ))?;
     let bindings = recovery
         .source_index()
-        .bindings_for(SemanticEntity::Conformance(missing.conformance()));
+        .bindings_for(SemanticEntity::InterfaceImplementation(
+            missing.interface_implementation(),
+        ));
     let declaration = bindings
         .iter()
         .find(|binding| binding.role() == SourceRole::Declaration)
         .map(|binding| binding.origin())
-        .ok_or(ConformanceActionError::MissingSourceBinding(
-            missing.conformance(),
+        .ok_or(InterfaceImplementationActionError::MissingSourceBinding(
+            missing.interface_implementation(),
         ))?;
     if declaration.source() != requested_source {
         return Ok(None);
     }
-    let origin = bindings
-        .iter()
-        .find(|binding| binding.role() == SourceRole::Implementation)
-        .map_or(declaration, |binding| binding.origin());
-    let SyntaxOrigin::Node(node) = origin.syntax() else {
-        return Err(ConformanceActionError::InvalidConformanceNode);
+    let instance_origin = editable_instance_origin(recovery, interface_implementation.owner())?;
+    let SyntaxOrigin::Node(instance) = instance_origin.syntax() else {
+        return Err(InterfaceImplementationActionError::InvalidInstanceNode);
     };
-    let insertion_source = origin.source();
+    let insertion_source = instance_origin.source();
     let syntax = snapshot
         .syntax_trees()
         .iter()
         .find(|tree| tree.source() == insertion_source)
-        .ok_or(ConformanceActionError::MissingSyntax(insertion_source))?;
-    if syntax.node(node).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::ConformDeclaration)
+        .ok_or(InterfaceImplementationActionError::MissingSyntax(
+            insertion_source,
+        ))?;
+    if syntax.node(instance).map(nocter_syntax::SyntaxNode::kind)
+        != Some(NodeKind::InstanceDeclaration)
     {
-        return Err(ConformanceActionError::InvalidConformanceNode);
+        return Err(InterfaceImplementationActionError::InvalidInstanceNode);
     }
-    let closing = syntax
-        .children(node)
+    let braces = syntax
+        .children(instance)
         .iter()
         .filter_map(|element| match element {
             SyntaxElement::Token(token)
-                if token.kind() == TokenKind::Punctuation(Punctuation::RightBrace) =>
+                if matches!(
+                    token.kind(),
+                    TokenKind::Punctuation(Punctuation::LeftBrace | Punctuation::RightBrace)
+                ) =>
             {
                 Some(*token)
             }
             SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
         })
-        .next_back()
-        .ok_or(ConformanceActionError::MissingClosingBrace)?;
-    let source = snapshot
-        .sources()
-        .get(insertion_source)
-        .ok_or(ConformanceActionError::MissingSyntax(insertion_source))?;
+        .collect::<Vec<_>>();
+    let opening = braces
+        .iter()
+        .find(|token| token.kind() == TokenKind::Punctuation(Punctuation::LeftBrace))
+        .ok_or(InterfaceImplementationActionError::MissingClosingBrace)?;
+    let closing = braces
+        .iter()
+        .rfind(|token| token.kind() == TokenKind::Punctuation(Punctuation::RightBrace))
+        .ok_or(InterfaceImplementationActionError::MissingClosingBrace)?;
+    let source = snapshot.sources().get(insertion_source).ok_or(
+        InterfaceImplementationActionError::MissingSyntax(insertion_source),
+    )?;
     Ok(Some(InsertionContext {
         recovery,
         module,
         source,
+        opening: opening.range().end(),
         closing: closing.range().start(),
     }))
+}
+
+/// Selects an existing implementation fragment by the source roles frozen during lowering.
+///
+/// The `impl` fact belongs to the public contract, while method bodies belong in an implementation
+/// fragment when one exists. Analysis therefore consumes the semantic instance's source bindings
+/// and never reconstructs module topology.
+fn editable_instance_origin(
+    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    owner: nocter_model::InstanceId,
+) -> Result<nocter_source_index::SourceOrigin, InterfaceImplementationActionError> {
+    recovery
+        .source_index()
+        .bindings_for(SemanticEntity::Instance(owner))
+        .iter()
+        .find(|binding| binding.role() == SourceRole::Implementation)
+        .or_else(|| {
+            recovery
+                .source_index()
+                .bindings_for(SemanticEntity::Instance(owner))
+                .iter()
+                .find(|binding| binding.role() == SourceRole::Declaration)
+        })
+        .map(|binding| binding.origin())
+        .ok_or(InterfaceImplementationActionError::MissingInstanceSource(
+            owner,
+        ))
 }
 
 struct TerminatorEditPlan {
@@ -232,10 +286,10 @@ fn terminator_import_edits(
     source: SourceId,
     offset: ByteOffset,
     terminator: nocter_model::CallableId,
-) -> Result<Option<TerminatorEditPlan>, ConformanceActionError> {
+) -> Result<Option<TerminatorEditPlan>, InterfaceImplementationActionError> {
     let completions = snapshot
         .semantic_completions(source, offset)
-        .map_err(ConformanceActionError::Completion)?;
+        .map_err(InterfaceImplementationActionError::Completion)?;
     for completion in &completions {
         if completion.entity() != Some(SemanticEntity::Callable(terminator)) {
             continue;
@@ -264,8 +318,8 @@ fn terminator_import_edits(
 
 fn action_title(
     recovery: &nocter_checking::DeclarationAnalysisRecovery,
-    missing: &MissingConformanceMethods,
-) -> Result<String, ConformanceActionError> {
+    missing: &MissingInterfaceImplementationMethods,
+) -> Result<String, InterfaceImplementationActionError> {
     if missing.required().len() == 1 {
         let required = &missing.required()[0];
         let method = recovery
@@ -275,7 +329,7 @@ fn action_title(
             .get(required.interface_method())
             .and_then(nocter_declarations::CallableDeclaration::name)
             .and_then(|name| recovery.graph().symbols().spelling(name))
-            .ok_or(ConformanceActionError::MissingMethodName(
+            .ok_or(InterfaceImplementationActionError::MissingMethodName(
                 required.interface_method(),
             ))?;
         Ok(format!("Implement required method `{method}`"))
@@ -289,27 +343,53 @@ fn action_title(
 
 fn method_insertion(
     source: &nocter_source::SourceFile,
+    opening: ByteOffset,
     closing: ByteOffset,
     signatures: &[String],
     terminator: &str,
-) -> Result<SemanticSourceEdit, ConformanceActionError> {
+) -> Result<SemanticSourceEdit, InterfaceImplementationActionError> {
     let line_start = source.text()[..usize::try_from(closing.get()).expect("bounded offset")]
         .rfind('\n')
         .map_or(0, |index| index + 1);
     let line_start = ByteOffset::new(u32::try_from(line_start).expect("bounded source length"));
     let leading_range = TextRange::new(line_start, closing);
-    let leading =
-        source
-            .text_at(leading_range)
-            .ok_or(ConformanceActionError::InvalidSourceRange {
-                source: source.id(),
-                range: leading_range,
-            })?;
+    let leading = source.text_at(leading_range).ok_or(
+        InterfaceImplementationActionError::InvalidSourceRange {
+            source: source.id(),
+            range: leading_range,
+        },
+    )?;
     let close_on_own_line = leading.bytes().all(|byte| matches!(byte, b' ' | b'\t'));
-    let (offset, declaration_indent, prefix) = if close_on_own_line {
-        (line_start, leading, "")
+    let (range, declaration_indent, prefix) = if close_on_own_line {
+        (
+            TextRange::new(line_start, line_start),
+            leading,
+            String::new(),
+        )
     } else {
-        (closing, "", "\n")
+        let opening_index = usize::try_from(opening.get()).expect("bounded offset");
+        let declaration_line_start = source.text()[..opening_index]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let declaration_indent_len = source.text()[declaration_line_start..]
+            .bytes()
+            .take_while(|byte| matches!(byte, b' ' | b'\t'))
+            .count();
+        let declaration_indent =
+            &source.text()[declaration_line_start..declaration_line_start + declaration_indent_len];
+        let existing_range = TextRange::new(opening, closing);
+        let existing = source
+            .text_at(existing_range)
+            .ok_or(InterfaceImplementationActionError::InvalidSourceRange {
+                source: source.id(),
+                range: existing_range,
+            })?
+            .trim();
+        (
+            existing_range,
+            declaration_indent,
+            format!("\n{declaration_indent}    {existing}\n"),
+        )
     };
     let member_indent = format!("{declaration_indent}    ");
     let body_indent = format!("{member_indent}    ");
@@ -321,11 +401,7 @@ fn method_insertion(
         .collect::<Vec<_>>()
         .join("\n\n");
     let text = format!("{prefix}{methods}\n");
-    Ok(SemanticSourceEdit::new(
-        source.id(),
-        TextRange::new(offset, offset),
-        text,
-    ))
+    Ok(SemanticSourceEdit::new(source.id(), range, text))
 }
 
 #[cfg(test)]
@@ -340,30 +416,28 @@ mod tests {
             .add_bytes(SourceName::new("index.nct"), source.as_bytes())
             .unwrap();
         let file = sources.get(id).unwrap();
+        let opening = ByteOffset::new(u32::try_from(source.find('{').unwrap() + 1).unwrap());
         let closing = ByteOffset::new(u32::try_from(source.rfind('}').unwrap()).unwrap());
         let signatures = signatures
             .iter()
             .map(|signature| (*signature).to_owned())
             .collect::<Vec<_>>();
-        let edit = method_insertion(file, closing, &signatures, "abort").unwrap();
-        let offset = usize::try_from(edit.range().start().get()).unwrap();
-        format!(
-            "{}{}{}",
-            &source[..offset],
-            edit.new_text(),
-            &source[offset..]
-        )
+        let edit = method_insertion(file, opening, closing, &signatures, "abort").unwrap();
+        let start = usize::try_from(edit.range().start().get()).unwrap();
+        let end = usize::try_from(edit.range().end().get()).unwrap();
+        format!("{}{}{}", &source[..start], edit.new_text(), &source[end..])
     }
 
     #[test]
     fn empty_same_line_body_expands_without_an_extra_blank_line() {
         assert_eq!(
             apply(
-                "conform Readable for Value {}\n",
+                "instance Value { impl Readable }\n",
                 &["method &self.read(): i32"]
             ),
             concat!(
-                "conform Readable for Value {\n",
+                "instance Value {\n",
+                "    impl Readable\n",
                 "    method &self.read(): i32 {\n",
                 "        abort()\n",
                 "    }\n",
@@ -376,12 +450,12 @@ mod tests {
     fn existing_members_keep_the_closing_brace_and_separate_generated_methods() {
         assert_eq!(
             apply(
-                "conform Readable for Value {\n    type Item = i32\n}\n",
+                "instance Value {\n    impl Readable { Item = i32 }\n}\n",
                 &["method &self.read(): i32", "method &self.ready(): bool"]
             ),
             concat!(
-                "conform Readable for Value {\n",
-                "    type Item = i32\n",
+                "instance Value {\n",
+                "    impl Readable { Item = i32 }\n",
                 "    method &self.read(): i32 {\n",
                 "        abort()\n",
                 "    }\n",

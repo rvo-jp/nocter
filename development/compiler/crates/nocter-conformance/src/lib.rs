@@ -1,4 +1,4 @@
-//! Cross-crate compiler and native-target conformance tests.
+//! Cross-crate compiler and native-target interface implementation tests.
 
 #[cfg(test)]
 mod architecture_tests;

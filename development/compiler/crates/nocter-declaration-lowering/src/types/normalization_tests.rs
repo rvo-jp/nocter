@@ -3,7 +3,7 @@ use nocter_source::SourceMap;
 use nocter_syntax::{NodeKind, ParseGoal};
 
 use super::test_support::{add_source, all_nodes, bind, module, package, parse_source};
-use super::{TypeNormalizationError, TypeNormalizationRule, normalize_header_types};
+use super::{TypeNormalizationError, normalize_header_types};
 use crate::{ModuleIdentity, PackageIdentity, evaluate_header_constants};
 
 fn normalized_app<'syntax>(
@@ -107,42 +107,11 @@ fn expands_generic_aliases_without_creating_canonical_alias_types() {
 }
 
 #[test]
-fn type_equality_requires_an_associated_projection_after_alias_expansion() {
-    let mut invalid_sources = SourceMap::new();
-    let (manifest, app, std_manifest, std_root, prelude) = fixture(
-        &mut invalid_sources,
-        "func equality<T, U>(): T where T = U { return }\n",
-    );
-    let error = normalized_app(
-        &invalid_sources,
-        &manifest,
-        &app,
-        &std_manifest,
-        &std_root,
-        &prelude,
-    )
-    .unwrap_err();
-    let TypeNormalizationError::Rule(violation) = error else {
-        panic!("projection-free equality was not an authored normalization rule")
-    };
-    assert_eq!(
-        violation.rule(),
-        TypeNormalizationRule::EqualityWithoutAssociatedProjection
-    );
-    assert!(matches!(
-        violation.primary(),
-        nocter_source_index::SyntaxOrigin::Node(node)
-            if app.node(node).is_some_and(|syntax| syntax.kind() == NodeKind::TypeEqualityPredicate)
-    ));
-
+fn callable_requirements_normalize_aliases_and_reject_noncallable_types() {
     let mut valid_sources = SourceMap::new();
     let (manifest, app, std_manifest, std_root, prelude) = fixture(
         &mut valid_sources,
-        concat!(
-            "interface Source {\n    pub type Item\n}\n",
-            "type ItemOf<T> = T.Item where T: Source\n",
-            "func equality<T, U>(): T where T: Source, ItemOf<T> = U { return }\n",
-        ),
+        "type Callback = func(i32): i32\nfunc apply<F>(): void where F: Callback { return }\n",
     );
     normalized_app(
         &valid_sources,
@@ -153,6 +122,26 @@ fn type_equality_requires_an_associated_projection_after_alias_expansion() {
         &prelude,
     )
     .unwrap();
+
+    let mut invalid_sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut invalid_sources,
+        "func invalid<F>(): void where F: i32 { return }\n",
+    );
+    let error = normalized_app(
+        &invalid_sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        TypeNormalizationError::Rule(violation)
+            if violation.rule() == super::TypeNormalizationRule::InvalidCallableRequirement
+    ));
 }
 
 #[test]
@@ -166,11 +155,11 @@ fn resolves_interface_generic_and_concrete_associated_selections_to_one_identity
             "    pub type Item\n",
             "    pub method &self.get(): Self.Item\n",
             "}\n",
-            "conform Source for Buffer {\n",
-            "    type Item = i32\n",
+            "instance Buffer {\n",
+            "    impl Source { Item = i32 }\n",
             "    method &self.get(): i32 { return 0 }\n",
             "}\n",
-            "func generic<S>(source: &S): S.Item where S: Source { return source.get() }\n",
+            "func generic<S>(source: &S): S.Item where S impl Source { return source.get() }\n",
             "func concrete(source: &Buffer): Buffer.Item { return source.get() }\n",
         ),
     );
@@ -270,8 +259,8 @@ fn rejects_ambiguous_concrete_associated_projection() {
         concat!(
             "struct Buffer {}\n",
             "interface Source { pub type Item }\n",
-            "conform Source for Buffer { type Item = i32 }\n",
-            "conform Source for Buffer { type Item = i32 }\n",
+            "instance Buffer { impl Source { Item = i32 } }\n",
+            "instance Buffer { impl Source { Item = i32 } }\n",
             "func read(value: &Buffer): Buffer.Item { return 0 }\n",
         ),
     );
@@ -321,7 +310,7 @@ fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
         &mut sources,
         concat!(
             "interface Source<T> { pub type Item }\n",
-            "func values<T>(): some Source<T, Item = &T>?! { return }\n",
+            "func values<T>(): some Source<T> { Item = &T }?! { return }\n",
         ),
     );
     let normalized = normalized_app(

@@ -10,6 +10,7 @@ choice is missing there, implementation stops until the specification is amended
 SourceProgram
   -> SyntaxProgram
   -> DeclarationProgram
+  -> AcceptedDeclarationProgram
   -> CheckedProgram
   -> TargetProgram
   -> ExecutableProgram
@@ -652,11 +653,12 @@ owner. Blocks are opaque to this pass; body syntax cannot create or alter a decl
 The pass also enforces the module rule that implementation sources cannot add visibility,
 re-exports, or bodyless nominal contracts. Private representations, helpers, construction entries,
 and inherent methods may remain implementation-only. A following contract pass joins every
-bodyless public callable and opaque nominal to one reciprocal direct-see definition. Because
-conformance has program-wide dispatch meaning and no private visibility form, every implementation
-conformance must complete a conformance head authored in `index.nct`. That container-level join
-attaches private method bodies to the public conformance identity; required signatures are read
-once from the interface instead of being copied into the module root. This inventory is consumed by
+bodyless public callable and opaque nominal to one reciprocal direct-see definition. Because an
+interface implementation changes program-wide dispatch and has no private visibility form, each
+`impl Interface` fact is authored in an `index.nct` instance fragment. A reciprocally seen private
+source may provide ordinary method bodies in an exact-header instance fragment, but cannot repeat
+or introduce the `impl` fact. The contract pass unifies those open fragments before semantic IDs
+are reserved; required signatures remain solely on the interface. This inventory is consumed by
 declaration reservation and never becomes a second long-lived program model.
 
 The compile-unit input carries one closed `CompilationTarget`, and the frozen declaration graph
@@ -670,9 +672,11 @@ Before allocating declaration IDs, contract joining compares canonical header to
 excludes visibility, bodies, and newlines while retaining names, owner patterns, generic
 requirements, parameter names and types, results, and authored provenance.
 One eligible public bodyless root callable must match exactly one private implementation body.
-Source-defined operators use the same callable rule. Conformance definitions instead join once by
-their exact interface, target, generic, and requirement header; their method bodies remain owned by
-the private definition source. A separate nominal-
+Source-defined operators use the same callable rule. Exact-header instance fragments in one source
+or in reciprocally visible sources share one instance identity, while every child method keeps its
+own source-backed identity. An implementation source carrying an `impl Interface` fact is rejected
+before representative selection, so this source-role rule cannot depend on traversal or join
+order. A separate nominal-
 representation pass matches each public opaque struct or enum contract to one private complete
 representation. The definition occurrence and its implementation container map to the public
 representative; private members in that container retain their own identities under the shared
@@ -713,7 +717,7 @@ specialization, machine lowering, and editor presentation consume normalized typ
 constant values only; they cannot inspect or evaluate constant-expression syntax.
 
 Reservation consumes that grouping in canonical surface order. Nominals, aliases, interfaces,
-associated types, callables, construction surfaces, instances, conformances, variants, drops,
+associated types, callables, construction surfaces, instances, interface implementations, variants, drops,
 tests, and opaque result types receive their final typed IDs before any header type is resolved.
 Fields, generic parameters, ordinary parameters, requirements, and bodies are added later because
 their identities cannot participate in recursive header lookup before their owner exists.
@@ -793,12 +797,13 @@ The mutable binding boundary is one `BindingArena`: a bound-kind arena, syntax-r
 declaration-context index, and temporary `NormalizationOrigins` side index. The side index records
 only subjects that a later normalization rule can select. It retains alias declaration tokens,
 exact associated-selection tokens, and callable type nodes without contaminating `BoundTypeKind`
-or canonical `TypeKind`. Normalization projects `E0310`-`E0313` and `E0320`; alias cycles are rotated by
+or canonical `TypeKind`. Normalization projects `E0310`-`E0314`; alias cycles are rotated by
 canonical declaration identity and retain every declaration in the cycle. Missing bound state,
-alias definitions, normalized `Self`, or associated-index invariants remain internal failures.
-General type equalities are validated only after alias expansion. Their temporary requirement
-origins are keyed by declaration and predicate position, so the normalizer can reject an equality
-without an associated projection without retaining syntax in `RequirementKind`.
+interface-application context, alias definitions, normalized `Self`, or associated-index invariants
+remain internal failures. A declaration-pattern equality is lowered directly as a directed binder
+refinement; equality outside that owner is rejected during type binding. An interface requirement
+owns its normalized interface application and all associated bindings as one semantic fact, so
+checking and presentation never recover predicate structure from neighboring requirements.
 
 Callable type keys erase parameter spellings after resolving authored provenance names to sorted,
 unique parameter positions. Result provenance is therefore part of the structural callable
@@ -807,8 +812,11 @@ caller-managed place and normalize to an empty external-origin set.
 
 The compile-unit type store interns structural types. Its keys contain typed semantic IDs and
 normalized constants, never rendered names, source text, or byte positions. Declaration lowering
-freezes a `DeclarationProgram` containing the immutable declaration graph and the header-type
-prefix. Checking consumes that value exactly once into `DeclarationGraph` plus the owned
+freezes a structurally valid `DeclarationProgram` containing the immutable declaration graph and
+the header-type prefix. Complete authored-rule validation wraps it in
+`AcceptedDeclarationProgram` together with a non-optional analysis-admission authority. Rejected
+programs can enter only explicit editor recovery capabilities. Checking consumes the accepted value
+exactly once into `DeclarationGraph` plus the owned
 `TypeStore`, then interns body, closure, inference, and specialization types after the existing
 IDs. The checked program freezes the extended store. It never copies a header store, translates a
 `TypeId`, or creates an overlay lookup authority. `TypeExpr` belongs to syntax lowering and
@@ -817,7 +825,7 @@ presentation; it does not cross into checked semantics.
 Header definition consumes the normalized roots and the temporary surface inventory exactly once.
 It allocates fields, parameters, receivers, requirements, and bodies in canonical order, then
 defines every reserved nominal, alias, interface, associated type, callable, construction,
-instance, conformance, drop, test, variant, and opaque-result slot. A joined public contract and
+instance, interface implementation, drop, test, variant, and opaque-result slot. A joined public contract and
 private implementation share callable and parameter identities; their declaration and
 implementation projections remain distinct in `SourceIndex`. Authored result-provenance clauses
 are stored as declarations, while elided body-owned provenance remains explicitly inferred rather
@@ -825,7 +833,7 @@ than being guessed from a header.
 
 Rule selection at this final syntax-consuming boundary retains exact subjects for declaration
 facts that do not exist in canonical type identity: declaration provenance origins, the result type
-of an ambiguous bodyless callable, and conformance associated-type binding names. These rules
+of an ambiguous bodyless callable, and interface-implementation associated-type binding names. These rules
 project as `E0315`-`E0319`. Duplicate rules store both authored tokens when the second occurrence
 is observed. `HeaderDefinitionError` separately carries
 malformed normalized state and program-builder failures; the production facade cannot expose those
@@ -868,16 +876,16 @@ set of admission facts for the entire structurally valid graph. A declaration ru
 error code, source-level message, correction direction, primary declaration-site ID, and optional
 related declaration-site ID. Only after the report is complete does declaration lowering project
 all IDs through the completed `SourceIndex` to exact syntax origins. The same pass decides which
-construction, instance, conformance, and destruction containers editor analysis may use; recovery
+construction, inherent-instance, interface-implementation, and destruction declarations editor analysis may use; recovery
 cannot rescan declarations or infer admission from a diagnostic code. Changing a diagnostic span
 therefore cannot change rule selection, and adding a diagnostic cannot create a second attachment
 or declaration-shape evaluator.
 
 Checking converts accepted declarations or the frozen editor admission facts into one
 `AdmittedOperations` identity set before building any program-wide table. Construction,
-instance-operation, conformance, and drop builders receive only their admitted IDs; they never
+instance-operation, interface-implementation, and drop builders receive only their admitted IDs; they never
 interpret an optional recovery mode or traverse rejected containers. One declaration-pattern table
-normalizes instance and conformance substitutions, targets, associated bindings, requirements, and
+normalizes instance and interface-implementation substitutions, targets, associated bindings, requirements, and
 refinements exactly once. Body-local assumptions and admitted global table builders consume that
 same immutable contract. A quarantined container therefore retains local editor semantics without
 becoming a dispatch, overlap, destruction, or provenance candidate or triggering a second pattern
@@ -942,7 +950,7 @@ enum identities. Later exhaustiveness and layout stages may therefore assume eve
 least one valid tag.
 Each nominal type definition owns at most one resolved top-level drop body. Declaration validation
 admits it only for an ordinary struct or payload-bearing enum declared in the same module and
-rejects it independently of `instance` and conformance lookup. Copyability is derived from the
+rejects it independently of `instance` and interface-implementation lookup. Copyability is derived from the
 type declaration before that association and is never changed by cleanup availability. Checked
 ownership and MIR consume the resolved drop-body identity; neither performs method lookup to find
 cleanup.
@@ -1155,10 +1163,10 @@ checking cannot invent independent construction-member indexes.
 
 Type checking selects either a direct callable or an exact abstract requirement. When generic
 substitution makes an abstract receiver concrete, the checking-owned `ConcreteDispatchResolver`
-resolves that requirement once through the retained conformance and instance-operation tables.
+resolves that requirement once through the retained interface-implementation and instance-operation tables.
 Its ordered plan distinguishes direct callable bodies, compiler primitives, and indirect
 callable-value invocation; coercion-plus-operation evidence is not flattened. MIR and later stages
-have no requirement or conformance dispatch API.
+have no requirement or interface-implementation dispatch API.
 
 ## Target Program
 
@@ -1175,13 +1183,13 @@ key contains semantic callable identity and one canonical substitution covering 
 callable generic domains. Receiver type is derived from the owner declaration and is not duplicated
 in the key. Missing, extra, duplicate, or symbolic arguments are integrity failures.
 
-The checked-program layer owns concrete dispatch resolution because it already owns conformance,
+The checked-program layer owns concrete dispatch resolution because it already owns interface-implementation,
 instance-operation, and recursive requirement-proof authorities. Specialization supplies one
 concrete enclosing substitution and receives an ordered plan containing direct callable steps,
 compiler primitives, or a concrete callable-value subject and contract. Composite structural
 evidence such as coercion followed by built-in indexing remains composite. The executable-program
 layer resolves a callable-value subject to its generated closure body and enqueues that body; MIR
-cannot repeat requirement proof or conformance selection. Callable contracts are not erased
+cannot repeat requirement proof or interface-implementation selection. Callable contracts are not erased
 runtime types, so no indirect callable ABI or vtable enters MIR.
 
 MIR construction and linkage consume this graph. They cannot build parallel callable indexes.
@@ -1349,7 +1357,7 @@ syntax, and semantic analysis all consume that one value.
 
 An authored declaration-authority violation may enter an editor-only admission path when the
 declaration graph remains structurally valid. One whole-graph admission scan classifies every
-construction, instance, conformance, and drop independently of validation traversal order.
+construction, instance, interface implementation, and drop independently of validation traversal order.
 Unauthorized containers and locally invalid construction or drop surfaces stay available as lexical
 body owners but are excluded from global candidate indexes, overlap validation, destruction, and
 provenance selection. The analysis-only declaration and prepared-program types cannot enter the
@@ -1387,16 +1395,16 @@ the candidate overlay. The adapter ignores client diagnostic contents and never 
 diagnostic messages or help strings.
 
 Each phase-specific failure retains only its own deepest completed contract. The session composes
-those contracts into the one semantic-stage sum. A conformance-table failure owns declaration
-analysis containing the graph, monotonic type store, and source index, but no conformance table,
+those contracts into the one semantic-stage sum. An interface-implementation-table failure owns declaration
+analysis containing the graph, monotonic type store, and source index, but no interface-implementation table,
 construction surface, name result, or checked body. While selecting
 required interface methods, the checker captures every missing method after applying the same
 interface, target, associated-type, and callable-generic substitutions used by signature
 compatibility. The code-action layer renders those typed contracts through canonical presentation,
-selects the joined implementation occurrence when the conformance is separated, inserts all
+selects an existing private instance fragment when the implementation is separated, inserts all
 missing methods there with diverging `std/process.abort()` bodies, and obtains the import edit in
-that same source from semantic automatic-import completion. Inline conformances retain their
-declaration as the edit destination. The shared speculative transaction publishes the action only
+that same source from semantic automatic-import completion. An inline instance remains the edit
+destination when no private fragment exists. The shared speculative transaction publishes the action only
 when the whole edited program reaches checked semantics; an unrelated target-boundary failure does
 not invalidate a source-semantic repair.
 
@@ -1408,7 +1416,7 @@ Analysis renders through that projection rather than observing the monotonic che
 by the failed body. It locates the editable result annotation by the declaration kind's direct CST
 path; it does not search the declaration range for a nested `CallableTail`. Fixed-result and
 grammar-restricted operators are explicitly non-editable. The shared speculative transaction
-remains the final authority, so a contract change that creates a public-call, conformance,
+remains the final authority, so a contract change that creates a public-call, interface implementation,
 provenance, or body error is not exposed.
 Callable inference distinguishes a complete-result context from a postfix-propagation payload
 context. The latter projects exactly one statically declared optional or fallible layer from a call

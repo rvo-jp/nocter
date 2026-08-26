@@ -361,7 +361,7 @@ const fn is_comma_list(kind: NodeKind) -> bool {
             | NodeKind::CallableParameters
             | NodeKind::TypeArguments
             | NodeKind::PatternArguments
-            | NodeKind::OpaqueArguments
+            | NodeKind::AssociatedBindings
             | NodeKind::CallSuffix
             | NodeKind::StructInitializer
             | NodeKind::ArrayLiteral

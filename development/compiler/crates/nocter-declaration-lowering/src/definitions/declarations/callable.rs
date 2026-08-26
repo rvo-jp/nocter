@@ -96,7 +96,6 @@ fn callable_owner(
                 Some(ReservedEntity::Construction(owner)) => Ok(CallableOwner::Construction(owner)),
                 Some(ReservedEntity::Instance(owner)) => Ok(CallableOwner::Instance(owner)),
                 Some(ReservedEntity::Interface(owner)) => Ok(CallableOwner::Interface(owner)),
-                Some(ReservedEntity::Conformance(owner)) => Ok(CallableOwner::Conformance(owner)),
                 _ => Err(HeaderDefinitionError::InvalidOwner(declaration)),
             }
         }
@@ -110,9 +109,9 @@ fn callable_kind(
     Ok(match surface_kind(types, declaration)? {
         SurfaceDeclarationKind::Function => CallableKind::Function,
         SurfaceDeclarationKind::PrimitiveFunction => CallableKind::Primitive,
-        SurfaceDeclarationKind::InterfaceMethod
-        | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod => CallableKind::Method,
+        SurfaceDeclarationKind::InterfaceMethod | SurfaceDeclarationKind::InherentMethod => {
+            CallableKind::Method
+        }
         SurfaceDeclarationKind::ConstructionFunction => CallableKind::ConstructionFunction,
         SurfaceDeclarationKind::Literal => {
             CallableKind::Literal(literal_shape(types, declaration)?)

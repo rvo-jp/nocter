@@ -11,7 +11,8 @@ use nocter_model::{BodyId, BodyNodeId, TypeStore};
 use nocter_source_index::SourceOrigin;
 
 use crate::{
-    BodyCheckError, BodySource, CheckedBody, ClosureTable, ConformanceTable, ProvenanceTable,
+    BodyCheckError, BodySource, CheckedBody, ClosureTable, InterfaceImplementationTable,
+    ProvenanceTable,
 };
 
 pub(crate) struct ProvenanceBodyInput<'program, 'syntax> {
@@ -49,11 +50,11 @@ impl<'program, 'syntax> ProvenanceBodyInput<'program, 'syntax> {
 pub(crate) fn analyze_program_provenance(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    conformances: &ConformanceTable,
+    interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
-    analysis::analyze_program(graph, types, conformances, closures, inputs)
+    analysis::analyze_program(graph, types, interface_implementations, closures, inputs)
 }
 
 fn input_for_body<'a, 'syntax>(

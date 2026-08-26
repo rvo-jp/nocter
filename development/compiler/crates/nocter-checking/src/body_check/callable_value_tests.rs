@@ -34,6 +34,22 @@ fn readonly_callable_requirement_freezes_dispatch_and_permits_repeated_calls() {
 }
 
 #[test]
+fn callable_contract_is_an_ordinary_local_type_annotation() {
+    check(
+        "func main(): i32 {\n    let callback: func(i32): i32 = (value) { value * 2 }\n    callback(4)\n}\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn callable_requirement_accepts_an_ordinary_type_alias() {
+    check(
+        "type Callback = &func(i32): i32\nfunc apply<F>(callback: F): i32 where F: Callback { callback(4) }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn readwrite_callable_requires_writable_storage_and_remains_reusable() {
     check(
         "func transform<F>(callback: F, value: i32): i32 where F: &+func(value: i32): i32 {\n    var callable = move callback\n    let first = callable(value)\n    callable(first)\n}\n",

@@ -93,9 +93,9 @@ pub use topology_violation::{TopologyRule, TopologyViolation};
 pub use type_binding_diagnostic::TypeBindingDiagnostic;
 pub use type_normalization_diagnostic::TypeNormalizationDiagnostic;
 pub use types::{
-    BoundCallableType, BoundCapability, BoundDeclarationPattern, BoundRequirementKind, BoundTypeId,
-    BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypeBindings,
-    PreparedTypes, TypeBindingError, TypeBindingRule, TypeBindingViolation, TypeNormalizationError,
-    TypeNormalizationRule, TypeNormalizationViolation, bind_header_type_syntax,
-    evaluate_header_constants, normalize_header_types,
+    BoundCallableType, BoundDeclarationPattern, BoundInterfaceApplication, BoundRequirementKind,
+    BoundTypeId, BoundTypeKind, NormalizedDeclarationPattern, NormalizedOpaqueResult,
+    PreparedTypeBindings, PreparedTypes, TypeBindingError, TypeBindingRule, TypeBindingViolation,
+    TypeNormalizationError, TypeNormalizationRule, TypeNormalizationViolation,
+    bind_header_type_syntax, evaluate_header_constants, normalize_header_types,
 };

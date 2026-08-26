@@ -105,7 +105,7 @@ fn repeated_pattern_names_reuse_one_identity_and_project_every_occurrence() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "pub interface Compare<T> {}\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\nconform Compare<T> for Pair<T, T> {}\n",
+        "pub interface Compare<T> {}\npub struct Pair<L, R> {\n    pub left: L\n    pub right: R\n}\ninstance Pair<T, T> { impl Compare<T> }\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -121,10 +121,10 @@ fn repeated_pattern_names_reuse_one_identity_and_project_every_occurrence() {
         Vec::new(),
     )
     .unwrap();
-    let conformance = SurfaceDeclarationId::from_index(4);
+    let interface_implementation = SurfaceDeclarationId::from_index(4);
 
-    assert_eq!(generics.own(conformance).unwrap().len(), 1);
-    assert_eq!(generics.headers().reserved().source_binding_count(), 16);
+    assert_eq!(generics.own(interface_implementation).unwrap().len(), 1);
+    assert_eq!(generics.headers().reserved().source_binding_count(), 17);
 }
 
 #[test]

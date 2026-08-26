@@ -1,7 +1,7 @@
 mod binding_arena;
-mod capability;
 mod constants;
 mod context;
+mod interface_application;
 mod names;
 mod normalization;
 mod normalization_origins;
@@ -89,12 +89,15 @@ pub use normalization::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum BoundCapability {
-    Interface {
-        definition: InterfaceId,
-        arguments: Box<[BoundTypeId]>,
-    },
-    Callable(BoundTypeId),
+pub struct BoundInterfaceApplication {
+    definition: InterfaceId,
+    arguments: Box<[BoundTypeId]>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BoundAssociatedTypeBinding {
+    projection: BoundTypeId,
+    value: BoundTypeId,
 }
 
 /// A syntax-independent type expression with every lexical type name bound to semantic identity.
@@ -162,15 +165,16 @@ pub enum BoundDeclarationPattern {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BoundRequirementKind {
-    Capability {
+    Interface {
         subject: RequirementSubject,
-        capability: BoundCapability,
+        application: BoundInterfaceApplication,
+        associated_types: Box<[BoundAssociatedTypeBinding]>,
+    },
+    Callable {
+        subject: GenericParameterId,
+        contract: BoundTypeId,
     },
     Copy(GenericParameterId),
-    TypeEquality {
-        left: BoundTypeId,
-        right: BoundTypeId,
-    },
     Equality {
         operand: GenericParameterId,
     },
@@ -268,8 +272,8 @@ pub struct PreparedTypeBindings<'syntax> {
     root_declarations: HashMap<NodeId, SurfaceDeclarationId>,
     alias_targets: HashMap<TypeAliasId, BoundTypeId>,
     patterns: Box<[Box<[BoundDeclarationPattern]>]>,
-    capabilities: HashMap<NodeId, BoundCapability>,
-    capability_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    interface_applications: HashMap<NodeId, BoundInterfaceApplication>,
+    interface_application_declarations: HashMap<NodeId, SurfaceDeclarationId>,
     opaque_results: HashMap<OpaqueTypeId, BoundOpaqueResult>,
     callable_results: Box<[Option<BoundTypeId>]>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
@@ -309,8 +313,8 @@ impl PreparedTypeBindings<'_> {
     }
 
     #[must_use]
-    pub fn capability_for(&self, node: NodeId) -> Option<&BoundCapability> {
-        self.capabilities.get(&node)
+    pub fn interface_application_for(&self, node: NodeId) -> Option<&BoundInterfaceApplication> {
+        self.interface_applications.get(&node)
     }
 
     #[must_use]
@@ -352,8 +356,8 @@ pub fn bind_header_type_syntax(
     let declaration_nodes = declaration_node_set(&namespaces);
     let mut arena = binding_arena::BindingArena::default();
     let mut alias_targets = HashMap::new();
-    let mut capabilities = HashMap::new();
-    let mut capability_declarations = HashMap::new();
+    let mut interface_applications = HashMap::new();
+    let mut interface_application_declarations = HashMap::new();
     let declaration_count = namespaces
         .imports
         .generics
@@ -392,16 +396,21 @@ pub fn bind_header_type_syntax(
             &mut alias_targets,
             &mut arena.origins,
         )?;
-        for capability in header_nodes(
+        for application in header_nodes(
             tree,
             surface.node(),
             &declaration_nodes,
-            NodeKind::Capability,
+            NodeKind::InterfaceApplication,
         ) {
-            let bound =
-                capability::bind(&mut namespaces, declaration, tree, capability, &mut arena)?;
-            capabilities.insert(capability, bound);
-            capability_declarations.insert(capability, declaration);
+            let bound = interface_application::bind(
+                &mut namespaces,
+                declaration,
+                tree,
+                application,
+                &mut arena,
+            )?;
+            interface_applications.insert(application, bound);
+            interface_application_declarations.insert(application, declaration);
         }
         patterns.push(
             pattern::bind_all(&mut namespaces, declaration, tree, surface.node())?
@@ -415,14 +424,15 @@ pub fn bind_header_type_syntax(
                 surface.node(),
                 &mut arena.kinds,
                 &arena.roots,
-                &capabilities,
+                &interface_applications,
                 &mut arena.origins,
             )?
             .into_boxed_slice(),
         );
     }
 
-    let (opaque_results, callable_results) = results::bind_all(&mut namespaces, &mut arena)?;
+    let (opaque_results, callable_results) =
+        results::bind_all(&mut namespaces, &interface_applications, &mut arena)?;
 
     Ok(PreparedTypeBindings {
         namespaces,
@@ -431,8 +441,8 @@ pub fn bind_header_type_syntax(
         root_declarations: arena.root_declarations,
         alias_targets,
         patterns: patterns.into_boxed_slice(),
-        capabilities,
-        capability_declarations,
+        interface_applications,
+        interface_application_declarations,
         opaque_results,
         callable_results,
         requirements: requirements.into_boxed_slice(),

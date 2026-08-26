@@ -28,7 +28,7 @@ pub enum ExpectedSyntax {
     EnumPattern,
     ClosureHead,
     Predicate,
-    Capability,
+    Interface,
     Newline,
 }
 

@@ -1,7 +1,7 @@
 use crate::{BuiltinType, NominalTypeId, TypeId, TypeKind, TypeStore};
 
 /// Canonical identity of a type family that may own construction, inherent operations, explicit
-/// conformances, or other type-attached declarations.
+/// interface implementations, or other type-attached declarations.
 ///
 /// Generic arguments deliberately do not participate in family identity. Policy such as which
 /// module may attach an operation remains the responsibility of declaration validation.

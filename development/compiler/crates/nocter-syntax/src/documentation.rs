@@ -289,9 +289,10 @@ const fn is_documentable(kind: NodeKind) -> bool {
             | NodeKind::OrderingOperator
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
-            | NodeKind::ConformDeclaration
+            | NodeKind::InterfaceImplementation
+            | NodeKind::InterfaceApplication
+            | NodeKind::AssociatedBindings
             | NodeKind::AssociatedTypeBinding
-            | NodeKind::ConformMethod
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration
             | NodeKind::BindingStatement

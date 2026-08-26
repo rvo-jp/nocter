@@ -3,7 +3,7 @@ see ./adapters.nct
 
 //! Iterator adapter implementations.
 
-conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {
+instance MapIter<U, I, F> where I impl Iterator, F: &+func(item: I.Item): U {
     /// Advances the source once and transforms the yielded item once.
     method &+self.next(): U? {
         let item = self.source.next()?
@@ -11,14 +11,14 @@ conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item)
     }
 }
 
-conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(item: I.Item): U {
+instance MapIter<U, I, F> where I impl Iterator, I impl ExactSizeIterator, F: &+func(item: I.Item): U {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }
 }
 
-conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
+instance FilterIter<I, F> where I impl Iterator, F: &+func(&I.Item): bool {
     /// Advances until the predicate accepts an item or the source is exhausted.
     method &+self.next(): I.Item? {
         while true {
@@ -31,7 +31,7 @@ conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): boo
     }
 }
 
-conform Iterator for TakeIter<I> where I: Iterator {
+instance TakeIter<I> where I impl Iterator {
     method &+self.next(): I.Item? {
         if self.remaining == 0 {
             return none
@@ -45,7 +45,7 @@ conform Iterator for TakeIter<I> where I: Iterator {
     }
 }
 
-conform ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
+instance TakeIter<I> where I impl Iterator, I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining < self.remaining {
@@ -55,7 +55,7 @@ conform ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator 
     }
 }
 
-conform Iterator for SkipIter<I> where I: Iterator {
+instance SkipIter<I> where I impl Iterator {
     method &+self.next(): I.Item? {
         while self.remaining_to_skip != 0 {
             let skipped = self.source.next() otherwise {
@@ -68,7 +68,7 @@ conform Iterator for SkipIter<I> where I: Iterator {
     }
 }
 
-conform ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {
+instance SkipIter<I> where I impl Iterator, I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining <= self.remaining_to_skip {
@@ -78,7 +78,7 @@ conform ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator 
     }
 }
 
-conform Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
+instance ChainIter<L, R> where L impl Iterator, R impl Iterator { Item = L.Item } {
     method &+self.next(): L.Item? {
         while self.in_left {
             let item = self.left.next() otherwise {
@@ -91,13 +91,13 @@ conform Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.
     }
 }
 
-conform ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {
+instance ChainIter<L, R> where L impl Iterator, L impl ExactSizeIterator, R impl Iterator { Item = L.Item }, R impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.left.remaining_len() + self.right.remaining_len()
     }
 }
 
-conform Iterator for EnumerateIter<I> where I: Iterator {
+instance EnumerateIter<I> where I impl Iterator {
     method &+self.next(): Indexed<I.Item>? {
         let item = self.source.next()?
         let index: usize = self.next_index
@@ -109,7 +109,7 @@ conform Iterator for EnumerateIter<I> where I: Iterator {
     }
 }
 
-conform ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {
+instance EnumerateIter<I> where I impl Iterator, I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }

@@ -75,16 +75,57 @@ pub(super) fn provenance_clause(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::ProvenanceClause);
 }
 
-pub(super) fn capability(parser: &mut Parser<'_>) {
+pub(super) fn interface_application(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    if at_callable_type(parser) {
-        callable_type(parser);
-    } else if parser.at(TokenKind::Identifier) && !at_builtin_type(parser) {
+    if parser.at(TokenKind::Identifier) && !at_builtin_type(parser) {
         named_type(parser);
     } else {
-        parser.error_token(ExpectedSyntax::Capability);
+        parser.error_token(ExpectedSyntax::Interface);
     }
-    parser.complete(marker, NodeKind::Capability);
+    if at_associated_bindings(parser) {
+        associated_bindings(parser);
+    }
+    parser.complete(marker, NodeKind::InterfaceApplication);
+}
+
+fn at_associated_bindings(parser: &Parser<'_>) -> bool {
+    if !parser.at_punctuation(Punctuation::LeftBrace) {
+        return false;
+    }
+    let mut offset = 1;
+    while parser.nth_kind(offset) == TokenKind::Newline {
+        offset += 1;
+    }
+    parser.nth_kind(offset) == TokenKind::Identifier
+        && parser.nth_kind(offset + 1) == TokenKind::Punctuation(Punctuation::Equal)
+}
+
+fn associated_bindings(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        parser.recover_until(&[TokenKind::Punctuation(Punctuation::RightBrace)]);
+        parser.expect_punctuation(Punctuation::RightBrace);
+        parser.complete(marker, NodeKind::AssociatedBindings);
+        return;
+    }
+    parser.comma_list(
+        Punctuation::RightBrace,
+        false,
+        ExpectedSyntax::DeclarationMember,
+        associated_type_binding,
+    );
+    parser.expect_punctuation(Punctuation::RightBrace);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::AssociatedBindings);
+}
+
+fn associated_type_binding(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Equal);
+    type_(parser);
+    parser.complete(marker, NodeKind::AssociatedTypeBinding);
 }
 
 pub(super) fn parameter(parser: &mut Parser<'_>) {
@@ -375,38 +416,8 @@ fn outcome_suffix(parser: &mut Parser<'_>) {
 fn opaque_result(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
-    parser.expect_name();
-    if parser.at_punctuation(Punctuation::Less) {
-        let arguments = parser.start();
-        parser.bump();
-        if !parser.enter_nesting() {
-            parser.recover_until(&[
-                TokenKind::Punctuation(Punctuation::Greater),
-                TokenKind::Punctuation(Punctuation::ShiftRight),
-            ]);
-            parser.expect_type_greater();
-            parser.complete(arguments, NodeKind::OpaqueArguments);
-            parser.complete(marker, NodeKind::OpaqueResult);
-            return;
-        }
-        type_delimited_list(parser, false, ExpectedSyntax::Type, opaque_argument);
-        parser.expect_type_greater();
-        parser.leave_nesting();
-        parser.complete(arguments, NodeKind::OpaqueArguments);
-    }
+    interface_application(parser);
     parser.complete(marker, NodeKind::OpaqueResult);
-}
-
-fn opaque_argument(parser: &mut Parser<'_>) {
-    let marker = parser.start();
-    if parser.at(TokenKind::Identifier)
-        && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Equal)
-    {
-        parser.bump();
-        parser.bump();
-    }
-    type_(parser);
-    parser.complete(marker, NodeKind::OpaqueArgument);
 }
 
 fn type_delimited_list(

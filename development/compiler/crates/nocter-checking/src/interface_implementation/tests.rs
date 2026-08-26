@@ -8,18 +8,18 @@ use nocter_model::PackageIdentity;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use super::{MethodSelection, build_conformance_table};
+use super::{MethodSelection, build_interface_implementation_table};
 
 #[test]
 fn required_and_default_methods_receive_exact_dispatch_selections() {
     let fixture = Fixture::new(
-        "pub interface Readable {\n    pub method &self.read(offset: i32): i32\n    pub default method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\nconform Readable for Value {\n    method &self.read(offset: i32): i32 { return offset }\n}\n",
+        "pub interface Readable {\n    pub method &self.read(offset: i32): i32\n    pub default method &self.default_value(): i32 { return 1 }\n}\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(offset: i32): i32 { return offset }\n}\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
-    let table = build_conformance_table(&graph, &mut types, &source_index).unwrap();
+    let (graph, mut types, _admission) = program.into_parts();
+    let table = build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
     let (_, entry) = table.entries().iter().next().unwrap();
 
     assert_eq!(entry.methods().len(), 2);
@@ -61,22 +61,18 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
 }
 
 #[test]
-fn conformance_method_failures_have_distinct_rules() {
+fn interface_implementation_method_failures_have_distinct_rules() {
     for (source, expected) in [
         (
-            "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\nconform Readable for Value {}\n",
+            "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\ninstance Value { impl Readable }\n",
             "E0350",
         ),
         (
-            "pub interface Readable {}\nstruct Value {}\nconform Readable for Value { method &self.extra(): i32 { return 0 } }\n",
-            "E0351",
-        ),
-        (
-            "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\nconform Readable for Value { method &self.read(): u32 { return 0 } }\n",
+            "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(): u32 { return 0 }\n}\n",
             "E0352",
         ),
         (
-            "pub interface Readable { pub method &self.read(...values: i32): i32 }\nstruct Value {}\nconform Readable for Value { method &self.read(value: i32): i32 { return value } }\n",
+            "pub interface Readable { pub method &self.read(...values: i32): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(value: i32): i32 { return value }\n}\n",
             "E0352",
         ),
     ] {
@@ -84,8 +80,9 @@ fn conformance_method_failures_have_distinct_rules() {
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, mut types) = program.into_parts();
-        let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
+        let (graph, mut types, _admission) = program.into_parts();
+        let error =
+            build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
     }
 }
@@ -99,15 +96,16 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
         "    pub method &self.ready(): bool\n",
         "}\n",
         "struct Value {}\n",
-        "conform Readable for Value {\n",
-        "    type Item = i32\n",
+        "instance Value {\n",
+        "    impl Readable { Item = i32 }\n",
         "}\n",
     ));
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
-    let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
+    let (graph, mut types, _admission) = program.into_parts();
+    let error =
+        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
     let missing = error.missing_methods().unwrap();
 
     assert_eq!(missing.required().len(), 2);
@@ -126,16 +124,16 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
 #[test]
 fn exact_overlap_diagnostic_is_input_order_independent() {
     let fixture = Fixture::new(
-        "pub interface Marker {}\nstruct Value {}\nconform Marker for Value {}\nconform Marker for Value {}\n",
+        "pub interface Marker {}\nstruct Value {}\ninstance Value { impl Marker }\ninstance Value { impl Marker }\n",
     );
     let mut diagnostics = Vec::new();
     for reverse in [false, true] {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, mut types) = program.into_parts();
+        let (graph, mut types, _admission) = program.into_parts();
         diagnostics.push(
-            build_conformance_table(&graph, &mut types, &source_index)
+            build_interface_implementation_table(&graph, &mut types, &source_index)
                 .unwrap_err()
                 .source_diagnostic()
                 .unwrap()
@@ -149,13 +147,14 @@ fn exact_overlap_diagnostic_is_input_order_independent() {
 #[test]
 fn refined_pattern_overlaps_a_general_generic_pattern() {
     let fixture = Fixture::new(
-        "pub interface Marker<T> {}\nstruct Box<T> {}\nconform Marker<T> for Box<T> {}\nconform Marker<U> for Box<U> where U = i32 {}\n",
+        "pub interface Marker<T> {}\nstruct Box<T> {}\ninstance Box<T> { impl Marker<T> }\ninstance Box<U> where U = i32 { impl Marker<U> }\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
-    let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
+    let (graph, mut types, _admission) = program.into_parts();
+    let error =
+        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0353");
 }
@@ -163,23 +162,23 @@ fn refined_pattern_overlaps_a_general_generic_pattern() {
 #[test]
 fn distinct_refinements_produce_disjoint_canonical_patterns() {
     let fixture = Fixture::new(
-        "pub interface Marker<T> {}\nstruct Box<T> {}\nconform Marker<T> for Box<T> where T = i32 {}\nconform Marker<U> for Box<U> where U = u32 {}\n",
+        "pub interface Marker<T> {}\nstruct Box<T> {}\ninstance Box<T> where T = i32 { impl Marker<T> }\ninstance Box<U> where U = u32 { impl Marker<U> }\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
-    let table = build_conformance_table(&graph, &mut types, &source_index).unwrap();
+    let (graph, mut types, _admission) = program.into_parts();
+    let table = build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
 
     assert_eq!(table.entries().len(), 2);
-    for conformance in table.entries().values() {
-        assert!(conformance.requirements().is_empty());
-        assert_eq!(conformance.generic_parameters().len(), 1);
-        assert_eq!(conformance.refinements().len(), 1);
+    for interface_implementation in table.entries().values() {
+        assert!(interface_implementation.requirements().is_empty());
+        assert_eq!(interface_implementation.generic_parameters().len(), 1);
+        assert_eq!(interface_implementation.refinements().len(), 1);
         let nocter_model::TypeKind::Nominal { arguments, .. } =
-            types.get(conformance.target()).unwrap()
+            types.get(interface_implementation.target()).unwrap()
         else {
-            panic!("refined conformance target must remain nominal");
+            panic!("refined interface_implementation target must remain nominal");
         };
         assert!(matches!(
             types.get(arguments[0]),
@@ -187,36 +186,37 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
                 nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::U32
             ))
         ));
-        assert_eq!(conformance.refinements()[0].ty(), arguments[0]);
+        assert_eq!(interface_implementation.refinements()[0].ty(), arguments[0]);
     }
 }
 
 #[test]
-fn associated_type_bounds_use_the_same_conformance_table() {
+fn associated_type_bounds_use_the_same_interface_implementation_table() {
     for source in [
-        "pub interface Marker {}\npub interface Source { pub type Item: Marker }\nstruct Good {}\nstruct Wrapper<T> {}\nconform Marker for Good {}\nconform Source for Wrapper<T> where T = Good { type Item = T }\n",
-        "pub interface Marker {}\npub interface Source { pub type Item: Marker }\nstruct Wrapper<T> {}\nconform Source for Wrapper<T> where T: Marker { type Item = T }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Good {}\nstruct Wrapper<T> {}\ninstance Good { impl Marker }\ninstance Wrapper<T> where T = Good { impl Source { Item = T } }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T impl Marker { impl Source { Item = T } }\n",
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, mut types) = program.into_parts();
+        let (graph, mut types, _admission) = program.into_parts();
 
-        build_conformance_table(&graph, &mut types, &source_index).unwrap();
+        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap();
     }
 }
 
 #[test]
 fn unsatisfied_associated_type_bound_has_its_own_rule() {
     let fixture = Fixture::new(
-        "pub interface Marker {}\npub interface Source { pub type Item: Marker }\nstruct Missing {}\nstruct Wrapper<T> {}\nconform Source for Wrapper<T> where T = Missing { type Item = T }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Missing {}\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T = Missing { impl Source { Item = T } }\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, mut types) = program.into_parts();
-    let error = build_conformance_table(&graph, &mut types, &source_index).unwrap_err();
+    let (graph, mut types, _admission) = program.into_parts();
+    let error =
+        build_interface_implementation_table(&graph, &mut types, &source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0354");
 }

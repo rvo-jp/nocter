@@ -169,7 +169,7 @@ impl BodyRule {
             Self::InvalidBodyTypeUse | Self::InvalidDiscardBinding => self.binding_message(),
             Self::InvalidOpaqueWitness => (
                 "opaque result does not select one valid concrete witness",
-                "return one consistent type that conforms to the advertised interface and associated bindings",
+                "return one consistent type that implements the advertised interface and associated bindings",
             ),
             _ => self.operation_message(),
         }
@@ -304,8 +304,8 @@ impl BodyRule {
                 "use a place whose exact standard semantic role permits aborting allocation",
             ),
             Self::InvalidInterpolation => (
-                "interpolation value does not conform to the selected standard Format contract",
-                "add an explicit conformance to the active standard Format interface or interpolate a supported value",
+                "interpolation value does not implement the selected standard Format contract",
+                "add an explicit interface implementation for the active standard Format interface or interpolate a supported value",
             ),
             Self::InvalidArgumentPackUse => (
                 "argument pack is used outside its non-escaping surface",
@@ -319,11 +319,11 @@ impl BodyRule {
         match self {
             Self::InvalidSpreadAcquisition => (
                 "spread source has no unique expansion operation for the requested ownership mode",
-                "provide one matching readonly or owned expansion, or move a value that directly conforms to Iterator",
+                "provide one matching readonly or owned expansion, or move a value that directly implements Iterator",
             ),
             Self::InvalidSpreadIterator => (
                 "spread source does not provide one exact-size iterator contract",
-                "make the selected iterator conform uniquely to both Iterator and ExactSizeIterator",
+                "make the selected iterator implement both Iterator and ExactSizeIterator uniquely",
             ),
             Self::InvalidSpreadElement => (
                 "spread iterator item is incompatible with this spread mode or literal element type",
@@ -335,7 +335,7 @@ impl BodyRule {
             ),
             Self::InvalidCollectionIterator => (
                 "collection acquisition does not provide one trusted iterator contract",
-                "make the acquired type conform uniquely to the active standard Iterator interface",
+                "make the acquired type implement the active standard Iterator interface uniquely",
             ),
             _ => unreachable!("non-iteration body rule"),
         }

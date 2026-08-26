@@ -18,7 +18,9 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
 const SHOW: &str = "
 pub interface Show { pub method &self.show(): i32 }
 struct Value {}
-conform Show for Value { method &self.show(): i32 { 1 } }
+instance Value {
+    impl Show
+    method &self.show(): i32 { 1 } }
 ";
 
 #[test]
@@ -97,8 +99,12 @@ fn reachable_opaque_returns_must_select_one_witness() {
         "pub interface Show { pub method &self.show(): i32 }\n\
          struct First {}\n\
          struct Second {}\n\
-         conform Show for First { method &self.show(): i32 { 1 } }\n\
-         conform Show for Second { method &self.show(): i32 { 2 } }\n\
+         instance First {
+             impl Show
+             method &self.show(): i32 { 1 } }\n\
+         instance Second {
+             impl Show
+             method &self.show(): i32 { 2 } }\n\
          func make(flag: bool): some Show {\n\
              if flag { First {} } else { Second {} }\n\
          }\n",
@@ -122,20 +128,20 @@ fn opaque_witness_must_conform_to_the_advertised_interface() {
 }
 
 #[test]
-fn opaque_associated_bindings_match_the_selected_conformance() {
+fn opaque_associated_bindings_match_the_selected_interface_implementation() {
     let accepted = check(
         "pub interface Source { pub type Item }\n\
          struct Buffer {}\n\
-         conform Source for Buffer { type Item = i32 }\n\
-         func make(): some Source<Item = i32> { Buffer {} }\n",
+         instance Buffer { impl Source { Item = i32 } }\n\
+         func make(): some Source { Item = i32 } { Buffer {} }\n",
     );
     assert!(accepted.is_ok());
 
     let rejected = check(
         "pub interface Source { pub type Item }\n\
          struct Buffer {}\n\
-         conform Source for Buffer { type Item = i32 }\n\
-         func make(): some Source<Item = i64> { Buffer {} }\n",
+         instance Buffer { impl Source { Item = i32 } }\n\
+         func make(): some Source { Item = i64 } { Buffer {} }\n",
     )
     .unwrap_err();
     assert_eq!(rejected.rule(), Some(BodyRule::InvalidOpaqueWitness));
@@ -145,7 +151,7 @@ fn opaque_associated_bindings_match_the_selected_conformance() {
 fn generic_opaque_witness_uses_lexical_interface_and_associated_evidence() {
     check(
         "pub interface Source { pub type Item }\n\
-         func hide<S>(value: S): some Source<Item = S.Item> where S: Source {\n\
+         func hide<S>(value: S): some Source { Item = S.Item } where S impl Source {\n\
              move value\n\
          }\n",
     )

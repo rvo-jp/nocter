@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, BuiltinType, OpaqueTypeId, TypeId, TypeKind};
 use nocter_syntax::NodeId;
 
 use super::{BodyCheckError, BodyCheckInternalError, BodyChecker, BodyRule};
-use crate::conformance::{proves_predicate, select_conformance};
+use crate::interface_implementation::proves_predicate;
 use crate::type_relations::TypeSubstitution;
 use crate::{
     BodySource, CheckedOpaqueWitness, CheckedOperation, CheckedPredicate, ExpectedEvidence,
@@ -166,13 +166,14 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::OpaqueWitnessPlanning)?;
         let application = state.application.clone();
         let associated_types = state.associated_types.clone();
-        let predicate = CheckedPredicate::Capability {
+        let predicate = CheckedPredicate::Interface {
             subject: witness,
-            capability: nocter_declarations::StructuralCapability::Interface(application.clone()),
+            application,
+            associated_types,
         };
         if !proves_predicate(
             self.types,
-            self.conformances,
+            self.interface_implementations,
             &self.assumptions,
             &self.intrinsic_facts,
             &predicate,
@@ -180,57 +181,6 @@ impl BodyChecker<'_, '_> {
         .map_err(BodyCheckInternalError::BodyAssumptions)?
         {
             return Err(self.rule(BodyRule::InvalidOpaqueWitness, node)?);
-        }
-        let selected = select_conformance(
-            self.types,
-            self.conformances,
-            &self.assumptions,
-            &self.intrinsic_facts,
-            witness,
-            &application,
-        )
-        .map_err(BodyCheckInternalError::BodyAssumptions)?;
-        if let Some(selected) = selected {
-            let conformance = self
-                .conformances
-                .entries()
-                .get(&selected.declaration())
-                .cloned()
-                .ok_or(BodyCheckInternalError::OpaqueWitnessPlanning)?;
-            for expected in associated_types {
-                let actual = conformance
-                    .associated_type(expected.declaration())
-                    .ok_or(BodyCheckInternalError::OpaqueWitnessPlanning)?;
-                let actual = selected
-                    .substitution()
-                    .apply_type(self.types, actual)
-                    .map_err(BodyCheckInternalError::BodyAssumptions)?;
-                if actual != expected.ty() {
-                    return Err(self.rule(BodyRule::InvalidOpaqueWitness, node)?);
-                }
-            }
-            return Ok(());
-        }
-        for expected in associated_types {
-            let projection = self
-                .types
-                .intern(TypeKind::AssociatedProjection {
-                    base: witness,
-                    associated: expected.declaration(),
-                })
-                .map_err(|_| BodyCheckInternalError::UnknownType(witness))?;
-            if projection != expected.ty()
-                && !self.assumptions.iter().any(|requirement| {
-                    matches!(
-                        requirement.predicate(),
-                        CheckedPredicate::TypeEquality { left, right }
-                            if (*left == projection && *right == expected.ty())
-                                || (*right == projection && *left == expected.ty())
-                    )
-                })
-            {
-                return Err(self.rule(BodyRule::InvalidOpaqueWitness, node)?);
-            }
         }
         Ok(())
     }

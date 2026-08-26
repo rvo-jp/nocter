@@ -5,7 +5,7 @@ use super::outcome::{ValidationCollector, related_violation, violation};
 
 pub(super) fn validate(program: &DeclarationProgram, collector: &mut ValidationCollector) {
     validate_nonempty_enums(program, collector);
-    validate_complete_conformances(program, collector);
+    validate_complete_interface_implementations(program, collector);
     validate_opaque_results(program, collector);
 }
 
@@ -17,24 +17,25 @@ fn validate_nonempty_enums(program: &DeclarationProgram, collector: &mut Validat
     }
 }
 
-fn validate_complete_conformances(
+fn validate_complete_interface_implementations(
     program: &DeclarationProgram,
     collector: &mut ValidationCollector,
 ) {
-    for (id, conformance) in program.declarations().conformances().iter() {
+    for (id, interface_implementation) in program.declarations().interface_implementations().iter()
+    {
         let Some(interface) = program
             .declarations()
             .interfaces()
-            .get(conformance.interface().interface())
+            .get(interface_implementation.interface().interface())
         else {
             continue;
         };
-        if conformance.associated_types().len() != interface.associated_types().len() {
-            collector.reject_conformance(
+        if interface_implementation.associated_types().len() != interface.associated_types().len() {
+            collector.reject_interface_implementation(
                 id,
                 related_violation(
                     DeclarationRule::IncompleteAssociatedTypes,
-                    conformance.site(),
+                    interface_implementation.site(),
                     interface.site(),
                 ),
             );

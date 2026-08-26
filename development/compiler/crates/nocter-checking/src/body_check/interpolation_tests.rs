@@ -73,7 +73,8 @@ fn nominal_definition(types: &TypeStore, ty: nocter_model::TypeId) -> nocter_mod
 fn interpolation_freezes_source_order_format_dispatch_and_owned_output() {
     let output = check(&standard_prelude(
         r#"
-conform Format for i32 {
+instance i32 {
+    impl Format
     method &self.format_into(output: &+String): void { return }
 }
 func render(value: i32): String {
@@ -134,7 +135,7 @@ func render(value: i32): String {
 fn generic_interpolation_uses_the_exact_format_requirement() {
     let output = check(&standard_prelude(
         r#"
-func render<T>(value: &T): String where T: Format {
+func render<T>(value: &T): String where T impl Format {
     "${value}"
 }
 "#,
@@ -169,7 +170,7 @@ func render<T>(value: &T): String where T: Format {
 }
 
 #[test]
-fn interpolation_rejects_values_without_the_exact_format_conformance() {
+fn interpolation_rejects_values_without_the_exact_format_interface_implementation() {
     let error = check(&standard_prelude(
         r#"
 struct Value {}
@@ -189,7 +190,8 @@ fn interpolation_borrows_move_only_places_and_drops_temporary_operands_at_statem
     let output = check(&standard_prelude(
         r#"
 struct Value {}
-conform Format for Value {
+instance Value {
+    impl Format
     method &self.format_into(output: &+String): void { return }
 }
 func make(): Value { Value {} }
@@ -266,7 +268,8 @@ fn failed_interpolation_operand_cleans_the_partial_output() {
         r#"
 drop String(&+self) { return }
 struct Value {}
-conform Format for Value {
+instance Value {
+    impl Format
     method &self.format_into(output: &+String): void { return }
 }
 func render(input: Value?): String? {

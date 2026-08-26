@@ -1,5 +1,5 @@
 use nocter_declarations::{DeclarationAnalysisAdmission, DeclarationGraph};
-use nocter_model::{ConformanceId, ConstructionId, DropId, InstanceId};
+use nocter_model::{ConstructionId, DropId, InstanceId, InterfaceImplementationId};
 
 /// Frozen declaration identities allowed to participate in program-wide operation authorities.
 ///
@@ -9,41 +9,57 @@ use nocter_model::{ConformanceId, ConstructionId, DropId, InstanceId};
 pub(crate) struct AdmittedOperations {
     constructions: Box<[ConstructionId]>,
     instances: Box<[InstanceId]>,
-    conformances: Box<[ConformanceId]>,
+    interface_implementations: Box<[InterfaceImplementationId]>,
     drops: Box<[DropId]>,
 }
 
 impl AdmittedOperations {
-    pub(crate) fn new(
-        graph: &DeclarationGraph,
-        admission: Option<&DeclarationAnalysisAdmission>,
-    ) -> Self {
+    pub(crate) fn new(graph: &DeclarationGraph, admission: &DeclarationAnalysisAdmission) -> Self {
         let declarations = graph.declarations();
         Self {
             constructions: declarations
                 .constructions()
                 .iter()
                 .map(|(id, _)| id)
-                .filter(|id| admission.is_none_or(|admission| admission.admits_construction(*id)))
+                .filter(|id| admission.admits_construction(*id))
                 .collect(),
             instances: declarations
                 .instances()
                 .iter()
                 .map(|(id, _)| id)
-                .filter(|id| admission.is_none_or(|admission| admission.admits_instance(*id)))
+                .filter(|id| admission.admits_inherent_instance(*id))
                 .collect(),
-            conformances: declarations
-                .conformances()
+            interface_implementations: declarations
+                .interface_implementations()
                 .iter()
                 .map(|(id, _)| id)
-                .filter(|id| admission.is_none_or(|admission| admission.admits_conformance(*id)))
+                .filter(|id| admission.admits_interface_implementation(*id))
                 .collect(),
             drops: declarations
                 .drops()
                 .iter()
                 .map(|(id, _)| id)
-                .filter(|id| admission.is_none_or(|admission| admission.admits_drop(*id)))
+                .filter(|id| admission.admits_drop(*id))
                 .collect(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn all(graph: &DeclarationGraph) -> Self {
+        let declarations = graph.declarations();
+        Self {
+            constructions: declarations
+                .constructions()
+                .iter()
+                .map(|(id, _)| id)
+                .collect(),
+            instances: declarations.instances().iter().map(|(id, _)| id).collect(),
+            interface_implementations: declarations
+                .interface_implementations()
+                .iter()
+                .map(|(id, _)| id)
+                .collect(),
+            drops: declarations.drops().iter().map(|(id, _)| id).collect(),
         }
     }
 
@@ -55,8 +71,8 @@ impl AdmittedOperations {
         &self.instances
     }
 
-    pub(crate) const fn conformances(&self) -> &[ConformanceId] {
-        &self.conformances
+    pub(crate) const fn interface_implementations(&self) -> &[InterfaceImplementationId] {
+        &self.interface_implementations
     }
 
     pub(crate) const fn drops(&self) -> &[DropId] {

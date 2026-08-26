@@ -10,7 +10,7 @@ use super::type_uses::NominalOwnerArguments;
 use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::conformance::normalize_requirements;
+use crate::interface_implementation::normalize_requirements;
 use crate::syntax::{direct_child, direct_children};
 use crate::type_relations::TypeSubstitution;
 use crate::{

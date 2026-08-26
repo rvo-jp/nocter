@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_model::{ConformanceId, ConstructionId, DropId, InstanceId};
+use nocter_model::{ConstructionId, DropId, InstanceId, InterfaceImplementationId};
 
 use crate::{DeclarationAnalysisAdmission, DeclarationProgram};
 
@@ -36,7 +36,8 @@ pub(super) struct ValidationCollector {
     violations: Vec<DeclarationViolation>,
     rejected_constructions: BTreeSet<ConstructionId>,
     rejected_instances: BTreeSet<InstanceId>,
-    rejected_conformances: BTreeSet<ConformanceId>,
+    non_inherent_instances: BTreeSet<InstanceId>,
+    rejected_interface_implementations: BTreeSet<InterfaceImplementationId>,
     rejected_drops: BTreeSet<DropId>,
     body_analysis_safe: bool,
 }
@@ -47,7 +48,8 @@ impl ValidationCollector {
             violations: Vec::new(),
             rejected_constructions: BTreeSet::new(),
             rejected_instances: BTreeSet::new(),
-            rejected_conformances: BTreeSet::new(),
+            non_inherent_instances: BTreeSet::new(),
+            rejected_interface_implementations: BTreeSet::new(),
             rejected_drops: BTreeSet::new(),
             body_analysis_safe: true,
         }
@@ -80,12 +82,16 @@ impl ValidationCollector {
         self.violations.push(violation);
     }
 
-    pub(super) fn reject_conformance(
+    pub(super) fn restrict_instance_to_interfaces(&mut self, id: InstanceId) {
+        self.non_inherent_instances.insert(id);
+    }
+
+    pub(super) fn reject_interface_implementation(
         &mut self,
-        id: ConformanceId,
+        id: InterfaceImplementationId,
         violation: DeclarationViolation,
     ) {
-        self.rejected_conformances.insert(id);
+        self.rejected_interface_implementations.insert(id);
         self.violations.push(violation);
     }
 
@@ -112,11 +118,19 @@ impl ValidationCollector {
             .map(|(id, _)| id)
             .filter(|id| !self.rejected_instances.contains(id))
             .collect();
-        let conformances = declarations
-            .conformances()
+        let inherent_instances = declarations
+            .instances()
             .iter()
             .map(|(id, _)| id)
-            .filter(|id| !self.rejected_conformances.contains(id))
+            .filter(|id| {
+                !self.rejected_instances.contains(id) && !self.non_inherent_instances.contains(id)
+            })
+            .collect();
+        let interface_implementations = declarations
+            .interface_implementations()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| !self.rejected_interface_implementations.contains(id))
             .collect();
         let drops = declarations
             .drops()
@@ -129,7 +143,8 @@ impl ValidationCollector {
             admission: DeclarationAnalysisAdmission::new(
                 constructions,
                 instances,
-                conformances,
+                inherent_instances,
+                interface_implementations,
                 drops,
             ),
             body_analysis: if self.body_analysis_safe {

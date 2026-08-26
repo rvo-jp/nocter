@@ -44,7 +44,7 @@ semantic_ids! {
     CallableId,
     ConstructionId,
     InstanceId,
-    ConformanceId,
+    InterfaceImplementationId,
     DropId,
     TestId,
     FieldId,

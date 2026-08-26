@@ -179,6 +179,7 @@ Source-backed declaration-header type-normalization diagnostics:
 - `E0312`: an associated selection has more than one applicable associated declaration.
 - `E0313`: a structural callable can carry result storage but its omitted result provenance has no
   unique inference. The callable type is primary; an explicit `from` clause is required.
+- `E0314`: the type after a callable-requirement colon does not normalize to a callable type.
 
 The binding-to-normalization boundary retains these syntax subjects in a temporary side index.
 The boundary does not place source coordinates in canonical type identity, and

@@ -9,7 +9,8 @@ fn lowers_as_ordered_selected_string_operations() {
         "use std.String\n\
          use std.Format\n\
          struct Value {}\n\
-         conform Format for Value {\n\
+         instance Value {\n\
+             impl Format\n\
              method &self.format_into(output: &+String): void { return }\n\
          }\n\
          func render(value: &Value): String {\n\
@@ -72,7 +73,8 @@ fn propagation_drops_the_partial_output_storage() {
         "use std.String\n\
          use std.Format\n\
          struct Value {}\n\
-         conform Format for Value {\n\
+         instance Value {\n\
+             impl Format\n\
              method &self.format_into(output: &+String): void { return }\n\
          }\n\
          func render(input: Value?): String? {\n\
@@ -115,7 +117,8 @@ fn explicit_return_drops_the_partial_output_storage() {
         "use std.String\n\
          use std.Format\n\
          struct Value {}\n\
-         conform Format for Value {\n\
+         instance Value {\n\
+             impl Format\n\
              method &self.format_into(output: &+String): void { return }\n\
          }\n\
          func render(exit: bool, value: &Value): String {\n\
@@ -144,7 +147,8 @@ fn forced_operand_traps_without_partial_output_cleanup() {
         "use std.String\n\
          use std.Format\n\
          struct Value {}\n\
-         conform Format for Value {\n\
+         instance Value {\n\
+             impl Format\n\
              method &self.format_into(output: &+String): void { return }\n\
          }\n\
          func render(input: Value?): String {\n\

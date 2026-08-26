@@ -4,93 +4,93 @@ use /ptr.from_ref
 use /internal/ptr.slice_from_raw_parts_value
 use /string.String
 
-//! Standard formatting conformances for compiler built-in and owning text types.
+//! Standard Format implementations for compiler built-in and owned text types.
 
-conform Format for str {
+instance str {
     method &self.format_into(output: &+String): void {
         append_str(output, self)
         return
     }
 }
 
-conform Format for String {
+instance String {
     method &self.format_into(output: &+String): void {
         append_string(output, self)
         return
     }
 }
 
-conform Format for bool {
+instance bool {
     method &self.format_into(output: &+String): void {
         append_bool(output, copy_value(self))
         return
     }
 }
 
-conform Format for i8 {
+instance i8 {
     method &self.format_into(output: &+String): void {
         append_i8(output, copy_value(self))
         return
     }
 }
 
-conform Format for i16 {
+instance i16 {
     method &self.format_into(output: &+String): void {
         append_i16(output, copy_value(self))
         return
     }
 }
 
-conform Format for i32 {
+instance i32 {
     method &self.format_into(output: &+String): void {
         append_i32(output, copy_value(self))
         return
     }
 }
 
-conform Format for i64 {
+instance i64 {
     method &self.format_into(output: &+String): void {
         append_i64(output, copy_value(self))
         return
     }
 }
 
-conform Format for isize {
+instance isize {
     method &self.format_into(output: &+String): void {
         append_isize(output, copy_value(self))
         return
     }
 }
 
-conform Format for u8 {
+instance u8 {
     method &self.format_into(output: &+String): void {
         append_u8(output, copy_value(self))
         return
     }
 }
 
-conform Format for u16 {
+instance u16 {
     method &self.format_into(output: &+String): void {
         append_u16(output, copy_value(self))
         return
     }
 }
 
-conform Format for u32 {
+instance u32 {
     method &self.format_into(output: &+String): void {
         append_u32(output, copy_value(self))
         return
     }
 }
 
-conform Format for u64 {
+instance u64 {
     method &self.format_into(output: &+String): void {
         append_u64(output, copy_value(self))
         return
     }
 }
 
-conform Format for usize {
+instance usize {
     method &self.format_into(output: &+String): void {
         append_usize(output, copy_value(self))
         return

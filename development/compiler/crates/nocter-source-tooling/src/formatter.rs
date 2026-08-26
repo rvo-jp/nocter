@@ -340,7 +340,7 @@ fn space_before_punctuation(
                     NodeKind::GenericParameters
                         | NodeKind::TypeArguments
                         | NodeKind::PatternArguments
-                        | NodeKind::OpaqueArguments
+                        | NodeKind::AssociatedBindings
                 )
             ) =>
         {
@@ -446,7 +446,7 @@ const fn space_after_punctuation(punctuation: Punctuation, parent: Option<NodeKi
             NodeKind::GenericParameters
                 | NodeKind::TypeArguments
                 | NodeKind::PatternArguments
-                | NodeKind::OpaqueArguments
+                | NodeKind::AssociatedBindings
         )
     ) && matches!(punctuation, Punctuation::Less | Punctuation::Greater)
     {
@@ -659,9 +659,9 @@ mod tests {
     fn joins_requirements_and_removes_single_line_closure_segment_commas() {
         assert_eq!(
             format(
-                "func f<T>(value:T):void where copy T,\nT: Iterator { let closure=(&value,; item:T,):bool { true }\nreturn\n}\n"
+                "func f<T>(value:T):void where copy T,\nT impl Iterator { let closure=(&value,; item:T,):bool { true }\nreturn\n}\n"
             ),
-            "func f<T>(value: T): void where copy T, T: Iterator { let closure = (&value; item: T): bool { true }\n    return\n}\n"
+            "func f<T>(value: T): void where copy T, T impl Iterator { let closure = (&value; item: T): bool { true }\n    return\n}\n"
         );
     }
 

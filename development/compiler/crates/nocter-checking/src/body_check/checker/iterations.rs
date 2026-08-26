@@ -99,7 +99,7 @@ impl BodyChecker<'_, '_> {
     /// Checks one collection-loop source and freezes its acquisition and `Iterator.next` plan.
     ///
     /// Explicit borrows select only their matching expansion capability. An explicit move gives
-    /// direct iterator conformance fixed priority over owned expansion. A bare expression is
+    /// direct iterator interface implementation fixed priority over owned expansion. A bare expression is
     /// accepted only as a direct iterator and keeps ordinary copy/move checking.
     pub(super) fn check_collection_iteration(
         &mut self,

@@ -7,35 +7,30 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 use super::binding_arena::BindingArena;
 use super::context::require_arity;
 use super::names::{resolve_exported, segments};
-use super::{BoundCapability, BoundTypeKind, TypeBindingError, TypeBindingRule, syntax};
+use super::{BoundInterfaceApplication, TypeBindingError, TypeBindingRule};
 
 pub(super) fn bind(
     namespaces: &mut PreparedNamespaces<'_>,
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
-    capability: NodeId,
+    application: NodeId,
     arena: &mut BindingArena,
-) -> Result<BoundCapability, TypeBindingError> {
+) -> Result<BoundInterfaceApplication, TypeBindingError> {
     let child = tree
-        .children(capability)
+        .children(application)
         .iter()
         .find_map(|element| match element {
-            SyntaxElement::Node(child) => Some(*child),
+            SyntaxElement::Node(child)
+                if tree
+                    .node(*child)
+                    .is_some_and(|node| node.kind() == NodeKind::NamedType) =>
+            {
+                Some(*child)
+            }
             _ => None,
         })
-        .ok_or(TypeBindingError::InvalidSyntax(capability))?;
+        .ok_or(TypeBindingError::InvalidSyntax(application))?;
     match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
-        Some(NodeKind::CallableType) => {
-            let id = syntax::bind(namespaces, declaration, tree, child, arena)?;
-            if matches!(
-                arena.kinds.get(id.index()),
-                Some(BoundTypeKind::Callable(_))
-            ) {
-                Ok(BoundCapability::Callable(id))
-            } else {
-                Err(TypeBindingError::InvalidSyntax(capability))
-            }
-        }
         Some(NodeKind::NamedType) => {
             let path = resolve_exported(
                 namespaces,
@@ -63,11 +58,11 @@ pub(super) fn bind(
                 ReservedEntity::Interface(definition),
                 path.arguments.len(),
             )?;
-            Ok(BoundCapability::Interface {
+            Ok(BoundInterfaceApplication {
                 definition,
                 arguments: path.arguments.into_boxed_slice(),
             })
         }
-        _ => Err(TypeBindingError::InvalidSyntax(capability)),
+        _ => Err(TypeBindingError::InvalidSyntax(application)),
     }
 }

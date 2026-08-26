@@ -2,15 +2,16 @@ use nocter_declarations::{AssociatedTypeBinding, InterfaceApplication, Provenanc
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    Arena, CallableId, ConformanceId, GenericParameterId, InterfaceId, Symbol, TypeId,
+    Arena, CallableId, GenericParameterId, InterfaceId, InterfaceImplementationId, Symbol, TypeId,
 };
 
 use super::predicate::CheckedRequirement;
 use crate::GenericArgument;
 
-pub(super) type ConformanceInputCorrespondence = Box<[(ProvenanceOrigin, ProvenanceOrigin)]>;
+pub(super) type InterfaceImplementationInputCorrespondence =
+    Box<[(ProvenanceOrigin, ProvenanceOrigin)]>;
 
-/// Callable selected for one interface method under an explicit conformance.
+/// Callable selected for one interface method under an explicit interface implementation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MethodSelection {
     Implementation(CallableId),
@@ -19,17 +20,17 @@ pub enum MethodSelection {
 
 /// One interface method and its exact dispatch target.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConformanceMethod {
+pub struct InterfaceImplementationMethod {
     interface_method: CallableId,
     selection: MethodSelection,
-    input_correspondence: ConformanceInputCorrespondence,
+    input_correspondence: InterfaceImplementationInputCorrespondence,
 }
 
-impl ConformanceMethod {
+impl InterfaceImplementationMethod {
     pub(super) fn new(
         interface_method: CallableId,
         selection: MethodSelection,
-        input_correspondence: ConformanceInputCorrespondence,
+        input_correspondence: InterfaceImplementationInputCorrespondence,
     ) -> Self {
         Self {
             interface_method,
@@ -59,19 +60,19 @@ impl ConformanceMethod {
     }
 }
 
-/// Canonical checked contract for one explicit conformance declaration.
+/// Canonical checked contract for one explicit interface implementation declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedConformance {
+pub struct CheckedInterfaceImplementation {
     interface: InterfaceApplication,
     target: TypeId,
     generic_parameters: Box<[GenericParameterId]>,
     refinements: Box<[GenericArgument]>,
     requirements: Box<[CheckedRequirement]>,
     associated_types: Box<[AssociatedTypeBinding]>,
-    methods: Box<[ConformanceMethod]>,
+    methods: Box<[InterfaceImplementationMethod]>,
 }
 
-impl CheckedConformance {
+impl CheckedInterfaceImplementation {
     pub(super) fn new(
         interface: InterfaceApplication,
         target: TypeId,
@@ -79,7 +80,7 @@ impl CheckedConformance {
         refinements: impl Into<Box<[GenericArgument]>>,
         requirements: impl Into<Box<[CheckedRequirement]>>,
         associated_types: impl Into<Box<[AssociatedTypeBinding]>>,
-        methods: impl Into<Box<[ConformanceMethod]>>,
+        methods: impl Into<Box<[InterfaceImplementationMethod]>>,
     ) -> Self {
         Self {
             interface,
@@ -123,7 +124,7 @@ impl CheckedConformance {
     }
 
     #[must_use]
-    pub const fn methods(&self) -> &[ConformanceMethod] {
+    pub const fn methods(&self) -> &[InterfaceImplementationMethod] {
         &self.methods
     }
 
@@ -138,24 +139,27 @@ impl CheckedConformance {
     #[must_use]
     pub fn method(&self, declaration: CallableId) -> Option<MethodSelection> {
         self.methods
-            .binary_search_by_key(&declaration, ConformanceMethod::interface_method)
+            .binary_search_by_key(
+                &declaration,
+                InterfaceImplementationMethod::interface_method,
+            )
             .ok()
             .map(|index| self.methods[index].selection())
     }
 }
 
-/// Program-wide conformance dispatch authority.
+/// Program-wide interface implementation dispatch authority.
 #[derive(Debug)]
-pub struct ConformanceTable {
-    entries: BTreeMap<ConformanceId, CheckedConformance>,
-    by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
+pub struct InterfaceImplementationTable {
+    entries: BTreeMap<InterfaceImplementationId, CheckedInterfaceImplementation>,
+    by_interface: Arena<InterfaceId, Box<[InterfaceImplementationId]>>,
     interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
 }
 
-impl ConformanceTable {
+impl InterfaceImplementationTable {
     pub(super) const fn new(
-        entries: BTreeMap<ConformanceId, CheckedConformance>,
-        by_interface: Arena<InterfaceId, Box<[ConformanceId]>>,
+        entries: BTreeMap<InterfaceImplementationId, CheckedInterfaceImplementation>,
+        by_interface: Arena<InterfaceId, Box<[InterfaceImplementationId]>>,
         interfaces_by_method: BTreeMap<Symbol, Box<[InterfaceId]>>,
     ) -> Self {
         Self {
@@ -166,12 +170,14 @@ impl ConformanceTable {
     }
 
     #[must_use]
-    pub const fn entries(&self) -> &BTreeMap<ConformanceId, CheckedConformance> {
+    pub const fn entries(
+        &self,
+    ) -> &BTreeMap<InterfaceImplementationId, CheckedInterfaceImplementation> {
         &self.entries
     }
 
     #[must_use]
-    pub fn candidates(&self, interface: InterfaceId) -> &[ConformanceId] {
+    pub fn candidates(&self, interface: InterfaceId) -> &[InterfaceImplementationId] {
         self.by_interface
             .get(interface)
             .map(AsRef::as_ref)
@@ -187,7 +193,7 @@ impl ConformanceTable {
             .unwrap_or_default()
     }
 
-    /// Returns every interface-method name known to the conformance authority.
+    /// Returns every interface-method name known to the interface implementation authority.
     ///
     /// Consumers must still run ordinary method selection for the receiver and lexical proof
     /// environment. This index prevents tooling from rediscovering interface members by scanning

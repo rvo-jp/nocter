@@ -1,15 +1,13 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::{
-    CallableKind, InterfaceApplication, ParameterRole, StructuralCapability,
-};
+use nocter_declarations::{CallableKind, InterfaceApplication, ParameterRole};
 use nocter_model::{BorrowCapability, CallableCapability, CallableId, Symbol, TypeId, TypeKind};
 
 use super::CheckedInstanceMember;
 use super::selection::{
     InstanceOperationSelector, InstanceSelectionError, selected_generic_arguments,
 };
-use crate::conformance::{MethodSelection, select_conformance};
+use crate::interface_implementation::{MethodSelection, select_interface_implementation};
 use crate::type_relations::{TypeSubstitution, is_concrete_type, match_type_pattern};
 use crate::{
     CheckedPredicate, CoercedReceiverPreparation, GenericArgument, GenericArguments,
@@ -98,7 +96,7 @@ impl InstanceOperationSelector<'_> {
             .method_names(self.types, target)
             .iter()
             .copied()
-            .chain(self.conformances.method_names())
+            .chain(self.interface_implementations.method_names())
             .collect::<BTreeSet<_>>();
         for capability in [BorrowCapability::Readonly, BorrowCapability::ReadWrite] {
             if capability == BorrowCapability::ReadWrite && available == BorrowCapability::Readonly
@@ -136,7 +134,7 @@ impl InstanceOperationSelector<'_> {
 
     /// Selects only one compiler-supplied interface method identity.
     ///
-    /// This bypasses ordinary spelling-based method lookup without bypassing conformance proof,
+    /// This bypasses ordinary spelling-based method lookup without bypassing interface implementation proof,
     /// lexical generic evidence, visibility, signature substitution, or static dispatch freezing.
     pub(crate) fn select_exact_interface_method(
         &mut self,
@@ -173,7 +171,7 @@ impl InstanceOperationSelector<'_> {
                 .collect());
         }
         if is_concrete_type(self.types, target)? {
-            self.select_conformance_method(target, interface_id, surface)
+            self.select_interface_implementation_method(target, interface_id, surface)
         } else {
             self.select_lexical_interface_method(target, interface_id, surface)
         }
@@ -181,7 +179,7 @@ impl InstanceOperationSelector<'_> {
 
     /// Selects all exact-receiver inherent and interface method candidates with one name.
     ///
-    /// Concrete receivers use explicit conformances. Unresolved generic receivers use only their
+    /// Concrete receivers use explicit interface implementations. Unresolved generic receivers use only their
     /// lexical interface requirements. Callable-generic requirements remain for call planning
     /// because their substitution depends on arguments and result context.
     pub(crate) fn select_method_candidates(
@@ -194,7 +192,15 @@ impl InstanceOperationSelector<'_> {
         }
         let mut selected = self.select_inherent_methods(target, name)?;
         if is_concrete_type(self.types, target)? {
-            selected.extend(self.select_conformance_methods(target, name)?);
+            let inherent_callables = selected
+                .iter()
+                .map(MethodCandidate::callable)
+                .collect::<BTreeSet<_>>();
+            selected.extend(
+                self.select_interface_implementation_methods(target, name)?
+                    .into_iter()
+                    .filter(|candidate| !inherent_callables.contains(&candidate.callable())),
+            );
         } else {
             selected.extend(self.select_lexical_interface_methods(target, name)?);
         }
@@ -466,12 +472,15 @@ impl InstanceOperationSelector<'_> {
         Ok(selected)
     }
 
-    fn select_conformance_methods(
+    fn select_interface_implementation_methods(
         &mut self,
         target: TypeId,
         name: Symbol,
     ) -> Result<Vec<MethodCandidate>, InstanceSelectionError> {
-        let interfaces = self.conformances.method_interfaces(name).to_vec();
+        let interfaces = self
+            .interface_implementations
+            .method_interfaces(name)
+            .to_vec();
         let mut selected = Vec::new();
         for interface_id in interfaces {
             let interface = self
@@ -501,12 +510,16 @@ impl InstanceOperationSelector<'_> {
             if !self.callable_is_admissible(surface_declaration.site())? {
                 continue;
             }
-            selected.extend(self.select_conformance_method(target, interface_id, surface)?);
+            selected.extend(self.select_interface_implementation_method(
+                target,
+                interface_id,
+                surface,
+            )?);
         }
         Ok(selected)
     }
 
-    pub(crate) fn select_conformance_method(
+    pub(crate) fn select_interface_implementation_method(
         &mut self,
         target: TypeId,
         interface_id: nocter_model::InterfaceId,
@@ -519,35 +532,45 @@ impl InstanceOperationSelector<'_> {
             .get(interface_id)
             .ok_or(InstanceSelectionError::MissingInterface(interface_id))?;
         let mut selected = Vec::new();
-        for conformance_id in self.conformances.candidates(interface_id).to_vec() {
-            let conformance = self
-                .conformances
+        for interface_implementation_id in self
+            .interface_implementations
+            .candidates(interface_id)
+            .to_vec()
+        {
+            let interface_implementation = self
+                .interface_implementations
                 .entries()
-                .get(&conformance_id)
+                .get(&interface_implementation_id)
                 .cloned()
-                .ok_or(InstanceSelectionError::MissingConformance(conformance_id))?;
+                .ok_or(InstanceSelectionError::MissingInterfaceImplementation(
+                    interface_implementation_id,
+                ))?;
             let mut pattern_substitution = TypeSubstitution::default();
-            for refinement in conformance.refinements() {
+            for refinement in interface_implementation.refinements() {
                 pattern_substitution.bind_generic(refinement.parameter(), refinement.ty());
             }
-            let Some(bindings) = match_type_pattern(self.types, conformance.target(), target)?
+            let Some(bindings) =
+                match_type_pattern(self.types, interface_implementation.target(), target)?
             else {
                 continue;
             };
             for (parameter, ty) in bindings.iter() {
                 pattern_substitution.bind_generic(parameter, ty);
             }
-            if !self.requirements_hold(conformance.requirements(), &pattern_substitution)? {
+            if !self.requirements_hold(
+                interface_implementation.requirements(),
+                &pattern_substitution,
+            )? {
                 continue;
             }
-            let selection = conformance
+            let selection = interface_implementation
                 .method(surface)
                 .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
             let (callable, substitution, generic_arguments, dispatch) = match selection {
                 MethodSelection::Implementation(callable) => {
                     let arguments = selected_generic_arguments(
                         self.types,
-                        conformance.generic_parameters(),
+                        interface_implementation.generic_parameters(),
                         &pattern_substitution,
                     )?;
                     (
@@ -560,11 +583,11 @@ impl InstanceOperationSelector<'_> {
                 MethodSelection::Default(callable) => {
                     let application = specialized_application(
                         self.types,
-                        conformance.interface(),
+                        interface_implementation.interface(),
                         &pattern_substitution,
                     )?;
                     let mut substitution = self.interface_substitution(target, &application)?;
-                    for binding in conformance.associated_types() {
+                    for binding in interface_implementation.associated_types() {
                         substitution.bind_associated(
                             binding.declaration(),
                             pattern_substitution.apply_type(self.types, binding.ty())?,
@@ -598,7 +621,7 @@ impl InstanceOperationSelector<'_> {
         Ok(selected)
     }
 
-    pub(crate) fn select_conformance_method_for_application(
+    pub(crate) fn select_interface_implementation_method_for_application(
         &mut self,
         target: TypeId,
         application: &InterfaceApplication,
@@ -618,9 +641,9 @@ impl InstanceOperationSelector<'_> {
                 application.interface(),
             ));
         }
-        let Some(selected) = select_conformance(
+        let Some(selected) = select_interface_implementation(
             self.types,
-            self.conformances,
+            self.interface_implementations,
             self.assumptions,
             self.intrinsic_facts,
             target,
@@ -629,23 +652,23 @@ impl InstanceOperationSelector<'_> {
         else {
             return Ok(Vec::new());
         };
-        let conformance = self
-            .conformances
+        let interface_implementation = self
+            .interface_implementations
             .entries()
             .get(&selected.declaration())
             .cloned()
-            .ok_or(InstanceSelectionError::MissingConformance(
+            .ok_or(InstanceSelectionError::MissingInterfaceImplementation(
                 selected.declaration(),
             ))?;
         let pattern_substitution = selected.substitution().clone();
-        let selection = conformance
+        let selection = interface_implementation
             .method(surface)
             .ok_or(InstanceSelectionError::InvalidMethodSignature(surface))?;
         let (callable, substitution, generic_arguments, dispatch) = match selection {
             MethodSelection::Implementation(callable) => {
                 let arguments = selected_generic_arguments(
                     self.types,
-                    conformance.generic_parameters(),
+                    interface_implementation.generic_parameters(),
                     &pattern_substitution,
                 )?;
                 (
@@ -657,7 +680,7 @@ impl InstanceOperationSelector<'_> {
             }
             MethodSelection::Default(callable) => {
                 let mut substitution = self.interface_substitution(target, application)?;
-                for binding in conformance.associated_types() {
+                for binding in interface_implementation.associated_types() {
                     substitution.bind_associated(
                         binding.declaration(),
                         pattern_substitution.apply_type(self.types, binding.ty())?,
@@ -725,36 +748,44 @@ impl InstanceOperationSelector<'_> {
         target: TypeId,
         interface: Option<nocter_model::InterfaceId>,
     ) -> Vec<(InterfaceApplication, LexicalInterfaceEvidence)> {
-        let declared = self.assumptions.iter().filter_map(|requirement| {
-            let CheckedPredicate::Capability {
+        let mut evidence = self
+            .intrinsic_facts
+            .iter()
+            .filter_map(|predicate| {
+                let CheckedPredicate::Interface {
+                    subject,
+                    application,
+                    ..
+                } = predicate
+                else {
+                    return None;
+                };
+                (*subject == target
+                    && interface.is_none_or(|expected| expected == application.interface()))
+                .then(|| (application.clone(), LexicalInterfaceEvidence::InterfaceSelf))
+            })
+            .collect::<Vec<_>>();
+        for requirement in self.assumptions {
+            let CheckedPredicate::Interface {
                 subject,
-                capability: StructuralCapability::Interface(application),
+                application,
+                ..
             } = requirement.predicate()
             else {
-                return None;
+                continue;
             };
-            (*subject == target
-                && interface.is_none_or(|expected| expected == application.interface()))
-            .then(|| {
-                (
-                    application.clone(),
-                    LexicalInterfaceEvidence::Requirement(requirement.declaration()),
-                )
-            })
-        });
-        let intrinsic = self.intrinsic_facts.iter().filter_map(|predicate| {
-            let CheckedPredicate::Capability {
-                subject,
-                capability: StructuralCapability::Interface(application),
-            } = predicate
-            else {
-                return None;
-            };
-            (*subject == target
-                && interface.is_none_or(|expected| expected == application.interface()))
-            .then(|| (application.clone(), LexicalInterfaceEvidence::InterfaceSelf))
-        });
-        declared.chain(intrinsic).collect()
+            if *subject != target
+                || interface.is_some_and(|expected| expected != application.interface())
+                || evidence.iter().any(|(existing, _)| existing == application)
+            {
+                continue;
+            }
+            evidence.push((
+                application.clone(),
+                LexicalInterfaceEvidence::Requirement(requirement.declaration()),
+            ));
+        }
+        evidence
     }
 
     fn bind_lexical_associated_types(
@@ -775,13 +806,21 @@ impl InstanceOperationSelector<'_> {
             substitution.bind_associated(*associated, projection);
         }
         for requirement in self.assumptions {
-            let CheckedPredicate::TypeEquality { left, right } = requirement.predicate() else {
+            let CheckedPredicate::Interface {
+                subject,
+                application,
+                associated_types,
+            } = requirement.predicate()
+            else {
                 continue;
             };
-            if let Some(associated) =
-                associated_projection(self.graph, self.types, *left, interface, target)
-            {
-                substitution.bind_associated(associated, *right);
+            if *subject != target || application.interface() != interface {
+                continue;
+            }
+            for binding in associated_types {
+                if declarations.contains(&binding.declaration()) {
+                    substitution.bind_associated(binding.declaration(), binding.ty());
+                }
             }
         }
         Ok(())
@@ -874,25 +913,4 @@ fn specialized_application(
             .map(|argument| substitution.apply_type(types, *argument))
             .collect::<Result<Vec<_>, _>>()?,
     ))
-}
-
-fn associated_projection(
-    graph: &nocter_declarations::DeclarationGraph,
-    types: &nocter_model::TypeStore,
-    ty: TypeId,
-    interface: nocter_model::InterfaceId,
-    target: TypeId,
-) -> Option<nocter_model::AssociatedTypeId> {
-    let TypeKind::AssociatedProjection { base, associated } = types.get(ty)? else {
-        return None;
-    };
-    let declaration = graph.declarations().associated_types().get(*associated)?;
-    if declaration.interface() != interface {
-        return None;
-    }
-    let belongs = matches!(
-        types.get(*base),
-        Some(TypeKind::InterfaceSelf(actual)) if *actual == interface
-    ) || *base == target;
-    belongs.then_some(*associated)
 }

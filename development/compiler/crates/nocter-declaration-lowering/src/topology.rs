@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_declarations::{
-    DeclarationProgram, DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError,
+    AcceptedDeclarationProgram, DeclarationProgram, DeclarationProgramBuilder, ModuleNamespace,
+    ModulePath, ProgramBuildError,
 };
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
@@ -27,7 +28,7 @@ pub(crate) type UseResolutionKey = (SourceId, usize);
 
 #[derive(Debug)]
 pub struct LoweredDeclarations {
-    program: DeclarationProgram,
+    program: AcceptedDeclarationProgram,
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
     primitive_bindings: Box<[PrimitiveBinding]>,
@@ -36,7 +37,7 @@ pub struct LoweredDeclarations {
 /// Topology-only output used by the focused topology pass.
 #[derive(Debug)]
 pub struct LoweredTopology {
-    program: DeclarationProgram,
+    program: AcceptedDeclarationProgram,
     source_index: SourceIndex,
 }
 
@@ -75,7 +76,7 @@ impl std::error::Error for PackageTargetResolutionError {}
 
 impl LoweredDeclarations {
     pub(crate) const fn new(
-        program: DeclarationProgram,
+        program: AcceptedDeclarationProgram,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
         primitive_bindings: Box<[PrimitiveBinding]>,
@@ -90,7 +91,7 @@ impl LoweredDeclarations {
 
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
-        &self.program
+        self.program.program()
     }
 
     #[must_use]
@@ -104,7 +105,7 @@ impl LoweredDeclarations {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationProgram, SourceIndex) {
+    pub fn into_parts(self) -> (AcceptedDeclarationProgram, SourceIndex) {
         (self.program, self.source_index)
     }
 
@@ -113,14 +114,14 @@ impl LoweredDeclarations {
     pub fn into_checking_parts(
         self,
         input: &CompileUnitInput<'_>,
-    ) -> (DeclarationProgram, FrontendBindings, SourceIndex) {
+    ) -> (AcceptedDeclarationProgram, FrontendBindings, SourceIndex) {
         let bindings = crate::frontend_projection::add_block_imports(input, self.frontend_bindings);
         (self.program, bindings, self.source_index)
     }
 }
 
 impl LoweredTopology {
-    const fn new(program: DeclarationProgram, source_index: SourceIndex) -> Self {
+    const fn new(program: AcceptedDeclarationProgram, source_index: SourceIndex) -> Self {
         Self {
             program,
             source_index,
@@ -129,7 +130,7 @@ impl LoweredTopology {
 
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
-        &self.program
+        self.program.program()
     }
 
     #[must_use]

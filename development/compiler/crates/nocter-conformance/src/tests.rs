@@ -253,8 +253,8 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
              next_value: i32\n\
              remaining: usize\n\
          }\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  let _ = allocation_context_state_for_test()\n\
                  if self.remaining == 0 { return none }\n\
@@ -264,7 +264,8 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
                  return value\n\
              }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return self.remaining }\n\
          }\n\
          func total(seed: i32, ...items: i32): i32 {\n\
@@ -328,8 +329,8 @@ fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() 
          }\n\
          struct Iter { next_value: i32\n\
              remaining: usize }\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  let _ = allocation_context_state_for_test()\n\
                  if self.remaining == 0 {\n\
@@ -341,7 +342,8 @@ fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() 
                  return value\n\
              }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return self.remaining }\n\
          }\n\
          func main(): i32 {\n\
@@ -370,11 +372,12 @@ fn spread_sequence_argument_pack_residual_cleanup_destroys_the_iterator() {
              pub literal [](...items: i32): Self { return Self {} }\n\
          }\n\
          struct Iter {}\n\
-         conform Iterator for Iter {\n\
-             type Item = i32\n\
+         instance Iter {\n\
+             impl Iterator { Item = i32 }\n\
              method &+self.next(): i32? { return none }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) { exit_for_test(42) }\n\
@@ -411,8 +414,8 @@ fn spread_sequence_argument_pack_transports_indirect_optional_values() {
          }\n\
          struct Iter { value: Large\n\
              remaining: usize }\n\
-         conform Iterator for Iter {\n\
-             type Item = Large\n\
+         instance Iter {\n\
+             impl Iterator { Item = Large }\n\
              method &+self.next(): Large? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -421,7 +424,8 @@ fn spread_sequence_argument_pack_transports_indirect_optional_values() {
                  return self.value\n\
              }\n\
          }\n\
-         conform ExactSizeIterator for Iter {\n\
+         instance Iter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return self.remaining }\n\
          }\n\
          func main(): i32 {\n\
@@ -463,8 +467,8 @@ fn spread_sequence_argument_pack_copies_borrowed_iterator_items() {
                  return RefIter { source: self, index: 0 }\n\
              }\n\
          }\n\
-         conform Iterator for RefIter {\n\
-             type Item = &i32\n\
+         instance RefIter {\n\
+             impl Iterator { Item = &i32 }\n\
              method &+self.next(): &i32? from self {\n\
                  if self.index == 0 {\n\
                      self.index = 1\n\
@@ -477,7 +481,8 @@ fn spread_sequence_argument_pack_copies_borrowed_iterator_items() {
                  return none\n\
              }\n\
          }\n\
-         conform ExactSizeIterator for RefIter {\n\
+         instance RefIter {\n\
+             impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 2 - self.index }\n\
          }\n\
          func main(): i32 {\n\
@@ -1255,7 +1260,7 @@ fn execute_and_assert_status(image: &nocter_macho::MachOImage, expected: i32) {
     static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
     let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
-        "nocter-native-conformance-{}-{artifact}",
+        "nocter-native-interface_implementation-{}-{artifact}",
         std::process::id()
     ));
     std::fs::write(&path, image.bytes()).unwrap();
@@ -1277,7 +1282,7 @@ fn execute_and_assert_output(image: &nocter_macho::MachOImage, expected: i32, st
     static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
     let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
-        "nocter-conformance-output-{}-{artifact}",
+        "nocter-interface_implementation-output-{}-{artifact}",
         std::process::id(),
     ));
     std::fs::write(&path, image.bytes()).unwrap();

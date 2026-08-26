@@ -92,8 +92,9 @@ fn inventories_every_reservable_declaration_with_its_exact_owner() {
             (SurfaceDeclarationKind::ConstructionFunction, Some(6)),
             (SurfaceDeclarationKind::Instance, None),
             (SurfaceDeclarationKind::InherentMethod, Some(8)),
-            (SurfaceDeclarationKind::Conformance, None),
-            (SurfaceDeclarationKind::ConformanceMethod, Some(10)),
+            (SurfaceDeclarationKind::Instance, None),
+            (SurfaceDeclarationKind::InterfaceImplementation, Some(10)),
+            (SurfaceDeclarationKind::InherentMethod, Some(10)),
             (SurfaceDeclarationKind::Drop, None),
             (SurfaceDeclarationKind::Test, None),
         ]

@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::{ExpansionCapability, ParameterRole, StructuralCapability};
+use nocter_declarations::{ExpansionCapability, ParameterRole};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
     InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
 };
 
-use crate::conformance::normalize_requirements;
 use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
+use crate::interface_implementation::normalize_requirements;
 use crate::{
     CheckedPredicate, CheckedProgram, ComparisonOperation, GenericArgument, GenericArguments,
     InstanceSelectionError, StaticDispatch, StaticSelection, SubstitutionError, TypeSubstitution,
@@ -283,9 +283,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
-        let CheckedPredicate::Capability {
+        let CheckedPredicate::Interface {
             subject,
-            capability: StructuralCapability::Interface(application),
+            application,
+            ..
         } = predicate
         else {
             return Err(ConcreteDispatchError::InvalidInterfaceRequirement(
@@ -609,12 +610,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let predicate = self.normalized_requirement(requirement, enclosing)?;
         match predicate {
-            CheckedPredicate::Capability {
-                subject,
-                capability: StructuralCapability::Callable(contract),
-            } => Ok(ResolvedDispatchPlan::Invocation(
-                ResolvedDispatchStep::CallableValue { subject, contract },
-            )),
+            CheckedPredicate::Callable { subject, contract } => {
+                Ok(ResolvedDispatchPlan::Invocation(
+                    ResolvedDispatchStep::CallableValue { subject, contract },
+                ))
+            }
             CheckedPredicate::Equality(ty) => {
                 self.resolve_comparison(requirement, ty, ComparisonOperation::Equal)
             }
@@ -635,12 +635,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 source,
                 result,
             } => self.resolve_expansion(requirement, capability, source, result),
-            CheckedPredicate::Capability {
-                capability: StructuralCapability::Interface(_),
-                ..
-            }
+            CheckedPredicate::Interface { .. }
             | CheckedPredicate::Copy(_)
-            | CheckedPredicate::TypeEquality { .. } => {
+            | CheckedPredicate::BinderRefinement { .. } => {
                 Err(ConcreteDispatchError::NonRuntimeRequirement(requirement))
             }
         }

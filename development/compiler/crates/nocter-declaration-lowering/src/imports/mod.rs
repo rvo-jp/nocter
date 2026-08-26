@@ -702,7 +702,7 @@ const fn exported_entity(entity: ReservedEntity) -> Option<ExportedEntity> {
         ReservedEntity::AssociatedType(_)
         | ReservedEntity::Construction(_)
         | ReservedEntity::Instance(_)
-        | ReservedEntity::Conformance(_)
+        | ReservedEntity::InterfaceImplementation(_)
         | ReservedEntity::Drop(_)
         | ReservedEntity::Test(_)
         | ReservedEntity::Variant(_)

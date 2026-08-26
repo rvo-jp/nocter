@@ -814,7 +814,7 @@ mod tests {
             "    pub default method &self.answer(): i32\n",
             "}\n",
             "struct Value {}\n",
-            "conform Answer for Value {}\n",
+            "instance Value { impl Answer }\n",
             "func main(): i32 {\n",
             "    let value = Value {}\n",
             "    return value.answer()\n",
@@ -1892,7 +1892,7 @@ mod tests {
                 "    pub type Failure\n",
                 "    pub method &self.read(): Self.Item\n",
                 "}\n",
-                "func inspect<T>(value: &T): void where T: Source {\n",
+                "func inspect<T>(value: &T): void where T impl Source {\n",
                 "    let item: T.$selection = value.read()\n",
                 "    return\n",
                 "}\n",
@@ -2423,7 +2423,7 @@ mod tests {
     }
 
     #[test]
-    fn code_actions_implement_required_conformance_methods_with_abort() {
+    fn code_actions_implement_required_interface_implementation_methods_with_abort() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(
             temporary.path().join("index.nct"),
@@ -2438,8 +2438,8 @@ mod tests {
             "}\n",
             "\n",
             "struct Value {}\n",
-            "conform Readable for Value {\n",
-            "    type Item = i32\n",
+            "instance Value {\n",
+            "    impl Readable { Item = i32 }\n",
             "}\n",
         );
         let source_path = temporary.path().join("index.nct");
@@ -2492,7 +2492,7 @@ mod tests {
     }
 
     #[test]
-    fn separated_conformance_code_action_edits_the_private_definition() {
+    fn separated_interface_implementation_code_action_edits_the_private_definition() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(
             temporary.path().join("index.nct"),
@@ -2505,18 +2505,14 @@ mod tests {
             "    pub method &self.read(): i32\n",
             "}\n",
             "pub struct Value {}\n",
-            "conform Readable for Value {}\n",
+            "instance Value { impl Readable }\n",
         );
         let contract_path = temporary.path().join("index.nct");
         let implementation_path = temporary.path().join("value.nct");
         let full_contract =
             format!("#package: {{ name: \"app\", version: \"0.0.0\", }}\n{contract}");
         std::fs::write(&contract_path, &full_contract).unwrap();
-        std::fs::write(
-            &implementation_path,
-            "see ./index.nct\nconform Readable for Value {}\n",
-        )
-        .unwrap();
+        std::fs::write(&implementation_path, "see ./index.nct\ninstance Value {}\n").unwrap();
         let contract_uri = format!("file://{}", contract_path.display());
         let implementation_uri = format!(
             "file://{}",

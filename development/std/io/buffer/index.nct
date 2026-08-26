@@ -14,7 +14,9 @@ construct BufReader {
     pub func with_capacity(source: File, requested_capacity: usize): Self
 }
 
-conform Reader for BufReader {}
+instance BufReader {
+    impl Reader
+}
 
 pub struct BufWriter
 
@@ -26,6 +28,5 @@ construct BufWriter {
 
 instance BufWriter {
     pub method &+self.close(): void!
+    impl Writer
 }
-
-conform Writer for BufWriter {}

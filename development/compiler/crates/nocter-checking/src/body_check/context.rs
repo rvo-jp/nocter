@@ -1,8 +1,8 @@
 use super::error::BodyCheckInternalError;
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::{
-    BodySource, ConformanceTable, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
-    StandardSemanticTable,
+    BodySource, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
+    InterfaceImplementationTable, StandardSemanticTable,
 };
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
@@ -14,7 +14,7 @@ use nocter_source_index::SourceIndex;
 pub(super) struct BodyProgramFacts<'program> {
     graph: &'program DeclarationGraph,
     drops: &'program DropTable,
-    conformances: &'program ConformanceTable,
+    interface_implementations: &'program InterfaceImplementationTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
     declaration_patterns: &'program DeclarationPatternTable,
@@ -73,7 +73,7 @@ impl<'program> BodyProgramFacts<'program> {
         Self {
             graph: &prepared.graph,
             drops: &prepared.drops,
-            conformances: &prepared.conformances,
+            interface_implementations: &prepared.interface_implementations,
             construction_surfaces: &prepared.construction_surfaces,
             instance_operations: &prepared.instance_operations,
             declaration_patterns: &prepared.declaration_patterns,
@@ -92,8 +92,8 @@ impl<'program> BodyProgramFacts<'program> {
         self.drops
     }
 
-    pub(super) const fn conformances(self) -> &'program ConformanceTable {
-        self.conformances
+    pub(super) const fn interface_implementations(self) -> &'program InterfaceImplementationTable {
+        self.interface_implementations
     }
 
     pub(super) const fn construction_surfaces(self) -> &'program ConstructionSurfaceTable {

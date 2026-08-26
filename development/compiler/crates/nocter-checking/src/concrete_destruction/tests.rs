@@ -259,8 +259,10 @@ fn opaque_glue_opens_the_specialized_checked_witness() {
         "pub interface Show { pub method &self.show(): i32 }\n\
          struct Owned { value: i32 }\n\
          drop Owned(&+self) { return }\n\
-         conform Show for Owned { method &self.show(): i32 { 1 } }\n\
-         func hide<T>(value: T): some Show where T: Show { move value }\n\
+         instance Owned {
+             impl Show
+             method &self.show(): i32 { 1 } }\n\
+         func hide<T>(value: T): some Show where T impl Show { move value }\n\
          func hold(value: Owned): void {\n\
              let erased = hide(move value)\n\
              return\n\

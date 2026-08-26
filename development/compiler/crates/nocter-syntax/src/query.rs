@@ -40,7 +40,7 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
         NodeKind::TestDeclaration => identifier_after(&tokens, |token| {
             token.kind() == TokenKind::Keyword(Keyword::Test)
         }),
-        NodeKind::InterfaceMethod | NodeKind::InherentMethod | NodeKind::ConformMethod => {
+        NodeKind::InterfaceMethod | NodeKind::InherentMethod => {
             identifier_after(&tokens, |token| {
                 token.kind() == TokenKind::Punctuation(Punctuation::Dot)
             })

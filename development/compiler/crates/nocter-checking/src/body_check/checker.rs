@@ -131,7 +131,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     copyabilities: &'input mut CopyabilityTable,
     closures: &'input mut ClosureTableBuilder,
     drops: &'input DropTable,
-    conformances: &'input crate::ConformanceTable,
+    interface_implementations: &'input crate::InterfaceImplementationTable,
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
     instance_operations: &'input crate::InstanceOperationTable,
     standard_semantics: &'input crate::StandardSemanticTable,
@@ -171,7 +171,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         InstanceOperationSelector::new(
             InstanceSelectionContext::new(
                 self.graph,
-                self.conformances,
+                self.interface_implementations,
                 self.instance_operations,
                 &self.assumptions,
                 &self.intrinsic_facts,
@@ -197,7 +197,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         } = unit;
         let graph = facts.graph();
         let drops = facts.drops();
-        let conformances = facts.conformances();
+        let interface_implementations = facts.interface_implementations();
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
         let declaration_patterns = facts.declaration_patterns();
@@ -254,7 +254,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             copyabilities,
             closures,
             drops,
-            conformances,
+            interface_implementations,
             construction_surfaces,
             instance_operations,
             standard_semantics,

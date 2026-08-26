@@ -26,7 +26,7 @@ interface Writer {
     }
 }
 
-func collect_bytes<R>(reader: &+R): Vec<u8>! where R: Reader {
+func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = initialized_scratch(8192)
     while true {
@@ -56,7 +56,7 @@ func initialized_scratch(size: usize): Vec<u8> {
     return move scratch
 }
 
-func write_text_to<W>(writer: &+W, text: &str): void! where W: Writer {
+func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
     let encoded: &[u8] = text.bytes()
     writer.write(encoded)?
     return

@@ -19,10 +19,7 @@ pub enum DeclarationContractRule {
     MismatchedBody,
     DuplicateBody,
     InvalidBodyOmission,
-    UncontractedConformance,
-    DuplicateConformanceDefinition,
-    AmbiguousConformanceContract,
-    InvalidConformanceSplit,
+    InterfaceImplementationOutsideRoot,
     UncontractedInterfaceDefault,
     MissingRepresentation,
     MismatchedRepresentation,
@@ -31,7 +28,7 @@ pub enum DeclarationContractRule {
 }
 
 impl DeclarationContractRule {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 14] = [
         Self::MissingConstantInitializer,
         Self::MismatchedConstantInitializer,
         Self::DuplicateConstantInitializer,
@@ -40,10 +37,7 @@ impl DeclarationContractRule {
         Self::MismatchedBody,
         Self::DuplicateBody,
         Self::InvalidBodyOmission,
-        Self::UncontractedConformance,
-        Self::DuplicateConformanceDefinition,
-        Self::AmbiguousConformanceContract,
-        Self::InvalidConformanceSplit,
+        Self::InterfaceImplementationOutsideRoot,
         Self::UncontractedInterfaceDefault,
         Self::MissingRepresentation,
         Self::MismatchedRepresentation,
@@ -62,10 +56,7 @@ impl DeclarationContractRule {
             Self::MismatchedBody => "E0251",
             Self::DuplicateBody => "E0252",
             Self::InvalidBodyOmission => "E0253",
-            Self::UncontractedConformance => "E0254",
-            Self::DuplicateConformanceDefinition => "E0264",
-            Self::AmbiguousConformanceContract => "E0265",
-            Self::InvalidConformanceSplit => "E0266",
+            Self::InterfaceImplementationOutsideRoot => "E0254",
             Self::UncontractedInterfaceDefault => "E0259",
             Self::MissingRepresentation => "E0255",
             Self::MismatchedRepresentation => "E0256",
@@ -97,17 +88,8 @@ impl DeclarationContractRule {
             Self::InvalidBodyOmission => {
                 "callable omits its body outside an eligible public contract"
             }
-            Self::UncontractedConformance => {
-                "implementation conformance has no public index contract"
-            }
-            Self::DuplicateConformanceDefinition => {
-                "public conformance contract has more than one implementation definition"
-            }
-            Self::AmbiguousConformanceContract => {
-                "implementation conformance matches more than one public contract"
-            }
-            Self::InvalidConformanceSplit => {
-                "separated conformance mixes contract and implementation members"
+            Self::InterfaceImplementationOutsideRoot => {
+                "interface implementation must be declared in index.nct"
             }
             Self::UncontractedInterfaceDefault => {
                 "interface default implementation has no public index contract"
@@ -150,17 +132,8 @@ impl DeclarationContractRule {
             Self::InvalidBodyOmission => {
                 "write the body inline or declare an eligible public root contract"
             }
-            Self::UncontractedConformance => {
-                "declare the conformance head and associated type bindings in index.nct"
-            }
-            Self::DuplicateConformanceDefinition => {
-                "keep exactly one private implementation conformance for this contract"
-            }
-            Self::AmbiguousConformanceContract => {
-                "keep exactly one conformance contract for this interface and target"
-            }
-            Self::InvalidConformanceSplit => {
-                "keep associated type bindings in index.nct and method bodies in the private source"
+            Self::InterfaceImplementationOutsideRoot => {
+                "move the impl fact into the instance contract in index.nct"
             }
             Self::UncontractedInterfaceDefault => {
                 "declare the default method contract in an index.nct interface with reciprocal source visibility"
@@ -185,8 +158,6 @@ impl DeclarationContractRule {
             | Self::DuplicateConstantInitializer
             | Self::MismatchedBody
             | Self::DuplicateBody
-            | Self::DuplicateConformanceDefinition
-            | Self::AmbiguousConformanceContract
             | Self::MismatchedRepresentation
             | Self::DuplicateRepresentation
             | Self::RepresentationCompletedAgain => Some("public contract is declared here"),
@@ -194,9 +165,8 @@ impl DeclarationContractRule {
             | Self::InvalidConstantOmission
             | Self::MissingBody
             | Self::InvalidBodyOmission
-            | Self::UncontractedConformance
+            | Self::InterfaceImplementationOutsideRoot
             | Self::UncontractedInterfaceDefault
-            | Self::InvalidConformanceSplit
             | Self::MissingRepresentation => None,
         }
     }
@@ -287,17 +257,8 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
         DeclarationContractError::InvalidBodyOmission(_) => {
             Some(DeclarationContractRule::InvalidBodyOmission)
         }
-        DeclarationContractError::UncontractedConformance(_) => {
-            Some(DeclarationContractRule::UncontractedConformance)
-        }
-        DeclarationContractError::DuplicateConformanceDefinition { .. } => {
-            Some(DeclarationContractRule::DuplicateConformanceDefinition)
-        }
-        DeclarationContractError::AmbiguousConformanceContract { .. } => {
-            Some(DeclarationContractRule::AmbiguousConformanceContract)
-        }
-        DeclarationContractError::InvalidConformanceSplit(_) => {
-            Some(DeclarationContractRule::InvalidConformanceSplit)
+        DeclarationContractError::InterfaceImplementationOutsideRoot(_) => {
+            Some(DeclarationContractRule::InterfaceImplementationOutsideRoot)
         }
         DeclarationContractError::UncontractedInterfaceDefault(_) => {
             Some(DeclarationContractRule::UncontractedInterfaceDefault)
@@ -324,9 +285,8 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
         | DeclarationContractError::InvalidConstantOmission(node)
         | DeclarationContractError::MissingBody(node)
         | DeclarationContractError::InvalidBodyOmission(node)
-        | DeclarationContractError::UncontractedConformance(node)
+        | DeclarationContractError::InterfaceImplementationOutsideRoot(node)
         | DeclarationContractError::UncontractedInterfaceDefault(node)
-        | DeclarationContractError::InvalidConformanceSplit(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
         DeclarationContractError::MismatchedConstantInitializer {
@@ -337,11 +297,9 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
         }
         | DeclarationContractError::MismatchedBody { body, .. }
         | DeclarationContractError::DuplicateBody { body, .. } => body,
-        DeclarationContractError::DuplicateConformanceDefinition { definition, .. }
-        | DeclarationContractError::MismatchedRepresentation { definition, .. }
+        DeclarationContractError::MismatchedRepresentation { definition, .. }
         | DeclarationContractError::DuplicateRepresentation { definition, .. }
         | DeclarationContractError::RepresentationCompletedAgain { definition, .. } => definition,
-        DeclarationContractError::AmbiguousConformanceContract { conflicting, .. } => conflicting,
     }
 }
 
@@ -351,8 +309,6 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
         | DeclarationContractError::DuplicateConstantInitializer { contract, .. }
         | DeclarationContractError::MismatchedBody { contract, .. }
         | DeclarationContractError::DuplicateBody { contract, .. }
-        | DeclarationContractError::DuplicateConformanceDefinition { contract, .. }
-        | DeclarationContractError::AmbiguousConformanceContract { contract, .. }
         | DeclarationContractError::MismatchedRepresentation { contract, .. }
         | DeclarationContractError::DuplicateRepresentation { contract, .. }
         | DeclarationContractError::RepresentationCompletedAgain { contract, .. } => Some(contract),
@@ -360,9 +316,8 @@ const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
         | DeclarationContractError::InvalidConstantOmission(_)
         | DeclarationContractError::MissingBody(_)
         | DeclarationContractError::InvalidBodyOmission(_)
-        | DeclarationContractError::UncontractedConformance(_)
+        | DeclarationContractError::InterfaceImplementationOutsideRoot(_)
         | DeclarationContractError::UncontractedInterfaceDefault(_)
-        | DeclarationContractError::InvalidConformanceSplit(_)
         | DeclarationContractError::MissingRepresentation(_)
         | DeclarationContractError::InconsistentSurface(_) => None,
     }
@@ -494,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn implementation_only_conformance_projects_its_authored_source() {
+    fn implementation_only_interface_implementation_projects_its_authored_source() {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/index.nct", "");
         let root_id = add_source(
@@ -511,7 +466,8 @@ mod tests {
             "/app/value.nct",
             concat!(
                 "see ./index.nct\n",
-                "conform Read for Value {\n",
+                "instance Value {\n",
+                "    impl Read\n",
                 "    method &self.read(): usize { return 0 }\n",
                 "}\n",
             ),
@@ -550,7 +506,7 @@ mod tests {
 
         assert_eq!(
             diagnostic.rule(),
-            DeclarationContractRule::UncontractedConformance
+            DeclarationContractRule::InterfaceImplementationOutsideRoot
         );
         assert_eq!(diagnostic.source().code(), "E0254");
         assert_eq!(diagnostic.source().primary().source(), implementation_id);

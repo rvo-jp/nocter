@@ -1,19 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use nocter_declarations::{
-    AssociatedTypeBinding, AssociatedTypeDeclaration, ConformanceDeclaration,
-    ConstructionDeclaration, DropDeclaration, InstanceDeclaration, InterfaceApplication,
-    InterfaceDeclaration, NominalShape, NominalTypeDeclaration, OpaqueTypeDeclaration,
-    TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
+    AssociatedTypeBinding, AssociatedTypeDeclaration, ConstructionDeclaration, DropDeclaration,
+    InstanceDeclaration, InterfaceApplication, InterfaceDeclaration,
+    InterfaceImplementationDeclaration, NominalShape, NominalTypeDeclaration,
+    OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
 use nocter_syntax::{NodeKind, TokenKind};
 
-use crate::{
-    NormalizedDeclarationPattern, PreparedTypes, ReservedEntity, SurfaceDeclarationId,
-    SurfaceDeclarationKind,
-};
+use crate::{PreparedTypes, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::allocation::{
     AllocatedHeaders, entity, name, pattern_type, representative, site, surface_count,
@@ -57,8 +54,8 @@ pub(super) fn define(
             Some(ReservedEntity::Instance(id)) => {
                 define_instance(types, allocated, declaration, id)?;
             }
-            Some(ReservedEntity::Conformance(id)) => {
-                define_conformance(types, allocated, declaration, id)?;
+            Some(ReservedEntity::InterfaceImplementation(id)) => {
+                define_interface_implementation(types, allocated, declaration, id)?;
             }
             Some(ReservedEntity::Drop(id)) => define_drop(types, allocated, declaration, id)?,
             Some(ReservedEntity::Test(id)) => define_test(types, allocated, declaration, id)?,
@@ -112,6 +109,7 @@ fn define_instance(
         pattern_type(types, declaration, 0)?,
         own_generics(types, declaration),
         allocated.requirements[declaration.index()].clone(),
+        child_interface_implementations(types, declaration),
         child_callables(types, declaration),
     );
     types
@@ -381,29 +379,30 @@ fn define_construction(
     Ok(())
 }
 
-fn define_conformance(
+fn define_interface_implementation(
     types: &mut PreparedTypes<'_>,
-    allocated: &AllocatedHeaders,
+    _allocated: &AllocatedHeaders,
     declaration: SurfaceDeclarationId,
-    id: nocter_model::ConformanceId,
+    id: nocter_model::InterfaceImplementationId,
 ) -> Result<(), HeaderDefinitionError> {
-    let interface = match types
-        .patterns
-        .get(declaration.index())
-        .and_then(|patterns| patterns.first())
-    {
-        Some(NormalizedDeclarationPattern::Interface(interface)) => interface.clone(),
-        _ => return Err(HeaderDefinitionError::InvalidTypePattern(declaration)),
+    let owner = surface_owner(types, declaration)?;
+    let Some(ReservedEntity::Instance(owner)) = entity(types, owner) else {
+        return Err(HeaderDefinitionError::InvalidOwner(declaration));
     };
-    let bindings = conformance_bindings(types, declaration, &interface)?;
-    let definition = ConformanceDeclaration::new(
+    let tree = projection::tree(types, declaration)?;
+    let node = surface_node(types, declaration)?;
+    let application = syntax::direct_node(tree, node, NodeKind::InterfaceApplication)
+        .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
+    let interface = types
+        .interface_application_for(application)
+        .cloned()
+        .ok_or(HeaderDefinitionError::InvalidTypePattern(declaration))?;
+    let bindings = interface_implementation_bindings(types, declaration, &interface)?;
+    let definition = InterfaceImplementationDeclaration::new(
         site(types, declaration)?,
+        owner,
         interface,
-        pattern_type(types, declaration, 1)?,
-        own_generics(types, declaration),
-        allocated.requirements[declaration.index()].clone(),
         bindings,
-        child_callables(types, declaration),
     );
     types
         .namespaces
@@ -413,22 +412,24 @@ fn define_conformance(
         .reserved
         .program
         .declarations_mut()
-        .define_conformance(id, definition)?;
+        .define_interface_implementation(id, definition)?;
     Ok(())
 }
 
-fn conformance_bindings(
+fn interface_implementation_bindings(
     types: &mut PreparedTypes<'_>,
     declaration: SurfaceDeclarationId,
     interface: &InterfaceApplication,
 ) -> Result<Box<[AssociatedTypeBinding]>, HeaderDefinitionError> {
     let mut seen = HashMap::new();
     let mut result = Vec::new();
-    for child in syntax::direct_nodes(
-        projection::tree(types, declaration)?,
-        surface_node(types, declaration)?,
-        NodeKind::AssociatedTypeBinding,
-    ) {
+    let tree = projection::tree(types, declaration)?;
+    let root = surface_node(types, declaration)?;
+    let children = syntax::descendant(tree, root, NodeKind::AssociatedBindings)
+        .into_iter()
+        .flat_map(|bindings| syntax::direct_nodes(tree, bindings, NodeKind::AssociatedTypeBinding))
+        .collect::<Vec<_>>();
+    for child in children {
         let tree = projection::tree(types, declaration)?;
         let token = syntax::direct_identifier(tree, child)
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
@@ -528,6 +529,20 @@ fn child_callables(types: &PreparedTypes<'_>, owner: SurfaceDeclarationId) -> Bo
         .into_iter()
         .filter_map(|entity| match entity {
             ReservedEntity::Callable(id) if seen.insert(id) => Some(id),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .into_boxed_slice()
+}
+
+fn child_interface_implementations(
+    types: &PreparedTypes<'_>,
+    owner: SurfaceDeclarationId,
+) -> Box<[nocter_model::InterfaceImplementationId]> {
+    child_entities(types, owner)
+        .into_iter()
+        .filter_map(|entity| match entity {
+            ReservedEntity::InterfaceImplementation(id) => Some(id),
             _ => None,
         })
         .collect::<Vec<_>>()

@@ -51,7 +51,7 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
     return written
 }
 
-conform Reader for BufReader {
+instance BufReader {
     method &+self.read(destination: &+[u8]): usize! {
         return read(self, destination)?
     }
@@ -111,9 +111,7 @@ instance BufWriter {
         close(self)?
         return
     }
-}
 
-conform Writer for BufWriter {
     method &+self.write(bytes: &[u8]): void! {
         write(self, bytes)?
         return

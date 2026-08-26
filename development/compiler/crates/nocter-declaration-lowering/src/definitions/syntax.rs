@@ -86,16 +86,20 @@ pub(super) fn requirement_origins(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId
                 {
                     if tree
                         .node(predicate)
-                        .is_some_and(|syntax| syntax.kind() == NodeKind::CapabilityPredicate)
+                        .is_some_and(|syntax| syntax.kind() == NodeKind::InterfacePredicate)
                     {
-                        result.extend(direct_nodes(tree, predicate, NodeKind::Capability));
+                        for application in
+                            direct_nodes(tree, predicate, NodeKind::InterfaceApplication)
+                        {
+                            result.push(application);
+                        }
                     } else {
                         result.push(predicate);
                     }
                 }
             }
             NodeKind::InterfaceBounds => {
-                result.extend(direct_nodes(tree, node, NodeKind::Capability));
+                result.extend(direct_nodes(tree, node, NodeKind::InterfaceApplication));
             }
             NodeKind::Block => {}
             kind if declaration_node(kind) => {}
@@ -127,9 +131,8 @@ const fn declaration_node(kind: NodeKind) -> bool {
             | NodeKind::OrderingOperator
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
-            | NodeKind::ConformDeclaration
+            | NodeKind::InterfaceImplementation
             | NodeKind::AssociatedTypeBinding
-            | NodeKind::ConformMethod
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration
     )

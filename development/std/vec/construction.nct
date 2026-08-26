@@ -91,7 +91,7 @@ construct Vec<T> {
         return move result
     }
 
-    func from_iter<I>(iterator: I): Self where I: Iterator, I.Item = T {
+    func from_iter<I>(iterator: I): Self where I impl Iterator { Item = T } {
         var result: Vec<T> = Vec.empty()
         for item in move iterator {
             result.push(move item)
@@ -101,7 +101,7 @@ construct Vec<T> {
 
     func from_exact_iter<I>(
         iterator: I,
-    ): Self where I: Iterator + ExactSizeIterator, I.Item = T {
+    ): Self where I impl Iterator { Item = T }, I impl ExactSizeIterator {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()

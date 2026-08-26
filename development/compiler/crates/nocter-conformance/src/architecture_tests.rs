@@ -6,7 +6,7 @@ fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
-        .expect("conformance crate is inside the compiler workspace")
+        .expect("interface_implementation crate is inside the compiler workspace")
         .to_path_buf()
 }
 
@@ -329,12 +329,61 @@ fn construction_selection_consumes_its_frozen_surface_contract() {
 
 #[test]
 fn editor_mutations_select_semantic_identities_instead_of_standard_api_spellings() {
-    let action = source("crates/nocter-analysis/src/code_actions/conformance.rs");
+    let action = source("crates/nocter-analysis/src/code_actions/interface_implementation.rs");
     assert!(!action.contains("std/process.abort"));
     assert!(!action.contains("completion.label() != \"abort\""));
     assert!(action.contains("StandardDeclarationRole::ProcessAbort"));
     assert!(action.contains(".standard_semantics()"));
     assert!(action.contains("SemanticEntity::Callable(terminator)"));
+}
+
+#[test]
+fn interface_requirements_keep_their_associated_bindings_in_one_contract() {
+    let requirements = source("crates/nocter-declarations/src/requirement.rs");
+    let kind = requirements
+        .split_once("pub enum RequirementKind {")
+        .expect("requirement kind exists")
+        .1
+        .split_once("\n}\n\n#[derive")
+        .expect("requirement kind ends before the declaration wrapper")
+        .0;
+    assert!(kind.contains("Interface {"));
+    assert!(kind.contains("associated_types: Box<[AssociatedTypeBinding]>,"));
+    assert!(kind.contains("Callable {"));
+    assert!(!kind.contains("\n    Capability {"));
+    assert_eq!(kind.matches("AssociatedTypeBinding").count(), 1);
+
+    let presentation = source("crates/nocter-analysis/src/presentation/signature.rs");
+    assert!(!presentation.contains("windows(2)"));
+    assert!(!presentation.contains("peekable()"));
+}
+
+#[test]
+fn declaration_validation_is_a_type_state_and_editor_actions_use_source_roles() {
+    let program = source("crates/nocter-declarations/src/program.rs");
+    assert!(program.contains("pub struct AcceptedDeclarationProgram"));
+    assert!(!program.contains("admission: Option<DeclarationAnalysisAdmission>"));
+
+    let preparation = source("crates/nocter-checking/src/preparation.rs");
+    for name in [
+        "pub fn prepare_program_checking<'syntax>(",
+        "pub fn prepare_program_checking_recovering<'syntax>(",
+    ] {
+        let signature = preparation
+            .split_once(name)
+            .unwrap_or_else(|| panic!("{name} exists"))
+            .1
+            .split_once(") ->")
+            .expect("preparation signature has a result")
+            .0;
+        assert!(signature.contains("program: AcceptedDeclarationProgram"));
+        assert!(!signature.contains("program: DeclarationProgram"));
+    }
+
+    let action = source("crates/nocter-analysis/src/code_actions/interface_implementation.rs");
+    assert!(action.contains("binding.role() == SourceRole::Implementation"));
+    assert!(action.contains("binding.role() == SourceRole::Declaration"));
+    assert!(!action.contains("ends_with(\"index.nct\")"));
 }
 
 #[test]

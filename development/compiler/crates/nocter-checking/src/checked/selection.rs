@@ -11,7 +11,7 @@ pub enum StaticDispatch {
         method: CallableId,
     },
     /// A call from an interface default body to that interface's surface under intrinsic `Self`
-    /// evidence. Concrete specialization selects the implementing conformance.
+    /// evidence. Concrete specialization selects the implementing interface implementation.
     InterfaceSelfMethod {
         interface: InterfaceId,
         method: CallableId,

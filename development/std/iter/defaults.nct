@@ -3,10 +3,6 @@
 see ./index.nct
 see ./adapters.nct
 
-func iterator_items_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
-    return left == right
-}
-
 interface Iterator {
     default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
         return MapIter<U, Self, F> {
@@ -36,7 +32,7 @@ interface Iterator {
         }
     }
 
-    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R: Iterator, R.Item = Self.Item {
+    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { Item = Self.Item } {
         return ChainIter<Self, R> {
             left: move self,
             right: move right,
@@ -107,23 +103,23 @@ interface Iterator {
         return true
     }
 
-    default method self.contains<T>(expected: &T): bool where Self.Item = T, (&T == &T): bool {
+    default method self.contains<T>(expected: &T): bool where Self impl Iterator { Item = T }, (&T == &T): bool {
         var source = move self
         while true {
             let item = source.next() otherwise { return false }
-            if iterator_items_equal(&item, expected) {
+            if &item == expected {
                 return true
             }
         }
         return false
     }
 
-    default method self.position<T>(expected: &T): usize? where Self.Item = T, (&T == &T): bool {
+    default method self.position<T>(expected: &T): usize? where Self impl Iterator { Item = T }, (&T == &T): bool {
         var source = move self
         var index: usize = 0
         while true {
             let item = source.next() otherwise { return none }
-            if iterator_items_equal(&item, expected) {
+            if &item == expected {
                 return index
             }
             index += 1

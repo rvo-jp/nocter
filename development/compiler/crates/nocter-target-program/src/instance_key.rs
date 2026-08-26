@@ -11,7 +11,7 @@ use crate::{ExecutableEntry, TargetProgram};
 /// A callable inherits generic parameters from its declaration owner. Keeping both owner and
 /// callable parameters in one canonical argument set prevents two independently assembled keys
 /// from naming the same generated body. Concrete receiver types are deliberately not duplicated
-/// in this key: an instance, construction, or conformance target is reconstructed from these
+/// in this key: an instance, construction, or interface implementation target is reconstructed from these
 /// arguments and its declaration-owned target type.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableInstanceKey {

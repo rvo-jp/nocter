@@ -48,14 +48,17 @@ SourceFile
                 NamedType
             ProvenanceClause
   Item
-    ConformDeclaration
-      DeclarationTypePattern
+    InstanceDeclaration
       DeclarationTypePattern
         PatternArguments
-      AssociatedTypeBinding
-        Type
+      InterfaceImplementation
+        InterfaceApplication
           NamedType
-      ConformMethod
+          AssociatedBindings
+            AssociatedTypeBinding
+              Type
+                NamedType
+      InherentMethod
         MethodSignature
           Receiver
           Parameters

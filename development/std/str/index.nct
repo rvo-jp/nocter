@@ -32,12 +32,12 @@ construct LinesIter {
     pub func new(text: &str): Self
 }
 
-conform Iterator for SplitIter {
-    type Item = &str
+instance SplitIter {
+    impl Iterator { Item = &str }
 }
 
-conform Iterator for LinesIter {
-    type Item = &str
+instance LinesIter {
+    impl Iterator { Item = &str }
 }
 
 instance str {
@@ -77,7 +77,7 @@ instance str {
 
     pub method &self.split_views(separator: &str): SplitIter! from self | separator
 
-    pub method &self.lines(): some Iterator<Item = &str>
+    pub method &self.lines(): some Iterator { Item = &str }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.
     pub method &self.bytes_iter(): ViewIter<u8>

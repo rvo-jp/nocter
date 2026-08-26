@@ -14,7 +14,7 @@ implementation sources or reading package plumbing.
 The root owns documentation, required signature imports, re-exports, public data representation,
 opaque nominal contracts, bodyless public callable contracts, interface requirements, explicit
 interface default contracts, construction contracts, instance-operation contracts, and public
-conformance heads with their associated type bindings. Required conformance method signatures
+`impl Interface` facts with their associated type bindings. Required interface method signatures
 remain solely in their interface.
 
 A package-only subsystem that does not require another module's private representation owns an

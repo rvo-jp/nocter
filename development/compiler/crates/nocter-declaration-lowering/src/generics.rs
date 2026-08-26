@@ -247,7 +247,6 @@ fn generic_owner(
         Some(ReservedEntity::Callable(owner)) => Some(GenericOwner::Callable(owner)),
         Some(ReservedEntity::Construction(owner)) => Some(GenericOwner::Construction(owner)),
         Some(ReservedEntity::Instance(owner)) => Some(GenericOwner::Instance(owner)),
-        Some(ReservedEntity::Conformance(owner)) => Some(GenericOwner::Conformance(owner)),
         Some(ReservedEntity::Drop(owner)) => Some(GenericOwner::Drop(owner)),
         _ if empty => None,
         _ => return Err(GenericError::InvalidOwner(id)),
@@ -275,7 +274,6 @@ fn binder_tokens(
     match declaration.kind() {
         SurfaceDeclarationKind::Construction
         | SurfaceDeclarationKind::Instance
-        | SurfaceDeclarationKind::Conformance
         | SurfaceDeclarationKind::Drop => Ok(BinderTokens {
             tokens: pattern_binders(tree, declaration.node()),
             reuses_local_names: true,
@@ -529,7 +527,7 @@ const fn is_member(kind: NodeKind) -> bool {
             | NodeKind::OrderingOperator
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
-            | NodeKind::ConformMethod
+            | NodeKind::InterfaceImplementation
     )
 }
 

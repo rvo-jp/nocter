@@ -375,7 +375,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
         .declarations_mut()
         .define_instance(
             instance,
-            InstanceDeclaration::new(site, nominal_type, [], [], [callable]),
+            InstanceDeclaration::new(site, nominal_type, [], [], [], [callable]),
         )
         .unwrap();
     program
@@ -442,7 +442,10 @@ fn builtin_attachment_authority_uses_exact_selected_module_identity() {
         let instance = program.declarations_mut().reserve_instance();
         program
             .declarations_mut()
-            .define_instance(instance, InstanceDeclaration::new(site, target, [], [], []))
+            .define_instance(
+                instance,
+                InstanceDeclaration::new(site, target, [], [], [], []),
+            )
             .unwrap();
         program.finish()
     };

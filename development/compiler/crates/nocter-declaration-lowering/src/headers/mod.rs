@@ -253,10 +253,9 @@ fn resolve_visibility(
                 .flatten()
                 .ok_or(HeaderError::InvalidVisibility(id))
         }
-        SurfaceDeclarationKind::ConformanceMethod
-        | SurfaceDeclarationKind::Construction
+        SurfaceDeclarationKind::Construction
         | SurfaceDeclarationKind::Instance
-        | SurfaceDeclarationKind::Conformance
+        | SurfaceDeclarationKind::InterfaceImplementation
         | SurfaceDeclarationKind::Drop
         | SurfaceDeclarationKind::Test => {
             if declaration.visibility().is_some() {

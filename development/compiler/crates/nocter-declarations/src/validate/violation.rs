@@ -16,8 +16,8 @@ pub enum DeclarationRule {
     CopyDrop,
     PayloadlessEnumDrop,
     PrimitiveAuthority,
-    BuiltinConformanceAuthority,
-    InvalidConformanceTarget,
+    BuiltinInterfaceImplementationAuthority,
+    InvalidInterfaceImplementationTarget,
     IncompleteAssociatedTypes,
     InvalidOpaqueResult,
     InvalidLiteralSignature,
@@ -36,8 +36,8 @@ impl DeclarationRule {
             Self::CopyDrop => "E0206",
             Self::PayloadlessEnumDrop => "E0207",
             Self::PrimitiveAuthority => "E0208",
-            Self::BuiltinConformanceAuthority => "E0209",
-            Self::InvalidConformanceTarget => "E0210",
+            Self::BuiltinInterfaceImplementationAuthority => "E0209",
+            Self::InvalidInterfaceImplementationTarget => "E0210",
             Self::IncompleteAssociatedTypes => "E0211",
             Self::InvalidOpaqueResult => "E0212",
             Self::InvalidLiteralSignature => "E0213",
@@ -62,13 +62,15 @@ impl DeclarationRule {
             Self::PrimitiveAuthority => {
                 "primitive declaration is outside the selected standard package"
             }
-            Self::BuiltinConformanceAuthority => {
-                "built-in conformance is outside the selected standard package"
+            Self::BuiltinInterfaceImplementationAuthority => {
+                "built-in interface implementation is outside the selected standard package"
             }
-            Self::InvalidConformanceTarget => {
-                "conformance target is not a nominal or compiler-owned built-in type"
+            Self::InvalidInterfaceImplementationTarget => {
+                "interface implementation target is not a nominal or compiler-owned built-in type"
             }
-            Self::IncompleteAssociatedTypes => "conformance does not bind every associated type",
+            Self::IncompleteAssociatedTypes => {
+                "interface implementation does not bind every associated type"
+            }
             Self::InvalidOpaqueResult => {
                 "opaque result requires a supported callable with a source body"
             }
@@ -94,8 +96,8 @@ impl DeclarationRule {
             Self::IncompleteAssociatedTypes => Some("interface is declared here"),
             Self::EmptyEnum
             | Self::PrimitiveAuthority
-            | Self::BuiltinConformanceAuthority
-            | Self::InvalidConformanceTarget
+            | Self::BuiltinInterfaceImplementationAuthority
+            | Self::InvalidInterfaceImplementationTarget
             | Self::InvalidOpaqueResult => None,
         }
     }
@@ -120,11 +122,11 @@ impl DeclarationRule {
             Self::PrimitiveAuthority => {
                 "declare primitives only in the selected toolchain standard package"
             }
-            Self::BuiltinConformanceAuthority => {
-                "declare built-in conformances in the selected standard package"
+            Self::BuiltinInterfaceImplementationAuthority => {
+                "declare built-in interface implementations in the selected standard package"
             }
-            Self::InvalidConformanceTarget => {
-                "conform a nominal type or an authorized built-in type"
+            Self::InvalidInterfaceImplementationTarget => {
+                "implement the interface for a nominal type or an authorized built-in type"
             }
             Self::IncompleteAssociatedTypes => {
                 "bind every associated type declared by the interface"
@@ -295,8 +297,8 @@ mod tests {
             DeclarationRule::CopyDrop,
             DeclarationRule::PayloadlessEnumDrop,
             DeclarationRule::PrimitiveAuthority,
-            DeclarationRule::BuiltinConformanceAuthority,
-            DeclarationRule::InvalidConformanceTarget,
+            DeclarationRule::BuiltinInterfaceImplementationAuthority,
+            DeclarationRule::InvalidInterfaceImplementationTarget,
             DeclarationRule::IncompleteAssociatedTypes,
             DeclarationRule::InvalidOpaqueResult,
         ];

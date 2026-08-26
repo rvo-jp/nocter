@@ -20,11 +20,11 @@ pub use attachment_family::AttachmentFamily;
 pub use constant::ConstantValue;
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
-    ConformanceId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,
-    FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, LocalBindingId, LoopId,
-    MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId,
-    NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId,
-    TestId, TypeAliasId, TypeId, VariantId,
+    ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
+    GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
+    LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
+    MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
+    PlaceId, RequirementId, TestId, TypeAliasId, TypeId, VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;

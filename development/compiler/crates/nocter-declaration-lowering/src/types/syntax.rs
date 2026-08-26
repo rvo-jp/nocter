@@ -421,7 +421,7 @@ fn self_owner(
                 | SurfaceDeclarationKind::Interface
                 | SurfaceDeclarationKind::Construction
                 | SurfaceDeclarationKind::Instance
-                | SurfaceDeclarationKind::Conformance
+                | SurfaceDeclarationKind::InterfaceImplementation
                 | SurfaceDeclarationKind::Drop
         ) {
             return reserved.entity(declaration);

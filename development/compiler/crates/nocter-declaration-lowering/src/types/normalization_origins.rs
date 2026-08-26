@@ -4,7 +4,6 @@ use nocter_model::TypeAliasId;
 use nocter_source_index::SyntaxOrigin;
 
 use super::BoundTypeId;
-use crate::SurfaceDeclarationId;
 
 /// Syntax subjects needed only while canonicalizing the bound header arena.
 ///
@@ -15,7 +14,6 @@ use crate::SurfaceDeclarationId;
 pub(super) struct NormalizationOrigins {
     bound: HashMap<BoundTypeId, SyntaxOrigin>,
     aliases: HashMap<TypeAliasId, SyntaxOrigin>,
-    requirements: HashMap<(SurfaceDeclarationId, usize), SyntaxOrigin>,
 }
 
 impl NormalizationOrigins {
@@ -37,22 +35,5 @@ impl NormalizationOrigins {
 
     pub(super) fn alias(&self, alias: TypeAliasId) -> Option<SyntaxOrigin> {
         self.aliases.get(&alias).copied()
-    }
-
-    pub(super) fn record_requirement(
-        &mut self,
-        declaration: SurfaceDeclarationId,
-        position: usize,
-        origin: SyntaxOrigin,
-    ) {
-        self.requirements.insert((declaration, position), origin);
-    }
-
-    pub(super) fn requirement(
-        &self,
-        declaration: SurfaceDeclarationId,
-        position: usize,
-    ) -> Option<SyntaxOrigin> {
-        self.requirements.get(&(declaration, position)).copied()
     }
 }

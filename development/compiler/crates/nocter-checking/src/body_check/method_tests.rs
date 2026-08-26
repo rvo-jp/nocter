@@ -89,9 +89,9 @@ fn methods_accept_fixed_parameters_before_their_final_argument_pack() {
 }
 
 #[test]
-fn interface_methods_preserve_the_argument_pack_contract_through_conformance() {
+fn interface_methods_preserve_the_argument_pack_contract_through_interface_implementation() {
     let output = check(
-        "pub interface Counter {\n    pub method &self.count(seed: usize, ...items: i32): usize\n}\nstruct Value {}\nconform Counter for Value {\n    method &self.count(seed: usize, ...items: i32): usize { seed + items.len() }\n}\nfunc apply(value: &Value): usize { value.count(10, 1, 2) }\n",
+        "pub interface Counter {\n    pub method &self.count(seed: usize, ...items: i32): usize\n}\nstruct Value {}\ninstance Value {\n    impl Counter\n    method &self.count(seed: usize, ...items: i32): usize { seed + items.len() }\n}\nfunc apply(value: &Value): usize { value.count(10, 1, 2) }\n",
     )
     .unwrap();
     let call = output
@@ -327,11 +327,12 @@ fn concrete_and_bounded_generic_receivers_select_interface_dispatch() {
              pub method &self.read(): i32\n\
          }\n\
          struct Value {}\n\
-         conform Readable for Value {\n\
+         instance Value {\n\
+             impl Readable\n\
              method &self.read(): i32 { 42 }\n\
          }\n\
          func concrete(input: &Value): i32 { input.read() }\n\
-         func generic<T>(input: &T): i32 where T: Readable { input.read() }\n",
+         func generic<T>(input: &T): i32 where T impl Readable { input.read() }\n",
     )
     .unwrap();
     let dispatches = output
@@ -362,13 +363,13 @@ fn concrete_and_bounded_generic_receivers_select_interface_dispatch() {
 }
 
 #[test]
-fn conformance_default_method_uses_specialized_interface_contract() {
+fn interface_implementation_default_method_uses_specialized_interface_contract() {
     let output = check(
         "pub interface DefaultValue<T> {\n\
              pub default method &self.value(): i64 { 0 }\n\
          }\n\
          struct Value {}\n\
-         conform DefaultValue<T> for Value where T = i64 {}\n\
+         instance Value { impl DefaultValue<i64> }\n\
          func value(input: &Value): i64 { input.value() }\n",
     )
     .unwrap();
@@ -394,12 +395,12 @@ fn conformance_default_method_uses_specialized_interface_contract() {
 }
 
 #[test]
-fn interface_default_body_proves_its_exact_self_conformance() {
+fn interface_default_body_proves_its_exact_self_interface_implementation() {
     check(
         "pub interface Readable {\n\
              pub default method &self.read(): i32 { inspect(self) }\n\
          }\n\
-         func inspect<R>(value: &R): i32 where R: Readable { 0 }\n",
+         func inspect<R>(value: &R): i32 where R impl Readable { 0 }\n",
     )
     .unwrap();
 }
@@ -412,28 +413,14 @@ fn associated_method_results_specialize_for_concrete_and_generic_receivers() {
              pub method &self.get(): Self.Item\n\
          }\n\
          struct Buffer {}\n\
-         conform Source for Buffer {\n\
-             type Item = i32\n\
+         instance Buffer {\n\
+             impl Source { Item = i32 }\n\
              method &self.get(): i32 { 0 }\n\
          }\n\
          func concrete(source: &Buffer): i32 { source.get() }\n\
-         func generic<S>(source: &S): S.Item where S: Source { source.get() }\n",
+         func generic<S>(source: &S): S.Item where S impl Source { source.get() }\n",
     )
     .unwrap();
-}
-
-#[test]
-fn inherent_and_interface_methods_with_the_same_name_are_ambiguous() {
-    let error = check(
-        "pub interface Readable { pub method &self.read(): i32 }\n\
-         struct Value {}\n\
-         instance Value { pub method &self.read(): i32 { 1 } }\n\
-         conform Readable for Value { method &self.read(): i32 { 2 } }\n\
-         func invalid(input: &Value): i32 { input.read() }\n",
-    )
-    .unwrap_err();
-
-    assert_eq!(error.source_diagnostic().unwrap().code(), "E0390");
 }
 
 #[test]
@@ -599,7 +586,9 @@ fn method_selection_is_independent_of_compile_unit_input_order() {
     let fixture = Fixture::new(
         "pub interface Readable { pub method &self.read(): i32 }\n\
          struct Value {}\n\
-         conform Readable for Value { method &self.read(): i32 { 1 } }\n\
+         instance Value {
+             impl Readable
+             method &self.read(): i32 { 1 } }\n\
          func read(input: &Value): i32 { input.read() }\n",
     );
     let mut outputs = Vec::new();

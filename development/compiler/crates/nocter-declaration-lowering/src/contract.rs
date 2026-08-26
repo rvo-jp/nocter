@@ -104,16 +104,7 @@ pub enum DeclarationContractError {
         contract: NodeId,
         definition: NodeId,
     },
-    UncontractedConformance(NodeId),
-    DuplicateConformanceDefinition {
-        contract: NodeId,
-        definition: NodeId,
-    },
-    AmbiguousConformanceContract {
-        contract: NodeId,
-        conflicting: NodeId,
-    },
-    InvalidConformanceSplit(NodeId),
+    InterfaceImplementationOutsideRoot(NodeId),
     UncontractedInterfaceDefault(NodeId),
     InconsistentSurface(NodeId),
 }
@@ -186,27 +177,9 @@ impl fmt::Display for DeclarationContractError {
                 formatter,
                 "represented nominal {contract:?} is completed again by {definition:?}"
             ),
-            Self::UncontractedConformance(node) => write!(
+            Self::InterfaceImplementationOutsideRoot(node) => write!(
                 formatter,
-                "implementation conformance {node:?} has no public index contract"
-            ),
-            Self::DuplicateConformanceDefinition {
-                contract,
-                definition,
-            } => write!(
-                formatter,
-                "conformance contract {contract:?} has duplicate implementation definition {definition:?}"
-            ),
-            Self::AmbiguousConformanceContract {
-                contract,
-                conflicting,
-            } => write!(
-                formatter,
-                "conformance contract {contract:?} conflicts with duplicate contract {conflicting:?}"
-            ),
-            Self::InvalidConformanceSplit(node) => write!(
-                formatter,
-                "separated conformance member {node:?} belongs on the other side of the contract boundary"
+                "interface implementation {node:?} must be declared in the module root"
             ),
             Self::UncontractedInterfaceDefault(node) => write!(
                 formatter,
@@ -235,6 +208,9 @@ impl std::error::Error for DeclarationContractError {}
 pub fn analyze_declaration_contracts(
     surface: &DeclarationSurface<'_>,
 ) -> Result<DeclarationContracts, DeclarationContractError> {
+    // Source-role invariants are authored facts. Validate them before any declarations are joined
+    // so their meaning cannot depend on which declaration becomes the semantic representative.
+    validate_implementation_interface_implementations(surface)?;
     let count = surface.declarations().len();
     let mut representatives: Vec<_> = (0..count).map(SurfaceDeclarationId::from_index).collect();
     let mut representations = vec![None; count];
@@ -244,7 +220,6 @@ pub fn analyze_declaration_contracts(
         &mut representations,
     )?;
     constant::join(surface, &mut representatives)?;
-    join_conformance_contracts(surface, &mut representatives)?;
     let candidates = collect_body_candidates(surface)?;
     let joined = join_contracts(surface, &candidates, &mut representatives)?;
     join_implementation_containers(
@@ -253,6 +228,7 @@ pub fn analyze_declaration_contracts(
         joined.container_targets,
         &mut representatives,
     )?;
+    join_instance_fragments(surface, &mut representatives)?;
 
     Ok(DeclarationContracts {
         representatives: representatives.into_boxed_slice(),
@@ -261,129 +237,71 @@ pub fn analyze_declaration_contracts(
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct ConformanceKey {
+struct InstanceFragmentKey {
     module: ModuleIdentity,
     header: HeaderFingerprint,
 }
 
-/// Joins a public conformance fact to its one private implementation container.
+/// Unifies open `instance` fragments before semantic identities are reserved.
 ///
-/// The interface remains the sole owner of required method signatures. A root conformance owns
-/// only the conformance head and associated type bindings, so method declarations are deliberately
-/// absent from this join key.
-fn join_conformance_contracts(
+/// A root contract may contain only `impl Interface` facts while mutually visible implementation
+/// sources contain the satisfying methods. Their identical instance header denotes one semantic
+/// container; child declarations remain independently source-backed beneath its representative.
+fn join_instance_fragments(
     surface: &DeclarationSurface<'_>,
     representatives: &mut [SurfaceDeclarationId],
 ) -> Result<(), DeclarationContractError> {
-    let mut roots: BTreeMap<ConformanceKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
+    let mut groups = BTreeMap::<InstanceFragmentKey, Vec<SurfaceDeclarationId>>::new();
     for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        if declaration.kind() != SurfaceDeclarationKind::Conformance
-            || source_kind(surface, declaration)? != ModuleSourceKind::Root
+        let id = SurfaceDeclarationId::from_index(index);
+        if declaration.kind() != SurfaceDeclarationKind::Instance
+            || representatives[id.index()] != id
         {
             continue;
         }
-        roots
-            .entry(conformance_key(surface, declaration)?)
+        let source = surface.sources().get(declaration.source().index()).ok_or(
+            DeclarationContractError::InconsistentSurface(declaration.node()),
+        )?;
+        groups
+            .entry(InstanceFragmentKey {
+                module: source.module().clone(),
+                header: fingerprint(surface, declaration)?,
+            })
             .or_default()
-            .push(SurfaceDeclarationId::from_index(index));
+            .push(id);
     }
 
-    let mut definitions = BTreeMap::<SurfaceDeclarationId, SurfaceDeclarationId>::new();
-    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        if declaration.kind() != SurfaceDeclarationKind::Conformance
-            || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
-        {
-            continue;
+    for fragments in groups.values_mut() {
+        let mut ranked = Vec::with_capacity(fragments.len());
+        for fragment in fragments.iter().copied() {
+            let declaration = surface.declarations()[fragment.index()];
+            let root_rank =
+                usize::from(source_kind(surface, declaration)? != ModuleSourceKind::Root);
+            ranked.push((root_rank, fragment.index(), fragment));
         }
-        let definition = SurfaceDeclarationId::from_index(index);
-        let candidates = roots
-            .get(&conformance_key(surface, declaration)?)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .copied()
-            .filter(|contract| {
-                has_reciprocal_source_visibility(
-                    surface,
-                    surface.declarations()[contract.index()].source(),
-                    declaration.source(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let contract = match candidates.as_slice() {
-            [] => {
-                return Err(DeclarationContractError::UncontractedConformance(
-                    declaration.node(),
-                ));
-            }
-            [contract] => *contract,
-            [contract, conflicting, ..] => {
-                return Err(DeclarationContractError::AmbiguousConformanceContract {
-                    contract: surface.declarations()[contract.index()].node(),
-                    conflicting: surface.declarations()[conflicting.index()].node(),
-                });
-            }
-        };
-        if definitions.insert(contract, definition).is_some() {
-            return Err(DeclarationContractError::DuplicateConformanceDefinition {
-                contract: surface.declarations()[contract.index()].node(),
-                definition: declaration.node(),
+        ranked.sort_unstable();
+        fragments.clear();
+        fragments.extend(ranked.into_iter().map(|(_, _, fragment)| fragment));
+        let mut component_representatives = Vec::<SurfaceDeclarationId>::new();
+        for fragment in fragments.iter().copied() {
+            let declaration = surface.declarations()[fragment.index()];
+            let representative = component_representatives.iter().copied().find(|candidate| {
+                let candidate = surface.declarations()[candidate.index()];
+                declaration.source() == candidate.source()
+                    || has_reciprocal_source_visibility(
+                        surface,
+                        declaration.source(),
+                        candidate.source(),
+                    )
             });
+            if let Some(representative) = representative {
+                representatives[fragment.index()] = representative;
+            } else {
+                component_representatives.push(fragment);
+            }
         }
-        if let Some(method) = direct_child_of_kind(
-            surface,
-            surface.declarations()[contract.index()],
-            NodeKind::ConformMethod,
-        )? {
-            return Err(DeclarationContractError::InvalidConformanceSplit(method));
-        }
-        if let Some(binding) =
-            direct_child_of_kind(surface, declaration, NodeKind::AssociatedTypeBinding)?
-        {
-            return Err(DeclarationContractError::InvalidConformanceSplit(binding));
-        }
-        representatives[definition.index()] = contract;
     }
     Ok(())
-}
-
-fn direct_child_of_kind(
-    surface: &DeclarationSurface<'_>,
-    declaration: SurfaceDeclaration,
-    expected: NodeKind,
-) -> Result<Option<NodeId>, DeclarationContractError> {
-    let tree = surface
-        .sources()
-        .get(declaration.source().index())
-        .ok_or(DeclarationContractError::InconsistentSurface(
-            declaration.node(),
-        ))?
-        .syntax();
-    for child in tree.children(declaration.node()) {
-        let SyntaxElement::Node(child) = child else {
-            continue;
-        };
-        if tree
-            .node(*child)
-            .is_some_and(|node| node.kind() == expected)
-        {
-            return Ok(Some(*child));
-        }
-    }
-    Ok(None)
-}
-
-fn conformance_key(
-    surface: &DeclarationSurface<'_>,
-    declaration: SurfaceDeclaration,
-) -> Result<ConformanceKey, DeclarationContractError> {
-    let source = surface.sources().get(declaration.source().index()).ok_or(
-        DeclarationContractError::InconsistentSurface(declaration.node()),
-    )?;
-    Ok(ConformanceKey {
-        module: source.module().clone(),
-        header: fingerprint(surface, declaration)?,
-    })
 }
 
 struct BodyCandidates {
@@ -583,27 +501,22 @@ fn join_implementation_containers(
                     surface.declarations()[implementation_owner.index()].node(),
                 ))?;
     }
-    validate_implementation_conformances(surface, representatives)?;
     validate_implementation_interface_defaults(surface, used_bodies, representatives)?;
     Ok(())
 }
 
-fn validate_implementation_conformances(
+fn validate_implementation_interface_implementations(
     surface: &DeclarationSurface<'_>,
-    representatives: &[SurfaceDeclarationId],
 ) -> Result<(), DeclarationContractError> {
-    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        if declaration.kind() != SurfaceDeclarationKind::Conformance
+    for declaration in surface.declarations().iter().copied() {
+        if declaration.kind() != SurfaceDeclarationKind::InterfaceImplementation
             || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
         {
             continue;
         }
-        let id = SurfaceDeclarationId::from_index(index);
-        if representatives[id.index()] == id {
-            return Err(DeclarationContractError::UncontractedConformance(
-                declaration.node(),
-            ));
-        }
+        return Err(
+            DeclarationContractError::InterfaceImplementationOutsideRoot(declaration.node()),
+        );
     }
     Ok(())
 }
@@ -769,9 +682,7 @@ fn callable_label(
             .and_then(|index| tokens.get(index + 1))
             .cloned()
             .map(CallableLabel::Named),
-        SurfaceDeclarationKind::InterfaceMethod
-        | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod => tokens
+        SurfaceDeclarationKind::InterfaceMethod | SurfaceDeclarationKind::InherentMethod => tokens
             .iter()
             .position(|token| token.as_ref() == ".")
             .and_then(|index| tokens.get(index + 1))
@@ -859,7 +770,6 @@ fn is_separable_callable(declaration: SurfaceDeclaration) -> bool {
             | SurfaceDeclarationKind::Ordering
             | SurfaceDeclarationKind::Index
             | SurfaceDeclarationKind::Expansion
-            | SurfaceDeclarationKind::ConformanceMethod
     ) || declaration.kind() == SurfaceDeclarationKind::InterfaceMethod
         && declaration.is_interface_default()
 }
@@ -900,9 +810,8 @@ const fn is_member_declaration(kind: NodeKind) -> bool {
             | NodeKind::OrderingOperator
             | NodeKind::IndexOperator
             | NodeKind::ExpansionOperator
-            | NodeKind::ConformDeclaration
+            | NodeKind::InterfaceImplementation
             | NodeKind::AssociatedTypeBinding
-            | NodeKind::ConformMethod
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration
     )

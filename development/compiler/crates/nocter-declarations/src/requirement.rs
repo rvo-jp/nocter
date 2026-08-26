@@ -1,21 +1,15 @@
 use nocter_model::{
-    AssociatedTypeId, BorrowCapability, CallableContract, CallableId, ConformanceId,
-    GenericParameterId, InstanceId, InterfaceId, NominalTypeId, TypeAliasId, TypeId,
+    AssociatedTypeId, BorrowCapability, CallableContract, CallableId, GenericParameterId,
+    InstanceId, InterfaceId, NominalTypeId, TypeAliasId, TypeId,
 };
 
-use crate::InterfaceApplication;
+use crate::{AssociatedTypeBinding, InterfaceApplication};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ExpansionCapability {
     Readonly,
     ReadWrite,
     Owned,
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum StructuralCapability {
-    Interface(InterfaceApplication),
-    Callable(CallableContract),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -25,26 +19,27 @@ pub enum RequirementOwner {
     Interface(InterfaceId),
     Callable(CallableId),
     Instance(InstanceId),
-    Conformance(ConformanceId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum RequirementSubject {
     GenericParameter(GenericParameterId),
     AssociatedType(AssociatedTypeId),
+    InterfaceSelf(InterfaceId),
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum RequirementKind {
-    Capability {
+    Interface {
         subject: RequirementSubject,
-        capability: StructuralCapability,
+        application: InterfaceApplication,
+        associated_types: Box<[AssociatedTypeBinding]>,
+    },
+    Callable {
+        subject: GenericParameterId,
+        contract: CallableContract,
     },
     Copy(GenericParameterId),
-    TypeEquality {
-        left: TypeId,
-        right: TypeId,
-    },
     Equality {
         operand: GenericParameterId,
     },

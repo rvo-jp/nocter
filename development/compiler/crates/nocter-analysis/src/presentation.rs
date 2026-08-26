@@ -1,12 +1,13 @@
 use std::fmt::{self, Write};
 
 use nocter_checking::{
-    CheckedPredicate, CheckedProgram, GenericArguments, LocalBindingKind, RequiredConformanceMethod,
+    CheckedPredicate, CheckedProgram, GenericArguments, LocalBindingKind,
+    RequiredInterfaceImplementationMethod,
 };
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability, ExportedEntity,
-    NominalShape, ParameterRole, RequirementKind, RequirementSubject, StructuralCapability,
-    Visibility,
+    AssociatedTypeBinding, CallableKind, CallableOwner, DeclarationGraph, ExpansionCapability,
+    ExportedEntity, InterfaceApplication, NominalShape, ParameterRole, RequirementKind,
+    RequirementSubject, Visibility,
 };
 use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SemanticEntity;
@@ -201,14 +202,14 @@ pub(super) fn declaration_presentation(
     semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
 }
 
-pub(super) fn required_conformance_method_presentation(
+pub(super) fn required_interface_implementation_method_presentation(
     recovery: &nocter_checking::DeclarationAnalysisRecovery,
-    required: &RequiredConformanceMethod,
+    required: &RequiredInterfaceImplementationMethod,
     from: nocter_model::ModuleId,
 ) -> Option<SemanticPresentation> {
     let spellings = visible_spelling::VisibleSpellings::new(recovery.graph(), from);
     let mut renderer = Renderer::new(recovery.graph(), recovery.types(), &spellings);
-    renderer.required_conformance_method(required)?;
+    renderer.required_interface_implementation_method(required)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
     })
@@ -281,7 +282,7 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::DeclarationSite(_)
             | SemanticEntity::Construction(_)
             | SemanticEntity::Instance(_)
-            | SemanticEntity::Conformance(_)
+            | SemanticEntity::InterfaceImplementation(_)
             | SemanticEntity::Drop(_)
             | SemanticEntity::Requirement(_)
             | SemanticEntity::Body(_)
@@ -552,7 +553,10 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
-    fn required_conformance_method(&mut self, required: &RequiredConformanceMethod) -> Option<()> {
+    fn required_interface_implementation_method(
+        &mut self,
+        required: &RequiredInterfaceImplementationMethod,
+    ) -> Option<()> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(required.interface_method())?;
         self.output.push_str("method ");
@@ -597,22 +601,32 @@ impl<'a> Renderer<'a> {
 
     fn checked_requirement(&mut self, requirement: &CheckedPredicate) -> Option<()> {
         match requirement {
-            CheckedPredicate::Capability {
+            CheckedPredicate::Interface {
                 subject,
-                capability,
+                application,
+                associated_types,
             } => {
                 self.ty(*subject)?;
+                self.output.push_str(" impl ");
+                self.interface_application(application)?;
+                self.associated_bindings(associated_types)?;
+            }
+            CheckedPredicate::Callable { subject, contract } => {
+                self.ty(*subject)?;
                 self.output.push_str(": ");
-                self.structural_capability(capability)?;
+                self.callable_contract(contract)?;
             }
             CheckedPredicate::Copy(ty) => {
                 self.output.push_str("copy ");
                 self.ty(*ty)?;
             }
-            CheckedPredicate::TypeEquality { left, right } => {
-                self.ty(*left)?;
+            CheckedPredicate::BinderRefinement {
+                binder,
+                replacement,
+            } => {
+                self.ty(*binder)?;
                 self.output.push_str(" = ");
-                self.ty(*right)?;
+                self.ty(*replacement)?;
             }
             CheckedPredicate::Equality(ty) | CheckedPredicate::Ordering(ty) => {
                 self.output.push_str("(&");
@@ -783,7 +797,6 @@ impl<'a> Renderer<'a> {
             CallableOwner::Module(_) => return Some(()),
             CallableOwner::Construction(id) => declarations.constructions().get(id)?.target(),
             CallableOwner::Instance(id) => declarations.instances().get(id)?.target(),
-            CallableOwner::Conformance(id) => declarations.conformances().get(id)?.target(),
             CallableOwner::Interface(id) => {
                 let declaration = declarations.interfaces().get(id)?;
                 self.exported_name(ExportedEntity::Interface(id), declaration.name())?;
@@ -808,9 +821,6 @@ impl<'a> Renderer<'a> {
         match owner {
             CallableOwner::Instance(id) => {
                 self.ty(self.graph.declarations().instances().get(id)?.target())
-            }
-            CallableOwner::Conformance(id) => {
-                self.ty(self.graph.declarations().conformances().get(id)?.target())
             }
             CallableOwner::Interface(id) => {
                 self.output
@@ -928,71 +938,36 @@ impl<'a> Renderer<'a> {
             return Some(());
         }
         self.output.push_str(" where ");
-        let mut index = 0;
-        while index < requirements.len() {
+        for (index, requirement) in requirements.iter().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
             }
-            let requirement = self
-                .graph
-                .declarations()
-                .requirements()
-                .get(requirements[index])?;
-            let RequirementKind::Capability {
-                subject,
-                capability,
-            } = requirement.kind()
-            else {
-                self.requirement(requirement.kind())?;
-                index += 1;
-                continue;
-            };
-            self.requirement_subject(*subject)?;
-            self.output.push_str(": ");
-            self.structural_capability(capability)?;
-            index += 1;
-            while index < requirements.len() {
-                let next = self
-                    .graph
-                    .declarations()
-                    .requirements()
-                    .get(requirements[index])?;
-                let RequirementKind::Capability {
-                    subject: next_subject,
-                    capability: next_capability,
-                } = next.kind()
-                else {
-                    break;
-                };
-                if next_subject != subject {
-                    break;
-                }
-                self.output.push_str(" + ");
-                self.structural_capability(next_capability)?;
-                index += 1;
-            }
+            let requirement = self.graph.declarations().requirements().get(*requirement)?;
+            self.requirement(requirement.kind())?;
         }
         Some(())
     }
 
     fn requirement(&mut self, requirement: &RequirementKind) -> Option<()> {
         match requirement {
-            RequirementKind::Capability {
+            RequirementKind::Interface {
                 subject,
-                capability,
+                application,
+                associated_types,
             } => {
                 self.requirement_subject(*subject)?;
+                self.output.push_str(" impl ");
+                self.interface_application(application)?;
+                self.associated_bindings(associated_types)?;
+            }
+            RequirementKind::Callable { subject, contract } => {
+                self.generic_parameter(*subject)?;
                 self.output.push_str(": ");
-                self.structural_capability(capability)?;
+                self.callable_contract(contract)?;
             }
             RequirementKind::Copy(parameter) => {
                 self.output.push_str("copy ");
                 self.generic_parameter(*parameter)?;
-            }
-            RequirementKind::TypeEquality { left, right } => {
-                self.ty(*left)?;
-                self.output.push_str(" = ");
-                self.ty(*right)?;
             }
             RequirementKind::BinderRefinement {
                 parameter,
@@ -1055,24 +1030,39 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
-    fn structural_capability(&mut self, capability: &StructuralCapability) -> Option<()> {
-        match capability {
-            StructuralCapability::Interface(application) => {
-                let declaration = self
-                    .graph
-                    .declarations()
-                    .interfaces()
-                    .get(application.interface())?;
-                self.exported_name(
-                    ExportedEntity::Interface(application.interface()),
-                    declaration.name(),
-                )?;
-                self.type_arguments(application.arguments())?;
-            }
-            StructuralCapability::Callable(contract) => {
-                self.callable_contract(contract)?;
-            }
+    fn interface_application(&mut self, application: &InterfaceApplication) -> Option<()> {
+        let declaration = self
+            .graph
+            .declarations()
+            .interfaces()
+            .get(application.interface())?;
+        self.exported_name(
+            ExportedEntity::Interface(application.interface()),
+            declaration.name(),
+        )?;
+        self.type_arguments(application.arguments())?;
+        Some(())
+    }
+
+    fn associated_bindings(&mut self, bindings: &[AssociatedTypeBinding]) -> Option<()> {
+        if bindings.is_empty() {
+            return Some(());
         }
+        self.output.push_str(" { ");
+        for (index, binding) in bindings.iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            let declaration = self
+                .graph
+                .declarations()
+                .associated_types()
+                .get(binding.declaration())?;
+            self.output.push_str(self.symbol(declaration.name())?);
+            self.output.push_str(" = ");
+            self.ty(binding.ty())?;
+        }
+        self.output.push_str(" }");
         Some(())
     }
 
@@ -1087,6 +1077,10 @@ impl<'a> Renderer<'a> {
                     .get(associated)?;
                 self.output.push_str("Self.");
                 self.output.push_str(self.symbol(declaration.name())?);
+                Some(())
+            }
+            RequirementSubject::InterfaceSelf(_) => {
+                self.output.push_str("Self");
                 Some(())
             }
         }

@@ -197,7 +197,6 @@ const fn requires_name(kind: SurfaceDeclarationKind) -> bool {
             | SurfaceDeclarationKind::InterfaceMethod
             | SurfaceDeclarationKind::ConstructionFunction
             | SurfaceDeclarationKind::InherentMethod
-            | SurfaceDeclarationKind::ConformanceMethod
             | SurfaceDeclarationKind::Test
     )
 }

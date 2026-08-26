@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use nocter_declarations::{
     AssociatedTypeBinding, CallableOwner, DeclarationGraph, InterfaceApplication,
 };
-use nocter_model::{ConformanceId, InstanceId, TypeStore};
+use nocter_model::{InstanceId, InterfaceImplementationId, TypeStore};
 
-use crate::conformance::normalize_requirements;
+use crate::interface_implementation::normalize_requirements;
 use crate::pattern_requirements::PatternRequirements;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use crate::{CheckedRequirement, GenericArgument};
 
 /// Normalized predicates visible inside one declaration container's bodies.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct LexicalPattern {
     refinements: Box<[GenericArgument]>,
     requirements: Box<[CheckedRequirement]>,
@@ -49,9 +49,9 @@ impl InstanceDeclarationPattern {
     }
 }
 
-/// One normalized conformance pattern shared by lexical body analysis and dispatch validation.
+/// One normalized interface implementation pattern shared by lexical body analysis and dispatch validation.
 #[derive(Debug)]
-pub(crate) struct ConformanceDeclarationPattern {
+pub(crate) struct InterfaceImplementationDeclarationPattern {
     lexical: LexicalPattern,
     substitution: TypeSubstitution,
     interface: InterfaceApplication,
@@ -59,7 +59,7 @@ pub(crate) struct ConformanceDeclarationPattern {
     associated_types: Box<[AssociatedTypeBinding]>,
 }
 
-impl ConformanceDeclarationPattern {
+impl InterfaceImplementationDeclarationPattern {
     pub(crate) const fn lexical(&self) -> &LexicalPattern {
         &self.lexical
     }
@@ -81,7 +81,7 @@ impl ConformanceDeclarationPattern {
     }
 }
 
-/// Sole normalization authority for instance and conformance declaration patterns.
+/// Sole normalization authority for instance and interface implementation declaration patterns.
 ///
 /// Every structurally valid container receives lexical facts. Program-wide operation builders
 /// consume the same normalized entry only when `AdmittedOperations` supplies its identity, so
@@ -89,7 +89,8 @@ impl ConformanceDeclarationPattern {
 #[derive(Debug)]
 pub(crate) struct DeclarationPatternTable {
     instances: BTreeMap<InstanceId, InstanceDeclarationPattern>,
-    conformances: BTreeMap<ConformanceId, ConformanceDeclarationPattern>,
+    interface_implementations:
+        BTreeMap<InterfaceImplementationId, InterfaceImplementationDeclarationPattern>,
 }
 
 impl DeclarationPatternTable {
@@ -117,14 +118,13 @@ impl DeclarationPatternTable {
             );
         }
 
-        let mut conformances = BTreeMap::new();
-        for (id, declaration) in declarations.conformances().iter() {
-            let (lexical, substitution) = normalize_pattern(
-                graph,
-                types,
-                declaration.requirements(),
-                declaration.generic_parameters(),
-            )?;
+        let mut interface_implementations = BTreeMap::new();
+        for (id, declaration) in declarations.interface_implementations().iter() {
+            let owner = instances
+                .get(&declaration.owner())
+                .ok_or(SubstitutionError::InvalidStore)?;
+            let lexical = owner.lexical().clone();
+            let substitution = owner.substitution().clone();
             let interface = InterfaceApplication::new(
                 declaration.interface().interface(),
                 declaration
@@ -134,7 +134,7 @@ impl DeclarationPatternTable {
                     .map(|argument| substitution.apply_type(types, *argument))
                     .collect::<Result<Vec<_>, _>>()?,
             );
-            let target = substitution.apply_type(types, declaration.target())?;
+            let target = owner.target();
             let mut associated_types = declaration
                 .associated_types()
                 .iter()
@@ -145,9 +145,9 @@ impl DeclarationPatternTable {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             associated_types.sort_unstable_by_key(|binding| binding.declaration());
-            conformances.insert(
+            interface_implementations.insert(
                 id,
-                ConformanceDeclarationPattern {
+                InterfaceImplementationDeclarationPattern {
                     lexical,
                     substitution,
                     interface,
@@ -158,7 +158,7 @@ impl DeclarationPatternTable {
         }
         Ok(Self {
             instances,
-            conformances,
+            interface_implementations,
         })
     }
 
@@ -166,8 +166,11 @@ impl DeclarationPatternTable {
         self.instances.get(&id)
     }
 
-    pub(crate) fn conformance(&self, id: ConformanceId) -> Option<&ConformanceDeclarationPattern> {
-        self.conformances.get(&id)
+    pub(crate) fn interface_implementation(
+        &self,
+        id: InterfaceImplementationId,
+    ) -> Option<&InterfaceImplementationDeclarationPattern> {
+        self.interface_implementations.get(&id)
     }
 
     pub(crate) fn lexical(&self, owner: CallableOwner) -> Option<&LexicalPattern> {
@@ -175,9 +178,6 @@ impl DeclarationPatternTable {
             CallableOwner::Instance(instance) => self
                 .instance(instance)
                 .map(InstanceDeclarationPattern::lexical),
-            CallableOwner::Conformance(conformance) => self
-                .conformance(conformance)
-                .map(ConformanceDeclarationPattern::lexical),
             CallableOwner::Module(_)
             | CallableOwner::Construction(_)
             | CallableOwner::Interface(_) => None,

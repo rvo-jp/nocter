@@ -229,7 +229,7 @@ fn parses_callable_declarations_and_nested_type_closers() {
 #[test]
 fn parses_opaque_and_layered_callable_results() {
     assert_syntax_ok(
-        "func values<T>(): some Source<T, Item = &T>?\nfunc load<T>(): T?!\n",
+        "func values<T>(): some Source<T> { Item = &T }?\nfunc load<T>(): T?!\n",
         ParseGoal::SourceFile,
     );
 }
@@ -275,15 +275,15 @@ fn rejects_empty_generics_reversed_outcomes_and_missing_results() {
 #[test]
 fn parses_every_requirement_shape_without_type_driven_disambiguation() {
     assert_syntax_ok(
-        "func constrained<T, U, C, I>(value: &T): T where T: Interface<U> + &func(&T): U, copy U, T.Item = U, &T = &U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
+        "func constrained<T, U, C, I>(value: &T): T where T impl Interface<U> { Item = U }, copy U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
         ParseGoal::SourceFile,
     );
 }
 
 #[test]
-fn copy_spelling_remains_a_capability_binder_before_colon() {
+fn copy_spelling_remains_a_requirement_subject_before_impl() {
     assert_syntax_ok(
-        "func constrained<copy>(): copy where copy: Interface\n",
+        "func constrained<copy>(): copy where copy impl Interface\n",
         ParseGoal::SourceFile,
     );
 }
@@ -291,9 +291,9 @@ fn copy_spelling_remains_a_capability_binder_before_colon() {
 #[test]
 fn rejects_missing_requirement_commas_and_undeclared_operator_shapes() {
     for source in [
-        "func missing<T>(): T where copy T T: Interface\n",
+        "func missing<T>(): T where copy T T impl Interface\n",
         "func unsupported<T>(): T where (&T <= &T): bool\n",
-        "func trailing<T>(): T where T: Interface,\n",
+        "func trailing<T>(): T where T impl Interface,\n",
     ] {
         assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
     }
@@ -369,7 +369,7 @@ fn parses_fixed_array_lengths_as_constant_expressions() {
 #[test]
 fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
     assert_syntax_ok(
-        "type AssociatedArguments<T, U> = T.Item<U>\ntype BuiltinSelection = str.Item\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source<Item = u8>\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
+        "type AssociatedArguments<T, U> = T.Item<U>\ntype BuiltinSelection = str.Item\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source { Missing = u8 }\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
         ParseGoal::SourceFile,
     );
 }
@@ -377,7 +377,7 @@ fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
 #[test]
 fn opaque_results_keep_their_contextual_boundary() {
     assert_syntax_ok(
-        "func values<T>(): some Source<T, Item = &T>?! {}\n",
+        "func values<T>(): some Source<T> { Item = &T }?! {}\n",
         ParseGoal::SourceFile,
     );
 
@@ -420,7 +420,7 @@ fn rejects_commas_between_line_separated_nominal_members() {
 #[test]
 fn parses_interface_requirements_and_default_methods() {
     let tree = assert_syntax_ok(
-        "interface Source<T> where copy T {\n    pub type Item: Iterable<T> + &func(T): T\n    pub method &+self.next(): Self.Item?\n    pub default method self.consume(): void {}\n}\ninterface Source {\n    default method self.consume(): void {}\n}\n",
+        "interface Source<T> where copy T {\n    pub type Item impl Iterable<T> + Comparable\n    pub method &+self.next(): Self.Item?\n    pub default method self.consume(): void {}\n}\ninterface Source {\n    default method self.consume(): void {}\n}\n",
         ParseGoal::SourceFile,
     );
 
@@ -532,29 +532,58 @@ fn rejects_closed_instance_and_pattern_forms() {
 }
 
 #[test]
-fn parses_conformance_bindings_and_body_bearing_methods() {
+fn parses_instance_owned_interface_implementation() {
     let tree = assert_syntax_ok(
-        "conform Source<T> for Input<T> where copy T {\n    type Item = T\n    method &+self.next(): Self.Item? {}\n}\n",
+        "instance Input<T> where copy T {\n    impl Source<T> { Item = T }\n    method &+self.next(): Self.Item? {}\n}\n",
         ParseGoal::SourceFile,
     );
 
+    assert!(has_node_kind(&tree, NodeKind::InterfaceImplementation));
+    assert!(has_node_kind(&tree, NodeKind::InterfaceApplication));
     assert!(has_node_kind(&tree, NodeKind::AssociatedTypeBinding));
-    assert!(has_node_kind(&tree, NodeKind::ConformMethod));
+    assert!(has_node_kind(&tree, NodeKind::InherentMethod));
 }
 
 #[test]
-fn conformance_members_reject_visibility_but_allow_contract_body_omission() {
+fn interface_implementation_rejects_visibility_and_a_member_body() {
     assert!(
         parse_text(
-            "conform Source for Input { pub method &self.read(): void {} }\n",
+            "instance Input { pub impl Source }\n",
             ParseGoal::SourceFile,
         )
         .has_errors()
     );
-    assert_syntax_ok(
-        "conform Source for Input { method &self.read(): void }\n",
+    assert!(
+        parse_text(
+            "instance Input { impl Source { method &self.read(): void {} } }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+    assert!(
+        parse_text(
+            "instance Input { impl Source { type Item = i32 } }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+}
+
+#[test]
+fn interface_and_callable_requirements_have_disjoint_separators() {
+    assert!(
+        parse_text(
+            "func invalid<F>(): void where F impl func(i32): i32 { return }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+
+    let tree = assert_syntax_ok(
+        "interface Source {}\nfunc parsed<T, F>(): void where T: Source, F: func(i32): i32 { return }\n",
         ParseGoal::SourceFile,
     );
+    assert!(has_node_kind(&tree, NodeKind::CallablePredicate));
 }
 
 #[test]

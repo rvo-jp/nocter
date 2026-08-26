@@ -1,11 +1,9 @@
-use nocter_declarations::{
-    BodyOwner, CallableOwner, DeclarationGraph, InterfaceApplication, StructuralCapability,
-};
+use nocter_declarations::{BodyOwner, CallableOwner, DeclarationGraph, InterfaceApplication};
 use nocter_model::{TypeKind, TypeStore};
 
-use crate::conformance::normalize_requirements;
 use crate::copyability::CopyProofs;
 use crate::declaration_patterns::DeclarationPatternTable;
+use crate::interface_implementation::normalize_requirements;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use crate::{CheckedPredicate, CheckedRequirement};
 
@@ -57,7 +55,7 @@ pub(crate) fn body_assumptions(
     let mut intrinsic = Vec::new();
     let mut substitution = TypeSubstitution::default();
     match callable.owner() {
-        owner @ (CallableOwner::Instance(_) | CallableOwner::Conformance(_)) => {
+        owner @ CallableOwner::Instance(_) => {
             let entry = declaration_patterns
                 .lexical(owner)
                 .ok_or(SubstitutionError::InvalidStore)?;
@@ -90,12 +88,10 @@ pub(crate) fn body_assumptions(
                         .map_err(|_| SubstitutionError::InvalidStore)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            intrinsic.push(CheckedPredicate::Capability {
+            intrinsic.push(CheckedPredicate::Interface {
                 subject,
-                capability: StructuralCapability::Interface(InterfaceApplication::new(
-                    interface_id,
-                    arguments,
-                )),
+                application: InterfaceApplication::new(interface_id, arguments),
+                associated_types: Box::new([]),
             });
         }
         CallableOwner::Module(_) | CallableOwner::Construction(_) => {}

@@ -237,13 +237,14 @@ fn loop_break_and_backedge_states_participate_in_inference() {
 }
 
 #[test]
-fn inferred_conformance_result_cannot_exceed_the_interface_contract() {
+fn inferred_interface_implementation_result_cannot_exceed_the_interface_contract() {
     let error = check(
         "pub interface Select {\n\
              pub method &self.pick(other: &i32): &i32 from self\n\
          }\n\
          struct Holder { value: i32 }\n\
-         conform Select for Holder {\n\
+         instance Holder {\n\
+             impl Select\n\
              method &self.pick(other: &i32): &i32 { other }\n\
          }\n",
     )

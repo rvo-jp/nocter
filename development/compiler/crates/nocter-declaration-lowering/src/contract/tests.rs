@@ -347,7 +347,7 @@ fn body_omission_is_not_a_general_callable_form() {
 }
 
 #[test]
-fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
+fn interface_implementation_fact_is_rejected_outside_the_module_root() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
@@ -357,7 +357,7 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
             "see ./value.nct\n",
             "pub interface Source { pub type Item }\n",
             "pub struct Value {}\n",
-            "conform Source for Value { type Item = i32 }\n",
+            "instance Value { impl Source { Item = i32 } }\n",
         ),
     );
     let implementation_id = add_source(
@@ -365,7 +365,7 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
         "/app/value.nct",
         concat!(
             "see ./index.nct\n",
-            "conform Source for Value { type Item = i32 }\n",
+            "instance Value { impl Source { Item = i32 } }\n",
         ),
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
@@ -390,7 +390,7 @@ fn private_conformance_definition_cannot_repeat_associated_type_bindings() {
 
     assert!(matches!(
         analyze_declaration_contracts(&surface),
-        Err(DeclarationContractError::InvalidConformanceSplit(_))
+        Err(DeclarationContractError::InterfaceImplementationOutsideRoot(_))
     ));
 }
 
@@ -529,7 +529,7 @@ fn opaque_nominal_contract_and_private_representation_share_one_identity() {
 }
 
 #[test]
-fn implementation_source_cannot_add_program_wide_conformance() {
+fn implementation_source_cannot_add_program_wide_interface_implementation() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
@@ -546,7 +546,8 @@ fn implementation_source_cannot_add_program_wide_conformance() {
         "/app/value.nct",
         concat!(
             "see ./index.nct\n",
-            "conform Read for Value {\n",
+            "instance Value {\n",
+            "    impl Read\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
@@ -573,12 +574,12 @@ fn implementation_source_cannot_add_program_wide_conformance() {
 
     assert!(matches!(
         analyze_declaration_contracts(&surface),
-        Err(DeclarationContractError::UncontractedConformance(_))
+        Err(DeclarationContractError::InterfaceImplementationOutsideRoot(_))
     ));
 }
 
 #[test]
-fn conformance_head_joins_private_methods_without_repeating_interface_signatures() {
+fn interface_implementation_head_joins_private_methods_without_repeating_interface_signatures() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
@@ -588,7 +589,7 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
             "see ./value.nct\n",
             "pub interface Read { pub method &self.read(): usize }\n",
             "pub struct Value {}\n",
-            "conform Read for Value {}\n",
+            "instance Value { impl Read }\n",
         ),
     );
     let implementation_id = add_source(
@@ -596,7 +597,7 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
         "/app/value.nct",
         concat!(
             "see ./index.nct\n",
-            "conform Read for Value {\n",
+            "instance Value {\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
@@ -624,17 +625,17 @@ fn conformance_head_joins_private_methods_without_repeating_interface_signatures
     let contracts = analyze_declaration_contracts(&surface).unwrap();
 
     assert_eq!(
-        contracts.representative(SurfaceDeclarationId::from_index(4)),
+        contracts.representative(SurfaceDeclarationId::from_index(5)),
         SurfaceDeclarationId::from_index(3)
     );
     assert_eq!(
-        contracts.representative(SurfaceDeclarationId::from_index(5)),
-        SurfaceDeclarationId::from_index(5)
+        contracts.representative(SurfaceDeclarationId::from_index(6)),
+        SurfaceDeclarationId::from_index(6)
     );
 }
 
 #[test]
-fn conformance_contract_cannot_repeat_an_interface_method_signature() {
+fn interface_implementation_contract_cannot_repeat_an_interface_method_signature() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let root_id = add_source(
@@ -644,7 +645,10 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
             "see ./value.nct\n",
             "pub interface Read { pub method &self.read(): usize }\n",
             "pub struct Value {}\n",
-            "conform Read for Value { method &self.read(): usize }\n",
+            "instance Value {\n",
+            "    impl Read\n",
+            "    method &self.read(): usize\n",
+            "}\n",
         ),
     );
     let implementation_id = add_source(
@@ -652,7 +656,8 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
         "/app/value.nct",
         concat!(
             "see ./index.nct\n",
-            "conform Read for Value {\n",
+            "instance Value {\n",
+            "    impl Read\n",
             "    method &self.read(): usize { return 0 }\n",
             "}\n",
         ),
@@ -679,7 +684,7 @@ fn conformance_contract_cannot_repeat_an_interface_method_signature() {
 
     assert!(matches!(
         analyze_declaration_contracts(&surface),
-        Err(DeclarationContractError::InvalidConformanceSplit(_))
+        Err(DeclarationContractError::InterfaceImplementationOutsideRoot(_))
     ));
 }
 

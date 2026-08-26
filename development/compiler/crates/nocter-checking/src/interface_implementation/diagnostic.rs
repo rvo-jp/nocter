@@ -2,22 +2,22 @@ use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum ConformanceRule {
+pub enum InterfaceImplementationRule {
     MissingMethod,
     ExtraMethod,
     IncompatibleMethod,
-    OverlappingConformance,
+    OverlappingInterfaceImplementation,
     UnsatisfiedAssociatedBound,
 }
 
-impl ConformanceRule {
+impl InterfaceImplementationRule {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
             Self::MissingMethod => "E0350",
             Self::ExtraMethod => "E0351",
             Self::IncompatibleMethod => "E0352",
-            Self::OverlappingConformance => "E0353",
+            Self::OverlappingInterfaceImplementation => "E0353",
             Self::UnsatisfiedAssociatedBound => "E0354",
         }
     }
@@ -28,8 +28,8 @@ pub(super) fn missing_method(
     interface_method: SourceOrigin,
 ) -> SourceDiagnostic {
     SourceDiagnostic::new(
-        ConformanceRule::MissingMethod.code(),
-        "conformance does not implement a required interface method",
+        InterfaceImplementationRule::MissingMethod.code(),
+        "interface implementation does not implement a required interface method",
         primary,
         [DiagnosticNote::new(
             "the required method is declared here",
@@ -41,8 +41,8 @@ pub(super) fn missing_method(
 
 pub(super) fn extra_method(primary: SourceOrigin, interface: SourceOrigin) -> SourceDiagnostic {
     SourceDiagnostic::new(
-        ConformanceRule::ExtraMethod.code(),
-        "conformance method does not implement a method of this interface",
+        InterfaceImplementationRule::ExtraMethod.code(),
+        "interface implementation method does not implement a method of this interface",
         primary,
         [DiagnosticNote::new(
             "the interface is declared here",
@@ -57,8 +57,8 @@ pub(super) fn incompatible_method(
     interface_method: SourceOrigin,
 ) -> SourceDiagnostic {
     SourceDiagnostic::new(
-        ConformanceRule::IncompatibleMethod.code(),
-        "conformance method signature does not match its interface method",
+        InterfaceImplementationRule::IncompatibleMethod.code(),
+        "interface implementation method signature does not match its interface method",
         primary,
         [DiagnosticNote::new(
             "the required signature is declared here",
@@ -72,11 +72,11 @@ pub(super) fn incompatible_method(
 
 pub(super) fn overlapping(primary: SourceOrigin, previous: SourceOrigin) -> SourceDiagnostic {
     SourceDiagnostic::new(
-        ConformanceRule::OverlappingConformance.code(),
-        "conformance overlaps another conformance for the same interface",
+        InterfaceImplementationRule::OverlappingInterfaceImplementation.code(),
+        "interface implementation overlaps another interface implementation for the same interface",
         primary,
         [DiagnosticNote::new(
-            "the overlapping conformance is declared here",
+            "the overlapping interface implementation is declared here",
             previous,
         )],
         Some("make the target or interface patterns disjoint"),
@@ -88,8 +88,8 @@ pub(super) fn unsatisfied_associated_bound(
     bound: SourceOrigin,
 ) -> SourceDiagnostic {
     SourceDiagnostic::new(
-        ConformanceRule::UnsatisfiedAssociatedBound.code(),
-        "conformance associated type does not satisfy its declared capability",
+        InterfaceImplementationRule::UnsatisfiedAssociatedBound.code(),
+        "interface implementation associated type does not satisfy its declared capability",
         primary,
         [DiagnosticNote::new(
             "the associated type capability is required here",
@@ -103,18 +103,21 @@ pub(super) fn unsatisfied_associated_bound(
 mod tests {
     use std::collections::HashSet;
 
-    use super::ConformanceRule;
+    use super::InterfaceImplementationRule;
 
     #[test]
-    fn conformance_rule_codes_are_closed_and_unique() {
+    fn interface_implementation_rule_codes_are_closed_and_unique() {
         let rules = [
-            ConformanceRule::MissingMethod,
-            ConformanceRule::ExtraMethod,
-            ConformanceRule::IncompatibleMethod,
-            ConformanceRule::OverlappingConformance,
-            ConformanceRule::UnsatisfiedAssociatedBound,
+            InterfaceImplementationRule::MissingMethod,
+            InterfaceImplementationRule::ExtraMethod,
+            InterfaceImplementationRule::IncompatibleMethod,
+            InterfaceImplementationRule::OverlappingInterfaceImplementation,
+            InterfaceImplementationRule::UnsatisfiedAssociatedBound,
         ];
-        let codes: HashSet<_> = rules.into_iter().map(ConformanceRule::code).collect();
+        let codes: HashSet<_> = rules
+            .into_iter()
+            .map(InterfaceImplementationRule::code)
+            .collect();
         assert_eq!(codes.len(), rules.len());
     }
 }

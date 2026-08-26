@@ -3,7 +3,7 @@ use nocter_source::SourceMap;
 use nocter_syntax::{NodeKind, ParseGoal};
 
 use super::test_support::{add_source, all_nodes, bind, first_node, module, package, parse_source};
-use super::{BoundCapability, BoundDeclarationPattern, BoundTypeKind};
+use super::{BoundDeclarationPattern, BoundInterfaceApplication, BoundTypeKind};
 use crate::test_support::module_use;
 use crate::{ModuleIdentity, PackageIdentity, SurfaceDeclarationId};
 
@@ -139,7 +139,7 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
 }
 
 #[test]
-fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
+fn binds_instance_patterns_and_interface_applications_to_generic_identities() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
     let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
@@ -149,10 +149,9 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
         concat!(
             "struct Pair<T> {}\n",
             "interface Show<T> {}\n",
-            "instance Pair<T> {}\n",
-            "conform Show<T> for Pair<T> {}\n",
+            "instance Pair<T> { impl Show<T> }\n",
             "func inspect<T>(outer: &T): void ",
-            "where T: Show<T> + &func(value: &T): &T from value { return }\n",
+            "where T impl Show<T> { return }\n",
         ),
     );
     let std_root_id = add_source(
@@ -192,33 +191,14 @@ fn binds_nominal_and_interface_patterns_to_their_generic_identities() {
             nocter_model::BuiltinType::COUNT + 2,
         ))
         .unwrap();
-    let conform = bound
-        .declaration_patterns(SurfaceDeclarationId::from_index(
-            nocter_model::BuiltinType::COUNT + 3,
-        ))
-        .unwrap();
-
     assert!(matches!(
         instance,
         [BoundDeclarationPattern::Nominal { arguments, .. }] if arguments.len() == 1
     ));
-    assert!(matches!(
-        conform,
-        [BoundDeclarationPattern::Interface { arguments: interface, .. },
-         BoundDeclarationPattern::Nominal { arguments: target, .. }]
-            if interface == target && interface.len() == 1
-    ));
-    let capabilities = all_nodes(&app, NodeKind::Capability);
-    assert!(matches!(
-        bound.capability_for(capabilities[0]),
-        Some(BoundCapability::Interface { arguments, .. }) if arguments.len() == 1
-    ));
-    let Some(BoundCapability::Callable(callable)) = bound.capability_for(capabilities[1]) else {
-        panic!("expected structural callable capability");
-    };
-    assert!(matches!(
-        bound.kind(*callable),
-        Some(BoundTypeKind::Callable(contract))
-            if contract.explicit_origins() == Some([ParameterOrigin::new(0)].as_slice())
-    ));
+    let applications = all_nodes(&app, NodeKind::InterfaceApplication);
+    assert_eq!(applications.len(), 2);
+    assert!(applications.iter().all(|application| matches!(
+        bound.interface_application_for(*application),
+        Some(BoundInterfaceApplication { arguments, .. }) if arguments.len() == 1
+    )));
 }

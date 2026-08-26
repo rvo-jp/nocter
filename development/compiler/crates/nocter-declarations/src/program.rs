@@ -90,6 +90,17 @@ pub struct DeclarationProgram {
     types: TypeStore,
 }
 
+/// A declaration program whose complete integrity and authored-language validation succeeded.
+///
+/// Only this type can cross into production checking. Read-only declaration queries dereference
+/// to the underlying immutable program, while the analysis admission authority remains available
+/// only through the consuming phase transition.
+#[derive(Debug)]
+pub struct AcceptedDeclarationProgram {
+    program: DeclarationProgram,
+    admission: DeclarationAnalysisAdmission,
+}
+
 impl DeclarationGraph {
     #[must_use]
     pub const fn target(&self) -> CompilationTarget {
@@ -330,14 +341,34 @@ impl DeclarationProgram {
         &self.types
     }
 
+    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeStore) {
+        (self.graph, self.types)
+    }
+}
+
+impl std::ops::Deref for AcceptedDeclarationProgram {
+    type Target = DeclarationProgram;
+
+    fn deref(&self) -> &Self::Target {
+        &self.program
+    }
+}
+
+impl AcceptedDeclarationProgram {
+    #[must_use]
+    pub const fn program(&self) -> &DeclarationProgram {
+        &self.program
+    }
+
     /// Opens the sole Phase 2-to-Phase 3 ownership boundary.
     ///
     /// The returned type store keeps every declaration `TypeId` as an immutable prefix. Phase 3
     /// may intern body and specialization types into that owned store before freezing the checked
     /// program; no second store or ID translation is created.
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeStore) {
-        (self.graph, self.types)
+    pub fn into_parts(self) -> (DeclarationGraph, TypeStore, DeclarationAnalysisAdmission) {
+        let (graph, types) = self.program.into_unvalidated_parts();
+        (graph, types, self.admission)
     }
 }
 
@@ -650,7 +681,7 @@ impl DeclarationProgramBuilder {
     /// # Errors
     ///
     /// Returns an error when an identity reservation was not completed.
-    pub fn finish(self) -> Result<DeclarationProgram, ProgramBuildError> {
+    pub fn finish(self) -> Result<AcceptedDeclarationProgram, ProgramBuildError> {
         self.finish_recovering()
             .map_err(ProgramBuildFailure::into_error)
     }
@@ -666,7 +697,7 @@ impl DeclarationProgramBuilder {
     ///
     /// Returns the exact production build error and, only when the complete declaration report is
     /// nonempty, the structurally valid declaration program plus its frozen analysis facts.
-    pub fn finish_recovering(self) -> Result<DeclarationProgram, ProgramBuildFailure> {
+    pub fn finish_recovering(self) -> Result<AcceptedDeclarationProgram, ProgramBuildFailure> {
         let module_namespaces = self
             .module_namespaces
             .try_finish_with(|module, namespace| {
@@ -709,7 +740,7 @@ impl DeclarationProgramBuilder {
                 RejectedDeclarationProgram::new(program, report, admission, body_analysis),
             )));
         }
-        Ok(program)
+        Ok(AcceptedDeclarationProgram { program, admission })
     }
 
     fn require_symbol(&self, symbol: Symbol) -> Result<(), ProgramBuildError> {
@@ -773,7 +804,7 @@ impl RejectedDeclarationProgram {
         crate::validate::DeclarationValidationReport,
         RejectedDeclarationAnalysis,
     ) {
-        let (graph, types) = self.program.into_parts();
+        let (graph, types) = self.program.into_unvalidated_parts();
         let analysis = match self.body_analysis {
             crate::validate::BodyAnalysisCapability::DeclarationsOnly => {
                 RejectedDeclarationAnalysis::Declarations(DeclarationAnalysisProgram {
@@ -1139,7 +1170,7 @@ mod tests {
         let program = builder.finish().unwrap();
         let prefix_len = program.types().len();
 
-        let (graph, mut types) = program.into_parts();
+        let (graph, mut types, _admission) = program.into_parts();
         let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
 
         assert_eq!(graph.modules().len(), 1);

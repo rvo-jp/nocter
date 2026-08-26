@@ -177,9 +177,9 @@ fallback order. Ordinary command compilation uses the non-retaining path and doe
 type or copyability stores.
 
 Receiver-member completion does not scan declarations or infer a type from source spelling. The
-instance-operation and conformance authorities retain canonical method-name indexes. For each
+instance-operation and interface-implementation authorities retain canonical method-name indexes. For each
 indexed name the ordinary selector proves receiver-pattern applicability, lexical or concrete
-conformance, `where` requirements, visibility, readonly/readwrite/owned capability, and the same
+interface implementation, `where` requirements, visibility, readonly/readwrite/owned capability, and the same
 one-step coercion fallback used by call checking. Visible fields come from the exact nominal shape
 and pass through the ordinary field selector. A completed call supplies its exact
 `CheckedReceiver`. If body checking rejects an unknown, ambiguous, or missing member, it may retain

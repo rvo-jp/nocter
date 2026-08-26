@@ -17,7 +17,7 @@ fn valid_special_roots_and_indirections_are_accepted() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, types) = program.into_parts();
+    let (graph, types, _admission) = program.into_parts();
 
     validate_declaration_types(&graph, &types, &source_index).unwrap();
 }
@@ -37,7 +37,7 @@ fn invalid_type_positions_have_distinct_rules() {
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, types) = program.into_parts();
+        let (graph, types, _admission) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), expected);
@@ -50,7 +50,7 @@ fn aliases_do_not_bypass_use_site_validity() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-    let (graph, types) = program.into_parts();
+    let (graph, types, _admission) = program.into_parts();
     let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
@@ -59,14 +59,14 @@ fn aliases_do_not_bypass_use_site_validity() {
 #[test]
 fn associated_bindings_and_refinements_are_data_positions() {
     for source in [
-        "pub interface Source { pub type Item }\nstruct Value {}\nconform Source for Value { type Item = void }\n",
+        "pub interface Source { pub type Item }\nstruct Value {}\ninstance Value { impl Source { Item = void } }\n",
         "struct Box<T> {}\ninstance Box<T> where T = void {}\n",
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, types) = program.into_parts();
+        let (graph, types, _admission) = program.into_parts();
         let error = validate_declaration_types(&graph, &types, &source_index).unwrap_err();
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
@@ -81,7 +81,7 @@ fn type_validity_diagnostic_is_input_order_independent() {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts(&input);
-        let (graph, types) = program.into_parts();
+        let (graph, types, _admission) = program.into_parts();
         diagnostics.push(
             validate_declaration_types(&graph, &types, &source_index)
                 .unwrap_err()

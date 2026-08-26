@@ -1,7 +1,7 @@
 use nocter_model::{
-    AssociatedTypeId, BodyId, CallableId, CompilationTarget, ConformanceId, ConstructionId,
-    DeclarationSiteId, DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId,
-    ParameterId, RequirementId, Symbol, TypeAliasId, TypeId, VariantId,
+    AssociatedTypeId, BodyId, CallableId, CompilationTarget, ConstructionId, DeclarationSiteId,
+    DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, InterfaceImplementationId,
+    NominalTypeId, ParameterId, RequirementId, Symbol, TypeAliasId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -12,7 +12,6 @@ pub enum GenericOwner {
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),
-    Conformance(ConformanceId),
     Drop(DropId),
 }
 
@@ -464,6 +463,7 @@ pub struct InstanceDeclaration {
     target: TypeId,
     generic_parameters: Box<[GenericParameterId]>,
     requirements: Box<[RequirementId]>,
+    interface_implementations: Box<[InterfaceImplementationId]>,
     members: Box<[CallableId]>,
 }
 
@@ -474,6 +474,7 @@ impl InstanceDeclaration {
         target: TypeId,
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         requirements: impl Into<Box<[RequirementId]>>,
+        interface_implementations: impl Into<Box<[InterfaceImplementationId]>>,
         members: impl Into<Box<[CallableId]>>,
     ) -> Self {
         Self {
@@ -481,6 +482,7 @@ impl InstanceDeclaration {
             target,
             generic_parameters: generic_parameters.into(),
             requirements: requirements.into(),
+            interface_implementations: interface_implementations.into(),
             members: members.into(),
         }
     }
@@ -506,12 +508,17 @@ impl InstanceDeclaration {
     }
 
     #[must_use]
+    pub const fn interface_implementations(&self) -> &[InterfaceImplementationId] {
+        &self.interface_implementations
+    }
+
+    #[must_use]
     pub const fn members(&self) -> &[CallableId] {
         &self.members
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct AssociatedTypeBinding {
     declaration: AssociatedTypeId,
     ty: TypeId,
@@ -535,36 +542,26 @@ impl AssociatedTypeBinding {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConformanceDeclaration {
+pub struct InterfaceImplementationDeclaration {
     site: DeclarationSiteId,
+    owner: InstanceId,
     interface: InterfaceApplication,
-    target: TypeId,
-    generic_parameters: Box<[GenericParameterId]>,
-    requirements: Box<[RequirementId]>,
     associated_types: Box<[AssociatedTypeBinding]>,
-    methods: Box<[CallableId]>,
 }
 
-impl ConformanceDeclaration {
+impl InterfaceImplementationDeclaration {
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         site: DeclarationSiteId,
+        owner: InstanceId,
         interface: InterfaceApplication,
-        target: TypeId,
-        generic_parameters: impl Into<Box<[GenericParameterId]>>,
-        requirements: impl Into<Box<[RequirementId]>>,
         associated_types: impl Into<Box<[AssociatedTypeBinding]>>,
-        methods: impl Into<Box<[CallableId]>>,
     ) -> Self {
         Self {
             site,
+            owner,
             interface,
-            target,
-            generic_parameters: generic_parameters.into(),
-            requirements: requirements.into(),
             associated_types: associated_types.into(),
-            methods: methods.into(),
         }
     }
 
@@ -574,33 +571,18 @@ impl ConformanceDeclaration {
     }
 
     #[must_use]
+    pub const fn owner(&self) -> InstanceId {
+        self.owner
+    }
+
+    #[must_use]
     pub const fn interface(&self) -> &InterfaceApplication {
         &self.interface
     }
 
     #[must_use]
-    pub const fn target(&self) -> TypeId {
-        self.target
-    }
-
-    #[must_use]
-    pub const fn generic_parameters(&self) -> &[GenericParameterId] {
-        &self.generic_parameters
-    }
-
-    #[must_use]
-    pub const fn requirements(&self) -> &[RequirementId] {
-        &self.requirements
-    }
-
-    #[must_use]
     pub const fn associated_types(&self) -> &[AssociatedTypeBinding] {
         &self.associated_types
-    }
-
-    #[must_use]
-    pub const fn methods(&self) -> &[CallableId] {
-        &self.methods
     }
 }
 

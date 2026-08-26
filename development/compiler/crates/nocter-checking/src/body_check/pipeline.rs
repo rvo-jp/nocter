@@ -201,7 +201,7 @@ fn complete_checked_program(
         &prepared.graph,
         &checked_types,
         &prepared.drops,
-        &prepared.conformances,
+        &prepared.interface_implementations,
         &closures,
         &prepared.body_sources,
         &checked_bodies,
@@ -353,7 +353,7 @@ fn finish_checked_program(
     let PreparedCheckingParts {
         graph,
         mut types,
-        conformances,
+        interface_implementations,
         construction_surfaces,
         instance_operations,
         declaration_patterns,
@@ -377,7 +377,7 @@ fn finish_checked_program(
             graph,
             types,
             CheckedProgramAuthorities {
-                conformances,
+                interface_implementations,
                 construction_surfaces,
                 instance_operations,
                 declaration_patterns,
@@ -733,7 +733,7 @@ fn analyze_checked_body_relations(
     graph: &nocter_declarations::DeclarationGraph,
     types: &TypeStore,
     drops: &DropTable,
-    conformances: &crate::ConformanceTable,
+    interface_implementations: &crate::InterfaceImplementationTable,
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyOutput)],
@@ -751,8 +751,13 @@ fn analyze_checked_body_relations(
             ))
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let provenance =
-        analyze_program_provenance(graph, types, conformances, closures, &provenance_inputs)?;
+    let provenance = analyze_program_provenance(
+        graph,
+        types,
+        interface_implementations,
+        closures,
+        &provenance_inputs,
+    )?;
     let loan_inputs = checked_bodies
         .iter()
         .map(|(body, checked)| {

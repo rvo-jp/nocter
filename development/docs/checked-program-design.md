@@ -7,7 +7,7 @@ authoritative when this document and a normative rule disagree.
 ## Boundary
 
 `CheckedProgram` is the first complete, syntax-independent executable-semantics graph. It consumes
-the immutable `DeclarationProgram` exactly once and owns its `DeclarationGraph` plus
+the immutable `AcceptedDeclarationProgram` exactly once and owns its `DeclarationGraph` plus
 the same `TypeStore` extended with checked-body types. A body, type, callable, or module ID therefore
 cannot be paired with declarations from another compile unit, and checking cannot create a parallel
 type interner. Every body owns one typed node arena. Nodes contain the exact declaration, local
@@ -36,18 +36,18 @@ authored/internal failure. No public partial checked program exists.
 | Packages, modules, declaration identity, header requirements, authored module imports, and prelude fallback | `DeclarationGraph` frozen through `DeclarationProgram` | checker, target validation, instantiation, presentation |
 | Header, body, closure, inferred, and specialized structural type identity | the single inherited and extended `TypeStore` | every semantic stage |
 | Block imports, lexical scopes, parameters, locals, pattern payloads, catch bindings, loop bindings, and closure captures | body checker | checked nodes and source projection |
-| Conformance completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide conformance checker | body dispatch and instantiation |
+| Interface-implementation completeness, normalized signature compatibility, associated binding satisfaction, and overlap | program-wide interface-implementation checker | body dispatch and instantiation |
 | Instance target normalization, retained requirements, operation members, and overlap | program-wide instance-operation table | body operation selection and instantiation |
 | Data-position type well-formedness after normalization | checked-program type-validity authority | every checked destination and generic constraint |
 | Expected types, inference constraints, outcome injection, direct/abstract calls, members, operators, coercions, construction, literals, iteration, and interpolation | typed body node construction | instantiation and MIR |
 | Opaque witness selection, interface and associated-binding proof, and public-surface dispatch | checked opaque-witness authority | instantiation and MIR |
 | Reachability, initialization, moves, copies, loans, provenance, regions, destruction, and generated semantic operations | checked control-flow and ownership analysis | target validation and MIR |
 | Target gates, selected primitive availability, entry validity, and toolchain capability | `TargetProgram` | executable instantiation |
-| Concrete generic substitution, requirement proof, conformance dispatch, opaque-witness specialization, and reachable callable graph | executable-program instantiation | MIR |
+| Concrete generic substitution, requirement proof, interface-implementation dispatch, opaque-witness specialization, and reachable callable graph | executable-program instantiation | MIR |
 | Basic blocks, explicit cleanup edges, concrete places, and operation sequencing | MIR | machine lowering |
 
 The checker may record an abstract interface or structural requirement selected for a generic
-operation. It must not choose a concrete conformance until instantiation supplies a concrete type.
+operation. It must not choose a concrete interface implementation until instantiation supplies a concrete type.
 Conversely, MIR never receives a method name or requirement set from which it could repeat dispatch.
 
 ## Grammar Conformance Ownership
@@ -56,7 +56,7 @@ Grammar semantic boundaries enter checking as follows:
 
 | Rows | Checked-program responsibility |
 |---|---|
-| G011 | normalized conformance signature compatibility and overlap |
+| G011 | normalized interface implementation signature compatibility and overlap |
 | G014 | `void`, `never`, unsized, optional, and fallible data-position validity |
 | G019-G021 | body result, assignment, and control-transfer checking |
 | G022-G024 | loops, regions, iteration, pattern branches, recovery, and fallback |
@@ -127,7 +127,7 @@ context and validates that no region-derived component crosses the body boundary
 ## Construction Order
 
 1. Validate and index every `BodyId` projection against the supplied immutable syntax snapshots.
-2. Validate program-wide conformances, instance-operation patterns, and normalized type-position
+2. Validate program-wide interface implementations, instance-operation patterns, and normalized type-position
    rules needed by all bodies.
 3. Check bodies in canonical `BodyId` order while assigning only body-local dense identities.
 4. Infer and validate body-owned callable provenance and opaque witnesses.
@@ -147,7 +147,7 @@ implementation evidence, not the owner of current milestone status or public beh
 2. Add the checked-program model, source-projection extension, body-source catalog, and exhaustive
    internal boundary validation.
 3. Implement lexical declaration/capture identity and value-name resolution.
-4. Implement normalized conformance and data-position type validity.
+4. Implement normalized interface implementation and data-position type validity.
 5. Implement typed expressions, expected-type inference, calls, members, operators, coercions,
    construction, literals, outcomes, and closures.
 6. Implement control flow, reachability, initialization, ownership, loans, provenance, regions,
@@ -156,7 +156,7 @@ implementation evidence, not the owner of current milestone status or public beh
 An increment is complete only when its superseded temporary authority is consumed, its public
 failures retain exact source subjects, and input-order permutation tests pass.
 
-Increment 4 is complete. `ConformanceTable` is the only structural
+Increment 4 is complete. `InterfaceImplementationTable` is the only structural
 dispatch authority: it stores refinement-normalized target/interface patterns, exact default or
 implementation method selections, normalized conditional requirements, and associated bindings.
 One pattern matcher serves associated-bound proof and future dispatch, while a symmetric unifier
@@ -167,10 +167,10 @@ position after alias expansion, and is reused after concrete generic substitutio
 encoding `void`, `never`, outcome, or unsized exceptions in inference and layout consumers.
 
 Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
-opens `DeclarationProgram` once, retains the same extended `TypeStore`, and owns the conformance
+opens `AcceptedDeclarationProgram` once, retains the same extended `TypeStore`, and owns the interface-implementation
 table, body-source catalog, resolved lexical identities, temporary syntax-backed uses, and source
 projection. It cannot be mistaken for a checked program. `CheckedProgram` has no syntax lifetime
-and owns the graph, type store, conformance table, copyability table, type-owned drop table, and one
+and owns the graph, type store, interface-implementation table, copyability table, type-owned drop table, and one
 `CheckedBody` per `BodyId`.
 
 Compiler setup also supplies exact declaration-name tokens for standard semantic roles. Preparation
@@ -191,13 +191,13 @@ edge and records a direct callable, an exact interface requirement plus method, 
 structural requirement. A place records its root, final storage authority, and exact
 field/implicit-borrow-dereference/builtin-index/selected-index projection path; only an owned
 field-only path is an eligible explicit move source.
-This schema prevents MIR from repeating member, conformance, coercion, iterator, or move-place
+This schema prevents MIR from repeating member, interface-implementation, coercion, iterator, or move-place
 selection.
 
 Generic matching and inference share one iterative structural unifier. Every invocation supplies
 the exact `GenericParameterId` set that may receive bindings. A generic identity outside that set
 is an opaque term even if a repeated binding later places it on the left of an equation. This
-prevents conformance matching from accidentally solving variables owned by its requester and keeps
+prevents interface-implementation matching from accidentally solving variables owned by its requester and keeps
 call inference independent of argument or declaration order.
 
 `CallableInference` collects exact receiver/equality constraints and contextual argument/result
@@ -479,13 +479,13 @@ nodes in source order. Aggregate ownership traverses those retained children dir
 completed child is staged until construction commits; propagation from a later child cleans
 earlier staged children and successful construction consumes them into the resulting aggregate.
 
-Method lookup uses the same normalized instance and conformance authorities. A name-index stored
-with `ConformanceTable` finds interface surfaces without a declaration scan at each call. Exact
-receiver lookup combines accessible inherent methods, applicable concrete conformance selections,
+Method lookup uses the same normalized instance-operation and interface-implementation authorities. A name-index stored
+with `InterfaceImplementationTable` finds interface surfaces without a declaration scan at each call. Exact
+receiver lookup combines accessible inherent methods, applicable concrete interface implementation selections,
 and lexical interface requirements for unresolved generic receivers; any surviving collision is
 ambiguous without signature ranking. Interface `Self`, interface arguments, associated bindings,
 instance arguments, and callable arguments enter one owner substitution and the same declared-call
-planner. A concrete conformance freezes its selected implementation or default body together with
+planner. A concrete interface implementation freezes its selected implementation or default body together with
 the proven receiver/parameter correspondence between the interface contract and that body.
 Provenance analysis consumes this correspondence directly rather than reconstructing parameter
 positions from declarations. A generic call retains the exact interface `RequirementId` and method
@@ -504,7 +504,7 @@ inside call selection. Its fixed point maps exact receiver and parameter origins
 interface, and structural calls while retaining current-allocation dependence as a separate
 compiler-owned dimension. Values retain field, variant-payload, outcome, and element projections,
 so selecting one component does not acquire sibling origins. The same return validator enforces
-authored contracts, inferred contracts, temporary-receiver escape, and conformance method bounds.
+authored contracts, inferred contracts, temporary-receiver escape, and interface method bounds.
 Closure expressions reserve lexical `ClosureId` identities before type inference and freeze a
 structural closure type, normalized callable signature, parameter bindings, capture fields,
 callable requirements, and body root in the program-owned `ClosureTable`. A closure type contains
@@ -584,7 +584,7 @@ Type-use resolution, normalized type-shape validity, and initializer compatibili
 diagnostic families. Discard binding restrictions are checked before initializer construction.
 
 The body builder verifies dense local/capture identity completion before freezing. The production
-facade owns the declaration graph, extended type store, conformance table, instance-operation
+facade owns the declaration graph, extended type store, interface-implementation table, instance-operation
 table, checked-body arena, and source projection only after every body succeeds. Unsupported valid syntax remains an internal
 incomplete-implementation error, preventing both a partial program and a misleading source
 diagnostic.

@@ -49,13 +49,13 @@ instance Box<T> where copy T {
     pub operator (...&self): Box<T> from self { return }
 }
 
-conform Source<T> for Box<T> where copy T {
-    type Item = T
+instance Box<T> where copy T  {
+    impl Source<T> { Item = T }
     method &self.get(index: usize): &T from self { return }
     method &self.static_view(): &str from static { return }
 }
 
-func values<T>(value: &T): some Source<T, Item = &T> from value { return }
+func values<T>(value: &T): some Source<T> { Item = &T } from value { return }
 drop Box<T>(&+self) { return }
 test headers { return }
 "#;
@@ -241,7 +241,7 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     assert_eq!(declarations.associated_types().len(), 1);
     assert_eq!(declarations.constructions().len(), 1);
     assert_eq!(declarations.instances().len(), 1);
-    assert_eq!(declarations.conformances().len(), 1);
+    assert_eq!(declarations.interface_implementations().len(), 1);
     assert_eq!(declarations.drops().len(), 1);
     assert_eq!(declarations.tests().len(), 1);
     assert_eq!(declarations.opaque_types().len(), 1);
@@ -594,13 +594,13 @@ fn definition_rules_retain_exact_authored_subjects() {
             Some("left |"),
         ),
         (
-            "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Missing = i32\n}\n",
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Missing = i32 } }\n",
             DefinitionRule::UnknownAssociatedTypeBinding,
             "Missing",
             None,
         ),
         (
-            "interface Source {\n    pub type Item\n}\nstruct Value {}\nconform Source for Value {\n    type Item = i32\n    type Item = i64\n}\n",
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Item = i32, Item = i64 } }\n",
             DefinitionRule::DuplicateAssociatedTypeBinding,
             "Item = i64",
             Some("Item = i32"),
@@ -678,7 +678,7 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     ));
     assert!(matches!(
         definition_error(
-            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n"
+            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box { impl Pair { First = i32 } }\n"
         ),
         super::HeaderDefinitionError::Declaration(diagnostics)
             if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0211")
@@ -868,7 +868,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "pub interface View<T> {\n",
             "    pub method &self.get(): &T from self\n",
             "}\n",
-            "conform View<T> for Box<T> {}\n",
+            "instance Box<T> { impl View<T> }\n",
         ),
     );
     let definition_id = add_source(
@@ -884,7 +884,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
             "instance Box<T> {\n",
             "    operator (&self == other: &Self): bool { return true }\n",
             "}\n",
-            "conform View<T> for Box<T> {\n",
+            "instance Box<T> {\n",
             "    method &self.get(): &T from self { return &self.value }\n",
             "}\n",
         ),
@@ -936,7 +936,7 @@ fn public_index_contract_is_completed_by_one_private_representation_and_body() {
     assert_eq!(declarations.constructions().len(), 1);
     assert_eq!(declarations.instances().len(), 1);
     assert_eq!(declarations.interfaces().len(), 1);
-    assert_eq!(declarations.conformances().len(), 1);
+    assert_eq!(declarations.interface_implementations().len(), 1);
     assert_eq!(declarations.callables().len(), 5);
     assert_eq!(declarations.bodies().len(), 4);
 }

@@ -14,6 +14,12 @@ pub(super) fn declaration(parser: &mut Parser<'_>) {
 
 fn member(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    if parser.at_keyword(Keyword::Impl) {
+        parser.bump();
+        types::interface_application(parser);
+        parser.complete(marker, NodeKind::InterfaceImplementation);
+        return;
+    }
     optional_visibility(parser);
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Method) => {

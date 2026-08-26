@@ -150,13 +150,11 @@ const fn declaration_container(kind: NodeKind) -> bool {
             | NodeKind::InterfaceDeclaration
             | NodeKind::ConstructDeclaration
             | NodeKind::InstanceDeclaration
-            | NodeKind::ConformDeclaration
             | NodeKind::DropDeclaration
             | NodeKind::TestDeclaration
             | NodeKind::InterfaceMethod
             | NodeKind::ConstructionFunction
             | NodeKind::LiteralDeclaration
             | NodeKind::InherentMethod
-            | NodeKind::ConformMethod
     )
 }

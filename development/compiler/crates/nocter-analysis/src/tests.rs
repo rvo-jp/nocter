@@ -250,7 +250,7 @@ fn quarantined_operation_shapes_cannot_block_independent_body_semantics() {
         ),
         (
             52,
-            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\nconform Pair for Box {\n    type First = i32\n}\n",
+            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box {\n    impl Pair { First = i32 }\n}\n",
             "E0211",
         ),
     ] {
@@ -321,7 +321,7 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
     let source_text = concat!(
         "pub interface Readable { pub method &self.read(): i32 }\n",
         "struct Value {}\n",
-        "conform Readable for Value {}\n",
+        "instance Value { impl Readable }\n",
         "func inspect(value: &Value): void {\n",
         "    value.\n",
         "    return\n",
@@ -331,11 +331,11 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
 
     assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
     assert!(!snapshot.has_checked_semantics());
-    let conformance_diagnostic = snapshot
+    let interface_implementation_diagnostic = snapshot
         .diagnostics()
         .iter()
         .find(|diagnostic| diagnostic.code() == "E0350")
-        .expect("independent conformance diagnostic");
+        .expect("independent interface_implementation diagnostic");
     let source = snapshot
         .sources()
         .iter()
@@ -353,7 +353,10 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
         .expect("failed-generation rename plan");
     assert!(!rename.edits().is_empty());
     let actions = snapshot
-        .semantic_code_actions(source.id(), conformance_diagnostic.primary().span().range())
+        .semantic_code_actions(
+            source.id(),
+            interface_implementation_diagnostic.primary().span().range(),
+        )
         .unwrap();
     assert!(!actions.is_empty());
 }

@@ -65,13 +65,11 @@ func remaining<T>(iterator: &ViewIter<T>): usize {
     return iterator.view.len() - iterator.next_index
 }
 
-conform ExactSizeIterator for ViewIter<T> {
+instance ViewIter<T> {
     method &self.remaining_len(): usize {
         return remaining(self)
     }
-}
 
-conform Iterator for ViewIter<T> {
     method &+self.next(): &T? {
         if self.next_index >= self.view.len() {
             return none

@@ -1,9 +1,9 @@
 use std::fmt;
 
 use nocter_model::{
-    BodyId, CallableCapability, CallableId, CompilationTarget, ConformanceId, ConstructionId,
-    DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId,
-    RequirementId, Symbol, TestId, TypeId, VariantId,
+    BodyId, CallableCapability, CallableId, CompilationTarget, ConstructionId, DeclarationSiteId,
+    DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId, RequirementId,
+    Symbol, TestId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -32,7 +32,6 @@ pub enum CallableOwner {
     Construction(ConstructionId),
     Instance(InstanceId),
     Interface(InterfaceId),
-    Conformance(ConformanceId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

@@ -6,8 +6,8 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::{
-    BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError, binding_arena::BindingArena,
-    opaque, push, syntax,
+    BoundInterfaceApplication, BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError,
+    binding_arena::BindingArena, opaque, push, syntax,
 };
 
 type BoundResults = (
@@ -17,6 +17,7 @@ type BoundResults = (
 
 pub(super) fn bind_all(
     namespaces: &mut PreparedNamespaces<'_>,
+    interface_applications: &HashMap<NodeId, BoundInterfaceApplication>,
     arena: &mut BindingArena,
 ) -> Result<BoundResults, TypeBindingError> {
     let count = namespaces
@@ -60,6 +61,7 @@ pub(super) fn bind_all(
                         callable_tail: tail,
                         definition: opaque_id,
                     },
+                    interface_applications,
                     arena,
                 )?;
                 callable_results[owner.index()] = Some(bound.result);
@@ -100,8 +102,7 @@ fn bind_callable_result(
         | SurfaceDeclarationKind::InterfaceMethod
         | SurfaceDeclarationKind::ConstructionFunction
         | SurfaceDeclarationKind::Literal
-        | SurfaceDeclarationKind::InherentMethod
-        | SurfaceDeclarationKind::ConformanceMethod => {
+        | SurfaceDeclarationKind::InherentMethod => {
             let tail = find_descendant(tree, node, NodeKind::CallableTail)
                 .ok_or(TypeBindingError::InvalidSyntax(node))?;
             direct_node(tree, tail, NodeKind::Type)

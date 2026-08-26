@@ -8,12 +8,16 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDecla
 use super::{
     AliasDefinition, NormalizationContext, NormalizedDeclarationPattern, TypeNormalizationError,
 };
-use crate::types::{BoundDeclarationPattern, BoundRequirementKind, BoundTypeId};
+use crate::types::{
+    BoundDeclarationPattern, BoundInterfaceApplication, BoundRequirementKind, BoundTypeId,
+};
 
 pub(super) fn prepare_context(
     namespaces: &mut PreparedNamespaces<'_>,
     bound_alias_targets: &HashMap<TypeAliasId, BoundTypeId>,
     bound_patterns: &[Box<[BoundDeclarationPattern]>],
+    bound_interface_applications: &HashMap<nocter_syntax::NodeId, BoundInterfaceApplication>,
+    interface_application_declarations: &HashMap<nocter_syntax::NodeId, SurfaceDeclarationId>,
     bound_requirements: Box<[Box<[BoundRequirementKind]>]>,
 ) -> Result<NormalizationContext, TypeNormalizationError> {
     let reserved = &namespaces.imports.generics.headers.reserved;
@@ -43,6 +47,15 @@ pub(super) fn prepare_context(
         .types_mut();
     let generic_types = intern_generic_types(store, &own_generics)?;
     let patterns = normalize_patterns(store, bound_patterns, &generic_types)?;
+    let implementation_interfaces = bound_interface_applications
+        .iter()
+        .filter_map(|(node, application)| {
+            let declaration = interface_application_declarations.get(node).copied()?;
+            (declarations[declaration.index()].kind()
+                == crate::SurfaceDeclarationKind::InterfaceImplementation)
+                .then_some((declaration, application.definition))
+        })
+        .collect();
     let self_types = normalize_self_types(
         store,
         &declarations,
@@ -53,13 +66,13 @@ pub(super) fn prepare_context(
     )?;
     Ok(NormalizationContext {
         declarations,
-        entities,
         entity_declarations,
         aliases,
         associated,
         associated_surfaces,
         self_types,
         patterns,
+        implementation_interfaces,
         bound_requirements,
     })
 }
@@ -204,9 +217,10 @@ fn normalize_self_types(
             ReservedEntity::Construction(_)
             | ReservedEntity::Instance(_)
             | ReservedEntity::Drop(_) => pattern_type(patterns.get(index).map(AsRef::as_ref), 0),
-            ReservedEntity::Conformance(_) => {
-                pattern_type(patterns.get(index).map(AsRef::as_ref), 1)
-            }
+            ReservedEntity::InterfaceImplementation(_) => declarations[index]
+                .owner()
+                .and_then(|owner| entities.get(owner.index()).copied().flatten())
+                .and_then(|owner| result.get(&owner).copied()),
             _ => None,
         };
         if let Some(ty) = ty {
@@ -215,7 +229,7 @@ fn normalize_self_types(
             declarations[index].kind(),
             crate::SurfaceDeclarationKind::Construction
                 | crate::SurfaceDeclarationKind::Instance
-                | crate::SurfaceDeclarationKind::Conformance
+                | crate::SurfaceDeclarationKind::InterfaceImplementation
                 | crate::SurfaceDeclarationKind::Drop
         ) {
             return Err(TypeNormalizationError::InvalidSelf(entity));

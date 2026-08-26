@@ -1,17 +1,17 @@
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, AssociatedTypeId, BodyId, CallableId, ConformanceId, ConstantId,
-    ConstructionId, DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, NominalTypeId,
+    Arena, ArenaBuilder, AssociatedTypeId, BodyId, CallableId, ConstantId, ConstructionId, DropId,
+    FieldId, GenericParameterId, InstanceId, InterfaceId, InterfaceImplementationId, NominalTypeId,
     OpaqueTypeId, ParameterId, RequirementId, TestId, TypeAliasId, VariantId,
 };
 
 use crate::{
-    AssociatedTypeDeclaration, Body, CallableDeclaration, ConformanceDeclaration,
-    ConstantDeclaration, ConstructionDeclaration, DropDeclaration, FieldDeclaration,
-    GenericParameter, InstanceDeclaration, InterfaceDeclaration, NominalTypeDeclaration,
-    OpaqueTypeDeclaration, Parameter, Requirement, TestDeclaration, TypeAliasDeclaration,
-    VariantDeclaration,
+    AssociatedTypeDeclaration, Body, CallableDeclaration, ConstantDeclaration,
+    ConstructionDeclaration, DropDeclaration, FieldDeclaration, GenericParameter,
+    InstanceDeclaration, InterfaceDeclaration, InterfaceImplementationDeclaration,
+    NominalTypeDeclaration, OpaqueTypeDeclaration, Parameter, Requirement, TestDeclaration,
+    TypeAliasDeclaration, VariantDeclaration,
 };
 
 #[derive(Debug)]
@@ -59,7 +59,7 @@ definition_slots!(ConstantId);
 definition_slots!(CallableId);
 definition_slots!(ConstructionId);
 definition_slots!(InstanceId);
-definition_slots!(ConformanceId);
+definition_slots!(InterfaceImplementationId);
 definition_slots!(DropId);
 definition_slots!(TestId);
 definition_slots!(VariantId);
@@ -121,7 +121,7 @@ pub struct DeclarationArenas {
     callables: Arena<CallableId, CallableDeclaration>,
     constructions: Arena<ConstructionId, ConstructionDeclaration>,
     instances: Arena<InstanceId, InstanceDeclaration>,
-    conformances: Arena<ConformanceId, ConformanceDeclaration>,
+    interface_implementations: Arena<InterfaceImplementationId, InterfaceImplementationDeclaration>,
     drops: Arena<DropId, DropDeclaration>,
     tests: Arena<TestId, TestDeclaration>,
     fields: Arena<FieldId, FieldDeclaration>,
@@ -154,7 +154,7 @@ impl DeclarationArenas {
         callables: CallableId => CallableDeclaration,
         constructions: ConstructionId => ConstructionDeclaration,
         instances: InstanceId => InstanceDeclaration,
-        conformances: ConformanceId => ConformanceDeclaration,
+        interface_implementations: InterfaceImplementationId => InterfaceImplementationDeclaration,
         drops: DropId => DropDeclaration,
         tests: TestId => TestDeclaration,
         fields: FieldId => FieldDeclaration,
@@ -180,9 +180,6 @@ impl DeclarationArenas {
             }
             crate::CallableOwner::Instance(id) => self.instances.get(id)?.generic_parameters(),
             crate::CallableOwner::Interface(id) => self.interfaces.get(id)?.generic_parameters(),
-            crate::CallableOwner::Conformance(id) => {
-                self.conformances.get(id)?.generic_parameters()
-            }
         };
         let mut complete = owner
             .iter()
@@ -223,7 +220,8 @@ pub struct DeclarationArenaBuilder {
     callables: DefinitionSlots<CallableId, CallableDeclaration>,
     constructions: DefinitionSlots<ConstructionId, ConstructionDeclaration>,
     instances: DefinitionSlots<InstanceId, InstanceDeclaration>,
-    conformances: DefinitionSlots<ConformanceId, ConformanceDeclaration>,
+    interface_implementations:
+        DefinitionSlots<InterfaceImplementationId, InterfaceImplementationDeclaration>,
     drops: DefinitionSlots<DropId, DropDeclaration>,
     tests: DefinitionSlots<TestId, TestDeclaration>,
     fields: ArenaBuilder<FieldId, FieldDeclaration>,
@@ -315,11 +313,11 @@ impl DeclarationArenaBuilder {
         InstanceDeclaration
     );
     reservation_methods!(
-        reserve_conformance,
-        define_conformance,
-        conformances,
-        ConformanceId,
-        ConformanceDeclaration
+        reserve_interface_implementation,
+        define_interface_implementation,
+        interface_implementations,
+        InterfaceImplementationId,
+        InterfaceImplementationDeclaration
     );
     reservation_methods!(reserve_drop, define_drop, drops, DropId, DropDeclaration);
     reservation_methods!(reserve_test, define_test, tests, TestId, TestDeclaration);
@@ -378,7 +376,9 @@ impl DeclarationArenaBuilder {
             callables: self.callables.finish("callable")?,
             constructions: self.constructions.finish("construction")?,
             instances: self.instances.finish("instance")?,
-            conformances: self.conformances.finish("conformance")?,
+            interface_implementations: self
+                .interface_implementations
+                .finish("interface_implementation")?,
             drops: self.drops.finish("drop")?,
             tests: self.tests.finish("test")?,
             fields: self.fields.finish(),

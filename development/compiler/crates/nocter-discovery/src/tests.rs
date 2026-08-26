@@ -748,22 +748,6 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         rooted_bodies.is_empty(),
         "standard module roots must remain contract-only: {rooted_bodies:#?}"
     );
-    let repeated_conformance_methods = unit
-        .modules()
-        .iter()
-        .flat_map(crate::DiscoveredModule::sources)
-        .filter(|source| source.kind() == ModuleSourceKind::Root)
-        .filter(|source| {
-            unit.syntax_trees()[source.syntax_index()]
-                .nodes()
-                .any(|(_, node)| node.kind() == NodeKind::ConformMethod)
-        })
-        .map(crate::DiscoveredSource::canonical_path)
-        .collect::<Vec<_>>();
-    assert!(
-        repeated_conformance_methods.is_empty(),
-        "standard module roots must derive conformance methods from interfaces: {repeated_conformance_methods:#?}"
-    );
     standard_contract::assert_standard_root_visibility_boundaries(&unit);
     let input = unit.compile_input().unwrap();
     standard_contract::assert_standard_self_uses_are_package_absolute(&input);

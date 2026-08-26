@@ -16,8 +16,8 @@ instance Maybe<T> {
     method &self.item(): &T from self
 }
 
-conform Source for Maybe<T> {
-    type Item = T
+instance Maybe<T> {
+    impl Source { Item = T }
     method &self.next(): Self.Item? {}
 }
 

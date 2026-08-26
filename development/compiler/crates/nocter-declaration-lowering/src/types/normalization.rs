@@ -3,7 +3,6 @@ use std::fmt;
 
 use nocter_declarations::{
     AssociatedTypeBinding, InterfaceApplication, RequirementKind, RequirementSubject,
-    StructuralCapability,
 };
 use nocter_model::{
     AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
@@ -15,7 +14,7 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDecla
 
 use super::normalization_origins::NormalizationOrigins;
 use super::{
-    BoundCapability, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
+    BoundInterfaceApplication, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
     PreparedTypeBindings,
 };
 
@@ -66,7 +65,7 @@ pub enum TypeNormalizationError {
     Rule(TypeNormalizationViolation),
     InvalidBoundType(BoundTypeId),
     InconsistentTypeStore,
-    MissingCapabilityContext(NodeId),
+    MissingInterfaceApplicationContext(NodeId),
     MissingAlias(TypeAliasId),
     InvalidSelf(ReservedEntity),
     InconsistentAssociatedIndex(SurfaceDeclarationId),
@@ -85,8 +84,11 @@ impl fmt::Display for TypeNormalizationError {
             Self::InconsistentTypeStore => {
                 formatter.write_str("normalized type store contains an invalid reference")
             }
-            Self::MissingCapabilityContext(node) => {
-                write!(formatter, "capability {node:?} has no declaration context")
+            Self::MissingInterfaceApplicationContext(node) => {
+                write!(
+                    formatter,
+                    "interface application {node:?} has no declaration context"
+                )
             }
             Self::MissingAlias(alias) => write!(formatter, "type alias {alias:?} has no target"),
             Self::InvalidSelf(owner) => write!(formatter, "{owner:?} has no normalized Self type"),
@@ -113,7 +115,7 @@ pub struct PreparedTypes<'syntax> {
     pub(crate) roots: HashMap<NodeId, TypeId>,
     pub(crate) alias_targets: HashMap<TypeAliasId, TypeId>,
     pub(crate) patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
-    pub(crate) capabilities: HashMap<NodeId, StructuralCapability>,
+    pub(crate) interface_applications: HashMap<NodeId, InterfaceApplication>,
     pub(crate) opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
     pub(crate) callable_results: Box<[Option<TypeId>]>,
     pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
@@ -145,8 +147,8 @@ impl PreparedTypes<'_> {
     }
 
     #[must_use]
-    pub fn capability_for(&self, node: NodeId) -> Option<&StructuralCapability> {
-        self.capabilities.get(&node)
+    pub fn interface_application_for(&self, node: NodeId) -> Option<&InterfaceApplication> {
+        self.interface_applications.get(&node)
     }
 
     #[must_use]
@@ -183,13 +185,13 @@ struct AliasDefinition {
 #[derive(Debug)]
 struct NormalizationContext {
     declarations: Box<[SurfaceDeclaration]>,
-    entities: Box<[Option<ReservedEntity>]>,
     entity_declarations: std::collections::BTreeMap<ReservedEntity, SurfaceDeclarationId>,
     aliases: HashMap<TypeAliasId, AliasDefinition>,
     associated: HashMap<(InterfaceId, Symbol), AssociatedTypeId>,
     associated_surfaces: HashMap<AssociatedTypeId, SurfaceDeclarationId>,
     self_types: HashMap<ReservedEntity, TypeId>,
     patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
+    implementation_interfaces: HashMap<SurfaceDeclarationId, InterfaceId>,
     bound_requirements: Box<[Box<[BoundRequirementKind]>]>,
 }
 
@@ -599,7 +601,9 @@ impl Evaluator<'_> {
                         0
                     }
                 }
-                Some(_) => self.collect_conformance_associated(base, name, &mut candidates),
+                Some(_) => {
+                    self.collect_interface_implementation_associated(base, name, &mut candidates)
+                }
                 None => {
                     return Err(TypeNormalizationError::InconsistentTypeStore);
                 }
@@ -705,19 +709,17 @@ impl Evaluator<'_> {
         };
         let mut occurrences = 0;
         for requirement in requirements {
-            let BoundRequirementKind::Capability {
+            let BoundRequirementKind::Interface {
                 subject: candidate,
-                capability:
-                    BoundCapability::Interface {
-                        definition,
-                        arguments: _,
-                    },
+                application,
+                ..
             } = requirement
             else {
                 continue;
             };
             if *candidate == subject
-                && let Some(associated) = self.context.associated.get(&(*definition, name))
+                && let Some(associated) =
+                    self.context.associated.get(&(application.definition, name))
             {
                 candidates.insert(*associated);
                 occurrences += 1;
@@ -726,24 +728,22 @@ impl Evaluator<'_> {
         occurrences
     }
 
-    fn collect_conformance_associated(
+    fn collect_interface_implementation_associated(
         &self,
         base: TypeId,
         name: Symbol,
         candidates: &mut HashSet<AssociatedTypeId>,
     ) -> usize {
         let mut occurrences = 0;
-        for (index, patterns) in self.context.patterns.iter().enumerate() {
-            let Some(ReservedEntity::Conformance(_)) = self.context.entities[index] else {
+        for (declaration, interface) in &self.context.implementation_interfaces {
+            let Some(owner) = self.context.declarations[declaration.index()].owner() else {
                 continue;
             };
-            let [NormalizedDeclarationPattern::Interface(interface), target] = patterns.as_ref()
-            else {
+            let Some(target) = self.context.patterns[owner.index()].first() else {
                 continue;
             };
             if pattern_matches(self.store, target, base)
-                && let Some(associated) =
-                    self.context.associated.get(&(interface.interface(), name))
+                && let Some(associated) = self.context.associated.get(&(*interface, name))
             {
                 candidates.insert(*associated);
                 occurrences += 1;
@@ -825,8 +825,8 @@ pub fn normalize_header_types(
         root_declarations,
         alias_targets: bound_alias_targets,
         patterns: bound_patterns,
-        capabilities: bound_capabilities,
-        capability_declarations,
+        interface_applications: bound_interface_applications,
+        interface_application_declarations,
         opaque_results: bound_opaque_results,
         callable_results: bound_callable_results,
         requirements: bound_requirements,
@@ -838,6 +838,8 @@ pub fn normalize_header_types(
         &mut namespaces,
         &bound_alias_targets,
         &bound_patterns,
+        &bound_interface_applications,
+        &interface_application_declarations,
         bound_requirements,
     )?;
     let store = namespaces
@@ -879,17 +881,20 @@ pub fn normalize_header_types(
         );
     }
 
-    let mut capabilities = HashMap::new();
-    let mut ordered_capabilities: Vec<_> = bound_capabilities.into_iter().collect();
-    ordered_capabilities.sort_by_key(|(node, _)| (node.source(), node.index()));
-    for (node, capability) in ordered_capabilities {
-        let declaration = capability_declarations
+    let mut interface_applications = HashMap::new();
+    let mut ordered_interface_applications: Vec<_> =
+        bound_interface_applications.into_iter().collect();
+    ordered_interface_applications.sort_by_key(|(node, _)| (node.source(), node.index()));
+    for (node, application) in ordered_interface_applications {
+        let declaration = interface_application_declarations
             .get(&node)
             .copied()
-            .ok_or(TypeNormalizationError::MissingCapabilityContext(node))?;
-        capabilities.insert(
+            .ok_or(TypeNormalizationError::MissingInterfaceApplicationContext(
+                node,
+            ))?;
+        interface_applications.insert(
             node,
-            normalize_capability(&mut evaluator, declaration, &capability)?,
+            normalize_interface_application(&mut evaluator, declaration, &application)?,
         );
     }
 
@@ -909,9 +914,8 @@ pub fn normalize_header_types(
     for (index, bound) in context.bound_requirements.iter().enumerate() {
         let declaration = SurfaceDeclarationId::from_index(index);
         let mut normalized = Vec::with_capacity(bound.len());
-        for (position, requirement) in bound.iter().enumerate() {
+        for requirement in bound {
             let requirement = normalize_requirement(&mut evaluator, declaration, requirement)?;
-            validate_requirement(&evaluator, declaration, position, &requirement)?;
             normalized.push(requirement);
         }
         requirements.push(normalized.into_boxed_slice());
@@ -922,7 +926,7 @@ pub fn normalize_header_types(
         roots,
         alias_targets,
         patterns: context.patterns.clone(),
-        capabilities,
+        interface_applications,
         opaque_results,
         callable_results,
         requirements: requirements.into_boxed_slice(),
@@ -978,30 +982,19 @@ fn normalize_opaque_results(
     Ok(normalized)
 }
 
-fn normalize_capability(
+fn normalize_interface_application(
     evaluator: &mut Evaluator<'_>,
     declaration: SurfaceDeclarationId,
-    capability: &BoundCapability,
-) -> Result<StructuralCapability, TypeNormalizationError> {
-    match capability {
-        BoundCapability::Interface {
-            definition,
-            arguments,
-        } => Ok(StructuralCapability::Interface(InterfaceApplication::new(
-            *definition,
-            arguments
-                .iter()
-                .map(|argument| evaluator.normalize(*argument, declaration))
-                .collect::<Result<Vec<_>, _>>()?,
-        ))),
-        BoundCapability::Callable(callable) => {
-            let ty = evaluator.normalize(*callable, declaration)?;
-            let Some(TypeKind::Callable(contract)) = evaluator.store.get(ty) else {
-                return Err(TypeNormalizationError::InvalidBoundType(*callable));
-            };
-            Ok(StructuralCapability::Callable(contract.clone()))
-        }
-    }
+    application: &BoundInterfaceApplication,
+) -> Result<InterfaceApplication, TypeNormalizationError> {
+    Ok(InterfaceApplication::new(
+        application.definition,
+        application
+            .arguments
+            .iter()
+            .map(|argument| evaluator.normalize(*argument, declaration))
+            .collect::<Result<Vec<_>, _>>()?,
+    ))
 }
 
 fn normalize_requirement(
@@ -1010,18 +1003,44 @@ fn normalize_requirement(
     requirement: &BoundRequirementKind,
 ) -> Result<RequirementKind, TypeNormalizationError> {
     Ok(match requirement {
-        BoundRequirementKind::Capability {
+        BoundRequirementKind::Interface {
             subject,
-            capability,
-        } => RequirementKind::Capability {
+            application,
+            associated_types,
+        } => RequirementKind::Interface {
             subject: *subject,
-            capability: normalize_capability(evaluator, declaration, capability)?,
+            application: normalize_interface_application(evaluator, declaration, application)?,
+            associated_types: associated_types
+                .iter()
+                .map(|binding| {
+                    let projection = evaluator.normalize(binding.projection, declaration)?;
+                    let Some(TypeKind::AssociatedProjection { associated, .. }) =
+                        evaluator.store.get(projection)
+                    else {
+                        return Err(TypeNormalizationError::InvalidBoundType(binding.projection));
+                    };
+                    Ok(AssociatedTypeBinding::new(
+                        *associated,
+                        evaluator.normalize(binding.value, declaration)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice(),
         },
+        BoundRequirementKind::Callable { subject, contract } => {
+            let ty = evaluator.normalize(*contract, declaration)?;
+            let Some(TypeKind::Callable(contract)) = evaluator.store.get(ty) else {
+                return Err(evaluator.authored_violation(
+                    TypeNormalizationRule::InvalidCallableRequirement,
+                    *contract,
+                )?);
+            };
+            RequirementKind::Callable {
+                subject: *subject,
+                contract: contract.clone(),
+            }
+        }
         BoundRequirementKind::Copy(parameter) => RequirementKind::Copy(*parameter),
-        BoundRequirementKind::TypeEquality { left, right } => RequirementKind::TypeEquality {
-            left: evaluator.normalize(*left, declaration)?,
-            right: evaluator.normalize(*right, declaration)?,
-        },
         BoundRequirementKind::Equality { operand } => {
             RequirementKind::Equality { operand: *operand }
         }
@@ -1060,66 +1079,4 @@ fn normalize_requirement(
             replacement: evaluator.normalize(*replacement, declaration)?,
         },
     })
-}
-
-fn validate_requirement(
-    evaluator: &Evaluator<'_>,
-    declaration: SurfaceDeclarationId,
-    position: usize,
-    requirement: &RequirementKind,
-) -> Result<(), TypeNormalizationError> {
-    let RequirementKind::TypeEquality { left, right } = requirement else {
-        return Ok(());
-    };
-    if contains_associated_projection(evaluator.store, *left)
-        || contains_associated_projection(evaluator.store, *right)
-    {
-        return Ok(());
-    }
-    let origin = evaluator
-        .origins
-        .requirement(declaration, position)
-        .ok_or(TypeNormalizationError::InconsistentTypeStore)?;
-    Err(TypeNormalizationViolation::new(
-        TypeNormalizationRule::EqualityWithoutAssociatedProjection,
-        origin,
-    )
-    .into())
-}
-
-fn contains_associated_projection(store: &TypeStore, root: TypeId) -> bool {
-    let mut pending = vec![root];
-    let mut visited = HashSet::new();
-    while let Some(ty) = pending.pop() {
-        if !visited.insert(ty) {
-            continue;
-        }
-        match store.get(ty) {
-            Some(TypeKind::AssociatedProjection { .. }) => return true,
-            Some(
-                TypeKind::Nominal { arguments, .. }
-                | TypeKind::Opaque { arguments, .. }
-                | TypeKind::Closure { arguments, .. },
-            ) => {
-                pending.extend(arguments.iter().copied());
-            }
-            Some(
-                TypeKind::Pointer(ty)
-                | TypeKind::Borrow { referent: ty, .. }
-                | TypeKind::Slice(ty)
-                | TypeKind::FixedArray { element: ty, .. }
-                | TypeKind::Optional(ty)
-                | TypeKind::Fallible(ty),
-            ) => pending.push(*ty),
-            Some(TypeKind::Callable(callable)) => {
-                pending.push(callable.result());
-                pending.extend(callable.parameters().iter().copied());
-            }
-            Some(
-                TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_),
-            )
-            | None => {}
-        }
-    }
-    false
 }

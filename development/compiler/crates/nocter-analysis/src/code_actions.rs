@@ -1,15 +1,15 @@
 use std::fmt;
 
-use nocter_checking::{ConformanceRule, NameRule, PreparationError};
+use nocter_checking::{InterfaceImplementationRule, NameRule, PreparationError};
 use nocter_session::CompileSessionError;
 use nocter_source::{SourceId, TextRange};
 
 use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
 
-mod conformance;
+mod interface_implementation;
 mod outcomes;
 
-pub use conformance::ConformanceActionError;
+pub use interface_implementation::InterfaceImplementationActionError;
 pub use outcomes::OutcomeActionError;
 
 /// One compiler-owned source repair independent of editor protocol and workspace mutation.
@@ -49,7 +49,7 @@ pub enum SemanticCodeActionError {
     MissingSource(SourceId),
     InvalidDiagnosticRange { source: SourceId, range: TextRange },
     Completion(SemanticCompletionError),
-    Conformance(ConformanceActionError),
+    InterfaceImplementation(InterfaceImplementationActionError),
     Outcome(OutcomeActionError),
 }
 
@@ -66,7 +66,7 @@ impl fmt::Display for SemanticCodeActionError {
                 range.end().get()
             ),
             Self::Completion(error) => error.fmt(formatter),
-            Self::Conformance(error) => error.fmt(formatter),
+            Self::InterfaceImplementation(error) => error.fmt(formatter),
             Self::Outcome(error) => error.fmt(formatter),
         }
     }
@@ -76,7 +76,7 @@ impl std::error::Error for SemanticCodeActionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Completion(error) => Some(error),
-            Self::Conformance(error) => Some(error),
+            Self::InterfaceImplementation(error) => Some(error),
             Self::Outcome(error) => Some(error),
             Self::MissingSource(_) | Self::InvalidDiagnosticRange { .. } => None,
         }
@@ -89,9 +89,9 @@ impl From<SemanticCompletionError> for SemanticCodeActionError {
     }
 }
 
-impl From<ConformanceActionError> for SemanticCodeActionError {
-    fn from(error: ConformanceActionError) -> Self {
-        Self::Conformance(error)
+impl From<InterfaceImplementationActionError> for SemanticCodeActionError {
+    fn from(error: InterfaceImplementationActionError) -> Self {
+        Self::InterfaceImplementation(error)
     }
 }
 
@@ -128,11 +128,11 @@ impl AnalysisSnapshot {
             if primary.source() != source || !diagnostic_matches_request(range, requested_range) {
                 continue;
             }
-            if diagnostic.code() == ConformanceRule::MissingMethod.code() {
-                let Some(missing) = self.missing_conformance_methods() else {
+            if diagnostic.code() == InterfaceImplementationRule::MissingMethod.code() {
+                let Some(missing) = self.missing_interface_implementation_methods() else {
                     continue;
                 };
-                if let Some(action) = conformance::missing_method_action(
+                if let Some(action) = interface_implementation::missing_method_action(
                     self,
                     source,
                     diagnostic.code(),
@@ -186,8 +186,10 @@ impl AnalysisSnapshot {
         Ok(actions.into_boxed_slice())
     }
 
-    fn missing_conformance_methods(&self) -> Option<&nocter_checking::MissingConformanceMethods> {
-        let CompileSessionError::Preparation(PreparationError::Conformance(error)) =
+    fn missing_interface_implementation_methods(
+        &self,
+    ) -> Option<&nocter_checking::MissingInterfaceImplementationMethods> {
+        let CompileSessionError::Preparation(PreparationError::InterfaceImplementation(error)) =
             self.compilation_failure()?
         else {
             return None;

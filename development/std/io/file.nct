@@ -183,20 +183,11 @@ instance File {
         close(self)
         return
     }
-}
 
-drop File(&+self) {
-    close(self)
-    return
-}
-
-conform Reader for File {
     method &+self.read(buffer: &+[u8]): usize! {
         return read(self, buffer)?
     }
-}
 
-conform Writer for File {
     method &+self.write(bytes: &[u8]): void! {
         write(self, bytes)?
         return
@@ -205,6 +196,11 @@ conform Writer for File {
     method &+self.flush(): void! {
         return
     }
+}
+
+drop File(&+self) {
+    close(self)
+    return
 }
 
 func print(text: &str): void! {

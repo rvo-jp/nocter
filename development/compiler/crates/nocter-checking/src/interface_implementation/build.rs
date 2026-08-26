@@ -7,34 +7,34 @@ use nocter_declarations::{
 };
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
-    ArenaBuilder, CallableId, ConformanceId, GenericParameterId, InterfaceId, ParameterId,
-    TypeKind, TypeStore,
+    ArenaBuilder, CallableId, GenericParameterId, InterfaceId, InterfaceImplementationId,
+    ParameterId, TypeKind, TypeStore,
 };
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use super::diagnostic;
 use super::model::{
-    CheckedConformance, ConformanceInputCorrespondence, ConformanceMethod, ConformanceTable,
-    MethodSelection,
+    CheckedInterfaceImplementation, InterfaceImplementationInputCorrespondence,
+    InterfaceImplementationMethod, InterfaceImplementationTable, MethodSelection,
 };
 use super::overlap::patterns_overlap;
 use super::predicate::{CheckedRequirement, normalize_requirements};
-use super::required_method::RequiredConformanceMethod;
+use super::required_method::RequiredInterfaceImplementationMethod;
 use super::validate::validate_associated_bounds;
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
-/// Authored conformance failure or an inconsistent semantic boundary.
+/// Authored interface implementation failure or an inconsistent semantic boundary.
 #[derive(Debug)]
-pub enum ConformanceBuildError {
+pub enum InterfaceImplementationBuildError {
     Rule {
         diagnostic: Box<SourceDiagnostic>,
-        missing_methods: Option<Box<MissingConformanceMethods>>,
+        missing_methods: Option<Box<MissingInterfaceImplementationMethods>>,
     },
-    Internal(ConformanceInternalError),
+    Internal(InterfaceImplementationInternalError),
 }
 
-impl ConformanceBuildError {
+impl InterfaceImplementationBuildError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
@@ -44,7 +44,7 @@ impl ConformanceBuildError {
     }
 
     #[must_use]
-    pub fn missing_methods(&self) -> Option<&MissingConformanceMethods> {
+    pub fn missing_methods(&self) -> Option<&MissingInterfaceImplementationMethods> {
         match self {
             Self::Rule {
                 missing_methods, ..
@@ -54,7 +54,7 @@ impl ConformanceBuildError {
     }
 }
 
-impl fmt::Display for ConformanceBuildError {
+impl fmt::Display for InterfaceImplementationBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rule { diagnostic, .. } => {
@@ -65,9 +65,9 @@ impl fmt::Display for ConformanceBuildError {
     }
 }
 
-impl std::error::Error for ConformanceBuildError {}
+impl std::error::Error for InterfaceImplementationBuildError {}
 
-impl From<SourceDiagnostic> for ConformanceBuildError {
+impl From<SourceDiagnostic> for InterfaceImplementationBuildError {
     fn from(diagnostic: SourceDiagnostic) -> Self {
         Self::Rule {
             diagnostic: Box::new(diagnostic),
@@ -76,58 +76,58 @@ impl From<SourceDiagnostic> for ConformanceBuildError {
     }
 }
 
-/// Exact specialized signatures missing from one conformance declaration.
+/// Exact specialized signatures missing from one interface implementation declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MissingConformanceMethods {
-    conformance: ConformanceId,
-    required: Box<[RequiredConformanceMethod]>,
+pub struct MissingInterfaceImplementationMethods {
+    interface_implementation: InterfaceImplementationId,
+    required: Box<[RequiredInterfaceImplementationMethod]>,
 }
 
-impl MissingConformanceMethods {
+impl MissingInterfaceImplementationMethods {
     #[must_use]
     pub(super) fn new(
-        conformance: ConformanceId,
-        required: impl Into<Box<[RequiredConformanceMethod]>>,
+        interface_implementation: InterfaceImplementationId,
+        required: impl Into<Box<[RequiredInterfaceImplementationMethod]>>,
     ) -> Self {
         Self {
-            conformance,
+            interface_implementation,
             required: required.into(),
         }
     }
 
     #[must_use]
-    pub const fn conformance(&self) -> ConformanceId {
-        self.conformance
+    pub const fn interface_implementation(&self) -> InterfaceImplementationId {
+        self.interface_implementation
     }
 
     #[must_use]
-    pub const fn required(&self) -> &[RequiredConformanceMethod] {
+    pub const fn required(&self) -> &[RequiredInterfaceImplementationMethod] {
         &self.required
     }
 }
 
-impl From<ConformanceInternalError> for ConformanceBuildError {
-    fn from(error: ConformanceInternalError) -> Self {
+impl From<InterfaceImplementationInternalError> for InterfaceImplementationBuildError {
+    fn from(error: InterfaceImplementationInternalError) -> Self {
         Self::Internal(error)
     }
 }
 
-impl From<SubstitutionError> for ConformanceBuildError {
+impl From<SubstitutionError> for InterfaceImplementationBuildError {
     fn from(error: SubstitutionError) -> Self {
-        Self::Internal(ConformanceInternalError::Substitution(error))
+        Self::Internal(InterfaceImplementationInternalError::Substitution(error))
     }
 }
 
-impl From<SubstitutionError> for ConformanceInternalError {
+impl From<SubstitutionError> for InterfaceImplementationInternalError {
     fn from(error: SubstitutionError) -> Self {
         Self::Substitution(error)
     }
 }
 
 #[derive(Debug)]
-pub enum ConformanceInternalError {
+pub enum InterfaceImplementationInternalError {
     MissingInterface(InterfaceId),
-    MissingConformance(nocter_model::ConformanceId),
+    MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
     MissingAssociatedType(nocter_model::AssociatedTypeId),
     MissingCallable(CallableId),
     MissingParameter(ParameterId),
@@ -137,14 +137,20 @@ pub enum ConformanceInternalError {
     Substitution(SubstitutionError),
 }
 
-impl fmt::Display for ConformanceInternalError {
+impl fmt::Display for InterfaceImplementationInternalError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingInterface(interface) => {
-                write!(formatter, "missing conformance interface {interface:?}")
+                write!(
+                    formatter,
+                    "missing interface_implementation interface {interface:?}"
+                )
             }
-            Self::MissingConformance(conformance) => {
-                write!(formatter, "missing conformance {conformance:?}")
+            Self::MissingInterfaceImplementation(interface_implementation) => {
+                write!(
+                    formatter,
+                    "missing interface_implementation {interface_implementation:?}"
+                )
             }
             Self::MissingAssociatedType(associated) => {
                 write!(formatter, "missing associated type {associated:?}")
@@ -168,75 +174,78 @@ impl fmt::Display for ConformanceInternalError {
     }
 }
 
-impl std::error::Error for ConformanceInternalError {}
+impl std::error::Error for InterfaceImplementationInternalError {}
 
-/// Builds the sole program-wide conformance dispatch table.
+/// Builds the sole program-wide interface implementation dispatch table.
 ///
 /// The declaration graph and type store must come from one consumed `DeclarationProgram`.
 /// Signature comparison interns specialized expected types into that same store.
 ///
 /// # Errors
 ///
-/// Returns a source-backed error for missing, extra, incompatible, or overlapping conformance
+/// Returns a source-backed error for missing, extra, incompatible, or overlapping interface implementation
 /// declarations, and an internal error for an inconsistent declaration/source graph.
 #[cfg(test)]
-pub(super) fn build_conformance_table(
+pub(super) fn build_interface_implementation_table(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
-) -> Result<ConformanceTable, ConformanceBuildError> {
+) -> Result<InterfaceImplementationTable, InterfaceImplementationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
-    let operations = crate::admitted_operations::AdmittedOperations::new(graph, None);
-    build_conformance_table_from_ids(
+    let operations = crate::admitted_operations::AdmittedOperations::all(graph);
+    build_interface_implementation_table_from_ids(
         graph,
         types,
         source_index,
         &patterns,
-        operations.conformances(),
+        operations.interface_implementations(),
     )
 }
 
-pub(crate) fn build_conformance_table_from_ids(
+pub(crate) fn build_interface_implementation_table_from_ids(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     source_index: &SourceIndex,
     patterns: &DeclarationPatternTable,
-    conformances: &[ConformanceId],
-) -> Result<ConformanceTable, ConformanceBuildError> {
+    interface_implementations: &[InterfaceImplementationId],
+) -> Result<InterfaceImplementationTable, InterfaceImplementationBuildError> {
     let declarations = graph.declarations();
     let mut entries = BTreeMap::new();
     let mut by_interface = vec![Vec::new(); declarations.interfaces().len()];
     let mut preceding_patterns = BTreeMap::<InterfaceId, Vec<_>>::new();
 
-    for id in conformances {
+    for id in interface_implementations {
         let id = *id;
-        let conformance = declarations
-            .conformances()
+        let interface_implementation = declarations
+            .interface_implementations()
             .get(id)
-            .ok_or(ConformanceInternalError::MissingConformance(id))?;
+            .ok_or(InterfaceImplementationInternalError::MissingInterfaceImplementation(id))?;
         let pattern = patterns
-            .conformance(id)
-            .ok_or(ConformanceInternalError::MissingConformance(id))?;
+            .interface_implementation(id)
+            .ok_or(InterfaceImplementationInternalError::MissingInterfaceImplementation(id))?;
         let normalized_interface = pattern.interface().clone();
         let normalized_target = pattern.target();
         let interface_id = normalized_interface.interface();
-        let interface = declarations
-            .interfaces()
-            .get(interface_id)
-            .ok_or(ConformanceInternalError::MissingInterface(interface_id))?;
+        let interface = declarations.interfaces().get(interface_id).ok_or(
+            InterfaceImplementationInternalError::MissingInterface(interface_id),
+        )?;
+        let owner = declarations
+            .instances()
+            .get(interface_implementation.owner())
+            .ok_or(InterfaceImplementationInternalError::MissingInterfaceImplementation(id))?;
         record_nonoverlapping_pattern(
             types,
             source_index,
             &mut preceding_patterns,
-            ConformancePattern {
-                site: conformance.site(),
+            InterfaceImplementationPattern {
+                site: interface_implementation.site(),
                 interface: normalized_interface.clone(),
                 target: normalized_target,
             },
         )?;
 
         let associated_types = pattern.associated_types();
-        let substitution = conformance_substitution(
+        let substitution = interface_implementation_substitution(
             graph,
             &normalized_interface,
             normalized_target,
@@ -248,18 +257,18 @@ pub(crate) fn build_conformance_table_from_ids(
             source_index,
             interface_id,
             interface_methods: interface.methods(),
-            implementation_methods: conformance.methods(),
+            implementation_methods: owner.members(),
             expected_substitution: &substitution,
             actual_substitution: pattern.substitution(),
-            conformance_site: conformance.site(),
-            conformance: id,
+            interface_implementation_site: interface_implementation.site(),
+            interface_implementation: id,
         })?;
         let previous = entries.insert(
             id,
-            CheckedConformance::new(
+            CheckedInterfaceImplementation::new(
                 normalized_interface,
                 normalized_target,
-                conformance.generic_parameters(),
+                owner.generic_parameters(),
                 pattern.lexical().refinements().to_vec(),
                 pattern.lexical().requirements().to_vec(),
                 associated_types.to_vec(),
@@ -274,7 +283,7 @@ pub(crate) fn build_conformance_table_from_ids(
     for candidates in by_interface {
         by_interface_arena.insert(candidates.into_boxed_slice());
     }
-    let table = ConformanceTable::new(
+    let table = InterfaceImplementationTable::new(
         entries,
         by_interface_arena.finish(),
         method_interface_index(graph)?,
@@ -285,18 +294,21 @@ pub(crate) fn build_conformance_table_from_ids(
 
 fn method_interface_index(
     graph: &DeclarationGraph,
-) -> Result<BTreeMap<nocter_model::Symbol, Box<[InterfaceId]>>, ConformanceInternalError> {
+) -> Result<BTreeMap<nocter_model::Symbol, Box<[InterfaceId]>>, InterfaceImplementationInternalError>
+{
     let declarations = graph.declarations();
     let mut by_method = BTreeMap::<_, Vec<_>>::new();
     for (interface_id, interface) in declarations.interfaces().iter() {
         for method in interface.methods() {
-            let callable = declarations
-                .callables()
-                .get(*method)
-                .ok_or(ConformanceInternalError::MissingCallable(*method))?;
-            let name = callable
-                .name()
-                .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+            let callable = declarations.callables().get(*method).ok_or(
+                InterfaceImplementationInternalError::MissingCallable(*method),
+            )?;
+            let name =
+                callable
+                    .name()
+                    .ok_or(InterfaceImplementationInternalError::MissingCallable(
+                        *method,
+                    ))?;
             let interfaces = by_method.entry(name).or_default();
             if interfaces.last() != Some(&interface_id) {
                 interfaces.push(interface_id);
@@ -309,20 +321,20 @@ fn method_interface_index(
         .collect())
 }
 
-struct ConformancePattern {
+struct InterfaceImplementationPattern {
     site: nocter_model::DeclarationSiteId,
     interface: InterfaceApplication,
     target: nocter_model::TypeId,
 }
 
-type ConformancePatterns = BTreeMap<InterfaceId, Vec<ConformancePattern>>;
+type InterfaceImplementationPatterns = BTreeMap<InterfaceId, Vec<InterfaceImplementationPattern>>;
 
 fn record_nonoverlapping_pattern(
     types: &mut TypeStore,
     source_index: &SourceIndex,
-    preceding_patterns: &mut ConformancePatterns,
-    current: ConformancePattern,
-) -> Result<(), ConformanceBuildError> {
+    preceding_patterns: &mut InterfaceImplementationPatterns,
+    current: InterfaceImplementationPattern,
+) -> Result<(), InterfaceImplementationBuildError> {
     if let Some(preceding) = preceding_patterns.get(&current.interface.interface()) {
         for previous in preceding {
             if patterns_overlap(
@@ -356,13 +368,13 @@ struct MethodSelectionInput<'program> {
     implementation_methods: &'program [CallableId],
     expected_substitution: &'program TypeSubstitution,
     actual_substitution: &'program TypeSubstitution,
-    conformance_site: nocter_model::DeclarationSiteId,
-    conformance: ConformanceId,
+    interface_implementation_site: nocter_model::DeclarationSiteId,
+    interface_implementation: InterfaceImplementationId,
 }
 
 fn select_methods(
     input: MethodSelectionInput<'_>,
-) -> Result<Vec<ConformanceMethod>, ConformanceBuildError> {
+) -> Result<Vec<InterfaceImplementationMethod>, InterfaceImplementationBuildError> {
     let MethodSelectionInput {
         graph,
         types,
@@ -372,8 +384,8 @@ fn select_methods(
         implementation_methods,
         expected_substitution,
         actual_substitution,
-        conformance_site,
-        conformance,
+        interface_implementation_site,
+        interface_implementation,
     } = input;
     let declarations = graph.declarations();
     let interface_by_name = interface_method_index(graph, interface_id, interface_methods)?;
@@ -388,57 +400,58 @@ fn select_methods(
     let mut selected = Vec::with_capacity(interface_methods.len());
     let mut missing = Vec::new();
     for interface_method in interface_methods {
-        let expected = declarations
-            .callables()
-            .get(*interface_method)
-            .ok_or(ConformanceInternalError::MissingCallable(*interface_method))?;
+        let expected = declarations.callables().get(*interface_method).ok_or(
+            InterfaceImplementationInternalError::MissingCallable(*interface_method),
+        )?;
         let name = expected
             .name()
-            .ok_or(ConformanceInternalError::MissingCallable(*interface_method))?;
-        let (selection, input_correspondence) =
-            if let Some(implementation) = implementation_by_name.get(&name).copied() {
-                let actual = declarations
-                    .callables()
-                    .get(implementation)
-                    .ok_or(ConformanceInternalError::MissingCallable(implementation))?;
-                let Some(input_correspondence) = compatible_signature(
-                    graph,
-                    types,
-                    expected,
-                    actual,
-                    expected_substitution,
-                    actual_substitution,
-                )?
-                else {
-                    return Err(diagnostic::incompatible_method(
-                        site_origin(source_index, actual.site())?,
-                        site_origin(source_index, expected.site())?,
-                    )
-                    .into());
-                };
-                (
-                    MethodSelection::Implementation(implementation),
-                    input_correspondence,
+            .ok_or(InterfaceImplementationInternalError::MissingCallable(
+                *interface_method,
+            ))?;
+        let (selection, input_correspondence) = if let Some(implementation) =
+            implementation_by_name.get(&name).copied()
+        {
+            let actual = declarations.callables().get(implementation).ok_or(
+                InterfaceImplementationInternalError::MissingCallable(implementation),
+            )?;
+            let Some(input_correspondence) = compatible_signature(
+                graph,
+                types,
+                expected,
+                actual,
+                expected_substitution,
+                actual_substitution,
+            )?
+            else {
+                return Err(diagnostic::incompatible_method(
+                    site_origin(source_index, actual.site())?,
+                    site_origin(source_index, expected.site())?,
                 )
-            } else if expected.body().is_some() {
-                (
-                    MethodSelection::Default(*interface_method),
-                    input_correspondence(expected, expected).ok_or(
-                        ConformanceInternalError::InvalidInterfaceMethodSet(interface_id),
-                    )?,
-                )
-            } else {
-                missing.push(RequiredConformanceMethod::build(
-                    graph,
-                    types,
-                    conformance,
-                    *interface_method,
-                    expected,
-                    expected_substitution,
-                )?);
-                continue;
+                .into());
             };
-        selected.push(ConformanceMethod::new(
+            (
+                MethodSelection::Implementation(implementation),
+                input_correspondence,
+            )
+        } else if expected.body().is_some() {
+            (
+                MethodSelection::Default(*interface_method),
+                input_correspondence(expected, expected).ok_or(
+                    InterfaceImplementationInternalError::InvalidInterfaceMethodSet(interface_id),
+                )?,
+            )
+        } else {
+            missing.push(RequiredInterfaceImplementationMethod::build(
+                graph,
+                types,
+                interface_implementation,
+                *interface_method,
+                expected,
+                expected_substitution,
+            )?);
+            continue;
+        };
+        selected.push(InterfaceImplementationMethod::new(
             *interface_method,
             selection,
             input_correspondence,
@@ -448,12 +461,12 @@ fn select_methods(
         return Err(missing_methods_error(
             graph,
             source_index,
-            conformance_site,
-            conformance,
+            interface_implementation_site,
+            interface_implementation,
             missing,
         )?);
     }
-    selected.sort_unstable_by_key(ConformanceMethod::interface_method);
+    selected.sort_unstable_by_key(InterfaceImplementationMethod::interface_method);
     Ok(selected)
 }
 
@@ -461,21 +474,19 @@ fn interface_method_index(
     graph: &DeclarationGraph,
     interface: InterfaceId,
     methods: &[CallableId],
-) -> Result<BTreeMap<nocter_model::Symbol, CallableId>, ConformanceInternalError> {
+) -> Result<BTreeMap<nocter_model::Symbol, CallableId>, InterfaceImplementationInternalError> {
     let mut by_name = BTreeMap::new();
     for method in methods {
-        let callable = graph
-            .declarations()
-            .callables()
-            .get(*method)
-            .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+        let callable = graph.declarations().callables().get(*method).ok_or(
+            InterfaceImplementationInternalError::MissingCallable(*method),
+        )?;
         let name = callable
             .name()
-            .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+            .ok_or(InterfaceImplementationInternalError::MissingCallable(
+                *method,
+            ))?;
         if by_name.insert(name, *method).is_some() {
-            return Err(ConformanceInternalError::InvalidInterfaceMethodSet(
-                interface,
-            ));
+            return Err(InterfaceImplementationInternalError::InvalidInterfaceMethodSet(interface));
         }
     }
     Ok(by_name)
@@ -487,23 +498,32 @@ fn implementation_method_index(
     interface: InterfaceId,
     methods: &[CallableId],
     expected: &BTreeMap<nocter_model::Symbol, CallableId>,
-) -> Result<BTreeMap<nocter_model::Symbol, CallableId>, ConformanceBuildError> {
+) -> Result<BTreeMap<nocter_model::Symbol, CallableId>, InterfaceImplementationBuildError> {
     let declarations = graph.declarations();
     let interface_site = declarations
         .interfaces()
         .get(interface)
-        .ok_or(ConformanceInternalError::MissingInterface(interface))?
+        .ok_or(InterfaceImplementationInternalError::MissingInterface(
+            interface,
+        ))?
         .site();
     let mut by_name = BTreeMap::new();
     for method in methods {
-        let callable = declarations
-            .callables()
-            .get(*method)
-            .ok_or(ConformanceInternalError::MissingCallable(*method))?;
+        let callable = declarations.callables().get(*method).ok_or(
+            InterfaceImplementationInternalError::MissingCallable(*method),
+        )?;
+        if callable.kind() != nocter_declarations::CallableKind::Method {
+            continue;
+        }
         let name = callable
             .name()
-            .ok_or(ConformanceInternalError::MissingCallable(*method))?;
-        if by_name.insert(name, *method).is_some() || !expected.contains_key(&name) {
+            .ok_or(InterfaceImplementationInternalError::MissingCallable(
+                *method,
+            ))?;
+        if !expected.contains_key(&name) {
+            continue;
+        }
+        if by_name.insert(name, *method).is_some() {
             return Err(diagnostic::extra_method(
                 site_origin(source_index, callable.site())?,
                 site_origin(source_index, interface_site)?,
@@ -517,27 +537,27 @@ fn implementation_method_index(
 fn missing_methods_error(
     graph: &DeclarationGraph,
     source_index: &SourceIndex,
-    conformance_site: nocter_model::DeclarationSiteId,
-    conformance: ConformanceId,
-    missing: Vec<RequiredConformanceMethod>,
-) -> Result<ConformanceBuildError, ConformanceInternalError> {
+    interface_implementation_site: nocter_model::DeclarationSiteId,
+    interface_implementation: InterfaceImplementationId,
+    missing: Vec<RequiredInterfaceImplementationMethod>,
+) -> Result<InterfaceImplementationBuildError, InterfaceImplementationInternalError> {
     let first = missing
         .first()
-        .expect("missing conformance repair is never empty");
+        .expect("missing interface_implementation repair is never empty");
     let expected = graph
         .declarations()
         .callables()
         .get(first.interface_method())
-        .ok_or(ConformanceInternalError::MissingCallable(
+        .ok_or(InterfaceImplementationInternalError::MissingCallable(
             first.interface_method(),
         ))?;
-    Ok(ConformanceBuildError::Rule {
+    Ok(InterfaceImplementationBuildError::Rule {
         diagnostic: Box::new(diagnostic::missing_method(
-            site_origin(source_index, conformance_site)?,
+            site_origin(source_index, interface_implementation_site)?,
             site_origin(source_index, expected.site())?,
         )),
-        missing_methods: Some(Box::new(MissingConformanceMethods::new(
-            conformance,
+        missing_methods: Some(Box::new(MissingInterfaceImplementationMethods::new(
+            interface_implementation,
             missing,
         ))),
     })
@@ -550,7 +570,7 @@ fn compatible_signature(
     actual: &CallableDeclaration,
     owner_substitution: &TypeSubstitution,
     actual_substitution: &TypeSubstitution,
-) -> Result<Option<ConformanceInputCorrespondence>, ConformanceBuildError> {
+) -> Result<Option<InterfaceImplementationInputCorrespondence>, InterfaceImplementationBuildError> {
     if expected.kind() != actual.kind()
         || expected.parameters().len() != actual.parameters().len()
         || expected.generic_parameters().len() != actual.generic_parameters().len()
@@ -568,7 +588,7 @@ fn compatible_signature(
     {
         let ty = types
             .intern(TypeKind::GenericParameter(*actual))
-            .map_err(|_| ConformanceInternalError::InvalidGenericType(*actual))?;
+            .map_err(|_| InterfaceImplementationInternalError::InvalidGenericType(*actual))?;
         substitution.bind_generic(*expected, ty);
     }
     if receiver_capability(graph, expected.receiver())?
@@ -605,18 +625,16 @@ fn compatible_signature(
     }
 }
 
-fn conformance_substitution(
+fn interface_implementation_substitution(
     graph: &DeclarationGraph,
     normalized_interface: &InterfaceApplication,
     normalized_target: nocter_model::TypeId,
     associated_types: &[AssociatedTypeBinding],
-) -> Result<TypeSubstitution, ConformanceBuildError> {
+) -> Result<TypeSubstitution, InterfaceImplementationBuildError> {
     let interface_id = normalized_interface.interface();
-    let interface = graph
-        .declarations()
-        .interfaces()
-        .get(interface_id)
-        .ok_or(ConformanceInternalError::MissingInterface(interface_id))?;
+    let interface = graph.declarations().interfaces().get(interface_id).ok_or(
+        InterfaceImplementationInternalError::MissingInterface(interface_id),
+    )?;
     let mut substitution = TypeSubstitution::default();
     substitution.set_interface_self(interface_id, normalized_target);
     for (parameter, argument) in interface
@@ -680,7 +698,7 @@ fn compatible_provenance(
 fn input_correspondence(
     interface: &CallableDeclaration,
     selected: &CallableDeclaration,
-) -> Option<ConformanceInputCorrespondence> {
+) -> Option<InterfaceImplementationInputCorrespondence> {
     if interface.parameters().len() != selected.parameters().len()
         || interface.receiver().is_some() != selected.receiver().is_some()
     {
@@ -707,20 +725,18 @@ fn input_correspondence(
 fn receiver_capability(
     graph: &DeclarationGraph,
     receiver: Option<ParameterId>,
-) -> Result<Option<nocter_model::CallableCapability>, ConformanceInternalError> {
+) -> Result<Option<nocter_model::CallableCapability>, InterfaceImplementationInternalError> {
     receiver
         .map(|receiver| {
-            let parameter = graph
-                .declarations()
-                .parameters()
-                .get(receiver)
-                .ok_or(ConformanceInternalError::MissingParameter(receiver))?;
+            let parameter = graph.declarations().parameters().get(receiver).ok_or(
+                InterfaceImplementationInternalError::MissingParameter(receiver),
+            )?;
             match parameter.role() {
                 nocter_declarations::ParameterRole::Receiver(capability) => Ok(capability),
                 nocter_declarations::ParameterRole::Ordinary { .. }
-                | nocter_declarations::ParameterRole::ArgumentPack { .. } => {
-                    Err(ConformanceInternalError::MissingParameter(receiver))
-                }
+                | nocter_declarations::ParameterRole::ArgumentPack { .. } => Err(
+                    InterfaceImplementationInternalError::MissingParameter(receiver),
+                ),
             }
         })
         .transpose()
@@ -729,7 +745,7 @@ fn receiver_capability(
 fn parameter_contract(
     graph: &DeclarationGraph,
     parameter: ParameterId,
-) -> Result<(nocter_model::TypeId, bool), ConformanceInternalError> {
+) -> Result<(nocter_model::TypeId, bool), InterfaceImplementationInternalError> {
     graph
         .declarations()
         .parameters()
@@ -739,24 +755,28 @@ fn parameter_contract(
             nocter_declarations::ParameterRole::ArgumentPack { .. } => Some((parameter.ty(), true)),
             nocter_declarations::ParameterRole::Receiver(_) => None,
         })
-        .ok_or(ConformanceInternalError::MissingParameter(parameter))
+        .ok_or(InterfaceImplementationInternalError::MissingParameter(
+            parameter,
+        ))
 }
 
 fn site_origin(
     source_index: &SourceIndex,
     site: nocter_model::DeclarationSiteId,
-) -> Result<SourceOrigin, ConformanceInternalError> {
+) -> Result<SourceOrigin, InterfaceImplementationInternalError> {
     let entity = SemanticEntity::DeclarationSite(site);
     crate::diagnostic_projection::declaration_origin(source_index, entity)
-        .ok_or(ConformanceInternalError::MissingSource(entity))
+        .ok_or(InterfaceImplementationInternalError::MissingSource(entity))
 }
 
 fn interface_id_index(
     interface: InterfaceId,
     interfaces: &nocter_model::Arena<InterfaceId, nocter_declarations::InterfaceDeclaration>,
-) -> Result<usize, ConformanceInternalError> {
+) -> Result<usize, InterfaceImplementationInternalError> {
     interfaces
         .iter()
         .position(|(candidate, _)| candidate == interface)
-        .ok_or(ConformanceInternalError::MissingInterface(interface))
+        .ok_or(InterfaceImplementationInternalError::MissingInterface(
+            interface,
+        ))
 }

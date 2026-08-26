@@ -6,9 +6,9 @@ use crate::type_relations::{
     unify_type_pairs,
 };
 
-/// Reports whether two normalized conformance patterns can denote one concrete application.
+/// Reports whether two normalized interface implementation patterns can denote one concrete application.
 ///
-/// Generic parameter identities are compile-unit global, so variables from two conformances
+/// Generic parameter identities are compile-unit global, so variables from two interface implementations
 /// cannot alias accidentally. Non-refinement requirements do not make a pattern disjoint: a
 /// concrete type may satisfy both sets of capabilities.
 pub(super) fn patterns_overlap(
@@ -39,7 +39,7 @@ pub(super) fn patterns_overlap(
     }
 }
 
-/// Matches a conformance pattern against one requested application.
+/// Matches a interface implementation pattern against one requested application.
 ///
 /// Only generic parameters reachable from the pattern are variables. Requested generic
 /// parameters remain opaque even when a repeated pattern binding causes one to appear on the left

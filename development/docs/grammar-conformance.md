@@ -45,14 +45,14 @@ those results.
 | G008 | interfaces and associated declarations | `interface Source { pub type Item pub method &+self.next(): Self.Item? }` with member newlines | a non-public interface member | a duplicate associated name |
 | G009 | construction declarations, functions, and literals | `construct Vec<T> { func new(): Self { ... } }` | an empty construct declaration | a construction member targeting a foreign nominal type |
 | G010 | instances, methods, coercions, and the four operator families | an instance containing a method, coercion, equality, ordering, index, and expansion member | `operator (&self != other: &Self): bool { ... }` | an instance for a type outside its ownership boundary |
-| G011 | conformances and associated bindings | `conform Source for Input { type Item = u8 method &+self.next(): Self.Item? { ... } }` | `pub method` inside a conformance | a method signature that disagrees with the interface |
+| G011 | instance-owned interface implementations and associated bindings | `instance Input { impl Source { Item = u8 } method &+self.next(): Self.Item? { ... } }` | `pub impl Source` or a body inside `impl Source` | an inherent method signature that disagrees with the interface |
 | G012 | drop and native test declarations | `drop Buffer(&+self) {}` and `test empty {}` as separate items | visibility on either declaration | drop for a non-owning or foreign type |
 | G013 | scalar, named, selected, slice, fixed-array, grouped, pointer, and borrow types | `&parser.Buffer<T>.Item?` | `[T; size]` | type arguments on an associated projection |
 | G014 | outcome suffixes and nesting | `T?!` and `(T!)?` | `T!?` | an outcome whose eventual payload is `never` |
 | G015 | callable capabilities, named parameters, and provenance | `&+func(input: &T): &T from input` | a callable type without a result annotation | a provenance name that is not a parameter |
-| G016 | opaque callable results and bindings | `func values(): some Source<Item = u8>? { ... }` | `func values(): some { ... }` | opaque syntax in a bodyless requirement |
+| G016 | opaque callable results and bindings | `func values(): some Source { Item = u8 }? { ... }` | `func values(): some { ... }` | opaque syntax in a bodyless requirement |
 | G017 | generic parameters, nested arguments, and split closers | `Outer<Inner<T>>` | an empty generic parameter list | duplicate binders in `struct Pair<T, T> {}` |
-| G018 | all requirement predicates | one clause containing capability, copy, equality, operator, coercion, and expansion predicates | a newline used instead of a predicate comma | equality without an associated projection |
+| G018 | all requirement predicates | one clause containing interface, callable, copy, binder-refinement, operator, coercion, and expansion predicates | a newline used instead of a predicate comma | equality outside a declaration-pattern binder refinement |
 | G019 | blocks, block imports, executable sequences, and body results | `{ use std/io.print` then a blank line then `value }` | a block import after an executable | a non-final non-`void` expression statement |
 | G020 | bindings, annotations, assignment, and compound assignment | `var value: i32 = 1` followed by `value += 2` | `var value: i32` without an initializer | assignment through an immutable place |
 | G021 | return, break, continue, and explicit drop statements | `return value`, `break`, `continue`, and `drop value` in their legal containers | `drop owner.field` | `break` outside a loop |

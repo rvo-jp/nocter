@@ -58,7 +58,7 @@ pub interface Iterator {
     pub default method self.skip(amount: usize): SkipIter<Self>
 
     /// Lazily yields this iterator followed by `right`.
-    pub default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R: Iterator, R.Item = Self.Item
+    pub default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { Item = Self.Item }
 
     /// Lazily pairs every yielded item with its zero-based index.
     pub default method self.enumerate(): EnumerateIter<Self>
@@ -79,10 +79,10 @@ pub interface Iterator {
     pub default method self.all<F>(predicate: F): bool where F: &+func(&Self.Item): bool
 
     /// Consumes the iterator and returns whether it yields an equal item.
-    pub default method self.contains<T>(expected: &T): bool where Self.Item = T, (&T == &T): bool
+    pub default method self.contains<T>(expected: &T): bool where Self impl Iterator { Item = T }, (&T == &T): bool
 
     /// Consumes the iterator and returns the index of its first equal item.
-    pub default method self.position<T>(expected: &T): usize? where Self.Item = T, (&T == &T): bool
+    pub default method self.position<T>(expected: &T): usize? where Self impl Iterator { Item = T }, (&T == &T): bool
 
     /// Reduces every item into one accumulator value.
     pub default method self.fold<U, F>(
@@ -96,56 +96,64 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 
-conform Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(item: I.Item): U {
-    type Item = U
+instance MapIter<U, I, F> where I impl Iterator, F: &+func(item: I.Item): U {
+    impl Iterator { Item = U }
 }
 
-conform ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(item: I.Item): U {}
-
-conform Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
-    type Item = I.Item
+instance MapIter<U, I, F> where I impl Iterator, I impl ExactSizeIterator, F: &+func(item: I.Item): U {
+    impl ExactSizeIterator
 }
 
-conform Iterator for TakeIter<I> where I: Iterator {
-    type Item = I.Item
+instance FilterIter<I, F> where I impl Iterator, F: &+func(&I.Item): bool {
+    impl Iterator { Item = I.Item }
 }
 
-conform ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {}
-
-conform Iterator for SkipIter<I> where I: Iterator {
-    type Item = I.Item
+instance TakeIter<I> where I impl Iterator {
+    impl Iterator { Item = I.Item }
 }
 
-conform ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {}
-
-conform Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
-    type Item = L.Item
+instance TakeIter<I> where I impl Iterator, I impl ExactSizeIterator {
+    impl ExactSizeIterator
 }
 
-conform ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {}
-
-conform Iterator for EnumerateIter<I> where I: Iterator {
-    type Item = Indexed<I.Item>
+instance SkipIter<I> where I impl Iterator {
+    impl Iterator { Item = I.Item }
 }
 
-conform ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {}
+instance SkipIter<I> where I impl Iterator, I impl ExactSizeIterator {
+    impl ExactSizeIterator
+}
+
+instance ChainIter<L, R> where L impl Iterator, R impl Iterator { Item = L.Item } {
+    impl Iterator { Item = L.Item }
+}
+
+instance ChainIter<L, R> where L impl Iterator, L impl ExactSizeIterator, R impl Iterator { Item = L.Item }, R impl ExactSizeIterator {
+    impl ExactSizeIterator
+}
+
+instance EnumerateIter<I> where I impl Iterator {
+    impl Iterator { Item = Indexed<I.Item> }
+}
+
+instance EnumerateIter<I> where I impl Iterator, I impl ExactSizeIterator {
+    impl ExactSizeIterator
+}
 
 /// An iterator that never yields an item.
 pub struct EmptyIter<T>
 
-conform ExactSizeIterator for EmptyIter<T> {}
-
-conform Iterator for EmptyIter<T> {
-    type Item = T
+instance EmptyIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { Item = T }
 }
 
 /// An iterator that owns at most one unconsumed item.
 pub struct OnceIter<T>
 
-conform ExactSizeIterator for OnceIter<T> {}
-
-conform Iterator for OnceIter<T> {
-    type Item = T
+instance OnceIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { Item = T }
 }
 
 pub func empty<T>(): EmptyIter<T>
@@ -158,10 +166,9 @@ pub struct ViewIter<T>
 /// A forward cursor over readwrite borrows into contiguous storage.
 pub struct MutableViewIter<T>
 
-conform ExactSizeIterator for MutableViewIter<T> {}
-
-conform Iterator for MutableViewIter<T> {
-    type Item = &+T
+instance MutableViewIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { Item = &+T }
 }
 
 construct MutableViewIter<T> {
@@ -174,8 +181,7 @@ construct ViewIter<T> {
     pub func from_view(view: &[T]): Self
 }
 
-conform ExactSizeIterator for ViewIter<T> {}
-
-conform Iterator for ViewIter<T> {
-    type Item = &T
+instance ViewIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { Item = &T }
 }
