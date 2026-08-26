@@ -612,7 +612,7 @@ fn definition_rules_retain_exact_authored_subjects() {
             panic!("authored definition failure did not retain its rule")
         };
         assert_eq!(violation.rule(), rule);
-        let nocter_source_index::SyntaxOrigin::Token(primary) = violation.primary() else {
+        let nocter_syntax::SyntaxOrigin::Token(primary) = violation.primary() else {
             panic!("token-backed definition rule selected a node")
         };
         let primary_start = primary.range().start().get();
@@ -622,7 +622,7 @@ fn definition_rules_retain_exact_authored_subjects() {
         );
         match (violation.related(), related_text) {
             (Some(origin), Some(related_text)) => {
-                let nocter_source_index::SyntaxOrigin::Token(related) = origin else {
+                let nocter_syntax::SyntaxOrigin::Token(related) = origin else {
                     panic!("duplicate definition rule selected a related node")
                 };
                 let related_start = related.range().start().get();

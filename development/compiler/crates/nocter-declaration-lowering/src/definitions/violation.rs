@@ -1,5 +1,5 @@
 use nocter_constant_evaluation::ConstantExpressionRule;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule selected while completing declaration definitions.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

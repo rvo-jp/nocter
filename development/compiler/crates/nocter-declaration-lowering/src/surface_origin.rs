@@ -1,4 +1,4 @@
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxToken, SyntaxTree, TokenKind, direct_node,
     direct_token,

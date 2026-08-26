@@ -6,7 +6,8 @@ use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
 };
-use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };

@@ -375,7 +375,7 @@ fn compose_fallback(
                     NamespaceBinding {
                         entity: ExportedEntity::BuiltinType(builtin.builtin),
                         visibility: nocter_declarations::Visibility::Public,
-                        origin: nocter_source_index::SyntaxOrigin::Token(builtin.declaration),
+                        origin: nocter_syntax::SyntaxOrigin::Token(builtin.declaration),
                     },
                 )
             })

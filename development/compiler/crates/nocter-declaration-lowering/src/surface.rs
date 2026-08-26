@@ -3,7 +3,7 @@ use std::fmt;
 
 use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, child_node_iter as child_nodes,
     declaration_name_token, direct_node as direct_child,

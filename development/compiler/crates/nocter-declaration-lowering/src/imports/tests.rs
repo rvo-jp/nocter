@@ -405,11 +405,11 @@ fn chained_reexports_cannot_widen_a_descendant_boundary() {
     assert_eq!(violation.rule(), crate::ImportRule::WideningReexport);
     assert!(matches!(
         violation.primary(),
-        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == facade_id
+        nocter_syntax::SyntaxOrigin::Node(node) if node.source() == facade_id
     ));
     assert!(matches!(
         violation.related(),
-        Some(nocter_source_index::SyntaxOrigin::Token(token)) if token.source() == core_id
+        Some(nocter_syntax::SyntaxOrigin::Token(token)) if token.source() == core_id
     ));
 }
 

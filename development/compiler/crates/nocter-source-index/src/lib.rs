@@ -16,5 +16,4 @@ pub use index::{
     DuplicateSourceBinding, SourceAccess, SourceBinding, SourceIndex, SourceIndexBuilder,
     SourceRole,
 };
-pub use nocter_syntax::SyntaxOrigin;
 pub use origin::{SourceOrigin, UnknownNodeId, UnknownTokenId};

@@ -1,4 +1,4 @@
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::SyntaxToken;
 
 /// Stable source-level rule for generic binder declarations.

@@ -1,5 +1,5 @@
 use nocter_model::{BodyNodeId, BuiltinType, TypeId, TypeKind};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
 
 use super::value_planning::CallResultContext;

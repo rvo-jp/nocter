@@ -463,11 +463,11 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     assert_eq!(violation.rule(), crate::TopologyRule::ModuleImportCycle);
     assert!(matches!(
         violation.primary(),
-        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == a_id
+        nocter_syntax::SyntaxOrigin::Node(node) if node.source() == a_id
     ));
     assert_eq!(violation.related().len(), 1);
     assert!(matches!(
         violation.related()[0],
-        nocter_source_index::SyntaxOrigin::Node(node) if node.source() == b_id
+        nocter_syntax::SyntaxOrigin::Node(node) if node.source() == b_id
     ));
 }

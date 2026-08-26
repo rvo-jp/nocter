@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 use super::{TypeBindingError, TypeBindingRule};
 

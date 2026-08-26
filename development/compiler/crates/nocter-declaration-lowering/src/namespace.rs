@@ -1,4 +1,4 @@
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule for names and authored visibility boundaries.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

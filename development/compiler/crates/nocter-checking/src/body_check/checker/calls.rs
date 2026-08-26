@@ -1,6 +1,6 @@
 use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity};
 use nocter_model::{BodyNodeId, TypeId};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
 use super::BodyChecker;

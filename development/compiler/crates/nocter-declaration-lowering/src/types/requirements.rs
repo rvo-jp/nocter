@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{BorrowCapability, GenericParameterId};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
     direct_identifier, direct_node, direct_nodes,

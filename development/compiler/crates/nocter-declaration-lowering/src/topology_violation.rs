@@ -1,5 +1,5 @@
-use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::NodeId;
+use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule for authored source composition and module import topology.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

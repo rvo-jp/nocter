@@ -170,7 +170,7 @@ pub enum BoundRequirementKind {
         subject: RequirementSubject,
         application: BoundInterfaceApplication,
         associated_types: Box<[BoundAssociatedTypeBinding]>,
-        origin: nocter_source_index::SyntaxOrigin,
+        origin: nocter_syntax::SyntaxOrigin,
     },
     Callable {
         subject: GenericParameterId,
@@ -201,7 +201,7 @@ pub enum BoundRequirementKind {
     BinderRefinement {
         parameter: GenericParameterId,
         replacement: BoundTypeId,
-        origin: nocter_source_index::SyntaxOrigin,
+        origin: nocter_syntax::SyntaxOrigin,
     },
 }
 
@@ -215,17 +215,14 @@ pub enum TypeBindingError {
 }
 
 impl TypeBindingError {
-    pub(crate) const fn rule(
-        rule: TypeBindingRule,
-        primary: nocter_source_index::SyntaxOrigin,
-    ) -> Self {
+    pub(crate) const fn rule(rule: TypeBindingRule, primary: nocter_syntax::SyntaxOrigin) -> Self {
         Self::Rule(TypeBindingViolation::new(rule, primary))
     }
 
     pub(crate) const fn duplicate_rule(
         rule: TypeBindingRule,
-        first: nocter_source_index::SyntaxOrigin,
-        second: nocter_source_index::SyntaxOrigin,
+        first: nocter_syntax::SyntaxOrigin,
+        second: nocter_syntax::SyntaxOrigin,
     ) -> Self {
         Self::Rule(TypeBindingViolation::duplicate(rule, first, second))
     }
@@ -495,7 +492,7 @@ fn record_alias_target(
     let name = namespaces.imports.generics.headers.reserved.declarations[declaration.index()]
         .name()
         .ok_or(TypeBindingError::InvalidSyntax(declaration_node))?;
-    origins.record_alias(alias, nocter_source_index::SyntaxOrigin::Token(name));
+    origins.record_alias(alias, nocter_syntax::SyntaxOrigin::Token(name));
     Ok(())
 }
 

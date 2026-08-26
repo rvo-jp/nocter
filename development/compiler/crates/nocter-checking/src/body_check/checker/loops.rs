@@ -1,5 +1,5 @@
 use nocter_model::{BodyNodeId, BuiltinType, LoopId};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::{BlockExpectation, BodyChecker};

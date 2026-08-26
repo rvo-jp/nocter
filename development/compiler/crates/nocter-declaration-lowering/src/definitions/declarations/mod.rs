@@ -7,8 +7,8 @@ use nocter_declarations::{
     OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
-use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
-use nocter_syntax::{NodeKind, TokenKind};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
+use nocter_syntax::{NodeKind, SyntaxOrigin, TokenKind};
 
 use crate::{PreparedTypes, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 

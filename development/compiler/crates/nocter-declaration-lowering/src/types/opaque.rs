@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_model::{AssociatedTypeId, GenericParameterId, OpaqueTypeId};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind, direct_node,
     direct_nodes,

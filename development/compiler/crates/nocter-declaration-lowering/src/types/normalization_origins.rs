@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_model::TypeAliasId;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 use super::BoundTypeId;
 

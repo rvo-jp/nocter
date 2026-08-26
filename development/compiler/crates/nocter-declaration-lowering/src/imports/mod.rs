@@ -12,8 +12,8 @@ use nocter_declarations::{
 };
 use nocter_model::{ImportId, ModuleId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::{DuplicateSourceBinding, SyntaxOrigin};
-use nocter_syntax::{NodeId, SyntaxToken};
+use nocter_source_index::DuplicateSourceBinding;
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{

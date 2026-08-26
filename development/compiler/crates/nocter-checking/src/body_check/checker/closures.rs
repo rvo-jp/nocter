@@ -3,7 +3,7 @@ use std::mem;
 use nocter_model::{
     BodyNodeId, BorrowCapability, CallableCapability, CallableContract, TypeId, TypeKind,
 };
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::{BlockExpectation, BodyChecker};

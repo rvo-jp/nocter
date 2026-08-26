@@ -8,9 +8,9 @@ use nocter_constant_evaluation::{
 use nocter_declarations::ExportedEntity;
 use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId};
 use nocter_source::SourceId;
-use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
-    NodeId, NodeKind, SyntaxToken, SyntaxTree, TokenKind, child_nodes, direct_node,
+    NodeId, NodeKind, SyntaxOrigin, SyntaxToken, SyntaxTree, TokenKind, child_nodes, direct_node,
     first_direct_token,
 };
 

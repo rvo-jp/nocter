@@ -4,8 +4,8 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     BodyId, BodyNodeId, CaptureId, ClosureId, LocalBindingId, LoopId, PlaceId, TypeId,
 };
-use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind};
+use nocter_source_index::{DuplicateSourceBinding, SemanticEntity};
+use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin};
 
 use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
 use crate::instance_operations::InstanceSelectionError;

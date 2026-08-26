@@ -1,6 +1,6 @@
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
-use nocter_source_index::{SourceOrigin, SyntaxOrigin};
-use nocter_syntax::{NodeId, SyntaxTree};
+use nocter_source_index::SourceOrigin;
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxTree};
 
 use crate::CompileUnitInput;
 

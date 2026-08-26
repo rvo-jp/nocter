@@ -5,8 +5,8 @@
 //! [`DiagnosticOrigin`].
 
 use nocter_source::{SourceId, Span};
-use nocter_source_index::{SourceOrigin, SyntaxOrigin};
-use nocter_syntax::{NodeId, SyntaxToken};
+use nocter_source_index::SourceOrigin;
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 mod human;
 mod json;

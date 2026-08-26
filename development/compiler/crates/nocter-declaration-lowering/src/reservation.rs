@@ -11,9 +11,9 @@ use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole,
-    SyntaxOrigin,
 };
 use nocter_syntax::NodeId;
+use nocter_syntax::SyntaxOrigin;
 
 use crate::package_targets::{reserve_package_targets, reserve_single_file_targets};
 use crate::surface::SurfaceParts;

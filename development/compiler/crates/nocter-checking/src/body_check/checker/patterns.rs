@@ -4,8 +4,8 @@ use nocter_declarations::{ExportedEntity, NominalShape, ParameterOwner, Paramete
 use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, NominalTypeId, TypeId, TypeKind, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SourceOrigin, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
+use nocter_source_index::{SemanticEntity, SourceOrigin};
+use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
 
 use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;

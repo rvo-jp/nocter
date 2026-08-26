@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
 use nocter_model::{ConstantId, ConstantValue};
-use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::Punctuation;
+use nocter_syntax::SyntaxOrigin;
 
 use crate::ConstantExpressionRule;
 use crate::model::{

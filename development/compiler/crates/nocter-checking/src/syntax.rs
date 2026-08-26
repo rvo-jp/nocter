@@ -77,6 +77,6 @@ pub(crate) fn token_text(
         .get(token.source())
         .and_then(|source| source.text_at(token.range()))
         .ok_or(NameResolutionInternalError::InvalidSyntaxOrigin(
-            nocter_source_index::SyntaxOrigin::Token(token),
+            nocter_syntax::SyntaxOrigin::Token(token),
         ))
 }

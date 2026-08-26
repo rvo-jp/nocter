@@ -1,6 +1,6 @@
 use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
-use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
+use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin};
+use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken};
 
 use super::{BodyChecker, NodeProjection, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;

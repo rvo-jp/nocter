@@ -1,5 +1,5 @@
 use nocter_declarations::ExportedEntity;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};

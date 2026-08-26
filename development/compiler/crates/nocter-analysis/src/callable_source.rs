@@ -1,6 +1,6 @@
 use nocter_declarations::CallableKind;
 use nocter_source::{ByteOffset, TextRange};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
 
 /// Structural source projection for one semantic callable declaration.
@@ -129,7 +129,7 @@ const fn declaration_matches(callable: CallableKind, syntax: NodeKind) -> bool {
 mod tests {
     use nocter_declarations::CallableKind;
     use nocter_source::{ByteOffset, SourceMap, SourceName};
-    use nocter_source_index::SyntaxOrigin;
+    use nocter_syntax::SyntaxOrigin;
     use nocter_syntax::{NodeKind, ParseGoal, parse};
 
     use super::project_callable_source;

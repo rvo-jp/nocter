@@ -1,4 +1,4 @@
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule selected while binding declaration-header type syntax.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

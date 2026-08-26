@@ -20,7 +20,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 pub(crate) struct FrontendProjectionBuilder {
     source_index: SourceIndexBuilder,
     bindings: FrontendBindingsBuilder,
-    associated_references: HashSet<(AssociatedTypeId, nocter_source_index::SyntaxOrigin)>,
+    associated_references: HashSet<(AssociatedTypeId, nocter_syntax::SyntaxOrigin)>,
 }
 
 impl FrontendProjectionBuilder {
@@ -100,7 +100,7 @@ impl FrontendProjectionBuilder {
         &mut self,
         base: TypeId,
         associated: AssociatedTypeId,
-        syntax: nocter_source_index::SyntaxOrigin,
+        syntax: nocter_syntax::SyntaxOrigin,
         origin: SourceOrigin,
     ) -> Result<(), DuplicateSourceBinding> {
         self.bindings

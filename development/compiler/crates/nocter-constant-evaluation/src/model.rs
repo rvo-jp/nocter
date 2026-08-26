@@ -1,5 +1,5 @@
 use nocter_model::{BuiltinType, ConstantId, ConstantValue};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, Punctuation};
 
 use crate::ConstantExpressionRule;

@@ -6,9 +6,8 @@ use std::fmt;
 use nocter_declarations::{ProgramBuildError, Visibility};
 use nocter_model::{AssociatedTypeId, DeclarationSiteId, InterfaceId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole, SyntaxOrigin,
-};
+use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
+use nocter_syntax::SyntaxOrigin;
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
@@ -288,7 +287,7 @@ fn authored_visibility(
             VisibilityResolutionError::Invalid(_) => HeaderError::InvalidVisibility(id),
             VisibilityResolutionError::AbovePackageRoot(node) => {
                 NamespaceViolation::visibility_above_package_root(
-                    nocter_source_index::SyntaxOrigin::Node(node),
+                    nocter_syntax::SyntaxOrigin::Node(node),
                 )
                 .into()
             }
@@ -363,7 +362,7 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
             }
             _ => None,
         };
-        if let (Some(declaration), nocter_source_index::SyntaxOrigin::Token(token)) =
+        if let (Some(declaration), nocter_syntax::SyntaxOrigin::Token(token)) =
             (declaration, origin.syntax())
         {
             reserved

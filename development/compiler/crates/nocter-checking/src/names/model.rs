@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::{Arena, BodyId, BodyScopeId, CaptureId, LocalBindingId, ParameterId, Symbol};
-use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::NodeId;
+use nocter_syntax::SyntaxOrigin;
 
 /// One exact value/name target selected during body lookup.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

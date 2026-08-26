@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nocter_model::{BuiltinType, ConstantValue};
 use nocter_source::SourceFile;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_plain_string_expression,
 };

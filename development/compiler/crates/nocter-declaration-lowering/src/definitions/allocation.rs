@@ -6,8 +6,8 @@ use nocter_model::{
     BodyId, BorrowCapability, CallableCapability, CallableId, FieldId, ParameterId, RequirementId,
     TypeId, TypeKind, VariantId,
 };
-use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxToken, TokenKind};
+use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken, TokenKind};
 
 use crate::{
     LoweredDeclarations, PreparedTypes, ReservedEntity, SurfaceDeclarationId,

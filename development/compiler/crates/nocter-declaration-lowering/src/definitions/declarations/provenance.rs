@@ -5,8 +5,8 @@ use nocter_declarations::{
     ProvenanceOrigin,
 };
 use nocter_model::{BodyId, ParameterId, TypeId};
-use nocter_source_index::{SemanticEntity, SourceRole, SyntaxOrigin};
-use nocter_syntax::{NodeKind, SyntaxElement, SyntaxToken, TokenKind};
+use nocter_source_index::{SemanticEntity, SourceRole};
+use nocter_syntax::{NodeKind, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind};
 
 use crate::{PreparedTypes, SurfaceDeclarationId};
 

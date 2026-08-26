@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::Symbol;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind, direct_identifier,
     direct_nodes,

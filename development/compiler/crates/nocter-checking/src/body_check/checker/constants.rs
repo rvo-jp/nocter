@@ -6,8 +6,8 @@ use nocter_constant_evaluation::{
 use nocter_declarations::ExportedEntity;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{BorrowCapability, BuiltinType, ConstantValue, TypeId, TypeKind};
-use nocter_source_index::{SourceOrigin, SyntaxOrigin};
-use nocter_syntax::{NodeId, NodeKind};
+use nocter_source_index::SourceOrigin;
+use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin};
 
 use super::BodyChecker;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};

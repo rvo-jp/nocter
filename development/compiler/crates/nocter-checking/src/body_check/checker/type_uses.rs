@@ -740,7 +740,7 @@ impl BodyChecker<'_, '_> {
         token: SyntaxToken,
         name: Symbol,
     ) -> Result<ExportedEntity, BodyCheckError> {
-        let origin = nocter_source_index::SyntaxOrigin::Token(token);
+        let origin = nocter_syntax::SyntaxOrigin::Token(token);
         if let Some(target) = self.uses.get(&origin).copied() {
             self.consumed_uses.insert(origin);
             let NameTarget::Exported(entity) = target else {

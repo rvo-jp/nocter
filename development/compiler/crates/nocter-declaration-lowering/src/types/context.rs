@@ -1,5 +1,5 @@
 use nocter_model::Symbol;
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{SyntaxToken, SyntaxTree};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};

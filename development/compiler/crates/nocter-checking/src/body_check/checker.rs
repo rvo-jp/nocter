@@ -8,9 +8,9 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
     TypeId, TypeKind, TypeStore,
 };
-use nocter_source_index::{SemanticEntity, SourceAccess, SourceIndex, SourceOrigin, SyntaxOrigin};
+use nocter_source_index::{SemanticEntity, SourceAccess, SourceIndex, SourceOrigin};
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
+    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind,
 };
 
 use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};

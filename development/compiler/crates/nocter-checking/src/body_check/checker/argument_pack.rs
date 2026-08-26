@@ -1,6 +1,6 @@
 use nocter_declarations::ParameterRole;
 use nocter_model::{ParameterId, TypeId};
-use nocter_source_index::SyntaxOrigin;
+use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::BodyChecker;

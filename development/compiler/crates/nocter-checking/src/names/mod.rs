@@ -16,9 +16,9 @@ use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};
 use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceRole,
-    SyntaxOrigin,
 };
 use nocter_syntax::NodeId;
+use nocter_syntax::SyntaxOrigin;
 
 use crate::{BodySourceCatalog, BodySourceError, catalog_body_sources};
 use imports::block_import_targets;
