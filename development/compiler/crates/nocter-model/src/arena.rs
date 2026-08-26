@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::construction_identity::ConstructionIdentity;
 use crate::id::SemanticId;
 
 /// An immutable dense arena addressed by one semantic ID domain.
@@ -51,23 +52,44 @@ impl<I: SemanticId, T> Arena<I, T> {
 /// The single mutable construction path for an [`Arena`].
 ///
 /// Finishing consumes the builder so an arena cannot be mutated after it enters a program.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ArenaBuilder<I, T> {
     values: Vec<T>,
+    construction: ConstructionIdentity,
     identity: PhantomData<fn() -> I>,
 }
 
 /// An opaque append position used to discard provisional arena construction.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ArenaCheckpoint<I> {
+#[derive(Debug, Eq, PartialEq)]
+pub struct ArenaCheckpoint<I, T> {
     len: usize,
-    identity: PhantomData<fn() -> I>,
+    construction: ConstructionIdentity,
+    identity: PhantomData<fn() -> (I, T)>,
+}
+
+impl<I, T> Clone for ArenaCheckpoint<I, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<I, T> Copy for ArenaCheckpoint<I, T> {}
+
+impl<I, T: Clone> Clone for ArenaBuilder<I, T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            construction: ConstructionIdentity::fresh(),
+            identity: PhantomData,
+        }
+    }
 }
 
 impl<I, T> Default for ArenaBuilder<I, T> {
     fn default() -> Self {
         Self {
             values: Vec::new(),
+            construction: ConstructionIdentity::fresh(),
             identity: PhantomData,
         }
     }
@@ -117,9 +139,10 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
 
     /// Captures the current append boundary without cloning stored values.
     #[must_use]
-    pub const fn checkpoint(&self) -> ArenaCheckpoint<I> {
+    pub const fn checkpoint(&self) -> ArenaCheckpoint<I, T> {
         ArenaCheckpoint {
             len: self.values.len(),
+            construction: self.construction,
             identity: PhantomData,
         }
     }
@@ -129,7 +152,11 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
     /// # Panics
     ///
     /// Panics when the checkpoint is newer than this builder's current state.
-    pub fn rollback(&mut self, checkpoint: ArenaCheckpoint<I>) {
+    pub fn rollback(&mut self, checkpoint: ArenaCheckpoint<I, T>) {
+        assert_eq!(
+            checkpoint.construction, self.construction,
+            "arena checkpoint belongs to another builder"
+        );
         assert!(
             checkpoint.len <= self.values.len(),
             "arena checkpoint cannot be newer than the builder"
@@ -213,5 +240,16 @@ mod tests {
         assert_eq!(builder.get(retained), Some(&"retained"));
         assert_eq!(builder.get(discarded), None);
         assert_eq!(builder.insert("replacement"), discarded);
+    }
+
+    #[test]
+    #[should_panic(expected = "arena checkpoint belongs to another builder")]
+    fn checkpoint_cannot_truncate_another_builder() {
+        let first = ArenaBuilder::<PackageId, i32>::new();
+        let checkpoint = first.checkpoint();
+        let mut second = ArenaBuilder::<PackageId, i32>::new();
+        second.insert(1);
+
+        second.rollback(checkpoint);
     }
 }

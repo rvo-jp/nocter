@@ -11,6 +11,7 @@ use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureTableBuilder,
+    ClosureTableCheckpoint,
 };
 use crate::copyability::CopyabilityTable;
 use crate::loans::{LoanBodyInput, analyze_program_loans};
@@ -575,7 +576,7 @@ fn attempt_body<'input, 'syntax>(
         )
         .map_err(BodyAttemptFailure::Direct);
     }
-    let checkpoint = BodySemanticCheckpoint::capture(types, closures);
+    let checkpoint = BodySemanticCheckpoint::capture(types, copyabilities, closures);
     match construct_body(
         input,
         facts,
@@ -583,7 +584,10 @@ fn attempt_body<'input, 'syntax>(
         names,
         (types, copyabilities, closures),
     ) {
-        Ok(output) => Ok(output),
+        Ok(output) => {
+            checkpoint.commit(copyabilities, closures);
+            Ok(output)
+        }
         Err(failure) => {
             let interruption_state = failure
                 .has_interruption()
@@ -605,22 +609,33 @@ enum BodyAttemptFailure {
     },
 }
 
-/// Append-only semantic boundaries captured before checking one body.
+/// Exact semantic mutation boundaries captured before checking one body.
 ///
 /// Body checking extends canonical stores directly. Success therefore requires no promotion or
-/// clone. Failure discards only provisional identities; pure copyability facts for surviving types
-/// remain valid memoization. An exact snapshot is cloned only for an actual typed interruption.
+/// clone. Failure discards provisional type identities and reverses every copyability or closure
+/// mutation recorded by their owning stores. An exact snapshot is cloned only for an actual typed
+/// interruption.
 struct BodySemanticCheckpoint {
     types: nocter_model::TypeStoreCheckpoint,
-    closures: nocter_model::ArenaCheckpoint<nocter_model::ClosureId>,
+    closures: ClosureTableCheckpoint,
 }
 
 impl BodySemanticCheckpoint {
-    fn capture(types: &TypeStore, closures: &ClosureTableBuilder) -> Self {
+    fn capture(
+        types: &TypeStore,
+        copyabilities: &mut CopyabilityTable,
+        closures: &mut ClosureTableBuilder,
+    ) -> Self {
+        copyabilities.begin_transaction();
         Self {
             types: types.checkpoint(),
             closures: closures.checkpoint(),
         }
+    }
+
+    fn commit(self, copyabilities: &mut CopyabilityTable, closures: &mut ClosureTableBuilder) {
+        copyabilities.commit_transaction();
+        closures.commit(self.closures);
     }
 
     fn rollback(
@@ -629,9 +644,9 @@ impl BodySemanticCheckpoint {
         copyabilities: &mut CopyabilityTable,
         closures: &mut ClosureTableBuilder,
     ) {
-        types.rollback(self.types);
+        copyabilities.rollback_transaction();
         closures.rollback(self.closures);
-        copyabilities.discard_invalidated(types, closures);
+        types.rollback(self.types);
     }
 }
 

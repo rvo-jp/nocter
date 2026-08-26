@@ -9,7 +9,6 @@ use nocter_model::{
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use crate::CheckedPredicate;
-use crate::checked::ClosureTableBuilder;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 mod diagnostic;
@@ -99,11 +98,29 @@ enum CopyabilityAction {
 ///
 /// Generic proof identities come from normalized `copy` requirements. Concrete structural facts
 /// are memoized by canonical `TypeId`, then retained in `CheckedProgram` for later stages.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct CopyabilityTable {
     conditions: BTreeMap<TypeId, CopyCondition>,
     families: BTreeMap<NominalTypeId, CopyCondition>,
     closures: BTreeMap<ClosureId, ClosureCopyCondition>,
+    transaction: Option<CopyabilityMutationJournal>,
+}
+
+impl Clone for CopyabilityTable {
+    fn clone(&self) -> Self {
+        Self {
+            conditions: self.conditions.clone(),
+            families: self.families.clone(),
+            closures: self.closures.clone(),
+            transaction: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct CopyabilityMutationJournal {
+    conditions: Vec<TypeId>,
+    closures: Vec<ClosureId>,
 }
 
 #[derive(Clone, Debug)]
@@ -113,6 +130,37 @@ struct ClosureCopyCondition {
 }
 
 impl CopyabilityTable {
+    pub(crate) fn begin_transaction(&mut self) {
+        assert!(
+            self.transaction.is_none(),
+            "copyability transactions cannot overlap"
+        );
+        self.transaction = Some(CopyabilityMutationJournal::default());
+    }
+
+    pub(crate) fn commit_transaction(&mut self) {
+        self.transaction
+            .take()
+            .expect("copyability transaction must be active before commit");
+    }
+
+    pub(crate) fn rollback_transaction(&mut self) {
+        let journal = self
+            .transaction
+            .take()
+            .expect("copyability transaction must be active before rollback");
+        for closure in journal.closures.into_iter().rev() {
+            self.closures
+                .remove(&closure)
+                .expect("recorded closure copyability must exist before rollback");
+        }
+        for ty in journal.conditions.into_iter().rev() {
+            self.conditions
+                .remove(&ty)
+                .expect("recorded copy condition must exist before rollback");
+        }
+    }
+
     pub(crate) fn build(
         graph: &DeclarationGraph,
         types: &mut TypeStore,
@@ -223,8 +271,8 @@ impl CopyabilityTable {
         for capture in stored_captures {
             condition = condition.conjoin(self.evaluate(graph, types, capture)?.clone());
         }
-        self.conditions.insert(closure, condition.clone());
-        self.closures.insert(
+        self.insert_condition(closure, condition.clone());
+        self.insert_closure_condition(
             definition,
             ClosureCopyCondition {
                 parameters: parameters.into_boxed_slice(),
@@ -269,21 +317,6 @@ impl CopyabilityTable {
             .ok_or(CopyabilityError::InvalidTraversal(root))
     }
 
-    /// Removes memoized facts whose canonical identities were discarded by body rollback.
-    ///
-    /// Facts for surviving types are pure structural memoization and remain valid independently of
-    /// the rejected body. Closure conditions are retained only while their defining closure slot
-    /// remains part of the canonical builder.
-    pub(crate) fn discard_invalidated(
-        &mut self,
-        types: &TypeStore,
-        closures: &ClosureTableBuilder,
-    ) {
-        self.conditions.retain(|ty, _| types.get(*ty).is_some());
-        self.closures
-            .retain(|closure, _| closures.contains(*closure));
-    }
-
     fn evaluate(
         &mut self,
         graph: &DeclarationGraph,
@@ -309,7 +342,7 @@ impl CopyabilityTable {
                         },
                     )?;
                     active.remove(&ty);
-                    self.conditions.insert(ty, condition);
+                    self.insert_condition(ty, condition);
                 }
             }
         }
@@ -395,9 +428,29 @@ impl CopyabilityTable {
         };
         if let Some(condition) = condition {
             active.remove(&ty);
-            self.conditions.insert(ty, condition);
+            self.insert_condition(ty, condition);
         }
         Ok(())
+    }
+
+    fn insert_condition(&mut self, ty: TypeId, condition: CopyCondition) {
+        assert!(
+            self.conditions.insert(ty, condition).is_none(),
+            "copy condition insertion must be unique"
+        );
+        if let Some(transaction) = &mut self.transaction {
+            transaction.conditions.push(ty);
+        }
+    }
+
+    fn insert_closure_condition(&mut self, closure: ClosureId, condition: ClosureCopyCondition) {
+        assert!(
+            self.closures.insert(closure, condition).is_none(),
+            "closure copyability insertion must be unique"
+        );
+        if let Some(transaction) = &mut self.transaction {
+            transaction.closures.push(closure);
+        }
     }
 
     fn closure_dependencies(
@@ -576,4 +629,39 @@ impl std::error::Error for CopyabilityError {}
 
 fn source_origin(source_index: &SourceIndex, entity: SemanticEntity) -> Option<SourceOrigin> {
     crate::diagnostic_projection::declaration_origin(source_index, entity)
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::{BuiltinType, TypeStore};
+
+    use super::{CopyCondition, Copyability, CopyabilityTable};
+
+    #[test]
+    fn rollback_removes_only_conditions_inserted_by_the_active_transaction() {
+        let types = TypeStore::new();
+        let retained = types.builtin(BuiltinType::Bool);
+        let discarded = types.builtin(BuiltinType::I32);
+        let mut table = CopyabilityTable::default();
+        table.insert_condition(retained, CopyCondition::Always);
+        table.begin_transaction();
+        table.insert_condition(discarded, CopyCondition::Always);
+
+        table.rollback_transaction();
+
+        assert_eq!(table.get(retained), Some(Copyability::Copy));
+        assert_eq!(table.get(discarded), None);
+    }
+
+    #[test]
+    fn cloned_snapshot_does_not_retain_transaction_control_state() {
+        let mut canonical = CopyabilityTable::default();
+        canonical.begin_transaction();
+
+        let mut snapshot = canonical.clone();
+        snapshot.begin_transaction();
+
+        snapshot.rollback_transaction();
+        canonical.rollback_transaction();
+    }
 }

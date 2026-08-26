@@ -3,6 +3,7 @@ use std::fmt;
 
 pub use nocter_language::BuiltinType;
 
+use crate::construction_identity::ConstructionIdentity;
 use crate::id::SemanticId;
 use crate::{
     AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
@@ -176,16 +177,31 @@ impl TypeKind {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TypeStore {
     kinds: Vec<TypeKind>,
     interned: HashMap<TypeKind, TypeId>,
     builtins: [TypeId; BuiltinType::ALL.len()],
+    construction: ConstructionIdentity,
 }
 
 /// An opaque append boundary for provisional structural types.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct TypeStoreCheckpoint(usize);
+pub struct TypeStoreCheckpoint {
+    len: usize,
+    construction: ConstructionIdentity,
+}
+
+impl Clone for TypeStore {
+    fn clone(&self) -> Self {
+        Self {
+            kinds: self.kinds.clone(),
+            interned: self.interned.clone(),
+            builtins: self.builtins,
+            construction: ConstructionIdentity::fresh(),
+        }
+    }
+}
 
 impl Default for TypeStore {
     fn default() -> Self {
@@ -200,6 +216,7 @@ impl TypeStore {
             kinds: Vec::new(),
             interned: HashMap::new(),
             builtins: [TypeId::new(0); BuiltinType::ALL.len()],
+            construction: ConstructionIdentity::fresh(),
         };
         for (index, builtin) in BuiltinType::ALL.iter().copied().enumerate() {
             let id = store.insert_known(TypeKind::Builtin(builtin));
@@ -300,7 +317,10 @@ impl TypeStore {
     /// Captures the current interned-type boundary without cloning the store.
     #[must_use]
     pub const fn checkpoint(&self) -> TypeStoreCheckpoint {
-        TypeStoreCheckpoint(self.kinds.len())
+        TypeStoreCheckpoint {
+            len: self.kinds.len(),
+            construction: self.construction,
+        }
     }
 
     /// Discards every structural type interned after `checkpoint`.
@@ -312,11 +332,15 @@ impl TypeStore {
     ///
     /// Panics when the checkpoint is newer than this store's current state.
     pub fn rollback(&mut self, checkpoint: TypeStoreCheckpoint) {
+        assert_eq!(
+            checkpoint.construction, self.construction,
+            "type-store checkpoint belongs to another store"
+        );
         assert!(
-            checkpoint.0 <= self.kinds.len(),
+            checkpoint.len <= self.kinds.len(),
             "type-store checkpoint cannot be newer than the store"
         );
-        while self.kinds.len() > checkpoint.0 {
+        while self.kinds.len() > checkpoint.len {
             let kind = self
                 .kinds
                 .pop()
@@ -450,6 +474,18 @@ mod tests {
             types.intern(TypeKind::Optional(value)).unwrap(),
             provisional
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "type-store checkpoint belongs to another store")]
+    fn checkpoint_cannot_truncate_another_store() {
+        let first = TypeStore::new();
+        let checkpoint = first.checkpoint();
+        let mut second = TypeStore::new();
+        let value = second.builtin(BuiltinType::I32);
+        second.intern(TypeKind::Optional(value)).unwrap();
+
+        second.rollback(checkpoint);
     }
 
     #[test]

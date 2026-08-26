@@ -330,7 +330,7 @@ impl BodyChecker<'_, '_> {
                 return Ok(false);
             }
             self.closures
-                .require_callable(closure, contract.clone())
+                .require_callable(self.source.body(), closure, contract.clone())
                 .map_err(BodyCheckInternalError::from)?;
         }
         let mut selector = self.instance_selector();
