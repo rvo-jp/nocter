@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.18.0: Surface and Interface Simplification - Nocter</title>
-    <meta name="description" content="Status: Phases 0, 1, and 2 complete; Phase 3 active (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed langu">
+    <meta name="description" content="Status: Phases 0, 1, 2, and 3 complete (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed language contracts">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.18.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.18.0: Surface and Interface Simplification - Nocter">
-    <meta property="og:description" content="Status: Phases 0, 1, and 2 complete; Phase 3 active (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed langu">
+    <meta property="og:description" content="Status: Phases 0, 1, 2, and 3 complete (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed language contracts">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.18.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.18.0: Surface and Interface Simplification - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0, 1, and 2 complete; Phase 3 active (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed langu">
+    <meta name="twitter:description" content="Status: Phases 0, 1, 2, and 3 complete (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed language contracts">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.18.0: Surface and Interface Simplification - Nocter","description":"Status: Phases 0, 1, and 2 complete; Phase 3 active (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed langu","url":"https://nocter.dev/development/milestones/v0.18.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.18.0/","dateModified":"2026-08-26","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.18.0","item":"https://nocter.dev/development/milestones/v0.18.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.18.0: Surface and Interface Simplification - Nocter","description":"Status: Phases 0, 1, 2, and 3 complete (2026-08-27). v0.17.0 remains the latest published release. The working tree adopts the completed language contracts","url":"https://nocter.dev/development/milestones/v0.18.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.18.0/","dateModified":"2026-08-26","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.18.0","item":"https://nocter.dev/development/milestones/v0.18.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -141,7 +141,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.18.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-18-0-surface-and-interface-simplification">v0.18.0: Surface and Interface Simplification</h1><p><strong>Status: Phases 0, 1, and 2 complete; Phase 3 active (2026-08-27).</strong> v0.17.0 remains the latest published release. The working tree adopts the completed language contracts below without compatibility modes. Phase 3 is an internal semantic-authority rewrite and does not change the source language. The Phase 0 <a href="../../reviews/v0.18.0-phase-0/index.html#content">final review</a> and Phase 1 <a href="../../reviews/v0.18.0-phase-1/index.html#content">final review</a>, and the Phase 2 <a href="../../reviews/v0.18.0-phase-2/index.html#content">final review</a>, record their boundary audits and remediation.</p><h2 id="phase-0-construction-independence">Phase 0: Construction Independence</h2><p>Phase 0 removes the <code>default</code> construct-member modifier and separates three responsibilities that previously overlapped:</p><ul><li>nominal representation and field visibility alone decide whether <code>Type { ... }</code> is legal;</li><li>a nonempty <code>construct Type { ... }</code> declares named construction functions and typed literals;</li><li>nominal type hover presents the nominal declaration, while each construction member presents its
+                <h1 id="v0-18-0-surface-and-interface-simplification">v0.18.0: Surface and Interface Simplification</h1><p><strong>Status: Phases 0, 1, 2, and 3 complete (2026-08-27).</strong> v0.17.0 remains the latest published release. The working tree adopts the completed language contracts and semantic-authority rewrite below without compatibility modes. Phase 3 does not change the source language. The Phase 0 <a href="../../reviews/v0.18.0-phase-0/index.html#content">final review</a> and Phase 1 <a href="../../reviews/v0.18.0-phase-1/index.html#content">final review</a>, and the Phase 2 <a href="../../reviews/v0.18.0-phase-2/index.html#content">final review</a>, and the Phase 3 <a href="../../reviews/v0.18.0-phase-3/index.html#content">final review</a>, record their boundary audits and remediation.</p><h2 id="phase-0-construction-independence">Phase 0: Construction Independence</h2><p>Phase 0 removes the <code>default</code> construct-member modifier and separates three responsibilities that previously overlapped:</p><ul><li>nominal representation and field visibility alone decide whether <code>Type { ... }</code> is legal;</li><li>a nonempty <code>construct Type { ... }</code> declares named construction functions and typed literals;</li><li>nominal type hover presents the nominal declaration, while each construction member presents its
   own contract at its own source identity.</li></ul><p>The declaration graph stores construction membership but no selected primary member. The checking layer owns one canonical use-site construction surface and one explicit representation-access contract for diagnostics that need field-level visibility. Completion, checking, and navigation consume those contracts instead of reconstructing member or visibility lists. Presentation does not depend on a checking-only construction view.</p><h3 id="completion-gate">Completion Gate</h3><p>Phase 0 is complete only when:</p><ul><li>the parser rejects <code>default</code> in <code>construct</code> and rejects empty construct declarations;</li><li>construction declarations, lowering, validation, checking, and presentation retain no default
   member state or duplicate-default diagnostic;</li><li>public-field structs remain structurally constructible regardless of an authored construct
   declaration, while opaque or private representations remain inaccessible;</li><li>nominal hover never appends a construct block and never exposes a partial private representation;</li><li>the standard library and current examples use the new syntax;</li><li>active specification and development documents contain no superseded construction-default or
@@ -198,7 +198,16 @@
   lowering through checked proof and presentation. No phase rejoins adjacent requirement records.</li><li>callable annotations use ordinary callable types and exact static witnesses. They do not enter
   nominal interface proof or introduce erased callable ABI.</li><li>successful declaration validation produces <code>AcceptedDeclarationProgram</code>, the only semantic input
   accepted by checking; rejected recovery cannot cross that boundary implicitly.</li><li>the complete workspace test suite, warnings-denied Clippy, Rust formatting, generated docs, and
-  repository whitespace gates passed after the Phase 2 migration.</li></ul>
+  repository whitespace gates passed after the Phase 2 migration.</li><li>type, copyability, and closure construction use persistent immutable bases and exact-base
+  transactions. <code>BodySemanticAuthority</code> is the inseparable owner and commit boundary for each
+  accepted body generation.</li><li>every checkpoint, mutation journal, rollback path, old closure builder, and full-store recovery
+  clone is absent. Nested closure requirements also use persistent storage and linearize only once.</li><li>editor query sessions reject reuse with another semantic authority. Checked and recovery
+  completion tests prove repeated results without mutating accepted compiler products.</li><li>architecture tests permit persistent-storage dependencies only in model and checking and reject
+  semantic transaction or persistent collection use in Target, MIR, Machine, and runtime
+  production source.</li><li>same-machine qualification against <code>264f1464</code> measured -2.7% warm-success, +3.3% multi-error
+  recovery, -2.7% repeated checked completion, and +0.6% repeated recovery completion. Every median
+  remains inside the five-percent gate.</li><li>the final tree passed complete workspace tests, warnings-denied all-target Clippy, Rust
+  formatting, generated documentation, and repository whitespace validation.</li></ul>
             </div>
         </main>
     </div>

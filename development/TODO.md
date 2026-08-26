@@ -6,9 +6,9 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0, Phase 1, and Phase 2 work](milestones/v0.18.0.md) and their adversarial reviews
-are complete. Phase 3 is active and replaces body-semantic mutation plus rollback with persistent
-immutable authorities and explicit type, copyability, and closure overlays. Phase 2 replaced
+The [v0.18.0 Phase 0, Phase 1, Phase 2, and Phase 3 work](milestones/v0.18.0.md) and their adversarial
+reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with persistent
+immutable authorities and explicit type, copyability, and closure transactions. Phase 2 replaced
 standalone `conform` declarations with instance-owned interface implementation, aggregate
 associated-binding braces, nominal `impl` requirements, and statically witnessed callable
 annotations. Phase 0 simplifies construction surfaces. Phase 1 adds exact source declarations for
@@ -18,8 +18,7 @@ post-phase architecture audit then removed repeated target-directive parsing, so
 primitive and standard-role selection, repeated package-target validation, source projection from
 prepared semantic state, duplicated built-in type vocabularies, and standard-API spelling checks
 in interface-implementation code actions. Executable architecture gates now protect these
-boundaries. Phase 3 changes no language behavior; release qualification resumes only after its
-persistent-authority completion gate and final review pass.
+boundaries. Phase 3 changes no language behavior. v0.18.0 release qualification is the next task.
 
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 closure construction uses an immutable internal authority and freezes into `ClosureTable` only
@@ -34,11 +33,14 @@ cross-interruption reuse, and have checked plus recovery tests proving repeatabl
 mutating accepted types. Downstream architecture gates allow direct persistent-storage dependencies
 only in model and checking, and reject transaction or persistent collection use in Target, MIR,
 Machine, and runtime production source. Target's unused transaction-taking specialization helper is
-gone; concrete type construction remains checking-owned. The first final-review pass also made
+gone; concrete type construction remains checking-owned. The final review also made
 `BodySemanticAuthority` the inseparable owner of each accepted type/copyability/closure generation
 and split closure drafts into an immutable core plus persistent callable requirements, eliminating
-the last repeated linear clone in authority updates. The next step is final performance
-requalification and the complete adversarial design review.
+the last repeated linear clone in authority updates. Same-machine measurements against the Phase 3
+baseline remained within the five-percent gate, and the final adversarial review found no open
+correctness or architecture issue. Complete workspace tests, warnings-denied all-target Clippy,
+formatting, generated documentation, and repository whitespace validation passed on the final
+tree.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
