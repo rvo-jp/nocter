@@ -19,10 +19,11 @@ pub enum SemanticAnalysis {
 
 impl SemanticAnalysis {
     pub(crate) fn from_declaration_lowering(recovery: DeclarationLoweringRecovery) -> Self {
-        let (graph, types, source_index) = recovery.into_declaration_parts();
+        let (graph, types, source_ownership, source_index) = recovery.into_declaration_parts();
         Self::Declarations(Box::new(DeclarationAnalysisRecovery::from_parts(
             graph,
             types,
+            source_ownership,
             source_index,
         )))
     }

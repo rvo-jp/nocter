@@ -2,7 +2,7 @@ use nocter_declarations::{
     BodyAnalysisDeclarationProgram, DeclarationAnalysisProgram, DeclarationGraph,
     RejectedDeclarationAnalysis,
 };
-use nocter_frontend_bindings::FrontendBindings;
+use nocter_frontend_bindings::{FrontendBindings, SourceOwnershipTable};
 use nocter_model::TypeStore;
 use nocter_source_index::SourceIndex;
 
@@ -79,7 +79,15 @@ impl DeclarationLoweringRecovery {
     }
 
     #[must_use]
-    pub fn into_declaration_parts(self) -> (DeclarationGraph, TypeStore, SourceIndex) {
+    pub fn into_declaration_parts(
+        self,
+    ) -> (
+        DeclarationGraph,
+        TypeStore,
+        SourceOwnershipTable,
+        SourceIndex,
+    ) {
+        let ownership = self.frontend_bindings.source_ownership().clone();
         let (graph, types) = match self.program {
             DeclarationRecoveryProgram::Declarations(program) => program.into_parts(),
             DeclarationRecoveryProgram::Bodies(program) => {
@@ -87,7 +95,7 @@ impl DeclarationLoweringRecovery {
                 (graph, types)
             }
         };
-        (graph, types, self.source_index)
+        (graph, types, ownership, self.source_index)
     }
 
     /// Opens the editor-only declaration-to-body analysis boundary. The returned program cannot

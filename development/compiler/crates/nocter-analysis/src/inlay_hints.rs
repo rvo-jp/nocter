@@ -10,7 +10,7 @@ use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 use crate::AnalysisSnapshot;
 use crate::callable_source::project_callable_source;
 use crate::semantic::SemanticAuthority;
-use crate::source_context::{SourceContext, SourceContextError};
+use crate::source_context::SourceContextError;
 
 /// One compiler-owned inlay fact before editor-coordinate projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -144,7 +144,7 @@ impl AnalysisSnapshot {
             return Ok(Box::new([]));
         };
         let index = authority.source_index();
-        let module = SourceContext::resolve(index, source)?.module();
+        let module = authority.source_ownership().module_for_source(source)?;
         let syntax = self
             .syntax_trees()
             .iter()

@@ -8,7 +8,7 @@ use crate::presentation::{
     PresentationError, SemanticPresentation, body_recovery_presentation, declaration_presentation,
     hover_presentation, name_recovery_presentation,
 };
-use crate::source_context::{SourceContext, SourceContextError};
+use crate::source_context::SourceContextError;
 use crate::source_selection::select_source_binding;
 
 /// One exact interactive source occurrence selected independently of presentation or protocol.
@@ -114,9 +114,8 @@ impl AnalysisSnapshot {
         let Some(binding) = selected_binding(index, source, offset) else {
             return Ok(None);
         };
-        let context = SourceContext::resolve(index, source)?;
-        let Some(presentation) =
-            authority.presentation(binding.entity(), context.module(), index, source)?
+        let module = authority.source_ownership().module_for_source(source)?;
+        let Some(presentation) = authority.presentation(binding.entity(), module, index, source)?
         else {
             return Ok(None);
         };
@@ -172,6 +171,15 @@ pub(crate) enum SemanticAuthority<'a> {
 }
 
 impl<'a> SemanticAuthority<'a> {
+    pub(crate) fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
+        match self {
+            Self::Checked { checked, .. } => checked.source_ownership(),
+            Self::Bodies(analysis) => analysis.prepared().source_ownership(),
+            Self::Names(recovery) => recovery.source_ownership(),
+            Self::Declarations(recovery) => recovery.source_ownership(),
+        }
+    }
+
     pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
         match self {
             Self::Checked { source_index, .. } => source_index,

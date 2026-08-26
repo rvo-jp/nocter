@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
-use nocter_frontend_bindings::DuplicateBlockImport;
+use nocter_frontend_bindings::{DuplicateBlockImport, SourceOwnershipError};
 use nocter_model::{
     AssociatedTypeId, BuiltinType, CallableId, ConstantId, ConstructionId, DropId, InstanceId,
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
@@ -123,6 +123,7 @@ pub enum ReservationError {
     DuplicateSourceBinding(DuplicateSourceBinding),
     DuplicateDocumentation(DuplicateDocumentation),
     DuplicateBlockImport(DuplicateBlockImport),
+    SourceOwnership(SourceOwnershipError),
     MissingSymbol(Box<str>),
     UnknownPackage(ModuleIdentity),
     UnknownRootPackage(crate::PackageIdentity),
@@ -143,6 +144,7 @@ impl fmt::Display for ReservationError {
             Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::DuplicateDocumentation(error) => error.fmt(formatter),
             Self::DuplicateBlockImport(error) => error.fmt(formatter),
+            Self::SourceOwnership(error) => error.fmt(formatter),
             Self::MissingSymbol(spelling) => {
                 write!(formatter, "canonical symbol table is missing {spelling}")
             }
@@ -214,6 +216,19 @@ impl From<DuplicateDocumentation> for ReservationError {
 impl From<DuplicateBlockImport> for ReservationError {
     fn from(error: DuplicateBlockImport) -> Self {
         Self::DuplicateBlockImport(error)
+    }
+}
+
+impl From<crate::frontend_projection::ModuleSourceProjectionError> for ReservationError {
+    fn from(error: crate::frontend_projection::ModuleSourceProjectionError) -> Self {
+        match error {
+            crate::frontend_projection::ModuleSourceProjectionError::DuplicateBinding(error) => {
+                Self::DuplicateSourceBinding(error)
+            }
+            crate::frontend_projection::ModuleSourceProjectionError::SourceOwnership(error) => {
+                Self::SourceOwnership(error)
+            }
+        }
     }
 }
 

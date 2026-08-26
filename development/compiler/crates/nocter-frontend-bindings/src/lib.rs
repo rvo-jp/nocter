@@ -17,7 +17,9 @@ use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 mod access;
 
 use access::SourceAccessTableBuilder;
-pub use access::{SourceAccessError, SourceAccessTable};
+pub use access::{
+    SourceAccessError, SourceAccessTable, SourceOwnershipError, SourceOwnershipTable,
+};
 
 /// Closed source-local name authority selected by declaration lowering.
 ///
@@ -224,6 +226,12 @@ impl FrontendBindings {
     pub const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
+
+    /// Returns the source-to-module authority selected by lowering.
+    #[must_use]
+    pub const fn source_ownership(&self) -> &SourceOwnershipTable {
+        self.source_access.ownership()
+    }
 }
 
 /// Sole construction authority for [`FrontendBindings`].
@@ -251,9 +259,19 @@ impl FrontendBindingsBuilder {
         Self::default()
     }
 
-    pub fn add_module_source(&mut self, module: ModuleId, source: SourceId) {
+    /// Records one physical source and its unique semantic owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceOwnershipError`] when the source already belongs to a module.
+    pub fn add_module_source(
+        &mut self,
+        module: ModuleId,
+        source: SourceId,
+    ) -> Result<(), SourceOwnershipError> {
+        self.source_access.define_source_module(source, module)?;
         self.module_sources.entry(module).or_default().push(source);
-        self.source_access.define_source_module(source, module);
+        Ok(())
     }
 
     pub fn add_body_block(&mut self, body: BodyId, block: NodeId) {

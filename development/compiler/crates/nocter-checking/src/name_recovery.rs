@@ -1,4 +1,5 @@
 use nocter_declarations::DeclarationGraph;
+use nocter_frontend_bindings::SourceOwnershipTable;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
@@ -51,6 +52,7 @@ pub struct NameAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
     body_names: PartialBodyNames,
+    source_ownership: SourceOwnershipTable,
     source_index: SourceIndex,
 }
 
@@ -59,12 +61,14 @@ impl NameAnalysisRecovery {
         graph: DeclarationGraph,
         types: TypeStore,
         body_names: Arena<BodyId, Option<ResolvedBodyNames>>,
+        source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
     ) -> Self {
         Self {
             graph,
             types,
             body_names: PartialBodyNames::new(body_names),
+            source_ownership,
             source_index,
         }
     }
@@ -77,6 +81,11 @@ impl NameAnalysisRecovery {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    #[must_use]
+    pub const fn source_ownership(&self) -> &SourceOwnershipTable {
+        &self.source_ownership
     }
 
     #[must_use]

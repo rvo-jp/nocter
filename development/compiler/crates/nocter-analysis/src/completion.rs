@@ -16,7 +16,7 @@ use crate::AnalysisSnapshot;
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
 use crate::semantic::SemanticAuthority;
-use crate::source_context::{SourceContext, SourceContextError};
+use crate::source_context::SourceContextError;
 
 mod associated_types;
 mod automatic_imports;
@@ -254,7 +254,7 @@ impl AnalysisSnapshot {
             return Ok(keyword_completions);
         };
         let index = program.source_index();
-        let module = SourceContext::resolve(index, source)?.module();
+        let module = program.source_ownership().module_for_source(source)?;
         if let Some(checked) = program.checked() {
             if let Some(completions) =
                 associated_types::checked_completions(checked, index, source, offset, module)?

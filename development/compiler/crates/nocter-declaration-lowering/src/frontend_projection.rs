@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use nocter_frontend_bindings::{
     AssociatedProjectionUse, DuplicateBlockImport, FrontendBindings, FrontendBindingsBuilder,
-    FrontendDeclaration,
+    FrontendDeclaration, SourceOwnershipError,
 };
 use nocter_model::{
     AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
@@ -47,10 +47,11 @@ impl FrontendProjectionBuilder {
         source: SourceId,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
-        self.bindings.add_module_source(module, source);
+    ) -> Result<(), ModuleSourceProjectionError> {
+        self.bindings.add_module_source(module, source)?;
         self.source_index
-            .insert(SemanticEntity::Module(module), role, origin)
+            .insert(SemanticEntity::Module(module), role, origin)?;
+        Ok(())
     }
 
     pub(crate) fn insert_body(
@@ -191,6 +192,24 @@ impl FrontendProjectionBuilder {
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {
         (self.source_index.finish(), self.bindings.finish())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ModuleSourceProjectionError {
+    DuplicateBinding(DuplicateSourceBinding),
+    SourceOwnership(SourceOwnershipError),
+}
+
+impl From<DuplicateSourceBinding> for ModuleSourceProjectionError {
+    fn from(error: DuplicateSourceBinding) -> Self {
+        Self::DuplicateBinding(error)
+    }
+}
+
+impl From<SourceOwnershipError> for ModuleSourceProjectionError {
+    fn from(error: SourceOwnershipError) -> Self {
+        Self::SourceOwnership(error)
     }
 }
 

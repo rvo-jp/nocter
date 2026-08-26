@@ -132,6 +132,7 @@ pub use names::{
     resolve_body_names,
 };
 pub use nocter_constant_evaluation::ConstantExpressionRule;
+pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
     PreparationError, PreparationFailure, PreparedBodyAnalysis, PreparedChecking,

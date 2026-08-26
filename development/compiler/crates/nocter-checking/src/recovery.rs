@@ -1,4 +1,5 @@
 use nocter_declarations::DeclarationGraph;
+use nocter_frontend_bindings::SourceOwnershipTable;
 use nocter_model::{Arena, TypeProjection, TypeProjectionError, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
@@ -27,6 +28,7 @@ pub enum PreparationRecovery {
 pub struct DeclarationAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
+    source_ownership: SourceOwnershipTable,
     source_index: SourceIndex,
     standard_semantics: Option<crate::StandardSemanticTable>,
 }
@@ -35,12 +37,14 @@ impl DeclarationAnalysisRecovery {
     pub(crate) fn new(
         graph: DeclarationGraph,
         types: TypeStore,
+        source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
         standard_semantics: Option<crate::StandardSemanticTable>,
     ) -> Self {
         Self {
             graph,
             types,
+            source_ownership,
             source_index,
             standard_semantics,
         }
@@ -51,9 +55,10 @@ impl DeclarationAnalysisRecovery {
     pub fn from_parts(
         graph: DeclarationGraph,
         types: TypeStore,
+        source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
     ) -> Self {
-        Self::new(graph, types, source_index, None)
+        Self::new(graph, types, source_ownership, source_index, None)
     }
 
     #[must_use]
@@ -64,6 +69,11 @@ impl DeclarationAnalysisRecovery {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    #[must_use]
+    pub const fn source_ownership(&self) -> &SourceOwnershipTable {
+        &self.source_ownership
     }
 
     #[must_use]

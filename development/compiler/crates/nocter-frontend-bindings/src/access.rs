@@ -11,10 +11,65 @@ use nocter_source::SourceId;
 #[derive(Clone, Debug, Default)]
 pub struct SourceAccessTable {
     visible_sources: HashMap<SourceId, Box<[SourceId]>>,
-    source_modules: HashMap<SourceId, ModuleId>,
+    ownership: SourceOwnershipTable,
     site_sources: HashMap<DeclarationSiteId, SourceId>,
     representations: HashMap<NominalTypeId, NominalRepresentationAccess>,
 }
+
+/// Closed physical-source ownership selected by declaration lowering.
+///
+/// This narrow capability is retained independently by editor recovery stages. Consumers can
+/// identify a source's module without inspecting presentation occurrences or acquiring private
+/// visibility authority.
+#[derive(Clone, Debug, Default)]
+pub struct SourceOwnershipTable {
+    modules: HashMap<SourceId, ModuleId>,
+}
+
+impl SourceOwnershipTable {
+    /// Returns the one semantic module that owns a physical source.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceOwnershipError`] when lowering did not publish the relation.
+    pub fn module_for_source(&self, source: SourceId) -> Result<ModuleId, SourceOwnershipError> {
+        self.modules
+            .get(&source)
+            .copied()
+            .ok_or(SourceOwnershipError::MissingSource(source))
+    }
+}
+
+/// An incomplete source-ownership contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceOwnershipError {
+    MissingSource(SourceId),
+    ConflictingSource {
+        source: SourceId,
+        existing: ModuleId,
+        duplicate: ModuleId,
+    },
+}
+
+impl fmt::Display for SourceOwnershipError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingSource(source) => {
+                write!(formatter, "source {source} has no semantic module owner")
+            }
+            Self::ConflictingSource {
+                source,
+                existing,
+                duplicate,
+            } => write!(
+                formatter,
+                "source {source} has conflicting semantic module owners {existing:?} and {duplicate:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SourceOwnershipError {}
 
 #[derive(Clone, Copy, Debug)]
 struct NominalRepresentationAccess {
@@ -29,10 +84,17 @@ impl SourceAccessTable {
     ///
     /// Returns an error when lowering did not publish the source-access relation.
     pub fn module_for_source(&self, source: SourceId) -> Result<ModuleId, SourceAccessError> {
-        self.source_modules
+        self.ownership
+            .modules
             .get(&source)
             .copied()
             .ok_or(SourceAccessError::MissingSourceModule(source))
+    }
+
+    /// Returns the narrow source-to-module authority embedded in this access table.
+    #[must_use]
+    pub const fn ownership(&self) -> &SourceOwnershipTable {
+        &self.ownership
     }
 
     /// Determines whether `from` has direct source access to a private declaration site.
@@ -154,8 +216,24 @@ impl SourceAccessTableBuilder {
         self.visible_sources.insert(source, visible);
     }
 
-    pub(crate) fn define_source_module(&mut self, source: SourceId, module: ModuleId) {
-        self.source_modules.insert(source, module);
+    pub(crate) fn define_source_module(
+        &mut self,
+        source: SourceId,
+        module: ModuleId,
+    ) -> Result<(), SourceOwnershipError> {
+        match self.source_modules.entry(source) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(module);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                Err(SourceOwnershipError::ConflictingSource {
+                    source,
+                    existing: *entry.get(),
+                    duplicate: module,
+                })
+            }
+        }
     }
 
     pub(crate) fn define_site(&mut self, site: DeclarationSiteId, source: SourceId) {
@@ -188,7 +266,9 @@ impl SourceAccessTableBuilder {
                     (source, visible.into_boxed_slice())
                 })
                 .collect(),
-            source_modules: self.source_modules,
+            ownership: SourceOwnershipTable {
+                modules: self.source_modules,
+            },
             site_sources: self.site_sources,
             representations: self.representations,
         }
@@ -200,7 +280,7 @@ mod tests {
     use nocter_model::ArenaBuilder;
     use nocter_source::{SourceMap, SourceName};
 
-    use super::SourceAccessTableBuilder;
+    use super::{SourceAccessTableBuilder, SourceOwnershipError};
 
     #[test]
     fn private_access_is_direct_and_directional() {
@@ -221,9 +301,13 @@ mod tests {
         let mut nominals = ArenaBuilder::<nocter_model::NominalTypeId, ()>::new();
         let nominal = nominals.insert(());
         let mut builder = SourceAccessTableBuilder::default();
-        builder.define_source_module(root, module);
-        builder.define_source_module(direct, module);
-        builder.define_source_module(transitive, module);
+        builder.define_source_module(root, module).unwrap();
+        builder.define_source_module(direct, module).unwrap();
+        builder.define_source_module(transitive, module).unwrap();
+        assert!(matches!(
+            builder.define_source_module(root, module),
+            Err(SourceOwnershipError::ConflictingSource { source, .. }) if source == root
+        ));
         builder.define_source(root, [direct]);
         builder.define_source(direct, [transitive]);
         builder.define_source(transitive, []);

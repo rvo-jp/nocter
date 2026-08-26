@@ -8,7 +8,7 @@ use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
-use crate::source_context::{SourceContext, SourceContextError};
+use crate::source_context::SourceContextError;
 
 /// One compiler-selected call signature and active authored argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,7 +69,7 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let index = authority.source_index();
-        let from = SourceContext::resolve(index, source)?.module();
+        let from = authority.source_ownership().module_for_source(source)?;
         let spellings = VisibleSpellings::for_source(authority.graph(), from, index, source);
         let Some((body_id, _node_id, _range, call)) = index
             .bindings_in(source)

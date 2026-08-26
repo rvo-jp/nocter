@@ -142,6 +142,11 @@ impl PreparedSemanticProgram {
         &self.source_access
     }
 
+    #[must_use]
+    pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
+        self.source_access.ownership()
+    }
+
     pub(crate) const fn member_completion_cache(
         &self,
     ) -> &crate::member_completion::MemberCompletionCache {
@@ -547,13 +552,7 @@ fn prepare_program_checking_internal<'syntax>(
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
     let (graph, mut types, admission) = program.into_parts();
-    if input.target() != graph.target() {
-        return Err(PreparationError::TargetMismatch {
-            input: input.target(),
-            program: graph.target(),
-        }
-        .into());
-    }
+    validate_preparation_target(input, &graph)?;
     let body_sources = match prepare_body_sources(input, &graph, bindings) {
         Ok(body_sources) => body_sources,
         Err(error) => {
@@ -562,6 +561,7 @@ fn prepare_program_checking_internal<'syntax>(
                 retain_names,
                 graph,
                 types,
+                bindings.source_ownership().clone(),
                 source_index,
                 None,
             ));
@@ -575,6 +575,7 @@ fn prepare_program_checking_internal<'syntax>(
                 retain_names,
                 graph,
                 types,
+                bindings.source_ownership().clone(),
                 source_index,
                 None,
             ));
@@ -595,6 +596,7 @@ fn prepare_program_checking_internal<'syntax>(
                 retain_names,
                 graph,
                 types,
+                bindings.source_ownership().clone(),
                 source_index,
                 Some(standard_semantics),
             ));
@@ -617,6 +619,7 @@ fn prepare_program_checking_internal<'syntax>(
                         graph,
                         types,
                         partial.bodies,
+                        bindings.source_ownership().clone(),
                         partial.source_index,
                     )
                 });
@@ -640,6 +643,20 @@ fn prepare_program_checking_internal<'syntax>(
         source_namespaces: bindings.source_namespaces().clone(),
         source_index,
     })
+}
+
+fn validate_preparation_target(
+    input: &CompileUnitInput<'_>,
+    graph: &DeclarationGraph,
+) -> Result<(), PreparationFailure> {
+    if input.target() == graph.target() {
+        return Ok(());
+    }
+    Err(PreparationError::TargetMismatch {
+        input: input.target(),
+        program: graph.target(),
+    }
+    .into())
 }
 
 fn prepare_body_sources<'syntax>(
@@ -699,6 +716,7 @@ fn declaration_failure(
     retain_recovery: bool,
     graph: DeclarationGraph,
     types: TypeStore,
+    source_ownership: nocter_frontend_bindings::SourceOwnershipTable,
     source_index: SourceIndex,
     standard_semantics: Option<StandardSemanticTable>,
 ) -> PreparationFailure {
@@ -706,6 +724,7 @@ fn declaration_failure(
         crate::PreparationRecovery::Declarations(Box::new(crate::DeclarationAnalysisRecovery::new(
             graph,
             types,
+            source_ownership,
             source_index,
             standard_semantics,
         )))

@@ -143,6 +143,11 @@ impl CheckedProgram {
         &self.source_access
     }
 
+    #[must_use]
+    pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
+        self.source_access.ownership()
+    }
+
     pub(crate) const fn member_completion_cache(
         &self,
     ) -> &crate::member_completion::MemberCompletionCache {
