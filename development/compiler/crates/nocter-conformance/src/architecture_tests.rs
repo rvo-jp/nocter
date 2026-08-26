@@ -176,10 +176,62 @@ fn body_recovery_promotes_or_discards_one_isolated_transaction() {
     let pipeline = source("crates/nocter-checking/src/body_check/pipeline.rs");
     assert!(pipeline.contains("struct BodySemanticTransaction"));
     assert!(pipeline.contains("transaction.commit(types, copyabilities, closures)"));
+    assert!(pipeline.contains("BodyAttemptFailure::Transactional"));
+    assert!(!pipeline.contains("transaction: Option<Box<BodySemanticTransaction>>"));
+    assert!(!pipeline.contains("recovery body attempt must own its isolated transaction"));
     assert!(!pipeline.contains("*types = type_checkpoint"));
     assert!(!pipeline.contains("*copyabilities = copyability_checkpoint"));
     assert!(!pipeline.contains("prepared.types.clone()"));
     assert!(!pipeline.contains("prepared.copyabilities.clone()"));
+}
+
+#[test]
+fn frozen_cross_phase_contracts_are_consumed_without_reconstruction() {
+    let provenance = source("crates/nocter-checking/src/provenance/analysis.rs");
+    assert!(provenance.contains(".selected_input(origin)"));
+    assert!(!provenance.contains("fn map_origin_positions("));
+
+    let mir_environment = source("crates/nocter-mir/src/validation_environment.rs");
+    assert!(mir_environment.contains("fn type_representation("));
+    assert!(!mir_environment.contains("fn nominal_type("));
+    assert!(!mir_environment.contains("fn field("));
+    assert!(!mir_environment.contains("fn variant("));
+    assert!(!mir_environment.contains("fn parameter("));
+
+    let mir_manifest = production_dependencies("nocter-mir");
+    assert!(!mir_manifest.contains("nocter-declarations"));
+}
+
+#[test]
+fn dense_identity_domains_do_not_retain_parallel_lookup_authorities() {
+    let machine = source("crates/nocter-machine/src/lower.rs");
+    assert!(machine.contains("MachineFunctionDomain::new(&linkage)"));
+    assert!(!machine.contains("struct FunctionDomains"));
+    assert!(!machine.contains("assign_function_domains"));
+
+    let program = source("crates/nocter-machine/src/program.rs");
+    assert!(!program.contains("functions_by_linkage"));
+
+    let executable = source("crates/nocter-target-program/src/executable.rs");
+    assert!(executable.contains("binary_search_by"));
+    assert!(!executable.contains("closure_layouts: BTreeMap"));
+}
+
+#[test]
+fn mir_program_builder_is_the_single_semantic_validation_owner() {
+    let function_builder = source("crates/nocter-mir/src/builder.rs");
+    assert!(!function_builder.contains("validate_function("));
+    assert!(!function_builder.contains("MirValidationEnvironment"));
+
+    let program = source("crates/nocter-mir/src/program.rs");
+    let define = program
+        .split_once("pub fn define(")
+        .expect("MIR program function definition boundary exists")
+        .1
+        .split_once("pub fn finish(")
+        .expect("function definition ends before program freezing")
+        .0;
+    assert_eq!(define.matches("validate_function(").count(), 1);
 }
 
 #[test]

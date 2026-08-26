@@ -16,27 +16,10 @@ use crate::{
 
 /// Mutable state for one basic block while a function is being built.
 #[derive(Debug, Default)]
-pub struct MirBlockBuilder {
+struct MirBlockBuilder {
     parameters: Vec<MirValueId>,
     operations: Vec<MirOperationId>,
     terminator: Option<MirTerminator>,
-}
-
-impl MirBlockBuilder {
-    #[must_use]
-    pub const fn parameters(&self) -> &[MirValueId] {
-        self.parameters.as_slice()
-    }
-
-    #[must_use]
-    pub const fn operations(&self) -> &[MirOperationId] {
-        self.operations.as_slice()
-    }
-
-    #[must_use]
-    pub const fn terminator(&self) -> Option<&MirTerminator> {
-        self.terminator.as_ref()
-    }
 }
 
 /// The sole mutable construction path for the CFG domains shared by functions and roots.

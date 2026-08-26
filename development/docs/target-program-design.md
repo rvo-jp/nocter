@@ -335,11 +335,11 @@ outer-to-inner messages through allocation-free target code, releases the handle
 status one, so one process failure cannot suppress a later declaration-order run.
 
 Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
-must supply the witness pattern selected during checking after substituting the opaque
-declaration's concrete generic arguments. Projection must produce that same specialized witness.
-The MIR validation environment exposes only the declaration and checked witness table required to
-prove those representation facts; it does not expose interface selection or permit witness member
-lookup.
+must supply the exact concrete witness frozen for that opaque application. Projection must produce
+the same witness. The MIR validation environment exposes the concrete runtime representation for a
+`TypeId`; it does not expose nominal fields, variants, generic substitutions, opaque declarations,
+interface selection, or witness-member lookup. MIR therefore checks representation integrity
+without reopening declaration state or specializing a type for a second time.
 
 The implemented MIR validator requires closed successors, valid typed place projections, resolved
 and signature-correct call targets, SSA dominance, complete terminal behavior, and one consistent

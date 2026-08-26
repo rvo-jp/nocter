@@ -485,8 +485,11 @@ receiver lookup combines accessible inherent methods, applicable concrete confor
 and lexical interface requirements for unresolved generic receivers; any surviving collision is
 ambiguous without signature ranking. Interface `Self`, interface arguments, associated bindings,
 instance arguments, and callable arguments enter one owner substitution and the same declared-call
-planner. A concrete conformance freezes its selected implementation or default body, while a
-generic call retains the exact interface `RequirementId` and method identity.
+planner. A concrete conformance freezes its selected implementation or default body together with
+the proven receiver/parameter correspondence between the interface contract and that body.
+Provenance analysis consumes this correspondence directly rather than reconstructing parameter
+positions from declarations. A generic call retains the exact interface `RequirementId` and method
+identity.
 
 Only when exact lookup has no candidate may method selection traverse one borrow coercion.
 Readonly coercion receivers form the minimum-authority tier; a readwrite receiver tier is tried

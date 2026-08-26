@@ -491,24 +491,21 @@ fn check_declared_bodies<'input, 'syntax>(
         );
         let mut body_output = match attempt {
             Ok(output) => output,
-            Err(BodyAttemptFailure {
+            Err(BodyAttemptFailure::Direct(failure)) => {
+                return Err(RecoveringBodyConstructionFailure {
+                    error: Box::new(failure.into_parts().0),
+                    interruptions: Vec::new(),
+                    checked_bodies: Vec::new(),
+                    projections: Vec::new(),
+                });
+            }
+            Err(BodyAttemptFailure::Transactional {
                 failure,
-                mut transaction,
+                transaction,
             }) => {
                 let (error, interruption) = failure.into_parts();
-                if !retain_recovery {
-                    return Err(RecoveringBodyConstructionFailure {
-                        error: Box::new(error),
-                        interruptions: Vec::new(),
-                        checked_bodies: Vec::new(),
-                        projections: Vec::new(),
-                    });
-                }
                 let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
                 if let Some(interruption) = interruption {
-                    let transaction = transaction
-                        .take()
-                        .expect("recovery body attempt must own its isolated transaction");
                     let (interrupted_types, interrupted_copyabilities) =
                         transaction.into_recovery_snapshot();
                     interruptions.push((
@@ -576,10 +573,7 @@ fn attempt_body<'input, 'syntax>(
             names,
             (types, copyabilities, closures),
         )
-        .map_err(|failure| BodyAttemptFailure {
-            failure,
-            transaction: None,
-        });
+        .map_err(BodyAttemptFailure::Direct);
     }
     let mut transaction = BodySemanticTransaction::fork(types, copyabilities, closures);
     match construct_body(input, facts, source, names, transaction.parts_mut()) {
@@ -587,16 +581,19 @@ fn attempt_body<'input, 'syntax>(
             transaction.commit(types, copyabilities, closures);
             Ok(output)
         }
-        Err(failure) => Err(BodyAttemptFailure {
+        Err(failure) => Err(BodyAttemptFailure::Transactional {
             failure,
-            transaction: Some(Box::new(transaction)),
+            transaction: Box::new(transaction),
         }),
     }
 }
 
-struct BodyAttemptFailure {
-    failure: super::error::BodyConstructionFailure,
-    transaction: Option<Box<BodySemanticTransaction>>,
+enum BodyAttemptFailure {
+    Direct(super::error::BodyConstructionFailure),
+    Transactional {
+        failure: super::error::BodyConstructionFailure,
+        transaction: Box<BodySemanticTransaction>,
+    },
 }
 
 /// An isolated mutable branch for one body.

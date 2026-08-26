@@ -27,7 +27,8 @@ mod validation_region;
 mod validation_switch;
 mod validation_types;
 
-pub use builder::{MirBlockBuilder, MirBodyBuildError, MirBodyBuilder, MirFunctionBuilder};
+pub use builder::MirBodyBuildError;
+pub(crate) use builder::{MirBodyBuilder, MirFunctionBuilder};
 pub use destruction::{
     MirCaptureDestruction, MirDestructionKind, MirDestructionPlan, MirFieldDestruction,
     MirPayloadDestruction, MirVariantDestruction,

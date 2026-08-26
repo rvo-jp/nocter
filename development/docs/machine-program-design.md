@@ -79,6 +79,11 @@ integer operations, tags, direct calls, primitive calls, and exits explicit. Agg
 destruction must use the stored-layout authority and MIR's active-payload control flow rather than
 introducing a second semantic aggregate model.
 
+Every linkage entry owns exactly one emitted function in the same dense order. A
+`MachineFunctionDomain` derives linkage, executable-item, and generated-destruction function IDs
+from the canonical linkage table. Machine lowering does not retain parallel item-to-function,
+destruction-to-function, or linkage-to-function maps that could disagree with that order.
+
 ABI lowering belongs at this boundary. Each callable input and result receives one immutable
 transport plan naming direct words, stack slots, or indirect storage. Callers and callees must
 share the same plan object or derive identical plans through one planner. Compiler-owned process

@@ -1200,9 +1200,11 @@ Function-local locals, drop flags, places, SSA values, operations, and blocks oc
 identity domains. Typed block parameters carry merge values, and every block has one exact
 terminator. Conditional destruction branches on a drop flag; representation switches inspect
 enum, optional, or fallible storage without moving it. A consuming builder is the only mutation
-path. Validation checks concrete projections and aggregates, operation types, complete reachable
-control flow, typed edge arguments, SSA dominance, switch subjects, semantic call targets, and
-terminal results before a `MirFunction` or `MirProgram` can escape.
+path inside the MIR crate. `MirProgramBuilder` owns the exact executable environment and is the sole
+whole-function semantic validation boundary; function construction does not validate and then ask
+the program builder to repeat the same walk. Validation checks concrete projections and
+aggregates, operation types, complete reachable control flow, typed edge arguments, SSA dominance,
+switch subjects, semantic call targets, and terminal results before a `MirProgram` can escape.
 
 Machine lowering projects validated MIR into ABI storage and target-independent operations.
 Target code generation consumes only the machine program, target description, and one-way linkage
