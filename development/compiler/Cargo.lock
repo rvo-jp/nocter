@@ -1856,6 +1856,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-source",
+ "nocter-source-index",
  "nocter-syntax",
 ]
 

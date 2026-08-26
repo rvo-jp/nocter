@@ -270,10 +270,16 @@ Source-backed normalized type-position diagnostics:
   payload of `void!`, or the pointee of `*void`.
 - `E0365`: unsized `str` or `[T]` appears by value rather than behind an indirection.
 - `E0366`: a field of a `copy struct` is move-only for every specialization of that declaration.
+- `E0367`: a concrete associated projection has no applicable implementation of the associated
+  declaration's owner interface.
+- `E0368`: a concrete associated projection admits more than one application of the associated
+  declaration's owner interface.
 
 These rules run on normalized semantic types after alias expansion and again after concrete generic
 substitution. A type alias may directly name `void`, `never`, `str`, or `[T]`; the position where
-that alias is used determines whether the expanded type is valid.
+that alias is used determines whether the expanded type is valid. Associated declaration identity
+is resolved during type normalization, while concrete applicability is decided later by the same
+program-wide interface-implementation table used for dispatch.
 
 Source-backed checked-body diagnostics:
 

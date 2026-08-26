@@ -13,6 +13,7 @@ use crate::declaration_patterns::DeclarationPatternTable;
 use crate::instance_operations::build_instance_operation_table_from_ids;
 use crate::interface_implementation::build_interface_implementation_table_from_ids;
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
+use crate::type_validity::validate_associated_projection_uses;
 use crate::{
     BodySourceCatalog, ConstructionSurfaceBuildError, ConstructionSurfaceTable,
     CopyabilityBuildError, CopyabilityTable, DeclarationTypeValidityError, DropTable,
@@ -568,20 +569,20 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let authorities = match build_program_authorities(&graph, &mut types, &source_index, &admission)
-    {
-        Ok(authorities) => authorities,
-        Err(error) => {
-            return Err(declaration_failure(
-                error,
-                retain_names,
-                graph,
-                types,
-                source_index,
-                Some(standard_semantics),
-            ));
-        }
-    };
+    let authorities =
+        match build_program_authorities(&graph, &mut types, bindings, &source_index, &admission) {
+            Ok(authorities) => authorities,
+            Err(error) => {
+                return Err(declaration_failure(
+                    error,
+                    retain_names,
+                    graph,
+                    types,
+                    source_index,
+                    Some(standard_semantics),
+                ));
+            }
+        };
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -638,6 +639,7 @@ fn prepare_body_sources<'syntax>(
 fn build_program_authorities(
     graph: &DeclarationGraph,
     types: &mut TypeStore,
+    bindings: &FrontendBindings,
     source_index: &SourceIndex,
     admission: &nocter_declarations::DeclarationAnalysisAdmission,
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
@@ -652,6 +654,13 @@ fn build_program_authorities(
         source_index,
         &declaration_patterns,
         operations.interface_implementations(),
+    )?;
+    validate_associated_projection_uses(
+        graph,
+        types,
+        bindings,
+        source_index,
+        &interface_implementations,
     )?;
     let construction_surfaces =
         ConstructionSurfaceTable::build_from_ids(graph, types, operations.constructions())?;

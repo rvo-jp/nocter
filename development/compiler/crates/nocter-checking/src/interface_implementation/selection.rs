@@ -14,6 +14,15 @@ pub(crate) struct InterfaceImplementationSelection {
     substitution: TypeSubstitution,
 }
 
+/// Applicability of one concrete associated projection across every application of its owner
+/// interface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AssociatedImplementationSelection {
+    None,
+    Unique(InterfaceImplementationId),
+    Ambiguous,
+}
+
 impl InterfaceImplementationSelection {
     pub(crate) const fn declaration(&self) -> InterfaceImplementationId {
         self.declaration
@@ -58,6 +67,23 @@ pub(crate) fn select_interface_implementation(
     let selected = prover.select_interface(subject, application)?;
     prover.active.remove(&root);
     Ok(selected)
+}
+
+/// Selects an implementation for a concrete associated projection without inventing interface
+/// arguments that are absent from `Base.Member` syntax.
+///
+/// Unlike ordinary interface dispatch, this searches every application of the associated type's
+/// owner interface. More than one applicable application is therefore an ambiguity even when the
+/// program-wide overlap rule permits those applications independently.
+pub(crate) fn select_associated_implementation(
+    types: &mut TypeStore,
+    table: &InterfaceImplementationTable,
+    assumptions: &[CheckedRequirement],
+    intrinsic_facts: &[CheckedPredicate],
+    subject: TypeId,
+    interface: nocter_model::InterfaceId,
+) -> Result<AssociatedImplementationSelection, SubstitutionError> {
+    Prover::new(types, table, assumptions, intrinsic_facts).select_associated(subject, interface)
 }
 
 struct Prover<'program> {
@@ -204,6 +230,55 @@ impl<'program> Prover<'program> {
             }));
         }
         Ok(None)
+    }
+
+    fn select_associated(
+        &mut self,
+        subject: TypeId,
+        interface: nocter_model::InterfaceId,
+    ) -> Result<AssociatedImplementationSelection, SubstitutionError> {
+        let candidates = self.table.candidates(interface).to_vec();
+        let mut selected = None;
+        for declaration in candidates {
+            let implementation = self
+                .table
+                .entries()
+                .get(&declaration)
+                .ok_or(SubstitutionError::InvalidStore)?;
+            let application = implementation.interface().clone();
+            let target = implementation.target();
+            let refinements = implementation.refinements().to_vec();
+            let requirements = implementation.requirements().to_vec();
+            let Some(matched) =
+                match_pattern(self.types, &application, target, &application, subject)?
+            else {
+                continue;
+            };
+            let mut substitution = TypeSubstitution::default();
+            for refinement in refinements {
+                substitution.bind_generic(refinement.parameter(), refinement.ty());
+            }
+            substitution.extend(&matched);
+            let mut applicable = true;
+            for requirement in requirements {
+                let predicate =
+                    substitute_predicate(self.types, &substitution, requirement.predicate())?;
+                if !self.prove(&predicate)? {
+                    applicable = false;
+                    break;
+                }
+            }
+            if !applicable {
+                continue;
+            }
+            if selected.replace(declaration).is_some() {
+                return Ok(AssociatedImplementationSelection::Ambiguous);
+            }
+        }
+        Ok(selected.map_or(
+            AssociatedImplementationSelection::None,
+            AssociatedImplementationSelection::Unique,
+        ))
     }
 }
 

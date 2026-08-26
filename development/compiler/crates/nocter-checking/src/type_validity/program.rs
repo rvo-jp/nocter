@@ -42,10 +42,18 @@ impl From<TypeValidityInternalError> for DeclarationTypeValidityError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum TypeValidityInternalError {
     UnknownType(TypeId),
     MissingSource(SemanticEntity),
+    MissingAssociatedType(nocter_model::AssociatedTypeId),
+    MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
+    MissingAssociatedBinding {
+        implementation: nocter_model::InterfaceImplementationId,
+        associated: nocter_model::AssociatedTypeId,
+    },
+    MissingAssociatedProjectionSource(nocter_source_index::SyntaxOrigin),
+    Substitution(crate::SubstitutionError),
 }
 
 impl fmt::Display for TypeValidityInternalError {
@@ -53,6 +61,29 @@ impl fmt::Display for TypeValidityInternalError {
         match self {
             Self::UnknownType(ty) => write!(formatter, "unknown type {ty:?} during validation"),
             Self::MissingSource(entity) => write!(formatter, "missing source for {entity:?}"),
+            Self::MissingAssociatedType(associated) => {
+                write!(formatter, "missing associated type {associated:?}")
+            }
+            Self::MissingInterfaceImplementation(implementation) => {
+                write!(
+                    formatter,
+                    "missing interface implementation {implementation:?}"
+                )
+            }
+            Self::MissingAssociatedBinding {
+                implementation,
+                associated,
+            } => write!(
+                formatter,
+                "interface implementation {implementation:?} has no binding for {associated:?}"
+            ),
+            Self::MissingAssociatedProjectionSource(origin) => {
+                write!(
+                    formatter,
+                    "associated projection {origin:?} has no source binding"
+                )
+            }
+            Self::Substitution(error) => error.fmt(formatter),
         }
     }
 }

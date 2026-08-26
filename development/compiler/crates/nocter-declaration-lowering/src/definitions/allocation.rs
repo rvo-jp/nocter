@@ -112,6 +112,8 @@ pub(super) fn finish_recovering(
     mut types: PreparedTypes<'_>,
     _allocated: AllocatedHeaders,
 ) -> Result<LoweredDeclarations, HeaderDefinitionFailure> {
+    project_associated_projection_uses(&mut types)
+        .map_err(HeaderDefinitionFailure::without_recovery)?;
     types
         .namespaces
         .define_program_namespaces()
@@ -156,6 +158,52 @@ pub(super) fn finish_recovering(
             Err(HeaderDefinitionFailure::new(error, recovery))
         }
     }
+}
+
+fn project_associated_projection_uses(
+    types: &mut PreparedTypes<'_>,
+) -> Result<(), HeaderDefinitionError> {
+    let uses = std::mem::take(&mut types.associated_projection_uses).into_vec();
+    for projection in uses {
+        let syntax = projection.origin();
+        let source = match syntax {
+            SyntaxOrigin::Node(node) => node.source(),
+            SyntaxOrigin::Token(token) => token.source(),
+        };
+        let tree = types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .sources
+            .iter()
+            .find(|candidate| candidate.syntax().source() == source)
+            .map(crate::SurfaceSource::syntax)
+            .ok_or(HeaderDefinitionError::InconsistentSource(source))?;
+        let origin = match syntax {
+            SyntaxOrigin::Node(node) => nocter_source_index::SourceOrigin::from_node(tree, node)
+                .map_err(|_| HeaderDefinitionError::InconsistentSource(source))?,
+            SyntaxOrigin::Token(token) => {
+                nocter_source_index::SourceOrigin::from_token(tree, token)
+                    .map_err(|_| HeaderDefinitionError::InconsistentSource(source))?
+            }
+        };
+        types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .source_index
+            .insert_associated_projection_use(
+                projection.base(),
+                projection.associated(),
+                syntax,
+                origin,
+            )?;
+    }
+    Ok(())
 }
 
 fn allocate_requirements(

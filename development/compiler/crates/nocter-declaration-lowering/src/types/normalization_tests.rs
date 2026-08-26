@@ -252,7 +252,7 @@ fn rejects_recursive_alias_expansion() {
 }
 
 #[test]
-fn rejects_ambiguous_concrete_associated_projection() {
+fn duplicate_implementations_do_not_change_associated_declaration_identity() {
     let mut sources = SourceMap::new();
     let (manifest, app, std_manifest, std_root, prelude) = fixture(
         &mut sources,
@@ -264,7 +264,7 @@ fn rejects_ambiguous_concrete_associated_projection() {
             "func read(value: &Buffer): Buffer.Item { return 0 }\n",
         ),
     );
-    let error = normalized_app(
+    let normalized = normalized_app(
         &sources,
         &manifest,
         &app,
@@ -272,13 +272,25 @@ fn rejects_ambiguous_concrete_associated_projection() {
         &std_root,
         &prelude,
     )
-    .unwrap_err();
+    .unwrap();
 
-    assert!(matches!(
-        error,
-        TypeNormalizationError::Rule(violation)
-            if violation.rule() == crate::TypeNormalizationRule::AmbiguousAssociatedType
-    ));
+    assert!(
+        all_nodes(&app, NodeKind::Type)
+            .into_iter()
+            .filter_map(|node| normalized.type_for(node))
+            .any(|ty| matches!(
+                normalized
+                    .namespaces()
+                    .imports
+                    .generics
+                    .headers
+                    .reserved
+                    .program
+                    .types()
+                    .get(ty),
+                Some(TypeKind::AssociatedProjection { .. })
+            ))
+    );
 }
 
 #[test]

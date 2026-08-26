@@ -139,6 +139,11 @@ reached package sources; `includeDeclaration` controls declaration and implement
 Local names, shadowed names, imports, interface dispatch, and associated projections therefore
 cannot be conflated by spelling.
 
+Header associated selections are projected at their exact member token once normalization has
+selected the interface-owned declaration identity. The separate frontend binding retains the
+normalized base type for concrete applicability diagnostics; the source index retains only the
+identity-to-occurrence relation used by hover, definition, references, and diagnostic projection.
+
 Rename consumes that same identity instead of searching text. The compiler rejects non-name
 anchors and any plan containing an occurrence outside a selected root package. The server derives
 a speculative overlay from every reached source in the immutable generation, applies all edits,

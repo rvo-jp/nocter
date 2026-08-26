@@ -10,6 +10,7 @@ publish = false
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }
+nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 
 [lints]

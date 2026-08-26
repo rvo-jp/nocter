@@ -8,9 +8,10 @@ use std::collections::{BTreeMap, HashMap};
 
 use nocter_model::{
     AssociatedTypeId, BodyId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId,
-    ParameterId, Symbol,
+    ParameterId, Symbol, TypeId,
 };
 use nocter_source::SourceId;
+use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{NodeId, SyntaxToken};
 
 mod access;
@@ -77,6 +78,44 @@ pub enum FrontendDeclaration {
     Callable(CallableId),
 }
 
+/// One authored associated-type selection after its semantic identity has been normalized.
+///
+/// The structural type store deliberately does not retain source occurrences. This companion
+/// fact lets checking validate concrete applicability and report the exact authored selection
+/// without searching declarations or reconstructing syntax ownership.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct AssociatedProjectionUse {
+    base: TypeId,
+    associated: AssociatedTypeId,
+    origin: SyntaxOrigin,
+}
+
+impl AssociatedProjectionUse {
+    #[must_use]
+    pub const fn new(base: TypeId, associated: AssociatedTypeId, origin: SyntaxOrigin) -> Self {
+        Self {
+            base,
+            associated,
+            origin,
+        }
+    }
+
+    #[must_use]
+    pub const fn base(self) -> TypeId {
+        self.base
+    }
+
+    #[must_use]
+    pub const fn associated(self) -> AssociatedTypeId {
+        self.associated
+    }
+
+    #[must_use]
+    pub const fn origin(self) -> SyntaxOrigin {
+        self.origin
+    }
+}
+
 /// Exact, syntax-stable inputs selected before semantic checking starts.
 #[derive(Clone, Debug, Default)]
 pub struct FrontendBindings {
@@ -84,6 +123,7 @@ pub struct FrontendBindings {
     body_blocks: BTreeMap<BodyId, Box<[NodeId]>>,
     parameter_declarations: BTreeMap<ParameterId, Box<[SyntaxToken]>>,
     declarations: HashMap<SyntaxToken, Box<[FrontendDeclaration]>>,
+    associated_projection_uses: Box<[AssociatedProjectionUse]>,
     block_imports: HashMap<NodeId, ModuleId>,
     source_namespaces: SourceNamespaceTable,
     source_access: SourceAccessTable,
@@ -115,6 +155,12 @@ impl FrontendBindings {
     #[must_use]
     pub fn declarations(&self, token: SyntaxToken) -> &[FrontendDeclaration] {
         self.declarations.get(&token).map_or(&[], AsRef::as_ref)
+    }
+
+    /// Returns normalized associated selections in deterministic source order.
+    #[must_use]
+    pub const fn associated_projection_uses(&self) -> &[AssociatedProjectionUse] {
+        &self.associated_projection_uses
     }
 
     #[must_use]
@@ -161,6 +207,7 @@ pub struct FrontendBindingsBuilder {
     body_blocks: BTreeMap<BodyId, Vec<NodeId>>,
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
+    associated_projection_uses: Vec<AssociatedProjectionUse>,
     source_namespaces: HashMap<SourceId, SourceNamespaceBuilder>,
     source_access: SourceAccessTableBuilder,
 }
@@ -198,6 +245,10 @@ impl FrontendBindingsBuilder {
             .entry(token)
             .or_default()
             .push(declaration);
+    }
+
+    pub fn add_associated_projection_use(&mut self, projection: AssociatedProjectionUse) {
+        self.associated_projection_uses.push(projection);
     }
 
     pub fn define_source_namespace(
@@ -274,6 +325,26 @@ impl FrontendBindingsBuilder {
                 .into_iter()
                 .map(|(token, declarations)| (token, declarations.into_boxed_slice()))
                 .collect(),
+            associated_projection_uses: {
+                let mut uses = self.associated_projection_uses;
+                uses.sort_unstable_by_key(|projection| {
+                    let (source, kind, index) = match projection.origin() {
+                        SyntaxOrigin::Node(node) => (node.source(), 0_u8, node.index()),
+                        SyntaxOrigin::Token(token) => {
+                            (token.source(), 1_u8, token.lexical().index())
+                        }
+                    };
+                    (
+                        source,
+                        kind,
+                        index,
+                        projection.base(),
+                        projection.associated(),
+                    )
+                });
+                uses.dedup();
+                uses.into_boxed_slice()
+            },
             source_namespaces: SourceNamespaceTable {
                 namespaces: self
                     .source_namespaces

@@ -165,6 +165,10 @@ type-position validator classifies data, callable-result, non-value type operand
 and pointer-pointee roots. It traverses nested structural types once, validates every declaration
 position after alias expansion, and is reused after concrete generic substitution rather than
 encoding `void`, `never`, outcome, or unsized exceptions in inference and layout consumers.
+Declaration lowering resolves only the identity named by an associated selection and emits one
+syntax-linked projection-use fact beside the semantic program. After the implementation table is
+complete, type validity consumes those facts to validate concrete applicability through that table.
+It neither repeats implementation refinements nor searches declaration patterns independently.
 
 Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
 opens `AcceptedDeclarationProgram` once, retains the same extended `TypeStore`, and owns the interface-implementation

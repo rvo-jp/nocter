@@ -4,6 +4,7 @@ use std::fmt;
 use nocter_declarations::{
     AssociatedTypeBinding, InterfaceApplication, RequirementKind, RequirementSubject,
 };
+use nocter_frontend_bindings::AssociatedProjectionUse;
 use nocter_model::{
     AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
     ParameterOrigin, ResultProvenance, Symbol, TypeAliasId, TypeId, TypeKind, TypeStore,
@@ -120,6 +121,7 @@ pub struct PreparedTypes<'syntax> {
     pub(crate) callable_results: Box<[Option<TypeId>]>,
     pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
     pub(crate) constant_values: HashMap<nocter_model::ConstantId, super::PreparedConstantValue>,
+    pub(crate) associated_projection_uses: Box<[AssociatedProjectionUse]>,
 }
 
 impl PreparedTypes<'_> {
@@ -239,6 +241,7 @@ struct Evaluator<'a> {
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,
     array_lengths: &'a HashMap<NodeId, u64>,
+    associated_projection_uses: Vec<AssociatedProjectionUse>,
 }
 
 impl Evaluator<'_> {
@@ -562,7 +565,7 @@ impl Evaluator<'_> {
     }
 
     fn resolve_associated(
-        &self,
+        &mut self,
         declaration: SurfaceDeclarationId,
         selection: BoundTypeId,
         bound_base: BoundTypeId,
@@ -570,17 +573,14 @@ impl Evaluator<'_> {
         name: Symbol,
     ) -> Result<AssociatedTypeId, TypeNormalizationError> {
         let mut candidates = HashSet::new();
-        let occurrences = match self.kinds.get(bound_base.index()) {
+        match self.kinds.get(bound_base.index()) {
             Some(BoundTypeKind::GenericParameter(parameter)) => {
-                self.collect_parameter_associated(declaration, *parameter, name, &mut candidates)
+                self.collect_parameter_associated(declaration, *parameter, name, &mut candidates);
             }
             _ => match self.store.get(base) {
                 Some(TypeKind::InterfaceSelf(interface)) => {
                     if let Some(associated) = self.context.associated.get(&(*interface, name)) {
                         candidates.insert(*associated);
-                        1
-                    } else {
-                        0
                     }
                 }
                 Some(TypeKind::GenericParameter(parameter)) => self.collect_parameter_associated(
@@ -596,27 +596,34 @@ impl Evaluator<'_> {
                             RequirementSubject::AssociatedType(*associated),
                             name,
                             &mut candidates,
-                        )
-                    } else {
-                        0
+                        );
                     }
                 }
                 Some(_) => {
-                    self.collect_interface_implementation_associated(base, name, &mut candidates)
+                    self.collect_interface_implementation_associated(base, name, &mut candidates);
                 }
                 None => {
                     return Err(TypeNormalizationError::InconsistentTypeStore);
                 }
             },
-        };
-        match occurrences {
+        }
+        match candidates.len() {
             0 => {
                 Err(self
                     .authored_violation(TypeNormalizationRule::UnknownAssociatedType, selection)?)
             }
-            1 if candidates.len() == 1 => candidates.iter().next().copied().ok_or(
-                TypeNormalizationError::InconsistentAssociatedIndex(declaration),
-            ),
+            1 => {
+                let associated = candidates.iter().next().copied().ok_or(
+                    TypeNormalizationError::InconsistentAssociatedIndex(declaration),
+                )?;
+                let origin = self
+                    .origins
+                    .bound(selection)
+                    .ok_or(TypeNormalizationError::InvalidBoundType(selection))?;
+                self.associated_projection_uses
+                    .push(AssociatedProjectionUse::new(base, associated, origin));
+                Ok(associated)
+            }
             _ => Err(
                 self.authored_violation(TypeNormalizationRule::AmbiguousAssociatedType, selection)?
             ),
@@ -675,10 +682,9 @@ impl Evaluator<'_> {
         parameter: GenericParameterId,
         name: Symbol,
         candidates: &mut HashSet<AssociatedTypeId>,
-    ) -> usize {
-        let mut occurrences = 0;
+    ) {
         loop {
-            occurrences += self.collect_subject_associated(
+            self.collect_subject_associated(
                 declaration,
                 RequirementSubject::GenericParameter(parameter),
                 name,
@@ -694,7 +700,6 @@ impl Evaluator<'_> {
             };
             declaration = owner;
         }
-        occurrences
     }
 
     fn collect_subject_associated(
@@ -703,11 +708,10 @@ impl Evaluator<'_> {
         subject: RequirementSubject,
         name: Symbol,
         candidates: &mut HashSet<AssociatedTypeId>,
-    ) -> usize {
+    ) {
         let Some(requirements) = self.context.bound_requirements.get(declaration.index()) else {
-            return 0;
+            return;
         };
-        let mut occurrences = 0;
         for requirement in requirements {
             let BoundRequirementKind::Interface {
                 subject: candidate,
@@ -722,10 +726,8 @@ impl Evaluator<'_> {
                     self.context.associated.get(&(application.definition, name))
             {
                 candidates.insert(*associated);
-                occurrences += 1;
             }
         }
-        occurrences
     }
 
     fn collect_interface_implementation_associated(
@@ -733,8 +735,7 @@ impl Evaluator<'_> {
         base: TypeId,
         name: Symbol,
         candidates: &mut HashSet<AssociatedTypeId>,
-    ) -> usize {
-        let mut occurrences = 0;
+    ) {
         for (declaration, interface) in &self.context.implementation_interfaces {
             let Some(owner) = self.context.declarations[declaration.index()].owner() else {
                 continue;
@@ -742,14 +743,12 @@ impl Evaluator<'_> {
             let Some(target) = self.context.patterns[owner.index()].first() else {
                 continue;
             };
-            if pattern_matches(self.store, target, base)
+            if same_attachment_family(self.store, target, base)
                 && let Some(associated) = self.context.associated.get(&(*interface, name))
             {
                 candidates.insert(*associated);
-                occurrences += 1;
             }
         }
-        occurrences
     }
 }
 
@@ -779,7 +778,11 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
     children.into_iter().map(|child| key.child(child)).collect()
 }
 
-fn pattern_matches(
+/// Compares only the declaration attachment family used to discover a member identity.
+///
+/// This is deliberately not interface applicability. Refinements, requirements, and overlap are
+/// checked later by `InterfaceImplementationTable`, after every declaration is canonical.
+fn same_attachment_family(
     store: &TypeStore,
     pattern: &NormalizedDeclarationPattern,
     candidate: TypeId,
@@ -858,6 +861,7 @@ pub fn normalize_header_types(
         active: HashSet::new(),
         alias_stack: Vec::new(),
         array_lengths: &array_lengths,
+        associated_projection_uses: Vec::new(),
     };
 
     let mut ordered_roots: Vec<_> = bound_roots.into_iter().collect();
@@ -921,6 +925,9 @@ pub fn normalize_header_types(
         requirements.push(normalized.into_boxed_slice());
     }
 
+    let associated_projection_uses = std::mem::take(&mut evaluator.associated_projection_uses);
+    drop(evaluator);
+
     Ok(PreparedTypes {
         namespaces,
         roots,
@@ -931,6 +938,7 @@ pub fn normalize_header_types(
         callable_results,
         requirements: requirements.into_boxed_slice(),
         constant_values,
+        associated_projection_uses: associated_projection_uses.into_boxed_slice(),
     })
 }
 

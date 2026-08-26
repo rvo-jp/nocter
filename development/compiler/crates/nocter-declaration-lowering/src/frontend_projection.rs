@@ -1,8 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_frontend_bindings::{FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration};
-use nocter_model::{BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId};
+use nocter_frontend_bindings::{
+    AssociatedProjectionUse, FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration,
+};
+use nocter_model::{
+    AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
+};
 use nocter_source::SourceId;
 use nocter_source_index::{
     DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex,
@@ -16,6 +20,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 pub(crate) struct FrontendProjectionBuilder {
     source_index: SourceIndexBuilder,
     bindings: FrontendBindingsBuilder,
+    associated_references: HashSet<(AssociatedTypeId, nocter_source_index::SyntaxOrigin)>,
 }
 
 impl FrontendProjectionBuilder {
@@ -89,6 +94,25 @@ impl FrontendProjectionBuilder {
             FrontendDeclaration::Callable(id) => SemanticEntity::Callable(id),
         };
         self.source_index.insert(entity, role, origin)
+    }
+
+    pub(crate) fn insert_associated_projection_use(
+        &mut self,
+        base: TypeId,
+        associated: AssociatedTypeId,
+        syntax: nocter_source_index::SyntaxOrigin,
+        origin: SourceOrigin,
+    ) -> Result<(), DuplicateSourceBinding> {
+        self.bindings
+            .add_associated_projection_use(AssociatedProjectionUse::new(base, associated, syntax));
+        if self.associated_references.insert((associated, syntax)) {
+            self.source_index.insert(
+                SemanticEntity::AssociatedType(associated),
+                SourceRole::Reference,
+                origin,
+            )?;
+        }
+        Ok(())
     }
 
     pub(crate) fn define_declaration_site_source(

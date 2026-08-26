@@ -8,6 +8,7 @@ use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::validate_declaration_types;
+use crate::prepare_program_checking;
 
 #[test]
 fn valid_special_roots_and_indirections_are_accepted() {
@@ -91,6 +92,46 @@ fn type_validity_diagnostic_is_input_order_independent() {
         );
     }
     assert_eq!(diagnostics[0], diagnostics[1]);
+}
+
+#[test]
+fn concrete_associated_projection_requires_an_applicable_implementation() {
+    let source = concat!(
+        "interface Source { pub type Item }\n",
+        "struct Wrapper<T> {}\n",
+        "instance Wrapper<T> where T = i32 { impl Source { .Item = i32 } }\n",
+        "func invalid(value: Wrapper<i64>): Wrapper<i64>.Item { return value }\n",
+    );
+    let fixture = Fixture::new(source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, bindings, source_index) = lowered.into_checking_parts(&input);
+    let error = prepare_program_checking(&input, program, &bindings, source_index).unwrap_err();
+    let diagnostic = error.source_diagnostic().unwrap();
+
+    assert_eq!(diagnostic.code(), "E0367");
+    assert_eq!(
+        diagnostic.primary().span().range().start().get(),
+        u32::try_from(source.find("Item { return").unwrap()).unwrap()
+    );
+}
+
+#[test]
+fn concrete_associated_projection_rejects_multiple_interface_applications() {
+    let source = concat!(
+        "interface Source<T> { pub type Item }\n",
+        "struct Buffer {}\n",
+        "instance Buffer { impl Source<i32> { .Item = i32 } }\n",
+        "instance Buffer { impl Source<i64> { .Item = i64 } }\n",
+        "func invalid(value: Buffer): Buffer.Item { return value }\n",
+    );
+    let fixture = Fixture::new(source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, bindings, source_index) = lowered.into_checking_parts(&input);
+    let error = prepare_program_checking(&input, program, &bindings, source_index).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0368");
 }
 
 struct Fixture {

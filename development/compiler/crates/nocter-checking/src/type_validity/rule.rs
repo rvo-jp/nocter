@@ -9,6 +9,8 @@ pub enum TypeValidityRule {
     NeverData,
     VoidData,
     UnsizedData,
+    UnavailableAssociatedProjection,
+    AmbiguousAssociatedProjection,
 }
 
 impl TypeValidityRule {
@@ -19,6 +21,8 @@ impl TypeValidityRule {
         Self::NeverData,
         Self::VoidData,
         Self::UnsizedData,
+        Self::UnavailableAssociatedProjection,
+        Self::AmbiguousAssociatedProjection,
     ];
 
     #[must_use]
@@ -30,6 +34,8 @@ impl TypeValidityRule {
             Self::NeverData => "E0363",
             Self::VoidData => "E0364",
             Self::UnsizedData => "E0365",
+            Self::UnavailableAssociatedProjection => "E0367",
+            Self::AmbiguousAssociatedProjection => "E0368",
         }
     }
 
@@ -58,6 +64,14 @@ impl TypeValidityRule {
             Self::UnsizedData => (
                 "unsized `str` or `[T]` is used by value",
                 "place the unsized data behind a borrow or raw pointer",
+            ),
+            Self::UnavailableAssociatedProjection => (
+                "associated type selection has no applicable interface implementation",
+                "implement the associated type's interface for this concrete base type",
+            ),
+            Self::AmbiguousAssociatedProjection => (
+                "associated type selection has more than one applicable interface implementation",
+                "make the interface application unique or avoid selecting the associated type through this concrete base",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, [], Some(help))
