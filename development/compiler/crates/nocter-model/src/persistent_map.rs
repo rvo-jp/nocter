@@ -71,8 +71,8 @@ impl<K: Ord, V: Clone> PersistentMap<K, V> {
     /// Inserts an absent key while preserving every existing snapshot.
     ///
     /// Returns `false` without replacing the existing value when `key` is already present.
-    pub(crate) fn insert_absent(&mut self, key: K, value: V) -> bool {
-        let (root, inserted) = insert(self.root.as_ref(), Arc::new(key), value);
+    pub(crate) fn insert_shared_absent(&mut self, key: Arc<K>, value: V) -> bool {
+        let (root, inserted) = insert(self.root.as_ref(), key, value);
         if inserted {
             self.root = Some(root);
             self.len += 1;
@@ -202,21 +202,26 @@ fn rotate_right<K, V: Clone>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::PersistentMap;
 
     #[test]
     fn descendants_share_unchanged_entries_and_isolate_insertions() {
         let mut base = PersistentMap::default();
         for key in 0..1_000 {
-            assert!(base.insert_absent(key, key * 2));
+            assert!(base.insert_shared_absent(Arc::new(key), key * 2));
         }
         let mut first = base.clone();
         let mut second = base.clone();
-        assert!(first.insert_absent(1_000, 1));
-        assert!(second.insert_absent(1_000, 2));
+        assert!(first.insert_shared_absent(Arc::new(1_000), 1));
+        assert!(second.insert_shared_absent(Arc::new(1_000), 2));
 
         assert_eq!(base.len(), 1_000);
         assert_eq!(base.get(&999), Some(&1_998));
+        for key in 0..1_000 {
+            assert_eq!(base.get(&key), Some(&(key * 2)));
+        }
         assert_eq!(base.get(&1_000), None);
         assert_eq!(first.get(&1_000), Some(&1));
         assert_eq!(second.get(&1_000), Some(&2));
@@ -225,8 +230,8 @@ mod tests {
     #[test]
     fn duplicate_insert_does_not_replace_the_canonical_value() {
         let mut map = PersistentMap::default();
-        assert!(map.insert_absent("name", 1));
-        assert!(!map.insert_absent("name", 2));
+        assert!(map.insert_shared_absent(Arc::new("name"), 1));
+        assert!(!map.insert_shared_absent(Arc::new("name"), 2));
         assert_eq!(map.get(&"name"), Some(&1));
         assert_eq!(map.len(), 1);
     }

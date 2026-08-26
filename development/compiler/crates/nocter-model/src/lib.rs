@@ -17,6 +17,7 @@ mod symbol;
 mod target;
 mod type_projection;
 mod type_store;
+mod type_transaction;
 
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
@@ -36,5 +37,6 @@ pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
-    TypeKind, TypeStore, TypeStoreCheckpoint, UnknownTypeId,
+    TypeKind, TypeStore, UnknownTypeId,
 };
+pub use type_transaction::{StaleTypeTransaction, TypeTransaction};

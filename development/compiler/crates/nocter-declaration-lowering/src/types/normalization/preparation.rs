@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nocter_declarations::InterfaceApplication;
-use nocter_model::{GenericParameterId, TypeAliasId, TypeId, TypeKind, TypeStore};
+use nocter_model::{GenericParameterId, TypeAliasId, TypeId, TypeKind};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId};
 
@@ -103,7 +103,7 @@ fn collect_aliases(
 }
 
 fn intern_generic_types(
-    store: &mut TypeStore,
+    store: &mut nocter_model::TypeTransaction,
     own_generics: &[Box<[GenericParameterId]>],
 ) -> Result<HashMap<GenericParameterId, TypeId>, TypeNormalizationError> {
     let mut types = HashMap::new();
@@ -122,7 +122,7 @@ fn intern_generic_types(
 }
 
 fn normalize_patterns(
-    store: &mut TypeStore,
+    store: &mut nocter_model::TypeTransaction,
     patterns: &[Box<[BoundDeclarationPattern]>],
     generic_types: &HashMap<GenericParameterId, TypeId>,
 ) -> Result<Box<[Box<[NormalizedDeclarationPattern]>]>, TypeNormalizationError> {
@@ -140,7 +140,7 @@ fn normalize_patterns(
 }
 
 fn normalize_pattern(
-    store: &mut TypeStore,
+    store: &mut nocter_model::TypeTransaction,
     pattern: &BoundDeclarationPattern,
     generic_types: &HashMap<GenericParameterId, TypeId>,
 ) -> Result<NormalizedDeclarationPattern, TypeNormalizationError> {
@@ -187,7 +187,7 @@ fn normalize_pattern(
 }
 
 fn normalize_self_types(
-    store: &mut TypeStore,
+    store: &mut nocter_model::TypeTransaction,
     declarations: &[SurfaceDeclaration],
     entities: &[Option<ReservedEntity>],
     own_generics: &[Box<[GenericParameterId]>],

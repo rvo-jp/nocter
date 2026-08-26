@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::{CallableContract, InvalidParameterOrigin, TypeId, TypeKind, TypeStore, UnknownTypeId};
+use crate::{
+    CallableContract, InvalidParameterOrigin, TypeId, TypeKind, TypeStore, TypeTransaction,
+    UnknownTypeId,
+};
 
 /// Self-contained structural type authority projected from one root type.
 ///
@@ -62,15 +65,18 @@ impl TypeStore {
     /// Returns [`TypeProjectionError`] when `root` or one of its referenced type IDs is absent, or
     /// when a callable contract in the source store is internally invalid.
     pub fn project(&self, root: TypeId) -> Result<TypeProjection, TypeProjectionError> {
-        let mut types = Self::new();
+        let mut types = Self::new().transaction();
         let root = project_type(self, &mut types, &mut HashMap::new(), root)?;
-        Ok(TypeProjection { types, root })
+        Ok(TypeProjection {
+            types: types.freeze(),
+            root,
+        })
     }
 }
 
 fn project_type(
     source: &TypeStore,
-    target: &mut TypeStore,
+    target: &mut TypeTransaction,
     projected: &mut HashMap<TypeId, TypeId>,
     source_id: TypeId,
 ) -> Result<TypeId, TypeProjectionError> {
@@ -160,7 +166,7 @@ fn project_type(
 
 fn project_types(
     source: &TypeStore,
-    target: &mut TypeStore,
+    target: &mut TypeTransaction,
     projected: &mut HashMap<TypeId, TypeId>,
     types: &[TypeId],
 ) -> Result<Box<[TypeId]>, TypeProjectionError> {
@@ -178,7 +184,8 @@ mod tests {
 
     #[test]
     fn projection_owns_only_transitive_root_dependencies() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let optional = types.intern(TypeKind::Optional(value)).unwrap();
         let fallible = types.intern(TypeKind::Fallible(optional)).unwrap();

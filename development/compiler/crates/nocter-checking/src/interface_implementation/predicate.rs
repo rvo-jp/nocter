@@ -2,9 +2,7 @@ use nocter_declarations::{
     AssociatedTypeBinding, DeclarationGraph, ExpansionCapability, InterfaceApplication,
     RequirementKind, RequirementSubject,
 };
-use nocter_model::{
-    BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind, TypeStore,
-};
+use nocter_model::{BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind};
 
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
@@ -72,7 +70,7 @@ impl CheckedRequirement {
 
 pub(crate) fn normalize_requirements(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     requirements: &[RequirementId],
 ) -> Result<Vec<CheckedRequirement>, SubstitutionError> {
@@ -91,7 +89,7 @@ pub(crate) fn normalize_requirements(
 }
 
 pub(crate) fn substitute_predicate(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     predicate: &CheckedPredicate,
 ) -> Result<CheckedPredicate, SubstitutionError> {
@@ -168,7 +166,7 @@ pub(crate) fn substitute_predicate(
 
 fn normalize_predicate(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     requirement: &RequirementKind,
 ) -> Result<CheckedPredicate, SubstitutionError> {
@@ -246,7 +244,7 @@ fn normalize_predicate(
 }
 
 fn generic_type(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     parameter: nocter_model::GenericParameterId,
 ) -> Result<TypeId, SubstitutionError> {
@@ -258,7 +256,7 @@ fn generic_type(
 
 fn subject_type(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     subject: RequirementSubject,
 ) -> Result<TypeId, SubstitutionError> {
@@ -287,7 +285,7 @@ fn subject_type(
 }
 
 fn substitute_callable(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     contract: &CallableContract,
 ) -> Result<CallableContract, SubstitutionError> {

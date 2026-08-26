@@ -6,7 +6,7 @@ use nocter_diagnostics::DiagnosticNote;
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
-    TypeId, TypeKind, TypeStore,
+    TypeId, TypeKind,
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
@@ -126,7 +126,7 @@ pub(super) struct BodyUnitInput<'input, 'syntax> {
 pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
-    types: &'input mut TypeStore,
+    types: &'input mut nocter_model::TypeTransaction,
     copyabilities: &'input mut CopyabilityTable,
     closures: &'input mut ClosureTableBuilder,
     drops: &'input DropTable,
@@ -206,7 +206,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     pub(super) fn new(
         input: &'input CompileUnitInput<'syntax>,
         facts: BodyProgramFacts<'input>,
-        types: &'input mut TypeStore,
+        types: &'input mut nocter_model::TypeTransaction,
         copyabilities: &'input mut CopyabilityTable,
         closures: &'input mut ClosureTableBuilder,
         unit: BodyUnitInput<'input, 'syntax>,

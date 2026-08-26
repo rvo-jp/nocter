@@ -1,5 +1,5 @@
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{AssociatedTypeId, RequirementId, TypeStore};
+use nocter_model::{AssociatedTypeId, RequirementId};
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::build::{InterfaceImplementationBuildError, InterfaceImplementationInternalError};
@@ -11,7 +11,7 @@ use crate::type_relations::TypeSubstitution;
 
 pub(super) fn validate_associated_bounds(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     table: &InterfaceImplementationTable,
 ) -> Result<(), InterfaceImplementationBuildError> {
@@ -47,7 +47,7 @@ pub(super) fn validate_associated_bounds(
 
 struct AssociatedValidationContext<'program> {
     graph: &'program DeclarationGraph,
-    types: &'program mut TypeStore,
+    types: &'program mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'program>,
     table: &'program InterfaceImplementationTable,
     interface_implementation: &'program CheckedInterfaceImplementation,

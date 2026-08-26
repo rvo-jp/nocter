@@ -34,8 +34,9 @@ transaction into one descendant authority. Failure cannot modify the base: it di
 or freezes that exact branch as a tooling capability.
 
 No compiler consumer receives a persistent chunk, intern index, mutation journal, or lineage
-implementation. Read-only algorithms consume a `TypeView`; algorithms that may intern structural
-types receive a `TypeTransaction`. The same separation applies to copyability and closure state.
+implementation. Read-only algorithms consume an immutable `&TypeStore`; algorithms that may intern
+structural types receive a `TypeTransaction`. The same separation applies to copyability and closure
+state. A second view abstraction is unnecessary because `TypeStore` itself has no mutating API.
 
 ## Identity and Lineage
 

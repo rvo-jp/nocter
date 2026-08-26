@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, ParameterRole};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
-    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
+    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore, TypeTransaction,
 };
 
 use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
@@ -144,7 +144,7 @@ pub enum ResolvedDispatchPlan {
 /// becomes the sole type authority for all plans produced by this resolver.
 pub struct ConcreteDispatchResolver<'program> {
     pub(crate) program: &'program CheckedProgram,
-    pub(crate) types: TypeStore,
+    pub(crate) types: TypeTransaction,
     pub(crate) copyabilities: crate::CopyabilityTable,
     pub(crate) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
 }
@@ -160,20 +160,20 @@ impl<'program> ConcreteDispatchResolver<'program> {
     pub fn new(program: &'program CheckedProgram) -> Self {
         Self {
             program,
-            types: program.types().clone(),
+            types: program.types().transaction(),
             copyabilities: program.copyabilities().clone(),
             destructions: BTreeMap::new(),
         }
     }
 
     #[must_use]
-    pub const fn types(&self) -> &TypeStore {
+    pub fn types(&self) -> &TypeStore {
         &self.types
     }
 
     #[must_use]
     pub fn into_types(self) -> TypeStore {
-        self.types
+        self.types.freeze()
     }
 
     /// Resolves one checked dispatch edge under its enclosing callable specialization.
@@ -838,7 +838,7 @@ fn exactly_one<T>(
 }
 
 fn opaque_receiver_type(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     capability: CallableCapability,
     referent: TypeId,
 ) -> Result<TypeId, nocter_model::UnknownTypeId> {

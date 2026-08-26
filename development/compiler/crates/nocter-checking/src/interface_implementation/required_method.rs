@@ -1,7 +1,7 @@
 use nocter_declarations::{CallableDeclaration, DeclarationGraph, ParameterRole};
 use nocter_model::{
     CallableCapability, CallableId, GenericParameterId, InterfaceImplementationId, ParameterId,
-    TypeId, TypeKind, TypeStore,
+    TypeId, TypeKind,
 };
 
 use super::build::InterfaceImplementationInternalError;
@@ -51,7 +51,7 @@ pub struct RequiredInterfaceImplementationMethod {
 impl RequiredInterfaceImplementationMethod {
     pub(super) fn build(
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         interface_implementation: InterfaceImplementationId,
         interface_method: CallableId,
         expected: &CallableDeclaration,

@@ -28,7 +28,8 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, mut types, _admission) = program.into_parts();
+    let (graph, types, _admission) = program.into_parts();
+    let mut types = types.transaction();
     let table =
         build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
             .unwrap();
@@ -69,7 +70,8 @@ fn table_retains_operation_identity_and_normalized_instance_generics() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, mut types, _admission) = program.into_parts();
+    let (graph, types, _admission) = program.into_parts();
+    let mut types = types.transaction();
     let table =
         build_instance_operation_table(&graph, &mut types, source_index.diagnostic_origins())
             .unwrap();

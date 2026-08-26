@@ -859,7 +859,7 @@ impl LexicalInterfaceEvidence {
 
 fn receiver_capability(
     graph: &nocter_declarations::DeclarationGraph,
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     callable: CallableId,
     substitution: &TypeSubstitution,
     target: TypeId,
@@ -901,7 +901,7 @@ fn interface_generic_arguments(
 }
 
 fn specialized_application(
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     application: &nocter_declarations::InterfaceApplication,
     substitution: &TypeSubstitution,
 ) -> Result<nocter_declarations::InterfaceApplication, InstanceSelectionError> {

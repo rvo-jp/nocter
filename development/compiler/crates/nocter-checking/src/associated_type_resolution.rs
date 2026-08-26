@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{AssociatedTypeId, TypeId, TypeKind, TypeStore};
+use nocter_model::{AssociatedTypeId, TypeId, TypeKind};
 
 use crate::interface_implementation::{
     AssociatedImplementationSelection, InterfaceImplementationTable,
@@ -40,7 +40,7 @@ impl<'program> AssociatedTypeResolver<'program> {
 
     pub(crate) fn reduce(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         root: TypeId,
     ) -> Result<TypeId, AssociatedTypeResolutionError> {
         self.reduce_type(types, root, &mut HashMap::new(), &mut HashSet::new())
@@ -48,7 +48,7 @@ impl<'program> AssociatedTypeResolver<'program> {
 
     fn reduce_type(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         ty: TypeId,
         finished: &mut HashMap<TypeId, TypeId>,
         active: &mut HashSet<TypeId>,

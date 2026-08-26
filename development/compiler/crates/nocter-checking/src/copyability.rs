@@ -189,7 +189,7 @@ impl CopyabilityTable {
 
     pub(crate) fn build(
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         source_index: DiagnosticOrigins<'_>,
     ) -> Result<Self, CopyabilityBuildError> {
         let mut table = Self::default();
@@ -200,7 +200,7 @@ impl CopyabilityTable {
     fn validate_copy_families(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         source_index: DiagnosticOrigins<'_>,
     ) -> Result<(), CopyabilityBuildError> {
         for (family, declaration) in graph.declarations().nominal_types().iter() {
@@ -268,7 +268,7 @@ impl CopyabilityTable {
     pub(crate) fn register_closure(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         closure: TypeId,
         stored_captures: impl IntoIterator<Item = TypeId>,
     ) -> Result<(), CopyabilityError> {
@@ -317,7 +317,7 @@ impl CopyabilityTable {
     pub(crate) fn classify(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         root: TypeId,
     ) -> Result<Copyability, CopyabilityError> {
         if !self.conditions.contains_key(&root) {
@@ -330,7 +330,7 @@ impl CopyabilityTable {
     pub(crate) fn classify_with_proofs(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         root: TypeId,
         proofs: &CopyProofs,
     ) -> Result<Copyability, CopyabilityError> {
@@ -346,7 +346,7 @@ impl CopyabilityTable {
     fn evaluate(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         root: TypeId,
     ) -> Result<&CopyCondition, CopyabilityError> {
         let mut active = HashSet::new();
@@ -380,7 +380,7 @@ impl CopyabilityTable {
     fn enter_type(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         ty: TypeId,
         active: &mut HashSet<TypeId>,
         pending: &mut Vec<CopyabilityAction>,
@@ -516,7 +516,7 @@ impl CopyabilityTable {
     pub(crate) fn complete(
         &mut self,
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
     ) -> Result<(), CopyabilityError> {
         loop {
             let pending = types
@@ -556,7 +556,7 @@ fn schedule_dependencies(
 
 fn nominal_dependencies(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     definition: NominalTypeId,
     arguments: &[TypeId],
 ) -> Result<Option<Vec<TypeId>>, CopyabilityError> {
@@ -611,7 +611,7 @@ fn nominal_dependencies(
 
 fn substituted_field_type(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     substitution: &TypeSubstitution,
     field: FieldId,
 ) -> Result<TypeId, CopyabilityError> {

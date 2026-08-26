@@ -73,8 +73,7 @@ impl<T> PersistentVector<T> {
         values[index & BRANCH_MASK].as_deref()
     }
 
-    pub(crate) fn push(&mut self, value: T) {
-        let value = Arc::new(value);
+    pub(crate) fn push_shared(&mut self, value: Arc<T>) {
         if self.len == capacity(self.shift) {
             let mut children = std::array::from_fn(|_| None);
             children[0] = Some(Arc::clone(&self.root));
@@ -163,17 +162,19 @@ impl<T> ExactSizeIterator for PersistentVectorIter<'_, T> {}
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::PersistentVector;
 
     #[test]
     fn descendants_preserve_ancestor_values_across_tree_growth() {
         let mut ancestor = PersistentVector::default();
         for value in 0..1_100 {
-            ancestor.push(value);
+            ancestor.push_shared(Arc::new(value));
         }
         let mut descendant = ancestor.clone();
         for value in 1_100..2_200 {
-            descendant.push(value);
+            descendant.push_shared(Arc::new(value));
         }
 
         assert_eq!(ancestor.len(), 1_100);
@@ -190,12 +191,12 @@ mod tests {
     fn sibling_appends_do_not_change_each_other() {
         let mut base = PersistentVector::default();
         for value in 0..40 {
-            base.push(value);
+            base.push_shared(Arc::new(value));
         }
         let mut first = base.clone();
         let mut second = base.clone();
-        first.push(100);
-        second.push(200);
+        first.push_shared(Arc::new(100));
+        second.push_shared(Arc::new(200));
 
         assert_eq!(first.get(40), Some(&100));
         assert_eq!(second.get(40), Some(&200));

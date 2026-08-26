@@ -75,7 +75,7 @@ fn generic_closure_identity_specializes_its_enclosing_generic_domain() {
         TypeKind::GenericParameter(parameter) => *parameter,
         _ => unreachable!(),
     };
-    let mut types = program.types().clone();
+    let mut types = program.types().transaction();
     let concrete = types.builtin(BuiltinType::I32);
     let mut substitution = TypeSubstitution::default();
     substitution.bind_generic(parameter, concrete);

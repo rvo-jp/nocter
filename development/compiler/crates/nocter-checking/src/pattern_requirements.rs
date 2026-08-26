@@ -1,5 +1,5 @@
 use nocter_declarations::{DeclarationGraph, RequirementKind};
-use nocter_model::{GenericParameterId, RequirementId, TypeId, TypeKind, TypeStore};
+use nocter_model::{GenericParameterId, RequirementId, TypeId, TypeKind};
 
 use crate::GenericArgument;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
@@ -64,7 +64,7 @@ impl PatternRequirements {
     /// authored requirement list.
     pub(crate) fn normalized_refinements(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         generic_parameters: &[GenericParameterId],
     ) -> Result<Vec<GenericArgument>, SubstitutionError> {
         let substitution = self.substitution();

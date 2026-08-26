@@ -21,6 +21,15 @@ in interface-implementation code actions. Executable architecture gates now prot
 boundaries. Phase 3 changes no language behavior; release qualification resumes only after its
 persistent-authority completion gate and final review pass.
 
+The Phase 3 type boundary is now migrated. `TypeStore` is immutable, `TypeTransaction` is the only
+structural interning capability, and its persistent vector and intern index share unchanged roots
+and each stored `TypeKind`. Commit verifies the exact base authority; sibling and stale commits are
+rejected. Declaration lowering, preparation, body checking, member queries, concrete
+specialization, type projection, and tests use that boundary. `TypeStoreCheckpoint` and body type
+rollback are gone. Copyability and closure state still use their previous journals, so the next
+step is to migrate both together and replace the temporary two-store `BodySemanticCheckpoint` with
+one `BodySemanticTransaction`.
+
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a
 behavioral oracle or implementation reference.

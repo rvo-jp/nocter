@@ -58,7 +58,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let generic = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let generic_array = types
             .intern(TypeKind::FixedArray {

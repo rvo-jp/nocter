@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use nocter_declarations::{
     AssociatedTypeBinding, CallableOwner, DeclarationGraph, InterfaceApplication,
 };
-use nocter_model::{InstanceId, InterfaceImplementationId, TypeStore};
+use nocter_model::{InstanceId, InterfaceImplementationId};
 
 use crate::interface_implementation::normalize_requirements;
 use crate::pattern_requirements::PatternRequirements;
@@ -96,7 +96,7 @@ pub(crate) struct DeclarationPatternTable {
 impl DeclarationPatternTable {
     pub(crate) fn build(
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
     ) -> Result<Self, SubstitutionError> {
         let declarations = graph.declarations();
         let mut instances = BTreeMap::new();
@@ -187,7 +187,7 @@ impl DeclarationPatternTable {
 
 fn normalize_pattern(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     requirements: &[nocter_model::RequirementId],
     generic_parameters: &[nocter_model::GenericParameterId],
 ) -> Result<(LexicalPattern, TypeSubstitution), SubstitutionError> {

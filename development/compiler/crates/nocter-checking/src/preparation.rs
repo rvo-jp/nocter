@@ -541,7 +541,7 @@ fn prepare_program_checking_internal<'syntax>(
     input
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
-    let (graph, mut types, admission) = program.into_parts();
+    let (graph, types, admission) = program.into_parts();
     validate_preparation_target(input, &graph)?;
     let body_sources = match prepare_body_sources(input, &graph, bindings) {
         Ok(body_sources) => body_sources,
@@ -571,10 +571,11 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
+    let mut type_transaction = types.transaction();
     let authorities = match build_program_authorities(
         input,
         &graph,
-        &mut types,
+        &mut type_transaction,
         bindings,
         source_index.diagnostic_origins(),
         &admission,
@@ -585,13 +586,16 @@ fn prepare_program_checking_internal<'syntax>(
                 error,
                 retain_names,
                 graph,
-                types,
+                type_transaction.freeze(),
                 bindings.source_ownership().clone(),
                 source_index,
                 Some(standard_semantics),
             ));
         }
     };
+    let types = type_transaction
+        .commit(&types)
+        .expect("preparation must commit to its exact declaration authority");
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -663,7 +667,7 @@ fn prepare_body_sources<'syntax>(
 fn build_program_authorities(
     input: &CompileUnitInput<'_>,
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     bindings: &FrontendBindings,
     diagnostic_origins: DiagnosticOrigins<'_>,
     admission: &nocter_declarations::DeclarationAnalysisAdmission,

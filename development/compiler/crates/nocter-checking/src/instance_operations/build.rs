@@ -112,7 +112,7 @@ impl std::error::Error for InstanceOperationInternalError {}
 #[cfg(test)]
 pub(super) fn build_instance_operation_table(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
 ) -> Result<InstanceOperationTable, InstanceOperationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
@@ -128,7 +128,7 @@ pub(super) fn build_instance_operation_table(
 
 pub(crate) fn build_instance_operation_table_from_ids(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     patterns: &DeclarationPatternTable,
     instances: &[InstanceId],
@@ -239,7 +239,7 @@ fn operations_conflict(left: &[CheckedInstanceMember], right: &[CheckedInstanceM
 
 fn build_member_contracts(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     instance: InstanceId,
     target: TypeId,
@@ -266,7 +266,7 @@ fn build_member_contracts(
 
 fn build_member_contract(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     instance: InstanceId,
     target: TypeId,
@@ -405,7 +405,7 @@ fn build_coercion_contract(
 
 #[allow(clippy::too_many_arguments)]
 fn build_comparison_contract(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     member: CallableId,
     callable: &CallableDeclaration,
@@ -491,7 +491,7 @@ fn build_expansion_contract(
 }
 
 fn validate_coercion_identities(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     members: &[CheckedInstanceMember],
     substitution: &crate::type_relations::TypeSubstitution,

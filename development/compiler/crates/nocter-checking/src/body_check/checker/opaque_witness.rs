@@ -25,7 +25,7 @@ struct OpaquePayload {
 impl OpaqueResultState {
     pub(super) fn for_body(
         graph: &nocter_declarations::DeclarationGraph,
-        types: &mut nocter_model::TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         source: BodySource<'_>,
         result: TypeId,
     ) -> Result<Option<Self>, BodyCheckInternalError> {
@@ -223,7 +223,7 @@ fn successful_payload(
 }
 
 fn replace_opaque_payload(
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     ty: TypeId,
     definition: OpaqueTypeId,
     witness: TypeId,

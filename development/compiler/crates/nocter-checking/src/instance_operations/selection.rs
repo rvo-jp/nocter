@@ -227,7 +227,7 @@ impl<'program> InstanceSelectionContext<'program> {
 
 pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) graph: &'program DeclarationGraph,
-    pub(super) types: &'program mut TypeStore,
+    pub(super) types: &'program mut nocter_model::TypeTransaction,
     pub(super) interface_implementations: &'program InterfaceImplementationTable,
     pub(super) copyabilities: &'program mut CopyabilityTable,
     pub(super) table: &'program InstanceOperationTable,
@@ -240,7 +240,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
 impl<'program> InstanceOperationSelector<'program> {
     pub(crate) fn new(
         context: InstanceSelectionContext<'program>,
-        types: &'program mut TypeStore,
+        types: &'program mut nocter_model::TypeTransaction,
         copyabilities: &'program mut CopyabilityTable,
     ) -> Self {
         Self {
@@ -565,7 +565,7 @@ impl<'program> InstanceOperationSelector<'program> {
 }
 
 fn selected_instance_generic_arguments(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     target: TypeId,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,
@@ -596,7 +596,7 @@ fn selected_instance_generic_arguments(
 }
 
 pub(crate) fn selected_generic_arguments(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,
 ) -> Result<GenericArguments, InstanceSelectionError> {

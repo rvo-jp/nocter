@@ -172,7 +172,7 @@ impl BodyChecker<'_, '_> {
 }
 
 fn infer_result_type(
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     evidence: &[ExpectedEvidence],
 ) -> Option<TypeId> {
     let bases = evidence
@@ -257,7 +257,7 @@ fn infer_result_type(
 }
 
 fn push_layer(
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     candidates: &mut Vec<(usize, TypeId)>,
     additions: usize,
     base: TypeId,
@@ -269,7 +269,7 @@ fn push_layer(
 }
 
 fn layer(
-    types: &mut nocter_model::TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     payload: TypeId,
     layer: OutcomeLayer,
 ) -> Option<TypeId> {
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn a_contextual_tag_adds_one_minimal_result_layer() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let inferred = infer_result_type(
             &mut types,
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn unordered_distinct_outcome_requirements_remain_ambiguous() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         assert!(
             infer_result_type(

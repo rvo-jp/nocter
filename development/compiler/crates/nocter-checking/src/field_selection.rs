@@ -1,6 +1,6 @@
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{FieldId, NominalTypeId, TypeId, TypeKind, TypeStore};
+use nocter_model::{FieldId, NominalTypeId, TypeId, TypeKind};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SelectedField {
@@ -42,7 +42,7 @@ impl SelectedField {
 /// Selects one exact visible field and substitutes its owner's actual generic arguments.
 pub(crate) fn select_field(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     from: crate::SourceAccessContext<'_>,
     base: TypeId,
     name: &str,

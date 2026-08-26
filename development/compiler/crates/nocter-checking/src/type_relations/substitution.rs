@@ -51,7 +51,7 @@ impl TypeSubstitution {
     /// or rebuilding a structural type would violate store integrity.
     pub fn apply_type(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         root: TypeId,
     ) -> Result<TypeId, SubstitutionError> {
         enum Action {
@@ -177,7 +177,7 @@ mod tests {
         let first = parameters.insert(());
         let second = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let first_type = types.intern(TypeKind::GenericParameter(first)).unwrap();
         let second_type = types.intern(TypeKind::GenericParameter(second)).unwrap();
         let expected = types.builtin(nocter_model::BuiltinType::I32);
@@ -196,7 +196,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let generic = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let mut substitution = TypeSubstitution::default();
         substitution.bind_generic(parameter, generic);

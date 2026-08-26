@@ -404,7 +404,7 @@ mod tests {
         let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
         let root = nodes.insert(());
         let _ = nodes.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let mut closures = ClosureTableBuilder::new();
         let closure = closures.reserve(owner);
         let ty = types
@@ -440,7 +440,7 @@ mod tests {
         let owner = bodies.insert(());
         let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
         let root = nodes.insert(());
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let mut closures = ClosureTableBuilder::new();
         let closure = closures.reserve(owner);
         let ty = types

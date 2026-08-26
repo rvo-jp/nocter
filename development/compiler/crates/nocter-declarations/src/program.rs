@@ -3,7 +3,7 @@ use std::fmt;
 
 use nocter_model::{
     Arena, ArenaBuilder, CompilationTarget, DeclarationSiteId, ImportId, ModuleId, PackageId,
-    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeStore,
+    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeStore, TypeTransaction,
 };
 
 use crate::{
@@ -387,7 +387,7 @@ pub struct DeclarationProgramBuilder {
     imports: ArenaBuilder<ImportId, ImportDeclaration>,
     package_targets: ArenaBuilder<PackageTargetId, PackageTarget>,
     declarations: DeclarationArenaBuilder,
-    types: TypeStore,
+    types: TypeTransaction,
 }
 
 impl DeclarationProgramBuilder {
@@ -407,7 +407,7 @@ impl DeclarationProgramBuilder {
             imports: ArenaBuilder::new(),
             package_targets: ArenaBuilder::new(),
             declarations: DeclarationArenaBuilder::new(),
-            types: TypeStore::new(),
+            types: TypeStore::new().transaction(),
         }
     }
 
@@ -630,12 +630,12 @@ impl DeclarationProgramBuilder {
     }
 
     #[must_use]
-    pub const fn types(&self) -> &TypeStore {
+    pub fn types(&self) -> &TypeStore {
         &self.types
     }
 
     #[must_use]
-    pub const fn types_mut(&mut self) -> &mut TypeStore {
+    pub const fn types_mut(&mut self) -> &mut TypeTransaction {
         &mut self.types
     }
 
@@ -724,7 +724,7 @@ impl DeclarationProgramBuilder {
                     .map_err(ProgramBuildError::from)
                     .map_err(ProgramBuildFailure::Error)?,
             },
-            types: self.types,
+            types: self.types.freeze(),
         };
         crate::validate::validate_integrity(&program)
             .map_err(ProgramValidationError::from)
@@ -1170,8 +1170,10 @@ mod tests {
         let program = builder.finish().unwrap();
         let prefix_len = program.types().len();
 
-        let (graph, mut types, _admission) = program.into_parts();
-        let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
+        let (graph, types, _admission) = program.into_parts();
+        let mut transaction = types.transaction();
+        let optional = transaction.intern(TypeKind::Optional(i32_type)).unwrap();
+        let types = transaction.commit(&types).unwrap();
 
         assert_eq!(graph.modules().len(), 1);
         assert_eq!(

@@ -1,5 +1,5 @@
 use nocter_declarations::{BodyOwner, CallableOwner, DeclarationGraph, InterfaceApplication};
-use nocter_model::{Arena, ArenaBuilder, BodyId, TypeKind, TypeStore};
+use nocter_model::{Arena, ArenaBuilder, BodyId, TypeKind};
 
 use crate::copyability::CopyProofs;
 use crate::declaration_patterns::DeclarationPatternTable;
@@ -32,7 +32,7 @@ pub(crate) struct BodyAssumptionTable {
 impl BodyAssumptionTable {
     pub(crate) fn build(
         graph: &DeclarationGraph,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         declaration_patterns: &DeclarationPatternTable,
     ) -> Result<Self, SubstitutionError> {
         let mut entries = ArenaBuilder::new();
@@ -75,7 +75,7 @@ impl BodyAssumptions {
 /// Collects the normalized lexical predicate environment for one checked body.
 fn normalize_body_assumptions(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     declaration_patterns: &DeclarationPatternTable,
     owner: BodyOwner,
 ) -> Result<BodyAssumptions, SubstitutionError> {

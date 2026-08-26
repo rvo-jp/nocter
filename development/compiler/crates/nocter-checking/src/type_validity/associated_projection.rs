@@ -1,7 +1,6 @@
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::{AssociatedProjectionUse, FrontendBindings};
-use nocter_model::TypeStore;
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::SyntaxOrigin;
 
@@ -21,7 +20,7 @@ use super::{DeclarationTypeValidityError, TypeValidityInternalError, TypeValidit
 pub(crate) fn validate_associated_projection_uses(
     input: &CompileUnitInput<'_>,
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     bindings: &FrontendBindings,
     implementations: &InterfaceImplementationTable,
 ) -> Result<(), DeclarationTypeValidityError> {

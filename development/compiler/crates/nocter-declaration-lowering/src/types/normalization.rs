@@ -243,7 +243,7 @@ struct Evaluator<'a> {
     kinds: &'a [BoundTypeKind],
     origins: &'a NormalizationOrigins,
     context: &'a NormalizationContext,
-    store: &'a mut TypeStore,
+    store: &'a mut nocter_model::TypeTransaction,
     memo: HashMap<EvaluationKey, TypeId>,
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,

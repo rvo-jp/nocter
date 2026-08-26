@@ -175,14 +175,16 @@ fn complete_checked_program(
     let opaque_witnesses = crate::OpaqueWitnessTable::build(&prepared.graph, opaque_witnesses)
         .map_err(|_| BodyCheckInternalError::OpaqueWitnessPlanning)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    let mut cleanup_types = checked_types.transaction();
     if let Err(error) = attach_body_cleanups(
         facts,
-        &mut checked_types,
+        &mut cleanup_types,
         &mut checked_copyabilities,
         &closures,
         &prepared.body_sources,
         &mut checked_bodies,
     ) {
+        checked_types = cleanup_types.freeze();
         let recovery = if retain_prepared {
             build_body_analysis_recovery(
                 prepared,
@@ -200,6 +202,9 @@ fn complete_checked_program(
             error, recovery,
         ));
     }
+    checked_types = cleanup_types
+        .commit(&checked_types)
+        .expect("cleanup transaction must commit to its exact checked-body authority");
 
     let (provenance, loans) = match analyze_checked_body_relations(
         &prepared.graph,
@@ -363,7 +368,7 @@ fn finish_checked_program(
 
     let PreparedCheckingParts {
         graph,
-        mut types,
+        types,
         interface_implementations,
         construction_surfaces,
         instance_operations,
@@ -379,10 +384,14 @@ fn finish_checked_program(
     } = prepared;
     let source_index = extend_source_index(source_index, projections)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    let mut type_transaction = types.transaction();
     copyabilities
-        .complete(&graph, &mut types)
+        .complete(&graph, &mut type_transaction)
         .map_err(BodyCheckInternalError::Copyability)
         .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    let types = type_transaction
+        .commit(&types)
+        .expect("copyability completion must commit to its exact body authority");
     Ok(CheckedProgramOutput::new(
         CheckedProgram::new(
             graph,
@@ -431,7 +440,7 @@ fn extend_source_index(
 
 fn attach_body_cleanups(
     facts: BodyProgramFacts<'_>,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     copyabilities: &mut CopyabilityTable,
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
@@ -572,41 +581,49 @@ fn attempt_body<'input, 'syntax>(
     ),
 ) -> Result<CheckedBodyOutput, BodyAttemptFailure> {
     let (types, copyabilities, closures) = state;
+    let mut type_transaction = types.transaction();
     if !retain_recovery {
-        return construct_body(
+        let output = construct_body(
             input,
             facts,
             source,
             names,
-            (types, copyabilities, closures),
+            (&mut type_transaction, copyabilities, closures),
         )
-        .map_err(BodyAttemptFailure::Direct);
+        .map_err(BodyAttemptFailure::Direct)?;
+        *types = type_transaction
+            .commit(types)
+            .expect("body transaction must commit to its exact accepted authority");
+        return Ok(output);
     }
-    let checkpoint = BodySemanticCheckpoint::capture(types, copyabilities, closures);
+    let checkpoint = BodySemanticCheckpoint::capture(copyabilities, closures);
     match construct_body(
         input,
         facts,
         source,
         names,
-        (types, copyabilities, closures),
+        (&mut type_transaction, copyabilities, closures),
     ) {
         Ok(output) => {
             checkpoint.commit(copyabilities, closures);
+            *types = type_transaction
+                .commit(types)
+                .expect("body transaction must commit to its exact accepted authority");
             Ok(output)
         }
         Err(failure) => {
             let interruption_state =
-                match retain_interruption_evidence(&failure, types, copyabilities) {
+                match retain_interruption_evidence(&failure, type_transaction, copyabilities) {
                     Ok(state) => state,
                     Err(error) => {
-                        checkpoint.rollback(types, copyabilities, closures);
+                        checkpoint.rollback(copyabilities, closures);
                         return Err(BodyAttemptFailure::Recovering {
                             failure: super::error::BodyConstructionFailure::new(error.into(), None),
                             interruption_state: None,
                         });
                     }
                 };
-            checkpoint.rollback(types, copyabilities, closures);
+            checkpoint.rollback(copyabilities, closures);
             Err(BodyAttemptFailure::Recovering {
                 failure,
                 interruption_state,
@@ -625,7 +642,7 @@ enum BodyAttemptFailure {
 
 fn retain_interruption_evidence(
     failure: &super::error::BodyConstructionFailure,
-    types: &TypeStore,
+    types: nocter_model::TypeTransaction,
     copyabilities: &CopyabilityTable,
 ) -> Result<Option<crate::recovery::TypedInterruptionEvidence>, BodyCheckInternalError> {
     let Some(interruption) = failure.interruption() else {
@@ -635,7 +652,7 @@ fn retain_interruption_evidence(
         crate::TypedBodyInterruptionKind::MemberSelection { .. } => {
             crate::recovery::TypedInterruptionEvidence::MemberSelection(Box::new(
                 crate::recovery::MemberInterruptionEvidence {
-                    types: types.clone(),
+                    types: types.freeze(),
                     copyabilities: copyabilities.clone(),
                 },
             ))
@@ -655,26 +672,19 @@ fn retain_interruption_evidence(
     Ok(Some(evidence))
 }
 
-/// Exact semantic mutation boundaries captured before checking one body.
+/// Temporary coordinated boundary for the two body stores not yet migrated to persistent state.
 ///
-/// Body checking extends canonical stores directly. Success therefore requires no promotion or
-/// clone. Failure discards provisional type identities and reverses every copyability or closure
-/// mutation recorded by their owning stores. Recovery retains only the capability required by the
-/// exact interruption kind.
+/// Type interning already uses an isolated [`nocter_model::TypeTransaction`] and never participates
+/// in this rollback. Phase 3C replaces these remaining copyability and closure journals with the
+/// same consume-or-discard transaction contract.
 struct BodySemanticCheckpoint {
-    types: nocter_model::TypeStoreCheckpoint,
     copyabilities: crate::copyability::CopyabilityTransaction,
     closures: ClosureTableCheckpoint,
 }
 
 impl BodySemanticCheckpoint {
-    fn capture(
-        types: &TypeStore,
-        copyabilities: &mut CopyabilityTable,
-        closures: &mut ClosureTableBuilder,
-    ) -> Self {
+    fn capture(copyabilities: &mut CopyabilityTable, closures: &mut ClosureTableBuilder) -> Self {
         Self {
-            types: types.checkpoint(),
             copyabilities: copyabilities.begin_transaction(),
             closures: closures.checkpoint(),
         }
@@ -685,15 +695,9 @@ impl BodySemanticCheckpoint {
         closures.commit(self.closures);
     }
 
-    fn rollback(
-        self,
-        types: &mut TypeStore,
-        copyabilities: &mut CopyabilityTable,
-        closures: &mut ClosureTableBuilder,
-    ) {
+    fn rollback(self, copyabilities: &mut CopyabilityTable, closures: &mut ClosureTableBuilder) {
         copyabilities.rollback_transaction(self.copyabilities);
         closures.rollback(self.closures);
-        types.rollback(self.types);
     }
 }
 
@@ -703,7 +707,7 @@ fn construct_body<'input, 'syntax>(
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     state: (
-        &'input mut TypeStore,
+        &'input mut nocter_model::TypeTransaction,
         &'input mut CopyabilityTable,
         &'input mut ClosureTableBuilder,
     ),

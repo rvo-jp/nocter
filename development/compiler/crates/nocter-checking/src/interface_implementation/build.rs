@@ -8,7 +8,7 @@ use nocter_declarations::{
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     ArenaBuilder, CallableId, GenericParameterId, InterfaceId, InterfaceImplementationId,
-    ParameterId, TypeKind, TypeStore,
+    ParameterId, TypeKind,
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
@@ -188,7 +188,7 @@ impl std::error::Error for InterfaceImplementationInternalError {}
 #[cfg(test)]
 pub(super) fn build_interface_implementation_table(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
 ) -> Result<InterfaceImplementationTable, InterfaceImplementationBuildError> {
     let patterns = DeclarationPatternTable::build(graph, types)?;
@@ -204,7 +204,7 @@ pub(super) fn build_interface_implementation_table(
 
 pub(crate) fn build_interface_implementation_table_from_ids(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     patterns: &DeclarationPatternTable,
     interface_implementations: &[InterfaceImplementationId],
@@ -330,7 +330,7 @@ struct InterfaceImplementationPattern {
 type InterfaceImplementationPatterns = BTreeMap<InterfaceId, Vec<InterfaceImplementationPattern>>;
 
 fn record_nonoverlapping_pattern(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'_>,
     preceding_patterns: &mut InterfaceImplementationPatterns,
     current: InterfaceImplementationPattern,
@@ -361,7 +361,7 @@ fn record_nonoverlapping_pattern(
 
 struct MethodSelectionInput<'program> {
     graph: &'program DeclarationGraph,
-    types: &'program mut TypeStore,
+    types: &'program mut nocter_model::TypeTransaction,
     source_index: DiagnosticOrigins<'program>,
     interface_id: InterfaceId,
     interface_methods: &'program [CallableId],
@@ -565,7 +565,7 @@ fn missing_methods_error(
 
 fn compatible_signature(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     expected: &CallableDeclaration,
     actual: &CallableDeclaration,
     owner_substitution: &TypeSubstitution,

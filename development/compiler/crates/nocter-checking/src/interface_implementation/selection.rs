@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use nocter_declarations::InterfaceApplication;
-use nocter_model::{InterfaceImplementationId, TypeId, TypeKind, TypeStore};
+use nocter_model::{InterfaceImplementationId, TypeId, TypeKind};
 
 use super::model::InterfaceImplementationTable;
 use super::overlap::match_pattern;
@@ -33,7 +33,7 @@ impl InterfaceImplementationSelection {
 }
 
 pub(crate) fn proves(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[CheckedRequirement],
     intrinsic_facts: &[CheckedPredicate],
@@ -47,7 +47,7 @@ pub(crate) fn proves(
 /// Lexical assumptions may prove conditional requirements but are not returned as invented
 /// interface implementation declarations. Program-wide overlap validation guarantees at most one match.
 pub(crate) fn select_interface_implementation(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[CheckedRequirement],
     intrinsic_facts: &[CheckedPredicate],
@@ -75,7 +75,7 @@ pub(crate) fn select_interface_implementation(
 /// owner interface. More than one applicable application is therefore an ambiguity even when the
 /// program-wide overlap rule permits those applications independently.
 pub(crate) fn select_associated_implementation(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[CheckedRequirement],
     intrinsic_facts: &[CheckedPredicate],
@@ -90,7 +90,7 @@ pub(crate) fn select_associated_implementation(
 /// Selection and binding substitution deliberately remain one authority. Callers must not look up
 /// an implementation entry and reconstruct its pattern substitution independently.
 pub(crate) fn resolve_selected_associated_type(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     selection: &InterfaceImplementationSelection,
     associated: nocter_model::AssociatedTypeId,
@@ -106,7 +106,7 @@ pub(crate) fn resolve_selected_associated_type(
 }
 
 struct Prover<'program> {
-    types: &'program mut TypeStore,
+    types: &'program mut nocter_model::TypeTransaction,
     table: &'program InterfaceImplementationTable,
     assumptions: &'program [CheckedRequirement],
     intrinsic_facts: &'program [CheckedPredicate],
@@ -116,7 +116,7 @@ struct Prover<'program> {
 
 impl<'program> Prover<'program> {
     fn new(
-        types: &'program mut TypeStore,
+        types: &'program mut nocter_model::TypeTransaction,
         table: &'program InterfaceImplementationTable,
         assumptions: &'program [CheckedRequirement],
         intrinsic_facts: &'program [CheckedPredicate],
@@ -306,7 +306,7 @@ impl<'program> Prover<'program> {
 }
 
 fn predicate_implies(
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     actual: &CheckedPredicate,
     expected: &CheckedPredicate,
 ) -> Result<bool, SubstitutionError> {

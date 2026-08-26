@@ -1,8 +1,8 @@
 use std::fmt;
+use std::sync::Arc;
 
 pub use nocter_language::BuiltinType;
 
-use crate::construction_identity::ConstructionIdentity;
 use crate::id::SemanticId;
 use crate::persistent_map::PersistentMap;
 use crate::persistent_vector::PersistentVector;
@@ -178,30 +178,34 @@ impl TypeKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TypeStore {
     kinds: PersistentVector<TypeKind>,
     interned: PersistentMap<TypeKind, TypeId>,
     builtins: [TypeId; BuiltinType::ALL.len()],
-    construction: ConstructionIdentity,
+    authority: TypeAuthorityIdentity,
 }
 
-/// An opaque append boundary for provisional structural types.
-#[derive(Clone, Debug)]
-pub struct TypeStoreCheckpoint {
-    kinds: PersistentVector<TypeKind>,
-    interned: PersistentMap<TypeKind, TypeId>,
-    construction: ConstructionIdentity,
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) struct TypeAuthorityIdentity(u64);
+
+impl TypeAuthorityIdentity {
+    fn fresh() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT_AUTHORITY: AtomicU64 = AtomicU64::new(1);
+        let identity = NEXT_AUTHORITY
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("type authority identity space exhausted");
+        Self(identity)
+    }
 }
 
-impl Clone for TypeStore {
-    fn clone(&self) -> Self {
-        Self {
-            kinds: self.kinds.clone(),
-            interned: self.interned.clone(),
-            builtins: self.builtins,
-            construction: ConstructionIdentity::fresh(),
-        }
+impl fmt::Debug for TypeAuthorityIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("TypeAuthorityIdentity")
     }
 }
 
@@ -218,13 +222,19 @@ impl TypeStore {
             kinds: PersistentVector::default(),
             interned: PersistentMap::default(),
             builtins: [TypeId::new(0); BuiltinType::ALL.len()],
-            construction: ConstructionIdentity::fresh(),
+            authority: TypeAuthorityIdentity::fresh(),
         };
         for (index, builtin) in BuiltinType::ALL.iter().copied().enumerate() {
             let id = store.insert_known(TypeKind::Builtin(builtin));
             store.builtins[index] = id;
         }
         store
+    }
+
+    /// Opens an isolated branch that may intern structural types.
+    #[must_use]
+    pub fn transaction(&self) -> crate::TypeTransaction {
+        crate::TypeTransaction::new(self)
     }
 
     #[must_use]
@@ -273,7 +283,7 @@ impl TypeStore {
     /// # Errors
     ///
     /// Returns [`UnknownTypeId`] when `kind` refers to a type absent from this store.
-    pub fn intern(&mut self, kind: TypeKind) -> Result<TypeId, UnknownTypeId> {
+    pub(super) fn intern_branch(&mut self, kind: TypeKind) -> Result<TypeId, UnknownTypeId> {
         let mut invalid = None;
         kind.references(&mut |referenced| {
             if invalid.is_none() && self.get(referenced).is_none() {
@@ -316,42 +326,20 @@ impl TypeStore {
         self.kinds.is_empty()
     }
 
-    /// Captures the current interned-type boundary without cloning the store.
-    #[must_use]
-    pub fn checkpoint(&self) -> TypeStoreCheckpoint {
-        TypeStoreCheckpoint {
-            kinds: self.kinds.clone(),
-            interned: self.interned.clone(),
-            construction: self.construction,
-        }
+    pub(super) const fn authority(&self) -> TypeAuthorityIdentity {
+        self.authority
     }
 
-    /// Discards every structural type interned after `checkpoint`.
-    ///
-    /// Existing kinds cannot refer to discarded IDs because [`Self::intern`] only accepts IDs
-    /// already present at insertion time.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the checkpoint is newer than this store's current state.
-    pub fn rollback(&mut self, checkpoint: TypeStoreCheckpoint) {
-        assert_eq!(
-            checkpoint.construction, self.construction,
-            "type-store checkpoint belongs to another store"
-        );
-        assert!(
-            checkpoint.kinds.len() <= self.kinds.len(),
-            "type-store checkpoint cannot be newer than the store"
-        );
-        self.kinds = checkpoint.kinds;
-        self.interned = checkpoint.interned;
+    pub(super) fn advance_authority(&mut self) {
+        self.authority = TypeAuthorityIdentity::fresh();
     }
 
     fn insert_known(&mut self, kind: TypeKind) -> TypeId {
         let id = TypeId::new(self.kinds.len());
-        self.kinds.push(kind.clone());
+        let kind = Arc::new(kind);
+        self.kinds.push_shared(Arc::clone(&kind));
         assert!(
-            self.interned.insert_absent(kind, id),
+            self.interned.insert_shared_absent(kind, id),
             "known type insertion must be unique"
         );
         debug_assert_eq!(self.interned.len(), self.kinds.len());
@@ -432,7 +420,8 @@ mod tests {
 
     #[test]
     fn structural_types_are_interned_without_rendered_names() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let first = types
             .intern(TypeKind::Borrow {
@@ -452,27 +441,11 @@ mod tests {
     }
 
     #[test]
-    fn rollback_discards_provisional_types_and_their_intern_entries() {
-        let mut types = TypeStore::new();
-        let checkpoint = types.checkpoint();
-        let value = types.builtin(BuiltinType::I32);
-        let provisional = types.intern(TypeKind::Optional(value)).unwrap();
-
-        types.rollback(checkpoint);
-
-        assert!(types.get(provisional).is_none());
-        assert_eq!(
-            types.intern(TypeKind::Optional(value)).unwrap(),
-            provisional
-        );
-    }
-
-    #[test]
-    fn cloned_authorities_share_the_prefix_and_isolate_sibling_extensions() {
+    fn transactions_share_the_prefix_and_isolate_sibling_extensions() {
         let base = TypeStore::new();
         let value = base.builtin(BuiltinType::I32);
-        let mut first = base.clone();
-        let mut second = base.clone();
+        let mut first = base.transaction();
+        let mut second = base.transaction();
 
         let first_extension = first.intern(TypeKind::Optional(value)).unwrap();
         let second_extension = second.intern(TypeKind::Fallible(value)).unwrap();
@@ -484,18 +457,6 @@ mod tests {
             second.get(second_extension),
             Some(&TypeKind::Fallible(value))
         );
-    }
-
-    #[test]
-    #[should_panic(expected = "type-store checkpoint belongs to another store")]
-    fn checkpoint_cannot_truncate_another_store() {
-        let first = TypeStore::new();
-        let checkpoint = first.checkpoint();
-        let mut second = TypeStore::new();
-        let value = second.builtin(BuiltinType::I32);
-        second.intern(TypeKind::Optional(value)).unwrap();
-
-        second.rollback(checkpoint);
     }
 
     #[test]
@@ -514,7 +475,8 @@ mod tests {
 
     #[test]
     fn callable_identity_uses_parameter_positions_for_provenance() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let text = types.builtin(BuiltinType::Str);
         let borrowed = types
             .intern(TypeKind::Borrow {
@@ -540,7 +502,8 @@ mod tests {
 
     #[test]
     fn callable_identity_distinguishes_a_final_pack_from_an_ordinary_parameter() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
         let ordinary = CallableContract::new(
             CallableCapability::Owned,
@@ -615,7 +578,8 @@ mod tests {
 
     #[test]
     fn references_must_belong_to_the_store() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let unknown = crate::TypeId::new(types.len() + 10);
         let error = types.intern(TypeKind::Optional(unknown)).unwrap_err();
 
@@ -624,7 +588,8 @@ mod tests {
 
     #[test]
     fn interface_self_is_keyed_by_its_declaring_interface() {
-        let mut types = TypeStore::new();
+        let base = TypeStore::new();
+        let mut types = base.transaction();
         let first_interface = crate::InterfaceId::new(0);
         let second_interface = crate::InterfaceId::new(1);
         let first = types

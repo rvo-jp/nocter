@@ -412,7 +412,7 @@ mod tests {
         let requested_first = parameters.insert(());
         let requested_second = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let pattern = types.intern(TypeKind::GenericParameter(pattern)).unwrap();
         let requested_first = types
             .intern(TypeKind::GenericParameter(requested_first))
@@ -437,7 +437,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let variable = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let pattern = types.intern(TypeKind::Optional(variable)).unwrap();
         let concrete = types.builtin(nocter_model::BuiltinType::I32);
@@ -452,7 +452,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let variable = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
 
         let bindings = unify_type_pairs(&types, [parameter], [(variable, variable)]).unwrap();
@@ -465,7 +465,7 @@ mod tests {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let variable = types.intern(TypeKind::GenericParameter(parameter)).unwrap();
         let optional = types.intern(TypeKind::Optional(variable)).unwrap();
 

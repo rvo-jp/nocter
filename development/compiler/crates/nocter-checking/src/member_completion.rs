@@ -120,7 +120,7 @@ impl std::error::Error for MemberCompletionError {}
 
 #[derive(Debug)]
 struct MemberCompletionQueryState {
-    types: TypeStore,
+    types: nocter_model::TypeTransaction,
     copyabilities: CopyabilityTable,
 }
 
@@ -149,7 +149,7 @@ impl MemberCompletionQuerySession {
         self.state
             .get_or_init(|| {
                 Mutex::new(MemberCompletionQueryState {
-                    types: types.clone(),
+                    types: types.transaction(),
                     copyabilities: copyabilities.clone(),
                 })
             })
@@ -291,7 +291,7 @@ pub(crate) fn select_member_completions(
 
 fn field_completions(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     access: crate::SourceAccessContext<'_>,
     receiver: TypeId,
 ) -> Result<Vec<MemberCompletionCandidate>, MemberCompletionError> {

@@ -6,7 +6,7 @@ use crate::{
 };
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
-use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind};
 use nocter_source_index::DiagnosticOrigins;
 
 /// Immutable program-wide authorities shared by every body checker.
@@ -26,7 +26,7 @@ pub(super) struct BodyProgramFacts<'program> {
 
 pub(super) fn body_result_type(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     source: BodySource<'_>,
 ) -> Result<TypeId, BodyCheckInternalError> {
     match source.owner() {

@@ -50,7 +50,7 @@ impl CallableInference {
     /// equations. Result candidates use the same ranking as final inference.
     pub(crate) fn partial_substitution(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
     ) -> Result<TypeSubstitution, InferenceFailure> {
         let candidates = self
             .result_context
@@ -288,7 +288,10 @@ impl CallableInference {
     /// Returns a conflict for incompatible evidence, an unknown-parameter failure when evidence
     /// leaves a declared parameter undetermined, or a type-validity failure for substitutions such
     /// as `void`, `never`, and unsized data.
-    pub fn finish(self, types: &mut TypeStore) -> Result<GenericArguments, InferenceFailure> {
+    pub fn finish(
+        self,
+        types: &mut nocter_model::TypeTransaction,
+    ) -> Result<GenericArguments, InferenceFailure> {
         let candidates = self
             .result_context
             .map_or(Ok(vec![ResultCandidate::None]), |context| {
@@ -308,7 +311,7 @@ impl CallableInference {
 
     fn finish_candidate(
         &self,
-        types: &mut TypeStore,
+        types: &mut nocter_model::TypeTransaction,
         result_candidate: ResultCandidate,
     ) -> Result<GenericArguments, InferenceFailure> {
         let mut equations = self.equations.clone();
@@ -699,7 +702,9 @@ mod tests {
 
     use super::{CallableInference, InferenceEvidence, InferenceFailure};
 
-    fn parameter(types: &mut TypeStore) -> (GenericParameterId, nocter_model::TypeId) {
+    fn parameter(
+        types: &mut nocter_model::TypeTransaction,
+    ) -> (GenericParameterId, nocter_model::TypeId) {
         let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
         let parameter = parameters.insert(());
         let _ = parameters.finish();
@@ -709,7 +714,7 @@ mod tests {
 
     #[test]
     fn known_outcome_shape_projects_before_payload_inference() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let optional = types.intern(TypeKind::Optional(variable)).unwrap();
         let i32_type = types.builtin(BuiltinType::I32);
@@ -724,7 +729,7 @@ mod tests {
 
     #[test]
     fn complete_outcome_evidence_matches_without_adding_a_layer() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let pattern = types.intern(TypeKind::Optional(variable)).unwrap();
         let i32_type = types.builtin(BuiltinType::I32);
@@ -742,7 +747,7 @@ mod tests {
 
     #[test]
     fn tags_and_non_values_never_determine_a_payload() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let optional = types.intern(TypeKind::Optional(variable)).unwrap();
         for evidence in [
@@ -763,7 +768,7 @@ mod tests {
 
     #[test]
     fn another_source_can_determine_a_tag_payload() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let optional = types.intern(TypeKind::Optional(variable)).unwrap();
         let i32_type = types.builtin(BuiltinType::I32);
@@ -783,7 +788,7 @@ mod tests {
 
     #[test]
     fn conflicting_evidence_is_input_order_independent() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let i32_type = types.builtin(BuiltinType::I32);
         let u32_type = types.builtin(BuiltinType::U32);
@@ -803,7 +808,7 @@ mod tests {
 
     #[test]
     fn invalid_data_substitutions_are_rejected_after_solving() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let mut inference = CallableInference::new([parameter]);
         inference.constrain_exact(variable, types.builtin(BuiltinType::Void));
@@ -816,7 +821,7 @@ mod tests {
 
     #[test]
     fn result_context_prefers_complete_type_identity_before_injection() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let i32_type = types.builtin(BuiltinType::I32);
         let expected = types.intern(TypeKind::Optional(i32_type)).unwrap();
@@ -833,7 +838,7 @@ mod tests {
 
     #[test]
     fn outcome_payload_context_uses_the_declared_immediate_layer() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let optional = types.intern(TypeKind::Optional(variable)).unwrap();
         let i32_type = types.builtin(BuiltinType::I32);
@@ -850,7 +855,7 @@ mod tests {
 
     #[test]
     fn fixed_result_uses_the_nearest_compatible_outcome_payload() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let i32_type = types.builtin(BuiltinType::I32);
         let optional = types.intern(TypeKind::Optional(i32_type)).unwrap();
         let expected = types.intern(TypeKind::Fallible(optional)).unwrap();
@@ -864,7 +869,7 @@ mod tests {
 
     #[test]
     fn shaped_generic_result_infers_from_the_exact_expected_shape() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let (parameter, variable) = parameter(&mut types);
         let result = types.intern(TypeKind::Optional(variable)).unwrap();
         let i32_type = types.builtin(BuiltinType::I32);
@@ -882,7 +887,7 @@ mod tests {
 
     #[test]
     fn never_result_accepts_context_without_inventing_generic_evidence() {
-        let mut types = TypeStore::new();
+        let mut types = TypeStore::new().transaction();
         let expected = types
             .intern(TypeKind::Optional(types.builtin(BuiltinType::I32)))
             .unwrap();

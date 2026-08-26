@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
     ArenaBuilder, BodyNodeId, BodyScopeId, BuiltinType, CallableCapability, LocalBindingId, LoopId,
-    TypeStore,
 };
 use nocter_source_index::SourceOrigin;
 
@@ -32,7 +31,7 @@ use temporaries::TemporaryPlanner;
 /// Validates flow-dependent ownership after typed HIR construction.
 pub(super) fn analyze_body_ownership(
     graph: &DeclarationGraph,
-    types: &mut TypeStore,
+    types: &mut nocter_model::TypeTransaction,
     copyabilities: &mut CopyabilityTable,
     drops: &DropTable,
     closures: &ClosureTable,
@@ -123,7 +122,7 @@ impl<'program> OwnershipBodyInput<'program> {
 
 struct OwnershipAnalyzer<'program> {
     graph: &'program DeclarationGraph,
-    types: &'program mut TypeStore,
+    types: &'program mut nocter_model::TypeTransaction,
     copyabilities: &'program mut CopyabilityTable,
     drops: &'program DropTable,
     source: BodySource<'program>,

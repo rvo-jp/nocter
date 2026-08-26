@@ -1,5 +1,5 @@
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind, TypeStore};
+use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind};
 
 use super::super::error::BodyCheckInternalError;
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
@@ -13,7 +13,7 @@ use crate::{
 
 pub(super) struct CleanupPlanner<'program> {
     graph: &'program DeclarationGraph,
-    types: &'program mut TypeStore,
+    types: &'program mut nocter_model::TypeTransaction,
     copyabilities: &'program mut CopyabilityTable,
     drops: &'program DropTable,
     body: &'program CheckedBody,
@@ -24,7 +24,7 @@ pub(super) struct CleanupPlanner<'program> {
 impl<'program> CleanupPlanner<'program> {
     pub(super) fn new(
         graph: &'program DeclarationGraph,
-        types: &'program mut TypeStore,
+        types: &'program mut nocter_model::TypeTransaction,
         copyabilities: &'program mut CopyabilityTable,
         drops: &'program DropTable,
         body: &'program CheckedBody,
