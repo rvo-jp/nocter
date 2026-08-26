@@ -280,6 +280,23 @@ impl TypeStore {
             .map(|(index, kind)| (TypeId::new(index), kind))
     }
 
+    /// Iterates identities at or after `start` without visiting the preceding prefix.
+    ///
+    /// Persistent snapshots use this cursor contract when an analysis has already closed an
+    /// immutable prefix and needs to inspect only types appended by its own transaction.
+    #[must_use]
+    pub fn iter_from(&self, start: usize) -> impl ExactSizeIterator<Item = (TypeId, &TypeKind)> {
+        let end = self.kinds.len();
+        let start = start.min(end);
+        (start..end).map(|index| {
+            let kind = self
+                .kinds
+                .get(index)
+                .expect("in-range type identity must exist in the persistent sequence");
+            (TypeId::new(index), kind)
+        })
+    }
+
     #[must_use]
     pub const fn type_count(&self) -> usize {
         self.kinds.len()
@@ -636,5 +653,23 @@ mod tests {
         assert_eq!(types.is_concrete(integer_optional), Some(true));
         assert!(types.may_carry_storage(generic_optional));
         assert!(!types.may_carry_storage(integer_optional));
+    }
+
+    #[test]
+    fn suffix_iteration_starts_at_the_exact_identity_cursor() {
+        let mut types = TypeAuthority::new().transaction();
+        let cursor = types.type_count();
+        let integer = types.builtin(BuiltinType::I32);
+        let optional = types.intern(TypeKind::Optional(integer)).unwrap();
+        let fallible = types.intern(TypeKind::Fallible(optional)).unwrap();
+
+        assert_eq!(
+            types
+                .iter_from(cursor)
+                .map(|(ty, _)| ty)
+                .collect::<Vec<_>>(),
+            [optional, fallible]
+        );
+        assert_eq!(types.iter_from(types.type_count()).len(), 0);
     }
 }

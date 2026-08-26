@@ -529,8 +529,7 @@ impl CopyabilityTransaction {
         let mut visited = 0;
         loop {
             let pending = types
-                .iter()
-                .skip(visited)
+                .iter_from(visited)
                 .map(|(ty, _)| ty)
                 .filter(|ty| !self.conditions.contains_key(ty))
                 .collect::<Vec<_>>();
