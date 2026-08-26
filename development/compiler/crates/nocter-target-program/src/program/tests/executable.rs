@@ -392,7 +392,7 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
          drop Item(&+self) { return }\n\
          struct Iter {}\n\
          instance Iter {\n\
-             impl Iterator { Item = Item }\n\
+             impl Iterator { .Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
          instance Iter {\n\

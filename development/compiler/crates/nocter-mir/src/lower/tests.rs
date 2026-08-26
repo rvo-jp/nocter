@@ -458,7 +458,7 @@ fn lowers_exact_size_spreads_with_deferred_residual_destruction() {
          struct Item { leaf: Leaf }\n\
          struct Iter {}\n\
          instance Iter {\n\
-             impl Iterator { Item = Item }\n\
+             impl Iterator { .Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
          instance Iter {\n\
@@ -1322,7 +1322,7 @@ fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
              }\n\
          }\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -1373,7 +1373,7 @@ fn collection_iteration_opens_an_opaque_iterator_receiver() {
         "use std.Iterator\n\
          struct Iter { remaining: i32 }\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -1382,7 +1382,7 @@ fn collection_iteration_opens_an_opaque_iterator_receiver() {
                  return self.remaining\n\
              }\n\
          }\n\
-         func make(): some Iterator { Item = i32 } { Iter { remaining: 2 } }\n\
+         func make(): some Iterator { .Item = i32 } { Iter { remaining: 2 } }\n\
          func main(): void {\n\
              var iterator = make()\n\
              for item in move iterator {\n\

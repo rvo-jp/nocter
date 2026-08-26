@@ -97,7 +97,7 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
         "}\n",
         "struct Value {}\n",
         "instance Value {\n",
-        "    impl Readable { Item = i32 }\n",
+        "    impl Readable { .Item = i32 }\n",
         "}\n",
     ));
     let input = fixture.input(false);
@@ -193,8 +193,8 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
 #[test]
 fn associated_type_bounds_use_the_same_interface_implementation_table() {
     for source in [
-        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Good {}\nstruct Wrapper<T> {}\ninstance Good { impl Marker }\ninstance Wrapper<T> where T = Good { impl Source { Item = T } }\n",
-        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T impl Marker { impl Source { Item = T } }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Good {}\nstruct Wrapper<T> {}\ninstance Good { impl Marker }\ninstance Wrapper<T> where T = Good { impl Source { .Item = T } }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T impl Marker { impl Source { .Item = T } }\n",
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
@@ -209,7 +209,7 @@ fn associated_type_bounds_use_the_same_interface_implementation_table() {
 #[test]
 fn unsatisfied_associated_type_bound_has_its_own_rule() {
     let fixture = Fixture::new(
-        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Missing {}\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T = Missing { impl Source { Item = T } }\n",
+        "pub interface Marker {}\npub interface Source { pub type Item impl Marker }\nstruct Missing {}\nstruct Wrapper<T> {}\ninstance Wrapper<T> where T = Missing { impl Source { .Item = T } }\n",
     );
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();

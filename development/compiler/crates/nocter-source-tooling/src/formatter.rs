@@ -325,6 +325,7 @@ fn space_before_punctuation(
                             if space_after_punctuation(previous, None)
                     )
         }
+        Punctuation::Dot if parent == Some(NodeKind::AssociatedTypeBinding) => true,
         Punctuation::Dot if parent == Some(NodeKind::SourceVisibilityPath) => {
             previous == TokenKind::Keyword(Keyword::See)
         }
@@ -608,6 +609,14 @@ mod tests {
                 "func choose<T,U,>(\nleft:T, right:U\n):void { let values=[left,right,]\nreturn consume(left,right,)\n}\nfunc generic<\nT,U\n>():void {}\n"
             ),
             "func choose<T, U>(\n    left: T,\n    right: U,\n): void { let values = [left, right]\n    return consume(left, right)\n}\n\nfunc generic<\n    T,\n    U,\n>(): void {}\n"
+        );
+    }
+
+    #[test]
+    fn formats_associated_bindings_as_relative_interface_members() {
+        assert_eq!(
+            format("instance Value { impl Source {.Item=i32,.View=&str,} }\n"),
+            "instance Value { impl Source { .Item = i32, .View = &str } }\n"
         );
     }
 

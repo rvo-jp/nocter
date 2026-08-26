@@ -156,7 +156,7 @@ fn resolves_interface_generic_and_concrete_associated_selections_to_one_identity
             "    pub method &self.get(): Self.Item\n",
             "}\n",
             "instance Buffer {\n",
-            "    impl Source { Item = i32 }\n",
+            "    impl Source { .Item = i32 }\n",
             "    method &self.get(): i32 { return 0 }\n",
             "}\n",
             "func generic<S>(source: &S): S.Item where S impl Source { return source.get() }\n",
@@ -259,8 +259,8 @@ fn rejects_ambiguous_concrete_associated_projection() {
         concat!(
             "struct Buffer {}\n",
             "interface Source { pub type Item }\n",
-            "instance Buffer { impl Source { Item = i32 } }\n",
-            "instance Buffer { impl Source { Item = i32 } }\n",
+            "instance Buffer { impl Source { .Item = i32 } }\n",
+            "instance Buffer { impl Source { .Item = i32 } }\n",
             "func read(value: &Buffer): Buffer.Item { return 0 }\n",
         ),
     );
@@ -310,7 +310,7 @@ fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
         &mut sources,
         concat!(
             "interface Source<T> { pub type Item }\n",
-            "func values<T>(): some Source<T> { Item = &T }?! { return }\n",
+            "func values<T>(): some Source<T> { .Item = &T }?! { return }\n",
         ),
     );
     let normalized = normalized_app(

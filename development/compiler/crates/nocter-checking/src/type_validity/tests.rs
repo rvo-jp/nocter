@@ -59,7 +59,7 @@ fn aliases_do_not_bypass_use_site_validity() {
 #[test]
 fn associated_bindings_and_refinements_are_data_positions() {
     for source in [
-        "pub interface Source { pub type Item }\nstruct Value {}\ninstance Value { impl Source { Item = void } }\n",
+        "pub interface Source { pub type Item }\nstruct Value {}\ninstance Value { impl Source { .Item = void } }\n",
         "struct Box<T> {}\ninstance Box<T> where T = void {}\n",
     ] {
         let fixture = Fixture::new(source);

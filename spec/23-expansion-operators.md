@@ -61,7 +61,7 @@ where (...C): I
 
 The result type is exact. The compiler may infer `I` by selecting the concrete source operator at a
 call site. The expansion predicate proves only that conversion result. A separate
-`I impl Iterator { Item = T }` predicate owns both the nominal interface requirement and its
+`I impl Iterator { .Item = T }` predicate owns both the nominal interface requirement and its
 associated bindings as one contract.
 
 ## Collection Iteration

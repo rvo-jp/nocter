@@ -250,7 +250,7 @@ fn quarantined_operation_shapes_cannot_block_independent_body_semantics() {
         ),
         (
             52,
-            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box {\n    impl Pair { First = i32 }\n}\n",
+            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box {\n    impl Pair { .First = i32 }\n}\n",
             "E0211",
         ),
     ] {

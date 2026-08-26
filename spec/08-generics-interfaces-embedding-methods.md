@@ -60,16 +60,19 @@ inside a type expression such as `&[copy T]`.
 An interface requirement uses `impl` and may bind that interface's associated types in braces:
 
 ```nct
-where T impl Iterator { Item = &str }
+where T impl Iterator { .Item = &str }
 ```
 
 `impl` is reserved for nominal interfaces. It cannot introduce an intrinsic copy, callable,
 operator, coercion, or expansion requirement. Associated bindings belong to the immediately
-preceding interface application, are compared after alias expansion, and apply recursively beneath
-existing type constructors. A generic body may rely only on implementations and bindings in its
-lexical predicate environment. A concrete call or conditional interface implementation must prove
-every specialized binding. Cycles that cannot normalize to a finite type, unresolved operands,
-duplicate bindings, and names absent from the selected interface are invalid.
+preceding interface application. The leading dot makes each binding an interface-relative member:
+`.Item` denotes the declaration `Iterator.Item` in the example above, while the resulting projection
+on the constrained subject is `T.Item`. Bindings are compared after alias expansion and apply
+recursively beneath existing type constructors. A generic body may rely only on implementations and
+bindings in its lexical predicate environment. A concrete call or conditional interface
+implementation must prove every specialized binding. Cycles that cannot normalize to a finite
+type, unresolved operands, duplicate bindings, and names absent from the selected interface are
+invalid.
 
 An operator requirement encloses the required expression in parentheses and states its result type:
 
@@ -286,7 +289,7 @@ pub interface Source {
 }
 
 instance BufferSource<T> {
-    impl Source { Item = T }
+    impl Source { .Item = T }
 
     method &+self.next(): T? {
         ...
@@ -317,7 +320,7 @@ associated-type declaration:
 
 ```nct
 func chain<L, R>(left: L, right: R): ChainIter<L, R>
-where L impl Iterator, R impl Iterator { Item = L.Item } {
+where L impl Iterator, R impl Iterator { .Item = L.Item } {
     ...
 }
 ```
@@ -328,7 +331,7 @@ where L impl Iterator, R impl Iterator { Item = L.Item } {
 result type out of the API:
 
 ```nct
-pub func lines(text: &str): some Iterator { Item = &str } from text {
+pub func lines(text: &str): some Iterator { .Item = &str } from text {
     return LinesIter.new(text)
 }
 ```
@@ -344,7 +347,7 @@ The `some` result source form is defined by
 Ordinary interface type arguments precede associated bindings when both are present:
 
 ```nct
-func values<T>(): some Source<T> { Item = &T } { ... }
+func values<T>(): some Source<T> { .Item = &T } { ... }
 ```
 
 Rules:
@@ -410,7 +413,7 @@ instance ValuesIter<T> {
 }
 
 instance ValuesIter<T> {
-    impl Iterator { Item = T }
+    impl Iterator { .Item = T }
 }
 ```
 

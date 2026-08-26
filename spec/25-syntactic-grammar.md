@@ -354,7 +354,7 @@ InterfaceImplementation = "impl" InterfaceApplication
 InterfaceApplication = NamedType AssociatedBindings?
 AssociatedBindings = "{" AssociatedTypeBinding
                      ("," AssociatedTypeBinding)* ","? "}"
-AssociatedTypeBinding = Name "=" Type
+AssociatedTypeBinding = "." Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"

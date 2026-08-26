@@ -22,7 +22,7 @@ fn binds_every_requirement_family_and_associated_type_bounds() {
             "interface Source {\n    pub type Item impl Show<i32>\n}\n",
             "func inspect<T, U, C, I>(value: T): void where ",
             "T impl Show<U>, T: &func(value: &T): &T from value, ",
-            "copy U, T impl Source { Item = U }, (&T == &T): bool, (&T < &T): bool, ",
+            "copy U, T impl Source { .Item = U }, (&T == &T): bool, (&T < &T): bool, ",
             "(&C[usize]): &U, &T as &str, (...&C): I { return }\n",
         ),
     );

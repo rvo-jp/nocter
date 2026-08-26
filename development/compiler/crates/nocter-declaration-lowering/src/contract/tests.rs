@@ -357,7 +357,7 @@ fn interface_implementation_fact_is_rejected_outside_the_module_root() {
             "see ./value.nct\n",
             "pub interface Source { pub type Item }\n",
             "pub struct Value {}\n",
-            "instance Value { impl Source { Item = i32 } }\n",
+            "instance Value { impl Source { .Item = i32 } }\n",
         ),
     );
     let implementation_id = add_source(
@@ -365,7 +365,7 @@ fn interface_implementation_fact_is_rejected_outside_the_module_root() {
         "/app/value.nct",
         concat!(
             "see ./index.nct\n",
-            "instance Value { impl Source { Item = i32 } }\n",
+            "instance Value { impl Source { .Item = i32 } }\n",
         ),
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);

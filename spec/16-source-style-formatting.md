@@ -189,11 +189,11 @@ Rules:
   `from`. Union origins use one space around `|`.
 - An associated type declaration is `pub type Name` or `pub type Name impl Bound + Bound` on its own
   interface-member line.
-- An associated type binding is `Name = Type` inside braces following its interface
-  application: `impl Iterator { Item = T }`.
+- An associated type binding is `.Name = Type` inside braces following its interface
+  application: `impl Iterator { .Item = T }`.
 - A projected type uses no spaces around the dot: `Self.Item` or `S.Item`.
 - An associated equality is written as an interface binding:
-  `R impl Iterator { Item = L.Item }`.
+  `R impl Iterator { .Item = L.Item }`.
 - An operator requirement encloses its expression and writes an explicit result type:
   `where (&T == &T): bool`, `where (&T < &T): bool`, or `where (&C[K]): &V`.
 - An equality declaration is `operator (&self == other: &Self): bool`; spaces surround `==`, the
@@ -210,7 +210,7 @@ Rules:
   `operator (&+self[index: K]): &+V`. There is no space before `[`, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
   result type.
-- An opaque result is `some Interface` or `some Interface { Item = Type }`. Generic arguments
+- An opaque result is `some Interface` or `some Interface { .Item = Type }`. Generic arguments
   remain in angle brackets and associated bindings remain in braces. Binding `=` uses one space on
   each side, and `?` or `!` attaches to the complete opaque type without extra parentheses.
 - Closure captures precede one semicolon and parameters follow it: `(&limit, move prefix; value)`.

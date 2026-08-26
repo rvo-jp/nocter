@@ -17,7 +17,7 @@ instance Maybe<T> {
 }
 
 instance Maybe<T> {
-    impl Source { Item = T }
+    impl Source { .Item = T }
     method &self.next(): Self.Item? {}
 }
 

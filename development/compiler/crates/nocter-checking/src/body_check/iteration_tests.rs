@@ -59,15 +59,15 @@ instance Source {
     pub operator (...self): OwnedIter { return OwnedIter {} }
 }
 instance ReadIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 instance WriteIter {
-    impl Iterator { Item = &+i32 }
+    impl Iterator { .Item = &+i32 }
     method &+self.next(): &+i32? { return none }
 }
 instance OwnedIter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 func make_iterator(): OwnedIter { return OwnedIter {} }
@@ -139,11 +139,11 @@ instance Source {
     pub operator (...self): Fallback { return Fallback {} }
 }
 instance Source {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 instance Fallback {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 func visit(source: Source): void {
@@ -212,10 +212,10 @@ fn opaque_iterator_uses_its_advertised_exact_interface_evidence() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
-func make(): some Iterator { Item = i32 } { return Iter {} }
+func make(): some Iterator { .Item = i32 } { return Iter {} }
 func visit(): void {
     var iterator = make()
     for item in move iterator {}
@@ -297,7 +297,7 @@ fn bare_move_only_iterator_place_still_requires_explicit_move() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 func invalid(iterator: Iter): void {
@@ -317,7 +317,7 @@ fn loop_binding_uses_selected_associated_item_type() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 func visit(iterator: Iter): void {
@@ -352,7 +352,7 @@ fn break_and_return_drop_item_before_loop_owned_iterator() {
 struct Item {{}}
 struct Iter {{}}
 instance Iter {{
-    impl Iterator {{ Item = Item }}
+    impl Iterator {{ .Item = Item }}
     method &+self.next(): Item? {{ return none }}
 }}
 drop Item(&+self) {{ return }}
@@ -409,7 +409,7 @@ fn continue_drops_current_item_but_keeps_iterator() {
 struct Item {}
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = Item }
+    impl Iterator { .Item = Item }
     method &+self.next(): Item? { return none }
 }
 drop Item(&+self) { return }
@@ -465,7 +465,7 @@ fn normal_exhaustion_drops_item_then_iterator_at_statement_end() {
 struct Item {}
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = Item }
+    impl Iterator { .Item = Item }
     method &+self.next(): Item? { return none }
 }
 drop Item(&+self) { return }
@@ -523,7 +523,7 @@ fn consuming_iteration_cannot_export_borrow_from_iterator_storage() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 func invalid(iterator: Iter, fallback: &i32): &i32 {
@@ -545,7 +545,7 @@ fn loop_owned_iterator_storage_remains_live_through_the_complete_body_scope() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 func valid(iterator: Iter): usize {
@@ -568,7 +568,7 @@ fn loop_owned_iterator_storage_cannot_enter_an_outer_binding() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 func invalid(iterator: Iter, fallback: &i32): &i32 {
@@ -596,7 +596,7 @@ instance Source {
     pub method &+self.clear(): void { return }
 }
 instance Iter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? from self { return none }
 }
 func invalid(source: Source): void {
@@ -624,7 +624,7 @@ instance Source {
     pub method &+self.clear(): void { return }
 }
 instance Iter {
-    impl Iterator { Item = &+i32 }
+    impl Iterator { .Item = &+i32 }
     method &+self.next(): &+i32? from self { return none }
 }
 func invalid(source: Source): void {
@@ -650,11 +650,11 @@ struct OuterIter {}
 struct InnerItem {}
 struct InnerIter {}
 instance OuterIter {
-    impl Iterator { Item = OuterItem }
+    impl Iterator { .Item = OuterItem }
     method &+self.next(): OuterItem? { return none }
 }
 instance InnerIter {
-    impl Iterator { Item = InnerItem }
+    impl Iterator { .Item = InnerItem }
     method &+self.next(): InnerItem? { return none }
 }
 drop OuterItem(&+self) { return }
@@ -732,7 +732,7 @@ fn consuming_iteration_transfers_source_once() {
         r"
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 func invalid(iterator: Iter): Iter {
@@ -753,7 +753,7 @@ fn propagation_drops_item_before_iterator() {
 struct Item {}
 struct Iter {}
 instance Iter {
-    impl Iterator { Item = Item }
+    impl Iterator { .Item = Item }
     method &+self.next(): Item? { return none }
 }
 drop Item(&+self) { return }

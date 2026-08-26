@@ -96,8 +96,7 @@ fn at_associated_bindings(parser: &Parser<'_>) -> bool {
     while parser.nth_kind(offset) == TokenKind::Newline {
         offset += 1;
     }
-    parser.nth_kind(offset) == TokenKind::Identifier
-        && parser.nth_kind(offset + 1) == TokenKind::Punctuation(Punctuation::Equal)
+    parser.nth_kind(offset) == TokenKind::Punctuation(Punctuation::Dot)
 }
 
 fn associated_bindings(parser: &mut Parser<'_>) {
@@ -122,6 +121,7 @@ fn associated_bindings(parser: &mut Parser<'_>) {
 
 fn associated_type_binding(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    parser.expect_punctuation(Punctuation::Dot);
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Equal);
     type_(parser);

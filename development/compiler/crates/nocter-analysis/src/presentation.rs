@@ -1058,6 +1058,7 @@ impl<'a> Renderer<'a> {
                 .declarations()
                 .associated_types()
                 .get(binding.declaration())?;
+            self.output.push('.');
             self.output.push_str(self.symbol(declaration.name())?);
             self.output.push_str(" = ");
             self.ty(binding.ty())?;

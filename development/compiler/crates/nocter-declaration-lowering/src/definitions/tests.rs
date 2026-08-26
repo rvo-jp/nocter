@@ -50,12 +50,12 @@ instance Box<T> where copy T {
 }
 
 instance Box<T> where copy T  {
-    impl Source<T> { Item = T }
+    impl Source<T> { .Item = T }
     method &self.get(index: usize): &T from self { return }
     method &self.static_view(): &str from static { return }
 }
 
-func values<T>(value: &T): some Source<T> { Item = &T } from value { return }
+func values<T>(value: &T): some Source<T> { .Item = &T } from value { return }
 drop Box<T>(&+self) { return }
 test headers { return }
 "#;
@@ -594,13 +594,13 @@ fn definition_rules_retain_exact_authored_subjects() {
             Some("left |"),
         ),
         (
-            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Missing = i32 } }\n",
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { .Missing = i32 } }\n",
             DefinitionRule::UnknownAssociatedTypeBinding,
             "Missing",
             None,
         ),
         (
-            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Item = i32, Item = i64 } }\n",
+            "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { .Item = i32, .Item = i64 } }\n",
             DefinitionRule::DuplicateAssociatedTypeBinding,
             "Item = i64",
             Some("Item = i32"),
@@ -678,7 +678,7 @@ fn rejects_invalid_semantic_header_graphs_at_freeze() {
     ));
     assert!(matches!(
         definition_error(
-            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box { impl Pair { First = i32 } }\n"
+            "interface Pair {\n    pub type First\n    pub type Second\n}\nstruct Box {}\ninstance Box { impl Pair { .First = i32 } }\n"
         ),
         super::HeaderDefinitionError::Declaration(diagnostics)
             if diagnostics.sources().iter().any(|diagnostic| diagnostic.code() == "E0211")

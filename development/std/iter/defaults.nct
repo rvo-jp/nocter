@@ -32,7 +32,7 @@ interface Iterator {
         }
     }
 
-    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { Item = Self.Item } {
+    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { .Item = Self.Item } {
         return ChainIter<Self, R> {
             left: move self,
             right: move right,
@@ -103,7 +103,7 @@ interface Iterator {
         return true
     }
 
-    default method self.contains<T>(expected: &T): bool where Self impl Iterator { Item = T }, (&T == &T): bool {
+    default method self.contains<T>(expected: &T): bool where Self impl Iterator { .Item = T }, (&T == &T): bool {
         var source = move self
         while true {
             let item = source.next() otherwise { return false }
@@ -114,7 +114,7 @@ interface Iterator {
         return false
     }
 
-    default method self.position<T>(expected: &T): usize? where Self impl Iterator { Item = T }, (&T == &T): bool {
+    default method self.position<T>(expected: &T): usize? where Self impl Iterator { .Item = T }, (&T == &T): bool {
         var source = move self
         var index: usize = 0
         while true {

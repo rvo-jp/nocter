@@ -254,7 +254,7 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
              remaining: usize\n\
          }\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  let _ = allocation_context_state_for_test()\n\
                  if self.remaining == 0 { return none }\n\
@@ -330,7 +330,7 @@ fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() 
          struct Iter { next_value: i32\n\
              remaining: usize }\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
                  let _ = allocation_context_state_for_test()\n\
                  if self.remaining == 0 {\n\
@@ -373,7 +373,7 @@ fn spread_sequence_argument_pack_residual_cleanup_destroys_the_iterator() {
          }\n\
          struct Iter {}\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? { return none }\n\
          }\n\
          instance Iter {\n\
@@ -415,7 +415,7 @@ fn spread_sequence_argument_pack_transports_indirect_optional_values() {
          struct Iter { value: Large\n\
              remaining: usize }\n\
          instance Iter {\n\
-             impl Iterator { Item = Large }\n\
+             impl Iterator { .Item = Large }\n\
              method &+self.next(): Large? {\n\
                  if self.remaining == 0 {\n\
                      return none\n\
@@ -468,7 +468,7 @@ fn spread_sequence_argument_pack_copies_borrowed_iterator_items() {
              }\n\
          }\n\
          instance RefIter {\n\
-             impl Iterator { Item = &i32 }\n\
+             impl Iterator { .Item = &i32 }\n\
              method &+self.next(): &i32? from self {\n\
                  if self.index == 0 {\n\
                      self.index = 1\n\

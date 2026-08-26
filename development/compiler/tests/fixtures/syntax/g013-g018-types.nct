@@ -4,4 +4,4 @@ type Matrix<T> = [[T; 4]]
 func values<T, U, C, I>(
     source: &T,
     callback: &+func(input: &T): &T from input,
-): some Source<T> { Item = &T }?! from source where T impl Interface<U> { Item = U }, copy U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, &T as &str, (...&C): I
+): some Source<T> { .Item = &T }?! from source where T impl Interface<U> { .Item = U }, copy U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, &T as &str, (...&C): I

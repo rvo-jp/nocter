@@ -275,7 +275,7 @@ instance Source {
     pub operator (...self): OwnedIter { return OwnedIter {} }
 }
 instance RefIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 instance RefIter {
@@ -283,7 +283,7 @@ instance RefIter {
     method &self.remaining_len(): usize { 0 }
 }
 instance OwnedIter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 instance OwnedIter {
@@ -374,7 +374,7 @@ instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
 instance RefIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 instance RefIter {
@@ -420,7 +420,7 @@ func apply(source: Source): void {
 fn generic_spread_uses_only_lexical_expansion_and_iterator_evidence() {
     let output = checked_with_iteration_standard(&iteration_standard(
         r"
-func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I impl Iterator { Item = &T }, I impl ExactSizeIterator, copy T {
+func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I impl Iterator { .Item = &T }, I impl ExactSizeIterator, copy T {
     Vec [...source]
 }
 ",
@@ -479,11 +479,11 @@ instance DirectIter {
     pub operator (...self): FallbackIter { return FallbackIter {} }
 }
 instance DirectIter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 instance FallbackIter {
-    impl Iterator { Item = i32 }
+    impl Iterator { .Item = i32 }
     method &+self.next(): i32? { return none }
 }
 instance FallbackIter {
@@ -510,7 +510,7 @@ instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
 instance RefIter {
-    impl Iterator { Item = &Value }
+    impl Iterator { .Item = &Value }
     method &+self.next(): &Value? { return none }
 }
 instance RefIter {
@@ -532,7 +532,7 @@ fn direct_iterator_cannot_export_a_borrow_into_its_consumed_temporary() {
         r"
 struct DirectIter {}
 instance DirectIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 instance DirectIter {
@@ -559,7 +559,7 @@ instance Source {
     pub method &+self.clear(): void { return }
 }
 instance RefIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? from self { return none }
 }
 instance RefIter {
@@ -591,7 +591,7 @@ instance Source {
     pub operator (...&self): RefIter { return RefIter {} }
 }
 instance RefIter {
-    impl Iterator { Item = &i32 }
+    impl Iterator { .Item = &i32 }
     method &+self.next(): &i32? { return none }
 }
 instance RefIter {

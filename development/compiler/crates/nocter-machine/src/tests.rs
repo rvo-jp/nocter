@@ -1229,7 +1229,7 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
          struct Item { leaf: Leaf }\n\
          struct Iter {}\n\
          instance Iter {\n\
-             impl Iterator { Item = Item }\n\
+             impl Iterator { .Item = Item }\n\
              method &+self.next(): Item? { return none }\n\
          }\n\
          instance Iter {\n\
@@ -1533,7 +1533,7 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
          }\n\
          struct Iter {}\n\
          instance Iter {\n\
-             impl Iterator { Item = i32 }\n\
+             impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? { return none }\n\
          }\n\
          instance Iter {\n\

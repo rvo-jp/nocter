@@ -414,7 +414,7 @@ fn associated_method_results_specialize_for_concrete_and_generic_receivers() {
          }\n\
          struct Buffer {}\n\
          instance Buffer {\n\
-             impl Source { Item = i32 }\n\
+             impl Source { .Item = i32 }\n\
              method &self.get(): i32 { 0 }\n\
          }\n\
          func concrete(source: &Buffer): i32 { source.get() }\n\

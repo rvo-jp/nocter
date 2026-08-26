@@ -1501,13 +1501,13 @@ mod tests {
                 None,
             ),
             (
-                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Missing = i32 } }\n",
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { .Missing = i32 } }\n",
                 DefinitionRule::UnknownAssociatedTypeBinding,
                 "Missing",
                 None,
             ),
             (
-                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { Item = i32, Item = i64 } }\n",
+                "interface Source {\n    pub type Item\n}\nstruct Value {}\ninstance Value { impl Source { .Item = i32, .Item = i64 } }\n",
                 DefinitionRule::DuplicateAssociatedTypeBinding,
                 "Item = i64",
                 Some("Item = i32"),

@@ -229,7 +229,7 @@ fn parses_callable_declarations_and_nested_type_closers() {
 #[test]
 fn parses_opaque_and_layered_callable_results() {
     assert_syntax_ok(
-        "func values<T>(): some Source<T> { Item = &T }?\nfunc load<T>(): T?!\n",
+        "func values<T>(): some Source<T> { .Item = &T }?\nfunc load<T>(): T?!\n",
         ParseGoal::SourceFile,
     );
 }
@@ -275,7 +275,7 @@ fn rejects_empty_generics_reversed_outcomes_and_missing_results() {
 #[test]
 fn parses_every_requirement_shape_without_type_driven_disambiguation() {
     assert_syntax_ok(
-        "func constrained<T, U, C, I>(value: &T): T where T impl Interface<U> { Item = U }, copy U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
+        "func constrained<T, U, C, I>(value: &T): T where T impl Interface<U> { .Item = U }, copy U, (&T == &T): bool, (&T < &T): bool, (&C[usize]): &U, (&+C[usize]): &+U, &T as &str, (...&C): I\n",
         ParseGoal::SourceFile,
     );
 }
@@ -369,7 +369,7 @@ fn parses_fixed_array_lengths_as_constant_expressions() {
 #[test]
 fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
     assert_syntax_ok(
-        "type AssociatedArguments<T, U> = T.Item<U>\ntype BuiltinSelection = str.Item\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source { Missing = u8 }\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
+        "type AssociatedArguments<T, U> = T.Item<U>\ntype BuiltinSelection = str.Item\nfunc origin<T>(value: &T): &T from missing\nfunc hidden(): some Source { .Missing = u8 }\ninstance Pair<T, T> {}\nfunc equality<T, U>(): T where T = U\n",
         ParseGoal::SourceFile,
     );
 }
@@ -377,7 +377,7 @@ fn keeps_type_validity_and_provenance_checks_out_of_parsing() {
 #[test]
 fn opaque_results_keep_their_contextual_boundary() {
     assert_syntax_ok(
-        "func values<T>(): some Source<T> { Item = &T }?! {}\n",
+        "func values<T>(): some Source<T> { .Item = &T }?! {}\n",
         ParseGoal::SourceFile,
     );
 
@@ -534,7 +534,7 @@ fn rejects_closed_instance_and_pattern_forms() {
 #[test]
 fn parses_instance_owned_interface_implementation() {
     let tree = assert_syntax_ok(
-        "instance Input<T> where copy T {\n    impl Source<T> { Item = T }\n    method &+self.next(): Self.Item? {}\n}\n",
+        "instance Input<T> where copy T {\n    impl Source<T> { .Item = T }\n    method &+self.next(): Self.Item? {}\n}\n",
         ParseGoal::SourceFile,
     );
 
@@ -563,6 +563,27 @@ fn interface_implementation_rejects_visibility_and_a_member_body() {
     assert!(
         parse_text(
             "instance Input { impl Source { type Item = i32 } }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+    assert!(
+        parse_text(
+            "instance Input { impl Source { Item = i32 } }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+    assert!(
+        parse_text(
+            "func old(): some Source { Item = i32 } { return }\n",
+            ParseGoal::SourceFile,
+        )
+        .has_errors()
+    );
+    assert!(
+        parse_text(
+            "func malformed(): some Source { .Item i32 } { return }\n",
             ParseGoal::SourceFile,
         )
         .has_errors()

@@ -2439,7 +2439,7 @@ mod tests {
             "\n",
             "struct Value {}\n",
             "instance Value {\n",
-            "    impl Readable { Item = i32 }\n",
+            "    impl Readable { .Item = i32 }\n",
             "}\n",
         );
         let source_path = temporary.path().join("index.nct");

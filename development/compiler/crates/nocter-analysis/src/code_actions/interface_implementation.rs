@@ -450,12 +450,12 @@ mod tests {
     fn existing_members_keep_the_closing_brace_and_separate_generated_methods() {
         assert_eq!(
             apply(
-                "instance Value {\n    impl Readable { Item = i32 }\n}\n",
+                "instance Value {\n    impl Readable { .Item = i32 }\n}\n",
                 &["method &self.read(): i32", "method &self.ready(): bool"]
             ),
             concat!(
                 "instance Value {\n",
-                "    impl Readable { Item = i32 }\n",
+                "    impl Readable { .Item = i32 }\n",
                 "    method &self.read(): i32 {\n",
                 "        abort()\n",
                 "    }\n",

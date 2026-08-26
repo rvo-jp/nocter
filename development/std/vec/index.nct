@@ -19,7 +19,7 @@ pub struct VecIntoIter<T>
 
 instance VecIntoIter<T> {
     impl ExactSizeIterator
-    impl Iterator { Item = T }
+    impl Iterator { .Item = T }
 }
 
 /// An owning, growable sequence with an initialized prefix of elements.
@@ -41,12 +41,12 @@ construct Vec<T> {
     pub func from_slice(values: &[T]): Self where copy T
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
-    pub func from_iter<I>(iterator: I): Self where I impl Iterator { Item = T }
+    pub func from_iter<I>(iterator: I): Self where I impl Iterator { .Item = T }
 
     /// Consumes an exact iterator after reserving its initial reported remainder.
     pub func from_exact_iter<I>(
         iterator: I,
-    ): Self where I impl Iterator { Item = T }, I impl ExactSizeIterator
+    ): Self where I impl Iterator { .Item = T }, I impl ExactSizeIterator
 
     pub func try_from_slice(
         allocator: &+TryAllocator,

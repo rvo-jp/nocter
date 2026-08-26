@@ -78,7 +78,7 @@ instance SkipIter<I> where I impl Iterator, I impl ExactSizeIterator {
     }
 }
 
-instance ChainIter<L, R> where L impl Iterator, R impl Iterator { Item = L.Item } {
+instance ChainIter<L, R> where L impl Iterator, R impl Iterator { .Item = L.Item } {
     method &+self.next(): L.Item? {
         while self.in_left {
             let item = self.left.next() otherwise {
@@ -91,7 +91,7 @@ instance ChainIter<L, R> where L impl Iterator, R impl Iterator { Item = L.Item 
     }
 }
 
-instance ChainIter<L, R> where L impl Iterator, L impl ExactSizeIterator, R impl Iterator { Item = L.Item }, R impl ExactSizeIterator {
+instance ChainIter<L, R> where L impl Iterator, L impl ExactSizeIterator, R impl Iterator { .Item = L.Item }, R impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.left.remaining_len() + self.right.remaining_len()
     }

@@ -132,16 +132,16 @@ fn opaque_associated_bindings_match_the_selected_interface_implementation() {
     let accepted = check(
         "pub interface Source { pub type Item }\n\
          struct Buffer {}\n\
-         instance Buffer { impl Source { Item = i32 } }\n\
-         func make(): some Source { Item = i32 } { Buffer {} }\n",
+         instance Buffer { impl Source { .Item = i32 } }\n\
+         func make(): some Source { .Item = i32 } { Buffer {} }\n",
     );
     assert!(accepted.is_ok());
 
     let rejected = check(
         "pub interface Source { pub type Item }\n\
          struct Buffer {}\n\
-         instance Buffer { impl Source { Item = i32 } }\n\
-         func make(): some Source { Item = i64 } { Buffer {} }\n",
+         instance Buffer { impl Source { .Item = i32 } }\n\
+         func make(): some Source { .Item = i64 } { Buffer {} }\n",
     )
     .unwrap_err();
     assert_eq!(rejected.rule(), Some(BodyRule::InvalidOpaqueWitness));
@@ -151,7 +151,7 @@ fn opaque_associated_bindings_match_the_selected_interface_implementation() {
 fn generic_opaque_witness_uses_lexical_interface_and_associated_evidence() {
     check(
         "pub interface Source { pub type Item }\n\
-         func hide<S>(value: S): some Source { Item = S.Item } where S impl Source {\n\
+         func hide<S>(value: S): some Source { .Item = S.Item } where S impl Source {\n\
              move value\n\
          }\n",
     )

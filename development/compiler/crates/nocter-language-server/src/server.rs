@@ -1181,7 +1181,7 @@ mod tests {
             document
                 .source()
                 .text()
-                .find("some Iterator { Item = &str }")
+                .find("some Iterator { .Item = &str }")
                 .unwrap(),
         )
         .unwrap();
@@ -1300,7 +1300,7 @@ mod tests {
         ));
         assert!(hover.response().unwrap().contains(concat!(
             "pub func Vec<T>.from_exact_iter<I>(iterator: I): Vec<T> where ",
-            "I impl Iterator { Item = T }, I impl ExactSizeIterator"
+            "I impl Iterator { .Item = T }, I impl ExactSizeIterator"
         )));
 
         let iter_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/iter/index.nct");
