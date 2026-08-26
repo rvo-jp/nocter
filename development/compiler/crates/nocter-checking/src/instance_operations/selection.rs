@@ -11,8 +11,8 @@ use crate::type_relations::{
     match_type_pattern,
 };
 use crate::{
-    CheckedPredicate, CheckedRequirement, CopyabilityError, CopyabilityTable, GenericArgument,
-    GenericArguments, InterfaceImplementationTable, StaticDispatch, StaticSelection,
+    CheckedPredicate, CheckedRequirement, CopyabilityError, GenericArgument, GenericArguments,
+    InterfaceImplementationTable, StaticDispatch, StaticSelection,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -229,7 +229,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) graph: &'program DeclarationGraph,
     pub(super) types: &'program mut nocter_model::TypeTransaction,
     pub(super) interface_implementations: &'program InterfaceImplementationTable,
-    pub(super) copyabilities: &'program mut CopyabilityTable,
+    pub(super) copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     pub(super) table: &'program InstanceOperationTable,
     pub(super) assumptions: &'program [CheckedRequirement],
     pub(super) intrinsic_facts: &'program [CheckedPredicate],
@@ -241,7 +241,7 @@ impl<'program> InstanceOperationSelector<'program> {
     pub(crate) fn new(
         context: InstanceSelectionContext<'program>,
         types: &'program mut nocter_model::TypeTransaction,
-        copyabilities: &'program mut CopyabilityTable,
+        copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     ) -> Self {
         Self {
             graph: context.graph,

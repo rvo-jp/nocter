@@ -28,6 +28,7 @@ members = [
     "crates/nocter-package",
     "crates/nocter-package-acquisition",
     "crates/nocter-package-state",
+    "crates/nocter-persistent",
     "crates/nocter-runtime-contract",
     "crates/nocter-session",
     "crates/nocter-source",

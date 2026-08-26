@@ -7,6 +7,7 @@ mod interruption;
 mod literal;
 mod ownership;
 mod pipeline;
+mod semantic_transaction;
 
 #[cfg(test)]
 mod aggregate_tests;

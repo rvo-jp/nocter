@@ -21,14 +21,16 @@ in interface-implementation code actions. Executable architecture gates now prot
 boundaries. Phase 3 changes no language behavior; release qualification resumes only after its
 persistent-authority completion gate and final review pass.
 
-The Phase 3 type boundary is now migrated. `TypeStore` is immutable, `TypeTransaction` is the only
-structural interning capability, and its persistent vector and intern index share unchanged roots
-and each stored `TypeKind`. Commit verifies the exact base authority; sibling and stale commits are
-rejected. Declaration lowering, preparation, body checking, member queries, concrete
-specialization, type projection, and tests use that boundary. `TypeStoreCheckpoint` and body type
-rollback are gone. Copyability and closure state still use their previous journals, so the next
-step is to migrate both together and replace the temporary two-store `BodySemanticCheckpoint` with
-one `BodySemanticTransaction`.
+The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
+closure construction uses an immutable internal authority and freezes into `ClosureTable` only
+after body checking. `TypeTransaction`, `CopyabilityTransaction`, and `ClosureTransaction` share
+one body-level capability and commit boundary through `BodySemanticTransaction`. Their persistent
+vector, arena, and indexes share unchanged roots and copy only changed paths. Exact-base lineage
+rejects sibling and stale commits. Declaration lowering, preparation, body checking, member
+queries, concrete specialization, type projection, and tests use these boundaries. All semantic
+checkpoints, journals, body rollback paths, and full-store recovery clones are gone. The next step
+is to harden editor query authority binding, recovery isolation, and repeated-query determinism
+before Phase 3 qualification.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a

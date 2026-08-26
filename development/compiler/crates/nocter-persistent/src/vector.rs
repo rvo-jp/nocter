@@ -18,7 +18,7 @@ impl<T> VectorNode<T> {
 
 /// An append-only persistent vector with a 32-way structurally shared tree.
 #[derive(Debug)]
-pub(crate) struct PersistentVector<T> {
+pub struct PersistentVector<T> {
     root: Arc<VectorNode<T>>,
     shift: u32,
     len: usize,
@@ -45,15 +45,18 @@ impl<T> Default for PersistentVector<T> {
 }
 
 impl<T> PersistentVector<T> {
-    pub(crate) const fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.len
     }
 
-    pub(crate) const fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    pub(crate) fn get(&self, index: usize) -> Option<&T> {
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&T> {
         if index >= self.len {
             return None;
         }
@@ -73,7 +76,11 @@ impl<T> PersistentVector<T> {
         values[index & BRANCH_MASK].as_deref()
     }
 
-    pub(crate) fn push_shared(&mut self, value: Arc<T>) {
+    pub fn push(&mut self, value: T) {
+        self.push_shared(Arc::new(value));
+    }
+
+    pub fn push_shared(&mut self, value: Arc<T>) {
         if self.len == capacity(self.shift) {
             let mut children = std::array::from_fn(|_| None);
             children[0] = Some(Arc::clone(&self.root));
@@ -86,7 +93,17 @@ impl<T> PersistentVector<T> {
         self.len += 1;
     }
 
-    pub(crate) fn iter(&self) -> PersistentVectorIter<'_, T> {
+    #[must_use]
+    pub fn set(&mut self, index: usize, value: T) -> Option<()> {
+        if index >= self.len {
+            return None;
+        }
+        self.root = set_at(&self.root, self.shift, index, Arc::new(value));
+        Some(())
+    }
+
+    #[must_use]
+    pub fn iter(&self) -> PersistentVectorIter<'_, T> {
         PersistentVectorIter {
             vector: self,
             next: 0,
@@ -138,7 +155,33 @@ fn push_at<T>(
     Arc::new(VectorNode::Branch(Box::new(children)))
 }
 
-pub(crate) struct PersistentVectorIter<'a, T> {
+fn set_at<T>(
+    node: &Arc<VectorNode<T>>,
+    shift: u32,
+    index: usize,
+    value: Arc<T>,
+) -> Arc<VectorNode<T>> {
+    if shift == 0 {
+        let VectorNode::Leaf(current) = node.as_ref() else {
+            unreachable!("persistent vector depth must end in a leaf")
+        };
+        let mut values = std::array::from_fn(|slot| current[slot].clone());
+        values[index & BRANCH_MASK] = Some(value);
+        return Arc::new(VectorNode::Leaf(Box::new(values)));
+    }
+    let VectorNode::Branch(current) = node.as_ref() else {
+        unreachable!("persistent vector internal depth must contain a branch")
+    };
+    let mut children = std::array::from_fn(|slot| current[slot].clone());
+    let slot = (index >> shift) & BRANCH_MASK;
+    let child = children[slot]
+        .as_ref()
+        .expect("in-range persistent vector index must have a path");
+    children[slot] = Some(set_at(child, shift - BRANCH_BITS, index, value));
+    Arc::new(VectorNode::Branch(Box::new(children)))
+}
+
+pub struct PersistentVectorIter<'a, T> {
     vector: &'a PersistentVector<T>,
     next: usize,
 }
@@ -159,6 +202,15 @@ impl<'a, T> Iterator for PersistentVectorIter<'a, T> {
 }
 
 impl<T> ExactSizeIterator for PersistentVectorIter<'_, T> {}
+
+impl<'a, T> IntoIterator for &'a PersistentVector<T> {
+    type Item = &'a T;
+    type IntoIter = PersistentVectorIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -201,5 +253,23 @@ mod tests {
         assert_eq!(first.get(40), Some(&100));
         assert_eq!(second.get(40), Some(&200));
         assert_eq!(base.get(40), None);
+    }
+
+    #[test]
+    fn sibling_updates_replace_only_the_selected_path() {
+        let mut base = PersistentVector::default();
+        for value in 0..100 {
+            base.push(value);
+        }
+        let mut first = base.clone();
+        let mut second = base.clone();
+
+        assert_eq!(first.set(50, 500), Some(()));
+        assert_eq!(second.set(50, 600), Some(()));
+
+        assert_eq!(base.get(50), Some(&50));
+        assert_eq!(first.get(50), Some(&500));
+        assert_eq!(second.get(50), Some(&600));
+        assert_eq!(base.set(100, 0), None);
     }
 }

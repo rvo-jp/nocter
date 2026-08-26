@@ -1,8 +1,9 @@
 use std::fmt;
+use std::ops::Deref;
 
 use nocter_model::{
-    Arena, ArenaBuilder, ArenaCheckpoint, BodyId, BodyNodeId, CallableCapability, CallableContract,
-    CaptureId, ClosureId, LocalBindingId, TypeId,
+    Arena, ArenaBuilder, BodyId, BodyNodeId, CallableCapability, CallableContract, CaptureId,
+    ClosureId, LocalBindingId, PersistentArena, TypeId,
 };
 
 /// The fully typed invocation shape of one anonymous concrete closure.
@@ -186,114 +187,25 @@ impl ClosureTable {
     }
 }
 
-pub(crate) struct ClosureTableBuilder {
-    slots: ArenaBuilder<ClosureId, ClosureSlot>,
-    transaction: Option<ClosureMutationJournal>,
+#[derive(Clone, Debug)]
+pub(crate) struct ClosureAuthority {
+    slots: PersistentArena<ClosureId, ClosureSlot>,
+    authority: ClosureAuthorityIdentity,
 }
 
-impl ClosureTableBuilder {
+impl ClosureAuthority {
     pub(crate) fn new() -> Self {
         Self {
-            slots: ArenaBuilder::new(),
-            transaction: None,
+            slots: PersistentArena::default(),
+            authority: ClosureAuthorityIdentity::fresh(),
         }
     }
 
-    pub(crate) fn reserve(&mut self, owner: BodyId) -> ClosureId {
-        self.slots.insert(ClosureSlot::Reserved(owner))
-    }
-
-    pub(crate) fn checkpoint(&mut self) -> ClosureTableCheckpoint {
-        assert!(
-            self.transaction.is_none(),
-            "closure-table transactions cannot overlap"
-        );
-        let identity = crate::transaction_identity::TransactionIdentity::fresh();
-        self.transaction = Some(ClosureMutationJournal {
-            identity,
-            mutations: Vec::new(),
-        });
-        ClosureTableCheckpoint {
-            slots: self.slots.checkpoint(),
-            transaction: ClosureTransactionToken(identity),
+    pub(crate) fn transaction(&self) -> ClosureTransaction {
+        ClosureTransaction {
+            base: self.authority,
+            branch: self.clone(),
         }
-    }
-
-    pub(crate) fn commit(&mut self, checkpoint: ClosureTableCheckpoint) {
-        let ClosureTableCheckpoint { transaction, .. } = checkpoint;
-        let active = self
-            .transaction
-            .as_ref()
-            .expect("closure-table transaction must be active before commit");
-        assert_eq!(
-            active.identity, transaction.0,
-            "closure-table transaction belongs to another owner or generation"
-        );
-        self.transaction
-            .take()
-            .expect("closure-table transaction must be active before commit");
-    }
-
-    pub(crate) fn rollback(&mut self, checkpoint: ClosureTableCheckpoint) {
-        let ClosureTableCheckpoint { slots, transaction } = checkpoint;
-        let active = self
-            .transaction
-            .as_ref()
-            .expect("closure-table transaction must be active before rollback");
-        assert_eq!(
-            active.identity, transaction.0,
-            "closure-table transaction belongs to another owner or generation"
-        );
-        let journal = self
-            .transaction
-            .take()
-            .expect("closure-table transaction must be active before rollback");
-        for mutation in journal.mutations.into_iter().rev() {
-            match mutation {
-                ClosureMutation::Definition { closure, owner } => {
-                    let slot = self
-                        .slots
-                        .get_mut(closure)
-                        .expect("mutated closure must remain until arena rollback");
-                    *slot = ClosureSlot::Reserved(owner);
-                }
-                ClosureMutation::CallableRequirement {
-                    closure,
-                    previous_len,
-                } => {
-                    let Some(ClosureSlot::Defined(definition)) = self.slots.get_mut(closure) else {
-                        panic!("callable-requirement mutation must name a defined closure");
-                    };
-                    definition.callable_requirements.truncate(previous_len);
-                }
-            }
-        }
-        self.slots.rollback(slots);
-    }
-
-    pub(crate) fn define(
-        &mut self,
-        closure: ClosureId,
-        definition: ClosureDefinition,
-    ) -> Result<(), ClosureTableBuildError> {
-        let slot = self
-            .slots
-            .get_mut(closure)
-            .ok_or(ClosureTableBuildError::UnknownClosure(closure))?;
-        let ClosureSlot::Reserved(owner) = slot else {
-            return Err(ClosureTableBuildError::DuplicateClosure(closure));
-        };
-        if *owner != definition.owner() {
-            return Err(ClosureTableBuildError::OwnerMismatch(closure));
-        }
-        if let Some(transaction) = &mut self.transaction {
-            transaction.mutations.push(ClosureMutation::Definition {
-                closure,
-                owner: *owner,
-            });
-        }
-        *slot = ClosureSlot::Defined(definition);
-        Ok(())
     }
 
     pub(crate) fn get(&self, closure: ClosureId) -> Option<&ClosureDefinition> {
@@ -303,6 +215,76 @@ impl ClosureTableBuilder {
         }
     }
 
+    pub(crate) fn finish(self) -> Result<ClosureTable, ClosureTableBuildError> {
+        let mut definitions = ArenaBuilder::new();
+        for (closure, slot) in &self.slots {
+            let ClosureSlot::Defined(definition) = slot else {
+                return Err(ClosureTableBuildError::IncompleteClosure(closure));
+            };
+            let actual = definitions.insert(definition.clone());
+            assert_eq!(
+                actual, closure,
+                "persistent closure order must preserve canonical identity"
+            );
+        }
+        Ok(ClosureTable::new(definitions.finish()))
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ClosureTransaction {
+    base: ClosureAuthorityIdentity,
+    branch: ClosureAuthority,
+}
+
+impl Deref for ClosureTransaction {
+    type Target = ClosureAuthority;
+
+    fn deref(&self) -> &Self::Target {
+        &self.branch
+    }
+}
+
+impl ClosureTransaction {
+    pub(crate) fn reserve(&mut self, owner: BodyId) -> ClosureId {
+        self.branch.slots.insert(ClosureSlot::Reserved(owner))
+    }
+
+    pub(crate) fn commit(
+        mut self,
+        base: &ClosureAuthority,
+    ) -> Result<ClosureAuthority, StaleClosureTransaction> {
+        if self.base != base.authority {
+            return Err(StaleClosureTransaction);
+        }
+        self.branch.authority = ClosureAuthorityIdentity::fresh();
+        Ok(self.branch)
+    }
+
+    pub(crate) fn define(
+        &mut self,
+        closure: ClosureId,
+        definition: ClosureDefinition,
+    ) -> Result<(), ClosureTableBuildError> {
+        let slot = self
+            .branch
+            .slots
+            .get(closure)
+            .cloned()
+            .ok_or(ClosureTableBuildError::UnknownClosure(closure))?;
+        let ClosureSlot::Reserved(owner) = slot else {
+            return Err(ClosureTableBuildError::DuplicateClosure(closure));
+        };
+        if owner != definition.owner() {
+            return Err(ClosureTableBuildError::OwnerMismatch(closure));
+        }
+        self.branch
+            .slots
+            .replace(closure, ClosureSlot::Defined(definition))
+            .map_err(|_| ClosureTableBuildError::UnknownClosure(closure))?;
+        Ok(())
+    }
+
     pub(crate) fn require_callable(
         &mut self,
         owner: BodyId,
@@ -310,66 +292,59 @@ impl ClosureTableBuilder {
         contract: CallableContract,
     ) -> Result<(), ClosureTableBuildError> {
         let slot = self
+            .branch
             .slots
-            .get_mut(closure)
+            .get(closure)
+            .cloned()
             .ok_or(ClosureTableBuildError::UnknownClosure(closure))?;
-        let ClosureSlot::Defined(definition) = slot else {
+        let ClosureSlot::Defined(mut definition) = slot else {
             return Err(ClosureTableBuildError::IncompleteClosure(closure));
         };
         if definition.owner() != owner {
             return Err(ClosureTableBuildError::OwnerMismatch(closure));
         }
         if !definition.callable_requirements.contains(&contract) {
-            if let Some(transaction) = &mut self.transaction {
-                transaction
-                    .mutations
-                    .push(ClosureMutation::CallableRequirement {
-                        closure,
-                        previous_len: definition.callable_requirements.len(),
-                    });
-            }
             definition.callable_requirements.push(contract);
+            self.branch
+                .slots
+                .replace(closure, ClosureSlot::Defined(definition))
+                .map_err(|_| ClosureTableBuildError::UnknownClosure(closure))?;
         }
         Ok(())
     }
-
-    pub(crate) fn finish(self) -> Result<ClosureTable, ClosureTableBuildError> {
-        let definitions = self.slots.try_finish_with(|closure, slot| match slot {
-            ClosureSlot::Reserved(_) => Err(ClosureTableBuildError::IncompleteClosure(closure)),
-            ClosureSlot::Defined(definition) => Ok(definition),
-        })?;
-        Ok(ClosureTable::new(definitions))
-    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum ClosureSlot {
     Reserved(BodyId),
     Defined(ClosureDefinition),
 }
 
-pub(crate) struct ClosureTableCheckpoint {
-    slots: ArenaCheckpoint<ClosureId, ClosureSlot>,
-    transaction: ClosureTransactionToken,
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct ClosureAuthorityIdentity(u64);
+
+impl ClosureAuthorityIdentity {
+    fn fresh() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        let identity = NEXT
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("closure authority identity space exhausted");
+        Self(identity)
+    }
 }
 
-struct ClosureTransactionToken(crate::transaction_identity::TransactionIdentity);
-
-struct ClosureMutationJournal {
-    identity: crate::transaction_identity::TransactionIdentity,
-    mutations: Vec<ClosureMutation>,
+impl fmt::Debug for ClosureAuthorityIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ClosureAuthorityIdentity")
+    }
 }
 
-enum ClosureMutation {
-    Definition {
-        closure: ClosureId,
-        owner: BodyId,
-    },
-    CallableRequirement {
-        closure: ClosureId,
-        previous_len: usize,
-    },
-}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct StaleClosureTransaction;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClosureTableBuildError {
@@ -394,7 +369,7 @@ mod tests {
         ResultProvenance, TypeKind, TypeStore,
     };
 
-    use super::{ClosureDefinition, ClosureSignature, ClosureTableBuilder};
+    use super::{ClosureAuthority, ClosureDefinition, ClosureSignature};
 
     #[test]
     fn reservation_fixes_identity_before_a_nested_body_is_defined() {
@@ -405,7 +380,8 @@ mod tests {
         let root = nodes.insert(());
         let _ = nodes.finish();
         let mut types = TypeStore::new().transaction();
-        let mut closures = ClosureTableBuilder::new();
+        let base = ClosureAuthority::new();
+        let mut closures = base.transaction();
         let closure = closures.reserve(owner);
         let ty = types
             .intern(TypeKind::Closure {
@@ -430,18 +406,19 @@ mod tests {
             )
             .unwrap();
 
-        let table = closures.finish().unwrap();
+        let table = closures.commit(&base).unwrap().finish().unwrap();
         assert_eq!(table.get(closure).unwrap().ty(), ty);
     }
 
     #[test]
-    fn rollback_restores_mutated_preexisting_closure_state() {
+    fn discarded_branch_cannot_mutate_a_preexisting_closure() {
         let mut bodies = ArenaBuilder::<BodyId, _>::new();
         let owner = bodies.insert(());
         let mut nodes = ArenaBuilder::<BodyNodeId, _>::new();
         let root = nodes.insert(());
         let mut types = TypeStore::new().transaction();
-        let mut closures = ClosureTableBuilder::new();
+        let base = ClosureAuthority::new();
+        let mut closures = base.transaction();
         let closure = closures.reserve(owner);
         let ty = types
             .intern(TypeKind::Closure {
@@ -473,17 +450,18 @@ mod tests {
             ResultProvenance::empty(),
         )
         .unwrap();
-        let checkpoint = closures.checkpoint();
+        let accepted = closures.commit(&base).unwrap();
+        let mut branch = accepted.transaction();
 
-        closures.require_callable(owner, closure, contract).unwrap();
+        branch.require_callable(owner, closure, contract).unwrap();
         assert_eq!(
-            closures.get(closure).unwrap().callable_requirements().len(),
+            branch.get(closure).unwrap().callable_requirements().len(),
             1
         );
-        closures.rollback(checkpoint);
+        drop(branch);
 
         assert!(
-            closures
+            accepted
                 .get(closure)
                 .unwrap()
                 .callable_requirements()
@@ -492,17 +470,12 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_cannot_commit_another_builder() {
-        let mut first = ClosureTableBuilder::new();
-        let mut second = ClosureTableBuilder::new();
-        let first_checkpoint = first.checkpoint();
-        let second_checkpoint = second.checkpoint();
+    fn sibling_transaction_is_stale_after_authority_advances() {
+        let base = ClosureAuthority::new();
+        let first = base.transaction();
+        let second = base.transaction();
+        let accepted = first.commit(&base).unwrap();
 
-        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            first.commit(second_checkpoint);
-        }));
-        assert!(mismatch.is_err());
-
-        first.commit(first_checkpoint);
+        assert!(second.commit(&accepted).is_err());
     }
 }

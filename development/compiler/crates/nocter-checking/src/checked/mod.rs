@@ -20,10 +20,10 @@ pub use cleanup::{
     CleanupTable, CleanupTarget, CleanupTiming,
 };
 pub use closure::ClosureTableBuildError;
+pub(crate) use closure::{ClosureAuthority, ClosureTransaction, StaleClosureTransaction};
 pub use closure::{
     ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureSignature, ClosureTable,
 };
-pub(crate) use closure::{ClosureTableBuilder, ClosureTableCheckpoint};
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
 };

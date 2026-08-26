@@ -1726,6 +1726,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-frontend-bindings",
  "nocter-model",
+ "nocter-persistent",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
@@ -1946,6 +1947,7 @@ name = "nocter-model"
 version = "0.0.0"
 dependencies = [
  "nocter-language",
+ "nocter-persistent",
 ]
 
 [[package]]
@@ -2001,6 +2003,10 @@ dependencies = [
  "nocter-model",
  "nocter-package",
 ]
+
+[[package]]
+name = "nocter-persistent"
+version = "0.0.0"
 
 [[package]]
 name = "nocter-runtime-contract"

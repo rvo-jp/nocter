@@ -5,15 +5,15 @@ source-language behavior. The milestone completion gate remains authoritative fo
 
 ## Problem Boundary
 
-Body checking currently mutates the canonical type store, copyability table, and closure builder.
-It captures three rollback boundaries before each body. Success commits the copyability and closure
-journals; failure clones complete type and copyability state when member recovery needs provisional
-facts, then rolls all three authorities back.
+Before Phase 3, body checking mutated the canonical type store, copyability table, and closure
+builder. It captured three rollback boundaries before each body. Success committed copyability and
+closure journals; failure cloned complete type and copyability state when member recovery needed
+provisional facts, then rolled all three authorities back.
 
-The rollback implementation is internally consistent, but its contract is negative: every future
-mutation must remember to join the journal. Recovery cost also scales with the complete semantic
-store rather than the facts introduced by the failed body. Moving only the type store would retain
-the same failure mode in copyability and closure construction.
+That rollback contract was negative: every future mutation had to remember to join the journal.
+Recovery cost also scaled with the complete semantic store rather than the facts introduced by the
+failed body. Moving only the type store would have retained the same failure mode in copyability
+and closure construction.
 
 ## Adopted Authority Model
 
@@ -34,9 +34,12 @@ transaction into one descendant authority. Failure cannot modify the base: it di
 or freezes that exact branch as a tooling capability.
 
 No compiler consumer receives a persistent chunk, intern index, mutation journal, or lineage
-implementation. Read-only algorithms consume an immutable `&TypeStore`; algorithms that may intern
-structural types receive a `TypeTransaction`. The same separation applies to copyability and closure
-state. A second view abstraction is unnecessary because `TypeStore` itself has no mutating API.
+implementation. The dependency-free `nocter-persistent` crate owns only path-copying collection
+mechanics. `nocter-model` wraps those mechanics in type and semantic-ID authority, while
+`nocter-checking` owns copyability, closure, and body-transaction policy. Read-only algorithms
+consume an immutable `&TypeStore`; algorithms that may intern structural types receive a
+`TypeTransaction`. The same separation applies to copyability and closure state. A second view
+abstraction is unnecessary because `TypeStore` itself has no mutating API.
 
 ## Identity and Lineage
 
@@ -44,10 +47,12 @@ A type identity is meaningful only in its owning authority. Descendants preserve
 ancestor prefix, so checked bodies committed earlier remain valid in later sequential descendants.
 Sibling branches are independent and cannot be merged or exchange bare branch-local identities.
 
-Every transaction records its exact base lineage. Commit consumes the transaction and rejects a
-stale or foreign base. Recovery freezes the branch together with its authority; editor APIs never
-separate a provisional `TypeId` from that value. A self-contained `TypeProjection` remains the
-boundary for isolated type presentation.
+Every component transaction records its exact base lineage. `BodySemanticTransaction` is the only
+capability that exposes all three body branches and the only body-level commit boundary. Commit
+consumes it and rejects a stale or foreign component base without mutating any accepted authority.
+Recovery freezes the required branch together with its authority; editor APIs never separate a
+provisional `TypeId` from that value. A self-contained `TypeProjection` remains the boundary for
+isolated type presentation.
 
 ## Storage Contract
 

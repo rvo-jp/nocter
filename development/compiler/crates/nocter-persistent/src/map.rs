@@ -4,14 +4,14 @@ use std::sync::Arc;
 #[derive(Debug)]
 struct MapNode<K, V> {
     key: Arc<K>,
-    value: V,
+    value: Arc<V>,
     left: Option<Arc<Self>>,
     right: Option<Arc<Self>>,
     height: u32,
 }
 
 impl<K, V> MapNode<K, V> {
-    fn new(key: Arc<K>, value: V, left: Option<Arc<Self>>, right: Option<Arc<Self>>) -> Self {
+    fn new(key: Arc<K>, value: Arc<V>, left: Option<Arc<Self>>, right: Option<Arc<Self>>) -> Self {
         let height = 1 + node_height(left.as_ref()).max(node_height(right.as_ref()));
         Self {
             key,
@@ -29,7 +29,7 @@ fn node_height<K, V>(node: Option<&Arc<MapNode<K, V>>>) -> u32 {
 
 /// A persistent ordered map implemented as a path-copying AVL tree.
 #[derive(Debug)]
-pub(crate) struct PersistentMap<K, V> {
+pub struct PersistentMap<K, V> {
     root: Option<Arc<MapNode<K, V>>>,
     len: usize,
 }
@@ -50,29 +50,46 @@ impl<K, V> Default for PersistentMap<K, V> {
 }
 
 impl<K: Ord, V> PersistentMap<K, V> {
-    pub(crate) const fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.len
     }
 
-    pub(crate) fn get(&self, key: &K) -> Option<&V> {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[must_use]
+    pub fn get(&self, key: &K) -> Option<&V> {
         let mut node = self.root.as_deref();
         while let Some(current) = node {
             match key.cmp(current.key.as_ref()) {
                 Ordering::Less => node = current.left.as_deref(),
                 Ordering::Greater => node = current.right.as_deref(),
-                Ordering::Equal => return Some(&current.value),
+                Ordering::Equal => return Some(current.value.as_ref()),
             }
         }
         None
     }
+
+    #[must_use]
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.get(key).is_some()
+    }
 }
 
-impl<K: Ord, V: Clone> PersistentMap<K, V> {
+impl<K: Ord, V> PersistentMap<K, V> {
     /// Inserts an absent key while preserving every existing snapshot.
     ///
     /// Returns `false` without replacing the existing value when `key` is already present.
-    pub(crate) fn insert_shared_absent(&mut self, key: Arc<K>, value: V) -> bool {
-        let (root, inserted) = insert(self.root.as_ref(), key, value);
+    pub fn insert_absent(&mut self, key: K, value: V) -> bool {
+        self.insert_shared_key_absent(Arc::new(key), value)
+    }
+
+    /// Inserts one absent shared key while preserving every existing snapshot.
+    pub fn insert_shared_key_absent(&mut self, key: Arc<K>, value: V) -> bool {
+        let (root, inserted) = insert(self.root.as_ref(), key, Arc::new(value));
         if inserted {
             self.root = Some(root);
             self.len += 1;
@@ -81,10 +98,10 @@ impl<K: Ord, V: Clone> PersistentMap<K, V> {
     }
 }
 
-fn insert<K: Ord, V: Clone>(
+fn insert<K: Ord, V>(
     node: Option<&Arc<MapNode<K, V>>>,
     key: Arc<K>,
-    value: V,
+    value: Arc<V>,
 ) -> (Arc<MapNode<K, V>>, bool) {
     let Some(node) = node else {
         return (Arc::new(MapNode::new(key, value, None, None)), true);
@@ -99,7 +116,7 @@ fn insert<K: Ord, V: Clone>(
             (
                 rebalance(Arc::new(MapNode::new(
                     Arc::clone(&node.key),
-                    node.value.clone(),
+                    Arc::clone(&node.value),
                     Some(left),
                     node.right.clone(),
                 ))),
@@ -114,7 +131,7 @@ fn insert<K: Ord, V: Clone>(
             (
                 rebalance(Arc::new(MapNode::new(
                     Arc::clone(&node.key),
-                    node.value.clone(),
+                    Arc::clone(&node.value),
                     node.left.clone(),
                     Some(right),
                 ))),
@@ -124,7 +141,7 @@ fn insert<K: Ord, V: Clone>(
     }
 }
 
-fn rebalance<K, V: Clone>(node: Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
+fn rebalance<K, V>(node: Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
     let balance =
         i64::from(node_height(node.left.as_ref())) - i64::from(node_height(node.right.as_ref()));
     if balance > 1 {
@@ -135,7 +152,7 @@ fn rebalance<K, V: Clone>(node: Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
         if node_height(left.left.as_ref()) < node_height(left.right.as_ref()) {
             let rebuilt = Arc::new(MapNode::new(
                 Arc::clone(&node.key),
-                node.value.clone(),
+                Arc::clone(&node.value),
                 Some(rotate_left(left)),
                 node.right.clone(),
             ));
@@ -151,7 +168,7 @@ fn rebalance<K, V: Clone>(node: Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
         if node_height(right.right.as_ref()) < node_height(right.left.as_ref()) {
             let rebuilt = Arc::new(MapNode::new(
                 Arc::clone(&node.key),
-                node.value.clone(),
+                Arc::clone(&node.value),
                 node.left.clone(),
                 Some(rotate_right(right)),
             ));
@@ -162,39 +179,39 @@ fn rebalance<K, V: Clone>(node: Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
     node
 }
 
-fn rotate_left<K, V: Clone>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
+fn rotate_left<K, V>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
     let pivot = root
         .right
         .as_ref()
         .expect("left rotation requires a right child");
     let left = Arc::new(MapNode::new(
         Arc::clone(&root.key),
-        root.value.clone(),
+        Arc::clone(&root.value),
         root.left.clone(),
         pivot.left.clone(),
     ));
     Arc::new(MapNode::new(
         Arc::clone(&pivot.key),
-        pivot.value.clone(),
+        Arc::clone(&pivot.value),
         Some(left),
         pivot.right.clone(),
     ))
 }
 
-fn rotate_right<K, V: Clone>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
+fn rotate_right<K, V>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
     let pivot = root
         .left
         .as_ref()
         .expect("right rotation requires a left child");
     let right = Arc::new(MapNode::new(
         Arc::clone(&root.key),
-        root.value.clone(),
+        Arc::clone(&root.value),
         pivot.right.clone(),
         root.right.clone(),
     ));
     Arc::new(MapNode::new(
         Arc::clone(&pivot.key),
-        pivot.value.clone(),
+        Arc::clone(&pivot.value),
         pivot.left.clone(),
         Some(right),
     ))
@@ -202,20 +219,18 @@ fn rotate_right<K, V: Clone>(root: &Arc<MapNode<K, V>>) -> Arc<MapNode<K, V>> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::PersistentMap;
 
     #[test]
     fn descendants_share_unchanged_entries_and_isolate_insertions() {
         let mut base = PersistentMap::default();
         for key in 0..1_000 {
-            assert!(base.insert_shared_absent(Arc::new(key), key * 2));
+            assert!(base.insert_absent(key, key * 2));
         }
         let mut first = base.clone();
         let mut second = base.clone();
-        assert!(first.insert_shared_absent(Arc::new(1_000), 1));
-        assert!(second.insert_shared_absent(Arc::new(1_000), 2));
+        assert!(first.insert_absent(1_000, 1));
+        assert!(second.insert_absent(1_000, 2));
 
         assert_eq!(base.len(), 1_000);
         assert_eq!(base.get(&999), Some(&1_998));
@@ -230,8 +245,8 @@ mod tests {
     #[test]
     fn duplicate_insert_does_not_replace_the_canonical_value() {
         let mut map = PersistentMap::default();
-        assert!(map.insert_shared_absent(Arc::new("name"), 1));
-        assert!(!map.insert_shared_absent(Arc::new("name"), 2));
+        assert!(map.insert_absent("name", 1));
+        assert!(!map.insert_absent("name", 2));
         assert_eq!(map.get(&"name"), Some(&1));
         assert_eq!(map.len(), 1);
     }

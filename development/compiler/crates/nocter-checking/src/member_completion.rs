@@ -121,7 +121,7 @@ impl std::error::Error for MemberCompletionError {}
 #[derive(Debug)]
 struct MemberCompletionQueryState {
     types: nocter_model::TypeTransaction,
-    copyabilities: CopyabilityTable,
+    copyabilities: crate::copyability::CopyabilityTransaction,
 }
 
 /// Lazily forked, query-only semantic state for member completion.
@@ -150,7 +150,7 @@ impl MemberCompletionQuerySession {
             .get_or_init(|| {
                 Mutex::new(MemberCompletionQueryState {
                     types: types.transaction(),
-                    copyabilities: copyabilities.clone(),
+                    copyabilities: copyabilities.transaction(),
                 })
             })
             .lock()

@@ -6,7 +6,7 @@ use super::expansion::ExpansionCandidate;
 use super::methods::MethodCandidate;
 use super::selection::{CoercionCandidate, IndexOperationCandidate, retain_direct_candidates};
 use super::{InstanceOperationSelector, InstanceSelectionContext};
-use crate::{CheckedProgram, ComparisonOperation, CopyabilityTable, InstanceSelectionError};
+use crate::{CheckedProgram, ComparisonOperation, InstanceSelectionError};
 
 /// Narrow specialization-time access to evidence accepted by semantic checking.
 ///
@@ -21,7 +21,7 @@ impl<'authority> ConcreteEvidenceAuthority<'authority> {
     pub(crate) fn new(
         program: &'authority CheckedProgram,
         types: &'authority mut nocter_model::TypeTransaction,
-        copyabilities: &'authority mut CopyabilityTable,
+        copyabilities: &'authority mut crate::copyability::CopyabilityTransaction,
     ) -> Self {
         Self {
             selector: InstanceOperationSelector::new(

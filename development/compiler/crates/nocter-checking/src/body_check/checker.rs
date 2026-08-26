@@ -17,8 +17,8 @@ use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, bo
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::literal::{fits_integer, integer_type, parse_integer};
-use crate::checked::{CheckedBodyBuilder, ClosureTableBuilder};
-use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
+use crate::checked::{CheckedBodyBuilder, ClosureTransaction};
+use crate::copyability::{CopyProofs, Copyability};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
 use crate::syntax::{
     child_nodes, descendant_identifiers, direct_identifier, direct_node, first_direct_token,
@@ -127,8 +127,8 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
     types: &'input mut nocter_model::TypeTransaction,
-    copyabilities: &'input mut CopyabilityTable,
-    closures: &'input mut ClosureTableBuilder,
+    copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
+    closures: &'input mut ClosureTransaction,
     drops: &'input DropTable,
     interface_implementations: &'input crate::InterfaceImplementationTable,
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
@@ -207,8 +207,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         input: &'input CompileUnitInput<'syntax>,
         facts: BodyProgramFacts<'input>,
         types: &'input mut nocter_model::TypeTransaction,
-        copyabilities: &'input mut CopyabilityTable,
-        closures: &'input mut ClosureTableBuilder,
+        copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
+        closures: &'input mut ClosureTransaction,
         unit: BodyUnitInput<'input, 'syntax>,
     ) -> Result<Self, BodyCheckError> {
         let BodyUnitInput {

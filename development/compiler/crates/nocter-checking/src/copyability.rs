@@ -1,11 +1,13 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashSet};
 use std::fmt;
+use std::ops::Deref;
 
 use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{
     BorrowCapability, BuiltinType, ClosureId, FieldId, GenericParameterId, NominalTypeId, TypeId,
     TypeKind, TypeStore, VariantId,
 };
+use nocter_persistent::PersistentMap;
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use crate::CheckedPredicate;
@@ -98,34 +100,64 @@ enum CopyabilityAction {
 ///
 /// Generic proof identities come from normalized `copy` requirements. Concrete structural facts
 /// are memoized by canonical `TypeId`, then retained in `CheckedProgram` for later stages.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct CopyabilityTable {
-    conditions: BTreeMap<TypeId, CopyCondition>,
-    families: BTreeMap<NominalTypeId, CopyCondition>,
-    closures: BTreeMap<ClosureId, ClosureCopyCondition>,
-    transaction: Option<CopyabilityMutationJournal>,
+    conditions: PersistentMap<TypeId, CopyCondition>,
+    families: PersistentMap<NominalTypeId, CopyCondition>,
+    closures: PersistentMap<ClosureId, ClosureCopyCondition>,
+    authority: CopyabilityAuthorityIdentity,
 }
 
-impl Clone for CopyabilityTable {
-    fn clone(&self) -> Self {
+impl Default for CopyabilityTable {
+    fn default() -> Self {
         Self {
-            conditions: self.conditions.clone(),
-            families: self.families.clone(),
-            closures: self.closures.clone(),
-            transaction: None,
+            conditions: PersistentMap::default(),
+            families: PersistentMap::default(),
+            closures: PersistentMap::default(),
+            authority: CopyabilityAuthorityIdentity::fresh(),
         }
     }
 }
 
-#[derive(Clone, Debug)]
-struct CopyabilityMutationJournal {
-    identity: crate::transaction_identity::TransactionIdentity,
-    conditions: Vec<TypeId>,
-    closures: Vec<ClosureId>,
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct CopyabilityAuthorityIdentity(u64);
+
+impl CopyabilityAuthorityIdentity {
+    fn fresh() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        let identity = NEXT
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("copyability authority identity space exhausted");
+        Self(identity)
+    }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct CopyabilityTransaction(crate::transaction_identity::TransactionIdentity);
+impl fmt::Debug for CopyabilityAuthorityIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("CopyabilityAuthorityIdentity")
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct CopyabilityTransaction {
+    base: CopyabilityAuthorityIdentity,
+    branch: CopyabilityTable,
+}
+
+impl Deref for CopyabilityTransaction {
+    type Target = CopyabilityTable;
+
+    fn deref(&self) -> &Self::Target {
+        &self.branch
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct StaleCopyabilityTransaction;
 
 #[derive(Clone, Debug)]
 struct ClosureCopyCondition {
@@ -134,56 +166,10 @@ struct ClosureCopyCondition {
 }
 
 impl CopyabilityTable {
-    pub(crate) fn begin_transaction(&mut self) -> CopyabilityTransaction {
-        assert!(
-            self.transaction.is_none(),
-            "copyability transactions cannot overlap"
-        );
-        let identity = crate::transaction_identity::TransactionIdentity::fresh();
-        self.transaction = Some(CopyabilityMutationJournal {
-            identity,
-            conditions: Vec::new(),
-            closures: Vec::new(),
-        });
-        CopyabilityTransaction(identity)
-    }
-
-    pub(crate) fn commit_transaction(&mut self, transaction: CopyabilityTransaction) {
-        let active = self
-            .transaction
-            .as_ref()
-            .expect("copyability transaction must be active before commit");
-        assert_eq!(
-            active.identity, transaction.0,
-            "copyability transaction belongs to another owner or generation"
-        );
-        self.transaction
-            .take()
-            .expect("copyability transaction must be active before commit");
-    }
-
-    pub(crate) fn rollback_transaction(&mut self, transaction: CopyabilityTransaction) {
-        let active = self
-            .transaction
-            .as_ref()
-            .expect("copyability transaction must be active before rollback");
-        assert_eq!(
-            active.identity, transaction.0,
-            "copyability transaction belongs to another owner or generation"
-        );
-        let journal = self
-            .transaction
-            .take()
-            .expect("copyability transaction must be active before rollback");
-        for closure in journal.closures.into_iter().rev() {
-            self.closures
-                .remove(&closure)
-                .expect("recorded closure copyability must exist before rollback");
-        }
-        for ty in journal.conditions.into_iter().rev() {
-            self.conditions
-                .remove(&ty)
-                .expect("recorded copy condition must exist before rollback");
+    pub(crate) fn transaction(&self) -> CopyabilityTransaction {
+        CopyabilityTransaction {
+            base: self.authority,
+            branch: self.clone(),
         }
     }
 
@@ -192,9 +178,44 @@ impl CopyabilityTable {
         types: &mut nocter_model::TypeTransaction,
         source_index: DiagnosticOrigins<'_>,
     ) -> Result<Self, CopyabilityBuildError> {
-        let mut table = Self::default();
-        table.validate_copy_families(graph, types, source_index)?;
-        Ok(table)
+        let base = Self::default();
+        let mut transaction = base.transaction();
+        transaction.validate_copy_families(graph, types, source_index)?;
+        Ok(transaction
+            .commit(&base)
+            .expect("copyability construction must commit to its exact empty authority"))
+    }
+
+    /// Returns a classification already fixed by checking.
+    #[must_use]
+    pub fn get(&self, ty: TypeId) -> Option<Copyability> {
+        self.conditions
+            .get(&ty)
+            .map(|condition| condition.classification(&CopyProofs::default()))
+    }
+
+    /// Returns the retained symbolic condition for a copy-struct family.
+    #[must_use]
+    pub fn family_condition(&self, family: NominalTypeId) -> Option<&CopyCondition> {
+        self.families.get(&family)
+    }
+}
+
+impl CopyabilityTransaction {
+    pub(crate) fn commit(
+        mut self,
+        base: &CopyabilityTable,
+    ) -> Result<CopyabilityTable, StaleCopyabilityTransaction> {
+        if self.base != base.authority {
+            return Err(StaleCopyabilityTransaction);
+        }
+        self.branch.authority = CopyabilityAuthorityIdentity::fresh();
+        Ok(self.branch)
+    }
+
+    pub(crate) fn freeze(mut self) -> CopyabilityTable {
+        self.branch.authority = CopyabilityAuthorityIdentity::fresh();
+        self.branch
     }
 
     fn validate_copy_families(
@@ -241,23 +262,12 @@ impl CopyabilityTable {
                 }
                 family_condition = family_condition.conjoin(condition);
             }
-            self.families.insert(family, family_condition);
+            assert!(
+                self.branch.families.insert_absent(family, family_condition),
+                "copyability family insertion must be unique"
+            );
         }
         Ok(())
-    }
-
-    /// Returns a classification already fixed by checking.
-    #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<Copyability> {
-        self.conditions
-            .get(&ty)
-            .map(|condition| condition.classification(&CopyProofs::default()))
-    }
-
-    /// Returns the retained symbolic condition for a copy-struct family.
-    #[must_use]
-    pub fn family_condition(&self, family: NominalTypeId) -> Option<&CopyCondition> {
-        self.families.get(&family)
     }
 
     /// Fixes the structural copy condition of one freshly checked closure environment.
@@ -461,22 +471,16 @@ impl CopyabilityTable {
 
     fn insert_condition(&mut self, ty: TypeId, condition: CopyCondition) {
         assert!(
-            self.conditions.insert(ty, condition).is_none(),
+            self.branch.conditions.insert_absent(ty, condition),
             "copy condition insertion must be unique"
         );
-        if let Some(transaction) = &mut self.transaction {
-            transaction.conditions.push(ty);
-        }
     }
 
     fn insert_closure_condition(&mut self, closure: ClosureId, condition: ClosureCopyCondition) {
         assert!(
-            self.closures.insert(closure, condition).is_none(),
+            self.branch.closures.insert_absent(closure, condition),
             "closure copyability insertion must be unique"
         );
-        if let Some(transaction) = &mut self.transaction {
-            transaction.closures.push(closure);
-        }
     }
 
     fn closure_dependencies(
@@ -537,7 +541,7 @@ impl CopyabilityTable {
 fn schedule_dependencies(
     ty: TypeId,
     dependencies: impl IntoIterator<Item = TypeId>,
-    finished: &BTreeMap<TypeId, CopyCondition>,
+    finished: &PersistentMap<TypeId, CopyCondition>,
     pending: &mut Vec<CopyabilityAction>,
 ) {
     let dependencies = dependencies.into_iter().collect::<Vec<_>>();
@@ -667,61 +671,59 @@ mod tests {
     use super::{CopyCondition, Copyability, CopyabilityTable};
 
     #[test]
-    fn rollback_removes_only_conditions_inserted_by_the_active_transaction() {
+    fn discarded_branch_cannot_change_accepted_conditions() {
         let types = TypeStore::new();
         let retained = types.builtin(BuiltinType::Bool);
         let discarded = types.builtin(BuiltinType::I32);
-        let mut table = CopyabilityTable::default();
-        table.insert_condition(retained, CopyCondition::Always);
-        let transaction = table.begin_transaction();
-        table.insert_condition(discarded, CopyCondition::Always);
+        let initial = CopyabilityTable::default();
+        let mut accepted = initial.transaction();
+        accepted.insert_condition(retained, CopyCondition::Always);
+        let accepted = accepted.commit(&initial).unwrap();
+        let mut discarded_branch = accepted.transaction();
+        discarded_branch.insert_condition(discarded, CopyCondition::Always);
 
-        table.rollback_transaction(transaction);
+        drop(discarded_branch);
 
-        assert_eq!(table.get(retained), Some(Copyability::Copy));
-        assert_eq!(table.get(discarded), None);
+        assert_eq!(accepted.get(retained), Some(Copyability::Copy));
+        assert_eq!(accepted.get(discarded), None);
     }
 
     #[test]
-    fn cloned_snapshot_does_not_retain_transaction_control_state() {
-        let mut canonical = CopyabilityTable::default();
-        let canonical_transaction = canonical.begin_transaction();
+    fn frozen_sibling_branches_isolate_their_conditions() {
+        let types = TypeStore::new();
+        let first_type = types.builtin(BuiltinType::Bool);
+        let second_type = types.builtin(BuiltinType::I32);
+        let base = CopyabilityTable::default();
+        let mut first = base.transaction();
+        let mut second = base.transaction();
+        first.insert_condition(first_type, CopyCondition::Always);
+        second.insert_condition(second_type, CopyCondition::Always);
 
-        let mut snapshot = canonical.clone();
-        let snapshot_transaction = snapshot.begin_transaction();
+        let first = first.freeze();
+        let second = second.freeze();
 
-        snapshot.rollback_transaction(snapshot_transaction);
-        canonical.rollback_transaction(canonical_transaction);
+        assert_eq!(first.get(first_type), Some(Copyability::Copy));
+        assert_eq!(first.get(second_type), None);
+        assert_eq!(second.get(first_type), None);
+        assert_eq!(second.get(second_type), Some(Copyability::Copy));
     }
 
     #[test]
-    fn transaction_token_cannot_control_another_table() {
-        let mut first = CopyabilityTable::default();
-        let mut second = CopyabilityTable::default();
-        let first_transaction = first.begin_transaction();
-        let second_transaction = second.begin_transaction();
+    fn transaction_cannot_commit_to_another_authority() {
+        let first = CopyabilityTable::default();
+        let second = CopyabilityTable::default();
+        let transaction = first.transaction();
 
-        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            first.commit_transaction(second_transaction);
-        }));
-        assert!(mismatch.is_err());
-
-        first.commit_transaction(first_transaction);
-        second.commit_transaction(second_transaction);
+        assert!(transaction.commit(&second).is_err());
     }
 
     #[test]
-    fn stale_transaction_token_cannot_control_a_later_generation() {
-        let mut table = CopyabilityTable::default();
-        let stale = table.begin_transaction();
-        table.commit_transaction(stale);
-        let current = table.begin_transaction();
+    fn sibling_transaction_is_stale_after_accepted_authority_advances() {
+        let base = CopyabilityTable::default();
+        let accepted = base.transaction();
+        let stale = base.transaction();
+        let accepted = accepted.commit(&base).unwrap();
 
-        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            table.rollback_transaction(stale);
-        }));
-        assert!(mismatch.is_err());
-
-        table.commit_transaction(current);
+        assert!(stale.commit(&accepted).is_err());
     }
 }

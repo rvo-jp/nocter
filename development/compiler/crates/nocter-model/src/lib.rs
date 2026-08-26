@@ -11,8 +11,7 @@ mod construction_identity;
 mod id;
 mod origin;
 mod package;
-mod persistent_map;
-mod persistent_vector;
+mod persistent_arena;
 mod symbol;
 mod target;
 mod type_projection;
@@ -32,6 +31,7 @@ pub use id::{
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;
+pub use persistent_arena::{PersistentArena, PersistentArenaIter, UnknownPersistentId};
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};

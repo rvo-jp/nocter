@@ -41,7 +41,6 @@ mod structural_field_completion;
 mod syntax;
 #[cfg(test)]
 mod target_tests;
-mod transaction_identity;
 mod type_relations;
 mod type_validity;
 

@@ -15,7 +15,7 @@ mod temporaries;
 
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError};
-use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
+use crate::copyability::{CopyProofs, Copyability};
 use crate::ownership::{
     MovePath, OwnershipState, OwnershipStateError, TemporaryIdentity, initialized_body_roots,
 };
@@ -32,7 +32,7 @@ use temporaries::TemporaryPlanner;
 pub(super) fn analyze_body_ownership(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
-    copyabilities: &mut CopyabilityTable,
+    copyabilities: &mut crate::copyability::CopyabilityTransaction,
     drops: &DropTable,
     closures: &ClosureTable,
     input: OwnershipBodyInput<'_>,
@@ -123,7 +123,7 @@ impl<'program> OwnershipBodyInput<'program> {
 struct OwnershipAnalyzer<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut nocter_model::TypeTransaction,
-    copyabilities: &'program mut CopyabilityTable,
+    copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     drops: &'program DropTable,
     source: BodySource<'program>,
     body: &'program CheckedBody,

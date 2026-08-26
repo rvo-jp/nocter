@@ -145,7 +145,7 @@ pub enum ResolvedDispatchPlan {
 pub struct ConcreteDispatchResolver<'program> {
     pub(crate) program: &'program CheckedProgram,
     pub(crate) types: TypeTransaction,
-    pub(crate) copyabilities: crate::CopyabilityTable,
+    pub(crate) copyabilities: crate::copyability::CopyabilityTransaction,
     pub(crate) destructions: BTreeMap<TypeId, Option<crate::ConcreteDestructionPlan>>,
 }
 
@@ -161,7 +161,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         Self {
             program,
             types: program.types().transaction(),
-            copyabilities: program.copyabilities().clone(),
+            copyabilities: program.copyabilities().transaction(),
             destructions: BTreeMap::new(),
         }
     }

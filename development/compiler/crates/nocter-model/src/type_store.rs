@@ -2,10 +2,9 @@ use std::fmt;
 use std::sync::Arc;
 
 pub use nocter_language::BuiltinType;
+use nocter_persistent::{PersistentMap, PersistentVector};
 
 use crate::id::SemanticId;
-use crate::persistent_map::PersistentMap;
-use crate::persistent_vector::PersistentVector;
 use crate::{
     AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
     ResultProvenance, TypeId,
@@ -339,7 +338,7 @@ impl TypeStore {
         let kind = Arc::new(kind);
         self.kinds.push_shared(Arc::clone(&kind));
         assert!(
-            self.interned.insert_shared_absent(kind, id),
+            self.interned.insert_shared_key_absent(kind, id),
             "known type insertion must be unique"
         );
         debug_assert_eq!(self.interned.len(), self.kinds.len());
