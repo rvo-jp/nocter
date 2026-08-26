@@ -34,6 +34,10 @@ impl BodyConstructionFailure {
     pub(super) fn into_parts(self) -> (BodyCheckError, Option<super::TypedBodyInterruption>) {
         (*self.error, self.interruption)
     }
+
+    pub(super) const fn has_interruption(&self) -> bool {
+        self.interruption.is_some()
+    }
 }
 
 /// A typed-body failure with the deepest current-generation semantic state that remains valid.

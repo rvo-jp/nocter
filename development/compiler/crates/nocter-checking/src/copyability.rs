@@ -9,6 +9,7 @@ use nocter_model::{
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin};
 
 use crate::CheckedPredicate;
+use crate::checked::ClosureTableBuilder;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 mod diagnostic;
@@ -266,6 +267,21 @@ impl CopyabilityTable {
             .get(&root)
             .map(|condition| condition.classification(proofs))
             .ok_or(CopyabilityError::InvalidTraversal(root))
+    }
+
+    /// Removes memoized facts whose canonical identities were discarded by body rollback.
+    ///
+    /// Facts for surviving types are pure structural memoization and remain valid independently of
+    /// the rejected body. Closure conditions are retained only while their defining closure slot
+    /// remains part of the canonical builder.
+    pub(crate) fn discard_invalidated(
+        &mut self,
+        types: &TypeStore,
+        closures: &ClosureTableBuilder,
+    ) {
+        self.conditions.retain(|ty, _| types.get(*ty).is_some());
+        self.closures
+            .retain(|closure, _| closures.contains(*closure));
     }
 
     fn evaluate(

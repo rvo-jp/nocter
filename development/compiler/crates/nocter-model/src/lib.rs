@@ -15,7 +15,7 @@ mod target;
 mod type_projection;
 mod type_store;
 
-pub use arena::{Arena, ArenaBuilder};
+pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use constant::ConstantValue;
 pub use id::{
@@ -33,5 +33,5 @@ pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
     BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
-    TypeKind, TypeStore, UnknownTypeId,
+    TypeKind, TypeStore, TypeStoreCheckpoint, UnknownTypeId,
 };

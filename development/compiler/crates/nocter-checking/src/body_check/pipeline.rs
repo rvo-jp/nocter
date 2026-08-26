@@ -499,15 +499,15 @@ fn check_declared_bodies<'input, 'syntax>(
                     projections: Vec::new(),
                 });
             }
-            Err(BodyAttemptFailure::Transactional {
+            Err(BodyAttemptFailure::Recovering {
                 failure,
-                transaction,
+                interruption_state,
             }) => {
                 let (error, interruption) = failure.into_parts();
                 let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
                 if let Some(interruption) = interruption {
-                    let (interrupted_types, interrupted_copyabilities) =
-                        transaction.into_recovery_snapshot();
+                    let (interrupted_types, interrupted_copyabilities) = *interruption_state
+                        .expect("typed interruption must retain its semantic state");
                     interruptions.push((
                         interruption,
                         interrupted_types,
@@ -575,74 +575,63 @@ fn attempt_body<'input, 'syntax>(
         )
         .map_err(BodyAttemptFailure::Direct);
     }
-    let mut transaction = BodySemanticTransaction::fork(types, copyabilities, closures);
-    match construct_body(input, facts, source, names, transaction.parts_mut()) {
-        Ok(output) => {
-            transaction.commit(types, copyabilities, closures);
-            Ok(output)
+    let checkpoint = BodySemanticCheckpoint::capture(types, closures);
+    match construct_body(
+        input,
+        facts,
+        source,
+        names,
+        (types, copyabilities, closures),
+    ) {
+        Ok(output) => Ok(output),
+        Err(failure) => {
+            let interruption_state = failure
+                .has_interruption()
+                .then(|| Box::new((types.clone(), copyabilities.clone())));
+            checkpoint.rollback(types, copyabilities, closures);
+            Err(BodyAttemptFailure::Recovering {
+                failure,
+                interruption_state,
+            })
         }
-        Err(failure) => Err(BodyAttemptFailure::Transactional {
-            failure,
-            transaction: Box::new(transaction),
-        }),
     }
 }
 
 enum BodyAttemptFailure {
     Direct(super::error::BodyConstructionFailure),
-    Transactional {
+    Recovering {
         failure: super::error::BodyConstructionFailure,
-        transaction: Box<BodySemanticTransaction>,
+        interruption_state: Option<Box<(TypeStore, CopyabilityTable)>>,
     },
 }
 
-/// An isolated mutable branch for one body.
+/// Append-only semantic boundaries captured before checking one body.
 ///
-/// A successful branch is promoted atomically. A rejected branch is retained only when an exact
-/// typed interruption needs it; otherwise dropping the value is the rollback operation. This
-/// keeps recovery from restoring checker internals field by field.
-struct BodySemanticTransaction {
-    types: TypeStore,
-    copyabilities: CopyabilityTable,
-    closures: ClosureTableBuilder,
+/// Body checking extends canonical stores directly. Success therefore requires no promotion or
+/// clone. Failure discards only provisional identities; pure copyability facts for surviving types
+/// remain valid memoization. An exact snapshot is cloned only for an actual typed interruption.
+struct BodySemanticCheckpoint {
+    types: nocter_model::TypeStoreCheckpoint,
+    closures: nocter_model::ArenaCheckpoint<nocter_model::ClosureId>,
 }
 
-impl BodySemanticTransaction {
-    fn fork(
-        types: &TypeStore,
-        copyabilities: &CopyabilityTable,
-        closures: &ClosureTableBuilder,
-    ) -> Self {
+impl BodySemanticCheckpoint {
+    fn capture(types: &TypeStore, closures: &ClosureTableBuilder) -> Self {
         Self {
-            types: types.clone(),
-            copyabilities: copyabilities.clone(),
-            closures: closures.clone(),
+            types: types.checkpoint(),
+            closures: closures.checkpoint(),
         }
     }
 
-    fn parts_mut(
-        &mut self,
-    ) -> (
-        &mut TypeStore,
-        &mut CopyabilityTable,
-        &mut ClosureTableBuilder,
-    ) {
-        (&mut self.types, &mut self.copyabilities, &mut self.closures)
-    }
-
-    fn commit(
+    fn rollback(
         self,
         types: &mut TypeStore,
         copyabilities: &mut CopyabilityTable,
         closures: &mut ClosureTableBuilder,
     ) {
-        *types = self.types;
-        *copyabilities = self.copyabilities;
-        *closures = self.closures;
-    }
-
-    fn into_recovery_snapshot(self) -> (TypeStore, CopyabilityTable) {
-        (self.types, self.copyabilities)
+        types.rollback(self.types);
+        closures.rollback(self.closures);
+        copyabilities.discard_invalidated(types, closures);
     }
 }
 

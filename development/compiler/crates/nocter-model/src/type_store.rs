@@ -183,6 +183,10 @@ pub struct TypeStore {
     builtins: [TypeId; BuiltinType::ALL.len()],
 }
 
+/// An opaque append boundary for provisional structural types.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TypeStoreCheckpoint(usize);
+
 impl Default for TypeStore {
     fn default() -> Self {
         Self::new()
@@ -293,6 +297,42 @@ impl TypeStore {
         self.kinds.is_empty()
     }
 
+    /// Captures the current interned-type boundary without cloning the store.
+    #[must_use]
+    pub const fn checkpoint(&self) -> TypeStoreCheckpoint {
+        TypeStoreCheckpoint(self.kinds.len())
+    }
+
+    /// Discards every structural type interned after `checkpoint`.
+    ///
+    /// Existing kinds cannot refer to discarded IDs because [`Self::intern`] only accepts IDs
+    /// already present at insertion time.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the checkpoint is newer than this store's current state.
+    pub fn rollback(&mut self, checkpoint: TypeStoreCheckpoint) {
+        assert!(
+            checkpoint.0 <= self.kinds.len(),
+            "type-store checkpoint cannot be newer than the store"
+        );
+        while self.kinds.len() > checkpoint.0 {
+            let kind = self
+                .kinds
+                .pop()
+                .expect("rollback length proves that one type remains");
+            let removed = self
+                .interned
+                .remove(&kind)
+                .expect("every stored type must have an intern entry");
+            assert_eq!(
+                removed.index(),
+                self.kinds.len(),
+                "interned type identity must match append position"
+            );
+        }
+    }
+
     fn insert_known(&mut self, kind: TypeKind) -> TypeId {
         let id = TypeId::new(self.kinds.len());
         self.kinds.push(kind.clone());
@@ -394,6 +434,22 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(types.len(), BuiltinType::ALL.len() + 1);
+    }
+
+    #[test]
+    fn rollback_discards_provisional_types_and_their_intern_entries() {
+        let mut types = TypeStore::new();
+        let checkpoint = types.checkpoint();
+        let value = types.builtin(BuiltinType::I32);
+        let provisional = types.intern(TypeKind::Optional(value)).unwrap();
+
+        types.rollback(checkpoint);
+
+        assert!(types.get(provisional).is_none());
+        assert_eq!(
+            types.intern(TypeKind::Optional(value)).unwrap(),
+            provisional
+        );
     }
 
     #[test]

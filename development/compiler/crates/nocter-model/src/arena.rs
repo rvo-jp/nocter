@@ -57,6 +57,13 @@ pub struct ArenaBuilder<I, T> {
     identity: PhantomData<fn() -> I>,
 }
 
+/// An opaque append position used to discard provisional arena construction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArenaCheckpoint<I> {
+    len: usize,
+    identity: PhantomData<fn() -> I>,
+}
+
 impl<I, T> Default for ArenaBuilder<I, T> {
     fn default() -> Self {
         Self {
@@ -106,6 +113,28 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.values.is_empty()
+    }
+
+    /// Captures the current append boundary without cloning stored values.
+    #[must_use]
+    pub const fn checkpoint(&self) -> ArenaCheckpoint<I> {
+        ArenaCheckpoint {
+            len: self.values.len(),
+            identity: PhantomData,
+        }
+    }
+
+    /// Discards every value appended after `checkpoint`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the checkpoint is newer than this builder's current state.
+    pub fn rollback(&mut self, checkpoint: ArenaCheckpoint<I>) {
+        assert!(
+            checkpoint.len <= self.values.len(),
+            "arena checkpoint cannot be newer than the builder"
+        );
+        self.values.truncate(checkpoint.len);
     }
 
     #[must_use]
@@ -170,5 +199,19 @@ mod tests {
         assert_eq!(arena.get(package), Some(&7));
         assert_eq!(arena.len(), 1);
         assert!(!arena.is_empty());
+    }
+
+    #[test]
+    fn rollback_discards_only_values_after_the_checkpoint() {
+        let mut builder = ArenaBuilder::<PackageId, _>::new();
+        let retained = builder.insert("retained");
+        let checkpoint = builder.checkpoint();
+        let discarded = builder.insert("discarded");
+
+        builder.rollback(checkpoint);
+
+        assert_eq!(builder.get(retained), Some(&"retained"));
+        assert_eq!(builder.get(discarded), None);
+        assert_eq!(builder.insert("replacement"), discarded);
     }
 }

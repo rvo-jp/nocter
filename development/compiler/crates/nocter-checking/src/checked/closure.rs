@@ -1,8 +1,8 @@
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, BodyId, BodyNodeId, CallableCapability, CallableContract, CaptureId,
-    ClosureId, LocalBindingId, TypeId,
+    Arena, ArenaBuilder, ArenaCheckpoint, BodyId, BodyNodeId, CallableCapability, CallableContract,
+    CaptureId, ClosureId, LocalBindingId, TypeId,
 };
 
 /// The fully typed invocation shape of one anonymous concrete closure.
@@ -200,6 +200,18 @@ impl ClosureTableBuilder {
 
     pub(crate) fn reserve(&mut self, owner: BodyId) -> ClosureId {
         self.slots.insert(ClosureSlot::Reserved(owner))
+    }
+
+    pub(crate) fn checkpoint(&self) -> ArenaCheckpoint<ClosureId> {
+        self.slots.checkpoint()
+    }
+
+    pub(crate) fn rollback(&mut self, checkpoint: ArenaCheckpoint<ClosureId>) {
+        self.slots.rollback(checkpoint);
+    }
+
+    pub(crate) fn contains(&self, closure: ClosureId) -> bool {
+        self.slots.get(closure).is_some()
     }
 
     pub(crate) fn define(

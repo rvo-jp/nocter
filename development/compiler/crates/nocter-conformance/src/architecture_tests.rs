@@ -172,15 +172,15 @@ fn toolchain_roles_are_located_without_discovery_owned_syntax_authority() {
 }
 
 #[test]
-fn body_recovery_promotes_or_discards_one_isolated_transaction() {
+fn body_recovery_checkpoints_canonical_state_without_cloning_successful_bodies() {
     let pipeline = source("crates/nocter-checking/src/body_check/pipeline.rs");
-    assert!(pipeline.contains("struct BodySemanticTransaction"));
-    assert!(pipeline.contains("transaction.commit(types, copyabilities, closures)"));
-    assert!(pipeline.contains("BodyAttemptFailure::Transactional"));
-    assert!(!pipeline.contains("transaction: Option<Box<BodySemanticTransaction>>"));
-    assert!(!pipeline.contains("recovery body attempt must own its isolated transaction"));
-    assert!(!pipeline.contains("*types = type_checkpoint"));
-    assert!(!pipeline.contains("*copyabilities = copyability_checkpoint"));
+    assert!(pipeline.contains("struct BodySemanticCheckpoint"));
+    assert!(pipeline.contains("checkpoint.rollback(types, copyabilities, closures)"));
+    assert!(pipeline.contains("BodyAttemptFailure::Recovering"));
+    assert!(!pipeline.contains("BodySemanticTransaction"));
+    assert!(!pipeline.contains("types: types.clone()"));
+    assert!(!pipeline.contains("copyabilities: copyabilities.clone()"));
+    assert!(!pipeline.contains("closures: closures.clone()"));
     assert!(!pipeline.contains("prepared.types.clone()"));
     assert!(!pipeline.contains("prepared.copyabilities.clone()"));
 }
