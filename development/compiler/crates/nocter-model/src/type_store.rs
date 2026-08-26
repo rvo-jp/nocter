@@ -1,10 +1,11 @@
-use std::collections::HashMap;
 use std::fmt;
 
 pub use nocter_language::BuiltinType;
 
 use crate::construction_identity::ConstructionIdentity;
 use crate::id::SemanticId;
+use crate::persistent_map::PersistentMap;
+use crate::persistent_vector::PersistentVector;
 use crate::{
     AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
     ResultProvenance, TypeId,
@@ -179,16 +180,17 @@ impl TypeKind {
 
 #[derive(Debug)]
 pub struct TypeStore {
-    kinds: Vec<TypeKind>,
-    interned: HashMap<TypeKind, TypeId>,
+    kinds: PersistentVector<TypeKind>,
+    interned: PersistentMap<TypeKind, TypeId>,
     builtins: [TypeId; BuiltinType::ALL.len()],
     construction: ConstructionIdentity,
 }
 
 /// An opaque append boundary for provisional structural types.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct TypeStoreCheckpoint {
-    len: usize,
+    kinds: PersistentVector<TypeKind>,
+    interned: PersistentMap<TypeKind, TypeId>,
     construction: ConstructionIdentity,
 }
 
@@ -213,8 +215,8 @@ impl TypeStore {
     #[must_use]
     pub fn new() -> Self {
         let mut store = Self {
-            kinds: Vec::new(),
-            interned: HashMap::new(),
+            kinds: PersistentVector::default(),
+            interned: PersistentMap::default(),
             builtins: [TypeId::new(0); BuiltinType::ALL.len()],
             construction: ConstructionIdentity::fresh(),
         };
@@ -316,9 +318,10 @@ impl TypeStore {
 
     /// Captures the current interned-type boundary without cloning the store.
     #[must_use]
-    pub const fn checkpoint(&self) -> TypeStoreCheckpoint {
+    pub fn checkpoint(&self) -> TypeStoreCheckpoint {
         TypeStoreCheckpoint {
-            len: self.kinds.len(),
+            kinds: self.kinds.clone(),
+            interned: self.interned.clone(),
             construction: self.construction,
         }
     }
@@ -337,33 +340,21 @@ impl TypeStore {
             "type-store checkpoint belongs to another store"
         );
         assert!(
-            checkpoint.len <= self.kinds.len(),
+            checkpoint.kinds.len() <= self.kinds.len(),
             "type-store checkpoint cannot be newer than the store"
         );
-        while self.kinds.len() > checkpoint.len {
-            let kind = self
-                .kinds
-                .pop()
-                .expect("rollback length proves that one type remains");
-            let removed = self
-                .interned
-                .remove(&kind)
-                .expect("every stored type must have an intern entry");
-            assert_eq!(
-                removed.index(),
-                self.kinds.len(),
-                "interned type identity must match append position"
-            );
-        }
+        self.kinds = checkpoint.kinds;
+        self.interned = checkpoint.interned;
     }
 
     fn insert_known(&mut self, kind: TypeKind) -> TypeId {
         let id = TypeId::new(self.kinds.len());
         self.kinds.push(kind.clone());
         assert!(
-            self.interned.insert(kind, id).is_none(),
+            self.interned.insert_absent(kind, id),
             "known type insertion must be unique"
         );
+        debug_assert_eq!(self.interned.len(), self.kinds.len());
         id
     }
 }
@@ -473,6 +464,25 @@ mod tests {
         assert_eq!(
             types.intern(TypeKind::Optional(value)).unwrap(),
             provisional
+        );
+    }
+
+    #[test]
+    fn cloned_authorities_share_the_prefix_and_isolate_sibling_extensions() {
+        let base = TypeStore::new();
+        let value = base.builtin(BuiltinType::I32);
+        let mut first = base.clone();
+        let mut second = base.clone();
+
+        let first_extension = first.intern(TypeKind::Optional(value)).unwrap();
+        let second_extension = second.intern(TypeKind::Fallible(value)).unwrap();
+
+        assert_eq!(first_extension, second_extension);
+        assert_eq!(base.get(first_extension), None);
+        assert_eq!(first.get(first_extension), Some(&TypeKind::Optional(value)));
+        assert_eq!(
+            second.get(second_extension),
+            Some(&TypeKind::Fallible(value))
         );
     }
 

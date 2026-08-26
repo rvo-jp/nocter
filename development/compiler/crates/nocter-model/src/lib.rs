@@ -11,6 +11,8 @@ mod construction_identity;
 mod id;
 mod origin;
 mod package;
+mod persistent_map;
+mod persistent_vector;
 mod symbol;
 mod target;
 mod type_projection;
