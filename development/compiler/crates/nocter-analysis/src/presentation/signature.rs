@@ -1,4 +1,6 @@
-use nocter_checking::{CheckedProgram, GenericArguments, StaticDispatch, StaticSelection};
+use nocter_checking::{
+    CheckedProgram, ClosureParameter, GenericArguments, StaticDispatch, StaticSelection,
+};
 use nocter_declarations::{RequirementKind, StructuralCapability};
 use nocter_model::{CallableCapability, TypeId, TypeStore};
 
@@ -100,7 +102,7 @@ impl<'a> Renderer<'a> {
     fn callable_shape(
         &mut self,
         capability: CallableCapability,
-        parameters: &[TypeId],
+        parameters: &[ClosureParameter],
         result: TypeId,
     ) -> Option<()> {
         self.output.push_str(match capability {
@@ -109,12 +111,12 @@ impl<'a> Renderer<'a> {
             CallableCapability::Owned => "func",
         });
         self.output.push('(');
-        for (index, parameter) in parameters.iter().copied().enumerate() {
+        for (index, parameter) in parameters.iter().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
             }
             let start = self.output.len();
-            self.ty(parameter)?;
+            self.ty(parameter.ty())?;
             self.record_parameter(start);
         }
         self.output.push_str("): ");
