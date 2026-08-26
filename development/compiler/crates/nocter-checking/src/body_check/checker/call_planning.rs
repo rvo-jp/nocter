@@ -8,7 +8,7 @@ use super::value_planning::{CallResultContext, PositionalValueContext, ValueDraf
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::interface_implementation::normalize_requirements;
-use crate::syntax::direct_nodes;
+use crate::syntax::child_nodes;
 use crate::type_relations::TypeSubstitution;
 use crate::{
     ArgumentPackSegment, CallableInference, CheckedArgumentPack, CheckedPredicate,
@@ -102,7 +102,7 @@ impl BodyChecker<'_, '_> {
         generics: DeclaredCallGenerics<'_>,
         result_context: Option<CallResultContext>,
     ) -> Result<DeclaredCallPlan, BodyCheckError> {
-        let argument_syntax = direct_nodes(self.tree(), suffix);
+        let argument_syntax = child_nodes(self.tree(), suffix);
         let mut substitution = generics.owner_substitution.cloned().unwrap_or_default();
         for argument in generics.fixed_arguments {
             substitution.bind_generic(argument.parameter(), argument.ty());

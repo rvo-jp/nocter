@@ -5,6 +5,7 @@ use nocter_source::SourceFile;
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_plain_string_expression,
+    direct_node, first_direct_token,
 };
 
 use crate::model::{
@@ -12,8 +13,7 @@ use crate::model::{
     ConstantReference, ConstantResolver, ConstantScalarType, PlanNode, PlanNodeId,
 };
 use crate::support::{
-    direct_node, direct_punctuation, direct_token, expression_children, integer_spec,
-    one_expression_child, parse_integer,
+    direct_punctuation, expression_children, integer_spec, one_expression_child, parse_integer,
 };
 
 struct Planner<'a, R> {
@@ -74,8 +74,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 self.analyze(child, expected)?
             }
             NodeKind::ScalarLiteral => {
-                let token =
-                    direct_token(self.tree, node).ok_or(ConstantPlanError::InvalidSyntax(node))?;
+                let token = first_direct_token(self.tree, node)
+                    .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantScalarType::Bool,
                     TokenKind::IntegerLiteral => expected
@@ -189,8 +189,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 self.scalar_hint(child)
             }
             NodeKind::ScalarLiteral => {
-                let token =
-                    direct_token(self.tree, node).ok_or(ConstantPlanError::InvalidSyntax(node))?;
+                let token = first_direct_token(self.tree, node)
+                    .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 Ok(match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => {
                         Some(ConstantScalarType::Bool)
@@ -267,8 +267,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 );
             }
             NodeKind::ScalarLiteral => {
-                let token =
-                    direct_token(self.tree, node).ok_or(ConstantPlanError::InvalidSyntax(node))?;
+                let token = first_direct_token(self.tree, node)
+                    .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantOperation::Value(
                         ConstantValue::Bool(token.kind() == TokenKind::Keyword(Keyword::True)),

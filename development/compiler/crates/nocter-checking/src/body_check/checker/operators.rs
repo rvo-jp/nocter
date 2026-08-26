@@ -9,7 +9,7 @@ use crate::body_check::literal::{
     parse_integer,
 };
 use crate::instance_operations::ComparisonCandidateImplementation;
-use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
+use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
     CheckedComparison, CheckedControl, CheckedOperation, CheckedReadonlyOperand,
     ComparisonImplementation, ComparisonOperation, ConstantValue, LogicalOperation,
@@ -22,8 +22,8 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
-        let token =
-            direct_token(self.tree(), node).ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let token = first_direct_token(self.tree(), node)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         match token.kind() {
             TokenKind::Punctuation(Punctuation::Ampersand) => {
                 self.check_borrow_unary(node, expected, BorrowCapability::Readonly)
@@ -317,7 +317,7 @@ fn unary_operand(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
 ) -> Result<NodeId, BodyCheckInternalError> {
-    let operands = direct_nodes(checker.tree(), node);
+    let operands = child_nodes(checker.tree(), node);
     let [operand] = operands.as_slice() else {
         return Err(BodyCheckInternalError::InvalidSyntax(node));
     };
@@ -328,7 +328,7 @@ fn binary_operands(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
 ) -> Result<[NodeId; 2], BodyCheckInternalError> {
-    direct_nodes(checker.tree(), node)
+    child_nodes(checker.tree(), node)
         .try_into()
         .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))
 }
@@ -361,7 +361,7 @@ fn direct_integer_literal(
     loop {
         let kind = checker.tree().node(current)?.kind();
         if is_transparent_expression(kind) {
-            let children = direct_nodes(checker.tree(), current);
+            let children = child_nodes(checker.tree(), current);
             let [child] = children.as_slice() else {
                 return None;
             };
@@ -369,7 +369,7 @@ fn direct_integer_literal(
             continue;
         }
         return (kind == NodeKind::ScalarLiteral)
-            .then(|| direct_token(checker.tree(), current))
+            .then(|| first_direct_token(checker.tree(), current))
             .flatten()
             .filter(|token| token.kind() == TokenKind::IntegerLiteral);
     }
@@ -390,7 +390,7 @@ fn is_contextual_integer_expression(checker: &BodyChecker<'_, '_>, root: NodeId)
             return false;
         };
         if is_transparent_expression(kind) {
-            let children = direct_nodes(checker.tree(), current);
+            let children = child_nodes(checker.tree(), current);
             if let [child] = children.as_slice() {
                 current = *child;
                 continue;
@@ -405,10 +405,10 @@ fn is_contextual_integer_expression(checker: &BodyChecker<'_, '_>, root: NodeId)
             return true;
         }
         if kind == NodeKind::UnaryExpression
-            && direct_token(checker.tree(), current)
+            && first_direct_token(checker.tree(), current)
                 .is_some_and(|token| token.kind() == TokenKind::Punctuation(Punctuation::Minus))
         {
-            let children = direct_nodes(checker.tree(), current);
+            let children = child_nodes(checker.tree(), current);
             let [operand] = children.as_slice() else {
                 return false;
             };

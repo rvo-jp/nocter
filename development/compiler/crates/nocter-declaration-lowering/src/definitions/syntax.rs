@@ -1,24 +1,8 @@
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
 pub(super) use nocter_syntax::{direct_identifier, direct_node, direct_nodes, direct_tokens};
 
-pub(super) fn descendants(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Vec<NodeId> {
-    let mut result = Vec::new();
-    let mut pending: Vec<_> = tree.children(root).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        let SyntaxElement::Node(node) = element else {
-            continue;
-        };
-        if tree.node(node).is_some_and(|syntax| syntax.kind() == kind) {
-            result.push(node);
-            continue;
-        }
-        pending.extend(tree.children(node).iter().rev().copied());
-    }
-    result
-}
-
 pub(super) fn descendant(tree: &SyntaxTree, root: NodeId, kind: NodeKind) -> Option<NodeId> {
-    descendants(tree, root, kind).into_iter().next()
+    nocter_syntax::outermost_descendant_node_iter(tree, root, kind).next()
 }
 
 pub(super) fn has_punctuation(tree: &SyntaxTree, node: NodeId, punctuation: Punctuation) -> bool {

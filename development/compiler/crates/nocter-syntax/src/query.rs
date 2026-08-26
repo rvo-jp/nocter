@@ -1,6 +1,4 @@
-use crate::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
-};
+use crate::{Keyword, NodeId, NodeKind, Punctuation, SyntaxToken, SyntaxTree, TokenKind};
 
 /// Returns the declaration-name token defined by the grammar for one declaration node.
 ///
@@ -78,14 +76,5 @@ fn name_after(
 }
 
 fn descendant_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    let mut tokens = Vec::new();
-    let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => pending.extend(tree.children(node).iter().rev().copied()),
-            SyntaxElement::Token(token) => tokens.push(token),
-            SyntaxElement::Missing(_) => {}
-        }
-    }
-    tokens
+    crate::descendant_token_iter(tree, node).collect()
 }

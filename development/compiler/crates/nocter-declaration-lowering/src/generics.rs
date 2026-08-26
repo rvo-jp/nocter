@@ -283,7 +283,7 @@ fn binder_tokens(
         }),
         _ => Ok(BinderTokens {
             tokens: find_descendant(tree, declaration.node(), NodeKind::GenericParameters)
-                .map(|node| identifier_tokens(tree, node))
+                .map(|node| descendant_identifiers(tree, node))
                 .unwrap_or_default(),
             reuses_local_names: false,
         }),
@@ -294,14 +294,14 @@ fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec
     let mut binders = Vec::new();
     for pattern in direct_node_iter(tree, declaration, NodeKind::DeclarationTypePattern) {
         if let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments) {
-            binders.extend(identifier_tokens(tree, arguments));
+            binders.extend(descendant_identifiers(tree, arguments));
         } else if direct_token(
             tree,
             pattern,
             TokenKind::Punctuation(Punctuation::LeftBracket),
         )
         .is_some()
-            && let Some(token) = identifier_tokens(tree, pattern).into_iter().next()
+            && let Some(token) = descendant_identifiers(tree, pattern).into_iter().next()
         {
             binders.push(token);
         }
@@ -470,19 +470,8 @@ fn find_descendant(
     None
 }
 
-fn identifier_tokens(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    let mut identifiers = Vec::new();
-    let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => pending.extend(tree.children(node).iter().rev().copied()),
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
-                identifiers.push(token);
-            }
-            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
-        }
-    }
-    identifiers
+fn descendant_identifiers(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
+    nocter_syntax::descendant_identifier_iter(tree, node).collect()
 }
 
 const fn is_member(kind: NodeKind) -> bool {

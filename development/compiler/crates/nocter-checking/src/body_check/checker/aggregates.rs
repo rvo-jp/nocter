@@ -10,7 +10,7 @@ use super::{BodyChecker, NodeProjection};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_structural_field};
-use crate::syntax::{direct_child, direct_children, direct_identifier, direct_nodes};
+use crate::syntax::{child_nodes, direct_identifier, direct_node, direct_nodes};
 use crate::{
     AggregateConstruction, CheckedOperation, TypePosition, TypedBodyInterruption,
     TypedBodyInterruptionKind, validate_type,
@@ -28,7 +28,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let owner_syntax = direct_child(self.tree(), node, NodeKind::NamedType)
+        let owner_syntax = direct_node(self.tree(), node, NodeKind::NamedType)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let owner = self.resolve_nominal_construction_type(owner_syntax)?;
         let mut plan = self.nominal_construction_plan(node, owner)?;
@@ -92,10 +92,10 @@ impl BodyChecker<'_, '_> {
         else {
             return Err(self.rule(BodyRule::InvalidConstruction, node)?);
         };
-        let struct_initializer = direct_child(self.tree(), node, NodeKind::StructInitializer)
+        let struct_initializer = direct_node(self.tree(), node, NodeKind::StructInitializer)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let initializers =
-            direct_children(self.tree(), struct_initializer, NodeKind::FieldInitializer);
+            direct_nodes(self.tree(), struct_initializer, NodeKind::FieldInitializer);
         self.record_structural_interruption(struct_initializer, definition, &[])?;
 
         let mut selected: Vec<StructFieldDraft> = Vec::with_capacity(initializers.len());
@@ -129,7 +129,7 @@ impl BodyChecker<'_, '_> {
             };
             initialized.push(field.field());
             self.record_structural_interruption(struct_initializer, definition, &initialized)?;
-            let expression = direct_child(self.tree(), field_initializer, NodeKind::Expression)
+            let expression = direct_node(self.tree(), field_initializer, NodeKind::Expression)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(field_initializer))?;
             self.project_field_token(token, field.field())?;
             selected.push(StructFieldDraft {
@@ -171,7 +171,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let elements = direct_nodes(self.tree(), node)
+        let elements = child_nodes(self.tree(), node)
             .into_iter()
             .filter(|child| {
                 self.kind(*child)

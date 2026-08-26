@@ -4,7 +4,7 @@ use nocter_syntax::{NodeId, NodeKind};
 
 use super::{BlockExpectation, BodyChecker};
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_child, direct_identifier};
+use crate::syntax::{direct_identifier, direct_node};
 use crate::{CheckedControl, CheckedOperation};
 
 impl BodyChecker<'_, '_> {
@@ -19,10 +19,10 @@ impl BodyChecker<'_, '_> {
         let context = self.allocation_context_type()?;
         self.builder.define_local(binding, context)?;
 
-        let allocator = direct_child(self.tree(), statement, NodeKind::AllocatorPlace)
+        let allocator = direct_node(self.tree(), statement, NodeKind::AllocatorPlace)
             .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
         let allocator = self.check_region_parent(allocator)?;
-        let block = direct_child(self.tree(), statement, NodeKind::Block)
+        let block = direct_node(self.tree(), statement, NodeKind::Block)
             .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
         let body = self.check_block(
             block,

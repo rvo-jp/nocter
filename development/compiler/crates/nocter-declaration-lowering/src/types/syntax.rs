@@ -358,7 +358,7 @@ fn callable_origins(
     clause: NodeId,
     names: &BTreeMap<Symbol, (usize, SyntaxToken)>,
 ) -> Result<Box<[ParameterOrigin]>, TypeBindingError> {
-    let mut tokens = identifier_tokens(tree, clause).into_iter();
+    let mut tokens = direct_identifiers(tree, clause).into_iter();
     tokens
         .next()
         .ok_or(TypeBindingError::InvalidSyntax(clause))?;
@@ -498,14 +498,8 @@ fn invalid_arguments(segment: &super::names::NameSegment) -> TypeBindingError {
     )
 }
 
-fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
-        .collect()
+fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
+    nocter_syntax::direct_identifier_iter(tree, node).collect()
 }
 
 fn direct_punctuation(tree: &SyntaxTree, node: NodeId) -> Option<Punctuation> {

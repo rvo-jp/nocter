@@ -6,7 +6,7 @@ use super::value_planning::CallResultContext;
 use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_child, direct_identifier, direct_nodes};
+use crate::syntax::{child_nodes, direct_identifier, direct_node};
 use crate::{
     CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence, LocalBindingKind,
     OutcomeLayer, TypedBodyInterruption, TypedBodyInterruptionKind, plan_expected_type,
@@ -22,7 +22,7 @@ impl BodyChecker<'_, '_> {
         let operand = match self.kind(node)? {
             NodeKind::MoveExpression => self.check_move_place(node)?,
             NodeKind::OutcomeExpression => {
-                let children = direct_nodes(self.tree(), node);
+                let children = child_nodes(self.tree(), node);
                 let [operand] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
@@ -125,14 +125,14 @@ impl BodyChecker<'_, '_> {
             .kind(syntax)
             .is_ok_and(crate::syntax::is_transparent_expression)
         {
-            let children = direct_nodes(self.tree(), syntax);
+            let children = child_nodes(self.tree(), syntax);
             let [child] = children.as_slice() else {
                 break;
             };
             syntax = *child;
         }
         if self.kind(syntax)? == NodeKind::PostfixExpression
-            && direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_some()
+            && direct_node(self.tree(), syntax, NodeKind::CallSuffix).is_some()
             && let Some(result_context) = result_context
         {
             return self.check_outcome_operand_call(syntax, result_context);
@@ -193,7 +193,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let children = direct_nodes(self.tree(), node);
+        let children = child_nodes(self.tree(), node);
         let [operand_syntax, clause] = children.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
@@ -220,7 +220,7 @@ impl BodyChecker<'_, '_> {
         } else {
             None
         };
-        let block = direct_child(self.tree(), *clause, NodeKind::Block)
+        let block = direct_node(self.tree(), *clause, NodeKind::Block)
             .ok_or(BodyCheckInternalError::InvalidSyntax(*clause))?;
         let fallback = self.check_block(block, BlockExpectation::Value(Some(payload)))?;
         let recovered = self.add_node(

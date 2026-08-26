@@ -5,7 +5,7 @@ use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::body_check::literal::{contextual_integer_type, is_integer_type};
-use crate::syntax::direct_nodes;
+use crate::syntax::child_nodes;
 use crate::{CheckedOperation, PrimitiveBinary, PrimitiveOperation};
 
 impl BodyChecker<'_, '_> {
@@ -14,7 +14,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
-        let operands = direct_nodes(self.tree(), node);
+        let operands = child_nodes(self.tree(), node);
         if operands.len() != 2 {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }

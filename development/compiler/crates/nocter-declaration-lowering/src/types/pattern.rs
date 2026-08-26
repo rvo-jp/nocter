@@ -114,7 +114,7 @@ fn bind_arguments(
     tree: &SyntaxTree,
     arguments: NodeId,
 ) -> Result<Vec<nocter_model::GenericParameterId>, TypeBindingError> {
-    identifier_tokens(tree, arguments)
+    direct_identifiers(tree, arguments)
         .into_iter()
         .map(|token| {
             let name = token_symbol(namespaces, tree, token)?;
@@ -147,14 +147,8 @@ const fn is_type_name(kind: TokenKind) -> bool {
     )
 }
 
-fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
-        .collect()
+fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
+    nocter_syntax::direct_identifier_iter(tree, node).collect()
 }
 
 fn has_punctuation(tree: &SyntaxTree, node: NodeId, punctuation: Punctuation) -> bool {

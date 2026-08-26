@@ -4,7 +4,7 @@ use nocter_syntax::{NodeId, NodeKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::direct_nodes;
+use crate::syntax::child_nodes;
 use crate::{CheckedBorrowConversion, CheckedOperation, PrimitiveOperation};
 
 impl BodyChecker<'_, '_> {
@@ -18,7 +18,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let children = direct_nodes(self.tree(), node);
+        let children = child_nodes(self.tree(), node);
         let [operand, target] = children.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };

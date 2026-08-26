@@ -71,7 +71,7 @@ impl BodyChecker<'_, '_> {
                         owner,
                         variant,
                         member_token,
-                        VariantInvocation::Call(crate::syntax::direct_nodes(
+                        VariantInvocation::Call(crate::syntax::child_nodes(
                             self.tree(),
                             call_suffix,
                         )),
@@ -142,7 +142,7 @@ impl BodyChecker<'_, '_> {
                 },
                 variant,
                 owner.member,
-                VariantInvocation::Call(crate::syntax::direct_nodes(self.tree(), call_suffix)),
+                VariantInvocation::Call(crate::syntax::child_nodes(self.tree(), call_suffix)),
                 result_context.and_then(CallResultContext::complete_type),
             );
         }

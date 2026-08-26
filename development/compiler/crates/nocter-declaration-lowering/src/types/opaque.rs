@@ -170,11 +170,5 @@ fn visible_generics(
 }
 
 fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
-        .collect()
+    nocter_syntax::direct_identifier_iter(tree, node).collect()
 }

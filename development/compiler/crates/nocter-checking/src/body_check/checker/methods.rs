@@ -9,7 +9,7 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
 use crate::instance_operations::{MethodCandidate, receiver_supports};
-use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
+use crate::syntax::{child_nodes, direct_identifier, is_transparent_expression};
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, CheckedReceiver, CheckedReceiverCoercion,
     PlaceAccess, ReceiverPreparation, StaticSelection, TypedBodyInterruption,
@@ -179,7 +179,7 @@ impl BodyChecker<'_, '_> {
     fn method_receiver_draft(&mut self, root: NodeId) -> Result<ReceiverDraft, BodyCheckError> {
         let mut syntax = root;
         while self.kind(syntax).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(self.tree(), syntax);
+            let children = child_nodes(self.tree(), syntax);
             let [child] = children.as_slice() else {
                 break;
             };
@@ -190,7 +190,7 @@ impl BodyChecker<'_, '_> {
             NodeKind::ReferenceExpression if !constant => Some(self.named_place(syntax)?),
             NodeKind::PostfixExpression
                 if !constant
-                    && crate::syntax::direct_child(self.tree(), syntax, NodeKind::CallSuffix)
+                    && crate::syntax::direct_node(self.tree(), syntax, NodeKind::CallSuffix)
                         .is_none() =>
             {
                 match self.postfix_place(syntax, BorrowCapability::Readonly) {

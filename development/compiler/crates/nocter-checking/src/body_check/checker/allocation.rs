@@ -5,7 +5,7 @@ use nocter_syntax::{NodeId, NodeKind};
 use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::direct_child;
+use crate::syntax::direct_node;
 use crate::{CheckedOperation, PlaceAccess};
 
 impl BodyChecker<'_, '_> {
@@ -67,7 +67,7 @@ impl BodyChecker<'_, '_> {
         &mut self,
         allocator: NodeId,
     ) -> Result<(NodeId, ResolvedPlace), BodyCheckError> {
-        let named = direct_child(self.tree(), allocator, NodeKind::NamedPlace)
+        let named = direct_node(self.tree(), allocator, NodeKind::NamedPlace)
             .ok_or(BodyCheckInternalError::InvalidSyntax(allocator))?;
         let place = self.named_place(named)?;
         let candidate = match self.types.get(place.ty) {

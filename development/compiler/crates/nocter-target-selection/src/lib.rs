@@ -4,9 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{
-    NodeId, NodeKind, SyntaxTree, child_node_iter as child_nodes, direct_node as direct_child,
-};
+use nocter_syntax::{NodeId, NodeKind, SyntaxTree, child_node_iter, direct_node};
 
 type SyntaxKey = (SourceId, usize);
 
@@ -78,14 +76,14 @@ impl TargetSelection {
         let source = sources
             .get(tree.source())
             .ok_or(TargetSelectionError::MissingSource(tree.source()))?;
-        for child in child_nodes(tree, tree.root_id()) {
+        for child in child_node_iter(tree, tree.root_id()) {
             if tree
                 .node(child)
                 .is_none_or(|node| node.kind() != NodeKind::Item)
             {
                 continue;
             }
-            let Some(gate) = direct_child(tree, child, NodeKind::TargetDirective) else {
+            let Some(gate) = direct_node(tree, child, NodeKind::TargetDirective) else {
                 continue;
             };
             let literal = descendant(tree, gate, NodeKind::StringLiteral)
@@ -120,7 +118,7 @@ impl TargetSelection {
             ) {
                 self.inactive_uses.insert(key(node));
             }
-            pending.extend(child_nodes(tree, node));
+            pending.extend(child_node_iter(tree, node));
         }
         Ok(())
     }
@@ -169,7 +167,7 @@ fn descendant(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId>
         if tree.node(node).is_some_and(|node| node.kind() == kind) {
             return Some(node);
         }
-        pending.extend(child_nodes(tree, node));
+        pending.extend(child_node_iter(tree, node));
     }
     None
 }
@@ -215,7 +213,7 @@ mod tests {
             if tree.node(node).is_some_and(|node| node.kind() == kind) {
                 result.push(node);
             }
-            pending.extend(child_nodes(tree, node));
+            pending.extend(child_node_iter(tree, node));
         }
         result.sort_unstable_by_key(|node| tree.node(*node).unwrap().range().start());
         result

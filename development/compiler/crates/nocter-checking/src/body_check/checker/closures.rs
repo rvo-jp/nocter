@@ -11,7 +11,7 @@ use crate::body_check::closure_capability;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
-use crate::syntax::{direct_child, direct_children, direct_identifier};
+use crate::syntax::{direct_identifier, direct_node, direct_nodes};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
     CallableInference, CaptureMode, CheckedClosure, CheckedClosureCapture, CheckedOperation,
@@ -53,10 +53,10 @@ impl BodyChecker<'_, '_> {
         contract: &CallableContract,
         inference: &mut CallableInference,
     ) -> Result<(), BodyCheckError> {
-        let head = direct_child(self.tree(), node, NodeKind::ClosureHead)
+        let head = direct_node(self.tree(), node, NodeKind::ClosureHead)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let parameters = direct_child(self.tree(), head, NodeKind::ClosureParameters)
-            .map(|parameters| direct_children(self.tree(), parameters, NodeKind::ClosureParameter))
+        let parameters = direct_node(self.tree(), head, NodeKind::ClosureParameters)
+            .map(|parameters| direct_nodes(self.tree(), parameters, NodeKind::ClosureParameter))
             .unwrap_or_default();
         if parameters.len() != contract.parameters().len() {
             return Err(self.rule(BodyRule::TypeMismatch, head)?);
@@ -65,8 +65,8 @@ impl BodyChecker<'_, '_> {
             .into_iter()
             .zip(contract.parameters().iter().copied())
         {
-            let Some(annotation) = direct_child(self.tree(), parameter, NodeKind::TypeAnnotation)
-                .and_then(|annotation| direct_child(self.tree(), annotation, NodeKind::Type))
+            let Some(annotation) = direct_node(self.tree(), parameter, NodeKind::TypeAnnotation)
+                .and_then(|annotation| direct_node(self.tree(), annotation, NodeKind::Type))
             else {
                 continue;
             };
@@ -201,7 +201,7 @@ impl BodyChecker<'_, '_> {
                     self.types.builtin(nocter_model::BuiltinType::Void),
                 )
             })?;
-        let head = direct_child(self.tree(), node, NodeKind::ClosureHead)
+        let head = direct_node(self.tree(), node, NodeKind::ClosureHead)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let checked_head =
             self.check_closure_head(head, expected.map(|expected| expected.parameters.as_ref()))?;
@@ -217,7 +217,7 @@ impl BodyChecker<'_, '_> {
             (None, Some(expected)) => Some(expected),
             (None, None) => None,
         };
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let (body, result) = self.check_nested_callable_block(block, fixed_result)?;
         let capability = closure_capability::infer(&self.builder, body)?;
@@ -288,8 +288,8 @@ impl BodyChecker<'_, '_> {
         head: NodeId,
         expected: Option<&[TypeId]>,
     ) -> Result<CheckedClosureHead, BodyCheckError> {
-        let capture_nodes = direct_child(self.tree(), head, NodeKind::ClosureCaptures)
-            .map(|captures| direct_children(self.tree(), captures, NodeKind::ClosureCapture))
+        let capture_nodes = direct_node(self.tree(), head, NodeKind::ClosureCaptures)
+            .map(|captures| direct_nodes(self.tree(), captures, NodeKind::ClosureCapture))
             .unwrap_or_default();
         let mut environment = Vec::with_capacity(capture_nodes.len());
         let mut capture_initializers = Vec::with_capacity(capture_nodes.len());
@@ -314,8 +314,8 @@ impl BodyChecker<'_, '_> {
             capture_initializers.push(CheckedClosureCapture::new(capture, initializer));
         }
 
-        let parameter_nodes = direct_child(self.tree(), head, NodeKind::ClosureParameters)
-            .map(|parameters| direct_children(self.tree(), parameters, NodeKind::ClosureParameter))
+        let parameter_nodes = direct_node(self.tree(), head, NodeKind::ClosureParameters)
+            .map(|parameters| direct_nodes(self.tree(), parameters, NodeKind::ClosureParameter))
             .unwrap_or_default();
         if expected.is_some_and(|expected| expected.len() != parameter_nodes.len()) {
             return Err(self.rule(BodyRule::TypeMismatch, head)?);
@@ -331,8 +331,8 @@ impl BodyChecker<'_, '_> {
                 .ok_or(BodyCheckInternalError::MissingLocalDeclaration(
                     parameter_node,
                 ))?;
-            let annotation = direct_child(self.tree(), parameter_node, NodeKind::TypeAnnotation)
-                .and_then(|annotation| direct_child(self.tree(), annotation, NodeKind::Type));
+            let annotation = direct_node(self.tree(), parameter_node, NodeKind::TypeAnnotation)
+                .and_then(|annotation| direct_node(self.tree(), annotation, NodeKind::Type));
             let expected_type = expected.map(|expected| expected[position]);
             let ty = match (annotation, expected_type) {
                 (Some(annotation), Some(expected)) => {
@@ -410,10 +410,10 @@ impl BodyChecker<'_, '_> {
     }
 
     fn closure_result_type(&mut self, node: NodeId) -> Result<Option<TypeId>, BodyCheckError> {
-        let Some(result) = direct_child(self.tree(), node, NodeKind::ClosureResult) else {
+        let Some(result) = direct_node(self.tree(), node, NodeKind::ClosureResult) else {
             return Ok(None);
         };
-        let ty = direct_child(self.tree(), result, NodeKind::Type)
+        let ty = direct_node(self.tree(), result, NodeKind::Type)
             .ok_or(BodyCheckInternalError::InvalidSyntax(result))?;
         self.resolve_callable_result_type_use(ty).map(Some)
     }

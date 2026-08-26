@@ -1,7 +1,4 @@
-use nocter_syntax::{
-    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind, direct_node,
-    direct_node_iter,
-};
+use nocter_syntax::{NodeId, NodeKind, SyntaxToken, SyntaxTree, direct_node, direct_node_iter};
 
 use super::ImportError;
 
@@ -41,7 +38,7 @@ pub(super) fn final_path_name(
     declaration: NodeId,
     path: NodeId,
 ) -> Result<SyntaxToken, ImportError> {
-    identifier_tokens(tree, path)
+    descendant_identifiers(tree, path)
         .into_iter()
         .last()
         .ok_or(ImportError::InvalidSyntax(declaration))
@@ -54,7 +51,7 @@ fn selected_names(
 ) -> Result<Vec<SelectedNameSyntax>, ImportError> {
     let mut names = Vec::new();
     for selected in direct_node_iter(tree, selection, NodeKind::SelectedName) {
-        let tokens = identifier_tokens(tree, selected);
+        let tokens = descendant_identifiers(tree, selected);
         let exported = *tokens
             .first()
             .ok_or(ImportError::InvalidSyntax(declaration))?;
@@ -70,19 +67,6 @@ fn selected_names(
     }
 }
 
-fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    let mut tokens = Vec::new();
-    let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(child) => {
-                pending.extend(tree.children(child).iter().rev().copied());
-            }
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
-                tokens.push(token);
-            }
-            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
-        }
-    }
-    tokens
+fn descendant_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
+    nocter_syntax::descendant_identifier_iter(tree, node).collect()
 }

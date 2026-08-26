@@ -20,8 +20,8 @@ use super::model::{
 use super::{NameResolutionError, NameResolutionInternalError, Projection};
 use crate::BodySource;
 use crate::syntax::{
-    descendants, direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
-    token_symbol, token_text,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, direct_nodes,
+    outermost_descendants, token_symbol, token_text,
 };
 
 pub(super) struct ResolvedBody {
@@ -223,14 +223,14 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             }
             NodeKind::NamedType => {
                 self.resolve_type_override(node)?;
-                for child in direct_nodes(self.tree(), node).into_iter().rev() {
+                for child in child_nodes(self.tree(), node).into_iter().rev() {
                     actions.push(Action::Visit(child));
                 }
             }
             NodeKind::PostfixExpression if self.resolve_module_member(node)? => {}
             NodeKind::BlockUseDeclaration => {}
             _ => {
-                for child in direct_nodes(self.tree(), node).into_iter().rev() {
+                for child in child_nodes(self.tree(), node).into_iter().rev() {
                     actions.push(Action::Visit(child));
                 }
             }
@@ -248,7 +248,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         let mut current = node;
         let mut members = Vec::new();
         loop {
-            let children = direct_nodes(self.tree(), current);
+            let children = child_nodes(self.tree(), current);
             let [owner, member] = children.as_slice() else {
                 return Ok(false);
             };
@@ -328,7 +328,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let target = direct_child(self.tree(), node, NodeKind::BindingTarget)
+        let target = direct_node(self.tree(), node, NodeKind::BindingTarget)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         let token = direct_identifier(self.tree(), target)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(target))?;
@@ -348,10 +348,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             kind,
             documentation: Some(node),
         }));
-        if let Some(annotation) = direct_child(self.tree(), node, NodeKind::TypeAnnotation) {
+        if let Some(annotation) = direct_node(self.tree(), node, NodeKind::TypeAnnotation) {
             actions.push(Action::Visit(annotation));
         }
-        let expression = direct_child(self.tree(), node, NodeKind::Expression)
+        let expression = direct_node(self.tree(), node, NodeKind::Expression)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::Visit(expression));
         Ok(())
@@ -364,9 +364,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     ) -> Result<(), NameResolutionInternalError> {
         let token = direct_identifier(self.tree(), node)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let source = direct_child(self.tree(), node, NodeKind::ForSource)
+        let source = direct_node(self.tree(), node, NodeKind::ForSource)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::EnterBlock {
             block,
@@ -387,9 +387,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     ) -> Result<(), NameResolutionInternalError> {
         let token = direct_identifier(self.tree(), node)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let allocator = direct_child(self.tree(), node, NodeKind::AllocatorPlace)
+        let allocator = direct_node(self.tree(), node, NodeKind::AllocatorPlace)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::EnterBlock {
             block,
@@ -408,7 +408,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let nodes = direct_nodes(self.tree(), node);
+        let nodes = child_nodes(self.tree(), node);
         let condition = nodes
             .first()
             .copied()
@@ -434,7 +434,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn visit_match(&self, node: NodeId, actions: &mut Vec<Action>) {
-        let nodes = direct_nodes(self.tree(), node);
+        let nodes = child_nodes(self.tree(), node);
         for child in nodes.into_iter().rev() {
             actions.push(Action::Visit(child));
         }
@@ -445,7 +445,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::EnterBlock {
             block,
@@ -459,7 +459,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         let introductions = direct_identifier(self.tree(), node)
             .filter(|token| token_text(self.input.sources(), *token).ok() != Some("_"))
@@ -483,15 +483,15 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionError> {
-        let head = direct_child(self.tree(), node, NodeKind::ClosureHead)
+        let head = direct_node(self.tree(), node, NodeKind::ClosureHead)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let block = direct_child(self.tree(), node, NodeKind::Block)
+        let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let capture_nodes = direct_child(self.tree(), head, NodeKind::ClosureCaptures)
-            .map(|captures| direct_children(self.tree(), captures, NodeKind::ClosureCapture))
+        let capture_nodes = direct_node(self.tree(), head, NodeKind::ClosureCaptures)
+            .map(|captures| direct_nodes(self.tree(), captures, NodeKind::ClosureCapture))
             .unwrap_or_default();
-        let parameter_nodes = direct_child(self.tree(), head, NodeKind::ClosureParameters)
-            .map(|parameters| direct_children(self.tree(), parameters, NodeKind::ClosureParameter))
+        let parameter_nodes = direct_node(self.tree(), head, NodeKind::ClosureParameters)
+            .map(|parameters| direct_nodes(self.tree(), parameters, NodeKind::ClosureParameter))
             .unwrap_or_default();
 
         let outer_scope_count = self.active.len();
@@ -584,11 +584,11 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         block: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionError> {
-        let sequence = direct_child(self.tree(), block, NodeKind::ExecutableSequence);
+        let sequence = direct_node(self.tree(), block, NodeKind::ExecutableSequence);
         if let Some(sequence) = sequence {
             actions.push(Action::Visit(sequence));
         }
-        for import in direct_children(self.tree(), block, NodeKind::BlockUseDeclaration) {
+        for import in direct_nodes(self.tree(), block, NodeKind::BlockUseDeclaration) {
             self.declare_block_import(import)?;
         }
         Ok(())
@@ -600,7 +600,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             .get(&node)
             .copied()
             .ok_or(NameResolutionInternalError::MissingUseResolution(node))?;
-        let path = direct_child(self.tree(), node, NodeKind::ModulePath)
+        let path = direct_node(self.tree(), node, NodeKind::ModulePath)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         self.projections.push(Projection::new(
             SemanticEntity::Module(target_module),
@@ -609,9 +609,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Node(path))
             })?,
         ));
-        if let Some(selection) = direct_child(self.tree(), node, NodeKind::ImportSelection) {
-            for selected in direct_children(self.tree(), selection, NodeKind::SelectedName) {
-                let tokens = identifier_tokens(self.tree(), selected);
+        if let Some(selection) = direct_node(self.tree(), node, NodeKind::ImportSelection) {
+            for selected in direct_nodes(self.tree(), selection, NodeKind::SelectedName) {
+                let tokens = descendant_identifiers(self.tree(), selected);
                 let exported = *tokens
                     .first()
                     .ok_or(NameResolutionInternalError::InvalidSyntaxNode(selected))?;
@@ -651,7 +651,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 }
             }
         } else {
-            let token = *identifier_tokens(self.tree(), path)
+            let token = *descendant_identifiers(self.tree(), path)
                 .last()
                 .ok_or(NameResolutionInternalError::InvalidSyntaxNode(path))?;
             let name = self.symbol(token)?;
@@ -819,7 +819,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn resolve_node_name(&mut self, node: NodeId) -> Result<(), NameResolutionError> {
-        let identifiers = identifier_tokens(self.tree(), node);
+        let identifiers = descendant_identifiers(self.tree(), node);
         let token = if self.node_kind(node)? == NodeKind::DropStatement {
             identifiers.last().copied()
         } else {
@@ -934,7 +934,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             return Ok(Vec::new());
         };
         let mut result = Vec::new();
-        for slot in descendants(self.tree(), pattern, NodeKind::PayloadSlot) {
+        for slot in outermost_descendants(self.tree(), pattern, NodeKind::PayloadSlot) {
             let token = direct_identifier(self.tree(), slot)
                 .ok_or(NameResolutionInternalError::InvalidSyntaxNode(slot))?;
             if self.spelling(token_symbol(
@@ -1106,7 +1106,9 @@ fn descendant(
     root: NodeId,
     expected: NodeKind,
 ) -> Option<NodeId> {
-    descendants(tree, root, expected).into_iter().next()
+    outermost_descendants(tree, root, expected)
+        .into_iter()
+        .next()
 }
 
 const fn node_for_error(source: BodySource<'_>) -> NodeId {

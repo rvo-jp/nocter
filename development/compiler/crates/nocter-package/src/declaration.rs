@@ -4,8 +4,8 @@ use std::fmt;
 use nocter_model::PackageTargetKind;
 use nocter_source::SourceFile;
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind,
-    child_node_iter as child_nodes, decode_string_literal, direct_node,
+    Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, child_node_iter,
+    decode_string_literal, direct_node,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -247,7 +247,7 @@ pub fn decode_package_declaration(
     let mut targets = Vec::new();
     let mut target_order = 0_u32;
 
-    for declaration in child_nodes(tree, tree.root_id()) {
+    for declaration in child_node_iter(tree, tree.root_id()) {
         if tree
             .node(declaration)
             .is_none_or(|node| node.kind() != NodeKind::PackageDirective)
@@ -742,7 +742,7 @@ fn lock_literal(lock: &DependencyLock) -> NodeId {
 }
 
 fn direct_fields(tree: &SyntaxTree, record: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-    child_nodes(tree, record).filter(|child| {
+    child_node_iter(tree, record).filter(|child| {
         tree.node(*child)
             .is_some_and(|node| node.kind() == NodeKind::DirectiveField)
     })

@@ -12,7 +12,8 @@ use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{
-    direct_child, direct_children, direct_identifier, direct_nodes, direct_token, identifier_tokens,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, direct_nodes,
+    first_direct_token,
 };
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -158,7 +159,7 @@ impl BodyChecker<'_, '_> {
                 .kind(current)
                 .is_ok_and(crate::syntax::is_transparent_expression)
             {
-                let children = direct_nodes(self.tree(), current);
+                let children = child_nodes(self.tree(), current);
                 let [child] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(current).into());
                 };
@@ -167,7 +168,7 @@ impl BodyChecker<'_, '_> {
             if self.kind(current)? != NodeKind::PostfixExpression {
                 break;
             }
-            let children = direct_nodes(self.tree(), current);
+            let children = child_nodes(self.tree(), current);
             let [base, suffix] = children.as_slice() else {
                 return Err(BodyCheckInternalError::InvalidSyntax(current).into());
             };
@@ -201,7 +202,7 @@ impl BodyChecker<'_, '_> {
         &mut self,
         node: NodeId,
     ) -> Result<ExplicitConstructionOwner, BodyCheckError> {
-        let named = direct_child(self.tree(), node, NodeKind::NamedType)
+        let named = direct_node(self.tree(), node, NodeKind::NamedType)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let mut segments = self.named_segments(named)?;
         let Some(member) = segments.pop() else {
@@ -233,7 +234,7 @@ impl BodyChecker<'_, '_> {
         &mut self,
         node: NodeId,
     ) -> Result<Option<NominalConstructionOwner>, BodyCheckError> {
-        let Some(named) = direct_child(self.tree(), node, NodeKind::NamedType) else {
+        let Some(named) = direct_node(self.tree(), node, NodeKind::NamedType) else {
             return Ok(None);
         };
         let missing_member = self.tree().children(named).iter().copied().any(|element| {
@@ -267,7 +268,7 @@ impl BodyChecker<'_, '_> {
     pub(super) fn resolve_type_use(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
         match self.kind(node)? {
             NodeKind::Type => {
-                let children = direct_nodes(self.tree(), node);
+                let children = child_nodes(self.tree(), node);
                 let [base] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
@@ -305,7 +306,7 @@ impl BodyChecker<'_, '_> {
     }
 
     fn resolve_type_wrapper(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
-        let children = direct_nodes(self.tree(), node)
+        let children = child_nodes(self.tree(), node)
             .into_iter()
             .filter(|child| {
                 self.kind(*child)
@@ -330,7 +331,7 @@ impl BodyChecker<'_, '_> {
             },
             NodeKind::SliceType => TypeKind::Slice(inner),
             NodeKind::FixedArrayType => {
-                let expression = direct_child(self.tree(), node, NodeKind::Expression)
+                let expression = direct_node(self.tree(), node, NodeKind::Expression)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                 let length = self.evaluate_array_length(expression)?;
                 TypeKind::FixedArray {
@@ -347,33 +348,33 @@ impl BodyChecker<'_, '_> {
     }
 
     fn resolve_callable_type(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
-        let parameters_node = direct_child(self.tree(), node, NodeKind::CallableParameters)
+        let parameters_node = direct_node(self.tree(), node, NodeKind::CallableParameters)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let mut parameters = Vec::new();
         let mut names = Vec::new();
         let parameter_nodes =
-            direct_children(self.tree(), parameters_node, NodeKind::CallableParameter);
+            direct_nodes(self.tree(), parameters_node, NodeKind::CallableParameter);
         let mut has_argument_pack = false;
         for (position, parameter) in parameter_nodes.iter().copied().enumerate() {
             let pack =
-                direct_child(self.tree(), parameter, NodeKind::ArgumentPackModifier).is_some();
+                direct_node(self.tree(), parameter, NodeKind::ArgumentPackModifier).is_some();
             if pack && (has_argument_pack || position + 1 != parameter_nodes.len()) {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, parameter)?);
             }
             has_argument_pack |= pack;
-            let ty = direct_child(self.tree(), parameter, NodeKind::Type)
+            let ty = direct_node(self.tree(), parameter, NodeKind::Type)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(parameter))?;
             parameters.push(self.resolve_type_use(ty)?);
             names.push(direct_identifier(self.tree(), parameter));
         }
-        let result = direct_child(self.tree(), node, NodeKind::Type)
+        let result = direct_node(self.tree(), node, NodeKind::Type)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let result = self.resolve_type_use(result)?;
         let provenance = if let Some(clause) =
-            direct_child(self.tree(), node, NodeKind::ProvenanceClause)
+            direct_node(self.tree(), node, NodeKind::ProvenanceClause)
         {
             let mut origins = Vec::new();
-            let tokens = identifier_tokens(self.tree(), clause);
+            let tokens = descendant_identifiers(self.tree(), clause);
             for token in tokens.into_iter().skip(1) {
                 let name = self.token_text(token)?;
                 let Some(position) = names.iter().position(|candidate| {
@@ -468,7 +469,7 @@ impl BodyChecker<'_, '_> {
                         .kind(*child)
                         .is_ok_and(|kind| kind == NodeKind::SelfType) =>
                 {
-                    let token = direct_token(self.tree(), *child)
+                    let token = first_direct_token(self.tree(), *child)
                         .ok_or(BodyCheckInternalError::InvalidSyntax(*child))?;
                     segments.push(NamedSegment {
                         token,
@@ -483,7 +484,7 @@ impl BodyChecker<'_, '_> {
                     let Some(segment) = segments.last_mut() else {
                         return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                     };
-                    segment.arguments = direct_nodes(self.tree(), *child)
+                    segment.arguments = child_nodes(self.tree(), *child)
                         .into_iter()
                         .filter(|argument| {
                             self.kind(*argument)

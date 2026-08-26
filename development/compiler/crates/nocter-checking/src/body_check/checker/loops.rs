@@ -6,7 +6,7 @@ use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::body_check::literal::is_integer_type;
-use crate::syntax::{direct_children, direct_identifier};
+use crate::syntax::{direct_identifier, direct_nodes};
 use crate::{CheckedControl, CheckedLoop, CheckedOperation, LoopKind};
 
 pub(super) struct LoopConstruction {
@@ -64,7 +64,7 @@ impl BodyChecker<'_, '_> {
 
     fn check_for_loop(&mut self, statement: NodeId) -> Result<LoopKind, BodyCheckError> {
         let source = self.required_child(statement, NodeKind::ForSource)?;
-        let expressions = direct_children(self.tree(), source, NodeKind::Expression);
+        let expressions = direct_nodes(self.tree(), source, NodeKind::Expression);
         match expressions.as_slice() {
             [collection] => self.check_collection_loop(statement, *collection),
             [start, end] => self.check_range_loop(statement, *start, *end),

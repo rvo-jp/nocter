@@ -21,7 +21,7 @@ use crate::checked::{CheckedBodyBuilder, ClosureTableBuilder};
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTable};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
 use crate::syntax::{
-    direct_child, direct_identifier, direct_nodes, direct_token, identifier_tokens,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, first_direct_token,
     is_transparent_expression, token_text,
 };
 use crate::{
@@ -356,8 +356,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let mut statements = Vec::new();
         let mut result = None;
         let mut reachable = true;
-        if let Some(sequence) = direct_child(self.tree(), block, NodeKind::ExecutableSequence) {
-            for executable in direct_nodes(self.tree(), sequence) {
+        if let Some(sequence) = direct_node(self.tree(), block, NodeKind::ExecutableSequence) {
+            for executable in child_nodes(self.tree(), sequence) {
                 if !reachable {
                     statements.push(self.check_unreachable_executable(executable)?);
                     continue;
@@ -547,7 +547,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let target = self.required_child(statement, NodeKind::BindingTarget)?;
         let token = direct_identifier(self.tree(), target)
             .ok_or(BodyCheckInternalError::InvalidSyntax(target))?;
-        let annotation = direct_child(self.tree(), statement, NodeKind::TypeAnnotation);
+        let annotation = direct_node(self.tree(), statement, NodeKind::TypeAnnotation);
         let discard = self.token_text(token)? == "_";
         let mutable = self.tree().children(statement).iter().any(|element| {
             matches!(
@@ -594,7 +594,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn check_return(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
         if self.closure_result_inference.is_some() {
             let (payload, evidence) = if let Some(expression) =
-                direct_child(self.tree(), statement, NodeKind::Expression)
+                direct_node(self.tree(), statement, NodeKind::Expression)
             {
                 if closure_results::is_absent_expression(self, expression) {
                     (None, ExpectedEvidence::Absent)
@@ -628,7 +628,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             return Ok(control);
         }
         let value =
-            if let Some(expression) = direct_child(self.tree(), statement, NodeKind::Expression) {
+            if let Some(expression) = direct_node(self.tree(), statement, NodeKind::Expression) {
                 Some(self.check_expression(expression, Some(self.result_type))?)
             } else if self.result_type == self.types.builtin(BuiltinType::Void) {
                 None
@@ -648,7 +648,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn check_drop(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
-        let token = identifier_tokens(self.tree(), statement)
+        let token = descendant_identifiers(self.tree(), statement)
             .last()
             .copied()
             .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
@@ -682,7 +682,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         loop {
             let kind = self.kind(current)?;
             if is_transparent_expression(kind) {
-                let children = direct_nodes(self.tree(), current);
+                let children = child_nodes(self.tree(), current);
                 if children.len() == 1 {
                     current = children[0];
                     continue;
@@ -715,7 +715,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_logical(current, expected);
                 }
                 NodeKind::PostfixExpression
-                    if direct_child(self.tree(), current, NodeKind::CallSuffix).is_some() =>
+                    if direct_node(self.tree(), current, NodeKind::CallSuffix).is_some() =>
                 {
                     return self.check_call(current, expected);
                 }
@@ -758,7 +758,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let condition = self.required_child(node, NodeKind::IfCondition)?;
-        if direct_child(self.tree(), condition, NodeKind::EnumPattern).is_some() {
+        if direct_node(self.tree(), condition, NodeKind::EnumPattern).is_some() {
             return self.check_pattern_if(node, condition, expected);
         }
         let condition_expression = self.required_child(condition, NodeKind::Expression)?;
@@ -787,7 +787,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         expected: Option<TypeId>,
     ) -> Result<CheckedIfBranches, BodyCheckError> {
         let then_syntax = self.required_child(node, NodeKind::Block)?;
-        let else_syntax = direct_child(self.tree(), node, NodeKind::ElseClause);
+        let else_syntax = direct_node(self.tree(), node, NodeKind::ElseClause);
         let then_expectation = if else_syntax.is_some() {
             BlockExpectation::Value(expected)
         } else {
@@ -798,16 +798,16 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let (else_branch, else_type) = if let Some(else_clause) = else_syntax {
             let inferred = expected
                 .or((then_type != self.types.builtin(BuiltinType::Never)).then_some(then_type));
-            let branch =
-                if let Some(block) = direct_child(self.tree(), else_clause, NodeKind::Block) {
-                    self.check_block(block, BlockExpectation::Value(inferred))?
-                } else if let Some(if_expression) =
-                    direct_child(self.tree(), else_clause, NodeKind::IfExpression)
-                {
-                    self.check_if(if_expression, inferred)?
-                } else {
-                    return Err(BodyCheckInternalError::InvalidSyntax(else_clause).into());
-                };
+            let branch = if let Some(block) = direct_node(self.tree(), else_clause, NodeKind::Block)
+            {
+                self.check_block(block, BlockExpectation::Value(inferred))?
+            } else if let Some(if_expression) =
+                direct_node(self.tree(), else_clause, NodeKind::IfExpression)
+            {
+                self.check_if(if_expression, inferred)?
+            } else {
+                return Err(BodyCheckInternalError::InvalidSyntax(else_clause).into());
+            };
             (Some(branch), Some(self.node_type(branch)?))
         } else {
             (None, None)
@@ -831,8 +831,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        let token =
-            direct_token(self.tree(), node).ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let token = first_direct_token(self.tree(), node)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         match token.kind() {
             TokenKind::Keyword(Keyword::True | Keyword::False) => {
                 let value = token.kind() == TokenKind::Keyword(Keyword::True);
@@ -920,7 +920,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         &mut self,
         node: NodeId,
     ) -> Result<Option<(TypeId, ConstantValue)>, BodyCheckError> {
-        let tokens = identifier_tokens(self.tree(), node);
+        let tokens = descendant_identifiers(self.tree(), node);
         let Some(last) = tokens.last().copied() else {
             return Ok(None);
         };
@@ -950,7 +950,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn is_constant_reference(&self, node: NodeId) -> bool {
-        identifier_tokens(self.tree(), node)
+        descendant_identifiers(self.tree(), node)
             .last()
             .and_then(|token| self.uses.get(&SyntaxOrigin::Token(*token)))
             .is_some_and(|target| {
@@ -1047,7 +1047,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         kind: NodeKind,
     ) -> Result<NodeId, BodyCheckInternalError> {
-        direct_child(self.tree(), node, kind).ok_or(BodyCheckInternalError::InvalidSyntax(node))
+        direct_node(self.tree(), node, kind).ok_or(BodyCheckInternalError::InvalidSyntax(node))
     }
 
     fn kind(&self, node: NodeId) -> Result<NodeKind, BodyCheckInternalError> {

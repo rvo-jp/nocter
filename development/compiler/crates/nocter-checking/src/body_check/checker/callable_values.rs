@@ -4,7 +4,7 @@ use nocter_syntax::NodeId;
 use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::direct_nodes;
+use crate::syntax::child_nodes;
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, CheckedPredicate, GenericArguments, PlaceAccess,
     StaticDispatch, StaticSelection,
@@ -49,7 +49,7 @@ impl BodyChecker<'_, '_> {
                 contract.result(),
             ),
         };
-        let argument_syntax = direct_nodes(self.tree(), suffix);
+        let argument_syntax = child_nodes(self.tree(), suffix);
         if argument_syntax.len() != parameters.len() {
             return Err(self.rule(BodyRule::InvalidCall, suffix)?);
         }

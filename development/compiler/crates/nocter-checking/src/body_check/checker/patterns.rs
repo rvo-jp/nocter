@@ -13,8 +13,8 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
 use crate::instance_operations::selected_generic_arguments;
 use crate::syntax::{
-    descendants, direct_child, direct_children, direct_identifier, direct_nodes, identifier_tokens,
-    is_transparent_expression,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, direct_nodes,
+    is_transparent_expression, outermost_descendants,
 };
 use crate::type_relations::{TypeSubstitution, match_type_pattern};
 use crate::{
@@ -48,7 +48,7 @@ impl BodyChecker<'_, '_> {
         let pattern_syntax = self.required_child(condition, NodeKind::EnumPattern)?;
         let pattern = self.check_enum_pattern(pattern_syntax, &subject)?;
 
-        let else_syntax = direct_child(self.tree(), node, NodeKind::ElseClause);
+        let else_syntax = direct_node(self.tree(), node, NodeKind::ElseClause);
         let branches = self.check_if_branches(node, expected)?;
         let fallback = branches
             .else_branch
@@ -83,14 +83,14 @@ impl BodyChecker<'_, '_> {
         let mut branch_types = Vec::new();
         let mut inferred = expected;
 
-        let arm_nodes = direct_children(self.tree(), node, NodeKind::MatchArm);
+        let arm_nodes = direct_nodes(self.tree(), node, NodeKind::MatchArm);
         if arm_nodes.is_empty() {
             return Err(self.rule(BodyRule::InvalidMatchCoverage, node)?);
         }
         for (position, arm_syntax) in arm_nodes.iter().copied().enumerate() {
             let block = self.required_child(arm_syntax, NodeKind::Block)?;
             if let Some(pattern_syntax) =
-                direct_child(self.tree(), arm_syntax, NodeKind::EnumPattern)
+                direct_node(self.tree(), arm_syntax, NodeKind::EnumPattern)
             {
                 if fallback.is_some() {
                     return Err(self.rule(BodyRule::InvalidMatchCoverage, arm_syntax)?);
@@ -151,7 +151,7 @@ impl BodyChecker<'_, '_> {
             }
             NodeKind::PostfixExpression
                 if !self.is_constant_reference(syntax)
-                    && direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
+                    && direct_node(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
             {
                 let place = self.postfix_place(syntax, BorrowCapability::Readonly)?;
                 let value = self.add_node(syntax, place.ty, CheckedOperation::Place(place.id))?;
@@ -215,7 +215,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<CheckedPattern, BodyCheckError> {
         self.record_enum_pattern_interruption(node, subject.checked.nominal())?;
         let resolved = self.resolve_pattern_variant(node, subject)?;
-        let slot_nodes = descendants(self.tree(), node, NodeKind::PayloadSlot);
+        let slot_nodes = outermost_descendants(self.tree(), node, NodeKind::PayloadSlot);
         if resolved.parameters.len() != slot_nodes.len() {
             return Err(self.rule(BodyRule::InvalidPatternOperation, node)?);
         }
@@ -242,7 +242,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         subject: &PatternSubjectPlan,
     ) -> Result<ResolvedPatternVariant, BodyCheckError> {
-        let identifiers = identifier_tokens(self.tree(), node);
+        let identifiers = descendant_identifiers(self.tree(), node);
         let [owner_token, variant_token, ..] = identifiers.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
@@ -465,7 +465,7 @@ impl BodyChecker<'_, '_> {
     fn transparent_expression(&self, root: NodeId) -> NodeId {
         let mut current = root;
         while self.kind(current).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(self.tree(), current);
+            let children = child_nodes(self.tree(), current);
             let [child] = children.as_slice() else {
                 break;
             };

@@ -5,8 +5,8 @@ use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
-    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, child_node_iter as child_nodes,
-    declaration_name_token, direct_node as direct_child,
+    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, child_node_iter,
+    declaration_name_token, direct_node,
 };
 
 use crate::topology::{
@@ -554,7 +554,7 @@ fn collect_source(
     if tree.root().kind() != NodeKind::SourceFile {
         return Err(SurfaceError::InvalidRootShape(tree.source()));
     }
-    for child in child_nodes(tree, tree.root_id()) {
+    for child in child_node_iter(tree, tree.root_id()) {
         match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::PackageDirective) if source.kind() == ModuleSourceKind::Root => {}
             Some(NodeKind::SourceVisibilityDeclaration) => {
@@ -574,7 +574,7 @@ fn collect_source(
             }
             Some(NodeKind::UseDeclaration) => {
                 if source.kind() == ModuleSourceKind::Implementation
-                    && let Some(visibility) = direct_child(tree, child, NodeKind::Visibility)
+                    && let Some(visibility) = direct_node(tree, child, NodeKind::Visibility)
                 {
                     return Err(SurfaceError::ImplementationVisibility(visibility));
                 }
@@ -645,7 +645,7 @@ fn collect_item(
 ) -> Result<(), SurfaceError> {
     let mut has_target_gate = false;
     let mut declaration = None;
-    for child in child_nodes(tree, item) {
+    for child in child_node_iter(tree, item) {
         let kind = tree
             .node(child)
             .ok_or(SurfaceError::InvalidItemShape(item))?
@@ -704,10 +704,10 @@ fn append_declaration(
             owner,
             name,
             entity_origin,
-            visibility: direct_child(tree, node, NodeKind::Visibility),
+            visibility: direct_node(tree, node, NodeKind::Visibility),
             target_gate,
             interface_default: kind == SurfaceDeclarationKind::InterfaceMethod
-                && direct_child(tree, node, NodeKind::InterfaceDefaultModifier).is_some(),
+                && direct_node(tree, node, NodeKind::InterfaceDefaultModifier).is_some(),
         });
         for nested in nested_declarations(tree, node)?.into_iter().rev() {
             pending.push((nested, Some(id), None));
@@ -718,7 +718,7 @@ fn append_declaration(
 
 fn nested_declarations(tree: &SyntaxTree, root: NodeId) -> Result<Vec<NodeId>, SurfaceError> {
     let mut result = Vec::new();
-    let mut pending: Vec<_> = child_nodes(tree, root).rev().collect();
+    let mut pending: Vec<_> = child_node_iter(tree, root).rev().collect();
     while let Some(node) = pending.pop() {
         let kind = tree
             .node(node)
@@ -730,7 +730,7 @@ fn nested_declarations(tree: &SyntaxTree, root: NodeId) -> Result<Vec<NodeId>, S
         if declaration_kind(tree, node).is_some() {
             result.push(node);
         } else {
-            pending.extend(child_nodes(tree, node).rev());
+            pending.extend(child_node_iter(tree, node).rev());
         }
     }
     Ok(result)
@@ -750,7 +750,7 @@ fn validate_implementation_item(
             return Err(SurfaceError::ImplementationVisibility(node));
         }
         if kind != NodeKind::Block {
-            pending.extend(child_nodes(tree, node));
+            pending.extend(child_node_iter(tree, node));
         }
     }
     if is_bodyless_nominal(tree, declaration) {
@@ -761,29 +761,29 @@ fn validate_implementation_item(
 
 fn validate_root_item(tree: &SyntaxTree, declaration: NodeId) -> Result<(), SurfaceError> {
     if is_bodyless_nominal(tree, declaration) {
-        if direct_child(tree, declaration, NodeKind::Visibility).is_none() {
+        if direct_node(tree, declaration, NodeKind::Visibility).is_none() {
             return Err(SurfaceError::InvalidNominalContract(declaration));
         }
         return Ok(());
     }
     match tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) {
         Some(NodeKind::ConstructDeclaration) => {
-            for member in child_nodes(tree, declaration) {
+            for member in child_node_iter(tree, declaration) {
                 if matches!(
                     tree.node(member).map(nocter_syntax::SyntaxNode::kind),
                     Some(NodeKind::ConstructionFunction | NodeKind::LiteralDeclaration)
                 ) && !contains_child_kind(tree, member, NodeKind::Block)
-                    && direct_child(tree, member, NodeKind::Visibility).is_none()
+                    && direct_node(tree, member, NodeKind::Visibility).is_none()
                 {
                     return Err(SurfaceError::MissingConstructionContractVisibility(member));
                 }
             }
         }
         Some(NodeKind::InterfaceDeclaration) => {
-            for member in child_nodes(tree, declaration) {
+            for member in child_node_iter(tree, declaration) {
                 if tree.node(member).map(nocter_syntax::SyntaxNode::kind)
                     == Some(NodeKind::InterfaceMethod)
-                    && direct_child(tree, member, NodeKind::Visibility).is_none()
+                    && direct_node(tree, member, NodeKind::Visibility).is_none()
                 {
                     return Err(SurfaceError::MissingInterfaceContractVisibility(member));
                 }
@@ -812,7 +812,7 @@ fn is_bodyless_nominal(tree: &SyntaxTree, declaration: NodeId) -> bool {
 fn contains_child_kind(tree: &SyntaxTree, root: NodeId, expected: NodeKind) -> bool {
     let mut pending = vec![root];
     while let Some(node) = pending.pop() {
-        for child in child_nodes(tree, node) {
+        for child in child_node_iter(tree, node) {
             if tree.node(child).map(nocter_syntax::SyntaxNode::kind) == Some(expected) {
                 return true;
             }

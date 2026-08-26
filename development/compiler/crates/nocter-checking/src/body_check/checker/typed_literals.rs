@@ -11,7 +11,7 @@ use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::interface_implementation::normalize_requirements;
-use crate::syntax::{direct_child, direct_children};
+use crate::syntax::{direct_node, direct_nodes};
 use crate::type_relations::TypeSubstitution;
 use crate::{
     AllocationSelection, ArgumentPackSegment, CallableInference, CheckedOperation, CheckedSequence,
@@ -42,7 +42,7 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::Sequence)?;
-        let body = direct_child(self.tree(), node, NodeKind::SequenceBody)
+        let body = direct_node(self.tree(), node, NodeKind::SequenceBody)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let allocation = self.literal_allocation(node)?;
 
@@ -61,14 +61,14 @@ impl BodyChecker<'_, '_> {
         let mut values = Vec::new();
         let mut destinations = Vec::new();
         let mut elements = Vec::new();
-        for element in direct_children(self.tree(), body, NodeKind::SequenceElement) {
-            if let Some(spread) = direct_child(self.tree(), element, NodeKind::SpreadExpression) {
+        for element in direct_nodes(self.tree(), body, NodeKind::SequenceElement) {
+            if let Some(spread) = direct_node(self.tree(), element, NodeKind::SpreadExpression) {
                 let spread = self.check_argument_spread(element, spread)?;
                 inference.constrain_exact(element_pattern, spread.contribution);
                 elements.push(SequenceElementDraft::Spread(spread));
                 continue;
             }
-            let syntax = direct_child(self.tree(), element, NodeKind::Expression)
+            let syntax = direct_node(self.tree(), element, NodeKind::Expression)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(element))?;
             let draft = self.draft_positional_value(
                 syntax,
@@ -129,7 +129,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let mut plan = self.literal_plan(node, LiteralShape::String)?;
         let allocation = self.literal_allocation(node)?;
-        let literal = direct_child(self.tree(), node, NodeKind::StringLiteral)
+        let literal = direct_node(self.tree(), node, NodeKind::StringLiteral)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let text = nocter_syntax::decode_string_literal(
             self.input
@@ -176,7 +176,7 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         shape: LiteralShape,
     ) -> Result<LiteralPlan, BodyCheckError> {
-        let owner_syntax = direct_child(self.tree(), node, NodeKind::NamedType)
+        let owner_syntax = direct_node(self.tree(), node, NodeKind::NamedType)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let owner = self.resolve_nominal_construction_type(owner_syntax)?;
         let Some(construction) = self.construction_surfaces.for_nominal(owner.definition) else {
@@ -295,10 +295,10 @@ impl BodyChecker<'_, '_> {
     }
 
     fn literal_allocation(&mut self, node: NodeId) -> Result<AllocationSelection, BodyCheckError> {
-        let Some(allocation) = direct_child(self.tree(), node, NodeKind::AllocationOverride) else {
+        let Some(allocation) = direct_node(self.tree(), node, NodeKind::AllocationOverride) else {
             return Ok(AllocationSelection::CurrentRegion);
         };
-        let allocator = direct_child(self.tree(), allocation, NodeKind::AllocatorPlace)
+        let allocator = direct_node(self.tree(), allocation, NodeKind::AllocatorPlace)
             .ok_or(BodyCheckInternalError::InvalidSyntax(allocation))?;
         Ok(AllocationSelection::Explicit(
             self.check_allocation_place(allocator)?,

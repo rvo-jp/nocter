@@ -8,7 +8,7 @@ use super::call_planning::DeclaredCallGenerics;
 use super::value_planning::CallResultContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
+use crate::syntax::{child_nodes, direct_identifier, is_transparent_expression};
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, NameTarget, StaticDispatch, StaticSelection,
 };
@@ -204,7 +204,7 @@ impl BodyChecker<'_, '_> {
         suffix: NodeId,
         result_context: Option<CallResultContext>,
     ) -> Result<Option<BodyNodeId>, BodyCheckError> {
-        let owner_tokens = crate::syntax::identifier_tokens(self.tree(), owner);
+        let owner_tokens = crate::syntax::descendant_identifiers(self.tree(), owner);
         let Some(owner_token) = owner_tokens.last().copied() else {
             return Ok(None);
         };
@@ -235,14 +235,14 @@ fn owner_is_direct_call_result(
     mut node: NodeId,
 ) -> Result<bool, BodyCheckInternalError> {
     while checker.kind(node).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), node);
+        let children = child_nodes(checker.tree(), node);
         let [child] = children.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node));
         };
         node = *child;
     }
     Ok(checker.kind(node)? == NodeKind::PostfixExpression
-        && crate::syntax::direct_child(checker.tree(), node, NodeKind::CallSuffix).is_some())
+        && crate::syntax::direct_node(checker.tree(), node, NodeKind::CallSuffix).is_some())
 }
 
 pub(super) fn member_owner_is_value(
@@ -251,7 +251,7 @@ pub(super) fn member_owner_is_value(
 ) -> Result<bool, BodyCheckInternalError> {
     loop {
         while checker.kind(node).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(checker.tree(), node);
+            let children = child_nodes(checker.tree(), node);
             let [child] = children.as_slice() else {
                 return Err(BodyCheckInternalError::InvalidSyntax(node));
             };
@@ -265,7 +265,7 @@ pub(super) fn member_owner_is_value(
                 ));
             }
             NodeKind::PostfixExpression => {
-                let children = direct_nodes(checker.tree(), node);
+                let children = child_nodes(checker.tree(), node);
                 let [base, suffix] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node));
                 };
@@ -285,7 +285,7 @@ pub(super) fn construction_member_syntax(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
 ) -> Result<Option<(NodeId, NodeId)>, BodyCheckInternalError> {
-    let children = direct_nodes(checker.tree(), node);
+    let children = child_nodes(checker.tree(), node);
     let [owner, member] = children.as_slice() else {
         return Ok(None);
     };
@@ -317,7 +317,7 @@ fn call_syntax(
     checker: &BodyChecker<'_, '_>,
     node: NodeId,
 ) -> Result<CallSyntax, BodyCheckInternalError> {
-    let children = direct_nodes(checker.tree(), node);
+    let children = child_nodes(checker.tree(), node);
     let [callee, suffix] = children.as_slice() else {
         return Err(BodyCheckInternalError::InvalidSyntax(node));
     };
@@ -326,7 +326,7 @@ fn call_syntax(
     }
     let mut callee = *callee;
     while checker.kind(callee).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), callee);
+        let children = child_nodes(checker.tree(), callee);
         let [child] = children.as_slice() else {
             break;
         };
@@ -345,7 +345,7 @@ fn call_syntax(
         });
     }
     if checker.kind(callee)? == NodeKind::PostfixExpression {
-        let member_children = direct_nodes(checker.tree(), callee);
+        let member_children = child_nodes(checker.tree(), callee);
         if let [owner, member] = member_children.as_slice()
             && checker.kind(*member)? == NodeKind::MemberSuffix
         {
@@ -386,7 +386,7 @@ pub(super) fn call_name_target(
 }
 
 fn identifier(checker: &BodyChecker<'_, '_>, node: NodeId) -> Option<SyntaxToken> {
-    let mut found = crate::syntax::identifier_tokens(checker.tree(), node).into_iter();
+    let mut found = crate::syntax::descendant_identifiers(checker.tree(), node).into_iter();
     let token = found.next()?;
     found.next().is_none().then_some(token)
 }

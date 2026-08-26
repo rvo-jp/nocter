@@ -8,7 +8,7 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{IndexOperationCandidate, retain_direct_candidates};
 use crate::syntax::{
-    direct_child, direct_identifier, direct_nodes, identifier_tokens, is_transparent_expression,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, is_transparent_expression,
 };
 use crate::{LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot};
 
@@ -25,7 +25,7 @@ struct PlaceDraft {
 
 impl BodyChecker<'_, '_> {
     pub(super) fn named_place(&mut self, node: NodeId) -> Result<ResolvedPlace, BodyCheckError> {
-        let tokens = identifier_tokens(self.tree(), node);
+        let tokens = descendant_identifiers(self.tree(), node);
         let root = tokens
             .first()
             .copied()
@@ -377,7 +377,7 @@ impl BodyChecker<'_, '_> {
             Some(_) => None,
             None => return Err(BodyCheckInternalError::UnknownType(base).into()),
         };
-        let expression = direct_child(self.tree(), suffix, NodeKind::Expression)
+        let expression = direct_node(self.tree(), suffix, NodeKind::Expression)
             .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
         if let Some(element) = builtin {
             let index =
@@ -621,14 +621,14 @@ fn collect_postfix_operations(
                 });
             }
             kind if is_transparent_expression(kind) => {
-                let children = direct_nodes(tree, node);
+                let children = child_nodes(tree, node);
                 if children.len() != 1 {
                     return Err(PlaceSyntaxError::NotPlace(node));
                 }
                 node = children[0];
             }
             NodeKind::PostfixExpression => {
-                let children = direct_nodes(tree, node);
+                let children = child_nodes(tree, node);
                 if children.len() != 2 {
                     return Err(PlaceSyntaxError::InvalidSyntax(node));
                 }

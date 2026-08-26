@@ -1,8 +1,5 @@
 use nocter_model::BuiltinType;
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
-pub(crate) use nocter_syntax::{
-    child_nodes as direct_nodes, direct_node, first_direct_token as direct_token,
-};
 
 #[derive(Clone, Copy)]
 pub(crate) struct IntegerSpec {
@@ -84,7 +81,7 @@ pub(crate) fn shift(
 }
 
 pub(crate) fn expression_children(tree: &SyntaxTree, node: NodeId) -> Vec<NodeId> {
-    direct_nodes(tree, node)
+    nocter_syntax::child_nodes(tree, node)
         .into_iter()
         .filter(|node| {
             tree.node(*node).is_some_and(|syntax| {

@@ -4,7 +4,7 @@ use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
+use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
     CheckedControl, CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence, OutcomeLayer,
     plan_expected_type,
@@ -283,7 +283,7 @@ fn layer(
 
 pub(super) fn is_absent_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> bool {
     while checker.kind(node).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), node);
+        let children = child_nodes(checker.tree(), node);
         let [child] = children.as_slice() else {
             return false;
         };
@@ -292,7 +292,7 @@ pub(super) fn is_absent_expression(checker: &BodyChecker<'_, '_>, mut node: Node
     checker
         .kind(node)
         .is_ok_and(|kind| kind == NodeKind::ScalarLiteral)
-        && direct_token(checker.tree(), node)
+        && first_direct_token(checker.tree(), node)
             .is_some_and(|token| token.kind() == TokenKind::Keyword(Keyword::None))
 }
 

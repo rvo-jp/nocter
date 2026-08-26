@@ -6,7 +6,7 @@ use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_child, direct_nodes, direct_token, is_transparent_expression};
+use crate::syntax::{child_nodes, direct_node, first_direct_token, is_transparent_expression};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
     CallableInference, CheckedPredicate, CheckedRequirement, GenericArguments, InferenceEvidence,
@@ -293,7 +293,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<Option<super::ResolvedPlace>, BodyCheckError> {
         let mut syntax = root;
         while self.kind(syntax).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(self.tree(), syntax);
+            let children = child_nodes(self.tree(), syntax);
             let [child] = children.as_slice() else {
                 break;
             };
@@ -305,7 +305,7 @@ impl BodyChecker<'_, '_> {
         match self.kind(syntax)? {
             NodeKind::ReferenceExpression => self.named_place(syntax).map(Some),
             NodeKind::PostfixExpression
-                if direct_child(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
+                if direct_node(self.tree(), syntax, NodeKind::CallSuffix).is_none() =>
             {
                 if super::calls::construction_member_syntax(self, syntax)?.is_some() {
                     return Ok(None);
@@ -354,7 +354,7 @@ fn contextual_callable_contract(
 
 fn closure_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> Option<NodeId> {
     while checker.kind(node).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), node);
+        let children = child_nodes(checker.tree(), node);
         let [child] = children.as_slice() else {
             return None;
         };
@@ -368,7 +368,7 @@ fn closure_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> Option
 
 fn is_none_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> bool {
     while checker.kind(node).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), node);
+        let children = child_nodes(checker.tree(), node);
         let [child] = children.as_slice() else {
             return false;
         };
@@ -377,6 +377,6 @@ fn is_none_expression(checker: &BodyChecker<'_, '_>, mut node: NodeId) -> bool {
     checker
         .kind(node)
         .is_ok_and(|kind| kind == NodeKind::ScalarLiteral)
-        && direct_token(checker.tree(), node)
+        && first_direct_token(checker.tree(), node)
             .is_some_and(|token| token.kind() == TokenKind::Keyword(Keyword::None))
 }

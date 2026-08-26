@@ -8,7 +8,7 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::copyability::Copyability;
 use crate::instance_operations::MethodCandidate;
-use crate::syntax::{direct_nodes, direct_token, is_transparent_expression};
+use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
     CheckedIteratorAcquisition, CheckedOperation, CheckedReceiver, IterationAcquisition,
     ReadonlyOperandPreparation, ReceiverPreparation, SpreadMode, StaticDispatch, StaticSelection,
@@ -453,7 +453,7 @@ impl BodyChecker<'_, '_> {
         token_kind: TokenKind,
         dispatch: StaticDispatch,
     ) -> Result<(), BodyCheckInternalError> {
-        let token = direct_token(self.tree(), syntax)
+        let token = first_direct_token(self.tree(), syntax)
             .filter(|token| token.kind() == token_kind)
             .ok_or(BodyCheckInternalError::InvalidSyntax(syntax))?;
         let entity = match dispatch {
@@ -505,7 +505,7 @@ fn modifier_operand(
     checker: &BodyChecker<'_, '_>,
     modifier: NodeId,
 ) -> Result<NodeId, BodyCheckError> {
-    let children = direct_nodes(checker.tree(), modifier);
+    let children = child_nodes(checker.tree(), modifier);
     let [operand] = children.as_slice() else {
         return Err(BodyCheckInternalError::InvalidSyntax(modifier).into());
     };
@@ -515,7 +515,7 @@ fn modifier_operand(
 fn spread_mode(checker: &BodyChecker<'_, '_>, root: NodeId) -> Result<SpreadMode, BodyCheckError> {
     let mut syntax = root;
     while checker.kind(syntax).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), syntax);
+        let children = child_nodes(checker.tree(), syntax);
         let [child] = children.as_slice() else {
             break;
         };
@@ -524,7 +524,7 @@ fn spread_mode(checker: &BodyChecker<'_, '_>, root: NodeId) -> Result<SpreadMode
     match checker.kind(syntax)? {
         NodeKind::MoveExpression => Ok(SpreadMode::Move),
         NodeKind::UnaryExpression => {
-            match direct_token(checker.tree(), syntax).map(nocter_syntax::SyntaxToken::kind) {
+            match first_direct_token(checker.tree(), syntax).map(nocter_syntax::SyntaxToken::kind) {
                 Some(TokenKind::Punctuation(Punctuation::Ampersand)) => Ok(SpreadMode::Borrow),
                 Some(TokenKind::Punctuation(Punctuation::ReadWrite)) => {
                     Err(checker.rule(BodyRule::InvalidSpreadAcquisition, syntax)?)
@@ -542,7 +542,7 @@ fn collection_source_mode(
 ) -> Result<CollectionSourceMode, BodyCheckError> {
     let mut syntax = root;
     while checker.kind(syntax).is_ok_and(is_transparent_expression) {
-        let children = direct_nodes(checker.tree(), syntax);
+        let children = child_nodes(checker.tree(), syntax);
         let [child] = children.as_slice() else {
             break;
         };
@@ -551,7 +551,7 @@ fn collection_source_mode(
     match checker.kind(syntax)? {
         NodeKind::MoveExpression => Ok(CollectionSourceMode::Move(syntax)),
         NodeKind::UnaryExpression => {
-            match direct_token(checker.tree(), syntax).map(nocter_syntax::SyntaxToken::kind) {
+            match first_direct_token(checker.tree(), syntax).map(nocter_syntax::SyntaxToken::kind) {
                 Some(TokenKind::Punctuation(Punctuation::Ampersand)) => {
                     Ok(CollectionSourceMode::Readonly(syntax))
                 }

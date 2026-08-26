@@ -1,5 +1,5 @@
 use nocter_declarations::Visibility;
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
+use nocter_syntax::{NodeId, NodeKind, Punctuation, TokenKind};
 
 use crate::{ReservedDeclarations, SurfaceSourceId};
 
@@ -70,18 +70,10 @@ pub(crate) fn resolve_authored(
 }
 
 fn descendant_punctuation(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Vec<Punctuation> {
-    let mut punctuation = Vec::new();
-    let mut pending: Vec<_> = tree.children(node).iter().rev().copied().collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => pending.extend(tree.children(node).iter().rev().copied()),
-            SyntaxElement::Token(token) => {
-                if let TokenKind::Punctuation(value) = token.kind() {
-                    punctuation.push(value);
-                }
-            }
-            SyntaxElement::Missing(_) => {}
-        }
-    }
-    punctuation
+    nocter_syntax::descendant_token_iter(tree, node)
+        .filter_map(|token| match token.kind() {
+            TokenKind::Punctuation(value) => Some(value),
+            _ => None,
+        })
+        .collect()
 }

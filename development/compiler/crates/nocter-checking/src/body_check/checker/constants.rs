@@ -11,7 +11,7 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin};
 
 use super::BodyChecker;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_identifier, direct_nodes};
+use crate::syntax::{child_nodes, direct_identifier};
 use crate::{ConstantExpressionRule, NameTarget};
 
 struct BodyConstantResolver<'checker, 'input, 'syntax> {
@@ -127,7 +127,7 @@ impl BodyConstantResolver<'_, '_, '_> {
                 Ok(entity)
             }
             NodeKind::PostfixExpression => {
-                let children = direct_nodes(self.checker.tree(), node);
+                let children = child_nodes(self.checker.tree(), node);
                 let [base, suffix] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };

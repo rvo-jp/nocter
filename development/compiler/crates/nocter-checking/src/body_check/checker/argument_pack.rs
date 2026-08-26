@@ -6,7 +6,7 @@ use nocter_syntax::{NodeId, NodeKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::syntax::{direct_identifier, direct_nodes, is_transparent_expression};
+use crate::syntax::{child_nodes, direct_identifier, is_transparent_expression};
 use crate::{CheckedOperation, NameTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,7 +49,7 @@ impl BodyChecker<'_, '_> {
         mut syntax: NodeId,
     ) -> Result<Option<(ParameterId, TypeId)>, BodyCheckError> {
         while self.kind(syntax).is_ok_and(is_transparent_expression) {
-            let children = direct_nodes(self.tree(), syntax);
+            let children = child_nodes(self.tree(), syntax);
             let [child] = children.as_slice() else {
                 return Ok(None);
             };
@@ -91,7 +91,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let member = direct_identifier(self.tree(), member)
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
-        if self.token_text(member)? != "len" || !direct_nodes(self.tree(), suffix).is_empty() {
+        if self.token_text(member)? != "len" || !child_nodes(self.tree(), suffix).is_empty() {
             return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
         }
         let ty = self.types.builtin(nocter_model::BuiltinType::Usize);

@@ -571,13 +571,7 @@ fn invalid_requirement(node: NodeId) -> TypeBindingError {
 }
 
 fn direct_identifiers(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => Some(*token),
-            _ => None,
-        })
-        .collect()
+    nocter_syntax::direct_identifier_iter(tree, node).collect()
 }
 
 fn has_punctuation(tree: &SyntaxTree, node: NodeId, punctuation: Punctuation) -> bool {
