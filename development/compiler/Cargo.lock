@@ -1787,7 +1787,6 @@ version = "0.0.0"
 dependencies = [
  "nocter-model",
  "nocter-source",
- "nocter-source-index",
  "nocter-syntax",
 ]
 
