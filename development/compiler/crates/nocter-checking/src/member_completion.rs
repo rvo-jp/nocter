@@ -81,6 +81,7 @@ pub enum MemberCompletionError {
     MissingBody(BodyId),
     MissingReceiver(nocter_model::BodyNodeId),
     UnknownReceiver(TypeId),
+    InvalidRecoveryEvidence,
     PoisonedQueryState,
 }
 
@@ -104,6 +105,9 @@ impl fmt::Display for MemberCompletionError {
                     formatter,
                     "member completion receiver {receiver:?} is absent"
                 )
+            }
+            Self::InvalidRecoveryEvidence => {
+                formatter.write_str("member completion recovery evidence is inconsistent")
             }
             Self::PoisonedQueryState => {
                 formatter.write_str("member completion query state is poisoned")

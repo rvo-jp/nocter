@@ -35,8 +35,8 @@ impl BodyConstructionFailure {
         (*self.error, self.interruption)
     }
 
-    pub(super) const fn has_interruption(&self) -> bool {
-        self.interruption.is_some()
+    pub(super) const fn interruption(&self) -> Option<&super::TypedBodyInterruption> {
+        self.interruption.as_ref()
     }
 }
 
@@ -239,6 +239,7 @@ pub enum BodyCheckInternalError {
     ProvenanceAnalysis,
     LoanAnalysis,
     OpaqueWitnessPlanning,
+    TypeProjection(nocter_model::TypeProjectionError),
 }
 
 impl fmt::Display for BodyCheckInternalError {
@@ -306,5 +307,11 @@ impl From<crate::ConstructionSurfaceSelectionError> for BodyCheckInternalError {
 impl From<DuplicateSourceBinding> for BodyCheckInternalError {
     fn from(error: DuplicateSourceBinding) -> Self {
         Self::DuplicateProjection(error)
+    }
+}
+
+impl From<nocter_model::TypeProjectionError> for BodyCheckInternalError {
+    fn from(error: nocter_model::TypeProjectionError) -> Self {
+        Self::TypeProjection(error)
     }
 }

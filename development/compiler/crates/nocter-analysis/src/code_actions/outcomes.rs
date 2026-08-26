@@ -123,7 +123,7 @@ pub(super) fn callable_contract_action(
         .transpose()
         .map_err(|_| OutcomeActionError::UnrenderableResult(*proposed_result))?
         .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
-    let presentation = recovery_type_presentation(&projection, graph, module)
+    let presentation = recovery_type_presentation(projection, graph, module)
         .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
     let layer_name = match layer {
         nocter_checking::OutcomeLayer::Optional => "optional",

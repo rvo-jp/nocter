@@ -1,6 +1,6 @@
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::SourceOwnershipTable;
-use nocter_model::{Arena, TypeProjection, TypeProjectionError, TypeStore};
+use nocter_model::{Arena, TypeProjection, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
 
@@ -91,9 +91,39 @@ impl DeclarationAnalysisRecovery {
 #[derive(Debug)]
 struct TypedInterruptionSnapshot {
     interruption: TypedBodyInterruption,
-    types: TypeStore,
-    copyabilities: CopyabilityTable,
+    evidence: TypedInterruptionEvidence,
 }
+
+/// Exact semantic capability retained for one typed interruption.
+///
+/// Most completion kinds are fully described by the interruption itself. Member selection needs
+/// its provisional type/copy authority, while outcome repair needs only one closed type
+/// projection. Keeping these cases distinct prevents unrelated editor failures from retaining an
+/// entire mutable checker store.
+#[derive(Debug)]
+pub(crate) enum TypedInterruptionEvidence {
+    None,
+    MemberSelection(Box<MemberInterruptionEvidence>),
+    Outcome(Box<TypeProjection>),
+}
+
+#[derive(Debug)]
+pub(crate) struct MemberInterruptionEvidence {
+    pub(crate) types: TypeStore,
+    pub(crate) copyabilities: CopyabilityTable,
+}
+
+/// Inconsistency between an interruption kind and its retained recovery capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InterruptionEvidenceError;
+
+impl std::fmt::Display for InterruptionEvidenceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("typed interruption recovery evidence is inconsistent")
+    }
+}
+
+impl std::error::Error for InterruptionEvidenceError {}
 
 /// Immutable current-generation semantic authority retained after typed-body failure.
 ///
@@ -116,7 +146,7 @@ impl BodyAnalysisRecovery {
         prepared: PreparedSemanticProgram,
         body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,
         source_index: SourceIndex,
-        typed: Vec<(TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+        typed: Vec<(TypedBodyInterruption, TypedInterruptionEvidence)>,
         bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
     ) -> Self {
         Self {
@@ -125,13 +155,10 @@ impl BodyAnalysisRecovery {
             source_index,
             typed: typed
                 .into_iter()
-                .map(
-                    |(interruption, types, copyabilities)| TypedInterruptionSnapshot {
-                        interruption,
-                        types,
-                        copyabilities,
-                    },
-                )
+                .map(|(interruption, evidence)| TypedInterruptionSnapshot {
+                    interruption,
+                    evidence,
+                })
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             bodies,
@@ -241,6 +268,13 @@ impl BodyAnalysisRecovery {
         else {
             return None;
         };
+        let TypedInterruptionEvidence::MemberSelection(evidence) = &typed.evidence else {
+            return Some(Err(MemberCompletionError::InvalidRecoveryEvidence));
+        };
+        let MemberInterruptionEvidence {
+            types,
+            copyabilities,
+        } = evidence.as_ref();
         let body = typed.interruption.body();
         if self
             .prepared
@@ -255,11 +289,11 @@ impl BodyAnalysisRecovery {
         Some(select_member_completions(
             crate::member_completion::MemberCompletionAuthorities {
                 graph: self.prepared.graph(),
-                types: &typed.types,
+                types,
                 interface_implementations: self.prepared.interface_implementations(),
                 instance_operations: self.prepared.instance_operations(),
                 body_assumptions: self.prepared.body_assumptions(),
-                copyabilities: &typed.copyabilities,
+                copyabilities,
                 source_access: self.prepared.source_access(),
                 session,
             },
@@ -350,14 +384,17 @@ impl BodyAnalysisRecovery {
     pub fn interrupted_outcome_type(
         &self,
         interruption: &TypedBodyInterruption,
-    ) -> Option<Result<TypeProjection, TypeProjectionError>> {
+    ) -> Option<Result<&TypeProjection, InterruptionEvidenceError>> {
         let typed = self.snapshot(interruption)?;
         let TypedBodyInterruptionKind::OutcomeContract {
-            proposed_result, ..
+            proposed_result: _, ..
         } = typed.interruption.kind()
         else {
             return None;
         };
-        Some(typed.types.project(*proposed_result))
+        let TypedInterruptionEvidence::Outcome(projection) = &typed.evidence else {
+            return Some(Err(InterruptionEvidenceError));
+        };
+        Some(Ok(projection.as_ref()))
     }
 }

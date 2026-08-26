@@ -139,7 +139,10 @@ pub use preparation::{
     PreparedSemanticProgram, prepare_analysis_program_checking_recovering,
     prepare_program_checking, prepare_program_checking_recovering,
 };
-pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, PreparationRecovery};
+pub use recovery::{
+    BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError,
+    PreparationRecovery,
+};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{

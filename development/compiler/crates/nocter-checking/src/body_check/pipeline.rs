@@ -281,7 +281,10 @@ fn build_body_analysis_recovery(
     mut prepared: PreparedCheckingParts<'_>,
     checked_types: TypeStore,
     checked_copyabilities: CopyabilityTable,
-    interruptions: Vec<(crate::TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+    interruptions: Vec<(
+        crate::TypedBodyInterruption,
+        crate::recovery::TypedInterruptionEvidence,
+    )>,
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
 ) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
@@ -514,13 +517,9 @@ fn check_declared_bodies<'input, 'syntax>(
                 let (error, interruption) = failure.into_parts();
                 let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
                 if let Some(interruption) = interruption {
-                    let (interrupted_types, interrupted_copyabilities) = *interruption_state
+                    let evidence = interruption_state
                         .expect("typed interruption must retain its semantic state");
-                    interruptions.push((
-                        interruption,
-                        interrupted_types,
-                        interrupted_copyabilities,
-                    ));
+                    interruptions.push((interruption, evidence));
                 }
                 if !recoverable {
                     return Err(RecoveringBodyConstructionFailure {
@@ -596,9 +595,17 @@ fn attempt_body<'input, 'syntax>(
             Ok(output)
         }
         Err(failure) => {
-            let interruption_state = failure
-                .has_interruption()
-                .then(|| Box::new((types.clone(), copyabilities.clone())));
+            let interruption_state =
+                match retain_interruption_evidence(&failure, types, copyabilities) {
+                    Ok(state) => state,
+                    Err(error) => {
+                        checkpoint.rollback(types, copyabilities, closures);
+                        return Err(BodyAttemptFailure::Recovering {
+                            failure: super::error::BodyConstructionFailure::new(error.into(), None),
+                            interruption_state: None,
+                        });
+                    }
+                };
             checkpoint.rollback(types, copyabilities, closures);
             Err(BodyAttemptFailure::Recovering {
                 failure,
@@ -612,16 +619,48 @@ enum BodyAttemptFailure {
     Direct(super::error::BodyConstructionFailure),
     Recovering {
         failure: super::error::BodyConstructionFailure,
-        interruption_state: Option<Box<(TypeStore, CopyabilityTable)>>,
+        interruption_state: Option<crate::recovery::TypedInterruptionEvidence>,
     },
+}
+
+fn retain_interruption_evidence(
+    failure: &super::error::BodyConstructionFailure,
+    types: &TypeStore,
+    copyabilities: &CopyabilityTable,
+) -> Result<Option<crate::recovery::TypedInterruptionEvidence>, BodyCheckInternalError> {
+    let Some(interruption) = failure.interruption() else {
+        return Ok(None);
+    };
+    let evidence = match interruption.kind() {
+        crate::TypedBodyInterruptionKind::MemberSelection { .. } => {
+            crate::recovery::TypedInterruptionEvidence::MemberSelection(Box::new(
+                crate::recovery::MemberInterruptionEvidence {
+                    types: types.clone(),
+                    copyabilities: copyabilities.clone(),
+                },
+            ))
+        }
+        crate::TypedBodyInterruptionKind::OutcomeContract {
+            proposed_result, ..
+        } => crate::recovery::TypedInterruptionEvidence::Outcome(Box::new(
+            types.project(*proposed_result)?,
+        )),
+        crate::TypedBodyInterruptionKind::ConstructionSelection { .. }
+        | crate::TypedBodyInterruptionKind::StructuralConstruction { .. }
+        | crate::TypedBodyInterruptionKind::EnumPattern { .. }
+        | crate::TypedBodyInterruptionKind::AssociatedTypeProjection { .. } => {
+            crate::recovery::TypedInterruptionEvidence::None
+        }
+    };
+    Ok(Some(evidence))
 }
 
 /// Exact semantic mutation boundaries captured before checking one body.
 ///
 /// Body checking extends canonical stores directly. Success therefore requires no promotion or
 /// clone. Failure discards provisional type identities and reverses every copyability or closure
-/// mutation recorded by their owning stores. An exact snapshot is cloned only for an actual typed
-/// interruption.
+/// mutation recorded by their owning stores. Recovery retains only the capability required by the
+/// exact interruption kind.
 struct BodySemanticCheckpoint {
     types: nocter_model::TypeStoreCheckpoint,
     copyabilities: crate::copyability::CopyabilityTransaction,
@@ -689,7 +728,10 @@ struct BodyConstructionInput<'input, 'syntax> {
 
 struct RecoveringBodyConstructionFailure {
     error: Box<BodyCheckError>,
-    interruptions: Vec<(crate::TypedBodyInterruption, TypeStore, CopyabilityTable)>,
+    interruptions: Vec<(
+        crate::TypedBodyInterruption,
+        crate::recovery::TypedInterruptionEvidence,
+    )>,
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
 }
