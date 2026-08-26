@@ -1,5 +1,7 @@
 use nocter_model::BuiltinType;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, declaration_name_token};
+use nocter_syntax::{
+    NodeId, NodeKind, SyntaxElement, SyntaxTree, child_nodes, declaration_name_token,
+};
 
 use crate::{
     ModuleIdentity, PackageTargetResolutionInput, SourceVisibilityResolutionInput, ToolchainInput,
@@ -60,16 +62,6 @@ pub(crate) fn test_toolchain(
 
 pub(crate) fn empty_toolchain(module: ModuleIdentity) -> ToolchainInput {
     ToolchainInput::new(module.package().clone(), module, Vec::new(), Vec::new())
-}
-
-fn child_nodes(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {
-    tree.children(root)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(node) => Some(*node),
-            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-        .collect()
 }
 
 pub(crate) fn source_see(

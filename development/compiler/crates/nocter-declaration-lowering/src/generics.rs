@@ -8,7 +8,8 @@ use nocter_declarations::{GenericOwner, GenericParameter};
 use nocter_model::{GenericParameterId, Symbol};
 use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind, direct_token,
+    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind, direct_node_iter,
+    direct_token,
 };
 
 use crate::{
@@ -291,7 +292,7 @@ fn binder_tokens(
 
 fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec<SyntaxToken> {
     let mut binders = Vec::new();
-    for pattern in direct_children(tree, declaration, NodeKind::DeclarationTypePattern) {
+    for pattern in direct_node_iter(tree, declaration, NodeKind::DeclarationTypePattern) {
         if let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments) {
             binders.extend(identifier_tokens(tree, arguments));
         } else if direct_token(
@@ -467,26 +468,6 @@ fn find_descendant(
         }
     }
     None
-}
-
-fn direct_children(
-    tree: &nocter_syntax::SyntaxTree,
-    node: NodeId,
-    expected: NodeKind,
-) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|child| match child {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|node| node.kind() == expected) =>
-            {
-                Some(*child)
-            }
-            _ => None,
-        })
-        .collect()
 }
 
 fn identifier_tokens(tree: &nocter_syntax::SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {

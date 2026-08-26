@@ -4,7 +4,8 @@ use std::fmt;
 use nocter_model::PackageTargetKind;
 use nocter_source::SourceFile;
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, decode_string_literal,
+    Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind,
+    child_node_iter as child_nodes, decode_string_literal, direct_node,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -639,7 +640,7 @@ fn authored_string(
     subject: NodeId,
 ) -> Result<AuthoredString, PackageDeclarationError> {
     let literal = value_node(tree, subject)
-        .and_then(|value| direct_child_of_kind(tree, value, NodeKind::StringLiteral))
+        .and_then(|value| direct_node(tree, value, NodeKind::StringLiteral))
         .ok_or_else(|| error(subject, PackageDeclarationRule::ExpectedString, None))?;
     let value = decode_string_literal(source, tree, literal)
         .ok_or_else(|| error(literal, PackageDeclarationRule::ExpectedString, None))?;
@@ -648,7 +649,7 @@ fn authored_string(
 
 fn required_record(tree: &SyntaxTree, subject: NodeId) -> Result<NodeId, PackageDeclarationError> {
     value_node(tree, subject)
-        .and_then(|value| direct_child_of_kind(tree, value, NodeKind::DirectiveRecord))
+        .and_then(|value| direct_node(tree, value, NodeKind::DirectiveRecord))
         .ok_or_else(|| error(subject, PackageDeclarationRule::ExpectedRecord, None))
 }
 
@@ -670,12 +671,7 @@ fn integer_value<'source>(
 }
 
 fn value_node(tree: &SyntaxTree, subject: NodeId) -> Option<NodeId> {
-    direct_child_of_kind(tree, subject, NodeKind::DirectiveValue)
-}
-
-fn direct_child_of_kind(tree: &SyntaxTree, subject: NodeId, kind: NodeKind) -> Option<NodeId> {
-    child_nodes(tree, subject)
-        .find(|child| tree.node(*child).is_some_and(|node| node.kind() == kind))
+    direct_node(tree, subject, NodeKind::DirectiveValue)
 }
 
 fn directive_name(source: &SourceFile, tree: &SyntaxTree, declaration: NodeId) -> Option<Box<str>> {
@@ -750,15 +746,6 @@ fn direct_fields(tree: &SyntaxTree, record: NodeId) -> impl Iterator<Item = Node
         tree.node(*child)
             .is_some_and(|node| node.kind() == NodeKind::DirectiveField)
     })
-}
-
-fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(node) => Some(*node),
-            SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
 }
 
 fn error(

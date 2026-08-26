@@ -1,4 +1,7 @@
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind};
+use nocter_syntax::{
+    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind, direct_node,
+    direct_node_iter,
+};
 
 use super::ImportError;
 
@@ -20,10 +23,10 @@ pub(super) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSynta
     {
         return Err(ImportError::InvalidSyntax(declaration));
     }
-    let visibility = direct_child(tree, declaration, NodeKind::Visibility);
-    let path = direct_child(tree, declaration, NodeKind::ModulePath)
+    let visibility = direct_node(tree, declaration, NodeKind::Visibility);
+    let path = direct_node(tree, declaration, NodeKind::ModulePath)
         .ok_or(ImportError::InvalidSyntax(declaration))?;
-    let selected = direct_child(tree, declaration, NodeKind::ImportSelection)
+    let selected = direct_node(tree, declaration, NodeKind::ImportSelection)
         .map(|selection| selected_names(tree, declaration, selection))
         .transpose()?;
     Ok(ImportSyntax {
@@ -50,7 +53,7 @@ fn selected_names(
     selection: NodeId,
 ) -> Result<Vec<SelectedNameSyntax>, ImportError> {
     let mut names = Vec::new();
-    for selected in direct_children(tree, selection, NodeKind::SelectedName) {
+    for selected in direct_node_iter(tree, selection, NodeKind::SelectedName) {
         let tokens = identifier_tokens(tree, selected);
         let exported = *tokens
             .first()
@@ -65,37 +68,6 @@ fn selected_names(
     } else {
         Ok(names)
     }
-}
-
-fn direct_child(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|node| node.kind() == expected) =>
-            {
-                Some(*child)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-}
-
-fn direct_children(tree: &SyntaxTree, node: NodeId, expected: NodeKind) -> Vec<NodeId> {
-    tree.children(node)
-        .iter()
-        .filter_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree
-                    .node(*child)
-                    .is_some_and(|node| node.kind() == expected) =>
-            {
-                Some(*child)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-        .collect()
 }
 
 fn identifier_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {

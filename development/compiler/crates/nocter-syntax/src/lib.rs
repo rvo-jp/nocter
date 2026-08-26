@@ -18,8 +18,8 @@ pub use literal::{
     decode_string_literal, decode_string_text,
 };
 pub use navigation::{
-    child_nodes, direct_identifier, direct_node, direct_nodes, direct_token, direct_tokens,
-    first_direct_token,
+    child_node_iter, child_nodes, direct_identifier, direct_node, direct_node_iter, direct_nodes,
+    direct_token, direct_token_iter, direct_tokens, first_direct_token,
 };
 pub use nocter_language::BuiltinType;
 pub use origin::SyntaxOrigin;

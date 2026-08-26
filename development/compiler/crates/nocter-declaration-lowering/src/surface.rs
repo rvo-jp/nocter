@@ -5,7 +5,8 @@ use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::SyntaxOrigin;
 use nocter_syntax::{
-    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, declaration_name_token,
+    NodeId, NodeKind, SyntaxElement, SyntaxToken, SyntaxTree, child_node_iter as child_nodes,
+    declaration_name_token, direct_node as direct_child,
 };
 
 use crate::topology::{
@@ -819,17 +820,6 @@ fn contains_child_kind(tree: &SyntaxTree, root: NodeId, expected: NodeKind) -> b
         }
     }
     false
-}
-
-fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl DoubleEndedIterator<Item = NodeId> + '_ {
-    tree.children(node).iter().filter_map(|child| match child {
-        SyntaxElement::Node(node) => Some(*node),
-        SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-    })
-}
-
-fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    child_nodes(tree, node).find(|child| tree.node(*child).is_some_and(|node| node.kind() == kind))
 }
 
 fn top_level_kind(tree: &SyntaxTree, node: NodeId) -> Option<SurfaceDeclarationKind> {

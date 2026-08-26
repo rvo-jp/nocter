@@ -1,5 +1,5 @@
 use nocter_source::SourceFile;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
 
 use crate::DiscoveryError;
 
@@ -36,19 +36,6 @@ pub(crate) fn active_use_paths(
     Ok(result)
 }
 
-fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    tree.children(node)
-        .iter()
-        .find_map(|element| match element {
-            SyntaxElement::Node(child)
-                if tree.node(*child).is_some_and(|node| node.kind() == kind) =>
-            {
-                Some(*child)
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-}
-
 pub(crate) fn use_path_node(tree: &SyntaxTree, declaration: NodeId) -> Option<NodeId> {
-    direct_child(tree, declaration, NodeKind::ModulePath)
+    direct_node(tree, declaration, NodeKind::ModulePath)
 }

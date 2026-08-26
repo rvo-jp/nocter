@@ -4,7 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
+use nocter_syntax::{
+    NodeId, NodeKind, SyntaxTree, child_node_iter as child_nodes, direct_node as direct_child,
+};
 
 type SyntaxKey = (SourceId, usize);
 
@@ -159,17 +161,6 @@ impl TargetSelectionBuilder {
 
 const fn key(node: NodeId) -> SyntaxKey {
     (node.source(), node.index())
-}
-
-fn child_nodes(tree: &SyntaxTree, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-    tree.children(node).iter().filter_map(|child| match child {
-        SyntaxElement::Node(node) => Some(*node),
-        SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-    })
-}
-
-fn direct_child(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
-    child_nodes(tree, node).find(|child| tree.node(*child).is_some_and(|node| node.kind() == kind))
 }
 
 fn descendant(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
