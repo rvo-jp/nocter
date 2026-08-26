@@ -1,6 +1,5 @@
 use nocter_model::{StaleTypeTransaction, TypeAuthority, TypeStore, TypeTransaction};
 
-use crate::checked::ClosureTable;
 use crate::copyability::{CopyabilityTable, CopyabilityTransaction, StaleCopyabilityTransaction};
 
 /// One immutable generation of the mutually dependent type and copyability authorities.
@@ -109,47 +108,6 @@ impl<'authority> SemanticAccess<'authority> {
         &'authority mut CopyabilityTransaction,
     ) {
         (self.types, self.copyabilities)
-    }
-}
-
-/// One finalized checked generation of structural types, copy facts, and closure definitions.
-///
-/// Closure types contain `ClosureId`, so checked products retain this composite instead of accepting
-/// a closure table independently from the semantic generation that created those identities.
-#[derive(Debug)]
-pub(crate) struct CheckedSemanticAuthority {
-    semantics: SemanticAuthority,
-    closures: ClosureTable,
-}
-
-impl CheckedSemanticAuthority {
-    pub(crate) const fn new(semantics: SemanticAuthority, closures: ClosureTable) -> Self {
-        Self {
-            semantics,
-            closures,
-        }
-    }
-
-    pub(crate) const fn semantics(&self) -> &SemanticAuthority {
-        &self.semantics
-    }
-
-    pub(crate) const fn closures(&self) -> &ClosureTable {
-        &self.closures
-    }
-
-    pub(crate) fn transaction(&self) -> SemanticTransaction {
-        self.semantics.transaction()
-    }
-
-    pub(crate) fn accept(&mut self, transaction: SemanticTransaction) {
-        self.semantics = transaction
-            .commit(&self.semantics)
-            .expect("checked transaction must commit to its exact semantic authority");
-    }
-
-    pub(crate) fn retain_recovery_branch(&mut self, transaction: SemanticTransaction) {
-        self.semantics = transaction.freeze();
     }
 }
 

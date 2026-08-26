@@ -16,7 +16,7 @@ use super::{CheckedBody, OpaqueWitnessTable};
 #[derive(Debug)]
 pub struct CheckedProgram {
     environment: crate::program_environment::ProgramEnvironment,
-    semantics: crate::semantic_authority::CheckedSemanticAuthority,
+    semantics: crate::body_check::CheckedSemanticAuthority,
     provenance: ProvenanceTable,
     loans: LoanTable,
     opaque_witnesses: OpaqueWitnessTable,
@@ -38,7 +38,7 @@ impl CheckedProgram {
 
     pub(crate) fn new(
         environment: crate::program_environment::ProgramEnvironment,
-        semantics: crate::semantic_authority::CheckedSemanticAuthority,
+        semantics: crate::body_check::CheckedSemanticAuthority,
         authorities: CheckedProgramAuthorities,
         bodies: Arena<BodyId, CheckedBody>,
     ) -> Self {

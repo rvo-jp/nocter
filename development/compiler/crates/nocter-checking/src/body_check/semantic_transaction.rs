@@ -1,9 +1,45 @@
 use crate::checked::{
-    ClosureAuthority, ClosureTableBuildError, ClosureTransaction, StaleClosureTransaction,
+    ClosureAuthority, ClosureTable, ClosureTableBuildError, ClosureTransaction,
+    StaleClosureTransaction,
 };
 use crate::semantic_authority::{
     SemanticAccess, SemanticAuthority, SemanticCommitError, SemanticTransaction,
 };
+
+/// One finalized checked generation of structural types, copy facts, and closure definitions.
+///
+/// This owner is constructed only by finishing [`BodySemanticAuthority`]. Closure types contain
+/// `ClosureId`, so no other responsibility can pair a closure table with an unrelated semantic
+/// generation.
+#[derive(Debug)]
+pub(crate) struct CheckedSemanticAuthority {
+    semantics: SemanticAuthority,
+    closures: ClosureTable,
+}
+
+impl CheckedSemanticAuthority {
+    pub(crate) const fn semantics(&self) -> &SemanticAuthority {
+        &self.semantics
+    }
+
+    pub(crate) const fn closures(&self) -> &ClosureTable {
+        &self.closures
+    }
+
+    pub(crate) fn transaction(&self) -> SemanticTransaction {
+        self.semantics.transaction()
+    }
+
+    pub(crate) fn accept(&mut self, transaction: SemanticTransaction) {
+        self.semantics = transaction
+            .commit(&self.semantics)
+            .expect("checked transaction must commit to its exact semantic authority");
+    }
+
+    pub(crate) fn retain_recovery_branch(&mut self, transaction: SemanticTransaction) {
+        self.semantics = transaction.freeze();
+    }
+}
 
 /// One accepted generation of every semantic authority extended during body construction.
 pub(super) struct BodySemanticAuthority {
@@ -26,13 +62,11 @@ impl BodySemanticAuthority {
         }
     }
 
-    pub(super) fn finish_checked(
-        self,
-    ) -> Result<crate::semantic_authority::CheckedSemanticAuthority, ClosureTableBuildError> {
-        Ok(crate::semantic_authority::CheckedSemanticAuthority::new(
-            self.semantics,
-            self.closures.finish()?,
-        ))
+    pub(super) fn finish_checked(self) -> Result<CheckedSemanticAuthority, ClosureTableBuildError> {
+        Ok(CheckedSemanticAuthority {
+            semantics: self.semantics,
+            closures: self.closures.finish()?,
+        })
     }
 
     pub(super) fn finish_recovery(self) -> SemanticAuthority {

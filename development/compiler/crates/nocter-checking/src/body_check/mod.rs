@@ -75,3 +75,4 @@ pub use pipeline::{
 };
 mod assumptions;
 pub(crate) use assumptions::BodyAssumptionTable;
+pub(crate) use semantic_transaction::CheckedSemanticAuthority;

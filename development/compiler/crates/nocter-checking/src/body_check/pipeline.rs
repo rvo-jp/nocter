@@ -309,7 +309,7 @@ fn build_body_analysis_recovery(
 }
 
 struct CheckedProgramCompletion {
-    semantics: crate::semantic_authority::CheckedSemanticAuthority,
+    semantics: super::CheckedSemanticAuthority,
     bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
     opaque_witnesses: crate::OpaqueWitnessTable,
