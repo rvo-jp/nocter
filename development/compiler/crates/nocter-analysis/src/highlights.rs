@@ -5,7 +5,7 @@ use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::source_selection::source_binding_key;
+use crate::source_selection::select_source_binding;
 
 /// Protocol-independent semantic classification of one source range.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,26 +64,26 @@ impl AnalysisSnapshot {
             return Box::new([]);
         };
         let index = authority.source_index();
-        let mut candidates = index
+        let candidates = index
             .bindings_in(source)
-            .filter_map(|binding| {
-                highlight(authority, binding)
-                    .map(|highlight| (source_binding_key(binding), highlight))
-            })
+            .filter(|binding| highlight(authority, binding).is_some())
             .collect::<Vec<_>>();
-        candidates.sort_unstable_by_key(|(authority, highlight)| {
-            (
-                highlight.range().start(),
-                highlight.range().end(),
-                *authority,
-            )
-        });
-        candidates.dedup_by_key(|(_, highlight)| highlight.range());
-        candidates
-            .into_iter()
-            .map(|(_, highlight)| highlight)
-            .collect::<Vec<_>>()
-            .into_boxed_slice()
+        let mut highlights = Vec::new();
+        let mut start = 0;
+        while start < candidates.len() {
+            let range = candidates[start].origin().span().range();
+            let end = candidates[start..]
+                .partition_point(|binding| binding.origin().span().range() == range)
+                + start;
+            if let Some(binding) =
+                select_source_binding(candidates[start..end].iter().copied(), |_| true).unique()
+                && let Some(highlight) = highlight(authority, &binding)
+            {
+                highlights.push(highlight);
+            }
+            start = end;
+        }
+        highlights.into_boxed_slice()
     }
 }
 

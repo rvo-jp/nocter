@@ -347,7 +347,7 @@ fn selected_binding(
     source: SourceId,
     offset: ByteOffset,
 ) -> Option<SourceBinding> {
-    select_source_binding(index.bindings_at(source, offset), interactive_binding)
+    select_source_binding(index.bindings_at(source, offset), interactive_binding).unique()
 }
 
 fn interactive_binding(binding: &SourceBinding) -> bool {

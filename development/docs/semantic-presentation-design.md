@@ -28,7 +28,10 @@ not an ordinary empty editor result.
 The source index selects the smallest displayable binding under the cursor, with references before
 declarations and implementation sites when ranges tie. Synthetic package, target, and whole-file
 module projections are not interactive. An authored module-path reference remains interactive and
-keeps its complete contiguous path range.
+keeps its complete contiguous path range. Entity-family precedence resolves intentional broad
+projection overlap. If distinct bindings remain equally authoritative after range, role, and
+family comparison, the coordinate is ambiguous and produces no semantic presentation or token;
+dense arena identity and projection insertion order are never presentation tie-breakers.
 
 `SourceMap` owns the exact source-name lookup and every UTF-8/UTF-16 conversion. The LSP adapter
 resolves a URI to its stable canonical path, finds that path in the selected snapshot, converts the

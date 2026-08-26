@@ -1,45 +1,61 @@
-use nocter_source::ByteOffset;
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SourceBindingSelection {
+    None,
+    Unique(SourceBinding),
+    Ambiguous,
+}
+
+impl SourceBindingSelection {
+    pub(crate) const fn unique(self) -> Option<SourceBinding> {
+        match self {
+            Self::Unique(binding) => Some(binding),
+            Self::None | Self::Ambiguous => None,
+        }
+    }
+}
 
 /// Selects one semantic authority from overlapping source projections.
 ///
-/// The narrowest range wins. Equal ranges use the same reference/declaration/implementation and
-/// entity-family ordering for every editor query, followed by exact semantic identity so arena or
-/// projection insertion order can never decide presentation.
+/// The narrowest range wins. Equally narrow candidates use the same
+/// reference/declaration/implementation and entity-family ordering for every editor query. If
+/// distinct bindings still have equal authority, the projection is explicitly ambiguous; a dense
+/// semantic identity or insertion order must never decide presentation.
 pub(crate) fn select_source_binding<'a>(
     bindings: impl Iterator<Item = &'a SourceBinding>,
     see: impl Fn(&SourceBinding) -> bool,
-) -> Option<SourceBinding> {
-    bindings
-        .filter(|binding| see(binding))
-        .min_by_key(|binding| source_binding_key(binding))
-        .copied()
+) -> SourceBindingSelection {
+    let mut selected = SourceBindingSelection::None;
+    let mut best = None;
+    for binding in bindings.filter(|binding| see(binding)) {
+        let key = binding_authority_key(binding);
+        match best.map(|best| key.cmp(&best)) {
+            None | Some(std::cmp::Ordering::Less) => {
+                best = Some(key);
+                selected = SourceBindingSelection::Unique(*binding);
+            }
+            Some(std::cmp::Ordering::Equal) => {
+                if !matches!(selected, SourceBindingSelection::Unique(current) if current == *binding)
+                {
+                    selected = SourceBindingSelection::Ambiguous;
+                }
+            }
+            Some(std::cmp::Ordering::Greater) => {}
+        }
+    }
+    selected
 }
 
-pub(crate) fn source_binding_key(
-    binding: &SourceBinding,
-) -> (u32, u8, u8, SemanticEntity, ByteOffset, ByteOffset) {
-    let range = binding.origin().span().range();
-    let (role, family, entity) = binding_authority_key(binding);
+fn binding_authority_key(binding: &SourceBinding) -> (u32, u8, u8) {
     (
-        range.len(),
-        role,
-        family,
-        entity,
-        range.start(),
-        range.end(),
-    )
-}
-
-fn binding_authority_key(binding: &SourceBinding) -> (u8, u8, SemanticEntity) {
-    (
+        binding.origin().span().range().len(),
         match binding.role() {
             SourceRole::Reference => 0,
             SourceRole::Declaration => 1,
             SourceRole::Implementation => 2,
         },
         entity_family_rank(binding.entity()),
-        binding.entity(),
     )
 }
 
@@ -80,7 +96,7 @@ mod tests {
     use nocter_source_index::{SemanticEntity, SourceIndexBuilder, SourceOrigin, SourceRole};
     use nocter_syntax::{ParseGoal, parse};
 
-    use super::select_source_binding;
+    use super::{SourceBindingSelection, select_source_binding};
 
     #[test]
     fn equal_ranges_use_role_then_entity_family_without_insertion_order() {
@@ -126,6 +142,7 @@ mod tests {
         for index in [build(false), build(true)] {
             let selected =
                 select_source_binding(index.bindings_at(source, ByteOffset::new(0)), |_| true)
+                    .unique()
                     .unwrap();
             assert_eq!(selected.entity(), SemanticEntity::Callable(callable));
             assert_eq!(selected.role(), SourceRole::Reference);
@@ -162,7 +179,40 @@ mod tests {
         let index = builder.finish();
 
         let selected =
-            select_source_binding(index.bindings_at(source, ByteOffset::new(0)), |_| true).unwrap();
+            select_source_binding(index.bindings_at(source, ByteOffset::new(0)), |_| true)
+                .unique()
+                .unwrap();
         assert_eq!(selected.entity(), SemanticEntity::Parameter(parameter));
+    }
+
+    #[test]
+    fn equal_authority_from_distinct_entities_is_ambiguous() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("selection.nct"), b"value\n")
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
+        let mut callables = ArenaBuilder::<CallableId, ()>::new();
+        let first = callables.insert(());
+        let second = callables.insert(());
+
+        for entities in [[first, second], [second, first]] {
+            let mut builder = SourceIndexBuilder::new();
+            for callable in entities {
+                builder
+                    .insert(
+                        SemanticEntity::Callable(callable),
+                        SourceRole::Declaration,
+                        origin,
+                    )
+                    .unwrap();
+            }
+            let index = builder.finish();
+            assert_eq!(
+                select_source_binding(index.bindings_at(source, ByteOffset::new(0)), |_| true),
+                SourceBindingSelection::Ambiguous
+            );
+        }
     }
 }
