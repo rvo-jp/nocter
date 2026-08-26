@@ -83,6 +83,7 @@ struct TypedInterruptionSnapshot {
     interruption: TypedBodyInterruption,
     types: TypeStore,
     copyabilities: CopyabilityTable,
+    member_completion_cache: crate::member_completion::MemberCompletionCache,
 }
 
 /// Immutable current-generation semantic authority retained after typed-body failure.
@@ -120,6 +121,8 @@ impl BodyAnalysisRecovery {
                         interruption,
                         types,
                         copyabilities,
+                        member_completion_cache:
+                            crate::member_completion::MemberCompletionCache::default(),
                     },
                 )
                 .collect::<Vec<_>>()
@@ -238,6 +241,7 @@ impl BodyAnalysisRecovery {
                 body_assumptions: self.prepared.body_assumptions(),
                 copyabilities: &typed.copyabilities,
                 source_access: self.prepared.source_access(),
+                cache: &typed.member_completion_cache,
             },
             MemberCompletionContext::new(body, source, *receiver, *available, *owned),
         ))

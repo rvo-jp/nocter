@@ -67,6 +67,7 @@ pub struct PreparedSemanticProgram {
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
     source_access: SourceAccessTable,
+    member_completion_cache: crate::member_completion::MemberCompletionCache,
 }
 
 impl PreparedSemanticProgram {
@@ -88,6 +89,7 @@ impl PreparedSemanticProgram {
             drops: authorities.drops,
             standard_semantics,
             source_access,
+            member_completion_cache: crate::member_completion::MemberCompletionCache::default(),
         }
     }
 
@@ -138,6 +140,12 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
+    }
+
+    pub(crate) const fn member_completion_cache(
+        &self,
+    ) -> &crate::member_completion::MemberCompletionCache {
+        &self.member_completion_cache
     }
 }
 
@@ -216,6 +224,7 @@ impl<'syntax> PreparedChecking<'syntax> {
             drops,
             standard_semantics,
             source_access,
+            member_completion_cache: _,
         } = self.semantic;
         PreparedCheckingParts {
             graph,
@@ -272,6 +281,7 @@ impl PreparedCheckingParts<'_> {
             drops: self.drops,
             standard_semantics: self.standard_semantics,
             source_access: self.source_access,
+            member_completion_cache: crate::member_completion::MemberCompletionCache::default(),
         };
         (program, self.body_names, self.source_index)
     }

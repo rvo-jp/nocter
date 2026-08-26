@@ -32,6 +32,7 @@ pub struct CheckedProgram {
     bodies: Arena<BodyId, CheckedBody>,
     associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
     source_access: SourceAccessTable,
+    member_completion_cache: crate::member_completion::MemberCompletionCache,
 }
 
 pub(crate) struct CheckedProgramAuthorities {
@@ -74,6 +75,7 @@ impl CheckedProgram {
             bodies,
             associated_type_completion_contexts: authorities.associated_type_completion_contexts,
             source_access: authorities.source_access,
+            member_completion_cache: crate::member_completion::MemberCompletionCache::default(),
         }
     }
 
@@ -139,6 +141,12 @@ impl CheckedProgram {
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
+    }
+
+    pub(crate) const fn member_completion_cache(
+        &self,
+    ) -> &crate::member_completion::MemberCompletionCache {
+        &self.member_completion_cache
     }
 
     /// Creates the semantic visibility contract for one exact source in this checked program.

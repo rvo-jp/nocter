@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::{Mutex, OnceLock};
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
@@ -80,6 +81,7 @@ pub enum MemberCompletionError {
     MissingBody(BodyId),
     MissingReceiver(nocter_model::BodyNodeId),
     UnknownReceiver(TypeId),
+    PoisonedQueryState,
 }
 
 impl fmt::Display for MemberCompletionError {
@@ -103,11 +105,49 @@ impl fmt::Display for MemberCompletionError {
                     "member completion receiver {receiver:?} is absent"
                 )
             }
+            Self::PoisonedQueryState => {
+                formatter.write_str("member completion query state is poisoned")
+            }
         }
     }
 }
 
 impl std::error::Error for MemberCompletionError {}
+
+#[derive(Debug)]
+struct MemberCompletionQueryState {
+    types: TypeStore,
+    copyabilities: CopyabilityTable,
+}
+
+/// Lazily forked, query-only semantic state for member completion.
+///
+/// The canonical program remains immutable. Structural types interned while proving completion
+/// candidates and memoized copy conditions are retained across queries in the same generation,
+/// avoiding a full program-store clone for every keystroke.
+#[derive(Debug, Default)]
+pub(crate) struct MemberCompletionCache {
+    state: OnceLock<Mutex<MemberCompletionQueryState>>,
+}
+
+impl MemberCompletionCache {
+    fn state<'program>(
+        &'program self,
+        types: &TypeStore,
+        copyabilities: &CopyabilityTable,
+    ) -> Result<std::sync::MutexGuard<'program, MemberCompletionQueryState>, MemberCompletionError>
+    {
+        self.state
+            .get_or_init(|| {
+                Mutex::new(MemberCompletionQueryState {
+                    types: types.clone(),
+                    copyabilities: copyabilities.clone(),
+                })
+            })
+            .lock()
+            .map_err(|_| MemberCompletionError::PoisonedQueryState)
+    }
+}
 
 impl CheckedProgram {
     /// Enumerates members using the same normalized authorities as ordinary call checking.
@@ -129,6 +169,7 @@ impl CheckedProgram {
                 body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
+                cache: self.member_completion_cache(),
             },
             context,
         )
@@ -155,6 +196,7 @@ impl PreparedSemanticProgram {
                 body_assumptions: self.body_assumptions(),
                 copyabilities: self.copyabilities(),
                 source_access: self.source_access(),
+                cache: self.member_completion_cache(),
             },
             context,
         )
@@ -170,6 +212,7 @@ pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) body_assumptions: &'program BodyAssumptionTable,
     pub(crate) copyabilities: &'program CopyabilityTable,
     pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
+    pub(crate) cache: &'program MemberCompletionCache,
 }
 
 pub(crate) fn select_member_completions(
@@ -184,9 +227,13 @@ pub(crate) fn select_member_completions(
         body_assumptions,
         copyabilities,
         source_access,
+        cache,
     } = authorities;
-    let mut types = types.clone();
-    let mut copyabilities = copyabilities.clone();
+    let mut state = cache.state(types, copyabilities)?;
+    let MemberCompletionQueryState {
+        types,
+        copyabilities,
+    } = &mut *state;
     let receiver = match types.get(context.receiver) {
         Some(TypeKind::Borrow { referent, .. }) => *referent,
         Some(_) => context.receiver,
@@ -194,7 +241,7 @@ pub(crate) fn select_member_completions(
     };
     let access = crate::SourceAccessContext::for_source(source_access, context.source)
         .map_err(MemberCompletionError::SourceAccess)?;
-    let mut completions = field_completions(graph, &mut types, access, receiver)?;
+    let mut completions = field_completions(graph, types, access, receiver)?;
     let assumptions = body_assumptions
         .get(context.body)
         .ok_or(MemberCompletionError::MissingBody(context.body))?;
@@ -206,7 +253,7 @@ pub(crate) fn select_member_completions(
         assumptions.intrinsic(),
         access,
     );
-    let methods = InstanceOperationSelector::new(selection, &mut types, &mut copyabilities)
+    let methods = InstanceOperationSelector::new(selection, types, copyabilities)
         .select_member_completions(receiver, context.available, context.owned)
         .map_err(MemberCompletionError::Selection)?;
     completions.extend(

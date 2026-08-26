@@ -174,6 +174,10 @@ Preparation consumes them while building interface and instance authorities, the
 declared body's lexical requirements, intrinsic interface facts, refinements, and copy proofs in
 one `BodyAssumptionTable`. Body checking, recovery completion, and checked-program completion all
 read that table; none re-normalizes requirements from the declaration graph.
+Member completion keeps canonical program types and copyability facts immutable. Each semantic
+generation lazily forks one query-only state on its first member request, then reuses structural
+types interned and copy conditions memoized by later requests. A keystroke therefore does not clone
+the complete stores, and query-derived cache entries never flow back into checked semantics.
 
 Increment 5 now has a closed output schema and a non-output preparation state. `PreparedChecking`
 opens `AcceptedDeclarationProgram` once, retains the same extended `TypeStore`, and owns the interface-implementation
