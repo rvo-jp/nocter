@@ -34,8 +34,11 @@ cross-interruption reuse, and have checked plus recovery tests proving repeatabl
 mutating accepted types. Downstream architecture gates allow direct persistent-storage dependencies
 only in model and checking, and reject transaction or persistent collection use in Target, MIR,
 Machine, and runtime production source. Target's unused transaction-taking specialization helper is
-gone; concrete type construction remains checking-owned. The next step is Phase 3 performance
-qualification and the final adversarial design review.
+gone; concrete type construction remains checking-owned. The first final-review pass also made
+`BodySemanticAuthority` the inseparable owner of each accepted type/copyability/closure generation
+and split closure drafts into an immutable core plus persistent callable requirements, eliminating
+the last repeated linear clone in authority updates. The next step is final performance
+requalification and the complete adversarial design review.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a

@@ -163,9 +163,8 @@ impl BodyChecker<'_, '_> {
             };
             let signature = self
                 .closures
-                .get(closure)
+                .signature(closure)
                 .ok_or(BodyCheckInternalError::MissingClosure(closure))?
-                .signature()
                 .clone();
             for (expected, actual) in contract
                 .parameters()

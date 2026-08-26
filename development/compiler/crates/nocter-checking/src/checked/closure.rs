@@ -1,10 +1,12 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use nocter_model::{
     Arena, ArenaBuilder, BodyId, BodyNodeId, CallableCapability, CallableContract, CaptureId,
     ClosureId, LocalBindingId, PersistentArena, TypeId,
 };
+use nocter_persistent::PersistentVector;
 
 /// The fully typed invocation shape of one anonymous concrete closure.
 ///
@@ -208,9 +210,9 @@ impl ClosureAuthority {
         }
     }
 
-    pub(crate) fn get(&self, closure: ClosureId) -> Option<&ClosureDefinition> {
+    pub(crate) fn signature(&self, closure: ClosureId) -> Option<&ClosureSignature> {
         match self.slots.get(closure) {
-            Some(ClosureSlot::Defined(definition)) => Some(definition),
+            Some(ClosureSlot::Defined(draft)) => Some(draft.definition.signature()),
             Some(ClosureSlot::Reserved(_)) | None => None,
         }
     }
@@ -218,10 +220,10 @@ impl ClosureAuthority {
     pub(crate) fn finish(self) -> Result<ClosureTable, ClosureTableBuildError> {
         let mut definitions = ArenaBuilder::new();
         for (closure, slot) in &self.slots {
-            let ClosureSlot::Defined(definition) = slot else {
+            let ClosureSlot::Defined(draft) = slot else {
                 return Err(ClosureTableBuildError::IncompleteClosure(closure));
             };
-            let actual = definitions.insert(definition.clone());
+            let actual = definitions.insert(draft.freeze());
             assert_eq!(
                 actual, closure,
                 "persistent closure order must preserve canonical identity"
@@ -280,7 +282,7 @@ impl ClosureTransaction {
         }
         self.branch
             .slots
-            .replace(closure, ClosureSlot::Defined(definition))
+            .replace(closure, ClosureSlot::Defined(ClosureDraft::new(definition)))
             .map_err(|_| ClosureTableBuildError::UnknownClosure(closure))?;
         Ok(())
     }
@@ -297,27 +299,61 @@ impl ClosureTransaction {
             .get(closure)
             .cloned()
             .ok_or(ClosureTableBuildError::UnknownClosure(closure))?;
-        let ClosureSlot::Defined(mut definition) = slot else {
+        let ClosureSlot::Defined(mut draft) = slot else {
             return Err(ClosureTableBuildError::IncompleteClosure(closure));
         };
-        if definition.owner() != owner {
+        if draft.definition.owner() != owner {
             return Err(ClosureTableBuildError::OwnerMismatch(closure));
         }
-        if !definition.callable_requirements.contains(&contract) {
-            definition.callable_requirements.push(contract);
+        if !draft
+            .requirements
+            .iter()
+            .any(|existing| existing == &contract)
+        {
+            draft.requirements.push(contract);
             self.branch
                 .slots
-                .replace(closure, ClosureSlot::Defined(definition))
+                .replace(closure, ClosureSlot::Defined(draft))
                 .map_err(|_| ClosureTableBuildError::UnknownClosure(closure))?;
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn callable_requirement_count(&self, closure: ClosureId) -> Option<usize> {
+        match self.branch.slots.get(closure) {
+            Some(ClosureSlot::Defined(draft)) => Some(draft.requirements.len()),
+            Some(ClosureSlot::Reserved(_)) | None => None,
+        }
     }
 }
 
 #[derive(Clone, Debug)]
 enum ClosureSlot {
     Reserved(BodyId),
-    Defined(ClosureDefinition),
+    Defined(ClosureDraft),
+}
+
+#[derive(Clone, Debug)]
+struct ClosureDraft {
+    definition: Arc<ClosureDefinition>,
+    requirements: PersistentVector<CallableContract>,
+}
+
+impl ClosureDraft {
+    fn new(definition: ClosureDefinition) -> Self {
+        debug_assert!(definition.callable_requirements.is_empty());
+        Self {
+            definition: Arc::new(definition),
+            requirements: PersistentVector::default(),
+        }
+    }
+
+    fn freeze(&self) -> ClosureDefinition {
+        let mut definition = self.definition.as_ref().clone();
+        definition.callable_requirements = self.requirements.iter().cloned().collect();
+        definition
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -450,23 +486,29 @@ mod tests {
             ResultProvenance::empty(),
         )
         .unwrap();
+        let another_contract = CallableContract::new(
+            CallableCapability::Owned,
+            [],
+            None,
+            types.builtin(BuiltinType::I32),
+            ResultProvenance::empty(),
+        )
+        .unwrap();
         let accepted = closures.commit(&base).unwrap();
         let mut branch = accepted.transaction();
 
+        branch
+            .require_callable(owner, closure, contract.clone())
+            .unwrap();
         branch.require_callable(owner, closure, contract).unwrap();
-        assert_eq!(
-            branch.get(closure).unwrap().callable_requirements().len(),
-            1
-        );
+        branch
+            .require_callable(owner, closure, another_contract)
+            .unwrap();
+        assert_eq!(branch.callable_requirement_count(closure), Some(2));
         drop(branch);
 
-        assert!(
-            accepted
-                .get(closure)
-                .unwrap()
-                .callable_requirements()
-                .is_empty()
-        );
+        let accepted = accepted.transaction();
+        assert_eq!(accepted.callable_requirement_count(closure), Some(0));
     }
 
     #[test]

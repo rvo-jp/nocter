@@ -9,7 +9,7 @@ use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyOutput, NodeProjecti
 use super::context::BodyProgramFacts;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
-use super::semantic_transaction::BodySemanticTransaction;
+use super::semantic_transaction::BodySemanticAuthority;
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureAuthority,
     ClosureTransaction,
@@ -64,38 +64,44 @@ pub fn analyze_prepared_program_bodies<'syntax>(
     prepared: crate::PreparedBodyAnalysis<'syntax>,
 ) -> Result<crate::BodyAnalysisRecovery, crate::BodyCheckFailure> {
     let mut prepared = prepared.into_parts();
-    let mut closures = ClosureAuthority::new();
-    let mut checked_types = std::mem::take(&mut prepared.types);
-    let mut checked_copyabilities = std::mem::take(&mut prepared.copyabilities);
+    let mut semantics = BodySemanticAuthority::new(
+        std::mem::take(&mut prepared.types),
+        std::mem::take(&mut prepared.copyabilities),
+        ClosureAuthority::new(),
+    );
     let facts = BodyProgramFacts::from_prepared(&prepared);
     match check_declared_bodies(
         input,
         facts,
-        &mut checked_types,
-        &mut checked_copyabilities,
-        &mut closures,
+        &mut semantics,
         BodyConstructionInput {
             sources: &prepared.body_sources,
             names: &prepared.body_names,
             retain_recovery: true,
         },
     ) {
-        Ok(output) => build_body_analysis_recovery(
-            prepared,
-            checked_types,
-            checked_copyabilities,
-            Vec::new(),
-            output.bodies,
-            output.projections,
-        )
-        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None)),
-        Err(failure) => Err(recover_body_construction_failure(
-            failure,
-            true,
-            prepared,
-            checked_types,
-            checked_copyabilities,
-        )),
+        Ok(output) => {
+            let (checked_types, checked_copyabilities, _) = semantics.into_parts();
+            build_body_analysis_recovery(
+                prepared,
+                checked_types,
+                checked_copyabilities,
+                Vec::new(),
+                output.bodies,
+                output.projections,
+            )
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))
+        }
+        Err(failure) => {
+            let (checked_types, checked_copyabilities, _) = semantics.into_parts();
+            Err(recover_body_construction_failure(
+                failure,
+                true,
+                prepared,
+                checked_types,
+                checked_copyabilities,
+            ))
+        }
     }
 }
 
@@ -105,9 +111,11 @@ fn check_prepared_program_internal<'syntax>(
     retain_prepared: bool,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let mut prepared = prepared.into_parts();
-    let mut closures = ClosureAuthority::new();
-    let mut checked_types = std::mem::take(&mut prepared.types);
-    let mut checked_copyabilities = std::mem::take(&mut prepared.copyabilities);
+    let mut semantics = BodySemanticAuthority::new(
+        std::mem::take(&mut prepared.types),
+        std::mem::take(&mut prepared.copyabilities),
+        ClosureAuthority::new(),
+    );
     let facts = BodyProgramFacts::from_prepared(&prepared);
 
     let CheckedBodiesOutput {
@@ -118,9 +126,7 @@ fn check_prepared_program_internal<'syntax>(
     } = match check_declared_bodies(
         input,
         facts,
-        &mut checked_types,
-        &mut checked_copyabilities,
-        &mut closures,
+        &mut semantics,
         BodyConstructionInput {
             sources: &prepared.body_sources,
             names: &prepared.body_names,
@@ -129,6 +135,7 @@ fn check_prepared_program_internal<'syntax>(
     ) {
         Ok(checked) => checked,
         Err(failure) => {
+            let (checked_types, checked_copyabilities, _) = semantics.into_parts();
             return Err(recover_body_construction_failure(
                 failure,
                 retain_prepared,
@@ -138,6 +145,8 @@ fn check_prepared_program_internal<'syntax>(
             ));
         }
     };
+
+    let (checked_types, checked_copyabilities, closures) = semantics.into_parts();
 
     complete_checked_program(
         prepared,
@@ -481,9 +490,7 @@ fn attach_body_cleanups(
 fn check_declared_bodies<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
     facts: BodyProgramFacts<'input>,
-    types: &'input mut TypeStore,
-    copyabilities: &'input mut CopyabilityTable,
-    closures: &'input mut ClosureAuthority,
+    semantics: &'input mut BodySemanticAuthority,
     construction: BodyConstructionInput<'input, 'syntax>,
 ) -> Result<CheckedBodiesOutput, RecoveringBodyConstructionFailure> {
     let BodyConstructionInput {
@@ -511,14 +518,7 @@ fn check_declared_bodies<'input, 'syntax>(
                 BodyCheckInternalError::BodyIdentityMismatch(body).into(),
             ));
         }
-        let attempt = attempt_body(
-            input,
-            facts,
-            source,
-            names,
-            retain_recovery,
-            (types, copyabilities, closures),
-        );
+        let attempt = attempt_body(input, facts, source, names, retain_recovery, semantics);
         let mut body_output = match attempt {
             Ok(output) => output,
             Err(BodyAttemptFailure::Direct(failure)) => {
@@ -584,33 +584,24 @@ fn attempt_body<'input, 'syntax>(
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     retain_recovery: bool,
-    state: (
-        &'input mut TypeStore,
-        &'input mut CopyabilityTable,
-        &'input mut ClosureAuthority,
-    ),
+    state: &'input mut BodySemanticAuthority,
 ) -> Result<CheckedBodyOutput, BodyAttemptFailure> {
-    let (types, copyabilities, closures) = state;
-    let mut transaction = BodySemanticTransaction::new(types, copyabilities, closures);
+    let mut transaction = state.transaction();
     if !retain_recovery {
         let output = construct_body(input, facts, source, names, transaction.parts())
             .map_err(BodyAttemptFailure::Direct)?;
         let committed = transaction
-            .commit(types, copyabilities, closures)
+            .commit(state)
             .expect("body transaction must commit to its exact accepted authorities");
-        *types = committed.types;
-        *copyabilities = committed.copyabilities;
-        *closures = committed.closures;
+        *state = committed;
         return Ok(output);
     }
     match construct_body(input, facts, source, names, transaction.parts()) {
         Ok(output) => {
             let committed = transaction
-                .commit(types, copyabilities, closures)
+                .commit(state)
                 .expect("body transaction must commit to its exact accepted authorities");
-            *types = committed.types;
-            *copyabilities = committed.copyabilities;
-            *closures = committed.closures;
+            *state = committed;
             Ok(output)
         }
         Err(failure) => {

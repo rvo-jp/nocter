@@ -29,7 +29,9 @@ BodySemanticAuthority
             `-- ClosureTransaction
 ```
 
-The transaction reads its immutable base and owns only branch-local additions. Success consumes the
+`BodySemanticAuthority` owns the accepted type, copyability, and closure generation as one value;
+callers cannot assemble a transaction from components belonging to different bodies. The
+transaction reads that immutable base and owns only branch-local additions. Success consumes the
 transaction into one descendant authority. Failure cannot modify the base: it discards the branch
 or freezes that exact branch as a tooling capability.
 
@@ -64,6 +66,11 @@ An `Arc<Vec<_>>` followed by copy-on-write mutation is not sufficient: it moves 
 from snapshot creation to the next write. A layered linear lookup is also not a final design because
 its cost grows with the number of committed bodies. The selected implementation must keep lookup
 and interning bounded independently of body count and must preserve deterministic identity.
+
+Nested mutable values follow the same rule. A closure draft shares its immutable definition core
+and keeps callable requirements in a persistent sequence. Adding a requirement copies neither the
+environment nor the existing requirement list; final `ClosureTable` construction linearizes that
+sequence exactly once.
 
 ## Pipeline Contract
 

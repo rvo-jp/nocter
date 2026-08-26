@@ -322,9 +322,8 @@ impl BodyChecker<'_, '_> {
             let closure = *closure;
             let signature = self
                 .closures
-                .get(closure)
+                .signature(closure)
                 .ok_or(BodyCheckInternalError::MissingClosure(closure))?
-                .signature()
                 .clone();
             if !super::closures::concrete_closure_satisfies(contract, &signature) {
                 return Ok(false);

@@ -3,6 +3,42 @@ use nocter_model::{StaleTypeTransaction, TypeStore, TypeTransaction};
 use crate::checked::{ClosureAuthority, ClosureTransaction, StaleClosureTransaction};
 use crate::copyability::{CopyabilityTable, CopyabilityTransaction, StaleCopyabilityTransaction};
 
+/// One accepted generation of every semantic authority extended during body construction.
+///
+/// Keeping the three components private prevents callers from pairing a type branch with
+/// copyability or closure state from another body generation.
+pub(super) struct BodySemanticAuthority {
+    types: TypeStore,
+    copyabilities: CopyabilityTable,
+    closures: ClosureAuthority,
+}
+
+impl BodySemanticAuthority {
+    pub(super) fn new(
+        types: TypeStore,
+        copyabilities: CopyabilityTable,
+        closures: ClosureAuthority,
+    ) -> Self {
+        Self {
+            types,
+            copyabilities,
+            closures,
+        }
+    }
+
+    pub(super) fn transaction(&self) -> BodySemanticTransaction {
+        BodySemanticTransaction {
+            types: self.types.transaction(),
+            copyabilities: self.copyabilities.transaction(),
+            closures: self.closures.transaction(),
+        }
+    }
+
+    pub(super) fn into_parts(self) -> (TypeStore, CopyabilityTable, ClosureAuthority) {
+        (self.types, self.copyabilities, self.closures)
+    }
+}
+
 /// The sole owner of program-wide semantic additions made while checking one body.
 ///
 /// Components cannot be committed independently through this API. Success consumes all three
@@ -15,18 +51,6 @@ pub(super) struct BodySemanticTransaction {
 }
 
 impl BodySemanticTransaction {
-    pub(super) fn new(
-        types: &TypeStore,
-        copyabilities: &CopyabilityTable,
-        closures: &ClosureAuthority,
-    ) -> Self {
-        Self {
-            types: types.transaction(),
-            copyabilities: copyabilities.transaction(),
-            closures: closures.transaction(),
-        }
-    }
-
     pub(super) fn parts(
         &mut self,
     ) -> (
@@ -45,25 +69,17 @@ impl BodySemanticTransaction {
 
     pub(super) fn commit(
         self,
-        types: &TypeStore,
-        copyabilities: &CopyabilityTable,
-        closures: &ClosureAuthority,
-    ) -> Result<CommittedBodySemantic, BodySemanticCommitError> {
-        let types = self.types.commit(types)?;
-        let copyabilities = self.copyabilities.commit(copyabilities)?;
-        let closures = self.closures.commit(closures)?;
-        Ok(CommittedBodySemantic {
+        base: &BodySemanticAuthority,
+    ) -> Result<BodySemanticAuthority, BodySemanticCommitError> {
+        let types = self.types.commit(&base.types)?;
+        let copyabilities = self.copyabilities.commit(&base.copyabilities)?;
+        let closures = self.closures.commit(&base.closures)?;
+        Ok(BodySemanticAuthority {
             types,
             copyabilities,
             closures,
         })
     }
-}
-
-pub(super) struct CommittedBodySemantic {
-    pub(super) types: TypeStore,
-    pub(super) copyabilities: CopyabilityTable,
-    pub(super) closures: ClosureAuthority,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,22 +114,20 @@ mod tests {
     use crate::checked::ClosureAuthority;
     use crate::copyability::CopyabilityTable;
 
-    use super::BodySemanticTransaction;
+    use super::BodySemanticAuthority;
 
     #[test]
     fn sibling_body_transaction_cannot_commit_after_authorities_advance() {
-        let types = TypeStore::new();
-        let copyabilities = CopyabilityTable::default();
-        let closures = ClosureAuthority::new();
-        let first = BodySemanticTransaction::new(&types, &copyabilities, &closures);
-        let second = BodySemanticTransaction::new(&types, &copyabilities, &closures);
-
-        let accepted = first.commit(&types, &copyabilities, &closures).unwrap();
-
-        assert!(
-            second
-                .commit(&accepted.types, &accepted.copyabilities, &accepted.closures,)
-                .is_err()
+        let base = BodySemanticAuthority::new(
+            TypeStore::new(),
+            CopyabilityTable::default(),
+            ClosureAuthority::new(),
         );
+        let first = base.transaction();
+        let second = base.transaction();
+
+        let accepted = first.commit(&base).unwrap();
+
+        assert!(second.commit(&accepted).is_err());
     }
 }

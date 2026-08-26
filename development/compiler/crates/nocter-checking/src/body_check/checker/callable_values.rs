@@ -101,14 +101,11 @@ impl BodyChecker<'_, '_> {
             ..
         }) = self.types.get(subject)
         {
-            let definition = self
+            let signature = self
                 .closures
-                .get(*closure)
+                .signature(*closure)
                 .ok_or(BodyCheckInternalError::MissingClosure(*closure))?;
-            return Ok(CallableValueContract::Closure(
-                *closure,
-                definition.signature().clone(),
-            ));
+            return Ok(CallableValueContract::Closure(*closure, signature.clone()));
         }
         let mut candidates = self.assumptions.iter().filter_map(|requirement| {
             let CheckedPredicate::Callable {
