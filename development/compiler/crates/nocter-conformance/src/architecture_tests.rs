@@ -54,6 +54,46 @@ fn production_dependency_closure(crate_name: &str) -> BTreeSet<String> {
     closure
 }
 
+fn crate_names() -> Vec<String> {
+    let mut names = fs::read_dir(workspace().join("crates"))
+        .expect("compiler crate directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().join("Cargo.toml").is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+fn production_rust_sources(crate_name: &str) -> Vec<(PathBuf, String)> {
+    fn visit(path: &Path, sources: &mut Vec<(PathBuf, String)>) {
+        for entry in fs::read_dir(path).expect("Rust source directory") {
+            let entry = entry.expect("Rust source entry");
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|name| name == "tests") {
+                    continue;
+                }
+                visit(&path, sources);
+            } else if path.extension().is_some_and(|extension| extension == "rs")
+                && path.file_name().is_none_or(|name| name != "tests.rs")
+            {
+                let source = fs::read_to_string(&path)
+                    .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+                sources.push((path, source));
+            }
+        }
+    }
+
+    let mut sources = Vec::new();
+    visit(
+        &workspace().join("crates").join(crate_name).join("src"),
+        &mut sources,
+    );
+    sources.sort_by(|left, right| left.0.cmp(&right.0));
+    sources
+}
+
 #[test]
 fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
@@ -128,6 +168,51 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
             inherited.is_empty(),
             "{crate_name} inherits native backend crates: {inherited:?}"
         );
+    }
+}
+
+#[test]
+fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
+    let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
+    for crate_name in crate_names() {
+        if production_dependencies(&crate_name).contains("nocter-persistent") {
+            assert!(
+                allowed.contains(crate_name.as_str()),
+                "{crate_name} must consume an immutable semantic contract, not persistent storage"
+            );
+        }
+    }
+}
+
+#[test]
+fn downstream_program_layers_do_not_own_semantic_transactions_or_storage() {
+    let forbidden = [
+        "BodySemanticTransaction",
+        "ClosureTransaction",
+        "CopyabilityTransaction",
+        "PersistentArena",
+        "PersistentMap",
+        "PersistentVector",
+        "TypeTransaction",
+        "nocter_persistent",
+    ];
+    for crate_name in [
+        "nocter-target-program",
+        "nocter-mir",
+        "nocter-machine",
+        "nocter-runtime-contract",
+    ] {
+        for (path, source) in production_rust_sources(crate_name) {
+            let leaked = forbidden
+                .iter()
+                .filter(|name| source.contains(**name))
+                .collect::<Vec<_>>();
+            assert!(
+                leaked.is_empty(),
+                "{} imports semantic construction internals: {leaked:?}",
+                path.display()
+            );
+        }
     }
 }
 

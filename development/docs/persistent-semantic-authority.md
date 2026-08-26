@@ -96,6 +96,19 @@ exact type and copyability authorities supplied by the query. Reusing a session 
 compiler generation or another recovery interruption is an error rather than silent cross-branch
 identity reuse.
 
+## Downstream Boundary
+
+`nocter-persistent` is a dependency-free storage-mechanics crate. Only `nocter-model` and
+`nocter-checking` may depend on it directly. Target closure, MIR, Machine, and runtime code consume
+immutable `TypeStore` and checked or executable contracts; their production source cannot name a
+type, copyability, closure, or body transaction and cannot name a persistent collection. Concrete
+specialization remains a checking-owned capability: Target code asks `ConcreteDispatchResolver`
+for specialized identities and finally receives one frozen descendant `TypeStore`.
+
+Executable architecture tests enumerate workspace manifests and downstream production source to
+keep both restrictions active. Tests may construct isolated type authorities for fixtures, but no
+production backend phase can extend semantic state itself.
+
 ## Qualification
 
 The structural qualification compares authority operations rather than relying only on noisy wall

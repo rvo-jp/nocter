@@ -31,8 +31,11 @@ queries, concrete specialization, type projection, and tests use these boundarie
 checkpoints, journals, body rollback paths, and full-store recovery clones are gone. Editor query
 sessions now verify their exact type and copyability bases, reject cross-generation or
 cross-interruption reuse, and have checked plus recovery tests proving repeatable completion without
-mutating accepted types. The next step is to audit downstream dependency and API boundaries before
-Phase 3 qualification.
+mutating accepted types. Downstream architecture gates allow direct persistent-storage dependencies
+only in model and checking, and reject transaction or persistent collection use in Target, MIR,
+Machine, and runtime production source. Target's unused transaction-taking specialization helper is
+gone; concrete type construction remains checking-owned. The next step is Phase 3 performance
+qualification and the final adversarial design review.
 
 The active specification-first compiler is under `development/compiler/`. The implementation
 removed before the v0.14.0 rewrite remains available only in Git history and must not be used as a

@@ -2,9 +2,7 @@ use std::fmt;
 
 use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
 use nocter_declarations::CallableOwner;
-use nocter_model::{
-    CallableId, GenericParameterId, InterfaceId, TypeId, TypeStore, TypeTransaction,
-};
+use nocter_model::{CallableId, GenericParameterId, InterfaceId, TypeId, TypeStore};
 
 use crate::{ExecutableEntry, TargetProgram};
 
@@ -172,19 +170,6 @@ impl CallableInstanceKey {
             substitution.set_interface_self(interface, receiver);
         }
         substitution
-    }
-
-    /// Applies this specialization to a type store fork.
-    ///
-    /// # Errors
-    ///
-    /// Returns a substitution failure when `ty` or one of its replacements is invalid.
-    pub fn apply_type(
-        &self,
-        types: &mut TypeTransaction,
-        ty: TypeId,
-    ) -> Result<TypeId, SubstitutionError> {
-        self.substitution().apply_type(types, ty)
     }
 }
 
