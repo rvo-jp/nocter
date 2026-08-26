@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use nocter_model::{BuiltinType, TypeKind, TypeStore};
 use nocter_runtime_contract::RuntimeTypeRepresentation;
 
@@ -88,17 +86,15 @@ fn validate_struct(
     else {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     };
-    let mut seen = BTreeSet::new();
     let mut previous = declared.len();
     for field in fields {
-        let Some(position) = declared
+        let Some(position) = declared[..previous]
             .iter()
-            .position(|candidate| candidate.field() == field.field())
-            .filter(|position| *position < previous)
+            .rposition(|candidate| candidate.field() == field.field())
         else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen.insert(field.field()) || declared[position].ty() != field.plan().ty() {
+        if declared[position].ty() != field.plan().ty() {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -121,17 +117,15 @@ fn validate_closure(
     else {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     };
-    let mut seen = BTreeSet::new();
     let mut previous = declared.len();
     for capture in captures {
-        let Some(position) = declared
+        let Some(position) = declared[..previous]
             .iter()
-            .position(|candidate| candidate.capture() == capture.capture())
-            .filter(|position| *position < previous)
+            .rposition(|candidate| candidate.capture() == capture.capture())
         else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen.insert(capture.capture()) || declared[position].ty() != capture.plan().ty() {
+        if declared[position].ty() != capture.plan().ty() {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -154,35 +148,27 @@ fn validate_enum(
     else {
         return Err(MirValidationError::InvalidDestruction(plan.ty()));
     };
-    let mut seen_variants = BTreeSet::new();
     let mut previous_variant = None;
     for variant in variants {
-        let position = declared
+        let start = previous_variant.map_or(0, |previous| previous + 1);
+        let position = declared[start..]
             .iter()
             .position(|candidate| candidate.variant() == variant.variant())
-            .filter(|position| previous_variant.is_none_or(|old| old < *position));
+            .map(|relative| start + relative);
         let Some(position) = position else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if !seen_variants.insert(variant.variant()) {
-            return Err(MirValidationError::InvalidDestruction(plan.ty()));
-        }
         previous_variant = Some(position);
         let declaration = &declared[position];
-        let mut seen_payload = BTreeSet::new();
         let mut previous_payload = declaration.payload().len();
         for payload in variant.payload() {
-            let Some(position) = declaration
-                .payload()
+            let Some(position) = declaration.payload()[..previous_payload]
                 .iter()
-                .position(|candidate| candidate.parameter() == payload.parameter())
-                .filter(|position| *position < previous_payload)
+                .rposition(|candidate| candidate.parameter() == payload.parameter())
             else {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             };
-            if !seen_payload.insert(payload.parameter())
-                || declaration.payload()[position].ty() != payload.plan().ty()
-            {
+            if declaration.payload()[position].ty() != payload.plan().ty() {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
             previous_payload = position;
