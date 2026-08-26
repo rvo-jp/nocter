@@ -12,8 +12,11 @@ pub(crate) struct ConstructionIdentity(u64);
 
 impl ConstructionIdentity {
     pub(crate) fn fresh() -> Self {
-        let identity = NEXT_CONSTRUCTION_IDENTITY.fetch_add(1, Ordering::Relaxed);
-        assert_ne!(identity, 0, "construction identity space exhausted");
+        let identity = NEXT_CONSTRUCTION_IDENTITY
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("construction identity space exhausted");
         Self(identity)
     }
 }
