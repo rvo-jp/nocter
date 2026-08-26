@@ -132,7 +132,7 @@ the remaining construction API. The compiler does not reconstruct a documentatio
 construction surface for type hover.
 
 Associated type hover uses the interface-owned declaration identity. A declaration or projection
-is shown as `associated type Interface.Name`; a conformance binding is shown as
+is shown as `associated type Interface.Name`; an implementation binding is shown as
 `type Interface.Name = ConcreteType`. Normalized callable presentation preserves a generic
 `Self.Name` or `T.Name` projection until concrete specialization selects a binding.
 
@@ -198,11 +198,12 @@ A generic-bound call defines to the interface declaration. Concrete specializati
 selected implementation target internally without changing that source-level definition result.
 The target name in a callable `where` clause defines, references, and renames as the corresponding
 generic parameter; contextual `copy` and `where` tokens never acquire declaration identities.
-An associated type declaration owns the identity shared by its conformance bindings and projected
+An associated type declaration owns the identity shared by its implementation bindings and projected
 uses. Definition, references, and rename cross imports through that identity rather than treating
 each `Item` spelling as a separate symbol.
 
-In `some Interface<Item = T>`, semantic tokens classify only `some` as a contextual keyword. The
+In `some Interface { type Item = T }`, semantic tokens classify `some` as a contextual keyword and
+`type` as a keyword. The
 interface and associated binding names use their declaration identities. Hover, signature help,
 completion, navigation, references, rename, and inlay text render the authored opaque contract and
 must not reveal the concrete witness. Member completion offers only the advertised interface
@@ -222,16 +223,17 @@ match. An empty selection acts as a cursor query and matches a diagnostic contai
 All currently generated actions have the `quickfix` kind. A client `context.only` filter that does
 not include `quickfix` receives no actions and does not trigger speculative compilation.
 
-A required-interface-method action implements every missing required method in the selected
-`conform` declaration as one atomic edit. For a separated directory-module conformance, the
-diagnostic remains on the public conformance fact in `index.nct`, while the edit targets its joined
-private implementation conformance. An inline conformance is edited in place. The source index's
-declaration and implementation roles select this destination; the server does not infer it from a
-file name or `see` path. Each generated signature uses the conformance-specialized
-associated types, callable generics, parameter and result types, and `where` predicates. Generated
-method bodies call `std/process.abort()`; the action adds that import when it is not already visible.
-The server offers no action unless the complete edited package passes ordinary compilation, so a
-partial method set, unresolved signature type, or conflicting `abort` binding is not published.
+A required-interface-method action implements every missing required method for the selected
+`impl Interface` member as one atomic edit. It targets an existing inherent-method implementation
+fragment for the same instance pattern only when exactly one directly visible private source is a
+valid destination. In single-file mode it may edit the containing instance. If no unique authored
+destination exists, the compiler reports the missing methods without offering an edit; the server
+does not invent a source file or choose one by path order. Each generated signature uses the
+implementation-specialized associated types, callable generics, parameter and result types, and
+`where` predicates. Generated method bodies call `std/process.abort()`; the action adds that import
+when it is not already visible. The server offers no action unless the complete edited package
+passes ordinary compilation, so a partial method set, unresolved signature type, or conflicting
+`abort` binding is not published.
 
 When postfix `?` has a typed optional or fallible operand but the enclosing authored callable result
 cannot propagate that layer, a callable-contract action may replace the callable's exact result type
@@ -263,7 +265,7 @@ Inlay-hint requests use half-open ranges. A hint at the request's end position i
 Recovery may create a temporary syntax overlay for missing delimiters, call operands, imports,
 member access, iteration headers, interpolation bodies, literal declarations, or provenance clauses.
 Semantic results are returned only when the ordinary compiler query resolves the required
-declaration and type identities. Recovery must not invent conformance, imports, members, or types,
+declaration and type identities. Recovery must not invent interface implementation, imports, members, or types,
 and it never replaces the authoritative document generation.
 
 ## Protocol Lifecycle

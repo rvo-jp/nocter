@@ -36,7 +36,8 @@ Nocter prioritizes:
 - no dependency on `clang`, `as`, `ld`, Xcode Command Line Tools, or external runtime libraries
 - simple and readable high-level syntax
 - AI-readable and AI-writable source through one canonical style, stable examples, and machine-readable diagnostics
-- value-centered program structure using `struct`, `enum`, `func`, `instance`, `conform`, and modules
+- value-centered program structure using `struct`, `enum`, `func`, `instance`, explicit interface
+  implementation, and modules
 - memory management without GC
 - standard-library implementation in Nocter, with limited typed `primitive` declarations for low-level boundaries
 - no user-facing `unsafe` mode; low-level trusted code is restricted to the active Nocter home

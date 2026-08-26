@@ -477,14 +477,14 @@ inspect(none) // error: T cannot be inferred from absence
 
 `Self` is type-position syntax, not an ordinary user-defined name.
 
-`Self` is valid only in type positions owned by a type or interface declaration: an `instance` or
-`conform` declaration, an interface member signature or default body, or a `construct` entry.
+`Self` is valid only in type positions owned by a type or interface declaration: an `instance`, an
+interface member signature or default body, or a `construct` entry.
 
 Meaning:
 
 - In `instance File { ... }`, `Self` means `File`.
-- In `interface Source { ... }`, `Self` means the eventual conforming type.
-- In `conform Source for File { ... }`, `Self` means `File`.
+- In `interface Source { ... }`, `Self` means the eventual implementing type.
+- In `instance File { impl Source ... }`, `Self` means `File`.
 - In `construct File { ... }`, `Self` means `File`.
 
 Rules:
@@ -502,17 +502,17 @@ This preserves Nocter's rule that ordinary names do not define special behavior.
 
 Type selections are resolved from left to right. When the prefix names an imported module
 namespace, `.Name` selects one exported type declaration, as in `parser.Parser<T>`. Once the prefix
-denotes a type, `.Name` is an associated type projection selected by an interface conformance.
+denotes a type, `.Name` is an associated type projection selected by an interface implementation.
 
 ```nct
-func next<S>(source: &+S): S.Item? where S: Source {
+func next<S>(source: &+S): S.Item? where S impl Source {
     return source.next()
 }
 ```
 
 `Self.Item` is valid when the current interface declares `Item`. `S.Item` requires exactly one
 interface requirement on `S` to declare `Item`. A concrete projection such as `FileSource.Item`
-requires exactly one applicable conformance that binds `Item`. Projection normalization also
+requires exactly one applicable interface implementation that binds `Item`. Projection normalization also
 applies beneath existing type constructors, so `Vec<S.Item>`, `S.Item?`, and `&S.Item` retain their
 ordinary outer type rules.
 

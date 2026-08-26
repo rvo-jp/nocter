@@ -118,7 +118,6 @@ catch
 const
 continue
 construct
-conform
 else
 enum
 false
@@ -129,6 +128,7 @@ see
 in
 instance
 interface
+impl
 is
 let
 literal

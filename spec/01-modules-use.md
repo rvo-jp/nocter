@@ -224,11 +224,11 @@ Visibility is written only on the public contract. Missing, mismatched, and dupl
 are errors independent of source traversal order.
 
 This rule applies to top-level functions, inherent methods, construction functions, typed literals,
-coercion entries, and source-defined operators.
-Conformance is split at the declaration boundary rather than at each method. The root conformance
-contract owns the conformance head, its `where` clause, and associated type bindings. Its matching
-private conformance definition owns all method implementations. The interface is the sole source
-of required method signatures, so a root conformance contract must not repeat them. Interface
+coercion entries, and source-defined operators. An interface implementation is a bodyless
+`impl Interface` member of an `instance` in `index.nct`; it does not participate in contract/body
+joining. Private sources provide its required behavior through ordinary inherent method bodies.
+The interface is the sole source of required signatures, so the root does not repeat a private
+implementation method unless that method is also part of the public inherent API. Interface
 requirements remain intrinsically bodyless.
 Interface defaults write `default` explicitly and may use the same split: a bodyless
 `pub default method` in the root interface is completed by one private `default method` body in a
@@ -341,7 +341,7 @@ private definition, and the definition must satisfy the ordinary structural copy
 
 Only declarations authored in `index.nct` can define the module's exported namespace. An ordinary
 source made visible with `see` cannot add a public name, member, construction entry, coercion,
-operator, or conformance to that namespace. It may define private helpers and may complete
+operator, or interface implementation to that namespace. It may define private helpers and may complete
 declarations already contracted in `index.nct`. Thus documentation, hover, completion, signature
 help, and ordinary source review can derive the complete public use surface without reading
 implementation sources.
@@ -630,7 +630,7 @@ Rules:
 - a re-export may narrow a boundary but cannot widen it
 - variants declared inline in `index.nct` follow their enum's visibility; variants supplied by a
   private representation definition remain private to their authored source and direct seers
-- `instance` and `conform` declarations are not themselves marked public
+- `instance` declarations and their `impl Interface` members are not themselves marked public
 - there is no `private` keyword, friend namespace, or named visibility scope
 
 Visibility grants source access only. The exact implicit `std` package identity separately grants

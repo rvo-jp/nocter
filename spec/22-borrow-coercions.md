@@ -163,7 +163,7 @@ consumes an owned value, or changes the selected entry based on later generic in
 ## Method Receiver Selection
 
 An ordinary method call first searches the original receiver's inherent methods, explicit
-interface conformances, and interface defaults. Only when that lookup has no candidate may the
+interface implementations, and interface defaults. Only when that lookup has no candidate may the
 compiler prepare the normal receiver borrow and apply one declared borrow coercion:
 
 ```nct

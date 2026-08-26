@@ -10,8 +10,8 @@ Nocter keeps capability and reusable stateless behavior separate from stored com
   marked `default` supplies reusable behavior
 - stored composition syntax is not part of the current language
 
-A default method adds no fields, layout, or implicit conformance. It is available only after the
-receiver has an explicit conformance to that interface.
+A default method adds no fields, layout, or implicit implementation. It is available only after the
+receiver explicitly implements that interface.
 
 ## Interface Methods
 
@@ -46,29 +46,27 @@ yield from the current iterator state. Advancing the iterator decreases that num
 not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
 pack's length is fixed before its constructor body starts.
 
-Only methods without the `default` modifier are conformance requirements. A default body is checked once in the
+Only methods without the `default` modifier are interface implementation requirements. A default body is checked once in the
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
 the interface's required methods, other unambiguous default methods, and ordinary visible APIs.
 
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(Self.Item): U {
-    return MapIter<U, Self, F> {
-        source: move self,
-        transform: move transform,
-    }
+pub default method self.map<U>(transform: &+func(Self.Item): U): some Iterator { type Item = U }
+from self | transform {
+    return MapIter.new(move self, move transform)
 }
 ```
 
-Method lookup considers inherent methods and members or defaults from interfaces to which the
-receiver explicitly conforms, or from the bounds of a generic receiver. Two applicable declarations
+Method lookup considers inherent methods and members or defaults from interfaces which the receiver
+explicitly implements, or from the requirements of a generic receiver. Two applicable declarations
 with the same name are ambiguous across those categories. Declaration or import order never selects
 one. The selected declaration is statically specialized and called directly.
 
-A required method is implemented in the body of `conform Interface for Type { ... }`. A conformance
-member with the same name as a default is its explicit override. Inherent methods neither satisfy
-required methods nor override defaults. A default method cannot itself establish conformance.
+A required method is implemented by one exact inherent method selected by an explicit
+`impl Interface` member. A matching inherent method overrides a same-name default. The `impl`
+member, not the method's presence alone, establishes the interface implementation.
 
 ## Closure Expressions
 
@@ -228,22 +226,21 @@ let copied = format // error: the closure owns String
 let owned = move format
 ```
 
-## Callable Capability
+## Callable Types
 
-Closure values have anonymous concrete types. Built-in structural callable contracts let generic
-code state how it may invoke such a value:
+Closure values have anonymous concrete types. Built-in structural callable types let source state
+how it may invoke such a value without treating invocation as nominal interface implementation:
 
 ```nct
-func inspect<F>(callback: F, value: i32): bool where F: &func(value: i32): bool {
+func inspect(callback: &func(value: i32): bool, value: i32): bool {
     return callback(value)
 }
 
-func transform<F>(callback: F, value: i32): i32 where F: &+func(value: i32): i32 {
-    var callable = move callback
-    return callable(value)
+func transform(callback: &+func(value: i32): i32, value: i32): i32 {
+    return callback(value)
 }
 
-func finish<F>(callback: F, value: i32): i32 where F: func(value: i32): i32 {
+func finish(callback: func(value: i32): i32, value: i32): i32 {
     return callback(value)
 }
 ```
@@ -253,16 +250,28 @@ func finish<F>(callback: F, value: i32): i32 where F: func(value: i32): i32 {
   must be writable
 - `func(Input): Output` permits one consuming invocation; the called value is moved by the call
 
-These capabilities describe invocation access, not value copyability. A closure may satisfy a
+These forms describe invocation access, not value copyability. A closure may satisfy a
 readonly repeated-call contract while remaining move-only because its environment owns a
 move-only value. Conversely, copying a capture-free closure does not grant a consuming invocation
 contract that its body does not satisfy.
 
+Callable annotations are statically witnessed. A local initializer or call argument selects one
+exact concrete closure or callable witness, and that identity remains part of the enclosing
+callable specialization. The annotation does not erase the environment, allocate a box, create a
+code-pointer pair, or introduce indirect dispatch. Different concrete witnesses cannot flow into
+one local binding or one control-flow merge. A future erased callable requires a separate explicit
+type and ABI.
+
+Callable annotations are accepted for callable parameters and initialized local bindings. They are
+not sized data-bearing types and cannot appear as nominal fields, variant payloads, type aliases,
+generic arguments, or named non-opaque results. An opaque result may retain a hidden callable
+witness as part of its compiler-selected concrete representation.
+
 Parameter names are optional. A single eligible named parameter is inferred as the result origin,
 for example `&func(text: &str): &str`. When a result may retain one of several parameters, their
 names are required by an explicit clause such as
-`&func(left: &str, right: &str): &str from left | right`. A generic parameter may have interface
-bounds and one callable contract, but multiple callable contracts are ambiguous and rejected.
+`&func(left: &str, right: &str): &str from left | right`. `impl` never precedes a callable type;
+that keyword is reserved for nominal interface implementation.
 
 Fresh result storage and execution allocation are inferred behind callable boundaries. They do not
 change callable capability or structural callable compatibility. A callable `from` clause remains
@@ -272,9 +281,9 @@ The invocation surface is identical for all three capabilities: `callback(argume
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
 to their generated target.
 
-Callable contracts currently appear as generic bounds. They do not define a sized stored type or
-an erased parameter ABI. The language does not define an erased callable object,
-heap-boxed closure, code-pointer ABI, vtable, or runtime interface dispatch.
+Callable annotations do not define a uniform stored layout or an erased parameter ABI. Hidden
+witness specialization preserves the concrete environment layout. The language does not define an
+erased callable object, heap-boxed closure, code-pointer ABI, vtable, or runtime interface dispatch.
 
 A closure that consumes captured state may be called only through a consuming capability. Iterator
 adapters require a mutable repeated callback, so consuming a capture from their callback body is a
@@ -311,4 +320,4 @@ in source order.
 
 The current language does not include interface inheritance, erased callable types, dynamic
 dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
-sorting, extension declarations, or implicit conformance.
+sorting, extension declarations, or implicit interface implementation.

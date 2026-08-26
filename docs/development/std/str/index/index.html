@@ -185,11 +185,11 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
+conform <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
     <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
+conform <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
     <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 <span class="token-operator">}</span>
 

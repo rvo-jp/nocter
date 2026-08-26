@@ -170,9 +170,9 @@
 <span class="token-comment">/// A forward iterator that owns a Vec allocation and its remaining elements.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-<span class="token-keyword">conform</span> <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span>
+conform <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span>
 
-<span class="token-keyword">conform</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">type</span> <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span>
 <span class="token-operator">}</span>
 

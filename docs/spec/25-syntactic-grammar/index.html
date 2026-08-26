@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-25">
+    <meta property="article:modified_time" content="2026-08-26">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Syntactic Grammar - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Syntactic Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/25-syntactic-grammar/","mainEntityOfPage":"https://nocter.dev/spec/25-syntactic-grammar/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"25 Syntactic Grammar","item":"https://nocter.dev/spec/25-syntactic-grammar/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Syntactic Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/25-syntactic-grammar/","mainEntityOfPage":"https://nocter.dev/spec/25-syntactic-grammar/","dateModified":"2026-08-26","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"25 Syntactic Grammar","item":"https://nocter.dev/spec/25-syntactic-grammar/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -234,7 +234,6 @@ RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment
 </code></pre><p><code>ModuleSegment</code> is the snake-case module segment defined by the lexical grammar. <code>SeePath</code> contains the exact source filename and admits neither a missing <code>.nct</code> suffix nor a mixed <code>./../</code> prefix. Semantic resolution permits the canonical target only when both sources have the same physical module owner. A <code>ModulePath</code> never contains <code>.nct</code>; every <code>use</code> is a directory-module import.</p><p>A block-scope import uses the private <code>BlockUseDeclaration</code> form. Its enclosing block owns the newline separator. Visibility is recognized only on a top-level use declaration. <code>see</code> has no block-scope or visibility-bearing form. Module rules further reject namespace alias re-exports.</p><h2 id="items">Items</h2><pre><code class="language-text">Item = TargetDirective? TargetableItem
      | ConstructDeclaration
      | InstanceDeclaration
-     | ConformDeclaration
      | DropDeclaration
      | TestDeclaration
 
@@ -248,7 +247,7 @@ TargetableItem = FunctionDeclaration
 
 TargetDirective = "#" "target" ":" StringLiteral newline+
 </code></pre><pre><code class="language-text">ConstantDeclaration = Visibility? "const" Name ":" Type ("=" Expression)?
-</code></pre><p>A constant without an initializer is a module-root contract and must join exactly one private initializer definition. Every other constant declaration has an initializer.</p><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>conform</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" NonEmptyList(Name) "&gt;"
+</code></pre><p>A constant without an initializer is a module-root contract and must join exactly one private initializer definition. Every other constant declaration has an initializer.</p><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" NonEmptyList(Name) "&gt;"
 
 Parameters = "(" List(Parameter) ")"
 Parameter  = "..."? Name ":" Type
@@ -289,7 +288,7 @@ InterfaceMember = AssociatedTypeDeclaration
                 | ImplementationInterfaceMethod
 
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
-InterfaceBounds = ":" Capability ("+" Capability)*
+InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
 PublicInterfaceMethod = "pub" "default"? MethodSignature CallableBody
 ImplementationInterfaceMethod = "default" MethodSignature Block
@@ -315,6 +314,7 @@ LiteralParameters = "(" "..." Name ":" Type ")"
                       "{" LineSequence(InstanceMember) "}"
 
 InstanceMember = InherentMethod
+               | InterfaceImplementation
                | CoercionDeclaration
                | EqualityOperator
                | OrderingOperator
@@ -322,6 +322,13 @@ InstanceMember = InherentMethod
                | ExpansionOperator
 
 InherentMethod = Visibility? MethodSignature CallableBody
+
+InterfaceImplementation = "impl" InterfaceApplication
+
+InterfaceApplication = NamedType AssociatedBindings?
+AssociatedBindings = "{" AssociatedTypeBinding
+                     ("," AssociatedTypeBinding)* ","? "}"
+AssociatedTypeBinding = "type" Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&amp;" "self" | "&amp;+" "self" | "self"
@@ -344,20 +351,13 @@ IndexReceiver = "&amp;" "self" | "&amp;+" "self"
 ExpansionOperator = Visibility? "operator" "(" "..." ExpansionReceiver ")"
                     ":" Type ProvenanceClause? WhereClause? CallableBody
 ExpansionReceiver = "&amp;" "self" | "&amp;+" "self" | "self"
-</code></pre><p><code>BorrowType</code> is the readonly or readwrite borrowed result form from the type grammar. Fixed operator syntax is recognized directly rather than parsed as an arbitrary expression signature. This keeps the declarable operator set closed. <code>!=</code>, <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> therefore have no declaration production.</p><h2 id="explicit-conformances">Explicit Conformances</h2><pre><code class="language-text">ConformDeclaration = "conform" DeclarationTypePattern "for" DeclarationTypePattern
-                     WhereClause? "{" LineSequence(ConformMember) "}"
-
-ConformMember = AssociatedTypeBinding | ConformMethod
-
-AssociatedTypeBinding = "type" Name "=" Type
-ConformMethod = MethodSignature CallableBody
-</code></pre><p>Conformance members never write visibility. An <code>index.nct</code> conformance contract contains only associated type bindings; a bodyless <code>ConformMethod</code> is invalid because the interface already owns that signature. A reciprocally seen private conformance definition contains body-bearing methods and no associated type bindings. The contract and definition repeat the exact conformance head and form one semantic conformance. An inline conformance in <code>index.nct</code> or single-file mode may contain both bindings and body-bearing methods. Construction entries, fields, operators, coercions, drop declarations, tests, and extra functions have no conformance-member production.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
+</code></pre><p><code>BorrowType</code> is the readonly or readwrite borrowed result form from the type grammar. Fixed operator syntax is recognized directly rather than parsed as an arbitrary expression signature. This keeps the declarable operator set closed. <code>!=</code>, <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> therefore have no declaration production.</p><h2 id="instance-interface-implementations">Instance Interface Implementations</h2><p>An <code>InterfaceImplementation</code> is a bodyless instance member. It contains one nominal interface application and all associated bindings for that application. The containing instance supplies the target pattern and conditional requirements. Required method implementations are ordinary <code>InherentMethod</code> declarations and are matched semantically after all instance fragments have been collected. An implementation member never writes visibility and cannot contain callable bodies, operators, coercions, construction entries, fields, drop declarations, or tests.</p><h2 id="declaration-type-patterns">Declaration Type Patterns</h2><pre><code class="language-text">DeclarationTypePattern = Name PatternArguments?
                        | BuiltinTypePattern
                        | "[" Name "]"
 
 PatternArguments = "&lt;" NonEmptyList(Name) "&gt;"
 BuiltinTypePattern = BuiltinScalarType | "str" | "error"
-</code></pre><p>Pattern argument slots contain bare binder names only. Concrete and nested types are expressed by <code>where</code> binder refinements, not placed directly in <code>PatternArguments</code>. Semantic validation decides which built-in patterns the active standard-library package may extend and whether the resolved target kind is legal for <code>construct</code>, <code>instance</code>, <code>conform</code>, or <code>drop</code>.</p><h2 id="drop-and-test-declarations">Drop and Test Declarations</h2><pre><code class="language-text">DropDeclaration = "drop" DeclarationTypePattern "(" "&amp;+" "self" ")" Block
+</code></pre><p>Pattern argument slots contain bare binder names only. Concrete and nested types are expressed by <code>where</code> binder refinements, not placed directly in <code>PatternArguments</code>. Semantic validation decides which built-in patterns the active standard-library package may extend and whether the resolved target kind is legal for <code>construct</code>, <code>instance</code>, or <code>drop</code>.</p><h2 id="drop-and-test-declarations">Drop and Test Declarations</h2><pre><code class="language-text">DropDeclaration = "drop" DeclarationTypePattern "(" "&amp;+" "self" ")" Block
 TestDeclaration = "test" Name Block
 </code></pre><p>Neither declaration accepts visibility, generic parameters before its target/name, an explicit result type, or a <code>where</code> clause. A drop declaration always contains its body. A test body has the fixed semantic result contract <code>void!</code> without writing that contract in source.</p><h2 id="recognition-boundaries">Recognition Boundaries</h2><p>The following examples are syntax errors, independently of whether their names resolve:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">late</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print <span class="token-comment">// imports cannot follow items</span>
@@ -420,23 +420,20 @@ CallableParameter = "..."? (Type | Name ":" Type)
 BorrowType = "&amp;" NonCallablePrefix | "&amp;+" NonCallablePrefix
 
 CallableResult = Type | OpaqueResult TypeOutcomeSuffix?
-OpaqueResult = "some" Name OpaqueArguments?
-OpaqueArguments = "&lt;" NonEmptyList(OpaqueArgument) "&gt;"
-OpaqueArgument = Type | Name "=" Type
-</code></pre><p>Prefix pointer and borrow operators bind before an outcome suffix. Consequently <code>&amp;T?</code> is an optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in <code>&amp;(T?)</code>.</p><p>At one ungrouped layer, <code>?</code>, <code>!</code>, and <code>?!</code> are the recognized suffixes. Reversing the outcome order uses a grouped inner fallible type, <code>(T!)?</code>; <code>T!?</code> is not a production. Semantic validation rejects repeated layers reached through grouping, invalid <code>void</code> or <code>never</code> positions, unsized values outside indirection, and opaque results outside their allowed callable-result positions.</p><p><code>CallableCapability</code> distinguishes a repeatedly callable readonly value (<code>&amp;func</code>), a repeatedly callable readwrite value (<code>&amp;+func</code>), and a once-callable owned value (<code>func</code>). Callable parameters may omit names or use <code>name: Type</code>; names exist for provenance clauses but do not change the structural callable type. One final callable parameter may carry <code>...</code>; its pack marker and element type are part of structural callable identity.</p><p>Because <code>&amp;func</code> and <code>&amp;+func</code> begin callable types, they are not parsed as an ordinary borrow prefix followed by a separate <code>func</code> type. Borrowing a callable type as data requires explicit grouping, just like borrowing another already composed type.</p><p>A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module namespace prefix selects one exported type member, while a type prefix selects an associated type. Thus <code>parser.Parser&lt;T&gt;</code> and <code>T.Item</code> use the same token-only selection grammar without conflating their resolved identities. Type arguments are syntactically accepted on a selected segment so a module-qualified nominal type can be generic; semantic validation rejects arguments on an associated projection because generic associated types are not supported. A selected type may then participate in ordinary outer prefix and outcome forms.</p><p>After a <code>Name</code>, <code>&lt;</code> starts <code>TypeArguments</code> only when the complete non-empty list and matching <code>&gt;</code> are present in that type position. Otherwise the enclosing expression grammar retains <code>&lt;</code> as its ordering token. This bounded syntactic lookahead never asks whether the name denotes a generic type. Nested closing <code>&gt;&gt;</code> follows the token-subdivision rule below.</p><p>The fixed-array length is an <code>Expression</code> parsed without name or type information. Semantic constant evaluation requires it to produce a <code>usize</code>; constant generic parameters remain unsupported.</p><p>The lexer emits <code>&gt;&gt;</code> as one punctuation token. While parsing type arguments, that token supplies two consecutive <code>&gt;</code> closers only when two currently open type-argument lists require them. Thus <code>Outer&lt;Inner&lt;T&gt;&gt;</code> is canonical and does not require whitespace between the closers. In expression grammar, the same token remains the right-shift operator; no name or type information participates in this decision.</p><p>The lexer likewise emits <code>&amp;&amp;</code> as one token. In a type-prefix position it supplies two readonly borrow prefixes, so <code>&amp;&amp;T</code> is the compact spelling of <code>&amp;(&amp;T)</code>. In an expression operator position it remains logical conjunction.</p><h2 id="generic-requirements">Generic Requirements</h2><pre><code class="language-text">WhereClause = "where" Predicate ("," Predicate)*
+OpaqueResult = "some" InterfaceApplication
+</code></pre><p>Prefix pointer and borrow operators bind before an outcome suffix. Consequently <code>&amp;T?</code> is an optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in <code>&amp;(T?)</code>.</p><p>At one ungrouped layer, <code>?</code>, <code>!</code>, and <code>?!</code> are the recognized suffixes. Reversing the outcome order uses a grouped inner fallible type, <code>(T!)?</code>; <code>T!?</code> is not a production. Semantic validation rejects repeated layers reached through grouping, invalid <code>void</code> or <code>never</code> positions, unsized values outside indirection, and opaque results outside their allowed callable-result positions.</p><p><code>CallableCapability</code> distinguishes a repeatedly callable readonly value (<code>&amp;func</code>), a repeatedly callable readwrite value (<code>&amp;+func</code>), and a once-callable owned value (<code>func</code>). Callable parameters may omit names or use <code>name: Type</code>; names exist for provenance clauses but do not change the structural callable type. One final callable parameter may carry <code>...</code>; its pack marker and element type are part of structural callable identity.</p><p>Because <code>&amp;func</code> and <code>&amp;+func</code> begin callable annotations, they are not parsed as an ordinary borrow prefix followed by a separate <code>func</code> type. Their leading capability describes how the statically selected witness may be invoked; it is not storage for an erased function object.</p><p>A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module namespace prefix selects one exported type member, while a type prefix selects an associated type. Thus <code>parser.Parser&lt;T&gt;</code> and <code>T.Item</code> use the same token-only selection grammar without conflating their resolved identities. Type arguments are syntactically accepted on a selected segment so a module-qualified nominal type can be generic; semantic validation rejects arguments on an associated projection because generic associated types are not supported. A selected type may then participate in ordinary outer prefix and outcome forms.</p><p>After a <code>Name</code>, <code>&lt;</code> starts <code>TypeArguments</code> only when the complete non-empty list and matching <code>&gt;</code> are present in that type position. Otherwise the enclosing expression grammar retains <code>&lt;</code> as its ordering token. This bounded syntactic lookahead never asks whether the name denotes a generic type. Nested closing <code>&gt;&gt;</code> follows the token-subdivision rule below.</p><p>The fixed-array length is an <code>Expression</code> parsed without name or type information. Semantic constant evaluation requires it to produce a <code>usize</code>; constant generic parameters remain unsupported.</p><p>The lexer emits <code>&gt;&gt;</code> as one punctuation token. While parsing type arguments, that token supplies two consecutive <code>&gt;</code> closers only when two currently open type-argument lists require them. Thus <code>Outer&lt;Inner&lt;T&gt;&gt;</code> is canonical and does not require whitespace between the closers. In expression grammar, the same token remains the right-shift operator; no name or type information participates in this decision.</p><p>The lexer likewise emits <code>&amp;&amp;</code> as one token. In a type-prefix position it supplies two readonly borrow prefixes, so <code>&amp;&amp;T</code> is the compact spelling of <code>&amp;(&amp;T)</code>. In an expression operator position it remains logical conjunction.</p><h2 id="generic-requirements">Generic Requirements</h2><pre><code class="language-text">WhereClause = "where" Predicate ("," Predicate)*
 
-Predicate = CapabilityPredicate
+Predicate = InterfacePredicate
           | CopyPredicate
           | TypeEqualityPredicate
           | OperatorPredicate
           | CoercionPredicate
           | ExpansionPredicate
 
-CapabilityPredicate = Name ":" Capability ("+" Capability)*
+InterfacePredicate = RequirementSubject "impl" InterfaceApplication
+RequirementSubject = Name ("." Name)*
 CopyPredicate = "copy" Name
 TypeEqualityPredicate = Type "=" Type
-
-Capability = NamedType | CallableType
 
 OperatorPredicate = "(" OperatorRequirement ")" ":" Type
 OperatorRequirement = "&amp;" Type ("==" | "&lt;") "&amp;" Type
@@ -446,7 +443,7 @@ CoercionPredicate = ("&amp;" | "&amp;+") Type "as" Type
 
 ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
 ExpansionRequirementSource = Name | "&amp;" Name | "&amp;+" Name
-</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, conformances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a general associated-type equality from a declaration-pattern binder refinement, restricts structural operator operands, checks callable capability multiplicity, and rejects duplicate or unsatisfied requirements.</p><p>An expansion requirement's source is syntactically one binder name with optional readonly or readwrite capability. Semantic validation requires that name to be a visible generic parameter; arbitrary constructed source types do not create a second expansion-requirement spelling.</p><h2 id="blocks-and-body-results">Blocks and Body Results</h2><pre><code class="language-text">Block = "{" newline*
+</code></pre><p>The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type declarations, construction members, instances, and operators wherever their declaration production includes <code>WhereClause</code>. A newline is not a predicate separator.</p><p>The parser records the predicate form without proving it. Later validation distinguishes a a declaration-pattern binder refinement from other predicates, restricts structural operator operands, and rejects duplicate or unsatisfied requirements. A type equality is accepted only as a directed binder refinement belonging to a declaration type pattern; associated projection equality is expressed by <code>AssociatedBindings</code> on the relevant interface application.</p><p>An expansion requirement's source is syntactically one binder name with optional readonly or readwrite capability. Semantic validation requires that name to be a visible generic parameter; arbitrary constructed source types do not create a second expansion-requirement spelling.</p><h2 id="blocks-and-body-results">Blocks and Body Results</h2><pre><code class="language-text">Block = "{" newline*
         (BlockUseSequence (newline+ ExecutableSequence)? | ExecutableSequence)?
         newline* "}"
 

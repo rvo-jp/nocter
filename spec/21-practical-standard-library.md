@@ -65,7 +65,7 @@ pub interface Format {
 ```
 
 The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
-project type may conform and build its representation with canonical members: `output.push_str`
+project type may implement the interface and build its representation with canonical members: `output.push_str`
 for text and `value.format_into(output)` for nested formatted values. The `try_append_*` free
 functions remain distinct because they expose recoverable allocation to explicit builders;
 `format_into` and interpolation use the ordinary aborting allocation policy. Formatting dispatch

@@ -455,7 +455,7 @@ instance str {
     pub method &self.find(needle: &str): usize?
     pub method &self.contains(needle: &str): bool
     pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator<Item = &str>
+    pub method &self.lines(): some Iterator { type Item = &str }
     pub method &self.bytes_iter(): ViewIter<u8>
 }
 
@@ -506,7 +506,7 @@ instance str {
     pub method &self.strip_prefix(prefix: &str): &str? from self
     pub method &self.strip_suffix(suffix: &str): &str? from self
     pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator<Item = &str>
+    pub method &self.lines(): some Iterator { type Item = &str }
 }
 ```
 
@@ -626,7 +626,7 @@ Rules:
 
 Formatting rules:
 
-Interpolation requires conformance to the exact `std/fmt.Format` interface selected from the
+Interpolation requires implementation of the exact `std/fmt.Format` interface selected from the
 active Nocter home:
 
 ```nct
@@ -635,18 +635,18 @@ pub interface Format {
 }
 ```
 
-- `std` provides `Format` conformances for `str`, `String`, `bool`, and every built-in integer.
-- `str` appends its bytes, `String` appends its current string view, and scalar conformances use
+- `std` provides `Format` implementations for `str`, `String`, `bool`, and every built-in integer.
+- `str` appends its bytes, `String` appends its current string view, and scalar implementations use
   their canonical source spelling without extra whitespace.
-- A project-owned struct or enum becomes interpolatable only through an explicit conformance to
+- A project-owned struct or enum becomes interpolatable only through an explicit implementation of
   the exact standard interface.
 - Formatting borrows the value. An existing value remains usable after interpolation, and a
   temporary remains live through `format_into` before it is destroyed exactly once.
-- Generic code may interpolate `T` when its active requirements include `T: Format`.
+- Generic code may interpolate `T` when its active requirements include `T impl Format`.
 - A project interface named `Format` does not grant interpolation behavior.
 - Optional, fallible, array, pointer, callable, and opaque values are rejected unless they can
-  acquire a legal explicit conformance under the normal conformance rules.
-- Missing or ambiguous conformance is a type error at the `${...}` expression.
+  acquire a legal explicit implementation under the normal interface-implementation rules.
+- Missing or ambiguous implementation is a type error at the `${...}` expression.
 
 Allocator and lowering rules:
 

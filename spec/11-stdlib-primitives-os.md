@@ -46,7 +46,7 @@ That declaration's module owns ordinary source-defined instances and constructio
 `str` is declared and owned by `std/str`, `error` by `std/error`, and boolean and integer types by
 `std/num`. `void` and `never` are declared in `std/core` but admit no inherent surface. Structural
 slices remain owned by the exact compiler-selected `std/slice` module because `[T]` is a type
-constructor rather than a named declaration. Interface conformances are owned by the selected
+constructor rather than a named declaration. Interface implementations are owned by the selected
 standard-library package because an interface and the built-in's inherent surface may have
 separate module responsibilities. A project package cannot declare or directly extend a
 compiler-owned type. Authority is based on exact selected declarations and module identities, not
@@ -238,7 +238,7 @@ Rules:
 
 - The directive applies only to the immediately following function, primitive, or type
   declaration.
-- It does not apply to `use`, `test`, `construct`, `instance`, or `conform` declarations.
+- It does not apply to `use`, `test`, `construct`, or `instance` declarations.
 - The declaration participates in name resolution and compilation only when the selected target
   matches exactly.
 - A gate name outside the compiler release's recognized target set is an error. A recognized but

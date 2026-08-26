@@ -20,8 +20,9 @@ func first<T>(items: &[T]): T? {
 }
 ```
 
-A generic parameter list declares names and arity only. A `where` clause declares every capability,
-intrinsic copy requirement, and associated-type equality required by the declaration. The complete
+A generic parameter list declares names and arity only. A `where` clause declares every nominal
+interface implementation, intrinsic copy, operator, coercion, expansion, and pattern-refinement
+requirement. The complete
 recognition grammar is centralized under
 [Generic Requirements](25-syntactic-grammar.md#generic-requirements).
 
@@ -30,17 +31,16 @@ generic name visible from its enclosing declaration; it must use that existing p
 a new name. Declaration type patterns are the sole exception to spelling repetition: their first
 occurrence declares a binder and later occurrences refer to that same binder, as specified below.
 
-Every nominal capability must resolve to an accessible interface with the declared type arity. Bound
-order is formatting information; semantics use specialized interface declaration identities plus
-at most one structural callable contract. Duplicate interface identities and multiple callable
-contracts are invalid.
+Every nominal interface requirement must resolve to an accessible interface with the declared type
+arity. Requirement order is formatting information; semantics use specialized interface
+declaration identities and associated bindings. Duplicate interface applications are invalid.
 
 `copy` is an intrinsic requirement, not an interface or a type modifier. A callable may rely on
 implicit copies of `T` only when its contract contains `where copy T`. A concrete call satisfies the
 requirement only when its substituted type is copyable under the ownership rules.
 
-Callables can further constrain a generic parameter inherited from a surrounding `construct`, `instance`,
-`conform`, or `interface` scope:
+Callables can further constrain a generic parameter inherited from a surrounding `construct`,
+`instance`, or `interface` scope:
 
 ```nct
 construct Buffer<T> {
@@ -52,18 +52,24 @@ construct Buffer<T> {
 
 The clause follows result provenance and precedes a callable body. On a struct, enum, or interface,
 it follows the generic parameter list and precedes the body. On an `instance`, it follows the
-target. On a `conform`, it follows the conformance target. On a type alias, it follows the aliased
-type. A requirement target must be a generic parameter visible to
-that declaration. Duplicate `copy` requirements, duplicate interface bounds, and multiple callable
-contracts are invalid. `copy` is unavailable after `:` and is invalid inside a type expression such
-as `&[copy T]`.
+target. On a type alias, it follows the aliased type. A requirement target must be a generic
+parameter or associated projection visible to that declaration. Duplicate `copy` requirements and
+duplicate interface implementations are invalid. `copy` is unavailable after `impl` and is invalid
+inside a type expression such as `&[copy T]`.
 
-A general type equality requires at least one associated projection. Equality is symmetric and transitive,
-expands aliases, and applies recursively beneath existing type constructors. A generic body may
-rely only on equalities in its lexical predicate environment. A concrete call or conditional
-conformance must prove every specialized equality. Cycles that cannot normalize to a finite type,
-unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
-`conform Interface for Type` clause uses the same predicate model and places `where` after the target.
+An interface requirement uses `impl` and may bind that interface's associated types in braces:
+
+```nct
+where T impl Iterator { type Item = &str }
+```
+
+`impl` is reserved for nominal interfaces. It cannot introduce an intrinsic copy, callable,
+operator, coercion, or expansion requirement. Associated bindings belong to the immediately
+preceding interface application, are compared after alias expansion, and apply recursively beneath
+existing type constructors. A generic body may rely only on implementations and bindings in its
+lexical predicate environment. A concrete call or conditional interface implementation must prove
+every specialized binding. Cycles that cannot normalize to a finite type, unresolved operands,
+duplicate bindings, and names absent from the selected interface are invalid.
 
 An operator requirement encloses the required expression in parentheses and states its result type:
 
@@ -84,13 +90,12 @@ through a built-in projection, an accessible instance-owned index declaration, o
 receiver coercion to either operation. Generic specialization uses the same selector as an ordinary
 index expression. Operator requirements produce no runtime witness.
 
-`instance` and `conform` do not have a prefix generic parameter list. Their interface and target
-headers are declaration type patterns. Each generic argument slot contains a bare binder name; its
-first occurrence declares the binder and later occurrences reuse the same identity:
+`instance` does not have a prefix generic parameter list. Its target header is a declaration type
+pattern. Each generic argument slot contains a bare binder name; its first occurrence declares the
+binder and later occurrences reuse the same identity:
 
 ```nct
 instance Pair<L, R> { ... }
-conform Comparable<T> for Pair<T, T> { ... }
 ```
 
 Concrete and nested types do not appear directly in a pattern slot. A declaration introduces a
@@ -98,13 +103,12 @@ binder and applies a directed refinement after the header:
 
 ```nct
 instance Vec<T> where T = i32 { ... }
-conform Printable for Pair<L, R> where L = String, R = Vec<String> { ... }
 ```
 
 In this context, `where T = Type` is a binder refinement rather than symmetric projection
 equality. The left operand must be a binder declared by the same pattern, the right operand cannot
 contain that binder, and one binder cannot have two refinements. Refinements affect method and
-conformance applicability. Overlapping patterns are rejected; a more concrete refinement never
+instance and interface-implementation applicability. Overlapping patterns are rejected; a more concrete refinement never
 wins by ranking or source order.
 
 An independent `drop TypePattern(&+self) { ... }` declaration is uniform across every
@@ -115,7 +119,7 @@ independent of conditional method availability and prevents a conditional declar
 changing copyability.
 
 ```nct
-func inspect<T>(value: &T): i32 where T: Readable<i32> {
+func inspect<T>(value: &T): i32 where T impl Readable<i32> {
     return value.read()
 }
 ```
@@ -136,12 +140,12 @@ compiler requires one unique substitution inferred bidirectionally from:
 - ordinary call arguments and parameter types
 - contextual closure parameter and result checking
 - the expected type of the complete call result
-- type equalities and structural callable contracts that propagate types already learned from those
+- associated bindings and statically witnessed callable annotations that propagate types already learned from those
   sources
 
 Nominal capability, copy, operator, coercion, and expansion requirements validate a candidate
 substitution; they do not choose an otherwise unknown type. Declaration order, visible
-conformances, overload ranking, return provenance, and callable body contents do not supply guesses.
+interface implementations, overload ranking, return provenance, and callable body contents do not supply guesses.
 If any callable parameter remains unknown or multiple substitutions remain viable, the call is an
 error and the caller must provide an expected type at the surrounding expression boundary.
 
@@ -206,7 +210,7 @@ selection rules are owned by [Operators, Comparison, and Precedence](02-values-t
 [Strict Ordering Operators](24-ordering-operators.md), and
 [Expansion Operators](23-expansion-operators.md). Borrow coercion entries are owned by
 [Borrow Coercions](22-borrow-coercions.md). These members cannot appear in an interface or
-conformance, and arbitrary operator spellings are not declarable.
+interface implementation, and arbitrary operator spellings are not declarable.
 
 For an ordinary package, the target must be a nominal `struct` or `enum` declared by the same
 module; a type alias cannot own an `instance`. The exact active standard-library package may also
@@ -240,7 +244,7 @@ Methods use `value.method(arguments)`. They are not callable through UFCS-like
 cannot be called as value members.
 
 `self` is the fixed receiver binding. `Self` is type-position syntax denoting the current inherent,
-interface, conformance, or construction owner; it is not resolved as an ordinary identifier.
+interface, or construction owner; it is not resolved as an ordinary identifier.
 
 ## Interfaces
 
@@ -265,14 +269,14 @@ pub interface Counter {
 ```
 
 An interface cannot declare fields, stored state, associated data, construction members, or
-`drop`. A method without `default` is a conformance requirement. A method marked `default` supplies
+`drop`. A method without `default` is an interface implementation requirement. A method marked `default` supplies
 reusable behavior and may carry its body inline or in a reciprocally seen private source. A
-default method does not establish conformance and cannot access members absent from its
+default method does not establish an implementation and cannot access members absent from its
 declaring interface contract.
 
 ## Associated Types
 
-An interface may declare a required type selected by each conformance:
+An interface may declare a required type selected by each explicit implementation:
 
 ```nct
 pub interface Source {
@@ -281,8 +285,8 @@ pub interface Source {
     pub method &+self.next(): Self.Item?
 }
 
-conform Source for BufferSource<T> {
-    type Item = T
+instance BufferSource<T> {
+    impl Source { type Item = T }
 
     method &+self.next(): T? {
         ...
@@ -292,28 +296,28 @@ conform Source for BufferSource<T> {
 
 The associated declaration, binding, and projected-type source forms are defined by
 [Interfaces](25-syntactic-grammar.md#interfaces),
-[Explicit Conformances](25-syntactic-grammar.md#explicit-conformances), and
+[Instance Interface Implementations](25-syntactic-grammar.md#instance-interface-implementations), and
 [Types](25-syntactic-grammar.md#types).
 
-Every associated type is required and public. A declaration may require ordinary interface or
-callable capabilities from its selected type. A conformance binds each declaration exactly once,
-cannot bind an undeclared name, and must satisfy every declared capability. Bindings omit `pub`
-because their visibility and identity come from the interface declaration. `instance`
-declarations cannot contain associated type bindings. Associated type names use a namespace
-separate from interface method names.
+Every associated type is required and public. A declaration may require nominal interfaces from
+its selected type. One `impl Interface` member binds each declaration
+exactly once, cannot bind an undeclared name, and must satisfy every declared requirement. Bindings
+omit `pub` because their visibility and identity come from the interface declaration. Associated
+type names use a namespace separate from interface method names.
 
 `Self.Name` selects a declaration on the current interface. `T.Name` requires one unambiguous
 interface requirement on `T` that declares `Name`. A concrete projection follows one applicable
-conformance and substitutes its binding. The normalized result participates in method-signature
+interface implementation and substitutes its binding. The normalized result participates in method-signature
 compatibility, ownership, copyability, sizing, provenance, generic specialization, ABI checking,
 and lowering exactly like the bound type written by the implementation.
 
-Associated type declarations cannot currently have defaults or generic parameters. Equality
-predicates relate projections selected by independent parameters without introducing a second
+Associated type declarations cannot currently have defaults or generic parameters. An associated
+binding may relate projections selected by independent parameters without introducing a second
 associated-type declaration:
 
 ```nct
-func chain<L, R>(left: L, right: R): ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
+func chain<L, R>(left: L, right: R): ChainIter<L, R>
+where L impl Iterator, R impl Iterator { type Item = L.Item } {
     ...
 }
 ```
@@ -324,7 +328,7 @@ func chain<L, R>(left: L, right: R): ChainIter<L, R> where L: Iterator, R: Itera
 result type out of the API:
 
 ```nct
-pub func lines(text: &str): some Iterator<Item = &str> from text {
+pub func lines(text: &str): some Iterator { type Item = &str } from text {
     return LinesIter.new(text)
 }
 ```
@@ -340,7 +344,7 @@ The `some` result source form is defined by
 Ordinary interface type arguments precede associated bindings when both are present:
 
 ```nct
-func values<T>(): some Source<T, Item = &T> { ... }
+func values<T>(): some Source<T> { type Item = &T } { ... }
 ```
 
 Rules:
@@ -355,12 +359,12 @@ Rules:
 - At least one reachable success-producing return or callable body result must select that witness.
   A failure-only, absence-only, or diverging implementation does not provide a layout witness and
   is rejected.
-- The witness must explicitly conform to the advertised interface, and every named associated
-  binding must equal the conformance's selected type.
+- The witness must explicitly implement the advertised interface, and every named associated
+  binding must equal the implementation's selected type.
 - The initial form is accepted only as the success payload of a body-bearing function, associated
   function, inherent method, or body-bearing interface default method.
 - Parameters, fields, aliases, callable value types, primitives, construction literals, bodyless
-  interface requirements, conformance method contracts, coercions, and drop declarations
+  interface requirements, interface implementation methods, coercions, and drop declarations
   cannot introduce opaque types.
 - `some Interface?` and `some Interface!` use the ordinary optional and fallible outer layers.
 - A `from` clause remains an independent storage-lifetime contract. `some` neither adds nor removes
@@ -379,109 +383,99 @@ contract. Changing it does not require caller source changes as long as the inte
 bindings, provenance, and observable behavior remain valid. Dynamic interface values are not part
 of this feature.
 
-## Explicit Conformance
+## Explicit Interface Implementation
 
-An inline conformance is declared with body-bearing members:
+An `impl` member inside an `instance` explicitly implements one nominal interface for that
+instance target:
 
 ```nct
-conform Printable for User {
+instance User {
+    impl Printable
+
     method &self.print(): i32 {
         return 0
     }
 }
 ```
 
-The conformance body owns every required member implementation. Members omit `pub` because the
-interface declaration owns visibility. A default may be omitted or overridden by a same-name
-member. An inherent method never establishes or overrides interface conformance.
-
-In a directory module, `index.nct` may instead expose a conformance contract. It writes the
-conformance head, conditional requirements, and associated type bindings, but no method
-signatures. One reciprocally seen private source repeats only the conformance head and
-conditional requirements and supplies the method bodies; it does not repeat associated type
-bindings. Both occurrences form one semantic conformance, and only the `index.nct` occurrence
-defines the public conformance fact. Required method signatures come exclusively from the
-interface. Because a conformance changes program-wide dispatch and has no private visibility form,
-an implementation source cannot introduce one without this complete `index.nct` contract. An
-inline conformance that needs no separated body is therefore authored in `index.nct`.
+The `impl` member owns only the interface application and its associated bindings. Required method
+bodies are ordinary inherent methods and may be declared in the same instance fragment or another
+applicable fragment:
 
 ```nct
-// index.nct
-conform Iterator for ValuesIter<T> {
-    type Item = T
-}
-```
-
-```nct
-// iteration.nct
-conform Iterator for ValuesIter<T> {
+instance ValuesIter<T> {
     method &+self.next(): T? {
         ...
     }
 }
-```
 
-Conformance rules are:
-
-- the interface and target resolve to exact nominal identities
-- the target is a nominal `struct` or `enum`
-- every bodyless interface method has exactly one matching implementation member
-- every associated type declaration has exactly one binding and no undeclared binding is present
-- extra methods, literals, `drop`, and construction members are invalid
-- receiver capability, generic parameters, parameter and result types, outcome layers, and external
-  result provenance participate in signature compatibility
-- parameter names do not participate in compatibility
-- associated projections in method signatures are compared after substituting the conformance's
-  bindings
-- a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
-  storage-independent result may omit an interface origin that cannot apply to that result, while
-  a storage-carrying result cannot introduce an undeclared origin
-- matching members without an explicit conformance declaration do not conform
-
-Generic conformance parameters may carry bounds. A conditional conformance exists for a concrete
-target only when every specialized bound is satisfied:
-
-```nct
-conform Iterator for TakeIter<I> where I: Iterator {
-    type Item = I.Item
-
-    method &+self.next(): I.Item? {
-        if self.remaining == 0 {
-            return none
-        }
-        self.remaining -= 1
-        return self.source.next()?
-    }
+instance ValuesIter<T> {
+    impl Iterator { type Item = T }
 }
 ```
 
-Overlapping normalized target/interface patterns are rejected rather than ranked. Nocter does not
-perform overlap specialization.
+Declaration order and physical fragment order do not affect implementation. At checked-program
+construction, every required interface method is matched to exactly one applicable inherent method
+by normalized name and signature. The resulting interface-method-to-callable mapping is frozen once
+and every later generic call and executable specialization consumes that mapping without searching
+instance declarations again.
+
+Interface implementation rules are:
+
+- the interface and instance target resolve to exact nominal identities
+- the target is a nominal `struct` or `enum`
+- every bodyless interface method has exactly one matching inherent method, unless its interface
+  supplies a default
+- every associated type declaration has exactly one binding and no undeclared binding is present
+- receiver capability, generic parameters, parameter and result types, outcome layers, packs, and
+  external result provenance participate in signature compatibility
+- parameter names do not participate in compatibility
+- associated projections are compared after substituting the implementation's bindings
+- coercion and overload ranking never make a near match satisfy an interface
+- a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
+  storage-independent result may omit an interface origin that cannot apply to that result, while
+  a storage-carrying result cannot introduce an undeclared origin
+- matching inherent members without an explicit `impl Interface` member do not implement it
+
+One inherent method may satisfy compatible requirements from several interfaces. If two applicable
+interfaces require incompatible methods with the same name, the type cannot implement both; the
+language does not synthesize or rank interface-specific adapters.
+
+An interface implementation inherits the containing instance's target pattern and `where`
+requirements. A method used by it must be available for every specialization admitted by that
+instance. Overlapping normalized target/interface patterns are rejected rather than ranked. Nocter
+does not perform overlap specialization.
+
+Because an interface implementation changes program-wide dispatch and has no private visibility
+form, a directory module declares each `impl Interface` fact in `index.nct`. Private implementation
+sources may provide the selected inherent method bodies but cannot introduce a new interface
+implementation. Single-file mode may declare the complete instance inline.
 
 ## Method Lookup
 
-Concrete receiver lookup collects accessible inherent methods, explicit conformance members, and
+Concrete receiver lookup collects accessible inherent methods, explicitly implemented interface methods, and
 applicable interface defaults. The call is valid only when one candidate remains. Declaration and
 import order never resolve ambiguity.
 
 For a bounded generic receiver, lookup searches only the parameter's declared capability set. The
 call is checked against the specialized interface signature, and every reachable concrete
-instantiation must provide explicit conformance. Lowering statically selects the conformance member
+instantiation must provide an explicit implementation. Lowering statically selects the frozen implementation member
 or specialized default body; there is no vtable or runtime interface lookup.
 
 If two bounds declare the requested name, lookup is ambiguous even when their rendered signatures
 match. The compiler never falls back to an inherent method merely because it shares the missing
 bound method's spelling.
 
-## Callable Bounds
+## Callable Annotations
 
-Built-in callable contracts may appear in a capability set and are invoked with ordinary call
-syntax. Callable ownership and repeated-call capability are specified in [Callable Values and
+Built-in callable contracts appear as statically witnessed parameter and local annotations and are
+invoked with ordinary call syntax. They are not nominal interface requirements. Callable ownership
+and repeated-call capability are specified in [Callable Values and
 Interface Default Methods](18-callables-default-methods.md).
 
 ## Unsupported Composition Syntax
 
 Embedding syntax such as `...Type` and `pub ...Type` is not part of the current language. Nocter
 does not provide inheritance, mixins, trait implementation reuse, automatic delegation, or implicit
-interface conformance. A future composition proposal must define ownership, initialization,
-visibility, collision, partial-move, and conformance interaction before adoption.
+interface implementation. A future composition proposal must define ownership, initialization,
+visibility, collision, partial-move, and interface-implementation interaction before adoption.

@@ -163,7 +163,7 @@ Source-backed declaration-header type diagnostics:
 - `E0298`: an opaque result binding names no associated type of its selected interface.
 - `E0299`: an opaque result repeats an associated-type binding. The later binding is primary and
   the first binding is related.
-- `E0300`: an opaque positional type argument follows an associated-type binding.
+- `E0300`: an opaque interface application supplies an associated binding in generic angle brackets.
 - `E0301`: a parsed generic requirement has a semantically invalid requirement shape.
 - `E0302`: a declaration-pattern binder refinement contains the binder that it replaces.
 
@@ -179,12 +179,9 @@ Source-backed declaration-header type-normalization diagnostics:
 - `E0312`: an associated selection has more than one applicable associated declaration.
 - `E0313`: a structural callable can carry result storage but its omitted result provenance has no
   unique inference. The callable type is primary; an explicit `from` clause is required.
-- `E0320`: a general type-equality requirement contains no associated projection after alias
-  expansion. The complete equality predicate is primary.
 
 The binding-to-normalization boundary retains these syntax subjects in a temporary side index.
-Type-equality predicates that require post-alias validation retain their predicate node in that
-same index. The boundary does not place source coordinates in canonical type identity, and
+The boundary does not place source coordinates in canonical type identity, and
 normalization diagnostics do not recover subjects by scanning source or rendering semantic names.
 
 Source-backed declaration-definition diagnostics:
@@ -195,8 +192,8 @@ Source-backed declaration-definition diagnostics:
   primary and the first is related.
 - `E0317`: a bodyless callable has a storage-bearing result and multiple eligible input origins,
   so result provenance cannot be inferred uniquely. The authored result type is primary.
-- `E0318`: a conformance binding names no associated type declared by its selected interface.
-- `E0319`: a conformance repeats an associated-type binding. The later binding name is primary and
+- `E0318`: an interface implementation binding names no associated type declared by its interface.
+- `E0319`: an interface implementation repeats an associated-type binding. The later binding name is primary and
   the first is related.
 - `E0321`: a constant uses a type outside `bool`, the built-in integers, and readonly `&str`.
 - `E0322`: a constant expression contains an operation unavailable during compile-time evaluation.
@@ -235,13 +232,12 @@ These diagnostics are selected by the body-owned lexical resolver. The resolver 
 declaration or reference token that selected the rule and never scans rendered source text to
 recover a binding after lookup.
 
-Source-backed conformance diagnostics:
+Source-backed interface-implementation diagnostics:
 
-- `E0350`: a conformance omits an interface method that has no default body.
-- `E0351`: a conformance declares a method that is absent from its interface, or repeats one
-  implementation name.
-- `E0352`: a conformance method disagrees with the normalized interface method contract.
-- `E0353`: two conformance target/interface patterns can denote the same application after binder
+- `E0350`: an interface implementation has no inherent method for a requirement without a default.
+- `E0351`: more than one inherent method can satisfy the same interface requirement.
+- `E0352`: a same-name inherent method disagrees with the normalized interface method contract.
+- `E0353`: two instance/interface patterns can denote the same implementation after binder
   refinement. No more-specific declaration wins.
 - `E0354`: a selected associated type does not satisfy an interface or callable capability declared
   by its associated-type declaration.
@@ -250,7 +246,7 @@ Source-backed conformance diagnostics:
 - `E0356`: one instance repeats a borrow-coercion identity with the same receiver capability and
   canonical target type.
 
-These rules consume the program-wide normalized conformance and instance-operation tables.
+These rules consume the program-wide normalized interface-implementation and instance-operation tables.
 Signature checking substitutes
 interface arguments, `Self`, associated bindings, method generics, and binder refinements before
 comparison. Instance validation normalizes binder refinements before comparing coercion identities.
@@ -303,7 +299,7 @@ Source-backed checked-body diagnostics:
 - `E0394`: match arms do not form one complete, unambiguous enum partition.
 - `E0395`: a returned storage-bearing value retains an origin outside the callable's effective
   result-provenance contract. Local, owned-parameter, temporary, expired-region, and unknown
-  storage cannot escape; a conformance implementation also cannot exceed its interface method's
+  storage cannot escape; an interface implementation method also cannot exceed its interface method's
   external-origin bound.
 - `E0396`: a new readonly or readwrite borrow overlaps an incompatible source-level live loan.
 - `E0397`: moving, dropping, assigning, or mutating a place conflicts with a source-level live
@@ -312,7 +308,7 @@ Source-backed checked-body diagnostics:
   destination boundary that outlives its storage source.
 - `E0399`: a `using` allocation-context place is not an established aborting allocator or
   allocation context.
-- `E0400`: a string interpolation expression lacks one exact conformance to the active standard
+- `E0400`: a string interpolation expression lacks one exact implementation of the active standard
   `Format` interface.
 - `E0401`: an argument-spread source lacks one expansion operation for its copy, borrow, or move
   mode.
@@ -328,7 +324,7 @@ Source-backed checked-body diagnostics:
 - `E0407`: a discard binding uses `var` or carries a type annotation instead of the exact
   `let _ = expression` form.
 - `E0408`: an opaque callable result has no reachable concrete witness, selects different witness
-  types on reachable success paths, selects a type that does not conform to the advertised
+  types on reachable success paths, selects a type that does not implement the advertised
   interface, or disagrees with an advertised associated-type binding.
 - `E0409`: an argument pack is used as an ordinary value or mixed with other pack contributions
   during forwarding. A pack is compiler-owned, non-escaping input and supports `items.len()`,
@@ -348,8 +344,8 @@ Source-backed declaration contract diagnostics:
 - `E0252`: more than one private implementation body matches the same public contract.
 - `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
   form that requires an inline body.
-- `E0254`: an implementation source declares a conformance without a matching conformance head in
-  the reciprocally seen `index.nct` source.
+- `E0254`: an implementation source introduces an `impl Interface` fact instead of declaring that
+  program-wide fact in `index.nct`.
 - `E0255`: a bodyless public nominal contract has no complete private representation definition.
 - `E0256`: a private nominal representation does not exactly match its public contract's kind,
   name, generic parameters, requirements, or `copy` contract.
@@ -357,11 +353,6 @@ Source-backed declaration contract diagnostics:
 - `E0258`: a represented nominal declaration is completed again.
 - `E0259`: an implementation interface fragment supplies a default body without one exact default
   method contract in the reciprocally seen `index.nct` interface.
-- `E0264`: more than one private implementation conformance completes the same public conformance
-  contract.
-- `E0265`: a private implementation conformance matches more than one identical root contract.
-- `E0266`: a separated conformance repeats method declarations in `index.nct` or associated type
-  bindings in its private implementation source.
 - `E0272`: a bodyless public constant contract has no private initializer definition.
 - `E0273`: a private constant initializer does not exactly match its public contract.
 - `E0274`: more than one private initializer matches the same public constant contract.
@@ -379,9 +370,9 @@ Source-backed declaration-header diagnostics:
 - `E0206`: a `copy struct` declares a drop body.
 - `E0207`: a payloadless enum declares a drop body.
 - `E0208`: a primitive function declaration is outside the exact selected standard package.
-- `E0209`: a built-in conformance is outside the exact selected standard package.
-- `E0210`: a conformance target is neither a nominal type nor an authorized built-in type.
-- `E0211`: a conformance does not bind every associated type declared by its interface.
+- `E0209`: a built-in interface implementation is outside the exact selected standard package.
+- `E0210`: an interface implementation target is neither a nominal type nor an authorized built-in type.
+- `E0211`: an interface implementation does not bind every associated type declared by its interface.
 - `E0212`: an opaque result appears on an unsupported callable or a callable without a source body.
 
 These diagnostics are selected by syntax-independent declaration rules. Each rule records a primary
@@ -735,8 +726,8 @@ Required diagnostic families:
 - `return` with a value in a `void` function.
 - `return` value type mismatch when both expected and actual types are known.
 - Opaque result in an unsupported type position or bodyless contract.
-- Opaque result whose return paths select different witnesses, whose witness does not conform to
-  the advertised interface, or whose associated binding disagrees with the conformance (`E0408`).
+- Opaque result whose return paths select different witnesses, whose witness does not implement
+  the advertised interface, or whose associated binding disagrees with that implementation (`E0408`).
 - Assignment between distinct declaration-scoped opaque result identities, even when their
   rendered interface contracts are identical.
 - Non-`void` function reaching the end without an explicit return.

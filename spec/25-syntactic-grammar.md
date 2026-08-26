@@ -175,7 +175,6 @@ block-scope or visibility-bearing form. Module rules further reject namespace al
 Item = TargetDirective? TargetableItem
      | ConstructDeclaration
      | InstanceDeclaration
-     | ConformDeclaration
      | DropDeclaration
      | TestDeclaration
 
@@ -198,7 +197,7 @@ A constant without an initializer is a module-root contract and must join exactl
 initializer definition. Every other constant declaration has an initializer.
 
 The grammar makes the `#target` attachment structural: it prefixes exactly one targetable item.
-It cannot prefix a `use`, `construct`, `instance`, `conform`, `drop`, or `test`, and it cannot occur
+It cannot prefix a `use`, `construct`, `instance`, `drop`, or `test`, and it cannot occur
 without a following targetable item. Target and standard-library authority checks happen after
 parsing.
 
@@ -289,7 +288,7 @@ InterfaceMember = AssociatedTypeDeclaration
                 | ImplementationInterfaceMethod
 
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
-InterfaceBounds = ":" Capability ("+" Capability)*
+InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
 PublicInterfaceMethod = "pub" "default"? MethodSignature CallableBody
 ImplementationInterfaceMethod = "default" MethodSignature Block
@@ -341,6 +340,7 @@ InstanceDeclaration = "instance" DeclarationTypePattern WhereClause?
                       "{" LineSequence(InstanceMember) "}"
 
 InstanceMember = InherentMethod
+               | InterfaceImplementation
                | CoercionDeclaration
                | EqualityOperator
                | OrderingOperator
@@ -348,6 +348,13 @@ InstanceMember = InherentMethod
                | ExpansionOperator
 
 InherentMethod = Visibility? MethodSignature CallableBody
+
+InterfaceImplementation = "impl" InterfaceApplication
+
+InterfaceApplication = NamedType AssociatedBindings?
+AssociatedBindings = "{" AssociatedTypeBinding
+                     ("," AssociatedTypeBinding)* ","? "}"
+AssociatedTypeBinding = "type" Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"
@@ -377,25 +384,14 @@ operator syntax is recognized directly rather than parsed as an arbitrary expres
 This keeps the declarable operator set closed. `!=`, `>`, `<=`, and `>=` therefore have no
 declaration production.
 
-## Explicit Conformances
+## Instance Interface Implementations
 
-```text
-ConformDeclaration = "conform" DeclarationTypePattern "for" DeclarationTypePattern
-                     WhereClause? "{" LineSequence(ConformMember) "}"
-
-ConformMember = AssociatedTypeBinding | ConformMethod
-
-AssociatedTypeBinding = "type" Name "=" Type
-ConformMethod = MethodSignature CallableBody
-```
-
-Conformance members never write visibility. An `index.nct` conformance contract contains only
-associated type bindings; a bodyless `ConformMethod` is invalid because the interface already owns
-that signature. A reciprocally seen private conformance definition contains body-bearing
-methods and no associated type bindings. The contract and definition repeat the exact conformance
-head and form one semantic conformance. An inline conformance in `index.nct` or single-file mode may
-contain both bindings and body-bearing methods. Construction entries, fields, operators,
-coercions, drop declarations, tests, and extra functions have no conformance-member production.
+An `InterfaceImplementation` is a bodyless instance member. It contains one nominal interface
+application and all associated bindings for that application. The containing instance supplies the
+target pattern and conditional requirements. Required method implementations are ordinary
+`InherentMethod` declarations and are matched semantically after all instance fragments have been
+collected. An implementation member never writes visibility and cannot contain callable bodies,
+operators, coercions, construction entries, fields, drop declarations, or tests.
 
 ## Declaration Type Patterns
 
@@ -411,7 +407,7 @@ BuiltinTypePattern = BuiltinScalarType | "str" | "error"
 Pattern argument slots contain bare binder names only. Concrete and nested types are expressed by
 `where` binder refinements, not placed directly in `PatternArguments`. Semantic validation decides
 which built-in patterns the active standard-library package may extend and whether the resolved
-target kind is legal for `construct`, `instance`, `conform`, or `drop`.
+target kind is legal for `construct`, `instance`, or `drop`.
 
 ## Drop and Test Declarations
 
@@ -507,9 +503,7 @@ CallableParameter = "..."? (Type | Name ":" Type)
 BorrowType = "&" NonCallablePrefix | "&+" NonCallablePrefix
 
 CallableResult = Type | OpaqueResult TypeOutcomeSuffix?
-OpaqueResult = "some" Name OpaqueArguments?
-OpaqueArguments = "<" NonEmptyList(OpaqueArgument) ">"
-OpaqueArgument = Type | Name "=" Type
+OpaqueResult = "some" InterfaceApplication
 ```
 
 Prefix pointer and borrow operators bind before an outcome suffix. Consequently `&T?` is an
@@ -527,9 +521,9 @@ may omit names or use `name: Type`; names exist for provenance clauses but do no
 structural callable type. One final callable parameter may carry `...`; its pack marker and element
 type are part of structural callable identity.
 
-Because `&func` and `&+func` begin callable types, they are not parsed as an ordinary borrow prefix
-followed by a separate `func` type. Borrowing a callable type as data requires explicit grouping,
-just like borrowing another already composed type.
+Because `&func` and `&+func` begin callable annotations, they are not parsed as an ordinary borrow
+prefix followed by a separate `func` type. Their leading capability describes how the statically
+selected witness may be invoked; it is not storage for an erased function object.
 
 A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module
 namespace prefix selects one exported type member, while a type prefix selects an associated type.
@@ -563,18 +557,17 @@ it remains logical conjunction.
 ```text
 WhereClause = "where" Predicate ("," Predicate)*
 
-Predicate = CapabilityPredicate
+Predicate = InterfacePredicate
           | CopyPredicate
           | TypeEqualityPredicate
           | OperatorPredicate
           | CoercionPredicate
           | ExpansionPredicate
 
-CapabilityPredicate = Name ":" Capability ("+" Capability)*
+InterfacePredicate = RequirementSubject "impl" InterfaceApplication
+RequirementSubject = Name ("." Name)*
 CopyPredicate = "copy" Name
 TypeEqualityPredicate = Type "=" Type
-
-Capability = NamedType | CallableType
 
 OperatorPredicate = "(" OperatorRequirement ")" ":" Type
 OperatorRequirement = "&" Type ("==" | "<") "&" Type
@@ -587,13 +580,14 @@ ExpansionRequirementSource = Name | "&" Name | "&+" Name
 ```
 
 The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type
-declarations, construction members, instances, conformances, and operators wherever their
+declarations, construction members, instances, and operators wherever their
 declaration production includes `WhereClause`. A newline is not a predicate separator.
 
 The parser records the predicate form without proving it. Later validation distinguishes a
-general associated-type equality from a declaration-pattern binder refinement, restricts
-structural operator operands, checks callable capability multiplicity, and rejects duplicate or
-unsatisfied requirements.
+a declaration-pattern binder refinement from other predicates, restricts structural operator
+operands, and rejects duplicate or unsatisfied requirements. A type equality is accepted only as a
+directed binder refinement belonging to a declaration type pattern; associated projection equality
+is expressed by `AssociatedBindings` on the relevant interface application.
 
 An expansion requirement's source is syntactically one binder name with optional readonly or
 readwrite capability. Semantic validation requires that name to be a visible generic parameter;

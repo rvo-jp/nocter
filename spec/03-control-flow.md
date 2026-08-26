@@ -446,7 +446,7 @@ for item in &+values {
 - `&+expression` selects its readwrite expansion operator and holds an exclusive source loan.
 - `move place` first uses the source directly when its type implements the trusted iterator
   contract. Otherwise the form selects the source type's owned expansion operator. A type that has
-  both direct iterator conformance and an owned expansion uses direct iteration; this priority is
+  both a direct iterator implementation and an owned expansion uses direct iteration; this priority is
   fixed and does not form an overload set.
 - The `move` in a collection-loop source is the ordinary move expression, not a separate capability
   marker. Its operand must be an existing move-only local, parameter, or eligible named struct

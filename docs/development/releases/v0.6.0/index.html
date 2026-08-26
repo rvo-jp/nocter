@@ -175,7 +175,7 @@ alloc <span class="token-keyword">func</span> <span class="token-function">copy_
     <span class="token-keyword">pub</span> alloc <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">create</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Buffer</span>
 <span class="token-operator">}</span>
 
-impl <span class="token-type">Factory</span> <span class="token-keyword">for</span> <span class="token-type">SystemFactory</span> <span class="token-operator">{</span>
+<span class="token-keyword">impl</span> <span class="token-type">Factory</span> <span class="token-keyword">for</span> <span class="token-type">SystemFactory</span> <span class="token-operator">{</span>
     alloc <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">create</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre><p>For structural callable types, <code>alloc</code> precedes the existing invocation capability:</p><pre><code class="language-nct">alloc <span class="token-operator">&amp;</span><span class="token-keyword">func</span><span class="token-operator">(</span><span class="token-type">Input</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span>

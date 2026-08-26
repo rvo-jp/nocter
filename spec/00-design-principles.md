@@ -69,7 +69,8 @@ Nocter should prefer modules, value types, inherent methods, and explicit interf
 
 Interfaces exist to describe public capability. Default methods may reuse behavior derived
 only from that capability; they cannot expose internal structure or add state. An interface member
-must be public, and conformance is explicit through forms such as `conform Printable for User` so
+must be public, and implementation is explicit through forms such as `impl Printable` inside the
+target's `instance` so
 accidental shape matches do not silently become API commitments.
 
 Stored composition syntax is not part of the current language. Any future proposal must remain
@@ -104,7 +105,7 @@ obvious:
 - `T?` exposes absence
 - `drop` exposes deterministic cleanup
 - private-by-default declarations prevent accidental API expansion
-- explicit interface conformance prevents accidental public capability
+- explicit interface implementation prevents accidental public capability
 
 Foolproof does not mean hiding power from advanced users. It means the visible
 surface should guide ordinary code toward correct use, and the compiler should

@@ -31,8 +31,8 @@ Keep these forms in `index.nct`:
 - fields or variants intentionally exposed as stable data representation;
 - bodyless callable, construction, instance-operation, and interface-default contracts;
 - bodyless constant contracts when their initializer belongs in an implementation source;
-- conformance heads, conditional requirements, and associated type bindings, without repeated
-  interface method signatures;
+- bodyless `impl Interface` members with their associated bindings, without repeated interface
+  method signatures;
 - short inline behavior whose implementation is itself the clearest contract.
 
 Move private representation, allocation or pointer work, platform operations, helper algorithms,
@@ -176,21 +176,22 @@ Rules:
   `Vec<i32>.with_capacity(16)` and `Vec<i32> []`.
 - A call never prints explicit arguments for the callable's own generic parameters; those parameters
   are inferred.
-- A capability predicate uses no space before `:` and one space after it:
-  `where T: Interface<U>`.
-- Multiple bounds use one space around `+`:
-  `where T: Iterator + ExactSizeIterator`.
-- An intrinsic copy predicate is `where copy T`. `copy` is not a capability after `:`.
-- A callable requirement clause remains on the signature line after result provenance:
+- An interface predicate uses one space around `impl`:
+  `where T impl Interface<U>`.
+- Separate interface requirements use comma-space separation:
+  `where T impl Iterator, T impl ExactSizeIterator`.
+- An intrinsic copy predicate is `where copy T`. `copy` never follows `impl`.
+- A requirement clause remains on the signature line after result provenance:
   `: Self! from allocator where copy T`. Requirements use comma-space separation.
 - A result provenance clause follows the return type on the same line with one space before
   `from`. Union origins use one space around `|`.
-- An associated type declaration is `pub type Name` or `pub type Name: Bound + Bound` on its own
+- An associated type declaration is `pub type Name` or `pub type Name impl Bound + Bound` on its own
   interface-member line.
-- An associated type binding is `type Name = Type` and precedes method implementations in a
-  conformance body.
+- An associated type binding is `type Name = Type` inside braces following its interface
+  application: `impl Iterator { type Item = T }`.
 - A projected type uses no spaces around the dot: `Self.Item` or `S.Item`.
-- A type-equality predicate uses one space around `=`: `R.Item = L.Item`.
+- An associated equality is written as an interface binding:
+  `R impl Iterator { type Item = L.Item }`.
 - An operator requirement encloses its expression and writes an explicit result type:
   `where (&T == &T): bool`, `where (&T < &T): bool`, or `where (&C[K]): &V`.
 - An equality declaration is `operator (&self == other: &Self): bool`; spaces surround `==`, the
@@ -203,9 +204,9 @@ Rules:
   `operator (&+self[index: K]): &+V`. There is no space before `[`, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
   result type.
-- An opaque result is `some Interface` or `some Interface<Item = Type>`. Associated binding `=`
-  uses one space on each side, comma spacing follows ordinary generic arguments, and `?` or `!`
-  attaches to the complete opaque type without extra parentheses.
+- An opaque result is `some Interface` or `some Interface { type Item = Type }`. Generic arguments
+  remain in angle brackets and associated bindings remain in braces. Binding `=` uses one space on
+  each side, and `?` or `!` attaches to the complete opaque type without extra parentheses.
 - Closure captures precede one semicolon and parameters follow it: `(&limit, move prefix; value)`.
   Capture and parameter segments independently use the common single-line or multi-line comma
   layout. The semicolon terminates the capture segment and replaces its trailing comma. A

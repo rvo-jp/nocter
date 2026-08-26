@@ -273,8 +273,8 @@ Rules:
   declaration.
 - `self` is the fixed drop receiver name and is scoped to the drop body.
 - The drop receiver type is always exactly `&+Self`.
-- A drop declaration is top-level. `instance` contains inherent methods, and `conform` contains
-  interface members. A drop declaration cannot appear inside either body.
+- A drop declaration is top-level. `instance` contains inherent methods and bodyless interface
+  implementations. A drop declaration cannot appear inside an instance body.
 - A drop declaration has no visibility, target directive, generic-prefix, `where`, or return-type
   annotation.
 - Its target pattern must cover every generic slot exactly once with a distinct binder.

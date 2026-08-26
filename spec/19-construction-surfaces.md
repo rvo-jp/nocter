@@ -62,8 +62,8 @@ Rules:
 
 Functions that do not directly produce the target are ordinary module functions and cannot use a
 qualified type owner. Receiver methods remain in `instance`; destruction uses an independent
-`drop Type(&+self)` declaration; interface conformance members remain in
-`conform Interface for Type`.
+`drop Type(&+self)` declaration; interface implementation remains a bodyless `impl Interface`
+member of `instance`.
 
 ## Generic Owner Arguments
 
