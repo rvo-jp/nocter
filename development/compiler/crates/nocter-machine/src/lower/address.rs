@@ -6,13 +6,13 @@ use super::body::BodyIdentities;
 use super::{MachineAddressError, MachineProgramError};
 use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineIndex, MachineIndexBound,
-    MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
+    MachineLayoutKind, MachineLayoutPlan, MachineOutcomeKind,
 };
 
 pub(super) fn lower_addresses(
     body: &MirBody,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineAddress>, MachineProgramError> {
     body.places()
@@ -26,7 +26,7 @@ fn lower_address(
     value: &MirPlace,
     body: &MirBody,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineAddress, MachineProgramError> {
     let (root, mut current, mut current_view) =
@@ -84,7 +84,7 @@ fn lower_root(
     root: MirPlaceRoot,
     body: &MirBody,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<(MachineAddressRoot, TypeId, bool), MachineProgramError> {
     match root {
@@ -143,7 +143,7 @@ fn lower_root(
 struct ProjectionContext<'a> {
     place: MirPlaceId,
     types: &'a RuntimeTypeTable,
-    layouts: &'a MachineLayoutStore,
+    layouts: &'a MachineLayoutPlan,
     ids: &'a BodyIdentities,
 }
 
@@ -238,29 +238,22 @@ fn static_projection_offset(
     projection: MirProjectionKind,
 ) -> Result<u64, MachineProgramError> {
     let offset = match (projection, layout_kind(context.layouts, source)?) {
-        (MirProjectionKind::Field(field), MachineLayoutKind::Struct { fields }) => fields
-            .iter()
-            .find(|member| field == member.field())
-            .map(|member| member.offset()),
-        (MirProjectionKind::ClosureCapture(capture), MachineLayoutKind::Closure { captures }) => {
-            captures
-                .iter()
-                .find(|member| member.capture() == capture)
-                .map(|member| member.offset())
-        }
+        (MirProjectionKind::Field(field), MachineLayoutKind::Struct { .. }) => context
+            .layouts
+            .field(field)
+            .map(crate::MachineFieldLayout::offset),
+        (MirProjectionKind::ClosureCapture(capture), MachineLayoutKind::Closure { .. }) => context
+            .layouts
+            .capture(capture)
+            .map(crate::MachineCaptureLayout::offset),
         (
             MirProjectionKind::VariantPayload { variant, parameter },
-            MachineLayoutKind::Enum { variants, .. },
-        ) => variants
-            .iter()
-            .find(|candidate| candidate.variant() == variant)
-            .and_then(|candidate| {
-                candidate
-                    .payload()
-                    .iter()
-                    .find(|payload| payload.parameter() == parameter)
-            })
-            .map(|payload| payload.offset()),
+            MachineLayoutKind::Enum { .. },
+        ) => context
+            .layouts
+            .variant(variant)
+            .and_then(|_| context.layouts.payload(variant, parameter))
+            .map(crate::MachinePayloadLayout::offset),
         _ => None,
     };
     offset.ok_or_else(|| invalid_projection(context.ids, context.place))
@@ -269,7 +262,7 @@ fn static_projection_offset(
 fn lower_dereference(
     place: MirPlaceId,
     source: TypeId,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
     steps: &mut Vec<MachineAddressStep>,
     current_view: &mut bool,
@@ -344,7 +337,7 @@ fn push_outcome_offset(
     place: MirPlaceId,
     source: TypeId,
     expected: MachineOutcomeKind,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
     steps: &mut Vec<MachineAddressStep>,
 ) -> Result<(), MachineProgramError> {
@@ -363,7 +356,7 @@ fn push_outcome_offset(
 }
 
 fn layout_kind(
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ty: TypeId,
 ) -> Result<&MachineLayoutKind, MachineProgramError> {
     layouts

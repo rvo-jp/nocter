@@ -2,10 +2,7 @@ use nocter_runtime_contract::PrimitiveRole;
 use nocter_test_support::CompilerFixture;
 
 use super::lower_selected_fixture;
-use crate::{
-    MachineContextRequirement, MachineLinkageKey, MachineOperationKind, MachineProgram,
-    MachineTerminator,
-};
+use crate::{MachineContextRequirement, MachineOperationKind, MachineProgram, MachineTerminator};
 
 #[test]
 fn primitive_destruction_becomes_one_generated_machine_function() {
@@ -23,27 +20,10 @@ fn primitive_destruction_becomes_one_generated_machine_function() {
         &[&["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
-    let (destruction_id, destruction) = program
-        .destructions()
-        .iter()
+    let function_id = generated_destruction_functions(&program)
         .next()
         .expect("concrete destruction function");
-    assert_eq!(program.destructions().iter().len(), 1);
-    let plan = destruction.plan();
-    assert!(matches!(
-        plan.kind(),
-        crate::MachineDestructionKind::Struct {
-            drop: Some(_),
-            fields,
-        } if fields.is_empty()
-    ));
-    let linkage = program
-        .linkage()
-        .id(MachineLinkageKey::Destruction(destruction_id))
-        .expect("generated linkage");
-    let function_id = program
-        .function_for_linkage(linkage)
-        .expect("generated function");
+    assert_eq!(generated_destruction_functions(&program).count(), 1);
     let function = program.function(function_id).unwrap();
     assert_eq!(function.body().parameters().len(), 2);
     assert!(function.body().operations().any(|(_, operation)| {
@@ -96,13 +76,10 @@ fn generated_fixed_array_destruction_uses_a_reverse_loop() {
         &[&["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
-    let (destruction, _) = program.destructions().iter().next().unwrap();
-    let function = program
-        .linkage()
-        .id(MachineLinkageKey::Destruction(destruction))
-        .and_then(|linkage| program.function_for_linkage(linkage))
-        .and_then(|function| program.function(function))
-        .unwrap();
+    let function_id = generated_destruction_functions(&program)
+        .next()
+        .expect("generated array destruction");
+    let function = program.function(function_id).unwrap();
 
     assert!(
         function
@@ -148,15 +125,24 @@ fn generated_destruction_propagates_user_drop_allocation_context() {
         &[&["mem"], &["internal", "ptr"], &["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
-    let (destruction, _) = program.destructions().iter().next().unwrap();
-    let function = program
-        .linkage()
-        .id(MachineLinkageKey::Destruction(destruction))
-        .and_then(|linkage| program.function_for_linkage(linkage))
-        .unwrap();
+    let function = generated_destruction_functions(&program)
+        .next()
+        .expect("generated destruction function");
 
     assert_eq!(
         program.contexts().allocation().get(function),
         Some(MachineContextRequirement::Incoming)
     );
+}
+
+fn generated_destruction_functions(
+    program: &MachineProgram,
+) -> impl Iterator<Item = crate::MachineFunctionId> + '_ {
+    program.functions().filter_map(|(id, function)| {
+        (function.body().parameters().len() == 2
+            && function.body().operations().any(|(_, operation)| {
+                matches!(operation.kind(), MachineOperationKind::InvokeDrop { .. })
+            }))
+        .then_some(id)
+    })
 }

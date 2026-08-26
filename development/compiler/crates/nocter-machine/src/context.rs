@@ -42,7 +42,7 @@ impl MachineContextPlan {
             .map(|(_, function)| match (kind, function.kind()) {
                 (
                     MachineContextKind::Allocation,
-                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot { .. },
+                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
                 ) => MachineContextRequirement::ProgramRoot,
                 (
                     MachineContextKind::Process | MachineContextKind::Allocation,
@@ -50,7 +50,7 @@ impl MachineContextPlan {
                 )
                 | (
                     MachineContextKind::Process,
-                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot { .. },
+                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
                 ) => MachineContextRequirement::None,
             })
             .collect::<Vec<_>>();
@@ -313,7 +313,7 @@ fn mark_requirement(
         .map(MachineFunction::kind)
         .ok_or(MachineContextError::UnknownFunction { kind, function })?;
     *requirement = match function_kind {
-        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot { .. } => {
+        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot => {
             MachineContextRequirement::ProgramRoot
         }
         MachineFunctionKind::Callable(_) => MachineContextRequirement::Incoming,

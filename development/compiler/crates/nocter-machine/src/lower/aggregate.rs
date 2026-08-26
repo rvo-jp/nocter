@@ -4,33 +4,32 @@ use nocter_model::{FieldId, MirOperationId, MirValueId, TypeId, VariantId};
 use super::body::BodyIdentities;
 use super::{MachineAggregateError, MachineProgramError};
 use crate::{
-    MachineAggregate, MachineAggregateWrite, MachineCaptureLayout, MachineEnumVariantLayout,
-    MachineFieldLayout, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
+    MachineAggregate, MachineAggregateWrite, MachineLayoutKind, MachineLayoutPlan,
+    MachineOutcomeKind,
 };
 
 pub(super) fn lower_aggregate(
     operation: MirOperationId,
     aggregate: &MirAggregate,
     ty: TypeId,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineAggregate, MachineProgramError> {
-    let context = AggregateContext { operation, ids };
+    let context = AggregateContext {
+        operation,
+        ids,
+        layouts,
+    };
     let layout = layouts
         .get(ty)
         .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
     let writes = match (aggregate, layout.kind()) {
-        (MirAggregate::Struct { fields, .. }, MachineLayoutKind::Struct { fields: layout }) => {
-            lower_struct(fields, layout, context)?
+        (MirAggregate::Struct { fields, .. }, MachineLayoutKind::Struct { .. }) => {
+            lower_struct(fields, context)?
         }
-        (
-            MirAggregate::Enum { variant, payload },
-            MachineLayoutKind::Enum {
-                tag_offset,
-                variants,
-                ..
-            },
-        ) => lower_enum(*variant, payload, *tag_offset, variants, context)?,
+        (MirAggregate::Enum { variant, payload }, MachineLayoutKind::Enum { tag_offset, .. }) => {
+            lower_enum(*variant, payload, *tag_offset, context)?
+        }
         (
             MirAggregate::FixedArray(values),
             MachineLayoutKind::FixedArray { length, stride, .. },
@@ -83,10 +82,9 @@ pub(super) fn lower_aggregate(
             MachineOutcomeKind::Fallible.alternate_tag(),
             context,
         )?,
-        (
-            MirAggregate::Closure { captures, .. },
-            MachineLayoutKind::Closure { captures: layout },
-        ) => lower_closure(captures, layout, context)?,
+        (MirAggregate::Closure { captures, .. }, MachineLayoutKind::Closure { .. }) => {
+            lower_closure(captures, context)?
+        }
         (MirAggregate::Opaque { witness }, MachineLayoutKind::Opaque { .. }) => {
             vec![MachineAggregateWrite::Value {
                 offset: 0,
@@ -106,6 +104,7 @@ pub(super) fn lower_aggregate(
 struct AggregateContext<'a> {
     operation: MirOperationId,
     ids: &'a BodyIdentities,
+    layouts: &'a MachineLayoutPlan,
 }
 
 impl AggregateContext<'_> {
@@ -120,16 +119,15 @@ impl AggregateContext<'_> {
 
 fn lower_struct(
     fields: &[(FieldId, MirValueId)],
-    layout: &[MachineFieldLayout],
     context: AggregateContext<'_>,
 ) -> Result<Vec<MachineAggregateWrite>, MachineProgramError> {
     fields
         .iter()
         .map(|(field, value)| {
-            let offset = layout
-                .iter()
-                .find(|candidate| candidate.field() == *field)
-                .map(|candidate| candidate.offset())
+            let offset = context
+                .layouts
+                .field(*field)
+                .map(crate::MachineFieldLayout::offset)
                 .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
             Ok(MachineAggregateWrite::Value {
                 offset,
@@ -143,12 +141,11 @@ fn lower_enum(
     variant: VariantId,
     payload: &[MirValueId],
     tag_offset: u64,
-    variants: &[MachineEnumVariantLayout],
     context: AggregateContext<'_>,
 ) -> Result<Vec<MachineAggregateWrite>, MachineProgramError> {
-    let variant = variants
-        .iter()
-        .find(|candidate| candidate.variant() == variant)
+    let variant = context
+        .layouts
+        .variant(variant)
         .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
     if variant.payload().len() != payload.len() {
         return Err(context.error(MachineAggregateError::MemberMismatch));
@@ -194,16 +191,15 @@ fn lower_fixed_array(
 
 fn lower_closure(
     captures: &[MirClosureCapture],
-    layout: &[MachineCaptureLayout],
     context: AggregateContext<'_>,
 ) -> Result<Vec<MachineAggregateWrite>, MachineProgramError> {
     captures
         .iter()
         .map(|capture| {
-            let offset = layout
-                .iter()
-                .find(|candidate| candidate.capture() == capture.binding())
-                .map(|candidate| candidate.offset())
+            let offset = context
+                .layouts
+                .capture(capture.binding())
+                .map(crate::MachineCaptureLayout::offset)
                 .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
             Ok(MachineAggregateWrite::Value {
                 offset,

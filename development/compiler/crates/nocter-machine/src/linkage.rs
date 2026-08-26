@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_mir::{MirBody, MirConstant, MirOperationKind, MirProgram, MirRoot};
+use nocter_mir::{MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, PackageTargetId, TestId};
 
-use crate::identity::{
-    MachineDataId, MachineDestructionId, MachineId, MachineLinkageId, MachineTable,
-};
+use crate::identity::{MachineDestructionId, MachineId, MachineLinkageId, MachineTable};
 
 /// Semantic owner of one emitted code symbol. Display spellings are not linkage identity.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -18,20 +16,20 @@ pub enum MachineLinkageKey {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MachineLinkageEntry {
+pub(crate) struct MachineLinkageEntry {
     key: MachineLinkageKey,
 }
 
 impl MachineLinkageEntry {
     #[must_use]
-    pub const fn key(self) -> MachineLinkageKey {
+    pub(crate) const fn key(self) -> MachineLinkageKey {
         self.key
     }
 }
 
 /// One compiler-owned test entry retained in declaration order.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MachineTestLinkage {
+pub(crate) struct MachineTestLinkage {
     declaration: TestId,
     name: Box<str>,
     test: MachineLinkageId,
@@ -40,28 +38,29 @@ pub struct MachineTestLinkage {
 
 impl MachineTestLinkage {
     #[must_use]
-    pub const fn declaration(&self) -> TestId {
+    #[cfg(test)]
+    pub(crate) const fn declaration(&self) -> TestId {
         self.declaration
     }
 
     #[must_use]
-    pub const fn name(&self) -> &str {
+    pub(crate) const fn name(&self) -> &str {
         &self.name
     }
 
     #[must_use]
-    pub const fn test(&self) -> MachineLinkageId {
+    pub(crate) const fn test(&self) -> MachineLinkageId {
         self.test
     }
 
     #[must_use]
-    pub const fn body(&self) -> MachineLinkageId {
+    pub(crate) const fn body(&self) -> MachineLinkageId {
         self.body
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MachineRootLinkage {
+pub(crate) enum MachineRootLinkage {
     Process {
         target: PackageTargetId,
         process: MachineLinkageId,
@@ -75,19 +74,19 @@ pub enum MachineRootLinkage {
 
 /// Deterministic code linkage projected only from dense semantic owners.
 #[derive(Debug)]
-pub struct MachineLinkageTable {
+pub(crate) struct MachineLinkagePlan {
     entries: MachineTable<MachineLinkageId, MachineLinkageEntry>,
     ids: BTreeMap<MachineLinkageKey, MachineLinkageId>,
     root: MachineRootLinkage,
 }
 
-impl MachineLinkageTable {
+impl MachineLinkagePlan {
     /// Closes every callable and compiler-owned root linkage identity.
     ///
     /// # Errors
     ///
     /// Rejects duplicate semantic keys or a root that refers to no executable item.
-    pub fn build(program: &MirProgram) -> Result<Self, MachineLinkageError> {
+    pub(crate) fn build(program: &MirProgram) -> Result<Self, MachineLinkageError> {
         let mut keys = BTreeSet::new();
         for (item, _) in program.functions().iter() {
             if !keys.insert(MachineLinkageKey::Item(item)) {
@@ -131,7 +130,7 @@ impl MachineLinkageTable {
 
     pub(crate) fn with_destructions(
         mut self,
-        destructions: &crate::MachineDestructionTable,
+        destructions: &crate::destruction_table::MachineDestructionPlanTable,
     ) -> Result<Self, MachineLinkageError> {
         let mut entries = self.entries.values().to_vec();
         for (destruction, _) in destructions.iter() {
@@ -147,22 +146,22 @@ impl MachineLinkageTable {
     }
 
     #[must_use]
-    pub fn get(&self, id: MachineLinkageId) -> Option<MachineLinkageEntry> {
+    pub(crate) fn get(&self, id: MachineLinkageId) -> Option<MachineLinkageEntry> {
         self.entries.get(id).copied()
     }
 
     #[must_use]
-    pub fn id(&self, key: MachineLinkageKey) -> Option<MachineLinkageId> {
+    pub(crate) fn id(&self, key: MachineLinkageKey) -> Option<MachineLinkageId> {
         self.ids.get(&key).copied()
     }
 
     #[must_use]
-    pub const fn root(&self) -> &MachineRootLinkage {
+    pub(crate) const fn root(&self) -> &MachineRootLinkage {
         &self.root
     }
 
     #[must_use]
-    pub fn iter(
+    pub(crate) fn iter(
         &self,
     ) -> impl ExactSizeIterator<Item = (MachineLinkageId, MachineLinkageEntry)> + '_ {
         self.entries.iter().map(|(id, entry)| (id, *entry))
@@ -207,95 +206,6 @@ fn require_id(
     ids.get(&key)
         .copied()
         .ok_or(MachineLinkageError::MissingKey(key))
-}
-
-/// One canonical immutable byte string in the machine program.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MachineData {
-    bytes: Box<[u8]>,
-}
-
-impl MachineData {
-    #[must_use]
-    pub const fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// Static data ordered by byte content rather than source discovery or first use.
-#[derive(Debug)]
-pub struct MachineDataTable {
-    entries: MachineTable<MachineDataId, MachineData>,
-    text_ids: BTreeMap<Box<str>, MachineDataId>,
-}
-
-impl MachineDataTable {
-    #[must_use]
-    pub fn build(program: &MirProgram) -> Self {
-        let mut texts = BTreeSet::new();
-        for (_, function) in program.functions().iter() {
-            collect_text(function.body(), &mut texts);
-        }
-        match program.root() {
-            MirRoot::Process(root) => collect_text(root.body(), &mut texts),
-            MirRoot::Tests { cases, .. } => {
-                for case in cases {
-                    collect_text(case.body(), &mut texts);
-                }
-            }
-        }
-
-        let mut text_ids = BTreeMap::new();
-        let entries = texts
-            .into_iter()
-            .enumerate()
-            .map(|(index, text)| {
-                let id = MachineDataId::new(index);
-                let data = MachineData {
-                    bytes: text.as_bytes().into(),
-                };
-                text_ids.insert(text, id);
-                data
-            })
-            .collect::<Vec<_>>();
-        Self {
-            entries: MachineTable::from_values(entries),
-            text_ids,
-        }
-    }
-
-    #[must_use]
-    pub fn get(&self, id: MachineDataId) -> Option<&MachineData> {
-        self.entries.get(id)
-    }
-
-    #[must_use]
-    pub fn text(&self, text: &str) -> Option<MachineDataId> {
-        self.text_ids.get(text).copied()
-    }
-
-    #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (MachineDataId, &MachineData)> {
-        self.entries.iter()
-    }
-
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.entries.len() == 0
-    }
-}
-
-fn collect_text(body: &MirBody, texts: &mut BTreeSet<Box<str>>) {
-    for (_, operation) in body.operations().iter() {
-        if let MirOperationKind::Constant(MirConstant::Text(text)) = operation.kind() {
-            texts.insert(text.clone());
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

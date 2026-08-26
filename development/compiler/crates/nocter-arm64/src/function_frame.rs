@@ -400,7 +400,7 @@ fn place_hidden_objects(
 ) -> Result<HiddenObjects, Arm64FunctionFrameError> {
     let callable = match kind {
         MachineFunctionKind::Callable(abi) => Some(abi),
-        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot { .. } => None,
+        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot => None,
     };
     let indirect_result_pointer = callable
         .is_some_and(|abi| {
@@ -514,7 +514,7 @@ fn direct_stack_size(
         .ok_or(Arm64FunctionFrameError::UnknownFunction(target))?;
     match function.kind() {
         MachineFunctionKind::Callable(abi) => Ok(abi.stack_argument_size()),
-        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot { .. } => {
+        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot => {
             Err(Arm64FunctionFrameError::NonCallableTarget(target))
         }
     }

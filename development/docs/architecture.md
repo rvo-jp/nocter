@@ -1315,7 +1315,7 @@ cannot install a special failure rule for bare calls or forced unwrap.
 
 Authored string-literal expressions retain distinct semantic and source identities through checked
 IR. Machine constant layout may pool or overlap their decoded static byte ranges and rewrites each
-slice constant through the linkage table. Pooling never merges semantic nodes or becomes a basis
+slice constant through the construction-only static-data plan. Pooling never merges semantic nodes or becomes a basis
 for type, equality, or editor identity.
 
 Zero-sized types retain logical initialization, ownership, element counts, and drop operations in

@@ -6,7 +6,7 @@ use super::MachineProgramError;
 use super::body::BodyIdentities;
 use crate::{
     MachineComparison, MachineComparisonOperation, MachineComparisonRepresentation,
-    MachineIndexBorrow, MachineIndexDomain, MachineLayoutKind, MachineLayoutStore,
+    MachineIndexBorrow, MachineIndexDomain, MachineLayoutKind, MachineLayoutPlan,
     MachineOperationKind, MachineScalar, MachineStructuralError,
 };
 
@@ -15,7 +15,7 @@ pub(super) fn lower_structural(
     target: &MirStructuralCall,
     arguments: &[nocter_model::MirValueId],
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineOperationKind, MachineProgramError> {
     let context = StructuralContext {
@@ -64,7 +64,7 @@ pub(super) fn lower_structural(
 struct StructuralContext<'a> {
     operation: MirOperationId,
     types: &'a RuntimeTypeTable,
-    layouts: &'a MachineLayoutStore,
+    layouts: &'a MachineLayoutPlan,
     ids: &'a BodyIdentities,
 }
 
@@ -180,7 +180,7 @@ fn index_domain(
     container: TypeId,
     receiver: TypeId,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
 ) -> Option<(TypeId, MachineIndexDomain)> {
     match types.get(container)? {
         RuntimeType::FixedArray { element, .. } => {
@@ -213,7 +213,7 @@ fn index_domain(
 fn view_index_domain(
     element: TypeId,
     receiver: TypeId,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
 ) -> Option<(TypeId, MachineIndexDomain)> {
     let MachineLayoutKind::View {
         pointer_offset,

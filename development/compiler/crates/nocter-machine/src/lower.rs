@@ -3,12 +3,14 @@ use std::fmt;
 use nocter_mir::{MirBody, MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId};
 
+use crate::destruction_table::MachineDestructionPlanTable;
 use crate::identity::{MachineId, MachineTable};
+use crate::linkage::{MachineLinkagePlan, MachineRootLinkage};
 use crate::{
-    MachineAbiError, MachineAbiPlan, MachineContextError, MachineContextPlans, MachineDataTable,
-    MachineDestructionTable, MachineFunction, MachineFunctionId, MachineFunctionKind,
-    MachineLayoutError, MachineLayoutStore, MachineLinkageError, MachineLinkageId,
-    MachineLinkageKey, MachineLinkageTable, MachineProgram, MachineProgramRoot, MachineTestProgram,
+    MachineAbiError, MachineAbiPlan, MachineContextError, MachineContextPlans, MachineFunction,
+    MachineFunctionId, MachineFunctionKind, MachineLayoutError, MachineLayoutPlan,
+    MachineLinkageError, MachineLinkageId, MachineLinkageKey, MachineProgram, MachineProgramRoot,
+    MachineTestProgram,
 };
 
 mod address;
@@ -33,13 +35,13 @@ impl MachineProgram {
     /// Returns a compiler-integrity error when layout, ABI, linkage, or a machine operation cannot
     /// be materialized. MIR is never retained as an escape hatch in the resulting program.
     pub fn lower(program: &MirProgram) -> Result<Self, MachineProgramError> {
-        let layouts = MachineLayoutStore::build(program)?;
+        let layouts = MachineLayoutPlan::build(program)?;
         let abi = MachineAbiPlan::build(program, &layouts)?;
-        let linkage = MachineLinkageTable::build(program)?;
-        let data = MachineDataTable::build(program);
+        let linkage = MachineLinkagePlan::build(program)?;
+        let data = crate::data::MachineDataPlan::build(program);
         let source_functions = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let destructions =
-            MachineDestructionTable::build(program, &layouts, &linkage, source_functions)?;
+            MachineDestructionPlanTable::build(program, &layouts, &linkage, source_functions)?;
         let linkage = linkage.with_destructions(&destructions)?;
         let function_domain = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let linkage_entries = linkage.iter().collect::<Vec<_>>();
@@ -86,13 +88,13 @@ impl MachineProgram {
         let function_table = MachineTable::from_values(functions);
         let contexts = MachineContextPlans::build(&function_table)?;
         let primitive_abis = abi.finish();
+        let data = data.finish();
+        let layouts = layouts.finish();
 
         Ok(Self::new(crate::program::MachineProgramParts {
             layouts,
             primitive_abis,
             contexts,
-            destructions,
-            linkage,
             data,
             functions: function_table,
             root,
@@ -134,13 +136,7 @@ fn function_source<'program>(
                 .iter()
                 .find(|root| root.declaration() == declaration)
                 .ok_or(MachineProgramError::MissingTestRoot(declaration))?;
-            Ok((
-                MachineFunctionKind::TestRoot {
-                    declaration,
-                    name: root.name().into(),
-                },
-                root.body(),
-            ))
+            Ok((MachineFunctionKind::TestRoot, root.body()))
         }
         MachineLinkageKey::Destruction(destruction) => {
             Err(MachineProgramError::MissingDestruction(destruction))
@@ -149,17 +145,15 @@ fn function_source<'program>(
 }
 
 fn lower_root(
-    root: &crate::MachineRootLinkage,
+    root: &MachineRootLinkage,
     functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineProgramRoot, MachineProgramError> {
     match root {
-        crate::MachineRootLinkage::Process { process, entry, .. } => {
-            Ok(MachineProgramRoot::Process {
-                root: require_function(functions, *process)?,
-                entry: require_function(functions, *entry)?,
-            })
-        }
-        crate::MachineRootLinkage::Tests { cases, .. } => cases
+        MachineRootLinkage::Process { process, entry, .. } => Ok(MachineProgramRoot::Process {
+            root: require_function(functions, *process)?,
+            entry: require_function(functions, *entry)?,
+        }),
+        MachineRootLinkage::Tests { cases, .. } => cases
             .iter()
             .enumerate()
             .map(|(index, case)| {

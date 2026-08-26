@@ -1,19 +1,16 @@
-use nocter_model::TestId;
-
-use crate::identity::{MachineId, MachineTable};
+use crate::identity::MachineTable;
 use crate::{
     MachineAddress, MachineAddressId, MachineBlock, MachineBlockId, MachineDataTable,
-    MachineDestructionTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId,
-    MachineLayoutStore, MachineLinkageId, MachineLinkageTable, MachineOperation,
-    MachineOperationId, MachinePack, MachinePackId, MachineStackId, MachineStackObject,
-    MachineValue, MachineValueId,
+    MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore, MachineLinkageId,
+    MachineOperation, MachineOperationId, MachinePack, MachinePackId, MachineStackId,
+    MachineStackObject, MachineValue, MachineValueId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachineFunctionKind {
     Callable(crate::MachineCallableAbi),
     ProcessRoot,
-    TestRoot { declaration: TestId, name: Box<str> },
+    TestRoot,
 }
 
 /// One target-independent function body with body-local dense identity domains.
@@ -249,8 +246,6 @@ pub struct MachineProgram {
     layouts: MachineLayoutStore,
     primitive_abis: crate::transport::MachinePrimitiveAbiTable,
     contexts: crate::MachineContextPlans,
-    destructions: MachineDestructionTable,
-    linkage: MachineLinkageTable,
     data: MachineDataTable,
     functions: MachineTable<MachineFunctionId, MachineFunction>,
     root: MachineProgramRoot,
@@ -260,8 +255,6 @@ pub(crate) struct MachineProgramParts {
     pub(crate) layouts: MachineLayoutStore,
     pub(crate) primitive_abis: crate::transport::MachinePrimitiveAbiTable,
     pub(crate) contexts: crate::MachineContextPlans,
-    pub(crate) destructions: MachineDestructionTable,
-    pub(crate) linkage: MachineLinkageTable,
     pub(crate) data: MachineDataTable,
     pub(crate) functions: MachineTable<MachineFunctionId, MachineFunction>,
     pub(crate) root: MachineProgramRoot,
@@ -273,8 +266,6 @@ impl MachineProgram {
             layouts: parts.layouts,
             primitive_abis: parts.primitive_abis,
             contexts: parts.contexts,
-            destructions: parts.destructions,
-            linkage: parts.linkage,
             data: parts.data,
             functions: parts.functions,
             root: parts.root,
@@ -300,16 +291,6 @@ impl MachineProgram {
     }
 
     #[must_use]
-    pub const fn destructions(&self) -> &MachineDestructionTable {
-        &self.destructions
-    }
-
-    #[must_use]
-    pub const fn linkage(&self) -> &MachineLinkageTable {
-        &self.linkage
-    }
-
-    #[must_use]
     pub const fn data(&self) -> &MachineDataTable {
         &self.data
     }
@@ -317,13 +298,6 @@ impl MachineProgram {
     #[must_use]
     pub fn function(&self, id: MachineFunctionId) -> Option<&MachineFunction> {
         self.functions.get(id)
-    }
-
-    #[must_use]
-    pub fn function_for_linkage(&self, linkage: MachineLinkageId) -> Option<MachineFunctionId> {
-        self.linkage.get(linkage)?;
-        let function = MachineFunctionId::new(linkage.index());
-        self.functions.get(function).map(|_| function)
     }
 
     #[must_use]

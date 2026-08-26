@@ -51,19 +51,24 @@ every runtime type referenced by validated MIR. The implementation follows
 [ABI and Layout](../../spec/09-abi-layout.md) and currently selects only the frozen
 `Arm64DarwinV1` ABI identity.
 
-Each stored layout records its byte size, byte alignment, representation class, and every offset a
-later stage needs. This includes view pointer and length offsets, the one-word error handle, enum
-and outcome tag and payload offsets, nominal fields, variant payload parameters, fixed-array
-stride, closure captures, and opaque witnesses. Downstream lowering must query this table; it may
-not repeat padding arithmetic or embed an independently remembered offset. Runtime error-node
-offsets and tags belong only to `nocter-runtime-contract`, not to stored semantic type layout.
+Each stored layout records its byte size, byte alignment, representation class, concrete child
+types, and every offset a later stage needs. This includes view pointer and length offsets, the
+one-word error handle, enum and outcome tag and payload offsets, nominal fields, variant payloads,
+fixed-array stride, closure captures, and opaque witnesses. Downstream lowering must query this
+table; it may not repeat padding arithmetic or embed an independently remembered offset. Runtime
+error-node offsets and tags belong only to `nocter-runtime-contract`, not to stored semantic type
+layout.
 
 The builder starts from function signatures and all local, place, value, pack, process-root, and
 test-root types in `MirProgram`, then closes recursively over stored children. `void` and `never`
 remain completion types without stored layouts. Borrows to `str` and slices are two-word views;
 other raw pointers and borrows are one-word pointers. Unsized or symbolic by-value types,
 incomplete representations, recursive values, invalid alignments, and arithmetic overflow are
-typed compiler-integrity failures.
+typed compiler-integrity failures. A construction-only `MachineLayoutPlan` additionally maps
+semantic field, variant, payload-parameter, and capture identities to those physical members while
+MIR is lowered. `finish` discards that correspondence. `MachineLayoutStore` therefore exposes
+physical representation only and cannot be used by target lowering to reinterpret semantic
+membership.
 
 Stored layout and call transport remain separate. A type has exactly one stored layout even when
 the ABI later carries it in zero, one, or two words or indirectly. This separation is required for
@@ -72,17 +77,19 @@ storage to agree without encoding call-site policy in type layout.
 
 ## Machine Program Authority
 
-`MachineProgram` consumes `MirProgram` together with its completed `MachineLayoutStore`. Its
-schema must use distinct dense identities for functions, blocks, values, stack objects, constants,
-and linkage entries. Typed operations make loads, stores, copies, address projections,
+`MachineProgram` construction consumes `MirProgram` together with its `MachineLayoutPlan`, then
+retains only the completed `MachineLayoutStore`. Its
+schema uses distinct dense identities for functions, blocks, values, stack objects, and constants.
+Typed operations make loads, stores, copies, address projections,
 integer operations, tags, direct calls, primitive calls, and exits explicit. Aggregate movement and
 destruction must use the stored-layout authority and MIR's active-payload control flow rather than
 introducing a second semantic aggregate model.
 
-Every linkage entry owns exactly one emitted function in the same dense order. A
-`MachineFunctionDomain` derives linkage, executable-item, and generated-destruction function IDs
-from the canonical linkage table. Machine lowering does not retain parallel item-to-function,
-destruction-to-function, or linkage-to-function maps that could disagree with that order.
+During construction, every linkage entry owns exactly one emitted function in the same dense
+order. `MachineLinkagePlan` and `MachineFunctionDomain` derive executable-item and
+generated-destruction function IDs from that order without parallel maps. The final function table
+and root contain only machine identities; semantic linkage keys and reverse indexes are discarded
+when construction finishes.
 
 ABI lowering belongs at this boundary. Each callable input and result receives one immutable
 transport plan naming direct words, stack slots, or indirect storage. Callers and callees must
@@ -112,22 +119,23 @@ never retain a pointer into the caller's former iterator storage. Fixed segments
 cleanup-function domain. The callable body exposes only explicit length, consuming-next, and destroy
 operations over its hidden pointer.
 
-Concrete destruction plans are interned once across pointer primitives and pack segments. Their
-generated functions use one compiler-owned `(byte_pointer, byte_offset)` ABI. A partially consumed
-pack therefore retains only an ordinary function identity for each residual owner; it does not
-carry a recursive recipe into callback or target lowering.
+Concrete destruction plans are interned once across pointer primitives and pack segments while
+the machine program is constructed. Their generated functions use one compiler-owned
+`(byte_pointer, byte_offset)` ABI. Construction then discards the recursive plans, MIR-operation
+edges, and plan-to-function indexes. A partially consumed pack and the final program retain only
+ordinary function identities; neither carries a recursive recipe into callback or target lowering.
 
 Linkage identities derive from dense executable item and compiler-owned root identities, not
 source spellings. Human-readable names may be retained as presentation metadata only after a
 collision-free semantic linkage key exists. Primitive lowering dispatches on the closed
 `PrimitiveRole` carried by MIR and never searches a standard-library symbol name.
 
-`MachineLinkageTable` now closes one code identity for every executable item, process root, and
-isolated test root from typed semantic owner keys. Test presentation names remain metadata, while
-the separate root table preserves declaration order independently of key order. Static UTF-8 data
-uses a distinct `MachineDataId` domain. Its table deduplicates complete byte strings and assigns IDs
-in byte order, so function traversal and first-use order cannot alter data identity or later image
-layout.
+`MachineLinkagePlan` temporarily closes one code identity for every executable item, process root,
+isolated test root, and generated destruction from typed owner keys. Test presentation names move
+into the final root, which preserves declaration order independently of key order. Static UTF-8
+data uses a distinct `MachineDataId` domain. `MachineDataPlan` deduplicates complete byte strings
+and assigns IDs in byte order; its text-to-ID index is discarded after constants are lowered, while
+the final `MachineDataTable` retains only dense bytes.
 
 `MachineProgram` now owns a separate dense function domain and body-local stack-object, drop-flag,
 address, SSA-value, operation, argument-pack, and basic-block domains. MIR identities are translated
@@ -179,9 +187,11 @@ primitives carry no dependency. Pointer destruction carries its concrete subject
 `MachineDestructionPlan`; absence of a plan means the subject is known not to need destruction,
 not that analysis was omitted. MIR-to-machine lowering translates every nested layout and user-drop
 item once. Plans with work from either pointer calls or argument-pack segments enter a
-content-ordered `MachineDestructionTable`, receive generated linkage only after the source-function
-domain, and use the common compiler-owned `(byte_pointer, byte_offset)` ABI. Pointer calls become
-ordinary direct calls; pack segments retain only that generated function identity. The generated
+construction-only, content-ordered `MachineDestructionPlanTable`, receive generated linkage only
+after the source-function domain, and use the common compiler-owned
+`(byte_pointer, byte_offset)` ABI. Pointer calls become ordinary direct calls; pack segments retain
+only that generated function identity, and the plan table is discarded before `MachineProgram` is
+returned. The generated
 function expands struct, active enum/outcome payload,
 closure, and opaque traversal into machine CFG. Fixed arrays use one reverse loop with a
 compiler-validated dynamic byte-offset step, so code size is independent of array length. Only

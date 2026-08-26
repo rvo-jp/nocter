@@ -35,17 +35,11 @@ impl MachineOutcomeKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineFieldLayout {
-    field: FieldId,
     ty: TypeId,
     offset: u64,
 }
 
 impl MachineFieldLayout {
-    #[must_use]
-    pub const fn field(self) -> FieldId {
-        self.field
-    }
-
     #[must_use]
     pub const fn ty(self) -> TypeId {
         self.ty
@@ -59,17 +53,11 @@ impl MachineFieldLayout {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachinePayloadLayout {
-    parameter: ParameterId,
     ty: TypeId,
     offset: u64,
 }
 
 impl MachinePayloadLayout {
-    #[must_use]
-    pub const fn parameter(self) -> ParameterId {
-        self.parameter
-    }
-
     #[must_use]
     pub const fn ty(self) -> TypeId {
         self.ty
@@ -83,17 +71,11 @@ impl MachinePayloadLayout {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineEnumVariantLayout {
-    variant: VariantId,
     tag: u8,
     payload: Box<[MachinePayloadLayout]>,
 }
 
 impl MachineEnumVariantLayout {
-    #[must_use]
-    pub const fn variant(&self) -> VariantId {
-        self.variant
-    }
-
     #[must_use]
     pub const fn tag(&self) -> u8 {
         self.tag
@@ -107,17 +89,11 @@ impl MachineEnumVariantLayout {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineCaptureLayout {
-    capture: CaptureId,
     ty: TypeId,
     offset: u64,
 }
 
 impl MachineCaptureLayout {
-    #[must_use]
-    pub const fn capture(self) -> CaptureId {
-        self.capture
-    }
-
     #[must_use]
     pub const fn ty(self) -> TypeId {
         self.ty
@@ -197,6 +173,19 @@ pub struct MachineLayoutStore {
     layouts: BTreeMap<TypeId, MachineLayout>,
 }
 
+/// Construction-time correspondence between validated semantic members and frozen layouts.
+///
+/// Semantic member identities are intentionally discarded by [`Self::finish`]. Downstream target
+/// materializers receive only the completed physical layout store.
+#[derive(Debug)]
+pub(crate) struct MachineLayoutPlan {
+    store: MachineLayoutStore,
+    fields: BTreeMap<FieldId, MachineFieldLayout>,
+    variants: BTreeMap<VariantId, MachineEnumVariantLayout>,
+    payloads: BTreeMap<ParameterId, (VariantId, MachinePayloadLayout)>,
+    captures: BTreeMap<CaptureId, MachineCaptureLayout>,
+}
+
 impl MachineLayoutStore {
     /// Computes the complete recursive stored-layout closure of one MIR program.
     ///
@@ -205,12 +194,37 @@ impl MachineLayoutStore {
     /// Rejects symbolic, unsized, recursive-by-value, incomplete, or overflowing representation
     /// input. Such a failure is a compiler-integrity error, never a source diagnostic.
     pub fn build(program: &MirProgram) -> Result<Self, MachineLayoutError> {
+        MachineLayoutPlan::build(program).map(MachineLayoutPlan::finish)
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> MachineTarget {
+        self.target
+    }
+
+    #[must_use]
+    pub fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
+        self.layouts.get(&ty)
+    }
+
+    #[must_use]
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &MachineLayout)> {
+        self.layouts.iter().map(|(ty, layout)| (*ty, layout))
+    }
+}
+
+impl MachineLayoutPlan {
+    pub(crate) fn build(program: &MirProgram) -> Result<Self, MachineLayoutError> {
         let target = MachineTarget::select(program.runtime_abi());
         let mut builder = LayoutBuilder {
             program,
             target,
             layouts: BTreeMap::new(),
             active: BTreeSet::new(),
+            fields: BTreeMap::new(),
+            variants: BTreeMap::new(),
+            payloads: BTreeMap::new(),
+            captures: BTreeMap::new(),
         };
         let mut roots = BTreeSet::new();
         // Machine-generated CFGs use these canonical control and offset carriers independently of
@@ -247,24 +261,58 @@ impl MachineLayoutStore {
             }
         }
         Ok(Self {
-            target,
-            layouts: builder.layouts,
+            store: MachineLayoutStore {
+                target,
+                layouts: builder.layouts,
+            },
+            fields: builder.fields,
+            variants: builder.variants,
+            payloads: builder.payloads,
+            captures: builder.captures,
         })
     }
 
     #[must_use]
-    pub const fn target(&self) -> MachineTarget {
-        self.target
+    pub(crate) fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
+        self.store.get(ty)
     }
 
     #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
-        self.layouts.get(&ty)
+    pub(crate) fn field(&self, field: FieldId) -> Option<MachineFieldLayout> {
+        self.fields.get(&field).copied()
     }
 
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &MachineLayout)> {
-        self.layouts.iter().map(|(ty, layout)| (*ty, layout))
+    pub(crate) fn variant(&self, variant: VariantId) -> Option<&MachineEnumVariantLayout> {
+        self.variants.get(&variant)
+    }
+
+    #[must_use]
+    pub(crate) fn payload(
+        &self,
+        variant: VariantId,
+        parameter: ParameterId,
+    ) -> Option<MachinePayloadLayout> {
+        self.payloads
+            .get(&parameter)
+            .and_then(|(owner, layout)| (*owner == variant).then_some(*layout))
+    }
+
+    #[must_use]
+    pub(crate) fn capture(&self, capture: CaptureId) -> Option<MachineCaptureLayout> {
+        self.captures.get(&capture).copied()
+    }
+
+    pub(crate) fn finish(self) -> MachineLayoutStore {
+        self.store
+    }
+}
+
+impl std::ops::Deref for MachineLayoutPlan {
+    type Target = MachineLayoutStore;
+
+    fn deref(&self) -> &Self::Target {
+        &self.store
     }
 }
 
@@ -273,6 +321,10 @@ struct LayoutBuilder<'program> {
     target: MachineTarget,
     layouts: BTreeMap<TypeId, MachineLayout>,
     active: BTreeSet<TypeId>,
+    fields: BTreeMap<FieldId, MachineFieldLayout>,
+    variants: BTreeMap<VariantId, MachineEnumVariantLayout>,
+    payloads: BTreeMap<ParameterId, (VariantId, MachinePayloadLayout)>,
+    captures: BTreeMap<CaptureId, MachineCaptureLayout>,
 }
 
 impl LayoutBuilder<'_> {
@@ -431,95 +483,113 @@ impl LayoutBuilder<'_> {
             .cloned()
             .ok_or(MachineLayoutError::MissingRepresentation(ty))?;
         match representation {
-            RuntimeTypeRepresentation::Struct { fields } => {
-                let members = fields
-                    .iter()
-                    .map(|field| (field.field(), field.ty()))
-                    .collect::<Vec<_>>();
-                let (size, alignment, offsets) =
-                    self.member_offsets(ty, members.iter().map(|(_, field_type)| *field_type))?;
-                let fields = members
-                    .into_iter()
-                    .zip(offsets)
-                    .map(|((field, field_type), offset)| MachineFieldLayout {
-                        field,
-                        ty: field_type,
-                        offset,
-                    })
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice();
-                Ok(MachineLayout {
-                    size,
-                    alignment,
-                    kind: MachineLayoutKind::Struct { fields },
-                })
-            }
-            RuntimeTypeRepresentation::Enum { variants } => {
-                if variants.is_empty() || variants.len() > 256 {
-                    return Err(MachineLayoutError::InvalidRepresentation(ty));
-                }
-                let mut payload_alignment = 1;
-                let mut payload_size = 0;
-                let mut relative = Vec::with_capacity(variants.len());
-                for variant in &variants {
-                    let (size, alignment, offsets) = self
-                        .member_offsets(ty, variant.payload().iter().map(|payload| payload.ty()))?;
-                    payload_alignment = payload_alignment.max(alignment);
-                    payload_size = payload_size.max(size);
-                    relative.push(offsets);
-                }
-                let payload_offset = align_up(1, payload_alignment, ty)?;
-                let size = align_up(
-                    payload_offset
-                        .checked_add(payload_size)
-                        .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
-                    payload_alignment,
-                    ty,
-                )?;
-                let variants = variants
-                    .iter()
-                    .enumerate()
-                    .zip(relative)
-                    .map(|((tag, variant), offsets)| {
-                        let payload = variant
-                            .payload()
-                            .iter()
-                            .zip(offsets)
-                            .map(|(payload, offset)| {
-                                Ok(MachinePayloadLayout {
-                                    parameter: payload.parameter(),
-                                    ty: payload.ty(),
-                                    offset: payload_offset
-                                        .checked_add(offset)
-                                        .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
-                                })
-                            })
-                            .collect::<Result<Vec<_>, MachineLayoutError>>()?
-                            .into_boxed_slice();
-                        Ok(MachineEnumVariantLayout {
-                            variant: variant.variant(),
-                            tag: u8::try_from(tag)
-                                .map_err(|_| MachineLayoutError::InvalidRepresentation(ty))?,
-                            payload,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, MachineLayoutError>>()?
-                    .into_boxed_slice();
-                Ok(MachineLayout {
-                    size,
-                    alignment: payload_alignment,
-                    kind: MachineLayoutKind::Enum {
-                        tag_offset: 0,
-                        payload_offset,
-                        variants,
-                    },
-                })
-            }
+            RuntimeTypeRepresentation::Struct { fields } => self.structure(ty, &fields),
+            RuntimeTypeRepresentation::Enum { variants } => self.enumeration(ty, &variants),
             RuntimeTypeRepresentation::Opaque { .. }
             | RuntimeTypeRepresentation::Closure { .. } => {
                 Err(MachineLayoutError::InvalidRepresentation(ty))
             }
         }
+    }
+
+    fn structure(
+        &mut self,
+        ty: TypeId,
+        fields: &[nocter_runtime_contract::RuntimeFieldRepresentation],
+    ) -> Result<MachineLayout, MachineLayoutError> {
+        let members = fields
+            .iter()
+            .map(|field| (field.field(), field.ty()))
+            .collect::<Vec<_>>();
+        let (size, alignment, offsets) =
+            self.member_offsets(ty, members.iter().map(|(_, field_type)| *field_type))?;
+        let fields = members
+            .into_iter()
+            .zip(offsets)
+            .map(|((field, field_type), offset)| {
+                let layout = MachineFieldLayout {
+                    ty: field_type,
+                    offset,
+                };
+                self.fields.insert(field, layout);
+                layout
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        Ok(MachineLayout {
+            size,
+            alignment,
+            kind: MachineLayoutKind::Struct { fields },
+        })
+    }
+
+    fn enumeration(
+        &mut self,
+        ty: TypeId,
+        variants: &[nocter_runtime_contract::RuntimeVariantRepresentation],
+    ) -> Result<MachineLayout, MachineLayoutError> {
+        if variants.is_empty() || variants.len() > 256 {
+            return Err(MachineLayoutError::InvalidRepresentation(ty));
+        }
+        let mut payload_alignment = 1;
+        let mut payload_size = 0;
+        let mut relative = Vec::with_capacity(variants.len());
+        for variant in variants {
+            let (size, alignment, offsets) =
+                self.member_offsets(ty, variant.payload().iter().map(|payload| payload.ty()))?;
+            payload_alignment = payload_alignment.max(alignment);
+            payload_size = payload_size.max(size);
+            relative.push(offsets);
+        }
+        let payload_offset = align_up(1, payload_alignment, ty)?;
+        let size = align_up(
+            payload_offset
+                .checked_add(payload_size)
+                .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
+            payload_alignment,
+            ty,
+        )?;
+        let variants = variants
+            .iter()
+            .enumerate()
+            .zip(relative)
+            .map(|((tag, variant), offsets)| {
+                let payload = variant
+                    .payload()
+                    .iter()
+                    .zip(offsets)
+                    .map(|(payload, offset)| {
+                        let layout = MachinePayloadLayout {
+                            ty: payload.ty(),
+                            offset: payload_offset
+                                .checked_add(offset)
+                                .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
+                        };
+                        self.payloads
+                            .insert(payload.parameter(), (variant.variant(), layout));
+                        Ok(layout)
+                    })
+                    .collect::<Result<Vec<_>, MachineLayoutError>>()?
+                    .into_boxed_slice();
+                let layout = MachineEnumVariantLayout {
+                    tag: u8::try_from(tag)
+                        .map_err(|_| MachineLayoutError::InvalidRepresentation(ty))?,
+                    payload,
+                };
+                self.variants.insert(variant.variant(), layout.clone());
+                Ok(layout)
+            })
+            .collect::<Result<Vec<_>, MachineLayoutError>>()?
+            .into_boxed_slice();
+        Ok(MachineLayout {
+            size,
+            alignment: payload_alignment,
+            kind: MachineLayoutKind::Enum {
+                tag_offset: 0,
+                payload_offset,
+                variants,
+            },
+        })
     }
 
     fn closure(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
@@ -537,10 +607,13 @@ impl LayoutBuilder<'_> {
         let captures = captures
             .into_iter()
             .zip(offsets)
-            .map(|((capture, capture_type), offset)| MachineCaptureLayout {
-                capture,
-                ty: capture_type,
-                offset,
+            .map(|((capture, capture_type), offset)| {
+                let layout = MachineCaptureLayout {
+                    ty: capture_type,
+                    offset,
+                };
+                self.captures.insert(capture, layout);
+                layout
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();

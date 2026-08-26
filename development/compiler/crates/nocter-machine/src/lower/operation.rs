@@ -7,8 +7,8 @@ use super::body::BodyIdentities;
 use super::call::lower_call;
 use super::context::ProgramLoweringContext;
 use crate::{
-    MachineBinaryOperation, MachineConstant, MachineDataTable, MachineOperation,
-    MachineOperationKind, MachineUnaryOperation,
+    MachineBinaryOperation, MachineConstant, MachineOperation, MachineOperationKind,
+    MachineUnaryOperation,
 };
 
 pub(super) fn lower_operations(
@@ -150,7 +150,7 @@ fn lower_aggregate_operation(
 }
 
 fn lower_constant(
-    data: &MachineDataTable,
+    data: &crate::data::MachineDataPlan,
     constant: &MirConstant,
 ) -> Result<MachineConstant, MachineProgramError> {
     match constant {

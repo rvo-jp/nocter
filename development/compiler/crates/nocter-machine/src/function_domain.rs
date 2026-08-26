@@ -1,10 +1,8 @@
 use nocter_model::ExecutableItemId;
 
 use crate::identity::MachineId;
-use crate::{
-    MachineDestructionId, MachineFunctionId, MachineLinkageId, MachineLinkageKey,
-    MachineLinkageTable,
-};
+use crate::linkage::MachineLinkagePlan;
+use crate::{MachineDestructionId, MachineFunctionId, MachineLinkageId, MachineLinkageKey};
 
 /// The structural one-to-one correspondence between linkage and machine-function identities.
 ///
@@ -12,11 +10,11 @@ use crate::{
 /// function identity without retaining parallel maps that could disagree with that order.
 #[derive(Clone, Copy)]
 pub(crate) struct MachineFunctionDomain<'a> {
-    linkage: &'a MachineLinkageTable,
+    linkage: &'a MachineLinkagePlan,
 }
 
 impl<'a> MachineFunctionDomain<'a> {
-    pub(crate) const fn new(linkage: &'a MachineLinkageTable) -> Self {
+    pub(crate) const fn new(linkage: &'a MachineLinkagePlan) -> Self {
         Self { linkage }
     }
 

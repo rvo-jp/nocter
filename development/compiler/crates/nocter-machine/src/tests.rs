@@ -10,12 +10,12 @@ use nocter_runtime_contract::{
 use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
+use crate::linkage::{MachineLinkagePlan, MachineRootLinkage};
 use crate::{
-    MachineAbiPlan, MachineArgumentLocation, MachineContextRequirement, MachineDataTable,
-    MachineEndianness, MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore,
-    MachineLinkageKey, MachineLinkageTable, MachineOperationKind, MachineOutcomeKind,
-    MachineProgram, MachineProgramRoot, MachineResultAbi, MachineResultLocation,
-    MachineRootLinkage, MachineScalar, MachineTerminator, MachineValueClass,
+    MachineAbiPlan, MachineArgumentLocation, MachineContextRequirement, MachineEndianness,
+    MachineEnumVariantLayout, MachineLayoutKind, MachineLayoutStore, MachineLinkageKey,
+    MachineOperationKind, MachineOutcomeKind, MachineProgram, MachineProgramRoot, MachineResultAbi,
+    MachineResultLocation, MachineScalar, MachineTerminator, MachineValueClass,
 };
 
 mod destruction;
@@ -613,7 +613,11 @@ fn linkage_uses_semantic_owners_and_static_text_uses_sorted_byte_identity() {
              return\n\
          }\n",
     );
-    let data = MachineDataTable::build(&program);
+    let data = crate::data::MachineDataPlan::build(&program);
+    assert!(data.text("a").is_some());
+    assert!(data.text("z").is_some());
+    assert_ne!(data.text("a"), data.text("z"));
+    let data = data.finish();
     assert_eq!(data.len(), 2);
     assert_eq!(
         data.iter()
@@ -621,11 +625,8 @@ fn linkage_uses_semantic_owners_and_static_text_uses_sorted_byte_identity() {
             .collect::<Vec<_>>(),
         [b"a".as_slice(), b"z".as_slice()]
     );
-    assert!(data.text("a").is_some());
-    assert!(data.text("z").is_some());
-    assert_ne!(data.text("a"), data.text("z"));
 
-    let linkage = MachineLinkageTable::build(&program).unwrap();
+    let linkage = MachineLinkagePlan::build(&program).unwrap();
     let item_count = linkage
         .iter()
         .filter(|(_, entry)| matches!(entry.key(), MachineLinkageKey::Item(_)))
@@ -659,7 +660,7 @@ fn test_root_linkage_retains_declaration_order_separately_from_key_order() {
         "test first { return }\n\
          test second { return }\n",
     );
-    let linkage = MachineLinkageTable::build(&program).unwrap();
+    let linkage = MachineLinkagePlan::build(&program).unwrap();
     let nocter_mir::MirRoot::Tests {
         target,
         cases: mir_cases,
@@ -1297,17 +1298,12 @@ fn spread_pack_freezes_iteration_and_residual_destruction_without_mir_members() 
             panic!("owned fixed values must retain destruction")
         };
         fixed_destructions.push(*destruction);
-        let plan = destruction_for_function(&program, *destruction).plan();
-        assert!(matches!(
-            plan.kind(),
-            crate::MachineDestructionKind::Struct { fields, .. }
-                if matches!(fields.as_ref(), [field]
-                    if field.offset() == 0
-                        && matches!(
-                            field.plan().kind(),
-                            crate::MachineDestructionKind::Struct { drop: Some(_), .. }
-                        ))
-        ));
+        let function = program
+            .function(*destruction)
+            .expect("residual destruction must be a final machine function");
+        assert!(function.body().operations().any(|(_, operation)| {
+            matches!(operation.kind(), MachineOperationKind::InvokeDrop { .. })
+        }));
     }
     assert_eq!(
         fixed_destructions[0], fixed_destructions[1],
@@ -1593,15 +1589,17 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
         Some(MachineContextRequirement::None)
     );
     let destruction = spread.destruction().expect("iterator destruction function");
-    let crate::MachineDestructionKind::Struct {
-        drop: Some(drop), ..
-    } = destruction_for_function(&program, destruction)
-        .plan()
-        .kind()
-    else {
-        panic!("iterator destruction must retain its user drop")
-    };
-    for function in [*drop, destruction, literal, caller] {
+    let drop = program
+        .function(destruction)
+        .expect("iterator destruction function")
+        .body()
+        .operations()
+        .find_map(|(_, operation)| match operation.kind() {
+            MachineOperationKind::InvokeDrop { target, .. } => Some(*target),
+            _ => None,
+        })
+        .expect("iterator destruction must call its user drop");
+    for function in [drop, destruction, literal, caller] {
         assert_eq!(
             program.contexts().allocation().get(function),
             Some(MachineContextRequirement::Incoming)
@@ -1781,28 +1779,6 @@ fn literal_spread(
         }
     }
     panic!("fixture must contain one spread literal call")
-}
-
-fn destruction_for_function(
-    program: &MachineProgram,
-    function: crate::MachineFunctionId,
-) -> &crate::MachineDestruction {
-    let linkage = program
-        .function(function)
-        .expect("generated destruction function")
-        .linkage();
-    let crate::MachineLinkageKey::Destruction(destruction) = program
-        .linkage()
-        .get(linkage)
-        .expect("generated destruction linkage")
-        .key()
-    else {
-        panic!("pack cleanup must target generated destruction linkage")
-    };
-    program
-        .destructions()
-        .get(destruction)
-        .expect("generated destruction metadata")
 }
 
 fn lower_test_fixture(source: &str) -> nocter_mir::MirProgram {

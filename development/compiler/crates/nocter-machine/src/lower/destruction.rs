@@ -5,7 +5,7 @@ use super::MachineProgramError;
 use crate::{
     MachineDestructionCapture, MachineDestructionError, MachineDestructionField,
     MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
-    MachineDestructionVariant, MachineFunctionId, MachineLayoutKind, MachineLayoutStore,
+    MachineDestructionVariant, MachineFunctionId, MachineLayoutKind, MachineLayoutPlan,
     MachineLinkageId, MachineOutcomeKind,
 };
 
@@ -13,7 +13,7 @@ use crate::{
 struct DestructionContext<'a> {
     owner: MachineLinkageId,
     operation: MirOperationId,
-    layouts: &'a MachineLayoutStore,
+    layouts: &'a MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'a>,
 }
 
@@ -31,7 +31,7 @@ pub(crate) fn lower_destruction(
     plan: &MirDestructionPlan,
     owner: MachineLinkageId,
     operation: MirOperationId,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineDestructionPlan, MachineProgramError> {
     lower_plan(
@@ -68,18 +68,13 @@ fn lower_kind(
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
     match (plan.kind(), layout) {
-        (
-            MirDestructionKind::Struct { drop, fields },
-            MachineLayoutKind::Struct { fields: members },
-        ) => lower_struct(plan.ty(), *drop, fields, members, context),
+        (MirDestructionKind::Struct { drop, fields }, MachineLayoutKind::Struct { .. }) => {
+            lower_struct(plan.ty(), *drop, fields, context)
+        }
         (
             MirDestructionKind::Enum { drop, variants },
-            MachineLayoutKind::Enum {
-                tag_offset,
-                variants: members,
-                ..
-            },
-        ) => lower_enum(plan.ty(), *drop, *tag_offset, variants, members, context),
+            MachineLayoutKind::Enum { tag_offset, .. },
+        ) => lower_enum(plan.ty(), *drop, *tag_offset, variants, context),
         (
             MirDestructionKind::FixedArray { length, element },
             MachineLayoutKind::FixedArray {
@@ -137,10 +132,9 @@ fn lower_kind(
         (MirDestructionKind::Error, MachineLayoutKind::ErrorHandle) => {
             Ok(MachineDestructionKind::Error)
         }
-        (
-            MirDestructionKind::Closure(captures),
-            MachineLayoutKind::Closure { captures: members },
-        ) => lower_closure(plan.ty(), captures, members, context),
+        (MirDestructionKind::Closure(captures), MachineLayoutKind::Closure { .. }) => {
+            lower_closure(plan.ty(), captures, context)
+        }
         (MirDestructionKind::Opaque { plan: inner, .. }, MachineLayoutKind::Opaque { witness })
             if inner.ty() == *witness =>
         {
@@ -156,16 +150,15 @@ fn lower_struct(
     ty: nocter_model::TypeId,
     drop: Option<ExecutableItemId>,
     fields: &[nocter_mir::MirFieldDestruction],
-    members: &[crate::MachineFieldLayout],
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
     let fields = fields
         .iter()
         .map(|field| {
-            let offset = members
-                .iter()
-                .find(|member| member.field() == field.field())
-                .map(|member| member.offset())
+            let offset = context
+                .layouts
+                .field(field.field())
+                .map(crate::MachineFieldLayout::offset)
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             Ok(MachineDestructionField::new(
                 offset,
@@ -184,25 +177,23 @@ fn lower_enum(
     drop: Option<ExecutableItemId>,
     tag_offset: u64,
     variants: &[nocter_mir::MirVariantDestruction],
-    members: &[crate::MachineEnumVariantLayout],
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
     let variants = variants
         .iter()
         .map(|variant| {
-            let member = members
-                .iter()
-                .find(|member| member.variant() == variant.variant())
+            let member = context
+                .layouts
+                .variant(variant.variant())
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             let payload = variant
                 .payload()
                 .iter()
                 .map(|payload| {
-                    let offset = member
-                        .payload()
-                        .iter()
-                        .find(|candidate| candidate.parameter() == payload.parameter())
-                        .map(|candidate| candidate.offset())
+                    let offset = context
+                        .layouts
+                        .payload(variant.variant(), payload.parameter())
+                        .map(crate::MachinePayloadLayout::offset)
                         .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
                     Ok(MachineDestructionPayload::new(
                         offset,
@@ -223,16 +214,15 @@ fn lower_enum(
 fn lower_closure(
     ty: nocter_model::TypeId,
     captures: &[nocter_mir::MirCaptureDestruction],
-    members: &[crate::MachineCaptureLayout],
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
     captures
         .iter()
         .map(|capture| {
-            let offset = members
-                .iter()
-                .find(|member| member.capture() == capture.capture())
-                .map(|member| member.offset())
+            let offset = context
+                .layouts
+                .capture(capture.capture())
+                .map(crate::MachineCaptureLayout::offset)
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             Ok(MachineDestructionCapture::new(
                 offset,

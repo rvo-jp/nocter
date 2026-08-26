@@ -3,13 +3,13 @@ use nocter_mir::{MirBranchTarget, MirSwitchSubject, MirSwitchValue, MirTerminato
 use super::MachineProgramError;
 use super::body::BodyIdentities;
 use crate::{
-    MachineBlock, MachineBranchTarget, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
+    MachineBlock, MachineBranchTarget, MachineLayoutKind, MachineLayoutPlan, MachineOutcomeKind,
     MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
 
 pub(super) fn lower_blocks(
     body: &nocter_mir::MirBody,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineBlock>, MachineProgramError> {
     body.blocks()
@@ -34,7 +34,7 @@ pub(super) fn lower_blocks(
 fn lower_terminator(
     body: &nocter_mir::MirBody,
     terminator: &MirTerminator,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineTerminator, MachineProgramError> {
     match terminator {
@@ -85,7 +85,7 @@ fn lower_tag_switch(
     subject: nocter_model::MirPlaceId,
     cases: &[nocter_mir::MirSwitchCase],
     fallback: &MirBranchTarget,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineTerminator, MachineProgramError> {
     let ty = body
@@ -97,11 +97,7 @@ fn lower_tag_switch(
         .get(ty)
         .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
     let (tag_offset, cases) = match layout.kind() {
-        MachineLayoutKind::Enum {
-            tag_offset,
-            variants,
-            ..
-        } => (
+        MachineLayoutKind::Enum { tag_offset, .. } => (
             *tag_offset,
             cases
                 .iter()
@@ -109,9 +105,8 @@ fn lower_tag_switch(
                     let MirSwitchValue::Variant(variant) = case.value() else {
                         return Err(MachineProgramError::InvalidTagSwitch(ids.owner()));
                     };
-                    let tag = variants
-                        .iter()
-                        .find(|candidate| candidate.variant() == variant)
+                    let tag = layouts
+                        .variant(variant)
                         .map(crate::MachineEnumVariantLayout::tag)
                         .ok_or(MachineProgramError::InvalidTagSwitch(ids.owner()))?;
                     lower_tag_case(tag, case.target(), ids)

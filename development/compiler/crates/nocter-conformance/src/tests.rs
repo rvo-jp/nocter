@@ -1140,7 +1140,21 @@ fn copy_pointer_destruction_is_an_explicit_native_noop() {
         &[&["internal", "ptr"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
-    assert_eq!(machine.destructions().iter().len(), 0);
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::Call(call)
+                    if matches!(
+                        call.target(),
+                        nocter_machine::MachineCallTarget::Primitive(target)
+                            if target.role()
+                                == nocter_runtime_contract::PrimitiveRole::DropValueAtPointer
+                    )
+            ))
+    );
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
     let image = nocter_macho::MachOImage::build(&program).unwrap();
 

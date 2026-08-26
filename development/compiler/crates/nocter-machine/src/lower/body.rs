@@ -13,7 +13,7 @@ use super::operation::lower_operations;
 use super::pack::lower_packs;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
-    MachineAddressId, MachineBlockId, MachineDropFlag, MachineDropFlagId, MachineLayoutStore,
+    MachineAddressId, MachineBlockId, MachineDropFlag, MachineDropFlagId, MachineLayoutPlan,
     MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId, MachineStackObject,
     MachineStackPurpose, MachineValue, MachineValueDefinition, MachineValueId,
     MachineValueRepresentation,
@@ -59,7 +59,7 @@ pub(super) fn lower_body(
 
 fn lower_stack(
     body: &MirBody,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
 ) -> Result<Vec<MachineStackObject>, MachineProgramError> {
     body.locals()
         .iter()
@@ -86,7 +86,7 @@ fn lower_stack(
 fn lower_values(
     body: &MirBody,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineValue>, MachineProgramError> {
     body.values()

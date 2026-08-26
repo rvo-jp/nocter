@@ -6,6 +6,7 @@
 mod call;
 mod context;
 mod control;
+mod data;
 mod dataflow;
 mod destruction;
 mod destruction_table;
@@ -34,6 +35,7 @@ pub use context::{
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
+pub use data::{MachineData, MachineDataTable};
 pub use dataflow::{
     MachineBlockDataflow, MachineDataflowError, MachineFunctionDataflow, MachineOperationDataflow,
 };
@@ -42,22 +44,19 @@ pub use destruction::{
     MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
     MachineDestructionVariant,
 };
-pub use destruction_table::{MachineDestruction, MachineDestructionTable};
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
     MachineFunctionId, MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId,
     MachineTestId, MachineValueId,
 };
 
+pub(crate) use layout::MachineLayoutPlan;
 pub use layout::{
     MachineCaptureLayout, MachineEnumVariantLayout, MachineFieldLayout, MachineLayout,
     MachineLayoutError, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
     MachinePayloadLayout, MachineScalar,
 };
-pub use linkage::{
-    MachineData, MachineDataTable, MachineLinkageEntry, MachineLinkageError, MachineLinkageKey,
-    MachineLinkageTable, MachineRootLinkage, MachineTestLinkage,
-};
+pub use linkage::{MachineLinkageError, MachineLinkageKey};
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};
 pub use operation::{
     MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineConstant,

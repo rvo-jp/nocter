@@ -6,7 +6,7 @@ use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineBinaryOperation, MachineBlock,
     MachineBlockId, MachineBranchTarget, MachineCallableAbi, MachineConstant,
     MachineDestructionKind, MachineDestructionPlan, MachineFunction, MachineFunctionKind,
-    MachineLayoutStore, MachineLinkageId, MachineOperation, MachineOperationId,
+    MachineLayoutPlan, MachineLinkageId, MachineOperation, MachineOperationId,
     MachineOperationKind, MachineResultAbi, MachineStackId, MachineStackObject,
     MachineStackPurpose, MachineSwitchCase, MachineSwitchValue, MachineTerminator, MachineValue,
     MachineValueDefinition, MachineValueId, MachineValueRepresentation,
@@ -20,7 +20,7 @@ pub(crate) fn generate_destruction_function(
     plan: &MachineDestructionPlan,
     abi: &MachineCallableAbi,
     types: &RuntimeTypeTable,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
 ) -> Result<MachineFunction, crate::MachineProgramError> {
     let mut builder = DestructionBuilder::new(linkage, abi, types, layouts)?;
     let pointer = builder.load_parameter(0)?;
@@ -47,7 +47,7 @@ struct OutcomeEmission<'a> {
 struct DestructionBuilder<'a> {
     owner: MachineLinkageId,
     types: &'a RuntimeTypeTable,
-    layouts: &'a MachineLayoutStore,
+    layouts: &'a MachineLayoutPlan,
     parameters: Vec<MachineStackId>,
     stack: Vec<MachineStackObject>,
     addresses: Vec<MachineAddress>,
@@ -64,7 +64,7 @@ impl<'a> DestructionBuilder<'a> {
         owner: MachineLinkageId,
         abi: &MachineCallableAbi,
         types: &'a RuntimeTypeTable,
-        layouts: &'a MachineLayoutStore,
+        layouts: &'a MachineLayoutPlan,
     ) -> Result<Self, crate::MachineProgramError> {
         if abi.arguments().len() != 2 || abi.result() != MachineResultAbi::Completion {
             return Err(crate::MachineProgramError::InvalidDestructionAbi(owner));

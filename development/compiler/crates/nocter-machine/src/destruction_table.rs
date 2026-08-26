@@ -7,9 +7,10 @@ use nocter_model::MirOperationId;
 use nocter_runtime_contract::{PrimitiveRole, RuntimePrimitive, RuntimeType};
 
 use crate::identity::{MachineId, MachineTable};
+use crate::linkage::MachineLinkagePlan;
 use crate::{
-    MachineCallableAbi, MachineDestructionId, MachineDestructionPlan, MachineLayoutStore,
-    MachineLinkageId, MachineLinkageKey, MachineLinkageTable, MachineProgramError,
+    MachineCallableAbi, MachineDestructionId, MachineDestructionPlan, MachineLayoutPlan,
+    MachineLinkageId, MachineLinkageKey, MachineProgramError,
 };
 
 /// One canonical compiler-generated destruction function contract.
@@ -34,18 +35,17 @@ impl MachineDestruction {
 /// Deterministic identity and ABI authority for every concrete destruction plan reached by a
 /// pointer primitive or argument-pack owner. Discovery order never becomes generated identity.
 #[derive(Debug)]
-pub struct MachineDestructionTable {
+pub(crate) struct MachineDestructionPlanTable {
     entries: MachineTable<MachineDestructionId, MachineDestruction>,
-    ids: BTreeMap<MachineDestructionPlan, MachineDestructionId>,
     calls: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionId>,
     pack_segments: BTreeMap<(MachineLinkageId, MirOperationId, usize), MachineDestructionId>,
 }
 
-impl MachineDestructionTable {
+impl MachineDestructionPlanTable {
     pub(crate) fn build(
         program: &MirProgram,
-        layouts: &MachineLayoutStore,
-        linkage: &MachineLinkageTable,
+        layouts: &MachineLayoutPlan,
+        linkage: &MachineLinkagePlan,
         functions: crate::function_domain::MachineFunctionDomain<'_>,
     ) -> Result<Self, MachineProgramError> {
         let mut plans = BTreeSet::new();
@@ -118,7 +118,6 @@ impl MachineDestructionTable {
         })?;
         Ok(Self {
             entries: MachineTable::from_values(entries),
-            ids,
             calls,
             pack_segments,
         })
@@ -127,11 +126,6 @@ impl MachineDestructionTable {
     #[must_use]
     pub fn get(&self, id: MachineDestructionId) -> Option<&MachineDestruction> {
         self.entries.get(id)
-    }
-
-    #[must_use]
-    pub fn id(&self, plan: &MachineDestructionPlan) -> Option<MachineDestructionId> {
-        self.ids.get(plan).copied()
     }
 
     #[must_use]
@@ -166,7 +160,7 @@ impl MachineDestructionTable {
 fn collect_body(
     owner: MachineLinkageId,
     body: &MirBody,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'_>,
     plans: &mut BTreeSet<MachineDestructionPlan>,
     calls: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
@@ -224,7 +218,7 @@ fn lower_plan(
     plan: &nocter_mir::MirDestructionPlan,
     owner: MachineLinkageId,
     operation: MirOperationId,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'_>,
 ) -> Result<MachineDestructionPlan, MachineProgramError> {
     crate::lower::destruction::lower_destruction(plan, owner, operation, layouts, functions)
@@ -232,7 +226,7 @@ fn lower_plan(
 
 fn destruction_abi(
     program: &MirProgram,
-    layouts: &MachineLayoutStore,
+    layouts: &MachineLayoutPlan,
 ) -> Result<MachineCallableAbi, MachineProgramError> {
     // Concrete source pointee types are deliberately erased here. Every generated cleanup body
     // accepts one byte-address lane plus a byte offset, so pointer primitives and heterogeneous
@@ -272,7 +266,7 @@ fn close_edges<K: Copy + Ord>(
 }
 
 fn require_linkage(
-    linkage: &MachineLinkageTable,
+    linkage: &MachineLinkagePlan,
     key: MachineLinkageKey,
 ) -> Result<MachineLinkageId, MachineProgramError> {
     linkage
