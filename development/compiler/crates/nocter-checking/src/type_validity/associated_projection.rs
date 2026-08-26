@@ -1,7 +1,9 @@
+use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::{AssociatedProjectionUse, FrontendBindings};
 use nocter_model::TypeStore;
-use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
+use nocter_source_index::SourceOrigin;
+use nocter_syntax::SyntaxOrigin;
 
 use crate::interface_implementation::{
     AssociatedImplementationSelection, InterfaceImplementationTable,
@@ -17,10 +19,10 @@ use super::{DeclarationTypeValidityError, TypeValidityInternalError, TypeValidit
 /// whether an implementation applies; declaration lowering never duplicates refinements,
 /// conditional requirements, or overlap semantics.
 pub(crate) fn validate_associated_projection_uses(
+    input: &CompileUnitInput<'_>,
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     bindings: &FrontendBindings,
-    source_index: &SourceIndex,
     implementations: &InterfaceImplementationTable,
 ) -> Result<(), DeclarationTypeValidityError> {
     for projection in bindings.associated_projection_uses() {
@@ -69,7 +71,7 @@ pub(crate) fn validate_associated_projection_uses(
         };
         if let Some(rule) = rule {
             return Err(DeclarationTypeValidityError::Rule(
-                rule.diagnostic(projection_origin(source_index, *projection)?),
+                rule.diagnostic(projection_origin(input, *projection)?),
             ));
         }
     }
@@ -77,16 +79,21 @@ pub(crate) fn validate_associated_projection_uses(
 }
 
 fn projection_origin(
-    source_index: &SourceIndex,
+    input: &CompileUnitInput<'_>,
     projection: AssociatedProjectionUse,
 ) -> Result<SourceOrigin, TypeValidityInternalError> {
-    source_index
-        .bindings_for(SemanticEntity::AssociatedType(projection.associated()))
-        .iter()
-        .find(|binding| {
-            binding.role() == SourceRole::Reference
-                && binding.origin().syntax() == projection.origin()
-        })
-        .map(|binding| binding.origin())
-        .ok_or(TypeValidityInternalError::MissingAssociatedProjectionSource(projection.origin()))
+    let syntax = projection.origin();
+    let source = match syntax {
+        SyntaxOrigin::Node(node) => node.source(),
+        SyntaxOrigin::Token(token) => token.source(),
+    };
+    let tree = input
+        .syntax_tree(source)
+        .ok_or(TypeValidityInternalError::MissingAssociatedProjectionSource(syntax))?;
+    match syntax {
+        SyntaxOrigin::Node(node) => SourceOrigin::from_node(tree, node)
+            .map_err(|_| TypeValidityInternalError::MissingAssociatedProjectionSource(syntax)),
+        SyntaxOrigin::Token(token) => SourceOrigin::from_token(tree, token)
+            .map_err(|_| TypeValidityInternalError::MissingAssociatedProjectionSource(syntax)),
+    }
 }

@@ -580,20 +580,26 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let authorities =
-        match build_program_authorities(&graph, &mut types, bindings, &source_index, &admission) {
-            Ok(authorities) => authorities,
-            Err(error) => {
-                return Err(declaration_failure(
-                    error,
-                    retain_names,
-                    graph,
-                    types,
-                    source_index,
-                    Some(standard_semantics),
-                ));
-            }
-        };
+    let authorities = match build_program_authorities(
+        input,
+        &graph,
+        &mut types,
+        bindings,
+        &source_index,
+        &admission,
+    ) {
+        Ok(authorities) => authorities,
+        Err(error) => {
+            return Err(declaration_failure(
+                error,
+                retain_names,
+                graph,
+                types,
+                source_index,
+                Some(standard_semantics),
+            ));
+        }
+    };
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
         &graph,
@@ -648,6 +654,7 @@ fn prepare_body_sources<'syntax>(
 }
 
 fn build_program_authorities(
+    input: &CompileUnitInput<'_>,
     graph: &DeclarationGraph,
     types: &mut TypeStore,
     bindings: &FrontendBindings,
@@ -666,13 +673,7 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.interface_implementations(),
     )?;
-    validate_associated_projection_uses(
-        graph,
-        types,
-        bindings,
-        source_index,
-        &interface_implementations,
-    )?;
+    validate_associated_projection_uses(input, graph, types, bindings, &interface_implementations)?;
     let construction_surfaces =
         ConstructionSurfaceTable::build_from_ids(graph, types, operations.constructions())?;
     let instance_operations = build_instance_operation_table_from_ids(

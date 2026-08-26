@@ -52,7 +52,7 @@ pub enum TypeValidityInternalError {
         implementation: nocter_model::InterfaceImplementationId,
         associated: nocter_model::AssociatedTypeId,
     },
-    MissingAssociatedProjectionSource(nocter_source_index::SyntaxOrigin),
+    MissingAssociatedProjectionSource(nocter_syntax::SyntaxOrigin),
     Substitution(crate::SubstitutionError),
 }
 

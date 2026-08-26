@@ -5,6 +5,7 @@ mod documentation;
 mod lexer;
 mod literal;
 mod navigation;
+mod origin;
 mod parser;
 mod query;
 mod token;
@@ -21,6 +22,7 @@ pub use navigation::{
     first_direct_token,
 };
 pub use nocter_language::BuiltinType;
+pub use origin::SyntaxOrigin;
 pub use parser::{ParseGoal, parse};
 pub use query::declaration_name_token;
 pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};

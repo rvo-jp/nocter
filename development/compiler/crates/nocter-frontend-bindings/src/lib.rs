@@ -11,8 +11,7 @@ use nocter_model::{
     ParameterId, Symbol, TypeId,
 };
 use nocter_source::SourceId;
-use nocter_source_index::SyntaxOrigin;
-use nocter_syntax::{NodeId, SyntaxToken};
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 mod access;
 

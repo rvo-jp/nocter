@@ -7,7 +7,7 @@
 use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::PrimitiveRole;
-use nocter_source::SourceMap;
+use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
@@ -563,6 +563,19 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub fn modules(&self) -> &[ModuleInput<'syntax>] {
         &self.modules
+    }
+
+    /// Returns the sole parsed syntax tree registered for a physical source.
+    ///
+    /// Consumers use this identity lookup to project an already-selected syntax origin. It does
+    /// not rediscover module topology or source visibility.
+    #[must_use]
+    pub fn syntax_tree(&self, source: SourceId) -> Option<&'syntax SyntaxTree> {
+        self.modules
+            .iter()
+            .flat_map(ModuleInput::sources)
+            .map(ModuleSourceInput::syntax)
+            .find(|tree| tree.source() == source)
     }
 
     #[must_use]

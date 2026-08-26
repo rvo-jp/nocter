@@ -1,22 +1,7 @@
 use std::fmt;
 
 use nocter_source::{SourceId, Span};
-use nocter_syntax::{NodeId, SyntaxToken, SyntaxTree, TokenId};
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum SyntaxOrigin {
-    Node(NodeId),
-    Token(SyntaxToken),
-}
-
-impl SyntaxOrigin {
-    pub(crate) const fn sort_key(self) -> (u8, usize) {
-        match self {
-            Self::Node(node) => (0, node.index()),
-            Self::Token(token) => (1, token.lexical().index()),
-        }
-    }
-}
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken, SyntaxTree, TokenId};
 
 /// One exact syntax node and normalized source span.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
