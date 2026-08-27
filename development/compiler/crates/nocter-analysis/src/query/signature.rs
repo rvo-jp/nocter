@@ -6,12 +6,12 @@ use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use crate::AnalysisSnapshot;
-use crate::evidence::EvidenceIntegrityError;
-use crate::presentation::{
+use crate::query::evidence::EvidenceIntegrityError;
+use crate::query::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
-use crate::source_context::SourceContextError;
-use crate::source_selection::{select_source_binding, select_source_candidates};
+use crate::query::source_context::SourceContextError;
+use crate::query::source_selection::{select_source_binding, select_source_candidates};
 
 /// One compiler-selected call signature and active authored argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -72,7 +72,7 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let index = authority.source_index();
-        let from = authority.source_ownership().module_for_source(source)?;
+        let from = authority.module_for_source(source)?;
         let spellings = self
             .queries
             .source_spellings(authority.graph(), from, index, source);

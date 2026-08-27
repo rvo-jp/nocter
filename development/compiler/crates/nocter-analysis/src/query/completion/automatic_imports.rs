@@ -10,12 +10,12 @@ use nocter_syntax::{CommentKind, NodeKind, SyntaxElement, SyntaxTree};
 
 use super::{Candidate, SemanticCompletion, SemanticCompletionEdit, exported_candidate};
 use crate::AnalysisSnapshot;
-use crate::semantic::SemanticQueryContext;
+use crate::query::SemanticQueryContext;
 
 /// Inconsistency while deriving an importable name and its source edit.
 #[derive(Debug)]
 pub enum AutomaticImportError {
-    Presentation(crate::presentation::PresentationError),
+    Presentation(crate::query::presentation::PresentationError),
     UnknownSource(SourceId),
     SyntaxUnavailable(SourceId),
     UnknownModule(ModuleId),
@@ -70,8 +70,8 @@ impl std::error::Error for AutomaticImportError {
     }
 }
 
-impl From<crate::presentation::PresentationError> for AutomaticImportError {
-    fn from(error: crate::presentation::PresentationError) -> Self {
+impl From<crate::query::presentation::PresentationError> for AutomaticImportError {
+    fn from(error: crate::query::presentation::PresentationError) -> Self {
         Self::Presentation(error)
     }
 }

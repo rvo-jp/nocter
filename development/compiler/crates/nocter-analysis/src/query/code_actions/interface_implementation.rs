@@ -7,8 +7,10 @@ use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
 
 use super::SemanticCodeAction;
-use crate::presentation::required_interface_implementation_method_presentation;
-use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
+use crate::query::presentation::required_interface_implementation_method_presentation;
+use crate::{AnalysisSnapshot, SemanticSourceEdit};
+
+use super::super::completion::SemanticCompletionError;
 
 #[derive(Debug)]
 pub enum InterfaceImplementationActionError {

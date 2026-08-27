@@ -174,9 +174,12 @@ partial semantic evidence. Protocol-independent queries are the only authority a
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
 complete. The kernel validates the complete source projection against its declaration and
 body-local domains, source map, syntax trees, and source ownership once per immutable generation;
-only the sealed context is visible to feature code. A dangling binding, documentation owner,
-visible name, source, syntax origin, or module owner is an integrity failure rather than an ordinary
-empty result. Query accelerators are lazy caches keyed by compiler-owned identities;
+the private `query/` module tree owns every operation that consumes the sealed context. Neither the
+`AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
+`CompleteSemanticQuery`, checking recovery, or `SourceIndex`; they receive only complete
+protocol-independent query results. A dangling binding, documentation owner, visible name, source,
+syntax origin, or module owner is an integrity failure rather than an ordinary empty result. Query
+accelerators are lazy caches keyed by compiler-owned identities;
 they never infer an evidence-domain size or become a second semantic authority. A target failure
 therefore does not erase checked source semantics, while
 retaining checked semantics does not turn that target failure into success. A

@@ -4,10 +4,10 @@ use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::evidence::{
+use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
-use crate::source_selection::select_source_binding;
+use crate::query::source_selection::select_source_binding;
 
 /// Protocol-independent semantic classification of one source range.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -106,7 +106,7 @@ impl AnalysisSnapshot {
 }
 
 fn highlight(
-    authority: crate::semantic::SemanticQueryContext<'_>,
+    authority: crate::query::SemanticQueryContext<'_>,
     binding: &SourceBinding,
 ) -> Result<Option<SemanticHighlight>, EvidenceIntegrityError> {
     let Some((kind, readonly)) = classify(authority, binding)? else {
@@ -130,7 +130,7 @@ fn highlight(
 }
 
 fn classify(
-    authority: crate::semantic::SemanticQueryContext<'_>,
+    authority: crate::query::SemanticQueryContext<'_>,
     binding: &SourceBinding,
 ) -> Result<Option<(SemanticHighlightKind, bool)>, EvidenceIntegrityError> {
     let graph = authority.graph();

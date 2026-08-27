@@ -7,22 +7,22 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
 ///
 /// Callers use the editable result only for contracts whose grammar admits replacement. The result
 /// end remains available for presentation features even when the result is opaque or not editable.
-pub(crate) struct CallableSourceProjection {
+pub(in crate::query) struct CallableSourceProjection {
     editable_result: Option<NodeId>,
     result_end: Option<ByteOffset>,
 }
 
 impl CallableSourceProjection {
-    pub(crate) const fn editable_result(&self) -> Option<NodeId> {
+    pub(in crate::query) const fn editable_result(&self) -> Option<NodeId> {
         self.editable_result
     }
 
-    pub(crate) const fn result_end(&self) -> Option<ByteOffset> {
+    pub(in crate::query) const fn result_end(&self) -> Option<ByteOffset> {
         self.result_end
     }
 }
 
-pub(crate) fn project_callable_source(
+pub(in crate::query) fn project_callable_source(
     syntax: &SyntaxTree,
     binding: SyntaxOrigin,
     kind: CallableKind,

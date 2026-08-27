@@ -57,7 +57,7 @@ pub struct SemanticQuerySet<T> {
 }
 
 impl<T> SemanticQuerySet<T> {
-    pub(crate) const fn new(values: Box<[T]>, coverage: SemanticCoverage) -> Self {
+    pub(in crate::query) const fn new(values: Box<[T]>, coverage: SemanticCoverage) -> Self {
         Self { values, coverage }
     }
 
@@ -105,19 +105,19 @@ impl<T> IntoIterator for SemanticQuerySet<T> {
 
 /// The typed-body capability available to protocol-independent semantic queries.
 #[derive(Debug)]
-pub(crate) enum TypedBodyEvidence<'a> {
+pub(in crate::query) enum TypedBodyEvidence<'a> {
     Available(&'a nocter_checking::CheckedBody),
     Unavailable(TypedBodyUnavailability),
 }
 
 /// One query fact that is either proven by typed evidence or unavailable for an authored reason.
-pub(crate) enum SemanticFact<T, U = TypedBodyUnavailability> {
+pub(in crate::query) enum SemanticFact<T, U = TypedBodyUnavailability> {
     Available(T),
     Unavailable(U),
 }
 
 impl<T, U> SemanticFact<T, U> {
-    pub(crate) fn into_result(self) -> Result<T, U> {
+    pub(in crate::query) fn into_result(self) -> Result<T, U> {
         match self {
             Self::Available(value) => Ok(value),
             Self::Unavailable(reason) => Err(reason),
@@ -126,45 +126,45 @@ impl<T, U> SemanticFact<T, U> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ScopeUnavailability {
+pub(in crate::query) enum ScopeUnavailability {
     NamesRejected,
     NameResolutionNotReached,
 }
 
 /// The body-local facts editor queries may consume without inspecting checked-body storage.
 #[derive(Clone, Copy)]
-pub(crate) struct LocalBindingFact {
+pub(in crate::query) struct LocalBindingFact {
     ty: TypeId,
     readonly: bool,
 }
 
 impl LocalBindingFact {
-    pub(crate) const fn ty(self) -> TypeId {
+    pub(in crate::query) const fn ty(self) -> TypeId {
         self.ty
     }
 
-    pub(crate) const fn readonly(self) -> bool {
+    pub(in crate::query) const fn readonly(self) -> bool {
         self.readonly
     }
 }
 
 /// Proof that every source-semantic occurrence required by a mutation is available.
 #[derive(Clone, Copy)]
-pub(crate) struct CompleteSemanticQuery<'a> {
+pub(super) struct CompleteSemanticQuery<'a> {
     checked: &'a nocter_checking::CheckedProgram,
     source_index: &'a SourceIndex,
 }
 
 impl<'a> CompleteSemanticQuery<'a> {
-    pub(crate) const fn checked(self) -> &'a nocter_checking::CheckedProgram {
+    pub(super) const fn checked(self) -> &'a nocter_checking::CheckedProgram {
         self.checked
     }
 
-    pub(crate) const fn source_index(self) -> &'a SourceIndex {
+    pub(super) const fn source_index(self) -> &'a SourceIndex {
         self.source_index
     }
 
-    pub(crate) fn checked_operation(
+    pub(in crate::query) fn checked_operation(
         self,
         body: BodyId,
         node: BodyNodeId,
@@ -191,7 +191,10 @@ impl<'a> CompleteSemanticQuery<'a> {
             .ok_or(EvidenceIntegrityError::MissingBodyNode { body, node })
     }
 
-    pub(crate) fn rename_family(self, selected: SemanticEntity) -> BTreeSet<SemanticEntity> {
+    pub(in crate::query) fn rename_family(
+        self,
+        selected: SemanticEntity,
+    ) -> BTreeSet<SemanticEntity> {
         let mut entities = BTreeSet::from([selected]);
         let mut changed = true;
         while changed {
@@ -318,7 +321,7 @@ impl fmt::Display for EvidenceIntegrityError {
 impl std::error::Error for EvidenceIntegrityError {}
 
 impl<'a> SemanticQueryContext<'a> {
-    pub(crate) fn validate_generation(
+    pub(in crate::query) fn validate_generation(
         &self,
         sources: &SourceMap,
         syntax_trees: &[SyntaxTree],
@@ -490,7 +493,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) const fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
+    pub(super) const fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
         match self.evidence {
             SemanticEvidence::Checked {
                 checked,
@@ -509,7 +512,7 @@ impl<'a> SemanticQueryContext<'a> {
     ///
     /// Expected rejection and an unreached typing phase are ordinary unavailable outcomes. Only a
     /// body identity absent from its owning semantic domain is an integrity failure.
-    pub(crate) fn typed_body_evidence(
+    pub(in crate::query) fn typed_body_evidence(
         &self,
         body: BodyId,
     ) -> Result<TypedBodyEvidence<'a>, EvidenceIntegrityError> {
@@ -552,7 +555,9 @@ impl<'a> SemanticQueryContext<'a> {
     }
 
     /// Proves which declared body domains can contribute typed semantic occurrences.
-    pub(crate) fn typed_body_coverage(&self) -> Result<SemanticCoverage, EvidenceIntegrityError> {
+    pub(in crate::query) fn typed_body_coverage(
+        &self,
+    ) -> Result<SemanticCoverage, EvidenceIntegrityError> {
         let mut gaps = Vec::new();
         for (body, _) in self.graph().declarations().bodies().iter() {
             if let TypedBodyEvidence::Unavailable(reason) = self.typed_body_evidence(body)? {
@@ -566,7 +571,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) fn local_binding_fact(
+    pub(in crate::query) fn local_binding_fact(
         &self,
         body: BodyId,
         local: LocalBindingId,
@@ -587,7 +592,7 @@ impl<'a> SemanticQueryContext<'a> {
         }))
     }
 
-    pub(crate) fn capture_readonly_fact(
+    pub(in crate::query) fn capture_readonly_fact(
         &self,
         body: BodyId,
         capture: CaptureId,
@@ -607,7 +612,7 @@ impl<'a> SemanticQueryContext<'a> {
         ))
     }
 
-    pub(crate) fn checked_operation(
+    pub(in crate::query) fn checked_operation(
         &self,
         body: BodyId,
         node: BodyNodeId,
@@ -625,7 +630,7 @@ impl<'a> SemanticQueryContext<'a> {
         Ok(SemanticFact::Available(node.operation()))
     }
 
-    pub(crate) fn body_scope_fact(
+    pub(in crate::query) fn body_scope_fact(
         &self,
         body: BodyId,
         scope: BodyScopeId,
@@ -679,5 +684,68 @@ impl<'a> SemanticQueryContext<'a> {
             .get(scope)
             .map(SemanticFact::Available)
             .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::{ArenaBuilder, BodyId};
+
+    use super::EvidenceIntegrityError;
+    use crate::GenerationId;
+    use crate::tests::{TempTree, bundled_snapshot};
+
+    #[test]
+    fn unknown_body_identity_is_an_integrity_failure_inside_the_query_kernel() {
+        let tree = TempTree::new();
+        let (_, snapshot) =
+            bundled_snapshot(&tree, "func subject(): i32 { 1 }\n", GenerationId::new(56));
+        let query = snapshot
+            .semantic_query()
+            .expect("valid semantic index")
+            .expect("semantic query");
+        let domain_len = query.graph().declarations().bodies().iter().count();
+        let mut identities = ArenaBuilder::<BodyId, ()>::new();
+        let mut missing = None;
+        for _ in 0..=domain_len {
+            missing = Some(identities.insert(()));
+        }
+        let missing = missing.unwrap();
+
+        assert_eq!(
+            query.typed_body_evidence(missing).unwrap_err(),
+            EvidenceIntegrityError::MissingBodyDomain(missing)
+        );
+    }
+
+    #[test]
+    fn rejected_body_has_no_retained_checked_node_domain() {
+        let tree = TempTree::new();
+        let (_, snapshot) = bundled_snapshot(
+            &tree,
+            "func invalid(input: i32?): i32 { input? }\n",
+            GenerationId::new(57),
+        );
+        let query = snapshot
+            .semantic_query()
+            .expect("valid semantic index")
+            .expect("semantic query");
+        let (body, evidence) = match query.evidence {
+            super::SemanticEvidence::Bodies(recovery) => recovery
+                .body_evidence_iter()
+                .find(|(_, evidence)| {
+                    matches!(evidence, nocter_checking::BodyEvidence::Rejected(_))
+                })
+                .expect("rejected body evidence"),
+            _ => panic!("expected body recovery"),
+        };
+        assert!(matches!(
+            evidence,
+            nocter_checking::BodyEvidence::Rejected(_)
+        ));
+
+        let mut nodes = ArenaBuilder::<nocter_model::BodyNodeId, ()>::new();
+        let node = nodes.insert(());
+        assert!(!query.node_exists(body, node));
     }
 }

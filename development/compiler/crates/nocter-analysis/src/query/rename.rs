@@ -83,7 +83,7 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let Some(selection) =
-            crate::semantic::semantic_selection_from(authority.source_index(), source, offset)
+            crate::query::semantic_selection_from(authority.source_index(), source, offset)
         else {
             return Ok(None);
         };

@@ -5,8 +5,8 @@ use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole};
 
 use super::SemanticCodeAction;
-use crate::callable_source::project_callable_source;
-use crate::presentation::recovery_type_presentation;
+use crate::query::callable_source::project_callable_source;
+use crate::query::presentation::recovery_type_presentation;
 use crate::{AnalysisSnapshot, SemanticSourceEdit};
 
 #[derive(Debug)]

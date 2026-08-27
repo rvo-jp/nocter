@@ -7,12 +7,12 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::AnalysisSnapshot;
-use crate::callable_source::project_callable_source;
-use crate::evidence::{
+use crate::query::SemanticQueryContext;
+use crate::query::callable_source::project_callable_source;
+use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
-use crate::semantic::SemanticQueryContext;
-use crate::source_context::SourceContextError;
+use crate::query::source_context::SourceContextError;
 
 /// One compiler-owned inlay fact before editor-coordinate projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -148,7 +148,7 @@ impl AnalysisSnapshot {
         };
         let coverage = authority.typed_body_coverage()?;
         let index = authority.source_index();
-        let module = authority.source_ownership().module_for_source(source)?;
+        let module = authority.module_for_source(source)?;
         let syntax = self
             .syntax_trees()
             .iter()
@@ -176,7 +176,7 @@ struct InlayContext<'a> {
     authority: SemanticQueryContext<'a>,
     index: &'a SourceIndex,
     source: SourceId,
-    spellings: std::sync::Arc<crate::presentation::visible_spelling::VisibleSpellings>,
+    spellings: std::sync::Arc<crate::query::presentation::visible_spelling::VisibleSpellings>,
     syntax: &'a SyntaxTree,
     requested: TextRange,
 }
@@ -206,7 +206,7 @@ impl InlayContext<'_> {
                 continue;
             };
             let entity = binding.entity();
-            let rendered = crate::presentation::type_presentation_with_spellings(
+            let rendered = crate::query::presentation::type_presentation_with_spellings(
                 self.authority.graph(),
                 self.authority.types(),
                 checked_local.ty(),

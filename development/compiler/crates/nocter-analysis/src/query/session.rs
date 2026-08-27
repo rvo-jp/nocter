@@ -7,7 +7,7 @@ use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
 use crate::EvidenceIntegrityError;
-use crate::presentation::visible_spelling::VisibleSpellings;
+use crate::query::presentation::visible_spelling::VisibleSpellings;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum SpellingContext {
     Module(ModuleId),
@@ -16,7 +16,7 @@ enum SpellingContext {
 
 /// Mutable, generation-local query accelerators kept outside immutable compiler products.
 #[derive(Debug, Default)]
-pub(super) struct AnalysisQuerySession {
+pub(crate) struct AnalysisQuerySession {
     checked_members: nocter_checking::MemberCompletionQuerySession,
     interrupted_members: Mutex<HashMap<usize, Arc<nocter_checking::MemberCompletionQuerySession>>>,
     spellings: Mutex<HashMap<SpellingContext, Arc<VisibleSpellings>>>,

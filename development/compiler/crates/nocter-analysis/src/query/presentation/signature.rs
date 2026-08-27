@@ -6,12 +6,12 @@ use nocter_model::{CallableCapability, TypeId, TypeStore};
 
 use super::{Renderer, SemanticPresentation};
 
-pub(crate) struct RenderedSignature {
-    pub(crate) presentation: SemanticPresentation,
-    pub(crate) parameter_ranges: Box<[(usize, usize)]>,
+pub(in crate::query) struct RenderedSignature {
+    pub(in crate::query) presentation: SemanticPresentation,
+    pub(in crate::query) parameter_ranges: Box<[(usize, usize)]>,
 }
 
-pub(crate) fn static_signature_presentation(
+pub(in crate::query) fn static_signature_presentation(
     graph: &nocter_declarations::DeclarationGraph,
     types: &TypeStore,
     selection: &StaticSelection,
@@ -44,7 +44,7 @@ pub(crate) fn static_signature_presentation(
     Some(renderer.finish_signature())
 }
 
-pub(crate) fn closure_signature_presentation(
+pub(in crate::query) fn closure_signature_presentation(
     checked: &CheckedProgram,
     closure: nocter_model::ClosureId,
     spellings: &super::visible_spelling::VisibleSpellings,

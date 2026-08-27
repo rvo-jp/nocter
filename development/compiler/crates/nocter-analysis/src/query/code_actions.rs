@@ -4,7 +4,9 @@ use nocter_checking::{InterfaceImplementationRule, NameRule, PreparationError};
 use nocter_session::CompileSessionError;
 use nocter_source::{SourceId, TextRange};
 
-use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
+use crate::{AnalysisSnapshot, SemanticSourceEdit};
+
+use super::completion::SemanticCompletionError;
 
 mod interface_implementation;
 mod outcomes;

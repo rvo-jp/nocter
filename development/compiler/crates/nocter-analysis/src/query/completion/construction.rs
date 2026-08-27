@@ -7,9 +7,9 @@ use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use super::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
-use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::presentation::{prepared_presentation, presentation};
-use crate::source_selection::select_source_candidates;
+use crate::query::presentation::visible_spelling::VisibleSpellings;
+use crate::query::presentation::{prepared_presentation, presentation};
+use crate::query::source_selection::select_source_candidates;
 
 /// Resolves a selected checked construction member back to its type-owned use-site surface.
 pub(super) fn checked_completions(

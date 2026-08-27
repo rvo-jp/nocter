@@ -12,14 +12,14 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::evidence::{
+use crate::query::SemanticQueryContext;
+use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
-use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::presentation::{prepared_presentation, presentation};
-use crate::semantic::SemanticQueryContext;
-use crate::source_context::SourceContextError;
-use crate::source_selection::{select_source_binding, select_source_candidates};
+use crate::query::presentation::visible_spelling::VisibleSpellings;
+use crate::query::presentation::{prepared_presentation, presentation};
+use crate::query::source_context::SourceContextError;
+use crate::query::source_selection::{select_source_binding, select_source_candidates};
 
 mod associated_types;
 mod automatic_imports;
@@ -71,7 +71,7 @@ impl SemanticCompletion {
     }
 
     #[must_use]
-    pub(crate) const fn entity(&self) -> Option<SemanticEntity> {
+    pub(in crate::query) const fn entity(&self) -> Option<SemanticEntity> {
         self.entity
     }
 
@@ -150,10 +150,13 @@ pub enum SemanticCompletionKind {
 
 /// An internal inconsistency while deriving completion from immutable compiler state.
 #[derive(Debug)]
-pub enum SemanticCompletionError {
+pub struct SemanticCompletionError(CompletionFailure);
+
+#[derive(Debug)]
+enum CompletionFailure {
     SourceContext(SourceContextError),
     Evidence(EvidenceIntegrityError),
-    Presentation(crate::presentation::PresentationError),
+    Presentation(crate::query::presentation::PresentationError),
     Member(MemberCompletionError),
     Construction(ConstructionCompletionError),
     StructuralField(StructuralFieldCompletionError),
@@ -164,87 +167,87 @@ pub enum SemanticCompletionError {
 
 impl fmt::Display for SemanticCompletionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::SourceContext(error) => error.fmt(formatter),
-            Self::Evidence(error) => error.fmt(formatter),
-            Self::Presentation(error) => error.fmt(formatter),
-            Self::Member(error) => error.fmt(formatter),
-            Self::Construction(error) => error.fmt(formatter),
-            Self::StructuralField(error) => error.fmt(formatter),
-            Self::EnumPattern(error) => error.fmt(formatter),
-            Self::AssociatedType(error) => error.fmt(formatter),
-            Self::AutomaticImport(error) => error.fmt(formatter),
+        match &self.0 {
+            CompletionFailure::SourceContext(error) => error.fmt(formatter),
+            CompletionFailure::Evidence(error) => error.fmt(formatter),
+            CompletionFailure::Presentation(error) => error.fmt(formatter),
+            CompletionFailure::Member(error) => error.fmt(formatter),
+            CompletionFailure::Construction(error) => error.fmt(formatter),
+            CompletionFailure::StructuralField(error) => error.fmt(formatter),
+            CompletionFailure::EnumPattern(error) => error.fmt(formatter),
+            CompletionFailure::AssociatedType(error) => error.fmt(formatter),
+            CompletionFailure::AutomaticImport(error) => error.fmt(formatter),
         }
     }
 }
 
 impl std::error::Error for SemanticCompletionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::SourceContext(error) => Some(error),
-            Self::Evidence(error) => Some(error),
-            Self::Presentation(error) => Some(error),
-            Self::Member(error) => Some(error),
-            Self::Construction(error) => Some(error),
-            Self::StructuralField(error) => Some(error),
-            Self::EnumPattern(error) => Some(error),
-            Self::AssociatedType(error) => Some(error),
-            Self::AutomaticImport(error) => Some(error),
+        match &self.0 {
+            CompletionFailure::SourceContext(error) => Some(error),
+            CompletionFailure::Evidence(error) => Some(error),
+            CompletionFailure::Presentation(error) => Some(error),
+            CompletionFailure::Member(error) => Some(error),
+            CompletionFailure::Construction(error) => Some(error),
+            CompletionFailure::StructuralField(error) => Some(error),
+            CompletionFailure::EnumPattern(error) => Some(error),
+            CompletionFailure::AssociatedType(error) => Some(error),
+            CompletionFailure::AutomaticImport(error) => Some(error),
         }
     }
 }
 
 impl From<SourceContextError> for SemanticCompletionError {
     fn from(error: SourceContextError) -> Self {
-        Self::SourceContext(error)
+        Self(CompletionFailure::SourceContext(error))
     }
 }
 
 impl From<EvidenceIntegrityError> for SemanticCompletionError {
     fn from(error: EvidenceIntegrityError) -> Self {
-        Self::Evidence(error)
+        Self(CompletionFailure::Evidence(error))
     }
 }
 
-impl From<crate::presentation::PresentationError> for SemanticCompletionError {
-    fn from(error: crate::presentation::PresentationError) -> Self {
-        Self::Presentation(error)
+impl From<crate::query::presentation::PresentationError> for SemanticCompletionError {
+    fn from(error: crate::query::presentation::PresentationError) -> Self {
+        Self(CompletionFailure::Presentation(error))
     }
 }
 
 impl From<MemberCompletionError> for SemanticCompletionError {
     fn from(error: MemberCompletionError) -> Self {
-        Self::Member(error)
+        Self(CompletionFailure::Member(error))
     }
 }
 
 impl From<ConstructionCompletionError> for SemanticCompletionError {
     fn from(error: ConstructionCompletionError) -> Self {
-        Self::Construction(error)
+        Self(CompletionFailure::Construction(error))
     }
 }
 
 impl From<StructuralFieldCompletionError> for SemanticCompletionError {
     fn from(error: StructuralFieldCompletionError) -> Self {
-        Self::StructuralField(error)
+        Self(CompletionFailure::StructuralField(error))
     }
 }
 
 impl From<EnumPatternCompletionError> for SemanticCompletionError {
     fn from(error: EnumPatternCompletionError) -> Self {
-        Self::EnumPattern(error)
+        Self(CompletionFailure::EnumPattern(error))
     }
 }
 
 impl From<AssociatedTypeCompletionError> for SemanticCompletionError {
     fn from(error: AssociatedTypeCompletionError) -> Self {
-        Self::AssociatedType(error)
+        Self(CompletionFailure::AssociatedType(error))
     }
 }
 
 impl From<automatic_imports::AutomaticImportError> for SemanticCompletionError {
     fn from(error: automatic_imports::AutomaticImportError) -> Self {
-        Self::AutomaticImport(error)
+        Self(CompletionFailure::AutomaticImport(error))
     }
 }
 
@@ -279,7 +282,7 @@ impl AnalysisSnapshot {
         };
         let coverage = program.typed_body_coverage()?;
         let index = program.source_index();
-        let module = program.source_ownership().module_for_source(source)?;
+        let module = program.module_for_source(source)?;
         let spellings = self
             .queries
             .source_spellings(program.graph(), module, index, source);
@@ -365,7 +368,7 @@ impl AnalysisSnapshot {
 
 fn interrupted_completions(
     authority: SemanticQueryContext<'_>,
-    queries: &crate::query_session::AnalysisQuerySession,
+    queries: &crate::query::session::AnalysisQuerySession,
     source: SourceId,
     offset: ByteOffset,
     spellings: &VisibleSpellings,
@@ -463,7 +466,7 @@ fn interrupted_completions(
 }
 
 fn checked_member_completions(
-    query: crate::evidence::CompleteSemanticQuery<'_>,
+    query: crate::query::evidence::CompleteSemanticQuery<'_>,
     program: &CheckedProgram,
     session: &nocter_checking::MemberCompletionQuerySession,
     index: &SourceIndex,

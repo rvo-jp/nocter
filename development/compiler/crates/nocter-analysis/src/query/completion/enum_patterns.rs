@@ -9,9 +9,9 @@ use nocter_source_index::{SemanticEntity, SourceIndex};
 use nocter_syntax::{NodeKind, SyntaxTree};
 
 use super::{SemanticCompletion, SemanticCompletionKind};
-use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::presentation::{prepared_presentation, presentation};
-use crate::source_selection::select_source_candidates;
+use crate::query::presentation::visible_spelling::VisibleSpellings;
+use crate::query::presentation::{prepared_presentation, presentation};
+use crate::query::source_selection::select_source_candidates;
 
 pub(super) fn checked_completions(
     program: &CheckedProgram,

@@ -65,6 +65,24 @@ fn crate_names() -> Vec<String> {
     names
 }
 
+fn rust_sources(root: &Path) -> Vec<PathBuf> {
+    fn collect(directory: &Path, sources: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(directory).expect("Rust source directory") {
+            let path = entry.expect("Rust source entry").path();
+            if path.is_dir() {
+                collect(&path, sources);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                sources.push(path);
+            }
+        }
+    }
+
+    let mut sources = Vec::new();
+    collect(root, &mut sources);
+    sources.sort();
+    sources
+}
+
 #[test]
 fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
@@ -161,40 +179,47 @@ fn language_server_consumes_analysis_queries_not_semantic_storage() {
 #[test]
 fn semantic_features_cannot_acquire_an_unsealed_query_context() {
     let analysis = workspace().join("crates/nocter-analysis/src");
-    let semantic = fs::read_to_string(analysis.join("semantic.rs")).expect("semantic query kernel");
+    let query = analysis.join("query");
+    let kernel = fs::read_to_string(query.join("mod.rs")).expect("semantic query kernel");
     assert!(
-        semantic.contains("fn unvalidated_semantic_query"),
+        kernel.contains("fn unvalidated_semantic_query"),
         "the raw query constructor must remain an explicit kernel boundary"
     );
     assert!(
-        !semantic.contains("pub(crate) fn unvalidated_semantic_query"),
+        !kernel.contains("pub(crate) fn unvalidated_semantic_query")
+            && !kernel.contains("pub(in crate) fn unvalidated_semantic_query"),
         "an unsealed semantic context must not be visible to feature modules"
     );
     assert!(
-        semantic.contains("validate_generation(self.sources(), self.syntax_trees())"),
+        kernel.contains("validate_generation(self.sources(), self.syntax_trees())"),
         "the public crate query path must seal the complete source projection"
     );
 
-    for entry in fs::read_dir(&analysis).expect("analysis sources") {
-        let entry = entry.expect("analysis source entry");
-        let path = entry.path();
-        if path.file_name().and_then(|name| name.to_str()) == Some("semantic.rs")
-            || path.extension().and_then(|extension| extension.to_str()) != Some("rs")
+    for path in rust_sources(&analysis) {
+        if path.starts_with(&query)
+            || path.file_name().and_then(|name| name.to_str()) == Some("tests.rs")
         {
             continue;
         }
         let source = fs::read_to_string(&path).expect("analysis source");
-        assert!(
-            !source.contains("unvalidated_semantic_query"),
-            "{} bypasses the sealed semantic query boundary",
-            path.display()
-        );
+        for forbidden in [
+            "SemanticQueryContext",
+            "CompleteSemanticQuery",
+            "nocter_checking",
+            "nocter_source_index",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{} consumes query-kernel representation through {forbidden}",
+                path.display()
+            );
+        }
     }
 }
 
 #[test]
 fn query_caches_do_not_derive_a_second_semantic_domain() {
-    let path = workspace().join("crates/nocter-analysis/src/query_session.rs");
+    let path = workspace().join("crates/nocter-analysis/src/query/session.rs");
     let source = fs::read_to_string(&path).expect("analysis query session");
     for forbidden in [
         "AnalysisState",

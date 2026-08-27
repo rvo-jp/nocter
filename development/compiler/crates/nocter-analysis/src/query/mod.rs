@@ -3,16 +3,46 @@ use std::fmt;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
-use crate::AnalysisSnapshot;
-use crate::presentation::{
-    PresentationError, SemanticPresentation, body_recovery_presentation, declaration_presentation,
-    hover_presentation, name_recovery_presentation,
+use self::presentation::{
+    body_recovery_presentation, declaration_presentation, hover_presentation,
+    name_recovery_presentation,
 };
-use crate::source_context::SourceContextError;
-use crate::source_selection::select_source_binding;
+use self::source_selection::select_source_binding;
+use crate::AnalysisSnapshot;
 
-#[path = "evidence.rs"]
-pub(crate) mod evidence;
+mod callable_source;
+mod code_actions;
+mod completion;
+mod evidence;
+mod highlights;
+mod inlay_hints;
+mod navigation;
+mod presentation;
+mod rename;
+mod session;
+mod signature;
+mod source_context;
+mod source_selection;
+
+pub use code_actions::{
+    InterfaceImplementationActionError, OutcomeActionError, SemanticCodeAction,
+    SemanticCodeActionError,
+};
+pub use completion::{
+    SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
+};
+pub use evidence::{
+    EvidenceIntegrityError, SemanticBodyGap, SemanticCoverage, SemanticQuerySet,
+    SemanticSetUnavailability, TypedBodyUnavailability,
+};
+pub use highlights::{SemanticHighlight, SemanticHighlightKind};
+pub use inlay_hints::{SemanticInlayHint, SemanticInlayHintError, SemanticInlayHintKind};
+pub use navigation::SemanticLocation;
+pub use presentation::{PresentationError, SemanticPresentation};
+pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
+pub(crate) use session::AnalysisQuerySession;
+pub use signature::{SemanticParameterLabel, SemanticSignatureError, SemanticSignatureHelp};
+pub use source_context::SourceContextError;
 
 /// One exact interactive source occurrence selected independently of presentation or protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -134,7 +164,7 @@ impl AnalysisSnapshot {
         let Some(binding) = selected_binding(index, source, offset) else {
             return Ok(None);
         };
-        let module = authority.source_ownership().module_for_source(source)?;
+        let module = authority.module_for_source(source)?;
         let spellings = self
             .queries
             .source_spellings(authority.graph(), module, index, source);
@@ -151,7 +181,7 @@ impl AnalysisSnapshot {
         }))
     }
 
-    pub(crate) fn semantic_query(
+    fn semantic_query(
         &self,
     ) -> Result<Option<SemanticQueryContext<'_>>, crate::EvidenceIntegrityError> {
         let Some(query) = self.unvalidated_semantic_query() else {
@@ -201,7 +231,7 @@ impl AnalysisSnapshot {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct SemanticQueryContext<'a> {
+struct SemanticQueryContext<'a> {
     evidence: SemanticEvidence<'a>,
 }
 
@@ -217,7 +247,16 @@ enum SemanticEvidence<'a> {
 }
 
 impl<'a> SemanticQueryContext<'a> {
-    pub(crate) fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
+    fn module_for_source(
+        &self,
+        source: SourceId,
+    ) -> Result<nocter_model::ModuleId, SourceContextError> {
+        self.source_ownership()
+            .module_for_source(source)
+            .map_err(|_| SourceContextError::MissingModuleOwner(source))
+    }
+
+    fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
         match self.evidence {
             SemanticEvidence::Checked { checked, .. } => checked.source_ownership(),
             SemanticEvidence::Bodies(analysis) => analysis.prepared().source_ownership(),
@@ -226,7 +265,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
+    fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
         match self.evidence {
             SemanticEvidence::Checked { source_index, .. } => source_index,
             SemanticEvidence::Bodies(analysis) => analysis.source_index(),
@@ -235,7 +274,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
+    fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
         match self.evidence {
             SemanticEvidence::Checked { checked, .. } => checked.graph(),
             SemanticEvidence::Bodies(analysis) => analysis.prepared().graph(),
@@ -244,7 +283,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) fn types(&self) -> &'a nocter_model::TypeStore {
+    fn types(&self) -> &'a nocter_model::TypeStore {
         match self.evidence {
             SemanticEvidence::Checked { checked, .. } => checked.types(),
             SemanticEvidence::Bodies(analysis) => analysis.prepared().types(),
@@ -253,7 +292,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) const fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
+    const fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
         match self.evidence {
             SemanticEvidence::Bodies(analysis) => Some(analysis),
             SemanticEvidence::Checked { .. }
@@ -262,7 +301,7 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) const fn declaration_recovery(
+    const fn declaration_recovery(
         &self,
     ) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
         match self.evidence {
@@ -273,15 +312,15 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(crate) fn completion_detail(
+    pub(in crate::query) fn completion_detail(
         &self,
         entity: SemanticEntity,
-        spellings: &crate::presentation::visible_spelling::VisibleSpellings,
+        spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
     ) -> Result<Option<Box<str>>, PresentationError> {
         let presentation = match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => Ok(crate::presentation::presentation(
-                checked, entity, spellings,
-            )),
+            SemanticEvidence::Checked { checked, .. } => Ok(
+                crate::query::presentation::presentation(checked, entity, spellings),
+            ),
             SemanticEvidence::Bodies(analysis) => {
                 body_recovery_presentation(analysis, entity, spellings)
             }
@@ -298,7 +337,7 @@ impl<'a> SemanticQueryContext<'a> {
     fn presentation(
         &self,
         entity: SemanticEntity,
-        spellings: &crate::presentation::visible_spelling::VisibleSpellings,
+        spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, PresentationError> {
         match self.evidence {
@@ -364,7 +403,7 @@ impl From<PresentationError> for SemanticQueryError {
     }
 }
 
-pub(crate) fn semantic_selection_from(
+pub(in crate::query) fn semantic_selection_from(
     index: &nocter_source_index::SourceIndex,
     source: SourceId,
     offset: ByteOffset,

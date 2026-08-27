@@ -11,12 +11,12 @@ use nocter_source_index::{SemanticEntity, SourceIndex};
 /// of completion details therefore does not repeatedly traverse the module graph, and all related
 /// presentations use the same deterministic alias choice.
 #[derive(Debug)]
-pub(crate) struct VisibleSpellings {
+pub(in crate::query) struct VisibleSpellings {
     by_entity: HashMap<ExportedEntity, Box<[Symbol]>>,
 }
 
 impl VisibleSpellings {
-    pub(crate) fn new(graph: &DeclarationGraph, from: ModuleId) -> Self {
+    pub(in crate::query) fn new(graph: &DeclarationGraph, from: ModuleId) -> Self {
         let mut by_entity = HashMap::new();
         let mut module_paths = HashMap::from([(from, Vec::new())]);
         let mut pending = VecDeque::from([(from, Vec::new(), true)]);
@@ -61,7 +61,7 @@ impl VisibleSpellings {
         }
     }
 
-    pub(crate) fn for_source(
+    pub(in crate::query) fn for_source(
         graph: &DeclarationGraph,
         from: ModuleId,
         source_index: &SourceIndex,
@@ -84,7 +84,7 @@ impl VisibleSpellings {
         visible
     }
 
-    pub(crate) fn get(&self, entity: ExportedEntity) -> Option<&[Symbol]> {
+    pub(in crate::query) fn get(&self, entity: ExportedEntity) -> Option<&[Symbol]> {
         self.by_entity.get(&entity).map(AsRef::as_ref)
     }
 }

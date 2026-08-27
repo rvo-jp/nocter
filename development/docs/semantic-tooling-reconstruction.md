@@ -68,8 +68,10 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   Feature code has no access to an unvalidated context. A dangling entity, source, syntax origin,
   or owner is therefore an integrity failure for the generation, never a feature-specific empty
   result.
-- Editor features consume typed query results. They cannot inspect checking recovery or join raw
-  `SourceIndex` bindings to bodies.
+- The private analysis query responsibility owns feature-specific query operations and every join
+  between checking evidence and `SourceIndex`. Its module tree may consume those input contracts;
+  no sibling analysis responsibility or protocol adapter can name the sealed context, checking
+  recovery, or raw source projection. They consume only typed query results.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
 
@@ -98,7 +100,8 @@ The reconstruction is complete only when:
 - every rejected authored domain retains its source diagnostic in the same immutable result;
 - internal failures cannot construct source-semantic recovery;
 - session composition retains every diagnostic that explains retained evidence;
-- no analysis feature directly joins `SourceIndex` with checking bodies or scopes;
+- every join between `SourceIndex` and checking bodies or scopes is confined to the private query
+  responsibility, whose outward API contains only typed query results;
 - an unsealed semantic context is private to the query kernel, and whole-index validation is
   performed at most once per generation;
 - no language-server feature depends directly on checking or source-index representation;

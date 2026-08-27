@@ -2,7 +2,7 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::evidence::{
+use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
 
@@ -43,8 +43,7 @@ impl AnalysisSnapshot {
             ));
         };
         let index = authority.source_index();
-        let Some(selection) = crate::semantic::semantic_selection_from(index, source, offset)
-        else {
+        let Some(selection) = crate::query::semantic_selection_from(index, source, offset) else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Complete,
@@ -87,8 +86,7 @@ impl AnalysisSnapshot {
             ));
         };
         let index = authority.source_index();
-        let Some(selection) = crate::semantic::semantic_selection_from(index, source, offset)
-        else {
+        let Some(selection) = crate::query::semantic_selection_from(index, source, offset) else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Complete,
@@ -133,7 +131,7 @@ impl AnalysisSnapshot {
             ));
         };
         let Some(selection) =
-            crate::semantic::semantic_selection_from(authority.source_index(), source, offset)
+            crate::query::semantic_selection_from(authority.source_index(), source, offset)
         else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),

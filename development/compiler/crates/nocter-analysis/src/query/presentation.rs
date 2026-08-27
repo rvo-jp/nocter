@@ -13,7 +13,7 @@ use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKin
 use nocter_source_index::SemanticEntity;
 
 mod signature;
-pub(crate) mod visible_spelling;
+pub(in crate::query) mod visible_spelling;
 
 pub(super) use signature::{closure_signature_presentation, static_signature_presentation};
 
@@ -29,7 +29,7 @@ pub enum PresentationError {
     Evidence(crate::EvidenceIntegrityError),
     InvalidEntity(SemanticEntity),
     InvalidNominalPresentation(nocter_model::NominalTypeId),
-    SourceVisibility(nocter_checking::SourceVisibilityError),
+    SourceVisibility,
 }
 
 impl fmt::Display for PresentationError {
@@ -45,7 +45,8 @@ impl fmt::Display for PresentationError {
                     "cannot render nominal hover presentation for {nominal:?}"
                 )
             }
-            Self::SourceVisibility(error) => error.fmt(formatter),
+            Self::SourceVisibility => formatter
+                .write_str("semantic presentation has an invalid source visibility context"),
         }
     }
 }
@@ -54,8 +55,9 @@ impl std::error::Error for PresentationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Evidence(error) => Some(error),
-            Self::SourceVisibility(error) => Some(error),
-            Self::InvalidEntity(_) | Self::InvalidNominalPresentation(_) => None,
+            Self::InvalidEntity(_)
+            | Self::InvalidNominalPresentation(_)
+            | Self::SourceVisibility => None,
         }
     }
 }
@@ -67,8 +69,8 @@ impl From<crate::EvidenceIntegrityError> for PresentationError {
 }
 
 impl From<nocter_checking::SourceVisibilityError> for PresentationError {
-    fn from(error: nocter_checking::SourceVisibilityError) -> Self {
-        Self::SourceVisibility(error)
+    fn from(_: nocter_checking::SourceVisibilityError) -> Self {
+        Self::SourceVisibility
     }
 }
 

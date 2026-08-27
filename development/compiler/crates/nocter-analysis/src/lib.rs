@@ -16,45 +16,24 @@ use nocter_session::{
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
 
-mod callable_source;
-mod code_actions;
-mod completion;
 mod documents;
-mod highlights;
-mod inlay_hints;
-mod navigation;
-mod presentation;
-mod query_session;
-mod rename;
-mod semantic;
-mod signature;
-mod source_context;
+mod query;
 mod source_edits;
-mod source_selection;
 
-pub use code_actions::{
-    InterfaceImplementationActionError, OutcomeActionError, SemanticCodeAction,
-    SemanticCodeActionError,
-};
-pub use completion::{
-    SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
-};
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
-pub use evidence::{
-    EvidenceIntegrityError, SemanticBodyGap, SemanticCoverage, SemanticQuerySet,
-    SemanticSetUnavailability, TypedBodyUnavailability,
+pub use query::{
+    EvidenceIntegrityError, InterfaceImplementationActionError, OutcomeActionError,
+    PresentationError, SemanticBodyGap, SemanticCodeAction, SemanticCodeActionError,
+    SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
+    SemanticCoverage, SemanticHighlight, SemanticHighlightKind, SemanticInlayHint,
+    SemanticInlayHintError, SemanticInlayHintKind, SemanticLocation, SemanticParameterLabel,
+    SemanticPresentation, SemanticQueryError, SemanticQuerySet, SemanticRenameEdit,
+    SemanticRenameError, SemanticRenamePlan, SemanticSelection, SemanticSetUnavailability,
+    SemanticSignatureError, SemanticSignatureHelp, SemanticSubject, SourceContextError,
+    TypedBodyUnavailability,
 };
-pub use highlights::{SemanticHighlight, SemanticHighlightKind};
-pub use inlay_hints::{SemanticInlayHint, SemanticInlayHintError, SemanticInlayHintKind};
-pub use navigation::SemanticLocation;
-pub use presentation::{PresentationError, SemanticPresentation};
-pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
-pub(crate) use semantic::evidence;
-pub use semantic::{SemanticQueryError, SemanticSelection, SemanticSubject};
-pub use signature::{SemanticParameterLabel, SemanticSignatureError, SemanticSignatureHelp};
-pub use source_context::SourceContextError;
 pub use source_edits::SemanticSourceEdit;
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
@@ -152,7 +131,7 @@ pub struct AnalysisSnapshot {
     generation: GenerationId,
     diagnostics: Box<[SourceDiagnostic]>,
     state: AnalysisState,
-    queries: query_session::AnalysisQuerySession,
+    queries: query::AnalysisQuerySession,
 }
 
 impl AnalysisSnapshot {
@@ -171,7 +150,7 @@ impl AnalysisSnapshot {
         Self {
             generation,
             diagnostics,
-            queries: query_session::AnalysisQuerySession::default(),
+            queries: query::AnalysisQuerySession::default(),
             state,
         }
     }
@@ -195,7 +174,7 @@ impl AnalysisSnapshot {
             return Self {
                 generation,
                 diagnostics: diagnostics.into_boxed_slice(),
-                queries: query_session::AnalysisQuerySession::default(),
+                queries: query::AnalysisQuerySession::default(),
                 state,
             };
         }
@@ -205,7 +184,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics: Box::new([]),
-                    queries: query_session::AnalysisQuerySession::default(),
+                    queries: query::AnalysisQuerySession::default(),
                     state,
                 }
             }
@@ -216,7 +195,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics,
-                    queries: query_session::AnalysisQuerySession::default(),
+                    queries: query::AnalysisQuerySession::default(),
                     state,
                 }
             }
@@ -324,4 +303,4 @@ fn extend_unique_diagnostics(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

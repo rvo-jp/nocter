@@ -1,14 +1,14 @@
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SourceSelection<T> {
+pub(in crate::query) enum SourceSelection<T> {
     None,
     Unique(T),
     Ambiguous,
 }
 
 impl<T> SourceSelection<T> {
-    pub(crate) fn unique(self) -> Option<T> {
+    pub(in crate::query) fn unique(self) -> Option<T> {
         match self {
             Self::Unique(binding) => Some(binding),
             Self::None | Self::Ambiguous => None,
@@ -22,7 +22,7 @@ impl<T> SourceSelection<T> {
 /// reference/declaration/implementation and entity-family ordering for every editor query. If
 /// distinct bindings still have equal authority, the projection is explicitly ambiguous; a dense
 /// semantic identity or insertion order must never decide presentation.
-pub(crate) fn select_source_binding<'a>(
+pub(in crate::query) fn select_source_binding<'a>(
     bindings: impl Iterator<Item = &'a SourceBinding>,
     see: impl Fn(&SourceBinding) -> bool,
 ) -> SourceSelection<SourceBinding> {
@@ -38,7 +38,7 @@ pub(crate) fn select_source_binding<'a>(
 /// This is the shared authority rule for semantic queries that need more than the binding itself.
 /// Distinct bindings with the same authority remain ambiguous even when their payloads compare
 /// equal.
-pub(crate) fn select_source_candidates<T>(
+pub(in crate::query) fn select_source_candidates<T>(
     candidates: impl Iterator<Item = (SourceBinding, T)>,
 ) -> SourceSelection<T> {
     let mut selected = SourceSelection::None;

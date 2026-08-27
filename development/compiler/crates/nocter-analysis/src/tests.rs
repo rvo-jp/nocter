@@ -6,14 +6,13 @@ use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, PackageIdentity};
+use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
 
 use crate::{
-    AnalysisSnapshot, AnalysisStatus, EvidenceIntegrityError, GenerationId, SemanticCoverage,
-    TypedBodyUnavailability,
+    AnalysisSnapshot, AnalysisStatus, GenerationId, SemanticCoverage, TypedBodyUnavailability,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -35,29 +34,6 @@ fn diagnostic_composition_deduplicates_identity_without_inventing_range_causalit
     super::extend_unique_diagnostics(&mut diagnostics, &[syntax.clone(), semantic.clone()]);
 
     assert_eq!(diagnostics, [syntax, semantic]);
-}
-
-#[test]
-fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {
-    let tree = TempTree::new();
-    let (_, snapshot) =
-        bundled_snapshot(&tree, "func subject(): i32 { 1 }\n", GenerationId::new(56));
-    let query = snapshot
-        .semantic_query()
-        .expect("valid semantic index")
-        .expect("semantic query");
-    let domain_len = query.graph().declarations().bodies().iter().count();
-    let mut identities = ArenaBuilder::<BodyId, ()>::new();
-    let mut missing = None;
-    for _ in 0..=domain_len {
-        missing = Some(identities.insert(()));
-    }
-    let missing = missing.unwrap();
-
-    assert_eq!(
-        query.typed_body_evidence(missing).unwrap_err(),
-        EvidenceIntegrityError::MissingBodyDomain(missing)
-    );
 }
 
 #[test]
@@ -232,32 +208,12 @@ fn repeated_checked_member_queries_are_semantically_identical() {
         .find(|source| source.name().as_str().ends_with("app.nct"))
         .unwrap();
     let offset = ByteOffset::new(u32::try_from(source_text.find("len").unwrap()).unwrap());
-    let accepted_type_count = snapshot
-        .semantic_query()
-        .expect("valid semantic index")
-        .and_then(crate::semantic::SemanticQueryContext::complete)
-        .expect("checked authority")
-        .checked()
-        .types()
-        .type_count();
-
     let first = snapshot.semantic_completions(source.id(), offset).unwrap();
     let second = snapshot.semantic_completions(source.id(), offset).unwrap();
 
     assert_eq!(first, second);
     assert_eq!(first.coverage(), &SemanticCoverage::Complete);
     assert!(first.iter().any(|completion| completion.label() == "len"));
-    assert_eq!(
-        snapshot
-            .semantic_query()
-            .expect("valid semantic index")
-            .and_then(crate::semantic::SemanticQueryContext::complete)
-            .expect("checked authority")
-            .checked()
-            .types()
-            .type_count(),
-        accepted_type_count
-    );
 }
 
 #[test]
@@ -271,18 +227,6 @@ fn repeated_recovery_member_queries_are_semantically_identical() {
     );
     let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(52));
     assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
-    let recovery = snapshot
-        .semantic_query()
-        .expect("valid semantic index")
-        .and_then(|query| query.body_recovery())
-        .expect("typed body recovery");
-    assert!(matches!(
-        recovery
-            .interruptions()
-            .next()
-            .map(nocter_checking::TypedBodyInterruption::kind),
-        Some(nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. })
-    ));
     let source = snapshot
         .sources()
         .iter()
@@ -395,17 +339,6 @@ fn declaration_failure_retains_the_diagnostics_of_rejected_body_evidence() {
         .map(nocter_diagnostics::SourceDiagnostic::code)
         .collect::<Vec<_>>();
     assert_eq!(codes, ["E0208", "E0392"]);
-    let recovery = snapshot
-        .semantic_query()
-        .expect("valid semantic index")
-        .and_then(|query| query.body_recovery())
-        .expect("body evidence beneath declaration rejection");
-    assert_eq!(recovery.rejection_diagnostics().count(), 1);
-    assert!(
-        recovery
-            .body_evidence_iter()
-            .any(|(_, evidence)| matches!(evidence, nocter_checking::BodyEvidence::Rejected(_)))
-    );
     let source = snapshot
         .sources()
         .iter()
@@ -738,7 +671,7 @@ fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> Analy
     AnalysisSnapshot::compile(generation, unit)
 }
 
-fn bundled_snapshot(
+pub(crate) fn bundled_snapshot(
     tree: &TempTree,
     source_text: &str,
     generation: GenerationId,
@@ -763,10 +696,10 @@ fn bundled_snapshot(
     (source_path, AnalysisSnapshot::compile(generation, unit))
 }
 
-struct TempTree(PathBuf);
+pub(crate) struct TempTree(PathBuf);
 
 impl TempTree {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
         let path =
             std::env::temp_dir().join(format!("nocter-analysis-{}-{serial}", std::process::id()));
