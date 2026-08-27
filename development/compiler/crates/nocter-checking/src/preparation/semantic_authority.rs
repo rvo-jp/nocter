@@ -42,6 +42,7 @@ impl SemanticAuthority {
     }
 }
 
+#[cfg(test)]
 impl Default for SemanticAuthority {
     fn default() -> Self {
         Self::seal(TypeAuthority::new(), CopyabilityTable::default())
