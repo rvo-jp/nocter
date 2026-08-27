@@ -2,9 +2,7 @@ use nocter_checking::CheckedProgramOutput;
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
-use crate::semantic_pipeline::{
-    EvidenceRetention, SemanticPipelineFailure, SyntaxAdmission, run_semantic_pipeline,
-};
+use crate::semantic_pipeline::{SemanticPipelineFailure, SyntaxAdmission, run_semantic_pipeline};
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
 /// A failed target analysis and the exact current-generation semantic evidence that remains valid.
@@ -172,11 +170,7 @@ pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSynt
     if !unit.has_syntax_errors() {
         return None;
     }
-    match run_semantic_pipeline(
-        unit,
-        SyntaxAdmission::IncompleteBodies,
-        EvidenceRetention::Retain,
-    ) {
+    match run_semantic_pipeline(unit, SyntaxAdmission::IncompleteBodies) {
         Err(SemanticPipelineFailure { error, evidence }) => {
             Some(IncompleteSyntaxAnalysis::failed(error, evidence))
         }
@@ -194,14 +188,12 @@ fn analyze_target_internal(
     unit: &DiscoveredUnit,
     retain_semantic: bool,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let retention = if retain_semantic {
-        EvidenceRetention::Retain
-    } else {
-        EvidenceRetention::Discard
-    };
-    let output = run_semantic_pipeline(unit, SyntaxAdmission::Complete, retention).map_err(
+    let output = run_semantic_pipeline(unit, SyntaxAdmission::Complete).map_err(
         |SemanticPipelineFailure { error, evidence }| {
-            Box::new(CompileTargetFailure::new(error, evidence))
+            Box::new(CompileTargetFailure::new(
+                error,
+                retain_semantic.then_some(evidence).flatten(),
+            ))
         },
     )?;
     let primitive_bindings = output.primitive_bindings;
