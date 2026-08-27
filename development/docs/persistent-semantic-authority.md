@@ -44,7 +44,8 @@ member queries, and concrete specialization. `BodySemanticAuthority` temporarily
 construction without splitting type and copyability ownership. Callers cannot assemble a
 transaction from components belonging to different bodies. Success consumes the transaction into
 one descendant authority. Failure cannot modify the base: it discards the branch or freezes that
-exact branch as a tooling capability.
+exact branch as a tooling capability. Preparation owns the sole production seal operation for a
+type/copyability pair; the empty `SemanticAuthority` default exists only in test builds.
 
 Program-wide facts that do not branch with type construction have a separate single owner,
 `ProgramEnvironment`. Declaration graph, implementation selection, construction surface, instance

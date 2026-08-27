@@ -28,7 +28,8 @@ The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` a
 `SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body
 recovery, checked completion, member queries, and concrete specialization. Stable program facts
 move through one `ProgramEnvironment`; checked semantic facts and closures can be paired only by
-the body-finish boundary. Closure construction
+the body-finish boundary, and preparation owns the only production type/copyability seal. Closure
+construction
 uses an immutable internal authority and freezes into `ClosureTable` only after body checking.
 `TypeTransaction`, `CopyabilityTransaction`, and `ClosureTransaction` share one body-level
 capability and commit boundary through `BodySemanticTransaction`. Their persistent vectors and

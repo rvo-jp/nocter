@@ -210,7 +210,8 @@
   closure construction sequences, and persistent collections outside their reviewed owner
   boundaries; declaration and lowering exemptions are module-scoped.</li><li>stable program facts have one <code>ProgramEnvironment</code> owner across preparation and checked output;
   accepted semantic facts and closures enter checked output only through the private body-finish
-  construction of <code>CheckedSemanticAuthority</code>.</li><li>checked bodies own their exact source identity, and checked or recovery member queries derive
+  construction of <code>CheckedSemanticAuthority</code>.</li><li>preparation owns the only production constructor that seals type and copyability components into
+  a semantic authority; the empty default authority is test-only.</li><li>checked bodies own their exact source identity, and checked or recovery member queries derive
   visibility from their semantic input rather than accepting an independent caller source.</li><li>same-machine qualification against <code>264f1464</code> measured -2.7% warm-success, +3.3% multi-error
   recovery, -2.7% repeated checked completion, and +0.6% repeated recovery completion. Every median
   remains inside the five-percent gate.</li><li>the final tree passed complete workspace tests, warnings-denied all-target Clippy, Rust
