@@ -143,7 +143,8 @@ specialized identities and finally receives one frozen descendant `TypeStore`.
 Executable architecture tests enumerate workspace manifests to enforce dependency direction.
 Warnings-denied Clippy resolves the actual Rust type behind imports, aliases, and fully qualified
 paths and rejects construction authorities, transactions, closure construction sequences, and
-persistent collections outside their reviewed owner crates. This replaces source-text scanning,
+persistent collections outside their reviewed owner boundaries. Declaration and lowering
+exemptions cover only their program/type-construction modules. This replaces source-text scanning,
 which could be bypassed by renaming an import and could also reject comments accidentally. Tests
 may construct isolated type authorities for fixtures through local lint allowances, but no
 production backend phase can extend semantic state itself.

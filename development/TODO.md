@@ -41,7 +41,8 @@ checked completion resolves the receiver type and source visibility through its 
 than accepting raw cross-generation input. Downstream architecture gates allow direct
 persistent-storage dependencies only in model and checking. Type-resolved Clippy rejects
 construction authorities, transactions, closure construction sequences, and persistent
-collections outside their reviewed owner crates, including uses hidden behind aliases. Persistent
+collections outside their reviewed owner boundaries, including uses hidden behind aliases.
+Declaration and lowering exemptions are limited to their program/type-construction modules. Persistent
 iteration is linear, final copyability closure scans only appended types without traversing the
 closed prefix, and structural storage and concreteness facts are computed once at interning.
 Closure drafts and final definitions share one immutable core. The twice-reopened adversarial
