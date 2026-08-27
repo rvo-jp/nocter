@@ -276,7 +276,7 @@ fn build_body_analysis_recovery(
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
 ) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
-    prepared.source_index = extend_source_index(prepared.source_index, projections)?;
+    prepared.source_index = extend_source_index(prepared.source_index, projections);
     let mut checked_bodies = checked_bodies.into_iter().peekable();
     let mut rejections = rejections.into_iter().peekable();
     let mut recovered = ArenaBuilder::<BodyId, crate::BodyEvidence>::new();
@@ -356,8 +356,7 @@ fn finish_checked_program(
         source_index,
     } = prepared;
     let graph = environment.graph();
-    let source_index = extend_source_index(source_index, projections)
-        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    let source_index = extend_source_index(source_index, projections);
     let mut semantic_completion = semantics.transaction();
     let (completion_types, completion_copyabilities) =
         semantic_completion.access().into_reasoning_parts();
@@ -382,10 +381,7 @@ fn finish_checked_program(
     ))
 }
 
-fn extend_source_index(
-    source_index: SourceIndex,
-    projections: Vec<NodeProjection>,
-) -> Result<SourceIndex, BodyCheckInternalError> {
+fn extend_source_index(source_index: SourceIndex, projections: Vec<NodeProjection>) -> SourceIndex {
     let mut source_index = source_index.into_builder();
     for projection in projections {
         match projection.access {
@@ -398,9 +394,9 @@ fn extend_source_index(
             None => {
                 source_index.insert(projection.entity, SourceRole::Reference, projection.origin)
             }
-        }?;
+        };
     }
-    Ok(source_index.finish())
+    source_index.finish()
 }
 
 fn attach_body_cleanups(

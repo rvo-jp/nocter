@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_checking::{CaptureMode, LocalBindingKind, NameTarget};
 use nocter_model::{BodyId, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, TypeId};
 use nocter_source::{SourceId, SourceMap};
-use nocter_source_index::{SemanticEntity, SourceIndex};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceProjectionIssue};
 use nocter_syntax::{SyntaxOrigin, SyntaxTree};
 
 use super::{SemanticEvidence, SemanticQueryContext};
@@ -230,6 +230,7 @@ pub enum TypedBodyUnavailability {
 /// An impossible mismatch between one semantic identity and its owning analysis evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EvidenceIntegrityError {
+    InvalidSourceProjection(SourceProjectionIssue),
     MissingSemanticEntity(SemanticEntity),
     MissingIndexedSource(SourceId),
     MissingSourceOwner(SourceId),
@@ -264,6 +265,9 @@ pub enum EvidenceIntegrityError {
 impl fmt::Display for EvidenceIntegrityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidSourceProjection(issue) => {
+                write!(formatter, "source projection is inconsistent: {issue}")
+            }
             Self::MissingSemanticEntity(entity) => {
                 write!(formatter, "analysis evidence has no domain for {entity:?}")
             }
@@ -326,6 +330,9 @@ impl<'a> SemanticQueryContext<'a> {
         sources: &SourceMap,
         syntax_trees: &[SyntaxTree],
     ) -> Result<(), EvidenceIntegrityError> {
+        if let Some(issue) = self.source_index().issues().first() {
+            return Err(EvidenceIntegrityError::InvalidSourceProjection(*issue));
+        }
         for source in sources.iter() {
             let source = source.id();
             let module = self

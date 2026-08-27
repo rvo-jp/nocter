@@ -62,7 +62,7 @@ pub(crate) fn reserve_package_targets(
             SourceRole::Declaration,
             SourceOrigin::from_node(tree, resolution.name_literal())
                 .map_err(|_| ReservationError::InconsistentSource(tree.source()))?,
-        )?;
+        );
     }
     Ok(())
 }
@@ -108,7 +108,7 @@ pub(crate) fn reserve_single_file_targets(
             SourceRole::Declaration,
             SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                 .map_err(|_| ReservationError::InconsistentSource(source.syntax().source()))?,
-        )?;
+        );
     }
     Ok(())
 }

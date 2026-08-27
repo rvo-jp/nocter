@@ -58,7 +58,7 @@ pub(super) fn node(
         .headers
         .reserved
         .source_index
-        .insert(entity, role, origin)?;
+        .insert(entity, role, origin);
     Ok(())
 }
 
@@ -78,7 +78,7 @@ pub(super) fn body(
         .headers
         .reserved
         .source_index
-        .insert_body(body, block, role, origin)?;
+        .insert_body(body, block, role, origin);
     Ok(())
 }
 
@@ -98,7 +98,7 @@ pub(super) fn token(
         .headers
         .reserved
         .source_index
-        .insert(entity, role, origin)?;
+        .insert(entity, role, origin);
     Ok(())
 }
 
@@ -118,7 +118,7 @@ pub(super) fn parameter(
         .headers
         .reserved
         .source_index
-        .insert_parameter(parameter, token, role, origin)?;
+        .insert_parameter(parameter, token, role, origin);
     Ok(())
 }
 
@@ -163,7 +163,7 @@ pub(super) fn documentation(
             .headers
             .reserved
             .source_index
-            .insert_documentation(entity, markdown)?;
+            .insert_documentation(entity, markdown);
     }
     Ok(())
 }
@@ -186,7 +186,7 @@ pub(super) fn occurrence_documentation(
             .headers
             .reserved
             .source_index
-            .insert_occurrence_documentation(entity, origin, markdown)?;
+            .insert_occurrence_documentation(entity, origin, markdown);
     }
     Ok(())
 }

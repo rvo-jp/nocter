@@ -23,7 +23,7 @@ pub(super) fn reference(
             SourceRole::Reference,
             SourceOrigin::from_token(tree, token)
                 .map_err(|_| TypeBindingError::InconsistentSource(tree.source()))?,
-        )?;
+        );
     Ok(())
 }
 
@@ -44,7 +44,7 @@ pub(super) fn generic(
             SourceRole::Reference,
             SourceOrigin::from_token(tree, token)
                 .map_err(|_| TypeBindingError::InconsistentSource(tree.source()))?,
-        )?;
+        );
     Ok(())
 }
 
@@ -65,7 +65,7 @@ pub(super) fn associated(
             SourceRole::Reference,
             SourceOrigin::from_token(tree, token)
                 .map_err(|_| TypeBindingError::InconsistentSource(tree.source()))?,
-        )?;
+        );
     Ok(())
 }
 

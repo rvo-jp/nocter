@@ -10,8 +10,7 @@ use nocter_model::{ModuleId, SymbolTable};
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::SourceId;
 use nocter_source_index::{
-    DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin,
-    SourceRole,
+    SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
 
@@ -193,7 +192,6 @@ pub enum LoweringError {
     InvalidUseResolution(NodeId),
     UnknownUseTarget(NodeId),
     Program(ProgramBuildError),
-    DuplicateSourceBinding(DuplicateSourceBinding),
 }
 
 impl fmt::Display for LoweringError {
@@ -274,7 +272,6 @@ impl fmt::Display for LoweringError {
                 write!(formatter, "unknown compilation target in {literal:?}")
             }
             Self::Program(error) => error.fmt(formatter),
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
         }
     }
 }
@@ -336,12 +333,6 @@ impl From<ProgramBuildError> for LoweringError {
     }
 }
 
-impl From<DuplicateSourceBinding> for LoweringError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
-    }
-}
-
 impl From<TopologyViolation> for LoweringError {
     fn from(violation: TopologyViolation) -> Self {
         Self::Rule(violation)
@@ -378,7 +369,7 @@ pub fn lower_compile_unit_topology(
                 SourceRole::Declaration,
                 SourceOrigin::from_node(tree, tree.root_id())
                     .map_err(|_| LoweringError::InconsistentSyntax(tree.source()))?,
-            )?;
+            );
         }
     }
     let root_packages = input
@@ -1071,7 +1062,7 @@ fn project_module_sources(
             role,
             SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                 .map_err(|_| LoweringError::InconsistentSyntax(source.syntax().source()))?,
-        )?;
+        );
     }
     Ok(())
 }

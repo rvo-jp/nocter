@@ -23,7 +23,6 @@ use nocter_model::{
     InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol, TypeAliasId,
 };
 use nocter_source::SourceId;
-use nocter_source_index::DuplicateSourceBinding;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
@@ -211,7 +210,6 @@ pub enum TypeBindingError {
     MissingSource(SurfaceDeclarationId),
     InvalidSyntax(NodeId),
     InconsistentSource(SourceId),
-    DuplicateSourceBinding(DuplicateSourceBinding),
 }
 
 impl TypeBindingError {
@@ -244,18 +242,11 @@ impl fmt::Display for TypeBindingError {
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent type origin")
             }
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
         }
     }
 }
 
 impl std::error::Error for TypeBindingError {}
-
-impl From<DuplicateSourceBinding> for TypeBindingError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
-    }
-}
 
 impl From<TypeBindingViolation> for TypeBindingError {
     fn from(violation: TypeBindingViolation) -> Self {

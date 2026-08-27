@@ -6,7 +6,7 @@ use std::fmt;
 
 use nocter_declarations::{GenericOwner, GenericParameter};
 use nocter_model::{GenericParameterId, Symbol};
-use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind, direct_node_iter,
     direct_token,
@@ -36,7 +36,6 @@ pub enum GenericError {
     InconsistentBinder(SurfaceDeclarationId),
     InvalidOwner(SurfaceDeclarationId),
     InconsistentContract(SurfaceDeclarationId),
-    DuplicateSourceBinding(DuplicateSourceBinding),
 }
 
 impl fmt::Display for GenericError {
@@ -69,18 +68,11 @@ impl fmt::Display for GenericError {
                 formatter,
                 "implementation declaration {declaration:?} changed its generic binders"
             ),
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
         }
     }
 }
 
 impl std::error::Error for GenericError {}
-
-impl From<DuplicateSourceBinding> for GenericError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
-    }
-}
 
 impl From<GenericViolation> for GenericError {
     fn from(violation: GenericViolation) -> Self {
@@ -356,7 +348,7 @@ fn project_binder(
         role,
         SourceOrigin::from_token(source.syntax(), token)
             .map_err(|_| GenericError::InconsistentSource(declaration))?,
-    )?;
+    );
     Ok(())
 }
 

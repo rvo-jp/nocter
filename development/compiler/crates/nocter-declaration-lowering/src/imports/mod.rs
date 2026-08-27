@@ -12,7 +12,6 @@ use nocter_declarations::{
 };
 use nocter_model::{ImportId, ModuleId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::DuplicateSourceBinding;
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
@@ -31,7 +30,6 @@ pub enum ImportError {
     Rule(ImportViolation),
     Namespace(NamespaceViolation),
     Program(ProgramBuildError),
-    DuplicateSourceBinding(DuplicateSourceBinding),
     MissingSource(SurfaceSourceId),
     InvalidSyntax(NodeId),
     UnknownModule(NodeId),
@@ -56,7 +54,6 @@ impl fmt::Display for ImportError {
                 violation.rule().message()
             ),
             Self::Program(error) => error.fmt(formatter),
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::MissingSource(source) => {
                 write!(formatter, "surface source {source:?} is missing")
             }
@@ -87,12 +84,6 @@ impl std::error::Error for ImportError {}
 impl From<ProgramBuildError> for ImportError {
     fn from(error: ProgramBuildError) -> Self {
         Self::Program(error)
-    }
-}
-
-impl From<DuplicateSourceBinding> for ImportError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
     }
 }
 

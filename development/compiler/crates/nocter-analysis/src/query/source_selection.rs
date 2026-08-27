@@ -150,7 +150,7 @@ mod tests {
                 ]
             };
             for (entity, role) in entries {
-                builder.insert(entity, role, origin).unwrap();
+                builder.insert(entity, role, origin);
             }
             builder.finish()
         };
@@ -178,20 +178,16 @@ mod tests {
         let mut parameters = ArenaBuilder::<ParameterId, ()>::new();
         let parameter = parameters.insert(());
         let mut builder = SourceIndexBuilder::new();
-        builder
-            .insert(
-                SemanticEntity::Callable(callable),
-                SourceRole::Declaration,
-                origin,
-            )
-            .unwrap();
-        builder
-            .insert(
-                SemanticEntity::Parameter(parameter),
-                SourceRole::Declaration,
-                origin,
-            )
-            .unwrap();
+        builder.insert(
+            SemanticEntity::Callable(callable),
+            SourceRole::Declaration,
+            origin,
+        );
+        builder.insert(
+            SemanticEntity::Parameter(parameter),
+            SourceRole::Declaration,
+            origin,
+        );
         let index = builder.finish();
 
         let selected =
@@ -216,13 +212,11 @@ mod tests {
         for entities in [[first, second], [second, first]] {
             let mut builder = SourceIndexBuilder::new();
             for callable in entities {
-                builder
-                    .insert(
-                        SemanticEntity::Callable(callable),
-                        SourceRole::Declaration,
-                        origin,
-                    )
-                    .unwrap();
+                builder.insert(
+                    SemanticEntity::Callable(callable),
+                    SourceRole::Declaration,
+                    origin,
+                );
             }
             let index = builder.finish();
             assert_eq!(

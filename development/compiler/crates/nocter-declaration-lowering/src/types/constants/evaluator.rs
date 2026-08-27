@@ -469,7 +469,7 @@ fn project_references(
             .headers
             .reserved
             .source_index
-            .insert(semantic_entity(entity), SourceRole::Reference, origin)?;
+            .insert(semantic_entity(entity), SourceRole::Reference, origin);
     }
     Ok(())
 }

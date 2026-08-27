@@ -6,7 +6,7 @@ use std::fmt;
 use nocter_declarations::{ProgramBuildError, Visibility};
 use nocter_model::{AssociatedTypeId, DeclarationSiteId, InterfaceId, Symbol};
 use nocter_source::SourceId;
-use nocter_source_index::{DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::SyntaxOrigin;
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
@@ -19,7 +19,6 @@ use crate::{
 pub enum HeaderError {
     Namespace(NamespaceViolation),
     Program(ProgramBuildError),
-    DuplicateSourceBinding(DuplicateSourceBinding),
     MissingDeclaration(SurfaceDeclarationId),
     MissingSource(SurfaceSourceId),
     MissingName(SurfaceDeclarationId),
@@ -38,7 +37,6 @@ impl fmt::Display for HeaderError {
                 violation.rule().message()
             ),
             Self::Program(error) => error.fmt(formatter),
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
             Self::MissingDeclaration(declaration) => {
                 write!(formatter, "surface declaration {declaration:?} is missing")
             }
@@ -70,12 +68,6 @@ impl std::error::Error for HeaderError {}
 impl From<ProgramBuildError> for HeaderError {
     fn from(error: ProgramBuildError) -> Self {
         Self::Program(error)
-    }
-}
-
-impl From<DuplicateSourceBinding> for HeaderError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
     }
 }
 
@@ -316,7 +308,7 @@ fn project_site(
         SemanticEntity::DeclarationSite(site),
         SourceRole::Declaration,
         origin,
-    )?;
+    );
     Ok(())
 }
 
@@ -367,11 +359,11 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
         {
             reserved
                 .source_index
-                .insert_declaration(declaration, token, role, origin)?;
+                .insert_declaration(declaration, token, role, origin);
         } else {
             reserved
                 .source_index
-                .insert(entity.semantic_entity(), role, origin)?;
+                .insert(entity.semantic_entity(), role, origin);
         }
     }
     Ok(())

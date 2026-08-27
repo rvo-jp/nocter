@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 
 use crate::{SemanticEntity, SourceOrigin};
 
@@ -108,36 +107,3 @@ pub enum DocumentationOwner {
         origin: SourceOrigin,
     },
 }
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub struct DuplicateDocumentation {
-    owner: DocumentationOwner,
-}
-
-impl DuplicateDocumentation {
-    pub(crate) const fn new(owner: DocumentationOwner) -> Self {
-        Self { owner }
-    }
-
-    #[must_use]
-    pub const fn owner(self) -> DocumentationOwner {
-        self.owner
-    }
-}
-
-impl fmt::Debug for DuplicateDocumentation {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("DuplicateDocumentation")
-            .field(&self.owner)
-            .finish()
-    }
-}
-
-impl fmt::Display for DuplicateDocumentation {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("documentation owner already has attached Markdown")
-    }
-}
-
-impl std::error::Error for DuplicateDocumentation {}

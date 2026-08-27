@@ -12,10 +12,9 @@ mod names;
 mod origin;
 
 pub use diagnostic::DiagnosticOrigins;
-pub use documentation::{DocumentationOwner, DuplicateDocumentation};
+pub use documentation::DocumentationOwner;
 pub use entity::SemanticEntity;
 pub use index::{
-    DuplicateSourceBinding, SourceAccess, SourceBinding, SourceIndex, SourceIndexBuilder,
-    SourceRole,
+    SourceAccess, SourceBinding, SourceIndex, SourceIndexBuilder, SourceProjectionIssue, SourceRole,
 };
 pub use origin::{SourceOrigin, UnknownNodeId, UnknownTokenId};

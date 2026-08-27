@@ -9,8 +9,7 @@ use nocter_model::{
 };
 use nocter_source::SourceId;
 use nocter_source_index::{
-    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex,
-    SourceIndexBuilder, SourceOrigin, SourceRole,
+    SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
 };
 use nocter_syntax::{NodeId, SyntaxToken};
 
@@ -37,8 +36,8 @@ impl FrontendProjectionBuilder {
         entity: SemanticEntity,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
-        self.source_index.insert(entity, role, origin)
+    ) {
+        self.source_index.insert(entity, role, origin);
     }
 
     pub(crate) fn insert_module_source(
@@ -50,7 +49,7 @@ impl FrontendProjectionBuilder {
     ) -> Result<(), ModuleSourceProjectionError> {
         self.bindings.add_module_source(module, source)?;
         self.source_index
-            .insert(SemanticEntity::Module(module), role, origin)?;
+            .insert(SemanticEntity::Module(module), role, origin);
         Ok(())
     }
 
@@ -60,10 +59,10 @@ impl FrontendProjectionBuilder {
         block: NodeId,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
+    ) {
         self.bindings.add_body_block(body, block);
         self.source_index
-            .insert(SemanticEntity::Body(body), role, origin)
+            .insert(SemanticEntity::Body(body), role, origin);
     }
 
     pub(crate) fn insert_parameter(
@@ -72,11 +71,11 @@ impl FrontendProjectionBuilder {
         declaration: SyntaxToken,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
+    ) {
         self.bindings
             .add_parameter_declaration(parameter, declaration);
         self.source_index
-            .insert(SemanticEntity::Parameter(parameter), role, origin)
+            .insert(SemanticEntity::Parameter(parameter), role, origin);
     }
 
     pub(crate) fn insert_declaration(
@@ -85,7 +84,7 @@ impl FrontendProjectionBuilder {
         token: SyntaxToken,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
+    ) {
         self.bindings.add_declaration(token, declaration);
         let entity = match declaration {
             FrontendDeclaration::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
@@ -94,7 +93,7 @@ impl FrontendProjectionBuilder {
             FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(id),
             FrontendDeclaration::Callable(id) => SemanticEntity::Callable(id),
         };
-        self.source_index.insert(entity, role, origin)
+        self.source_index.insert(entity, role, origin);
     }
 
     pub(crate) fn insert_associated_projection_use(
@@ -103,7 +102,7 @@ impl FrontendProjectionBuilder {
         associated: AssociatedTypeId,
         syntax: nocter_syntax::SyntaxOrigin,
         origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
+    ) {
         self.bindings
             .add_associated_projection_use(AssociatedProjectionUse::new(base, associated, syntax));
         if self.associated_references.insert((associated, syntax)) {
@@ -111,9 +110,8 @@ impl FrontendProjectionBuilder {
                 SemanticEntity::AssociatedType(associated),
                 SourceRole::Reference,
                 origin,
-            )?;
+            );
         }
-        Ok(())
     }
 
     pub(crate) fn insert_block_import(
@@ -146,8 +144,8 @@ impl FrontendProjectionBuilder {
         &mut self,
         entity: SemanticEntity,
         markdown: impl Into<Box<str>>,
-    ) -> Result<(), DuplicateDocumentation> {
-        self.source_index.insert_documentation(entity, markdown)
+    ) {
+        self.source_index.insert_documentation(entity, markdown);
     }
 
     pub(crate) fn insert_occurrence_documentation(
@@ -155,9 +153,9 @@ impl FrontendProjectionBuilder {
         entity: SemanticEntity,
         origin: SourceOrigin,
         markdown: impl Into<Box<str>>,
-    ) -> Result<(), DuplicateDocumentation> {
+    ) {
         self.source_index
-            .insert_occurrence_documentation(entity, origin, markdown)
+            .insert_occurrence_documentation(entity, origin, markdown);
     }
 
     pub(crate) fn define_source_namespace(
@@ -197,14 +195,7 @@ impl FrontendProjectionBuilder {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ModuleSourceProjectionError {
-    DuplicateBinding(DuplicateSourceBinding),
     SourceOwnership(SourceOwnershipError),
-}
-
-impl From<DuplicateSourceBinding> for ModuleSourceProjectionError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateBinding(error)
-    }
 }
 
 impl From<SourceOwnershipError> for ModuleSourceProjectionError {

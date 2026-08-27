@@ -13,9 +13,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{Arena, ArenaBuilder, BodyId, ModuleId};
 use nocter_source::SourceId;
-use nocter_source_index::{
-    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceIndex, SourceRole,
-};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
@@ -133,8 +131,6 @@ pub enum NameResolutionInternalError {
     MissingSymbol(Box<str>),
     MissingParameterProjection(nocter_model::ParameterId),
     InvalidBodyOwner(BodyId),
-    DuplicateSourceBinding(DuplicateSourceBinding),
-    DuplicateDocumentation(DuplicateDocumentation),
 }
 
 impl fmt::Display for NameResolutionInternalError {
@@ -189,8 +185,6 @@ impl fmt::Display for NameResolutionInternalError {
             Self::InvalidBodyOwner(body) => {
                 write!(formatter, "body {body:?} has no valid parameter owner")
             }
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
-            Self::DuplicateDocumentation(error) => error.fmt(formatter),
         }
     }
 }
@@ -200,18 +194,6 @@ impl std::error::Error for NameResolutionInternalError {}
 impl From<BodySourceError> for NameResolutionInternalError {
     fn from(error: BodySourceError) -> Self {
         Self::BodySource(error)
-    }
-}
-
-impl From<DuplicateSourceBinding> for NameResolutionInternalError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
-    }
-}
-
-impl From<DuplicateDocumentation> for NameResolutionInternalError {
-    fn from(error: DuplicateDocumentation) -> Self {
-        Self::DuplicateDocumentation(error)
     }
 }
 
@@ -315,12 +297,7 @@ fn resolve_cataloged_body_names_active<'syntax>(
         projections.extend(resolved.projections);
     }
 
-    let source_index = extend_name_source_index(source_index, projections).map_err(|error| {
-        RecoveringNameResolutionError {
-            error: Box::new(error.into()),
-            recovery: None,
-        }
-    })?;
+    let source_index = extend_name_source_index(source_index, projections);
 
     if let Some(error) = first_error {
         return Err(RecoveringNameResolutionError {
@@ -354,19 +331,15 @@ fn resolve_cataloged_body_names_active<'syntax>(
 fn extend_name_source_index(
     source_index: SourceIndex,
     projections: Vec<Projection>,
-) -> Result<SourceIndex, NameResolutionInternalError> {
+) -> SourceIndex {
     let mut source_index = source_index.into_builder();
     for projection in projections {
-        source_index
-            .insert(projection.entity, projection.role, projection.origin)
-            .map_err(NameResolutionInternalError::from)?;
+        source_index.insert(projection.entity, projection.role, projection.origin);
         if let Some(markdown) = projection.documentation {
-            source_index
-                .insert_documentation(projection.entity, markdown)
-                .map_err(NameResolutionInternalError::from)?;
+            source_index.insert_documentation(projection.entity, markdown);
         }
     }
-    Ok(source_index.finish())
+    source_index.finish()
 }
 
 pub(super) struct Projection {

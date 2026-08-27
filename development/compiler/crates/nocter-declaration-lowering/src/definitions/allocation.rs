@@ -201,7 +201,7 @@ fn project_associated_projection_uses(
                 projection.associated(),
                 syntax,
                 origin,
-            )?;
+            );
     }
     Ok(())
 }

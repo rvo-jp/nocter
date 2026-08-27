@@ -4,7 +4,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     BodyId, BodyNodeId, CaptureId, ClosureId, LocalBindingId, LoopId, PlaceId, TypeId,
 };
-use nocter_source_index::{DuplicateSourceBinding, SemanticEntity};
+use nocter_source_index::SemanticEntity;
 use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin};
 
 use crate::checked::{BuildCheckedBodyError, ClosureTableBuildError};
@@ -216,7 +216,6 @@ pub enum BodyCheckInternalError {
     ExpectedType(ExpectedTypeError),
     Construction(BuildCheckedBodyError),
     ClosureConstruction(ClosureTableBuildError),
-    DuplicateProjection(DuplicateSourceBinding),
     MissingSource(SemanticEntity),
     UnconsumedNameUses(BodyId),
     MissingBodyEvidence(BodyId),
@@ -302,12 +301,6 @@ impl From<crate::AssociatedTypeResolutionError> for BodyCheckInternalError {
 impl From<crate::ConstructionSurfaceSelectionError> for BodyCheckInternalError {
     fn from(error: crate::ConstructionSurfaceSelectionError) -> Self {
         Self::ConstructionSurfaceSelection(error)
-    }
-}
-
-impl From<DuplicateSourceBinding> for BodyCheckInternalError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateProjection(error)
     }
 }
 

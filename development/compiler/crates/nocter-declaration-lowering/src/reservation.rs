@@ -10,9 +10,7 @@ use nocter_model::{
 };
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::{SourceId, SourceMap};
-use nocter_source_index::{
-    DuplicateDocumentation, DuplicateSourceBinding, SemanticEntity, SourceOrigin, SourceRole,
-};
+use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
@@ -120,8 +118,6 @@ impl ReservedEntity {
 pub enum ReservationError {
     Contract(DeclarationContractError),
     Program(ProgramBuildError),
-    DuplicateSourceBinding(DuplicateSourceBinding),
-    DuplicateDocumentation(DuplicateDocumentation),
     DuplicateBlockImport(DuplicateBlockImport),
     SourceOwnership(SourceOwnershipError),
     MissingSymbol(Box<str>),
@@ -141,8 +137,6 @@ impl fmt::Display for ReservationError {
         match self {
             Self::Contract(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
-            Self::DuplicateSourceBinding(error) => error.fmt(formatter),
-            Self::DuplicateDocumentation(error) => error.fmt(formatter),
             Self::DuplicateBlockImport(error) => error.fmt(formatter),
             Self::SourceOwnership(error) => error.fmt(formatter),
             Self::MissingSymbol(spelling) => {
@@ -201,18 +195,6 @@ impl From<ProgramBuildError> for ReservationError {
     }
 }
 
-impl From<DuplicateSourceBinding> for ReservationError {
-    fn from(error: DuplicateSourceBinding) -> Self {
-        Self::DuplicateSourceBinding(error)
-    }
-}
-
-impl From<DuplicateDocumentation> for ReservationError {
-    fn from(error: DuplicateDocumentation) -> Self {
-        Self::DuplicateDocumentation(error)
-    }
-}
-
 impl From<DuplicateBlockImport> for ReservationError {
     fn from(error: DuplicateBlockImport) -> Self {
         Self::DuplicateBlockImport(error)
@@ -222,9 +204,6 @@ impl From<DuplicateBlockImport> for ReservationError {
 impl From<crate::frontend_projection::ModuleSourceProjectionError> for ReservationError {
     fn from(error: crate::frontend_projection::ModuleSourceProjectionError) -> Self {
         match error {
-            crate::frontend_projection::ModuleSourceProjectionError::DuplicateBinding(error) => {
-                Self::DuplicateSourceBinding(error)
-            }
             crate::frontend_projection::ModuleSourceProjectionError::SourceOwnership(error) => {
                 Self::SourceOwnership(error)
             }
@@ -519,14 +498,14 @@ fn reserve_packages(
                 .map(SurfaceSource::syntax)
                 .ok_or_else(|| ReservationError::UnknownModule(module.clone()))?;
             if let Some(markdown) = tree.file_documentation() {
-                source_index.insert_documentation(SemanticEntity::Package(id), markdown)?;
+                source_index.insert_documentation(SemanticEntity::Package(id), markdown);
             }
             source_index.insert(
                 SemanticEntity::Package(id),
                 SourceRole::Declaration,
                 SourceOrigin::from_node(tree, tree.root_id())
                     .map_err(|_| ReservationError::InconsistentSource(tree.source()))?,
-            )?;
+            );
         }
     }
     Ok(ids)
@@ -594,7 +573,7 @@ fn project_sources(
             if owns_module_documentation
                 && let Some(markdown) = source.syntax().file_documentation()
             {
-                source_index.insert_documentation(SemanticEntity::Module(module), markdown)?;
+                source_index.insert_documentation(SemanticEntity::Module(module), markdown);
             }
             source_index.insert_module_source(
                 module,
@@ -627,7 +606,7 @@ fn project_declaration_documentation(
             continue;
         };
         if contracts.representative(id) == id {
-            source_index.insert_documentation(entity.semantic_entity(), markdown)?;
+            source_index.insert_documentation(entity.semantic_entity(), markdown);
         } else {
             let origin = match declaration.entity_origin() {
                 SyntaxOrigin::Node(node) => SourceOrigin::from_node(source.syntax(), node)
@@ -639,7 +618,7 @@ fn project_declaration_documentation(
                 entity.semantic_entity(),
                 origin,
                 markdown,
-            )?;
+            );
         }
     }
     Ok(())

@@ -8,7 +8,7 @@ use crate::documentation::{
     occurrence_sort_key,
 };
 use crate::names::{SourceVisibleNames, SourceVisibleNamesBuilder};
-use crate::{DocumentationOwner, DuplicateDocumentation, SemanticEntity, SourceOrigin};
+use crate::{DocumentationOwner, SemanticEntity, SourceOrigin};
 
 /// The meaning of one semantic-to-source projection.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -66,6 +66,7 @@ pub struct SourceIndex {
     entity_documentation: Box<[EntityDocumentation]>,
     occurrence_documentation: Box<[OccurrenceDocumentation]>,
     visible_names: SourceVisibleNames,
+    issues: Box<[SourceProjectionIssue]>,
 }
 
 impl SourceIndex {
@@ -117,6 +118,14 @@ impl SourceIndex {
     #[must_use]
     pub const fn diagnostic_origins(&self) -> crate::DiagnosticOrigins<'_> {
         crate::DiagnosticOrigins::new(self)
+    }
+
+    /// Returns integrity issues discovered while building this editor projection.
+    ///
+    /// These issues never change semantic compilation. The semantic-query authority rejects an
+    /// inconsistent projection before exposing editor facts.
+    pub const fn issues(&self) -> &[SourceProjectionIssue] {
+        &self.issues
     }
 
     #[must_use]
@@ -236,6 +245,7 @@ impl SourceIndex {
             entity_documentation,
             occurrence_documentation,
             visible_names: self.visible_names.into_builder(),
+            issues: self.issues.into_vec(),
         }
     }
 }
@@ -247,6 +257,7 @@ pub struct SourceIndexBuilder {
     entity_documentation: HashMap<SemanticEntity, Box<str>>,
     occurrence_documentation: HashMap<(SemanticEntity, SourceOrigin), Box<str>>,
     visible_names: SourceVisibleNamesBuilder,
+    issues: Vec<SourceProjectionIssue>,
 }
 
 impl SourceIndexBuilder {
@@ -258,6 +269,7 @@ impl SourceIndexBuilder {
             entity_documentation: HashMap::new(),
             occurrence_documentation: HashMap::new(),
             visible_names: SourceVisibleNamesBuilder::default(),
+            issues: Vec::new(),
         }
     }
 
@@ -273,77 +285,55 @@ impl SourceIndexBuilder {
 
     /// Records one projection.
     ///
-    /// # Errors
-    ///
-    /// Returns [`DuplicateSourceBinding`] when the exact entity, role, and source origin were
-    /// already recorded. Multiple references and separate contract/implementation origins remain
-    /// valid distinct bindings.
-    pub fn insert(
-        &mut self,
-        entity: SemanticEntity,
-        role: SourceRole,
-        origin: SourceOrigin,
-    ) -> Result<(), DuplicateSourceBinding> {
-        self.insert_binding(entity, role, origin, None)
+    pub fn insert(&mut self, entity: SemanticEntity, role: SourceRole, origin: SourceOrigin) {
+        self.insert_binding(entity, role, origin, None);
     }
 
     /// Records one projection with occurrence-specific assignment capability.
     ///
-    /// # Errors
-    ///
-    /// Returns [`DuplicateSourceBinding`] when the exact projection was already recorded.
     pub fn insert_with_access(
         &mut self,
         entity: SemanticEntity,
         role: SourceRole,
         origin: SourceOrigin,
         access: SourceAccess,
-    ) -> Result<(), DuplicateSourceBinding> {
-        self.insert_binding(entity, role, origin, Some(access))
+    ) {
+        self.insert_binding(entity, role, origin, Some(access));
     }
 
     /// Attaches normalized Markdown to exactly one semantic identity.
     ///
-    /// # Errors
-    ///
-    /// Returns [`DuplicateDocumentation`] when another syntax owner already attached Markdown to
-    /// the same identity.
-    pub fn insert_documentation(
-        &mut self,
-        entity: SemanticEntity,
-        markdown: impl Into<Box<str>>,
-    ) -> Result<(), DuplicateDocumentation> {
+    pub fn insert_documentation(&mut self, entity: SemanticEntity, markdown: impl Into<Box<str>>) {
         if self.entity_documentation.contains_key(&entity) {
-            return Err(DuplicateDocumentation::new(DocumentationOwner::Entity(
-                entity,
-            )));
+            self.issues
+                .push(SourceProjectionIssue::DuplicateDocumentation(
+                    DocumentationOwner::Entity(entity),
+                ));
+            return;
         }
         self.entity_documentation.insert(entity, markdown.into());
-        Ok(())
     }
 
     /// Attaches normalized Markdown to one exact semantic occurrence.
     ///
-    /// # Errors
-    ///
-    /// Returns [`DuplicateDocumentation`] if that exact origin already owns Markdown.
     pub fn insert_occurrence_documentation(
         &mut self,
         entity: SemanticEntity,
         origin: SourceOrigin,
         markdown: impl Into<Box<str>>,
-    ) -> Result<(), DuplicateDocumentation> {
+    ) {
         if self
             .occurrence_documentation
             .contains_key(&(entity, origin))
         {
-            return Err(DuplicateDocumentation::new(
-                DocumentationOwner::Occurrence { entity, origin },
-            ));
+            self.issues
+                .push(SourceProjectionIssue::DuplicateDocumentation(
+                    DocumentationOwner::Occurrence { entity, origin },
+                ));
+            return;
         }
         self.occurrence_documentation
             .insert((entity, origin), markdown.into());
-        Ok(())
     }
 
     /// Defines the effective presentation names for one physical source.
@@ -361,7 +351,7 @@ impl SourceIndexBuilder {
         role: SourceRole,
         origin: SourceOrigin,
         access: Option<SourceAccess>,
-    ) -> Result<(), DuplicateSourceBinding> {
+    ) {
         let binding = SourceBinding {
             entity,
             role,
@@ -369,10 +359,11 @@ impl SourceIndexBuilder {
             access,
         };
         if !self.unique.insert((entity, role, origin)) {
-            return Err(DuplicateSourceBinding(binding));
+            self.issues
+                .push(SourceProjectionIssue::DuplicateBinding(binding));
+            return;
         }
         self.bindings.push(binding);
-        Ok(())
     }
 
     #[must_use]
@@ -387,6 +378,7 @@ impl SourceIndexBuilder {
             entity_documentation: finish_entities(self.entity_documentation),
             occurrence_documentation: finish_occurrences(self.occurrence_documentation),
             visible_names: self.visible_names.finish(),
+            issues: self.issues.into_boxed_slice(),
         }
     }
 }
@@ -435,32 +427,32 @@ fn source_sort_key(
     )
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub struct DuplicateSourceBinding(SourceBinding);
-
-impl DuplicateSourceBinding {
-    #[must_use]
-    pub const fn binding(self) -> SourceBinding {
-        self.0
-    }
+/// An inconsistency in the source projection produced alongside otherwise independent semantics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceProjectionIssue {
+    DuplicateBinding(SourceBinding),
+    DuplicateDocumentation(DocumentationOwner),
 }
 
-impl fmt::Debug for DuplicateSourceBinding {
+impl fmt::Display for SourceProjectionIssue {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("DuplicateSourceBinding")
-            .field(&self.0)
-            .finish()
+        match self {
+            Self::DuplicateBinding(binding) => write!(
+                formatter,
+                "duplicate {:?} projection for {:?} at {:?}",
+                binding.role, binding.entity, binding.origin
+            ),
+            Self::DuplicateDocumentation(owner) => {
+                write!(
+                    formatter,
+                    "duplicate documentation projection for {owner:?}"
+                )
+            }
+        }
     }
 }
 
-impl fmt::Display for DuplicateSourceBinding {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("semantic entity already has this exact source binding")
-    }
-}
-
-impl std::error::Error for DuplicateSourceBinding {}
+impl std::error::Error for SourceProjectionIssue {}
 
 #[cfg(test)]
 mod tests {
@@ -469,7 +461,9 @@ mod tests {
     use nocter_source::{ByteOffset, SourceFile, SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxElement, SyntaxToken, SyntaxTree, parse};
 
-    use super::{SourceAccess, SourceIndexBuilder, SourceRole};
+    use super::{
+        SourceAccess, SourceBinding, SourceIndexBuilder, SourceProjectionIssue, SourceRole,
+    };
     use crate::{SemanticEntity, SourceOrigin};
 
     #[test]
@@ -489,20 +483,16 @@ mod tests {
         let declaration_origin = SourceOrigin::from_token(&tree, name).unwrap();
         let module_origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut builder = SourceIndexBuilder::new();
-        builder
-            .insert(
-                SemanticEntity::DeclarationSite(site),
-                SourceRole::Declaration,
-                declaration_origin,
-            )
-            .unwrap();
-        builder
-            .insert(
-                SemanticEntity::Module(module),
-                SourceRole::Implementation,
-                module_origin,
-            )
-            .unwrap();
+        builder.insert(
+            SemanticEntity::DeclarationSite(site),
+            SourceRole::Declaration,
+            declaration_origin,
+        );
+        builder.insert(
+            SemanticEntity::Module(module),
+            SourceRole::Implementation,
+            module_origin,
+        );
         let index = builder.finish();
 
         assert_eq!(
@@ -522,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_binding_is_rejected_without_collapsing_distinct_roles() {
+    fn duplicate_binding_is_reported_without_collapsing_distinct_roles() {
         let mut sources = SourceMap::new();
         let source = sources
             .add_bytes(
@@ -536,18 +526,19 @@ mod tests {
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut builder = SourceIndexBuilder::new();
 
-        builder
-            .insert(entity, SourceRole::Declaration, origin)
-            .unwrap();
-        builder
-            .insert(entity, SourceRole::Implementation, origin)
-            .unwrap();
-        assert!(
-            builder
-                .insert(entity, SourceRole::Declaration, origin)
-                .is_err()
-        );
+        builder.insert(entity, SourceRole::Declaration, origin);
+        builder.insert(entity, SourceRole::Implementation, origin);
+        builder.insert(entity, SourceRole::Declaration, origin);
         let index = builder.finish();
+        assert_eq!(
+            index.issues(),
+            &[SourceProjectionIssue::DuplicateBinding(SourceBinding {
+                entity,
+                role: SourceRole::Declaration,
+                origin,
+                access: None,
+            })]
+        );
         assert_eq!(
             index.diagnostic_origins().declaration(entity),
             Some(origin),
@@ -571,21 +562,11 @@ mod tests {
         let token = find_token(&tree, sources.get(source).unwrap(), "main");
         let origin = SourceOrigin::from_token(&tree, token).unwrap();
         let mut builder = SourceIndexBuilder::new();
-        builder
-            .insert(entity, SourceRole::Declaration, origin)
-            .unwrap();
-        builder
-            .insert(other_entity, SourceRole::Reference, origin)
-            .unwrap();
-        builder
-            .insert_documentation(entity, "Canonical docs.")
-            .unwrap();
-        builder
-            .insert_documentation(other_entity, "Other entity docs.")
-            .unwrap();
-        builder
-            .insert_occurrence_documentation(entity, origin, "Occurrence docs.")
-            .unwrap();
+        builder.insert(entity, SourceRole::Declaration, origin);
+        builder.insert(other_entity, SourceRole::Reference, origin);
+        builder.insert_documentation(entity, "Canonical docs.");
+        builder.insert_documentation(other_entity, "Other entity docs.");
+        builder.insert_occurrence_documentation(entity, origin, "Occurrence docs.");
         let index = builder.finish();
         let binding = index.bindings_for(entity)[0];
         let other_binding = index.bindings_for(other_entity)[0];
@@ -618,9 +599,7 @@ mod tests {
         let (module, site) = build_declaration_ids(symbols, app);
         let mut builder = SourceIndexBuilder::new();
         builder.define_visible_names(source, [(alias, SemanticEntity::Module(module))]);
-        builder
-            .insert_documentation(SemanticEntity::DeclarationSite(site), "docs")
-            .unwrap();
+        builder.insert_documentation(SemanticEntity::DeclarationSite(site), "docs");
 
         let index = builder.finish().into_builder().finish();
 
@@ -662,26 +641,20 @@ mod tests {
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let mut builder = SourceIndexBuilder::new();
 
-        builder
-            .insert_with_access(
-                entity,
-                SourceRole::Reference,
-                origin,
-                SourceAccess::Readonly,
-            )
-            .unwrap();
-        assert!(
-            builder
-                .insert_with_access(
-                    entity,
-                    SourceRole::Reference,
-                    origin,
-                    SourceAccess::Writable,
-                )
-                .is_err(),
-            "one semantic occurrence cannot carry contradictory access facts"
+        builder.insert_with_access(
+            entity,
+            SourceRole::Reference,
+            origin,
+            SourceAccess::Readonly,
+        );
+        builder.insert_with_access(
+            entity,
+            SourceRole::Reference,
+            origin,
+            SourceAccess::Writable,
         );
         let index = builder.finish();
+        assert_eq!(index.issues().len(), 1);
         assert_eq!(
             index.bindings_for(entity)[0].access(),
             Some(SourceAccess::Readonly)
@@ -689,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn a_later_stage_can_extend_without_losing_duplicate_detection() {
+    fn a_later_stage_can_extend_without_losing_duplicate_reporting() {
         let mut sources = SourceMap::new();
         let source = sources
             .add_bytes(
@@ -703,34 +676,27 @@ mod tests {
         let name = find_token(&tree, sources.get(source).unwrap(), "main");
         let site_origin = SourceOrigin::from_token(&tree, name).unwrap();
         let mut initial = SourceIndexBuilder::new();
-        initial
-            .insert(
-                SemanticEntity::Module(module),
-                SourceRole::Implementation,
-                module_origin,
-            )
-            .unwrap();
+        initial.insert(
+            SemanticEntity::Module(module),
+            SourceRole::Implementation,
+            module_origin,
+        );
 
         let mut extended = initial.finish().into_builder();
-        assert!(
-            extended
-                .insert(
-                    SemanticEntity::Module(module),
-                    SourceRole::Implementation,
-                    module_origin,
-                )
-                .is_err()
+        extended.insert(
+            SemanticEntity::Module(module),
+            SourceRole::Implementation,
+            module_origin,
         );
-        extended
-            .insert(
-                SemanticEntity::DeclarationSite(site),
-                SourceRole::Declaration,
-                site_origin,
-            )
-            .unwrap();
+        extended.insert(
+            SemanticEntity::DeclarationSite(site),
+            SourceRole::Declaration,
+            site_origin,
+        );
         let index = extended.finish();
 
         assert_eq!(index.len(), 2);
+        assert_eq!(index.issues().len(), 1);
         assert_eq!(index.bindings_for(SemanticEntity::Module(module)).len(), 1);
     }
 

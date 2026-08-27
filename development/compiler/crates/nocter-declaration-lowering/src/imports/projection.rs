@@ -27,13 +27,13 @@ pub(super) fn project_import(
         SourceRole::Declaration,
         SourceOrigin::from_node(tree, declaration)
             .map_err(|_| ImportError::InconsistentSource(declaration.source()))?,
-    )?;
+    );
     generics.headers.reserved.source_index.insert(
         SemanticEntity::Module(module),
         SourceRole::Reference,
         SourceOrigin::from_node(tree, path)
             .map_err(|_| ImportError::InconsistentSource(declaration.source()))?,
-    )?;
+    );
     if let ResolvedImport::Selected(names) = resolved {
         for name in names {
             project_reference(
@@ -66,7 +66,7 @@ fn project_reference(
         SourceRole::Reference,
         SourceOrigin::from_token(tree, token)
             .map_err(|_| ImportError::InconsistentSource(tree.source()))?,
-    )?;
+    );
     Ok(())
 }
 
