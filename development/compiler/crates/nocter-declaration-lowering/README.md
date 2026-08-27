@@ -15,6 +15,7 @@ callable bodies.
 ## Internal Responsibilities
 
 - deterministic identity reservation and definition
+- define-once semantic and presentation projection
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
 - declaration surfaces and contract/definition joins
@@ -26,4 +27,6 @@ callable bodies.
 - Accepted declaration semantics are built once and cannot contain a deferred invalid edge.
 - Target directives, primitive roles, and standard roles are selected once upstream or here.
 - `SourceIndex` is output projection, never semantic input.
+- Projection rejects duplicate semantic relations before updating the companion source index, so
+  the two products cannot silently retain different winners.
 - Contract and private definition joins use exact identities, not text matching downstream.

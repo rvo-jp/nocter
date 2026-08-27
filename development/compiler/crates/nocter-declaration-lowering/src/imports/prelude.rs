@@ -10,6 +10,24 @@ use nocter_model::{BuiltinType, ModuleId, PackageId, Symbol};
 use nocter_syntax::SyntaxToken;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NamespaceDefinitionError {
+    Program(ProgramBuildError),
+    FrontendBindings(nocter_frontend_bindings::FrontendBindingDefinitionError),
+}
+
+impl From<ProgramBuildError> for NamespaceDefinitionError {
+    fn from(error: ProgramBuildError) -> Self {
+        Self::Program(error)
+    }
+}
+
+impl From<nocter_frontend_bindings::FrontendBindingDefinitionError> for NamespaceDefinitionError {
+    fn from(error: nocter_frontend_bindings::FrontendBindingDefinitionError) -> Self {
+        Self::FrontendBindings(error)
+    }
+}
+
 /// Authored namespaces plus compiler-selected universal and standard-prelude fallback entries.
 #[derive(Debug)]
 pub struct PreparedNamespaces<'syntax> {
@@ -53,7 +71,7 @@ impl PreparedNamespaces<'_> {
 
     /// Freezes the already-selected authored and fallback namespace layers into the declaration
     /// program. Later semantic stages consume that authority instead of rebuilding lookup tables.
-    pub(crate) fn define_program_namespaces(&mut self) -> Result<(), ProgramBuildError> {
+    pub(crate) fn define_program_namespaces(&mut self) -> Result<(), NamespaceDefinitionError> {
         for (index, namespace) in self.imports.source_namespaces.iter().enumerate() {
             let source = self
                 .imports
@@ -108,13 +126,13 @@ impl PreparedNamespaces<'_> {
                 .headers
                 .reserved
                 .source_index
-                .define_source_namespace(source_id, authored, fallback);
+                .define_source_namespace(source_id, authored, fallback)?;
             self.imports
                 .generics
                 .headers
                 .reserved
                 .source_index
-                .define_source_access(source_id, directly_visible);
+                .define_source_access(source_id, directly_visible)?;
         }
         let namespaces = self
             .imports
@@ -135,7 +153,7 @@ impl PreparedNamespaces<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         let modules = self.imports.generics.headers.reserved.module_ids.clone();
         if modules.len() != namespaces.len() {
-            return Err(ProgramBuildError::UnknownModule);
+            return Err(ProgramBuildError::UnknownModule.into());
         }
         for (module, namespace) in modules.into_iter().zip(namespaces) {
             self.imports

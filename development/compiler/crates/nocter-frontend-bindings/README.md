@@ -13,5 +13,10 @@ name, path, or source location.
 ## Invariants
 
 - Each required role has at most one exact declaration identity.
+- Source namespaces, direct-visibility sets, declaration-site sources, and nominal representation
+  sources are define-once relations. Identical repeats are typed integrity failures rather than
+  idempotent updates.
+- Authored and fallback namespaces reject duplicate names before freezing; no sorting or deduplication
+  step may discard a conflicting producer.
 - Named builtin fallback and standard roles remain distinct authorities.
 - Source projection is not an input to role selection.

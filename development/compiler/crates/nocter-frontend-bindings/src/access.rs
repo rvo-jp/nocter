@@ -4,6 +4,8 @@ use std::fmt;
 use nocter_model::{DeclarationSiteId, ModuleId, NominalTypeId};
 use nocter_source::SourceId;
 
+use crate::FrontendBindingDefinitionError;
+
 /// Closed direct-source visibility selected by declaration lowering.
 ///
 /// This table is semantic input, not an editor projection. A private declaration site is visible
@@ -71,7 +73,7 @@ impl fmt::Display for SourceOwnershipError {
 
 impl std::error::Error for SourceOwnershipError {}
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct NominalRepresentationAccess {
     source: SourceId,
     contract_private: bool,
@@ -210,10 +212,18 @@ impl SourceAccessTableBuilder {
         &mut self,
         source: SourceId,
         directly_visible: impl IntoIterator<Item = SourceId>,
-    ) {
+    ) -> Result<(), FrontendBindingDefinitionError> {
         let mut visible = vec![source];
         visible.extend(directly_visible);
-        self.visible_sources.insert(source, visible);
+        match self.visible_sources.entry(source) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(visible);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(_) => Err(
+                FrontendBindingDefinitionError::DuplicateSourceVisibility(source),
+            ),
+        }
     }
 
     pub(crate) fn define_source_module(
@@ -236,8 +246,24 @@ impl SourceAccessTableBuilder {
         }
     }
 
-    pub(crate) fn define_site(&mut self, site: DeclarationSiteId, source: SourceId) {
-        self.site_sources.insert(site, source);
+    pub(crate) fn define_site(
+        &mut self,
+        site: DeclarationSiteId,
+        source: SourceId,
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        match self.site_sources.entry(site) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(source);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                Err(FrontendBindingDefinitionError::DuplicateDeclarationSite {
+                    site,
+                    existing: *entry.get(),
+                    duplicate: source,
+                })
+            }
+        }
     }
 
     pub(crate) fn define_representation(
@@ -245,14 +271,29 @@ impl SourceAccessTableBuilder {
         nominal: NominalTypeId,
         source: SourceId,
         contract_private: bool,
-    ) {
-        self.representations.insert(
-            nominal,
-            NominalRepresentationAccess {
-                source,
-                contract_private,
-            },
-        );
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        let duplicate = NominalRepresentationAccess {
+            source,
+            contract_private,
+        };
+        match self.representations.entry(nominal) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(duplicate);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                let existing = *entry.get();
+                Err(
+                    FrontendBindingDefinitionError::DuplicateNominalRepresentation {
+                        nominal,
+                        existing_source: existing.source,
+                        existing_contract_private: existing.contract_private,
+                        duplicate_source: source,
+                        duplicate_contract_private: contract_private,
+                    },
+                )
+            }
+        }
     }
 
     pub(crate) fn finish(self) -> SourceAccessTable {
@@ -281,6 +322,7 @@ mod tests {
     use nocter_source::{SourceMap, SourceName};
 
     use super::{SourceAccessTableBuilder, SourceOwnershipError};
+    use crate::FrontendBindingDefinitionError;
 
     #[test]
     fn private_access_is_direct_and_directional() {
@@ -308,11 +350,37 @@ mod tests {
             builder.define_source_module(root, module),
             Err(SourceOwnershipError::ConflictingSource { source, .. }) if source == root
         ));
-        builder.define_source(root, [direct]);
-        builder.define_source(direct, [transitive]);
-        builder.define_source(transitive, []);
-        builder.define_site(site, transitive);
-        builder.define_representation(nominal, transitive, true);
+        builder.define_source(root, [direct]).unwrap();
+        builder.define_source(direct, [transitive]).unwrap();
+        builder.define_source(transitive, []).unwrap();
+        builder.define_site(site, transitive).unwrap();
+        builder
+            .define_representation(nominal, transitive, true)
+            .unwrap();
+        assert_eq!(
+            builder.define_source(root, []),
+            Err(FrontendBindingDefinitionError::DuplicateSourceVisibility(
+                root
+            ))
+        );
+        assert!(matches!(
+            builder.define_site(site, root),
+            Err(FrontendBindingDefinitionError::DuplicateDeclarationSite {
+                site: duplicate,
+                existing,
+                duplicate: duplicate_source,
+            }) if duplicate == site && existing == transitive && duplicate_source == root
+        ));
+        assert!(matches!(
+            builder.define_representation(nominal, root, false),
+            Err(FrontendBindingDefinitionError::DuplicateNominalRepresentation {
+                nominal: duplicate,
+                existing_source,
+                existing_contract_private: true,
+                duplicate_source,
+                duplicate_contract_private: false,
+            }) if duplicate == nominal && existing_source == transitive && duplicate_source == root
+        ));
         let access = builder.finish();
 
         assert!(!access.can_access_private(root, site).unwrap());

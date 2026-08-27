@@ -125,7 +125,10 @@
                 <span class="markdown-path-text">/development/compiler/crates/nocter-frontend-bindings/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-frontend-bindings">nocter-frontend-bindings</h1><h2 id="responsibility">Responsibility</h2><p>Carry the exact mapping from compiler-selected frontend roles to authored declaration identities.</p><h2 id="contract">Contract</h2><p>Declaration lowering constructs the binding set from the selected toolchain package. Checking and target setup consume role-to-identity accessors and never infer builtin or standard authority from a name, path, or source location.</p><h2 id="invariants">Invariants</h2><ul><li>Each required role has at most one exact declaration identity.</li><li>Named builtin fallback and standard roles remain distinct authorities.</li><li>Source projection is not an input to role selection.</li></ul>
+                <h1 id="nocter-frontend-bindings">nocter-frontend-bindings</h1><h2 id="responsibility">Responsibility</h2><p>Carry the exact mapping from compiler-selected frontend roles to authored declaration identities.</p><h2 id="contract">Contract</h2><p>Declaration lowering constructs the binding set from the selected toolchain package. Checking and target setup consume role-to-identity accessors and never infer builtin or standard authority from a name, path, or source location.</p><h2 id="invariants">Invariants</h2><ul><li>Each required role has at most one exact declaration identity.</li><li>Source namespaces, direct-visibility sets, declaration-site sources, and nominal representation
+  sources are define-once relations. Identical repeats are typed integrity failures rather than
+  idempotent updates.</li><li>Authored and fallback namespaces reject duplicate names before freezing; no sorting or deduplication
+  step may discard a conflicting producer.</li><li>Named builtin fallback and standard roles remain distinct authorities.</li><li>Source projection is not an input to role selection.</li></ul>
             </div>
         </main>
     </div>

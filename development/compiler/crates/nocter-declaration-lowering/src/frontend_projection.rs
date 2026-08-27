@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use nocter_frontend_bindings::{
-    AssociatedProjectionUse, DuplicateBlockImport, FrontendBindings, FrontendBindingsBuilder,
-    FrontendDeclaration, SourceOwnershipError,
+    AssociatedProjectionUse, DuplicateBlockImport, FrontendBindingDefinitionError,
+    FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration, SourceOwnershipError,
 };
 use nocter_model::{
     AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
@@ -126,8 +126,8 @@ impl FrontendProjectionBuilder {
         &mut self,
         site: DeclarationSiteId,
         source: SourceId,
-    ) {
-        self.bindings.define_declaration_site_source(site, source);
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        self.bindings.define_declaration_site_source(site, source)
     }
 
     pub(crate) fn define_nominal_representation_source(
@@ -135,9 +135,9 @@ impl FrontendProjectionBuilder {
         nominal: NominalTypeId,
         source: SourceId,
         contract_private: bool,
-    ) {
+    ) -> Result<(), FrontendBindingDefinitionError> {
         self.bindings
-            .define_nominal_representation_source(nominal, source, contract_private);
+            .define_nominal_representation_source(nominal, source, contract_private)
     }
 
     pub(crate) fn insert_documentation(
@@ -163,14 +163,14 @@ impl FrontendProjectionBuilder {
         source: SourceId,
         authored: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
         fallback: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
-    ) {
+    ) -> Result<(), FrontendBindingDefinitionError> {
         let authored = authored.into_iter().collect::<Vec<_>>();
         let fallback = fallback.into_iter().collect::<Vec<_>>();
         self.bindings.define_source_namespace(
             source,
             authored.iter().copied(),
             fallback.iter().copied(),
-        );
+        )?;
         self.source_index.define_visible_names(
             source,
             authored
@@ -178,14 +178,15 @@ impl FrontendProjectionBuilder {
                 .chain(fallback)
                 .map(|(name, entity)| (name, source_entity(entity))),
         );
+        Ok(())
     }
 
     pub(crate) fn define_source_access(
         &mut self,
         source: SourceId,
         directly_visible: impl IntoIterator<Item = SourceId>,
-    ) {
-        self.bindings.define_source_access(source, directly_visible);
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        self.bindings.define_source_access(source, directly_visible)
     }
 
     pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {

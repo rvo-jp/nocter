@@ -65,6 +65,7 @@ pub enum HeaderDefinitionError {
     Declaration(DeclarationDiagnostics),
     Definition(DefinitionError),
     Program(ProgramBuildError),
+    FrontendBindings(nocter_frontend_bindings::FrontendBindingDefinitionError),
 }
 
 impl fmt::Display for HeaderDefinitionError {
@@ -128,6 +129,7 @@ impl fmt::Display for HeaderDefinitionError {
             Self::Declaration(diagnostic) => diagnostic.fmt(formatter),
             Self::Definition(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
+            Self::FrontendBindings(error) => error.fmt(formatter),
         }
     }
 }

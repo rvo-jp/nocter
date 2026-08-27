@@ -19,6 +19,7 @@ use crate::{
 pub enum HeaderError {
     Namespace(NamespaceViolation),
     Program(ProgramBuildError),
+    FrontendBindings(nocter_frontend_bindings::FrontendBindingDefinitionError),
     MissingDeclaration(SurfaceDeclarationId),
     MissingSource(SurfaceSourceId),
     MissingName(SurfaceDeclarationId),
@@ -37,6 +38,7 @@ impl fmt::Display for HeaderError {
                 violation.rule().message()
             ),
             Self::Program(error) => error.fmt(formatter),
+            Self::FrontendBindings(error) => error.fmt(formatter),
             Self::MissingDeclaration(declaration) => {
                 write!(formatter, "surface declaration {declaration:?} is missing")
             }
@@ -68,6 +70,12 @@ impl std::error::Error for HeaderError {}
 impl From<ProgramBuildError> for HeaderError {
     fn from(error: ProgramBuildError) -> Self {
         Self::Program(error)
+    }
+}
+
+impl From<nocter_frontend_bindings::FrontendBindingDefinitionError> for HeaderError {
+    fn from(error: nocter_frontend_bindings::FrontendBindingDefinitionError) -> Self {
+        Self::FrontendBindings(error)
     }
 }
 
@@ -302,7 +310,7 @@ fn project_site(
         .source();
     reserved
         .source_index
-        .define_declaration_site_source(site, source);
+        .define_declaration_site_source(site, source)?;
     let origin = declaration_site_origin(reserved, declaration)?;
     reserved.source_index.insert(
         SemanticEntity::DeclarationSite(site),
@@ -328,7 +336,7 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
                 nominal,
                 source,
                 private_representation.is_some(),
-            );
+            )?;
         }
         let role = if reserved.contracts.is_implementation(id) {
             SourceRole::Implementation

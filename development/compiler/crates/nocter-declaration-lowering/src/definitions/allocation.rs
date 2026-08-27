@@ -117,7 +117,14 @@ pub(super) fn finish_recovering(
     types
         .namespaces
         .define_program_namespaces()
-        .map_err(HeaderDefinitionError::Program)
+        .map_err(|error| match error {
+            crate::imports::NamespaceDefinitionError::Program(error) => {
+                HeaderDefinitionError::Program(error)
+            }
+            crate::imports::NamespaceDefinitionError::FrontendBindings(error) => {
+                HeaderDefinitionError::FrontendBindings(error)
+            }
+        })
         .map_err(HeaderDefinitionFailure::without_recovery)?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
     let primitive_bindings = reserved.primitive_bindings;

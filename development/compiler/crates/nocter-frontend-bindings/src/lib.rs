@@ -132,6 +132,88 @@ impl fmt::Display for DuplicateBlockImport {
 
 impl std::error::Error for DuplicateBlockImport {}
 
+/// Namespace layer containing a duplicate source-local name.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceNamespaceLayer {
+    Authored,
+    Fallback,
+}
+
+/// A frontend fact was defined more than once during declaration lowering.
+///
+/// Every variant identifies a relation whose semantic owner must publish exactly one value.
+/// Identical repeat definitions are rejected as well; accepting them would hide a duplicate
+/// producer and make later changes order-sensitive.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendBindingDefinitionError {
+    DuplicateSourceNamespace(SourceId),
+    DuplicateSourceNamespaceName {
+        source: SourceId,
+        layer: SourceNamespaceLayer,
+        name: Symbol,
+    },
+    DuplicateSourceVisibility(SourceId),
+    DuplicateDeclarationSite {
+        site: nocter_model::DeclarationSiteId,
+        existing: SourceId,
+        duplicate: SourceId,
+    },
+    DuplicateNominalRepresentation {
+        nominal: NominalTypeId,
+        existing_source: SourceId,
+        existing_contract_private: bool,
+        duplicate_source: SourceId,
+        duplicate_contract_private: bool,
+    },
+}
+
+impl fmt::Display for FrontendBindingDefinitionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateSourceNamespace(source) => {
+                write!(
+                    formatter,
+                    "source {source} namespace was defined more than once"
+                )
+            }
+            Self::DuplicateSourceNamespaceName {
+                source,
+                layer,
+                name,
+            } => write!(
+                formatter,
+                "source {source} {layer:?} namespace repeats symbol {name:?}"
+            ),
+            Self::DuplicateSourceVisibility(source) => {
+                write!(
+                    formatter,
+                    "source {source} visibility was defined more than once"
+                )
+            }
+            Self::DuplicateDeclarationSite {
+                site,
+                existing,
+                duplicate,
+            } => write!(
+                formatter,
+                "declaration site {site:?} has source {existing} and duplicate source {duplicate}"
+            ),
+            Self::DuplicateNominalRepresentation {
+                nominal,
+                existing_source,
+                existing_contract_private,
+                duplicate_source,
+                duplicate_contract_private,
+            } => write!(
+                formatter,
+                "nominal {nominal:?} has representation ({existing_source}, private={existing_contract_private}) and duplicate ({duplicate_source}, private={duplicate_contract_private})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for FrontendBindingDefinitionError {}
+
 impl AssociatedProjectionUse {
     #[must_use]
     pub const fn new(base: TypeId, associated: AssociatedTypeId, origin: SyntaxOrigin) -> Self {
@@ -319,45 +401,70 @@ impl FrontendBindingsBuilder {
         }
     }
 
+    /// Defines one complete authored/fallback namespace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source was already defined or either layer repeats a name.
     pub fn define_source_namespace(
         &mut self,
         source: SourceId,
         authored: impl IntoIterator<Item = (Symbol, nocter_declarations::ExportedEntity)>,
         fallback: impl IntoIterator<Item = (Symbol, nocter_declarations::ExportedEntity)>,
-    ) {
-        self.source_namespaces.insert(
-            source,
-            SourceNamespaceBuilder {
-                authored: authored.into_iter().collect(),
-                fallback: fallback.into_iter().collect(),
-            },
-        );
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        if self.source_namespaces.contains_key(&source) {
+            return Err(FrontendBindingDefinitionError::DuplicateSourceNamespace(
+                source,
+            ));
+        }
+        let authored =
+            normalize_source_namespace(source, SourceNamespaceLayer::Authored, authored)?;
+        let fallback =
+            normalize_source_namespace(source, SourceNamespaceLayer::Fallback, fallback)?;
+        self.source_namespaces
+            .insert(source, SourceNamespaceBuilder { authored, fallback });
+        Ok(())
     }
 
+    /// Defines one source's direct private-access set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source already has a visibility definition.
     pub fn define_source_access(
         &mut self,
         source: SourceId,
         directly_visible: impl IntoIterator<Item = SourceId>,
-    ) {
-        self.source_access.define_source(source, directly_visible);
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        self.source_access.define_source(source, directly_visible)
     }
 
+    /// Defines the exact source that owns one declaration site.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the site already has a source definition.
     pub fn define_declaration_site_source(
         &mut self,
         site: nocter_model::DeclarationSiteId,
         source: SourceId,
-    ) {
-        self.source_access.define_site(site, source);
+    ) -> Result<(), FrontendBindingDefinitionError> {
+        self.source_access.define_site(site, source)
     }
 
+    /// Defines the exact source and contract privacy of one nominal representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the nominal already has a representation definition.
     pub fn define_nominal_representation_source(
         &mut self,
         nominal: NominalTypeId,
         source: SourceId,
         contract_private: bool,
-    ) {
+    ) -> Result<(), FrontendBindingDefinitionError> {
         self.source_access
-            .define_representation(nominal, source, contract_private);
+            .define_representation(nominal, source, contract_private)
     }
 
     #[must_use]
@@ -417,11 +524,7 @@ impl FrontendBindingsBuilder {
                 namespaces: self
                     .source_namespaces
                     .into_iter()
-                    .map(|(source, mut entries)| {
-                        entries.authored.sort_unstable_by_key(|(name, _)| *name);
-                        entries.authored.dedup_by_key(|(name, _)| *name);
-                        entries.fallback.sort_unstable_by_key(|(name, _)| *name);
-                        entries.fallback.dedup_by_key(|(name, _)| *name);
+                    .map(|(source, entries)| {
                         (
                             source,
                             SourceNamespace {
@@ -435,5 +538,71 @@ impl FrontendBindingsBuilder {
             source_access: self.source_access.finish(),
             block_imports: self.block_imports,
         }
+    }
+}
+
+fn normalize_source_namespace(
+    source: SourceId,
+    layer: SourceNamespaceLayer,
+    entries: impl IntoIterator<Item = (Symbol, nocter_declarations::ExportedEntity)>,
+) -> Result<Vec<(Symbol, nocter_declarations::ExportedEntity)>, FrontendBindingDefinitionError> {
+    let mut entries = entries.into_iter().collect::<Vec<_>>();
+    entries.sort_unstable_by_key(|(name, _)| *name);
+    if let Some(name) = entries
+        .windows(2)
+        .find(|entries| entries[0].0 == entries[1].0)
+        .map(|entries| entries[0].0)
+    {
+        return Err(
+            FrontendBindingDefinitionError::DuplicateSourceNamespaceName {
+                source,
+                layer,
+                name,
+            },
+        );
+    }
+    Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_declarations::ExportedEntity;
+    use nocter_model::{ArenaBuilder, ModuleId, SymbolTable};
+    use nocter_source::{SourceMap, SourceName};
+
+    use super::{FrontendBindingDefinitionError, FrontendBindingsBuilder, SourceNamespaceLayer};
+
+    #[test]
+    fn source_namespace_definitions_are_unique_and_lossless() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("index.nct"), b"")
+            .unwrap();
+        let symbols = SymbolTable::from_spellings(["value"]);
+        let name = symbols.get("value").unwrap();
+        let mut modules = ArenaBuilder::<ModuleId, ()>::new();
+        let module = modules.insert(());
+        let entity = ExportedEntity::Module(module);
+        let mut builder = FrontendBindingsBuilder::new();
+
+        assert_eq!(
+            builder.define_source_namespace(source, [(name, entity), (name, entity)], []),
+            Err(
+                FrontendBindingDefinitionError::DuplicateSourceNamespaceName {
+                    source,
+                    layer: SourceNamespaceLayer::Authored,
+                    name,
+                }
+            )
+        );
+        builder
+            .define_source_namespace(source, [(name, entity)], [])
+            .unwrap();
+        assert_eq!(
+            builder.define_source_namespace(source, [], []),
+            Err(FrontendBindingDefinitionError::DuplicateSourceNamespace(
+                source
+            ))
+        );
     }
 }
