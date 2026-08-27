@@ -3,10 +3,7 @@ use std::fmt;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
-use self::presentation::{
-    body_recovery_presentation, declaration_presentation, hover_presentation,
-    name_recovery_presentation,
-};
+use self::evidence::SemanticQueryContext;
 use self::source_selection::select_source_binding;
 use crate::AnalysisSnapshot;
 
@@ -199,99 +196,7 @@ impl AnalysisSnapshot {
     }
 
     fn unvalidated_semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
-        Some(SemanticQueryContext {
-            evidence: self.semantic_evidence()?,
-        })
-    }
-}
-
-#[derive(Clone, Copy)]
-struct SemanticQueryContext<'a> {
-    evidence: nocter_session::SemanticEvidenceView<'a>,
-}
-
-impl<'a> SemanticQueryContext<'a> {
-    fn module_for_source(
-        &self,
-        source: SourceId,
-    ) -> Result<nocter_model::ModuleId, SourceContextError> {
-        self.source_ownership()
-            .module_for_source(source)
-            .map_err(|_| SourceContextError::MissingModuleOwner(source))
-    }
-
-    fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
-        self.evidence.source_ownership()
-    }
-
-    const fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
-        self.evidence.source_index()
-    }
-
-    fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
-        self.evidence.graph()
-    }
-
-    fn types(&self) -> &'a nocter_model::TypeStore {
-        self.evidence.types()
-    }
-
-    const fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
-        self.evidence.checked()
-    }
-
-    const fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
-        self.evidence.body_analysis()
-    }
-
-    const fn name_recovery(&self) -> Option<&'a nocter_checking::NameAnalysisRecovery> {
-        self.evidence.name_analysis()
-    }
-
-    const fn declaration_recovery(
-        &self,
-    ) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
-        self.evidence.declaration_analysis()
-    }
-
-    pub(in crate::query) fn completion_detail(
-        &self,
-        entity: SemanticEntity,
-        spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
-    ) -> Result<Option<Box<str>>, PresentationError> {
-        let presentation = if let Some(checked) = self.checked() {
-            Ok(crate::query::presentation::presentation(
-                checked, entity, spellings,
-            ))
-        } else if let Some(analysis) = self.body_recovery() {
-            body_recovery_presentation(analysis, entity, spellings)
-        } else if let Some(analysis) = self.name_recovery() {
-            Ok(name_recovery_presentation(analysis, entity, spellings))
-        } else if let Some(analysis) = self.declaration_recovery() {
-            Ok(declaration_presentation(analysis, entity, spellings))
-        } else {
-            unreachable!("session semantic evidence always exposes one authority")
-        }?;
-        Ok(presentation.map(|presentation| Box::<str>::from(presentation.code())))
-    }
-
-    fn presentation(
-        &self,
-        entity: SemanticEntity,
-        spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
-        source: SourceId,
-    ) -> Result<Option<SemanticPresentation>, PresentationError> {
-        if let Some(checked) = self.checked() {
-            hover_presentation(checked, entity, spellings, source).map(Some)
-        } else if let Some(analysis) = self.body_recovery() {
-            body_recovery_presentation(analysis, entity, spellings)
-        } else if let Some(recovery) = self.name_recovery() {
-            Ok(name_recovery_presentation(recovery, entity, spellings))
-        } else if let Some(recovery) = self.declaration_recovery() {
-            Ok(declaration_presentation(recovery, entity, spellings))
-        } else {
-            unreachable!("session semantic evidence always exposes one authority")
-        }
+        Some(SemanticQueryContext::new(self.semantic_evidence()?))
     }
 }
 

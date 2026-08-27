@@ -232,11 +232,12 @@ pub(super) fn declaration_presentation(
 }
 
 pub(super) fn required_interface_implementation_method_presentation(
-    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    graph: &DeclarationGraph,
+    types: &TypeStore,
     required: &RequiredInterfaceImplementationMethod,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(recovery.graph(), recovery.types(), spellings);
+    let mut renderer = Renderer::new(graph, types, spellings);
     renderer.required_interface_implementation_method(required)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),

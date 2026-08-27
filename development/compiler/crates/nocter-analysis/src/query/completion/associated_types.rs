@@ -1,6 +1,5 @@
 use nocter_checking::{
     AssociatedTypeCompletionCandidate, AssociatedTypeCompletionError, CheckedProgram,
-    PreparedSemanticProgram,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::AssociatedTypeId;
@@ -8,8 +7,8 @@ use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use super::{SemanticCompletion, SemanticCompletionKind};
+use crate::query::presentation::presentation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
-use crate::query::presentation::{prepared_presentation, presentation};
 
 pub(super) fn checked_completions(
     program: &CheckedProgram,
@@ -43,19 +42,12 @@ pub(super) fn checked_completions(
     )?))
 }
 
-pub(super) fn render_prepared_completions(
-    program: &PreparedSemanticProgram,
-    spellings: &VisibleSpellings,
+pub(super) fn render_recovery_completions(
+    graph: &DeclarationGraph,
     candidates: &[AssociatedTypeCompletionCandidate],
+    detail: impl FnMut(AssociatedTypeId) -> Option<Box<str>>,
 ) -> Result<Box<[SemanticCompletion]>, AssociatedTypeCompletionError> {
-    render_completions(program.graph(), candidates, |associated| {
-        prepared_presentation(
-            program,
-            SemanticEntity::AssociatedType(associated),
-            spellings,
-        )
-        .map(|value| Box::<str>::from(value.code()))
-    })
+    render_completions(graph, candidates, detail)
 }
 
 fn render_completions(

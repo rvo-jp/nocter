@@ -3,11 +3,287 @@ use std::fmt;
 
 use nocter_checking::{CaptureMode, LocalBindingKind, NameTarget};
 use nocter_model::{BodyId, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, TypeId};
-use nocter_source::{SourceId, SourceMap};
+use nocter_source::{SourceId, SourceMap, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceProjectionIssue};
 use nocter_syntax::{SyntaxOrigin, SyntaxTree};
 
-use super::SemanticQueryContext;
+use super::presentation::{
+    SemanticPresentation, body_recovery_presentation, declaration_presentation, hover_presentation,
+    name_recovery_presentation,
+};
+use super::source_context::SourceContextError;
+
+/// The only adapter from session-owned semantic evidence into editor query capabilities.
+///
+/// Raw compiler stages stay private to this module. Sibling feature modules can consume common
+/// semantic facts and explicit capabilities, but cannot reconstruct phase fallback order.
+#[derive(Clone, Copy)]
+pub(super) struct SemanticQueryContext<'a> {
+    evidence: nocter_session::SemanticEvidenceView<'a>,
+}
+
+impl<'a> SemanticQueryContext<'a> {
+    pub(super) const fn new(evidence: nocter_session::SemanticEvidenceView<'a>) -> Self {
+        Self { evidence }
+    }
+
+    pub(super) fn module_for_source(
+        &self,
+        source: SourceId,
+    ) -> Result<nocter_model::ModuleId, SourceContextError> {
+        self.source_ownership()
+            .module_for_source(source)
+            .map_err(|_| SourceContextError::MissingModuleOwner(source))
+    }
+
+    fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
+        self.evidence.source_ownership()
+    }
+
+    pub(super) fn source_index(&self) -> &'a SourceIndex {
+        self.evidence.source_index()
+    }
+
+    pub(super) fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
+        self.evidence.graph()
+    }
+
+    pub(super) fn types(&self) -> &'a nocter_model::TypeStore {
+        self.evidence.types()
+    }
+
+    fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
+        self.evidence.checked()
+    }
+
+    fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
+        self.evidence.body_analysis()
+    }
+
+    fn name_recovery(&self) -> Option<&'a nocter_checking::NameAnalysisRecovery> {
+        self.evidence.name_analysis()
+    }
+
+    fn declaration_recovery(&self) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
+        self.evidence.declaration_analysis()
+    }
+
+    /// Selects body-interruption evidence by source position without exposing body recovery.
+    pub(super) fn interruption_at(
+        self,
+        source: SourceId,
+        offset: nocter_source::ByteOffset,
+    ) -> Option<InterruptedBodyQuery<'a>> {
+        let recovery = self.body_recovery()?;
+        let (index, interruption) = recovery.interruption_position_at(source, offset)?;
+        Some(InterruptedBodyQuery {
+            recovery,
+            index,
+            interruption,
+        })
+    }
+
+    /// Selects body-interruption evidence by diagnostic range without exposing body recovery.
+    pub(super) fn interruption_overlapping(
+        self,
+        source: SourceId,
+        range: TextRange,
+    ) -> Option<InterruptedBodyQuery<'a>> {
+        let recovery = self.body_recovery()?;
+        let interruption = recovery.interruption_overlapping(source, range)?;
+        Some(InterruptedBodyQuery {
+            recovery,
+            index: 0,
+            interruption,
+        })
+    }
+
+    /// Borrows the declaration-only capability required by declaration repair actions.
+    pub(super) fn declaration_mutation(self) -> Option<DeclarationMutationQuery<'a>> {
+        let recovery = self.declaration_recovery()?;
+        Some(DeclarationMutationQuery { recovery })
+    }
+
+    pub(super) fn completion_detail(
+        &self,
+        entity: SemanticEntity,
+        spellings: &super::presentation::visible_spelling::VisibleSpellings,
+    ) -> Result<Option<Box<str>>, super::presentation::PresentationError> {
+        let presentation = if let Some(checked) = self.checked() {
+            Ok(super::presentation::presentation(
+                checked, entity, spellings,
+            ))
+        } else if let Some(analysis) = self.body_recovery() {
+            body_recovery_presentation(analysis, entity, spellings)
+        } else if let Some(analysis) = self.name_recovery() {
+            Ok(name_recovery_presentation(analysis, entity, spellings))
+        } else if let Some(analysis) = self.declaration_recovery() {
+            Ok(declaration_presentation(analysis, entity, spellings))
+        } else {
+            unreachable!("session semantic evidence always exposes one authority")
+        }?;
+        Ok(presentation.map(|presentation| Box::<str>::from(presentation.code())))
+    }
+
+    pub(super) fn presentation(
+        &self,
+        entity: SemanticEntity,
+        spellings: &super::presentation::visible_spelling::VisibleSpellings,
+        source: SourceId,
+    ) -> Result<Option<SemanticPresentation>, super::presentation::PresentationError> {
+        if let Some(checked) = self.checked() {
+            hover_presentation(checked, entity, spellings, source).map(Some)
+        } else if let Some(analysis) = self.body_recovery() {
+            body_recovery_presentation(analysis, entity, spellings)
+        } else if let Some(recovery) = self.name_recovery() {
+            Ok(name_recovery_presentation(recovery, entity, spellings))
+        } else if let Some(recovery) = self.declaration_recovery() {
+            Ok(declaration_presentation(recovery, entity, spellings))
+        } else {
+            unreachable!("session semantic evidence always exposes one authority")
+        }
+    }
+}
+
+/// A body failure selected through the semantic query kernel.
+///
+/// The checker recovery snapshot and its lookup rules remain private. Feature modules receive
+/// only operations valid for this exact interruption.
+#[derive(Clone, Copy)]
+pub(super) struct InterruptedBodyQuery<'a> {
+    recovery: &'a nocter_checking::BodyAnalysisRecovery,
+    index: usize,
+    interruption: &'a nocter_checking::TypedBodyInterruption,
+}
+
+impl<'a> InterruptedBodyQuery<'a> {
+    pub(super) const fn index(self) -> usize {
+        self.index
+    }
+
+    pub(super) const fn body(self) -> BodyId {
+        self.interruption.body()
+    }
+
+    pub(super) const fn kind(self) -> &'a nocter_checking::TypedBodyInterruptionKind {
+        self.interruption.kind()
+    }
+
+    pub(super) fn graph(self) -> &'a nocter_declarations::DeclarationGraph {
+        self.recovery.prepared().graph()
+    }
+
+    pub(super) fn source_index(self) -> &'a SourceIndex {
+        self.recovery.source_index()
+    }
+
+    pub(super) fn presentation(
+        self,
+        entity: SemanticEntity,
+        spellings: &super::presentation::visible_spelling::VisibleSpellings,
+    ) -> Option<SemanticPresentation> {
+        super::presentation::prepared_presentation(self.recovery.prepared(), entity, spellings)
+    }
+
+    pub(super) fn member_completions(
+        self,
+        session: &nocter_checking::MemberCompletionQuerySession,
+    ) -> Option<
+        Result<
+            Box<[nocter_checking::MemberCompletionCandidate]>,
+            nocter_checking::MemberCompletionError,
+        >,
+    > {
+        self.recovery
+            .interrupted_member_completions(session, self.interruption)
+    }
+
+    pub(super) fn construction_completions(
+        self,
+        source: SourceId,
+    ) -> Option<
+        Result<
+            Box<[nocter_checking::ConstructionCompletionCandidate]>,
+            nocter_checking::ConstructionCompletionError,
+        >,
+    > {
+        self.recovery
+            .interrupted_construction_completions(self.interruption, source)
+    }
+
+    pub(super) fn structural_field_completions(
+        self,
+        source: SourceId,
+    ) -> Option<
+        Result<
+            Box<[nocter_checking::StructuralFieldCompletionCandidate]>,
+            nocter_checking::StructuralFieldCompletionError,
+        >,
+    > {
+        self.recovery
+            .interrupted_structural_field_completions(self.interruption, source)
+    }
+
+    pub(super) fn enum_pattern_completions(
+        self,
+        source: SourceId,
+    ) -> Option<
+        Result<
+            Box<[nocter_checking::EnumPatternCompletionCandidate]>,
+            nocter_checking::EnumPatternCompletionError,
+        >,
+    > {
+        self.recovery
+            .interrupted_enum_pattern_completions(self.interruption, source)
+    }
+
+    pub(super) fn associated_type_completions(
+        self,
+    ) -> Option<
+        Result<
+            Box<[nocter_checking::AssociatedTypeCompletionCandidate]>,
+            nocter_checking::AssociatedTypeCompletionError,
+        >,
+    > {
+        self.recovery
+            .interrupted_associated_type_completions(self.interruption)
+    }
+
+    pub(super) fn outcome_type(
+        self,
+    ) -> Option<Result<&'a nocter_model::TypeProjection, nocter_checking::InterruptionEvidenceError>>
+    {
+        self.recovery.interrupted_outcome_type(self.interruption)
+    }
+}
+
+/// Declaration semantics that can safely drive a source mutation.
+#[derive(Clone, Copy)]
+pub(super) struct DeclarationMutationQuery<'a> {
+    recovery: &'a nocter_checking::DeclarationAnalysisRecovery,
+}
+
+impl<'a> DeclarationMutationQuery<'a> {
+    pub(super) fn graph(self) -> &'a nocter_declarations::DeclarationGraph {
+        self.recovery.graph()
+    }
+
+    pub(super) fn types(self) -> &'a nocter_model::TypeStore {
+        self.recovery.types()
+    }
+
+    pub(super) fn source_index(self) -> &'a SourceIndex {
+        self.recovery.source_index()
+    }
+
+    pub(super) fn process_abort(self) -> Option<nocter_model::CallableId> {
+        use nocter_toolchain_contract::StandardDeclarationRole;
+
+        self.recovery
+            .standard_semantics()
+            .and_then(|standard| standard.callable(StandardDeclarationRole::ProcessAbort))
+    }
+}
 
 /// The completeness of one protocol-independent semantic set query.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -510,14 +786,11 @@ impl<'a> SemanticQueryContext<'a> {
         }
     }
 
-    pub(super) const fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
-        match self.checked() {
-            Some(checked) => Some(CompleteSemanticQuery {
-                checked,
-                source_index: self.source_index(),
-            }),
-            None => None,
-        }
+    pub(super) fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
+        self.checked().map(|checked| CompleteSemanticQuery {
+            checked,
+            source_index: self.source_index(),
+        })
     }
 
     /// Resolves one body identity through the explicit evidence owned by the current generation.

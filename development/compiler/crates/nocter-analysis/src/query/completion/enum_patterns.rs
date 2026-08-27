@@ -1,7 +1,4 @@
-use nocter_checking::{
-    CheckedProgram, EnumPatternCompletionCandidate, EnumPatternCompletionError,
-    PreparedSemanticProgram,
-};
+use nocter_checking::{CheckedProgram, EnumPatternCompletionCandidate, EnumPatternCompletionError};
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{NominalTypeId, VariantId};
 use nocter_source::{ByteOffset, SourceId, TextRange};
@@ -9,8 +6,8 @@ use nocter_source_index::{SemanticEntity, SourceIndex};
 use nocter_syntax::{NodeKind, SyntaxTree};
 
 use super::{SemanticCompletion, SemanticCompletionKind};
+use crate::query::presentation::presentation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
-use crate::query::presentation::{prepared_presentation, presentation};
 use crate::query::source_selection::select_source_candidates;
 
 pub(super) fn checked_completions(
@@ -48,15 +45,12 @@ pub(super) fn checked_completions(
     )))
 }
 
-pub(super) fn render_prepared_completions(
-    program: &PreparedSemanticProgram,
-    spellings: &VisibleSpellings,
+pub(super) fn render_recovery_completions(
+    graph: &DeclarationGraph,
     candidates: &[EnumPatternCompletionCandidate],
+    detail: impl FnMut(VariantId) -> Option<Box<str>>,
 ) -> Box<[SemanticCompletion]> {
-    render_completions(program.graph(), candidates, |variant| {
-        prepared_presentation(program, SemanticEntity::Variant(variant), spellings)
-            .map(|value| Box::<str>::from(value.code()))
-    })
+    render_completions(graph, candidates, detail)
 }
 
 fn render_completions(

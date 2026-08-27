@@ -78,8 +78,14 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   no sibling analysis responsibility or protocol adapter can name the sealed context, checking
   recovery, or raw source projection. They consume only typed query results.
 - Session projects every stored semantic outcome, including a successful target, through one
-  `SemanticEvidenceView`. Analysis storage owns the only call to that projection; the query kernel
-  cannot inspect session variants or recreate their common semantic inputs.
+  `SemanticEvidenceView`. The view stores one borrowed authority variant, rather than independent
+  optional phase fields, so an impossible combination of checked and recovery evidence is not
+  representable. Analysis storage owns the only call to that projection; the query kernel cannot
+  inspect session storage variants or recreate their common semantic inputs.
+- The query kernel owns the only raw checked/declaration/name/body evidence accessors, and those
+  accessors are private to its evidence module. Completion and code-action modules receive narrow
+  capabilities such as an exact body interruption or declaration mutation authority. They cannot
+  name a recovery snapshot or implement their own phase fallback order.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
 - Workspace analysis consumes one complete source revision containing overlay, open-document set,

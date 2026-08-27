@@ -1,14 +1,14 @@
 use nocter_checking::{
     CheckedProgram, ConstructionCompletionCandidate, ConstructionCompletionError,
-    ConstructionCompletionTarget, PreparedSemanticProgram,
+    ConstructionCompletionTarget,
 };
 use nocter_declarations::{CallableKind, DeclarationGraph};
 use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use super::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
+use crate::query::presentation::presentation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
-use crate::query::presentation::{prepared_presentation, presentation};
 use crate::query::source_selection::select_source_candidates;
 
 /// Resolves a selected checked construction member back to its type-owned use-site surface.
@@ -67,15 +67,12 @@ fn render_checked_completions(
     })
 }
 
-pub(super) fn render_prepared_completions(
-    program: &PreparedSemanticProgram,
-    spellings: &VisibleSpellings,
+pub(super) fn render_recovery_completions(
+    graph: &DeclarationGraph,
     candidates: &[ConstructionCompletionCandidate],
+    detail: impl FnMut(SemanticEntity) -> Option<Box<str>>,
 ) -> Box<[SemanticCompletion]> {
-    render_completions(program.graph(), candidates, |entity| {
-        prepared_presentation(program, entity, spellings)
-            .map(|presentation| Box::<str>::from(presentation.code()))
-    })
+    render_completions(graph, candidates, detail)
 }
 
 fn render_completions(

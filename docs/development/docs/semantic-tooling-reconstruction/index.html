@@ -180,8 +180,13 @@
   between checking evidence and <code>SourceIndex</code>. Its module tree may consume those input contracts;
   no sibling analysis responsibility or protocol adapter can name the sealed context, checking
   recovery, or raw source projection. They consume only typed query results.</li><li>Session projects every stored semantic outcome, including a successful target, through one
-  <code>SemanticEvidenceView</code>. Analysis storage owns the only call to that projection; the query kernel
-  cannot inspect session variants or recreate their common semantic inputs.</li><li>The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
+  <code>SemanticEvidenceView</code>. The view stores one borrowed authority variant, rather than independent
+  optional phase fields, so an impossible combination of checked and recovery evidence is not
+  representable. Analysis storage owns the only call to that projection; the query kernel cannot
+  inspect session storage variants or recreate their common semantic inputs.</li><li>The query kernel owns the only raw checked/declaration/name/body evidence accessors, and those
+  accessors are private to its evidence module. Completion and code-action modules receive narrow
+  capabilities such as an exact body interruption or declaration mutation authority. They cannot
+  name a recovery snapshot or implement their own phase fallback order.</li><li>The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC <code>-32603</code>; expected unavailability and partial coverage are ordinary semantic outcomes.</li><li>Workspace analysis consumes one complete source revision containing overlay, open-document set,
   and changes. One package compilation input contains the module roots for every currently selected
   source as well as the package and declared target roots. A dependency source reached by multiple

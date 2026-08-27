@@ -16,8 +16,8 @@ use crate::query::SemanticQueryContext;
 use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
+use crate::query::presentation::presentation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
-use crate::query::presentation::{prepared_presentation, presentation};
 use crate::query::source_context::SourceContextError;
 use crate::query::source_selection::{select_source_binding, select_source_candidates};
 
@@ -373,19 +373,13 @@ fn interrupted_completions(
     offset: ByteOffset,
     spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let Some(recovery) = authority.body_recovery() else {
-        return Ok(None);
-    };
-    let Some((interruption_index, interruption)) =
-        recovery.interruption_position_at(source, offset)
-    else {
+    let Some(interruption) = authority.interruption_at(source, offset) else {
         return Ok(None);
     };
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
-            let session = queries.interrupted_members(interruption_index);
-            let Some(candidates) = recovery.interrupted_member_completions(&session, interruption)
-            else {
+            let session = queries.interrupted_members(interruption.index());
+            let Some(candidates) = interruption.member_completions(&session) else {
                 return Ok(None);
             };
             let candidates = candidates?;
@@ -393,16 +387,10 @@ fn interrupted_completions(
                 candidates
                     .iter()
                     .filter_map(|candidate| {
-                        let label = recovery
-                            .prepared()
-                            .graph()
-                            .symbols()
-                            .spelling(candidate.name())?;
+                        let label = interruption.graph().symbols().spelling(candidate.name())?;
                         let (kind, entity) = completion_target(candidate.target());
                         let detail = entity
-                            .and_then(|entity| {
-                                prepared_presentation(recovery.prepared(), entity, spellings)
-                            })
+                            .and_then(|entity| interruption.presentation(entity, spellings))
                             .map(|presentation| Box::<str>::from(presentation.code()));
                         Some(SemanticCompletion::new(label, kind, detail))
                     })
@@ -411,54 +399,63 @@ fn interrupted_completions(
             ))
         }
         TypedBodyInterruptionKind::ConstructionSelection { .. } => {
-            let Some(candidates) =
-                recovery.interrupted_construction_completions(interruption, source)
-            else {
+            let Some(candidates) = interruption.construction_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
-            Ok(Some(construction::render_prepared_completions(
-                recovery.prepared(),
-                spellings,
+            Ok(Some(construction::render_recovery_completions(
+                interruption.graph(),
                 &candidates,
+                |entity| {
+                    interruption
+                        .presentation(entity, spellings)
+                        .map(|value| Box::<str>::from(value.code()))
+                },
             )))
         }
         TypedBodyInterruptionKind::StructuralConstruction { .. } => {
-            let Some(candidates) =
-                recovery.interrupted_structural_field_completions(interruption, source)
-            else {
+            let Some(candidates) = interruption.structural_field_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
-            Ok(Some(structural_fields::render_prepared_completions(
-                recovery.prepared(),
-                spellings,
+            Ok(Some(structural_fields::render_recovery_completions(
+                interruption.graph(),
                 &candidates,
+                |field| {
+                    interruption
+                        .presentation(SemanticEntity::Field(field), spellings)
+                        .map(|value| Box::<str>::from(value.code()))
+                },
             )))
         }
         TypedBodyInterruptionKind::EnumPattern { .. } => {
-            let Some(candidates) =
-                recovery.interrupted_enum_pattern_completions(interruption, source)
-            else {
+            let Some(candidates) = interruption.enum_pattern_completions(source) else {
                 return Ok(None);
             };
             let candidates = candidates?;
-            Ok(Some(enum_patterns::render_prepared_completions(
-                recovery.prepared(),
-                spellings,
+            Ok(Some(enum_patterns::render_recovery_completions(
+                interruption.graph(),
                 &candidates,
+                |variant| {
+                    interruption
+                        .presentation(SemanticEntity::Variant(variant), spellings)
+                        .map(|value| Box::<str>::from(value.code()))
+                },
             )))
         }
         TypedBodyInterruptionKind::AssociatedTypeProjection { .. } => {
-            let Some(candidates) = recovery.interrupted_associated_type_completions(interruption)
-            else {
+            let Some(candidates) = interruption.associated_type_completions() else {
                 return Ok(None);
             };
             let candidates = candidates?;
-            Ok(Some(associated_types::render_prepared_completions(
-                recovery.prepared(),
-                spellings,
+            Ok(Some(associated_types::render_recovery_completions(
+                interruption.graph(),
                 &candidates,
+                |associated| {
+                    interruption
+                        .presentation(SemanticEntity::AssociatedType(associated), spellings)
+                        .map(|value| Box::<str>::from(value.code()))
+                },
             )?))
         }
         TypedBodyInterruptionKind::OutcomeContract { .. } => Ok(None),

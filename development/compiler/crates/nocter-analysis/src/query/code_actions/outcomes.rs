@@ -84,10 +84,7 @@ pub(super) fn callable_contract_action(
     let Some(query) = snapshot.semantic_query()? else {
         return Ok(None);
     };
-    let Some(recovery) = query.body_recovery() else {
-        return Ok(None);
-    };
-    let Some(interruption) = recovery.interruption_overlapping(requested_source, diagnostic_range)
+    let Some(interruption) = query.interruption_overlapping(requested_source, diagnostic_range)
     else {
         return Ok(None);
     };
@@ -98,7 +95,8 @@ pub(super) fn callable_contract_action(
     else {
         return Ok(None);
     };
-    let graph = recovery.prepared().graph();
+    let proposed_result = *proposed_result;
+    let graph = interruption.graph();
     let body = graph
         .declarations()
         .bodies()
@@ -117,7 +115,7 @@ pub(super) fn callable_contract_action(
         .get(callable.site())
         .map(|site| site.module())
         .ok_or(OutcomeActionError::MissingDeclarationSite(callable.site()))?;
-    let binding = recovery
+    let binding = interruption
         .source_index()
         .bindings_for(SemanticEntity::Callable(callable_id))
         .iter()
@@ -140,14 +138,14 @@ pub(super) fn callable_contract_action(
         .node(result)
         .map(nocter_syntax::SyntaxNode::range)
         .ok_or(OutcomeActionError::MissingResultType(callable_id))?;
-    let projection = recovery
-        .interrupted_outcome_type(interruption)
+    let projection = interruption
+        .outcome_type()
         .transpose()
-        .map_err(|_| OutcomeActionError::UnrenderableResult(*proposed_result))?
-        .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
+        .map_err(|_| OutcomeActionError::UnrenderableResult(proposed_result))?
+        .ok_or(OutcomeActionError::UnrenderableResult(proposed_result))?;
     let spellings = snapshot.queries.module_spellings(graph, module);
     let presentation = recovery_type_presentation(projection, graph, &spellings)
-        .ok_or(OutcomeActionError::UnrenderableResult(*proposed_result))?;
+        .ok_or(OutcomeActionError::UnrenderableResult(proposed_result))?;
     let layer_name = match layer {
         nocter_checking::OutcomeLayer::Optional => "optional",
         nocter_checking::OutcomeLayer::Fallible => "fallible",

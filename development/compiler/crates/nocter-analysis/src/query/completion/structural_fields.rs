@@ -1,6 +1,5 @@
 use nocter_checking::{
-    AggregateConstruction, CheckedOperation, CheckedProgram, PreparedSemanticProgram,
-    StructuralFieldCompletionCandidate,
+    AggregateConstruction, CheckedOperation, CheckedProgram, StructuralFieldCompletionCandidate,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::FieldId;
@@ -10,8 +9,8 @@ use nocter_syntax::{NodeKind, SyntaxTree};
 
 use super::{SemanticCompletion, SemanticCompletionError, SemanticCompletionKind};
 use crate::query::evidence::CompleteSemanticQuery;
+use crate::query::presentation::presentation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
-use crate::query::presentation::{prepared_presentation, presentation};
 use crate::query::source_selection::select_source_candidates;
 
 /// Resolves the structural construction containing a checked cursor position.
@@ -60,15 +59,12 @@ pub(super) fn checked_completions(
     )))
 }
 
-pub(super) fn render_prepared_completions(
-    program: &PreparedSemanticProgram,
-    spellings: &VisibleSpellings,
+pub(super) fn render_recovery_completions(
+    graph: &DeclarationGraph,
     candidates: &[StructuralFieldCompletionCandidate],
+    detail: impl FnMut(FieldId) -> Option<Box<str>>,
 ) -> Box<[SemanticCompletion]> {
-    render_completions(program.graph(), candidates, |field| {
-        prepared_presentation(program, SemanticEntity::Field(field), spellings)
-            .map(|value| Box::<str>::from(value.code()))
-    })
+    render_completions(graph, candidates, detail)
 }
 
 fn render_completions(

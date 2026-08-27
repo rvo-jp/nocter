@@ -31,14 +31,18 @@ enum SemanticAuthority {
 /// reconstruct the mapping independently.
 #[derive(Clone, Copy)]
 pub struct SemanticEvidenceView<'a> {
-    graph: &'a DeclarationGraph,
-    types: &'a TypeStore,
-    source_ownership: &'a SourceOwnershipTable,
-    source_index: &'a SourceIndex,
-    checked: Option<&'a CheckedProgram>,
-    bodies: Option<&'a BodyAnalysisRecovery>,
-    names: Option<&'a NameAnalysisRecovery>,
-    declarations: Option<&'a DeclarationAnalysisRecovery>,
+    authority: SemanticAuthorityView<'a>,
+}
+
+#[derive(Clone, Copy)]
+enum SemanticAuthorityView<'a> {
+    Declarations(&'a DeclarationAnalysisRecovery),
+    Names(&'a NameAnalysisRecovery),
+    Bodies(&'a BodyAnalysisRecovery),
+    Checked {
+        program: &'a CheckedProgram,
+        source_index: &'a SourceIndex,
+    },
 }
 
 impl<'a> SemanticEvidenceView<'a> {
@@ -47,55 +51,91 @@ impl<'a> SemanticEvidenceView<'a> {
         source_index: &'a SourceIndex,
     ) -> Self {
         Self {
-            graph: checked.graph(),
-            types: checked.types(),
-            source_ownership: checked.source_ownership(),
-            source_index,
-            checked: Some(checked),
-            bodies: None,
-            names: None,
-            declarations: None,
+            authority: SemanticAuthorityView::Checked {
+                program: checked,
+                source_index,
+            },
         }
     }
 
     #[must_use]
-    pub const fn graph(self) -> &'a DeclarationGraph {
-        self.graph
+    pub fn graph(self) -> &'a DeclarationGraph {
+        match self.authority {
+            SemanticAuthorityView::Declarations(analysis) => analysis.graph(),
+            SemanticAuthorityView::Names(analysis) => analysis.graph(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().graph(),
+            SemanticAuthorityView::Checked { program, .. } => program.graph(),
+        }
     }
 
     #[must_use]
-    pub const fn types(self) -> &'a TypeStore {
-        self.types
+    pub fn types(self) -> &'a TypeStore {
+        match self.authority {
+            SemanticAuthorityView::Declarations(analysis) => analysis.types(),
+            SemanticAuthorityView::Names(analysis) => analysis.types(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().types(),
+            SemanticAuthorityView::Checked { program, .. } => program.types(),
+        }
     }
 
     #[must_use]
-    pub const fn source_ownership(self) -> &'a SourceOwnershipTable {
-        self.source_ownership
+    pub fn source_ownership(self) -> &'a SourceOwnershipTable {
+        match self.authority {
+            SemanticAuthorityView::Declarations(analysis) => analysis.source_ownership(),
+            SemanticAuthorityView::Names(analysis) => analysis.source_ownership(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().source_ownership(),
+            SemanticAuthorityView::Checked { program, .. } => program.source_ownership(),
+        }
     }
 
     #[must_use]
-    pub const fn source_index(self) -> &'a SourceIndex {
-        self.source_index
+    pub fn source_index(self) -> &'a SourceIndex {
+        match self.authority {
+            SemanticAuthorityView::Declarations(analysis) => analysis.source_index(),
+            SemanticAuthorityView::Names(analysis) => analysis.source_index(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.source_index(),
+            SemanticAuthorityView::Checked { source_index, .. } => source_index,
+        }
     }
 
     #[must_use]
     pub const fn checked(self) -> Option<&'a CheckedProgram> {
-        self.checked
+        match self.authority {
+            SemanticAuthorityView::Checked { program, .. } => Some(program),
+            SemanticAuthorityView::Declarations(_)
+            | SemanticAuthorityView::Names(_)
+            | SemanticAuthorityView::Bodies(_) => None,
+        }
     }
 
     #[must_use]
     pub const fn body_analysis(self) -> Option<&'a BodyAnalysisRecovery> {
-        self.bodies
+        match self.authority {
+            SemanticAuthorityView::Bodies(analysis) => Some(analysis),
+            SemanticAuthorityView::Declarations(_)
+            | SemanticAuthorityView::Names(_)
+            | SemanticAuthorityView::Checked { .. } => None,
+        }
     }
 
     #[must_use]
     pub const fn name_analysis(self) -> Option<&'a NameAnalysisRecovery> {
-        self.names
+        match self.authority {
+            SemanticAuthorityView::Names(analysis) => Some(analysis),
+            SemanticAuthorityView::Declarations(_)
+            | SemanticAuthorityView::Bodies(_)
+            | SemanticAuthorityView::Checked { .. } => None,
+        }
     }
 
     #[must_use]
     pub const fn declaration_analysis(self) -> Option<&'a DeclarationAnalysisRecovery> {
-        self.declarations
+        match self.authority {
+            SemanticAuthorityView::Declarations(analysis) => Some(analysis),
+            SemanticAuthorityView::Names(_)
+            | SemanticAuthorityView::Bodies(_)
+            | SemanticAuthorityView::Checked { .. } => None,
+        }
     }
 }
 
@@ -145,34 +185,13 @@ impl SemanticEvidenceBundle {
                 SemanticEvidenceView::from_checked(checked.program(), checked.source_index())
             }
             SemanticAuthority::Bodies(analysis) => SemanticEvidenceView {
-                graph: analysis.prepared().graph(),
-                types: analysis.prepared().types(),
-                source_ownership: analysis.prepared().source_ownership(),
-                source_index: analysis.source_index(),
-                checked: None,
-                bodies: Some(analysis),
-                names: None,
-                declarations: None,
+                authority: SemanticAuthorityView::Bodies(analysis),
             },
             SemanticAuthority::Names(analysis) => SemanticEvidenceView {
-                graph: analysis.graph(),
-                types: analysis.types(),
-                source_ownership: analysis.source_ownership(),
-                source_index: analysis.source_index(),
-                checked: None,
-                bodies: None,
-                names: Some(analysis),
-                declarations: None,
+                authority: SemanticAuthorityView::Names(analysis),
             },
             SemanticAuthority::Declarations(analysis) => SemanticEvidenceView {
-                graph: analysis.graph(),
-                types: analysis.types(),
-                source_ownership: analysis.source_ownership(),
-                source_index: analysis.source_index(),
-                checked: None,
-                bodies: None,
-                names: None,
-                declarations: Some(analysis),
+                authority: SemanticAuthorityView::Declarations(analysis),
             },
         }
     }

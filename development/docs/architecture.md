@@ -173,15 +173,18 @@ only the disk-backed request type and cannot mistake editor bytes for persistent
 syntax snapshots, complete retained diagnostics, one diagnostic status, and one independent
 semantic evidence result. The status is discovery failure, syntax failure, compiler failure, or
 target-validated success. Session exposes both a successful target and retained recovery through
-one borrowed `SemanticEvidenceView`; analysis does not inspect session storage variants or rebuild
-their common graph, type, ownership, and projection contract. Recovered name and body analysis classifies every declared body as
-accepted or rejected with its source-backed reason; an internal inconsistency cannot manufacture
+one borrowed `SemanticEvidenceView`; its borrowed authority is a sum, so mutually exclusive phase
+evidence cannot coexist as unrelated optional fields. Analysis does not inspect session storage
+variants or rebuild their common graph, type, ownership, and projection contract. Recovered name
+and body analysis classifies every declared body as accepted or rejected with its source-backed
+reason; an internal inconsistency cannot manufacture
 partial semantic evidence. Protocol-independent queries are the only authority allowed to join
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
 complete. The kernel validates the complete source projection against its declaration and
 body-local domains, source map, syntax trees, and source ownership once per immutable generation;
-the private `query/` module tree owns every operation that consumes the sealed context. Neither the
-`AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
+only the evidence module can inspect raw checked and recovery inputs. Feature modules receive
+complete, interruption, declaration-mutation, or common-fact capabilities and cannot restate phase
+fallback order. Neither the `AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
 `CompleteSemanticQuery`, checking recovery, or `SourceIndex`; they receive only complete
 protocol-independent query results. A dangling binding, documentation owner, visible name, source,
 syntax origin, or module owner is an integrity failure rather than an ordinary empty result. Query

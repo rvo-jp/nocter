@@ -4,7 +4,6 @@ use nocter_checking::MissingInterfaceImplementationMethods;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
-use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::SemanticCodeAction;
 use crate::query::presentation::required_interface_implementation_method_presentation;
@@ -120,11 +119,12 @@ pub(super) fn missing_method_action(
     };
     let spellings = snapshot
         .queries
-        .module_spellings(context.recovery.graph(), context.module);
+        .module_spellings(context.authority.graph(), context.module);
     let mut signatures = Vec::with_capacity(missing.required().len());
     for required in missing.required() {
         let presentation = required_interface_implementation_method_presentation(
-            context.recovery,
+            context.authority.graph(),
+            context.authority.types(),
             required,
             &spellings,
         )
@@ -133,11 +133,7 @@ pub(super) fn missing_method_action(
         ))?;
         signatures.push(presentation.code().to_owned());
     }
-    let Some(abort) = context
-        .recovery
-        .standard_semantics()
-        .and_then(|standard| standard.callable(StandardDeclarationRole::ProcessAbort))
-    else {
+    let Some(abort) = context.authority.process_abort() else {
         return Ok(None);
     };
     let probe_offset = context.closing;
@@ -155,7 +151,7 @@ pub(super) fn missing_method_action(
     )?;
     terminator.edits.push(method_edit);
     Ok(Some(SemanticCodeAction {
-        title: action_title(context.recovery, missing)?.into(),
+        title: action_title(context.authority.graph(), missing)?.into(),
         diagnostic_code: diagnostic_code.into(),
         diagnostic_range,
         edits: terminator.edits.into_boxed_slice(),
@@ -163,7 +159,7 @@ pub(super) fn missing_method_action(
 }
 
 struct InsertionContext<'snapshot> {
-    recovery: &'snapshot nocter_checking::DeclarationAnalysisRecovery,
+    authority: crate::query::evidence::DeclarationMutationQuery<'snapshot>,
     module: nocter_model::ModuleId,
     source: &'snapshot nocter_source::SourceFile,
     opening: ByteOffset,
@@ -175,11 +171,11 @@ fn insertion_context<'snapshot>(
     requested_source: SourceId,
     missing: &MissingInterfaceImplementationMethods,
 ) -> Result<Option<InsertionContext<'snapshot>>, InterfaceImplementationActionError> {
-    let recovery = snapshot
+    let authority = snapshot
         .semantic_query()?
-        .and_then(|query| query.declaration_recovery())
+        .and_then(crate::query::evidence::SemanticQueryContext::declaration_mutation)
         .ok_or(InterfaceImplementationActionError::MissingRecovery)?;
-    let graph = recovery.graph();
+    let graph = authority.graph();
     let interface_implementation = graph
         .declarations()
         .interface_implementations()
@@ -196,7 +192,7 @@ fn insertion_context<'snapshot>(
         .ok_or(InterfaceImplementationActionError::MissingDeclarationSite(
             interface_implementation.site(),
         ))?;
-    let bindings = recovery
+    let bindings = authority
         .source_index()
         .bindings_for(SemanticEntity::InterfaceImplementation(
             missing.interface_implementation(),
@@ -211,7 +207,8 @@ fn insertion_context<'snapshot>(
     if declaration.source() != requested_source {
         return Ok(None);
     }
-    let instance_origin = editable_instance_origin(recovery, interface_implementation.owner())?;
+    let instance_origin =
+        editable_instance_origin(authority.source_index(), interface_implementation.owner())?;
     let SyntaxOrigin::Node(instance) = instance_origin.syntax() else {
         return Err(InterfaceImplementationActionError::InvalidInstanceNode);
     };
@@ -255,7 +252,7 @@ fn insertion_context<'snapshot>(
         InterfaceImplementationActionError::MissingSyntax(insertion_source),
     )?;
     Ok(Some(InsertionContext {
-        recovery,
+        authority,
         module,
         source,
         opening: opening.range().end(),
@@ -269,17 +266,15 @@ fn insertion_context<'snapshot>(
 /// fragment when one exists. Analysis therefore consumes the semantic instance's source bindings
 /// and never reconstructs module topology.
 fn editable_instance_origin(
-    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    source_index: &nocter_source_index::SourceIndex,
     owner: nocter_model::InstanceId,
 ) -> Result<nocter_source_index::SourceOrigin, InterfaceImplementationActionError> {
-    recovery
-        .source_index()
+    source_index
         .bindings_for(SemanticEntity::Instance(owner))
         .iter()
         .find(|binding| binding.role() == SourceRole::Implementation)
         .or_else(|| {
-            recovery
-                .source_index()
+            source_index
                 .bindings_for(SemanticEntity::Instance(owner))
                 .iter()
                 .find(|binding| binding.role() == SourceRole::Declaration)
@@ -331,18 +326,17 @@ fn terminator_import_edits(
 }
 
 fn action_title(
-    recovery: &nocter_checking::DeclarationAnalysisRecovery,
+    graph: &nocter_declarations::DeclarationGraph,
     missing: &MissingInterfaceImplementationMethods,
 ) -> Result<String, InterfaceImplementationActionError> {
     if missing.required().len() == 1 {
         let required = &missing.required()[0];
-        let method = recovery
-            .graph()
+        let method = graph
             .declarations()
             .callables()
             .get(required.interface_method())
             .and_then(nocter_declarations::CallableDeclaration::name)
-            .and_then(|name| recovery.graph().symbols().spelling(name))
+            .and_then(|name| graph.symbols().spelling(name))
             .ok_or(InterfaceImplementationActionError::MissingMethodName(
                 required.interface_method(),
             ))?;
