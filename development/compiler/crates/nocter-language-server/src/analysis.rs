@@ -5,7 +5,10 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_analysis::{AnalysisSnapshot, GenerationId};
+use nocter_analysis::{
+    AnalysisSnapshot, EvidenceIntegrityError, GenerationId, SemanticMutationCandidate,
+    ValidatedSemanticMutation,
+};
 use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::SourceOverlay;
@@ -515,24 +518,35 @@ impl WorkspaceAnalyses {
     ///
     /// Mutation features use this as a transaction preflight. The candidate travels through the
     /// same package resolution, discovery, and compiler pipeline as accepted editor state.
-    pub(crate) fn compile_candidate(
+    pub(crate) fn validate_candidate<'source>(
         &self,
-        scope: &AnalysisScope,
-        document: &Path,
-        generation: GenerationId,
-        source_overlay: SourceOverlay,
-    ) -> Option<Box<AnalysisSnapshot>> {
+        analysis: &WorkspaceAnalysisGeneration,
+        candidate: SemanticMutationCandidate<'source>,
+    ) -> Result<Option<ValidatedSemanticMutation<'source>>, EvidenceIntegrityError> {
+        let Some(source) = analysis.snapshot() else {
+            return Ok(None);
+        };
+        let Some(scope) = analysis.scope() else {
+            return Ok(None);
+        };
+        if !std::ptr::eq(source, candidate.source()) {
+            return Ok(None);
+        }
         let requested_sources = self
             .document_scopes
             .iter()
             .filter(|(_, selected)| *selected == scope)
-            .map(|(source, _)| source.clone())
-            .chain(std::iter::once(document.to_path_buf()));
+            .map(|(source, _)| source.clone());
         let input = ScopeCompilationInput::new(scope, requested_sources);
-        match compile_scope(&self.configuration, &input, generation, source_overlay) {
-            WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
+        match compile_scope(
+            &self.configuration,
+            &input,
+            source.generation(),
+            candidate.source_overlay().clone(),
+        ) {
+            WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }
-            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => Ok(None),
         }
     }
 

@@ -12,17 +12,12 @@ use crate::{
 
 /// One current analysis generation paired with the exact source requested by an editor query.
 pub(crate) struct SemanticDocument<'a> {
-    path: PathBuf,
     analysis: &'a WorkspaceAnalysisGeneration,
     snapshot: &'a AnalysisSnapshot,
     source: &'a SourceFile,
 }
 
 impl<'a> SemanticDocument<'a> {
-    pub(crate) fn path(&self) -> &std::path::Path {
-        &self.path
-    }
-
     pub(crate) const fn analysis(&self) -> &'a WorkspaceAnalysisGeneration {
         self.analysis
     }
@@ -64,7 +59,6 @@ pub(crate) fn semantic_document<'a>(
         .sources()
         .find_by_name(name)
         .map(|source| SemanticDocument {
-            path,
             analysis: generation,
             snapshot,
             source,

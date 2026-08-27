@@ -1454,12 +1454,14 @@ program. The LSP adapter maps the compiler's closed `Keyword` category and never
 or its own keyword table.
 
 Source mutation features share one protocol-independent edit value containing an exact `SourceId`,
-byte range, and replacement. The language-server composition layer groups and validates these
-edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits
-as versioned LSP `documentChanges`. Overlapping edits, missing sources, invalid UTF-8 boundaries,
-and a speculative candidate that cannot obtain a sealed semantic-mutation capability cannot reach
-the client. That capability validates source ownership, syntax origins, semantic domains, and all
-projection issues for the candidate generation; checked body completion alone is not publication
+byte range, and replacement. Analysis binds a complete edit set to its immutable source snapshot and
+derives the only candidate overlay that workspace compilation may consume. The resulting candidate
+must retain that exact overlay and pass the whole semantic query seal. A consumed
+`ValidatedSemanticMutation` owns the original snapshot relation, ordered edits, and compiled
+candidate; LSP projection receives only that value and therefore cannot substitute an unrelated
+snapshot, edit set, or successful candidate. Overlapping edits, missing sources, invalid UTF-8
+boundaries, source ownership failures, invalid syntax origins, missing semantic domains, and source
+projection issues cannot reach the client. Checked body completion alone is not publication
 authority. Target
 construction is required only for target-specific mutations. Automatic-import code actions select
 the current compiler diagnostic by stable rule code and exact source subject, reuse the semantic

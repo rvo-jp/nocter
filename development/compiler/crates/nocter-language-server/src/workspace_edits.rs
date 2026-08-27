@@ -1,72 +1,14 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use nocter_analysis::{AnalysisSnapshot, SemanticMutationCapability, SemanticSourceEdit};
-use nocter_filesystem::{
-    DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError, SourceOverride,
-};
+use nocter_analysis::{SemanticSourceEdit, ValidatedSemanticMutation};
+use nocter_filesystem::DocumentVersion;
 use nocter_json::Value;
 use nocter_lsp::{
     DocumentEdit, DocumentUri, DocumentUriError, Position, Range, TextEdit, workspace_edit_result,
 };
 use nocter_source::{CoordinateError, SourceId};
-
-/// Applies compiler-owned edits to an isolated copy of one analysis generation.
-///
-/// # Errors
-///
-/// Rejects missing sources, invalid UTF-8 boundaries, overlapping edits, and overlay failures.
-pub(crate) fn candidate_overlay(
-    snapshot: &AnalysisSnapshot,
-    edits: &[SemanticSourceEdit],
-) -> Result<SourceOverlay, WorkspaceEditError> {
-    let grouped = grouped_edits(edits)?;
-    let mut sources = BTreeMap::new();
-    for (path, source) in snapshot.source_overlay().sources() {
-        sources.insert(
-            path.to_path_buf(),
-            (
-                snapshot.document_version(path),
-                SourceOverride::new(source.bytes()),
-            ),
-        );
-    }
-    for source in snapshot.sources().iter() {
-        let path = PathBuf::from(source.name().as_str());
-        let version = snapshot.document_version(&path);
-        let mut text = source.text().to_owned();
-        if let Some(source_edits) = grouped.get(&source.id()) {
-            for edit in source_edits.iter().rev() {
-                let start = usize::try_from(edit.range().start().get())
-                    .map_err(|_| WorkspaceEditError::InvalidEdit(source.id()))?;
-                let end = usize::try_from(edit.range().end().get())
-                    .map_err(|_| WorkspaceEditError::InvalidEdit(source.id()))?;
-                if !text.is_char_boundary(start) || !text.is_char_boundary(end) || start > end {
-                    return Err(WorkspaceEditError::InvalidEdit(source.id()));
-                }
-                text.replace_range(start..end, edit.new_text());
-            }
-        }
-        sources.insert(path, (version, SourceOverride::new(text.into_bytes())));
-    }
-    for source in grouped.keys() {
-        if snapshot.sources().get(*source).is_none() {
-            return Err(WorkspaceEditError::MissingSource(*source));
-        }
-    }
-    let mut builder = SourceOverlay::builder();
-    for (path, (version, source)) in sources {
-        match version {
-            Some(version) => {
-                builder.insert_document(path, OpenDocument::new(version, source.bytes()))
-            }
-            None => builder.insert_source(path, source),
-        }
-        .map_err(WorkspaceEditError::Overlay)?;
-    }
-    Ok(builder.finish())
-}
 
 /// Projects compiler-owned byte edits as one versioned atomic LSP workspace edit.
 ///
@@ -74,12 +16,11 @@ pub(crate) fn candidate_overlay(
 ///
 /// Returns source identity, URI, coordinate, or overlap errors without changing editor state.
 pub(crate) fn project_workspace_edit(
-    _capability: SemanticMutationCapability<'_>,
-    snapshot: &AnalysisSnapshot,
-    edits: &[SemanticSourceEdit],
+    mutation: ValidatedSemanticMutation<'_>,
 ) -> Result<Value, WorkspaceEditError> {
+    let (snapshot, edits) = mutation.into_source_edits();
     let mut documents = Vec::new();
-    for (source_id, source_edits) in grouped_edits(edits)? {
+    for (source_id, source_edits) in grouped_edits(&edits)? {
         let source = snapshot
             .sources()
             .get(source_id)
@@ -129,9 +70,7 @@ fn grouped_edits(
 #[derive(Debug)]
 pub enum WorkspaceEditError {
     MissingSource(SourceId),
-    InvalidEdit(SourceId),
     OverlappingEdits(SourceId),
-    Overlay(SourceOverlayError),
     Uri(DocumentUriError),
     Coordinate(CoordinateError),
 }
@@ -142,11 +81,9 @@ impl fmt::Display for WorkspaceEditError {
             Self::MissingSource(source) => {
                 write!(formatter, "workspace edit source is missing: {source}")
             }
-            Self::InvalidEdit(source) => write!(formatter, "workspace edit is invalid in {source}"),
             Self::OverlappingEdits(source) => {
                 write!(formatter, "workspace edits overlap in {source}")
             }
-            Self::Overlay(error) => error.fmt(formatter),
             Self::Uri(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
         }
@@ -156,10 +93,9 @@ impl fmt::Display for WorkspaceEditError {
 impl std::error::Error for WorkspaceEditError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Overlay(error) => Some(error),
             Self::Uri(error) => Some(error),
             Self::Coordinate(error) => Some(error),
-            Self::MissingSource(_) | Self::InvalidEdit(_) | Self::OverlappingEdits(_) => None,
+            Self::MissingSource(_) | Self::OverlappingEdits(_) => None,
         }
     }
 }

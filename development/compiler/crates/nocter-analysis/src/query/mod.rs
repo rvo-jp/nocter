@@ -52,15 +52,6 @@ pub struct SemanticSelection {
     range: TextRange,
 }
 
-/// Proof that one checked generation passed the complete semantic/source-projection seal.
-///
-/// Editor mutations may be published only while this capability can be obtained. The borrowed
-/// snapshot prevents callers from carrying the proof into another generation.
-#[derive(Clone, Copy, Debug)]
-pub struct SemanticMutationCapability<'snapshot> {
-    _snapshot: &'snapshot AnalysisSnapshot,
-}
-
 impl SemanticSelection {
     #[must_use]
     pub const fn entity(self) -> SemanticEntity {
@@ -126,15 +117,11 @@ impl AnalysisSnapshot {
     ///
     /// Returns the exact current-generation evidence inconsistency instead of treating a corrupt
     /// editor projection as an ordinary unavailable feature.
-    pub fn semantic_mutation_capability(
-        &self,
-    ) -> Result<Option<SemanticMutationCapability<'_>>, crate::EvidenceIntegrityError> {
+    pub(crate) fn seals_semantic_mutation(&self) -> Result<bool, crate::EvidenceIntegrityError> {
         let Some(query) = self.semantic_query()? else {
-            return Ok(None);
+            return Ok(false);
         };
-        Ok(query
-            .complete()
-            .map(|_| SemanticMutationCapability { _snapshot: self }))
+        Ok(query.complete().is_some())
     }
 
     /// Resolves one exact interactive semantic occurrence without rendering it.

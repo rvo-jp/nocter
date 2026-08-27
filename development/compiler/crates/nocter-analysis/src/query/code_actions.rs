@@ -43,6 +43,18 @@ impl SemanticCodeAction {
     pub const fn edits(&self) -> &[SemanticSourceEdit] {
         &self.edits
     }
+
+    /// Binds this compiler-selected repair to one immutable source generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an exact source-edit construction failure.
+    pub fn candidate<'source>(
+        &self,
+        source: &'source AnalysisSnapshot,
+    ) -> Result<crate::SemanticMutationCandidate<'source>, crate::SemanticMutationBuildError> {
+        crate::SemanticMutationCandidate::checked(source, self.edits.iter().cloned())
+    }
 }
 
 /// An inconsistency while planning a source repair from retained compiler state.

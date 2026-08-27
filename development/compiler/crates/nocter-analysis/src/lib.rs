@@ -29,13 +29,16 @@ pub use query::{
     PresentationError, SemanticBodyGap, SemanticCodeAction, SemanticCodeActionError,
     SemanticCompletion, SemanticCompletionEdit, SemanticCompletionError, SemanticCompletionKind,
     SemanticCoverage, SemanticHighlight, SemanticHighlightKind, SemanticInlayHint,
-    SemanticInlayHintError, SemanticInlayHintKind, SemanticLocation, SemanticMutationCapability,
-    SemanticParameterLabel, SemanticPresentation, SemanticQueryError, SemanticQuerySet,
-    SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan, SemanticSelection,
-    SemanticSetUnavailability, SemanticSignatureError, SemanticSignatureHelp, SemanticSubject,
-    SourceContextError, TypedBodyUnavailability,
+    SemanticInlayHintError, SemanticInlayHintKind, SemanticLocation, SemanticParameterLabel,
+    SemanticPresentation, SemanticQueryError, SemanticQuerySet, SemanticRenameEdit,
+    SemanticRenameError, SemanticRenamePlan, SemanticSelection, SemanticSetUnavailability,
+    SemanticSignatureError, SemanticSignatureHelp, SemanticSubject, SourceContextError,
+    TypedBodyUnavailability,
 };
-pub use source_edits::SemanticSourceEdit;
+pub use source_edits::{
+    SemanticMutationBuildError, SemanticMutationCandidate, SemanticSourceEdit,
+    ValidatedSemanticMutation,
+};
 
 /// Monotonic identity assigned by the editor workspace that accepted a document state.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

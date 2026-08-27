@@ -157,17 +157,13 @@ impl AnalysisSnapshot {
     ///
     /// Returns the candidate generation's evidence-integrity failure instead of granting mutation
     /// authority from checked bodies alone.
-    pub fn validate_rename_candidate<'candidate>(
+    pub(crate) fn rename_candidate_preserves_identity(
         &self,
         plan: &SemanticRenamePlan,
-        candidate: &'candidate Self,
-    ) -> Result<Option<crate::SemanticMutationCapability<'candidate>>, crate::EvidenceIntegrityError>
-    {
-        let Some(capability) = candidate.semantic_mutation_capability()? else {
-            return Ok(None);
-        };
+        candidate: &Self,
+    ) -> Result<bool, crate::EvidenceIntegrityError> {
         let Ok(replacement_len_u32) = u32::try_from(plan.replacement.len()) else {
-            return Ok(None);
+            return Ok(false);
         };
         let replacement_len = i64::from(replacement_len_u32);
         let mut previous_source = None;
@@ -175,39 +171,51 @@ impl AnalysisSnapshot {
         let mut previous_end = ByteOffset::new(0);
         for edit in plan.edits() {
             let Some(original) = self.sources().get(edit.source()) else {
-                return Ok(None);
+                return Ok(false);
             };
             if previous_source != Some(edit.source()) {
                 previous_source = Some(edit.source());
                 displacement = 0;
             } else if edit.range().start() < previous_end {
-                return Ok(None);
+                return Ok(false);
             }
             let Some(candidate_source) = candidate.sources().find_by_name(original.name().as_str())
             else {
-                return Ok(None);
+                return Ok(false);
             };
             let start = i64::from(edit.range().start().get()) + displacement;
             let Ok(start) = u32::try_from(start) else {
-                return Ok(None);
+                return Ok(false);
             };
             let Some(end) = start.checked_add(replacement_len_u32) else {
-                return Ok(None);
+                return Ok(false);
             };
             let candidate_range = TextRange::new(ByteOffset::new(start), ByteOffset::new(end));
-            let Ok(Some(selection)) =
-                candidate.semantic_selection(candidate_source.id(), candidate_range.start())
+            let Some(selection) =
+                candidate.semantic_selection(candidate_source.id(), candidate_range.start())?
             else {
-                return Ok(None);
+                return Ok(false);
             };
             if selection.entity() != edit.entity() || selection.range() != candidate_range {
-                return Ok(None);
+                return Ok(false);
             }
             displacement +=
                 replacement_len - i64::from(edit.range().end().get() - edit.range().start().get());
             previous_end = edit.range().end();
         }
-        Ok(Some(capability))
+        Ok(true)
+    }
+
+    /// Binds this rename plan to the only speculative overlay that may validate it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an exact source-edit construction failure.
+    pub fn semantic_rename_candidate(
+        &self,
+        plan: SemanticRenamePlan,
+    ) -> Result<crate::SemanticMutationCandidate<'_>, crate::SemanticMutationBuildError> {
+        crate::SemanticMutationCandidate::rename(self, plan)
     }
 
     fn require_source(&self, source: SourceId) -> Result<&SourceFile, SemanticRenameError> {

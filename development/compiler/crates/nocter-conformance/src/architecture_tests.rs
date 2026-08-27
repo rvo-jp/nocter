@@ -397,28 +397,6 @@ fn query_caches_do_not_derive_a_second_semantic_domain() {
 }
 
 #[test]
-fn editor_mutation_projection_requires_a_sealed_checked_capability() {
-    let compiler = workspace().join("crates");
-    let edits = fs::read_to_string(compiler.join("nocter-language-server/src/workspace_edits.rs"))
-        .expect("workspace edit boundary");
-    assert!(
-        edits.contains("_capability: SemanticMutationCapability<'_>"),
-        "protocol edit projection must require generation-borrowed sealed semantics"
-    );
-
-    for relative in [
-        "nocter-language-server/src/code_actions.rs",
-        "nocter-language-server/src/rename.rs",
-    ] {
-        let source = fs::read_to_string(compiler.join(relative)).expect("mutation adapter");
-        assert!(
-            !source.contains("has_checked_semantics"),
-            "{relative} uses an unsealed checked-semantics predicate"
-        );
-    }
-}
-
-#[test]
 fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
     let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
     for crate_name in crate_names() {

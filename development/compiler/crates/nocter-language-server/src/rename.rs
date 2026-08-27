@@ -1,12 +1,12 @@
 use std::fmt;
 
-use nocter_analysis::{SemanticRenameError, SemanticSourceEdit};
+use nocter_analysis::{SemanticMutationBuildError, SemanticRenameError};
 use nocter_json::Value;
 use nocter_lsp::RenameParams;
 use nocter_source::{CoordinateError, Utf16Position};
 
 use crate::semantic_document::{SemanticDocumentError, semantic_document};
-use crate::workspace_edits::{WorkspaceEditError, candidate_overlay, project_workspace_edit};
+use crate::workspace_edits::{WorkspaceEditError, project_workspace_edit};
 use crate::{DocumentWorkspace, WorkspaceAnalyses};
 
 /// Plans and validates one atomic semantic rename.
@@ -34,33 +34,16 @@ pub(crate) fn query_rename(
     else {
         return Ok(Value::Null);
     };
-    let edits = plan
-        .edits()
-        .iter()
-        .map(|edit| SemanticSourceEdit::new(edit.source(), edit.range(), plan.replacement()))
-        .collect::<Vec<_>>();
-    let overlay =
-        candidate_overlay(document.snapshot(), &edits).map_err(RenameQueryError::WorkspaceEdit)?;
-    let scope = document
-        .analysis()
-        .scope()
-        .ok_or(RenameQueryError::MissingScope)?;
-    let candidate = analyses
-        .compile_candidate(
-            scope,
-            document.path(),
-            document.snapshot().generation(),
-            overlay,
-        )
-        .ok_or(RenameQueryError::CandidateRejected)?;
-    let capability = document
+    let candidate = document
         .snapshot()
-        .validate_rename_candidate(&plan, &candidate)
+        .semantic_rename_candidate(plan)
+        .map_err(RenameQueryError::Mutation)?;
+    let mutation = analyses
+        .validate_candidate(document.analysis(), candidate)
         .map_err(nocter_analysis::SemanticRenameError::from)
         .map_err(RenameQueryError::Semantic)?
         .ok_or(RenameQueryError::CandidateRejected)?;
-    project_workspace_edit(capability, document.snapshot(), &edits)
-        .map_err(RenameQueryError::WorkspaceEdit)
+    project_workspace_edit(mutation).map_err(RenameQueryError::WorkspaceEdit)
 }
 
 #[derive(Debug)]
@@ -68,7 +51,7 @@ pub enum RenameQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
     Semantic(SemanticRenameError),
-    MissingScope,
+    Mutation(SemanticMutationBuildError),
     WorkspaceEdit(WorkspaceEditError),
     CandidateRejected,
 }
@@ -95,7 +78,7 @@ impl fmt::Display for RenameQueryError {
             Self::Document(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
             Self::Semantic(error) => error.fmt(formatter),
-            Self::MissingScope => formatter.write_str("rename document has no analysis scope"),
+            Self::Mutation(error) => error.fmt(formatter),
             Self::WorkspaceEdit(error) => error.fmt(formatter),
             Self::CandidateRejected => {
                 formatter.write_str("rename would collide with or rebind an existing declaration")
@@ -110,8 +93,9 @@ impl std::error::Error for RenameQueryError {
             Self::Document(error) => Some(error),
             Self::Coordinate(error) => Some(error),
             Self::Semantic(error) => Some(error),
+            Self::Mutation(error) => Some(error),
             Self::WorkspaceEdit(error) => Some(error),
-            Self::MissingScope | Self::CandidateRejected => None,
+            Self::CandidateRejected => None,
         }
     }
 }

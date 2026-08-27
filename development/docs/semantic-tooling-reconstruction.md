@@ -88,9 +88,12 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   current package contexts produces typed ambiguity unless one context physically owns it;
   ordering never supplies authority. A changed or closed file may invalidate an active demand but
   never becomes demand itself; a scope with no open members emits only an invalidation generation.
-- Rename and code-action candidates require a generation-borrowed semantic-mutation capability.
-  Analysis issues it only after the whole source projection passes the same cached query seal used
-  by read queries; checked semantics without a valid projection cannot authorize an edit.
+- Rename and code-action publication requires one consumed `ValidatedSemanticMutation`. Analysis
+  derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
+  workspace compilation cannot substitute another overlay, and validation retains the resulting
+  candidate snapshot in the same value. The candidate must pass the cached whole-projection query
+  seal used by read queries. Protocol projection consumes this transaction and receives no separate
+  snapshot or edit arguments.
 
 Each responsibility knows only the contract exported by the previous boundary. Protocol code does
 not know checking representation, checking does not know editor features, and `SourceIndex` does
@@ -134,6 +137,7 @@ The reconstruction is complete only when:
 - workspace context selection cannot use path, insertion, or generation ordering as a tie-breaker;
 - package compilation derives its complete module-root demand from all current scope members rather
   than one representative document;
-- editor mutations cannot use an unsealed checked-semantics predicate as publication authority;
+- editor mutations cannot separate the original snapshot, exact edits, compiled candidate, or
+  whole-generation semantic seal before publication;
 - workspace tests, warnings-denied Clippy, formatting, generated documentation, and repository
   integrity checks pass.

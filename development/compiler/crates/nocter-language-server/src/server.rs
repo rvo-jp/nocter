@@ -836,7 +836,6 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::CompilationFailed
         );
-        assert!(snapshot.semantic_mutation_capability().unwrap().is_none());
         assert_eq!(snapshot.diagnostics()[0].code(), "E0208");
 
         let hover = server.receive(&format!(

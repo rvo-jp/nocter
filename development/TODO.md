@@ -33,8 +33,9 @@ The subsequent authority-boundary review removed the remaining representative-so
 package analysis. Each package generation now derives one canonical module-root set from every
 current scope member, and speculative edits reuse that same complete demand. Visible-name
 projection conflicts are retained as `SourceProjectionIssue` values rather than normalized by
-entity order. Rename and code-action publication now require a generation-borrowed semantic-mutation
-capability issued only after the complete query seal succeeds. Behavioral multi-module tests and
+entity order. Rename and code-action publication now consume one validated mutation transaction
+that retains the original snapshot, exact edits, derived overlay, and sealed compiler candidate.
+Behavioral multi-module tests and
 expanded production-path architecture gates protect these boundaries. Changed files invalidate
 active demand but cannot join it, and an empty scope emits an invalidation-only generation without
 running the compiler pipeline.

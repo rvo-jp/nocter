@@ -1,12 +1,14 @@
 use std::fmt;
 
-use nocter_analysis::{EvidenceIntegrityError, SemanticCodeActionError};
+use nocter_analysis::{
+    EvidenceIntegrityError, SemanticCodeActionError, SemanticMutationBuildError,
+};
 use nocter_json::Value;
 use nocter_lsp::{CodeAction, CodeActionParams, code_actions_result};
 use nocter_source::{CoordinateError, Utf16Position, Utf16Range};
 
 use crate::semantic_document::{SemanticDocumentError, semantic_document};
-use crate::workspace_edits::{WorkspaceEditError, candidate_overlay, project_workspace_edit};
+use crate::workspace_edits::{WorkspaceEditError, project_workspace_edit};
 use crate::{DocumentWorkspace, WorkspaceAnalyses};
 
 /// Plans, recompiles, and projects all valid quick fixes in the requested source range.
@@ -40,29 +42,18 @@ pub(crate) fn query_code_actions(
         .snapshot()
         .semantic_code_actions(document.source().id(), requested)
         .map_err(CodeActionQueryError::Semantic)?;
-    let Some(scope) = document.analysis().scope() else {
-        return Ok(Value::Array(Vec::new()));
-    };
     let mut validated = Vec::new();
     for action in &planned {
-        let overlay = candidate_overlay(document.snapshot(), action.edits())
-            .map_err(CodeActionQueryError::WorkspaceEdit)?;
-        let Some(candidate) = analyses.compile_candidate(
-            scope,
-            document.path(),
-            document.snapshot().generation(),
-            overlay,
-        ) else {
-            continue;
-        };
-        let Some(capability) = candidate
-            .semantic_mutation_capability()
+        let candidate = action
+            .candidate(document.snapshot())
+            .map_err(CodeActionQueryError::Mutation)?;
+        let Some(mutation) = analyses
+            .validate_candidate(document.analysis(), candidate)
             .map_err(CodeActionQueryError::CandidateEvidence)?
         else {
             continue;
         };
-        let edit = project_workspace_edit(capability, document.snapshot(), action.edits())
-            .map_err(CodeActionQueryError::WorkspaceEdit)?;
+        let edit = project_workspace_edit(mutation).map_err(CodeActionQueryError::WorkspaceEdit)?;
         validated.push((action, edit));
     }
     let preferred = validated.len() == 1;
@@ -78,6 +69,7 @@ pub enum CodeActionQueryError {
     Document(SemanticDocumentError),
     RequestCoordinate(CoordinateError),
     Semantic(SemanticCodeActionError),
+    Mutation(SemanticMutationBuildError),
     CandidateEvidence(EvidenceIntegrityError),
     WorkspaceEdit(WorkspaceEditError),
 }
@@ -95,6 +87,7 @@ impl fmt::Display for CodeActionQueryError {
             Self::Document(error) => error.fmt(formatter),
             Self::RequestCoordinate(error) => error.fmt(formatter),
             Self::Semantic(error) => error.fmt(formatter),
+            Self::Mutation(error) => error.fmt(formatter),
             Self::CandidateEvidence(error) => error.fmt(formatter),
             Self::WorkspaceEdit(error) => error.fmt(formatter),
         }
@@ -107,6 +100,7 @@ impl std::error::Error for CodeActionQueryError {
             Self::Document(error) => Some(error),
             Self::RequestCoordinate(error) => Some(error),
             Self::Semantic(error) => Some(error),
+            Self::Mutation(error) => Some(error),
             Self::CandidateEvidence(error) => Some(error),
             Self::WorkspaceEdit(error) => Some(error),
         }
