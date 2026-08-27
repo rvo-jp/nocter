@@ -6,8 +6,8 @@ use nocter_lsp::DocumentUri;
 use nocter_source::SourceFile;
 
 use crate::{
-    DocumentPathError, DocumentPathResolver, DocumentWorkspace, WorkspaceAnalyses,
-    WorkspaceAnalysisGeneration,
+    AmbiguousDocumentAnalysis, DocumentPathError, DocumentPathResolver, DocumentWorkspace,
+    WorkspaceAnalyses, WorkspaceAnalysisGeneration,
 };
 
 /// One current analysis generation paired with the exact source requested by an editor query.
@@ -48,7 +48,10 @@ pub(crate) fn semantic_document<'a>(
             .resolve(uri)
             .map_err(SemanticDocumentError::Path)?,
     };
-    let Some(generation) = analyses.latest_for_document(&path) else {
+    let Some(generation) = analyses
+        .latest_for_document(&path)
+        .map_err(SemanticDocumentError::AmbiguousAnalysis)?
+    else {
         return Ok(None);
     };
     let Some(snapshot) = generation.snapshot() else {
@@ -71,6 +74,7 @@ pub(crate) fn semantic_document<'a>(
 #[derive(Debug)]
 pub enum SemanticDocumentError {
     Path(DocumentPathError),
+    AmbiguousAnalysis(AmbiguousDocumentAnalysis),
     NonUtf8Path(PathBuf),
 }
 
@@ -78,6 +82,7 @@ impl fmt::Display for SemanticDocumentError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Path(error) => error.fmt(formatter),
+            Self::AmbiguousAnalysis(error) => error.fmt(formatter),
             Self::NonUtf8Path(path) => {
                 write!(
                     formatter,
@@ -93,6 +98,7 @@ impl std::error::Error for SemanticDocumentError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Path(error) => Some(error),
+            Self::AmbiguousAnalysis(error) => Some(error),
             Self::NonUtf8Path(_) => None,
         }
     }

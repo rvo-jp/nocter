@@ -172,6 +172,37 @@ pub struct WorkspaceAnalyses {
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
 }
 
+/// More than one current package context can answer a source request and none is authoritative.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AmbiguousDocumentAnalysis {
+    document: PathBuf,
+    candidates: Box<[AnalysisScope]>,
+}
+
+impl AmbiguousDocumentAnalysis {
+    #[must_use]
+    pub fn document(&self) -> &Path {
+        &self.document
+    }
+
+    #[must_use]
+    pub const fn candidates(&self) -> &[AnalysisScope] {
+        &self.candidates
+    }
+}
+
+impl fmt::Display for AmbiguousDocumentAnalysis {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{} belongs to multiple current analysis contexts",
+            self.document.display()
+        )
+    }
+}
+
+impl std::error::Error for AmbiguousDocumentAnalysis {}
+
 struct ScopeTransition {
     documents: BTreeSet<PathBuf>,
     selected: BTreeMap<PathBuf, AnalysisScope>,
@@ -206,19 +237,41 @@ impl WorkspaceAnalyses {
     }
 
     #[must_use]
-    pub fn latest_for_document(&self, document: &Path) -> Option<&WorkspaceAnalysisGeneration> {
-        self.document_scopes
+    pub fn latest_for_document(
+        &self,
+        document: &Path,
+    ) -> Result<Option<&WorkspaceAnalysisGeneration>, AmbiguousDocumentAnalysis> {
+        if let Some(generation) = self
+            .document_scopes
             .get(document)
             .and_then(|scope| self.latest.get(scope))
             .or_else(|| self.unscoped.get(document))
-            .or_else(|| {
-                self.source_scopes
-                    .get(document)?
-                    .iter()
-                    .min_by_key(|scope| source_scope_priority(scope, document))
-                    .and_then(|scope| self.latest.get(scope))
-            })
-            .map(Arc::as_ref)
+        {
+            return Ok(Some(generation));
+        }
+        let Some(scopes) = self.source_scopes.get(document) else {
+            return Ok(None);
+        };
+        let owned = scopes
+            .iter()
+            .filter(|scope| scope_owns_document(scope, document))
+            .collect::<Vec<_>>();
+        let candidates = if owned.is_empty() {
+            scopes.iter().collect::<Vec<_>>()
+        } else {
+            owned
+        };
+        if candidates.len() == 1 {
+            return Ok(self.latest.get(candidates[0]).map(Arc::as_ref));
+        }
+        Err(AmbiguousDocumentAnalysis {
+            document: document.to_path_buf(),
+            candidates: candidates
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        })
     }
 
     /// Selects one bounded package or single-file scope and runs its exact accepted overlay through
@@ -492,14 +545,13 @@ impl WorkspaceAnalyses {
     }
 }
 
-fn source_scope_priority(scope: &AnalysisScope, document: &Path) -> (u8, AnalysisScope) {
-    let owns_source = match scope {
+fn scope_owns_document(scope: &AnalysisScope, document: &Path) -> bool {
+    match scope {
         AnalysisScope::Package(root) | AnalysisScope::ToolchainStandard(root) => {
             document.starts_with(root)
         }
         AnalysisScope::SingleFile(source) => document == source,
-    };
-    (u8::from(!owns_source), scope.clone())
+    }
 }
 
 fn generation_reaches_document(generation: &WorkspaceAnalysisGeneration, document: &Path) -> bool {
@@ -964,8 +1016,42 @@ mod tests {
             analyses
                 .latest_for_document(&canonical_contract)
                 .unwrap()
+                .unwrap()
                 .generation(),
             second.generation()
+        );
+    }
+
+    #[test]
+    fn a_shared_dependency_source_never_selects_a_package_context_by_sort_order() {
+        let temporary = TemporaryDirectory::new();
+        let standard_root = standard_root();
+        let configuration = configuration_with_standard(temporary.path(), &standard_root);
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration);
+
+        for (directory, name) in [("first", "first"), ("second", "second")] {
+            let root = temporary.path().join(directory);
+            fs::create_dir(&root).unwrap();
+            let source = root.join("index.nct");
+            let text =
+                format!("#package: {{ name: \"{name}\", version: \"0.0.0\", }}\nuse std/fs\n");
+            fs::write(&source, &text).unwrap();
+            analyses.analyze(documents.open(&open_params(&source, 1, &text)).unwrap());
+        }
+
+        let dependency_source = standard_root.join("fs/index.nct");
+        let ambiguity = analyses
+            .latest_for_document(&dependency_source)
+            .expect_err("a dependency source shared by two packages has no implicit authority");
+
+        assert_eq!(ambiguity.document(), dependency_source);
+        assert_eq!(ambiguity.candidates().len(), 2);
+        assert!(
+            ambiguity
+                .candidates()
+                .iter()
+                .all(|scope| matches!(scope, AnalysisScope::Package(_)))
         );
     }
 
@@ -1018,12 +1104,14 @@ mod tests {
         assert_eq!(
             analyses
                 .latest_for_document(&canonical_index)
+                .unwrap()
                 .and_then(WorkspaceAnalysisGeneration::scope),
             Some(&AnalysisScope::SingleFile(canonical_index))
         );
         assert_eq!(
             analyses
                 .latest_for_document(&canonical_helper)
+                .unwrap()
                 .and_then(WorkspaceAnalysisGeneration::scope),
             Some(&AnalysisScope::SingleFile(canonical_helper))
         );
@@ -1042,12 +1130,12 @@ mod tests {
             .unwrap();
         let canonical = opened.path().to_path_buf();
         analyses.analyze(opened);
-        assert!(analyses.latest_for_document(&canonical).is_some());
+        assert!(analyses.latest_for_document(&canonical).unwrap().is_some());
 
         let closed = documents.close(&close_params(&source)).unwrap();
         analyses.analyze(closed);
 
-        assert!(analyses.latest_for_document(&canonical).is_none());
+        assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
     }
 
     fn configuration(root: &Path) -> WorkspaceConfiguration {
