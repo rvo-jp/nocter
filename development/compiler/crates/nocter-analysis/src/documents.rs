@@ -448,7 +448,7 @@ mod tests {
             revision
                 .changes()
                 .iter()
-                .map(|change| change.path())
+                .map(super::WorkspaceSourceChange::path)
                 .collect::<Vec<_>>(),
             vec![first.as_path(), second.as_path()]
         );

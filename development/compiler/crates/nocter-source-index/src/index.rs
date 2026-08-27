@@ -124,6 +124,7 @@ impl SourceIndex {
     ///
     /// These issues never change semantic compilation. The semantic-query authority rejects an
     /// inconsistent projection before exposing editor facts.
+    #[must_use]
     pub const fn issues(&self) -> &[SourceProjectionIssue] {
         &self.issues
     }

@@ -132,7 +132,7 @@ pub fn evaluate(
         .collect();
     let projections = std::mem::take(&mut resolver.reference_projections);
     drop(resolver);
-    project_references(&mut bindings, projections)?;
+    project_references(&mut bindings, projections);
     bindings.constant_values = constant_values;
     bindings.array_lengths = array_lengths;
     Ok(bindings)
@@ -456,7 +456,7 @@ fn evaluation_error(error: ConstantEvaluationError) -> HeaderDefinitionError {
 fn project_references(
     bindings: &mut PreparedTypeBindings<'_>,
     references: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
-) -> Result<(), HeaderDefinitionError> {
+) {
     let mut references = references.into_iter().collect::<Vec<_>>();
     references.sort_unstable_by_key(|(token, _)| {
         (token.source(), token.range().start(), token.range().end())
@@ -471,7 +471,6 @@ fn project_references(
             .source_index
             .insert(semantic_entity(entity), SourceRole::Reference, origin);
     }
-    Ok(())
 }
 
 const fn rule_at(rule: DefinitionRule, origin: SyntaxOrigin) -> HeaderDefinitionError {

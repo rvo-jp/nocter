@@ -236,7 +236,11 @@ impl WorkspaceAnalyses {
         self.latest.get(scope).map(Arc::as_ref)
     }
 
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AmbiguousDocumentAnalysis`] when multiple current contexts reach `document` and
+    /// no exact selected scope or unique physical owner can supply authority.
     pub fn latest_for_document(
         &self,
         document: &Path,

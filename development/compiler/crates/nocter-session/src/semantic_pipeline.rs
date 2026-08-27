@@ -23,7 +23,7 @@ pub(crate) struct SemanticPipelineOutput {
 }
 
 pub(crate) struct SemanticPipelineFailure {
-    pub(crate) error: CompileSessionError,
+    pub(crate) error: Box<CompileSessionError>,
     pub(crate) evidence: Option<SemanticEvidenceBundle>,
 }
 
@@ -42,7 +42,7 @@ pub(crate) fn run_semantic_pipeline(
     }
     .map_err(CompileSessionError::from)
     .map_err(|error| SemanticPipelineFailure {
-        error,
+        error: Box::new(error),
         evidence: None,
     })?;
 
@@ -60,7 +60,7 @@ pub(crate) fn run_semantic_pipeline(
                 let evidence =
                     recovery.and_then(|recovery| continue_rejected_declarations(&input, recovery));
                 return Err(SemanticPipelineFailure {
-                    error: error.into(),
+                    error: Box::new(error.into()),
                     evidence,
                 });
             }
@@ -74,14 +74,14 @@ pub(crate) fn run_semantic_pipeline(
             .map_err(|failure| {
                 let (error, recovery) = failure.into_parts();
                 SemanticPipelineFailure {
-                    error: error.into(),
+                    error: Box::new(error.into()),
                     evidence: recovery.map(SemanticEvidenceBundle::from_preparation),
                 }
             })?;
     let checked = check_prepared_program_recovering(&input, prepared).map_err(|failure| {
         let (error, recovery) = failure.into_parts();
         SemanticPipelineFailure {
-            error: error.into(),
+            error: Box::new(error.into()),
             evidence: recovery.map(SemanticEvidenceBundle::from_bodies),
         }
     })?;

@@ -411,10 +411,8 @@ impl LanguageServer {
         let changed = params
             .changes()
             .iter()
-            .filter_map(|change| {
-                seen.insert(change.uri().clone())
-                    .then(|| change.uri().clone())
-            })
+            .filter(|change| seen.insert(change.uri().clone()))
+            .map(|change| change.uri().clone())
             .collect::<Vec<_>>();
         if changed.is_empty() {
             return ServerStep::default();

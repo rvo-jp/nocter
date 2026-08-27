@@ -385,16 +385,18 @@ fn extend_source_index(source_index: SourceIndex, projections: Vec<NodeProjectio
     let mut source_index = source_index.into_builder();
     for projection in projections {
         match projection.access {
-            Some(access) => source_index.insert_with_access(
-                projection.entity,
-                SourceRole::Reference,
-                projection.origin,
-                access,
-            ),
-            None => {
-                source_index.insert(projection.entity, SourceRole::Reference, projection.origin)
+            Some(access) => {
+                source_index.insert_with_access(
+                    projection.entity,
+                    SourceRole::Reference,
+                    projection.origin,
+                    access,
+                );
             }
-        };
+            None => {
+                source_index.insert(projection.entity, SourceRole::Reference, projection.origin);
+            }
+        }
     }
     source_index.finish()
 }

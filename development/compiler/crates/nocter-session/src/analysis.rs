@@ -172,7 +172,7 @@ pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSynt
     }
     match run_semantic_pipeline(unit, SyntaxAdmission::IncompleteBodies) {
         Err(SemanticPipelineFailure { error, evidence }) => {
-            Some(IncompleteSyntaxAnalysis::failed(error, evidence))
+            Some(IncompleteSyntaxAnalysis::failed(*error, evidence))
         }
         Ok(_) => Some(IncompleteSyntaxAnalysis::empty()),
     }
@@ -191,7 +191,7 @@ fn analyze_target_internal(
     let output = run_semantic_pipeline(unit, SyntaxAdmission::Complete).map_err(
         |SemanticPipelineFailure { error, evidence }| {
             Box::new(CompileTargetFailure::new(
-                error,
+                *error,
                 retain_semantic.then_some(evidence).flatten(),
             ))
         },
