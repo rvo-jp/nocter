@@ -89,7 +89,9 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
 - Workspace analysis consumes one complete source revision containing overlay, open-document set,
-  and changes. One package compilation input contains the module roots for every currently selected
+  and changes. It derives one `WorkspaceTopology` for the entire revision; package-root facts are
+  memoized by canonical directory, and every document scope or scope-selection failure comes from
+  that single product. One package compilation input contains the module roots for every currently selected
   source as well as the package and declared target roots. A dependency source reached by multiple
   current package contexts produces typed ambiguity unless one context physically owns it;
   ordering never supplies authority. A changed or closed file may invalidate an active demand but

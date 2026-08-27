@@ -200,7 +200,11 @@ advancing generation, applies included save text before analysis, and freezes on
 `WorkspaceSourceRevision` for every accepted open, change, save, close, or external change batch.
 Each revision contains the complete overlay, exact open-document set, and complete change set;
 workspace analysis never reconstructs those facts from earlier generations. Previously emitted
-revisions never observe later document mutations.
+revisions never observe later document mutations. One `WorkspaceTopology` maps the complete
+revision document set to package, toolchain-standard, or single-file scopes before compilation.
+It probes each canonical package-root candidate at most once for that revision and retains typed
+selection failures beside successful selections; individual documents cannot reread topology or
+observe a different overlay.
 
 `nocter-source` is the sole coordinate-conversion authority. Compiler phases retain normalized
 UTF-8 byte offsets and never store editor positions. Each immutable `SourceFile` converts those

@@ -21,8 +21,10 @@ use nocter_session::bundled_standard_toolchain;
 use crate::{AcceptedDocumentRevision, WorkspaceConfiguration};
 
 mod compilation_input;
+mod topology;
 
 use compilation_input::ScopeCompilationInput;
+use topology::WorkspaceTopology;
 
 /// The compiler input boundary selected for one document generation.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -357,18 +359,8 @@ impl WorkspaceAnalyses {
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let mut selected = BTreeMap::new();
-        let mut failures = BTreeMap::new();
-        for candidate in &documents {
-            match select_scope(&self.configuration, source_overlay, candidate) {
-                Ok(scope) => {
-                    selected.insert(candidate.clone(), scope);
-                }
-                Err(error) => {
-                    failures.insert(candidate.clone(), error);
-                }
-            }
-        }
+        let (documents, selected, failures) =
+            WorkspaceTopology::build(&self.configuration, source_overlay, documents).into_parts();
         let active_selected = selected
             .iter()
             .filter(|(path, _)| open_documents.contains(*path))
@@ -584,49 +576,6 @@ fn generation_reaches_document(generation: &WorkspaceAnalysisGeneration, documen
         .is_some_and(|sources| sources.find_by_name(name).is_some())
 }
 
-fn select_scope(
-    configuration: &WorkspaceConfiguration,
-    source_overlay: &SourceOverlay,
-    document: &Path,
-) -> Result<AnalysisScope, WorkspaceAnalysisError> {
-    if document
-        .extension()
-        .and_then(|extension| extension.to_str())
-        != Some("nct")
-    {
-        return Err(WorkspaceAnalysisError::UnsupportedSource(
-            document.to_path_buf(),
-        ));
-    }
-    let standard_root = configuration.toolchain().standard().root();
-    if document.starts_with(standard_root) {
-        return Ok(AnalysisScope::ToolchainStandard(
-            standard_root.to_path_buf(),
-        ));
-    }
-    let workspace = configuration
-        .root_for_document(document)
-        .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
-    let mut directory = document
-        .parent()
-        .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
-    loop {
-        if nocter_package::has_package_declaration(source_overlay, directory)
-            .map_err(WorkspaceAnalysisError::PackageRootProbe)?
-        {
-            return Ok(AnalysisScope::Package(directory.to_path_buf()));
-        }
-        if directory == workspace {
-            break;
-        }
-        let Some(parent) = directory.parent() else {
-            break;
-        };
-        directory = parent;
-    }
-    Ok(AnalysisScope::SingleFile(document.to_path_buf()))
-}
-
 fn compile_scope(
     configuration: &WorkspaceConfiguration,
     input: &ScopeCompilationInput,
@@ -778,7 +727,7 @@ pub enum WorkspaceAnalysisError {
     MissingRootPackage(nocter_model::PackageIdentity),
     Package(PackageResolutionFailure),
     StandardPackage(PackageGraphError),
-    PackageRootProbe(nocter_package::PackageRootProbeError),
+    PackageRootProbe(Arc<nocter_package::PackageRootProbeError>),
     ModuleOwner(nocter_discovery::DiscoveryError),
     Filesystem {
         operation: &'static str,
@@ -1292,7 +1241,7 @@ mod tests {
         assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
     }
 
-    fn configuration(root: &Path) -> WorkspaceConfiguration {
+    pub(super) fn configuration(root: &Path) -> WorkspaceConfiguration {
         configuration_with_standard(root, &standard_root())
     }
 
@@ -1375,10 +1324,10 @@ mod tests {
         .unwrap()
     }
 
-    struct TemporaryDirectory(PathBuf);
+    pub(super) struct TemporaryDirectory(PathBuf);
 
     impl TemporaryDirectory {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
                 "nocter-language-server-analysis-{}-{id}",
@@ -1388,7 +1337,7 @@ mod tests {
             Self(path)
         }
 
-        fn path(&self) -> &Path {
+        pub(super) fn path(&self) -> &Path {
             &self.0
         }
     }
