@@ -47,7 +47,7 @@ Set-valued queries additionally publish coverage:
 Coverage
 |-- Complete
 |-- Partial(rejected semantic domains)
-`-- Unavailable(no semantic authority)
+`-- Unavailable(no semantic evidence)
 ```
 
 References, workspace symbols, and other set queries cannot represent a partial set as a complete

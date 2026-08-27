@@ -38,7 +38,7 @@ dense arena identity and projection insertion order are never presentation tie-b
 `SourceMap` owns the exact source-name lookup and every UTF-8/UTF-16 conversion. The LSP adapter
 resolves a URI to its stable canonical path, finds that path in the selected snapshot, converts the
 request position, and wraps the returned presentation and range. Invalid coordinates are invalid
-request parameters; an unanalysed document or a generation with no semantic authority returns
+request parameters; an unanalysed document or a generation with no semantic evidence returns
 `null`.
 
 ## Canonical Rendering
@@ -174,17 +174,20 @@ walks only its parent chain, excludes sequential locals declared after the curso
 those names on the module's authored and prelude-fallback namespace. Explicit closure roots have
 no parent edge, so only declared captures cross the closure boundary. Completion details reuse the
 canonical presentation renderer; the protocol layer assigns only LSP item categories.
+The semantic completion query returns its `SemanticCoverage` with the items. Complete coverage
+uses the ordinary completion array; partial or unavailable evidence uses an LSP completion list
+with `isIncomplete: true`, so a reached candidate set is never presented as exhaustive.
 
-The production session owns one closed semantic-stage sum. A body-stage value retained when typed-
-body checking rejects the current generation is not a partial checked program: it contains
-declarations, normalized program-wide authorities, resolved body names, scopes, and their source
-index. It may also contain sparse typed nodes, local types, and dispatch from bodies that completed
-independently of the rejecting body. These facts remain editor evidence only because program-wide
-ownership, provenance, and target closure did not complete. A declaration or name failure retains
-an earlier, narrower value; a target-boundary failure retains the already completed checked program.
-Analysis owns one capability view over these alternatives, so a feature cannot select a different
-fallback order. Ordinary command compilation uses the non-retaining path and does not clone the
-type or copyability stores.
+The production session owns one closed semantic-evidence result. A result retained when typed-body
+checking rejects the current generation is not a partial checked program: it contains declarations,
+normalized program-wide contracts, resolved body names, scopes, and one explicit typed or rejected
+value for every body. Typed nodes, local types, and dispatch exist only in bodies carrying typed
+evidence. These facts remain editor evidence because program-wide ownership, provenance, and target
+closure did not complete. Name recovery likewise carries one resolved or rejected value per body;
+declaration recovery and completed checked results expose different capability sets. Analysis wraps
+those private alternatives in one semantic query context, so a feature cannot inspect a phase
+ordinal or select a fallback order. Ordinary command compilation uses the non-retaining path and
+does not clone the type or copyability stores.
 
 Receiver-member completion does not scan declarations or infer a type from source spelling. The
 instance-operation and interface-implementation authorities retain canonical method-name indexes. For each

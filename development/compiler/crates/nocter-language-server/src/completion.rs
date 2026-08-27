@@ -4,7 +4,7 @@ use nocter_analysis::{SemanticCompletionError, SemanticCompletionKind};
 use nocter_json::Value;
 use nocter_lsp::{
     CompletionItem, CompletionItemKind, CompletionParams, Position, Range, TextEdit,
-    completion_result,
+    completion_result, incomplete_completion_result,
 };
 use nocter_source::{CoordinateError, Utf16Position};
 
@@ -67,7 +67,11 @@ pub(crate) fn query_completion(
             .with_additional_text_edits(edits)
         })
         .collect::<Vec<_>>();
-    Ok(completion_result(&items))
+    if completions.coverage().is_complete() {
+        Ok(completion_result(&items))
+    } else {
+        Ok(incomplete_completion_result(&items))
+    }
 }
 
 const fn item_kind(kind: SemanticCompletionKind) -> CompletionItemKind {

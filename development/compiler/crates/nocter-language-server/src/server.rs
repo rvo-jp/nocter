@@ -16,6 +16,8 @@ use crate::{
 };
 
 mod issues;
+#[cfg(test)]
+mod semantic_matrix_tests;
 mod semantic_requests;
 
 use issues::InitializeFailure;

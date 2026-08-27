@@ -11,7 +11,7 @@ use crate::callable_source::project_callable_source;
 use crate::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
-use crate::semantic::SemanticAuthority;
+use crate::semantic::SemanticQueryContext;
 use crate::source_context::SourceContextError;
 
 /// One compiler-owned inlay fact before editor-coordinate projection.
@@ -140,10 +140,10 @@ impl AnalysisSnapshot {
         source: SourceId,
         requested: TextRange,
     ) -> Result<SemanticQuerySet<SemanticInlayHint>, SemanticInlayHintError> {
-        let Some(authority) = self.semantic_authority() else {
+        let Some(authority) = self.semantic_query() else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
-                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
             ));
         };
         let coverage = authority.typed_body_coverage()?;
@@ -173,7 +173,7 @@ impl AnalysisSnapshot {
 }
 
 struct InlayContext<'a> {
-    authority: SemanticAuthority<'a>,
+    authority: SemanticQueryContext<'a>,
     index: &'a SourceIndex,
     source: SourceId,
     spellings: std::sync::Arc<crate::presentation::visible_spelling::VisibleSpellings>,

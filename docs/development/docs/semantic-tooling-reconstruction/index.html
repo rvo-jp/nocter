@@ -161,7 +161,7 @@
 </code></pre><p>An internal failure cannot produce partial semantic evidence. It terminates recovery because no source-level reason can justify a missing fact.</p><p>Name analysis follows the same rule. Every body is resolved or rejected with a source-backed reason. Later session composition must retain the complete phase report even when command-line presentation selects one canonical primary diagnostic.</p><p>Set-valued queries additionally publish coverage:</p><pre><code class="language-text">Coverage
 |-- Complete
 |-- Partial(rejected semantic domains)
-`-- Unavailable(no semantic authority)
+`-- Unavailable(no semantic evidence)
 </code></pre><p>References, workspace symbols, and other set queries cannot represent a partial set as a complete ordinary result. Mutation queries such as rename require complete coverage by type.</p><h2 id="responsibility-boundaries">Responsibility Boundaries</h2><ul><li>Checking owns the reason why one semantic fact was accepted or rejected.</li><li>Session composes complete phase reports. It does not discard a later analysis diagnostic merely
   because an earlier production error remains the command's canonical failure.</li><li><code>SourceIndex</code> remains only a bidirectional source-coordinate and semantic-identity projection. It
   does not acquire phase flags, recovery policy, or feature behavior.</li><li>Analysis owns the only join between source occurrences and semantic evidence.</li><li>Editor features consume typed query results. They cannot inspect checking recovery or join raw

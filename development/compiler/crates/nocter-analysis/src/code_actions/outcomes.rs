@@ -60,8 +60,8 @@ pub(super) fn callable_contract_action(
     diagnostic_range: TextRange,
 ) -> Result<Option<SemanticCodeAction>, OutcomeActionError> {
     let Some(recovery) = snapshot
-        .semantic_authority()
-        .and_then(|authority| authority.body_analysis())
+        .semantic_query()
+        .and_then(|query| query.body_recovery())
     else {
         return Ok(None);
     };

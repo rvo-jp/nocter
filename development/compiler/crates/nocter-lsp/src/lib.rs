@@ -26,7 +26,10 @@ mod uri;
 mod watcher;
 
 pub use code_actions::{CodeAction, CodeActionParams, code_actions_result};
-pub use completion::{CompletionItem, CompletionItemKind, CompletionParams, completion_result};
+pub use completion::{
+    CompletionItem, CompletionItemKind, CompletionParams, completion_result,
+    incomplete_completion_result,
+};
 pub use coordinates::{Position, Range, TextDocumentPositionParams};
 pub use hover::{HoverParams, hover_result};
 pub use initialize::{InitializeParams, WorkspaceFolder, initialize_result};

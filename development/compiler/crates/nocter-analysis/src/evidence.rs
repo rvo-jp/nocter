@@ -1,10 +1,11 @@
+use std::collections::BTreeSet;
 use std::fmt;
 
-use nocter_checking::{CaptureMode, LocalBindingKind};
+use nocter_checking::{CaptureMode, LocalBindingKind, NameTarget};
 use nocter_model::{BodyId, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, TypeId};
-use nocter_source_index::SourceIndex;
+use nocter_source_index::{SemanticEntity, SourceIndex};
 
-use crate::semantic::SemanticAuthority;
+use super::{SemanticEvidence, SemanticQueryContext};
 
 /// The completeness of one protocol-independent semantic set query.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17,7 +18,7 @@ pub enum SemanticCoverage {
 /// The reason no semantic domain can answer one set query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SemanticSetUnavailability {
-    NoSemanticAuthority,
+    NoSemanticEvidence,
 }
 
 impl SemanticCoverage {
@@ -91,7 +92,17 @@ impl<'a, T> IntoIterator for &'a SemanticQuerySet<T> {
     }
 }
 
+impl<T> IntoIterator for SemanticQuerySet<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.into_vec().into_iter()
+    }
+}
+
 /// The typed-body capability available to protocol-independent semantic queries.
+#[derive(Debug)]
 pub(crate) enum TypedBodyEvidence<'a> {
     Available(&'a nocter_checking::CheckedBody),
     Unavailable(TypedBodyUnavailability),
@@ -137,18 +148,69 @@ impl LocalBindingFact {
 
 /// Proof that every source-semantic occurrence required by a mutation is available.
 #[derive(Clone, Copy)]
-pub(crate) struct CompleteSemanticAuthority<'a> {
+pub(crate) struct CompleteSemanticQuery<'a> {
     checked: &'a nocter_checking::CheckedProgram,
     source_index: &'a SourceIndex,
 }
 
-impl<'a> CompleteSemanticAuthority<'a> {
+impl<'a> CompleteSemanticQuery<'a> {
     pub(crate) const fn checked(self) -> &'a nocter_checking::CheckedProgram {
         self.checked
     }
 
     pub(crate) const fn source_index(self) -> &'a SourceIndex {
         self.source_index
+    }
+
+    pub(crate) fn checked_operation(
+        self,
+        body: BodyId,
+        node: BodyNodeId,
+    ) -> Result<&'a nocter_checking::CheckedOperation, EvidenceIntegrityError> {
+        if self
+            .checked
+            .graph()
+            .declarations()
+            .bodies()
+            .get(body)
+            .is_none()
+        {
+            return Err(EvidenceIntegrityError::MissingBodyDomain(body));
+        }
+        let checked_body = self
+            .checked
+            .bodies()
+            .get(body)
+            .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
+        checked_body
+            .nodes()
+            .get(node)
+            .map(nocter_checking::CheckedNode::operation)
+            .ok_or(EvidenceIntegrityError::MissingBodyNode { body, node })
+    }
+
+    pub(crate) fn rename_family(self, selected: SemanticEntity) -> BTreeSet<SemanticEntity> {
+        let mut entities = BTreeSet::from([selected]);
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (body_id, body) in self.checked.bodies().iter() {
+                for (capture_id, capture) in body.captures().iter() {
+                    let capture_entity = SemanticEntity::Capture(body_id, capture_id);
+                    let source_entity = match capture.declaration().source() {
+                        NameTarget::Parameter(parameter) => SemanticEntity::Parameter(parameter),
+                        NameTarget::Local(local) => SemanticEntity::LocalBinding(body_id, local),
+                        NameTarget::Capture(capture) => SemanticEntity::Capture(body_id, capture),
+                        NameTarget::Exported(_) => continue,
+                    };
+                    if entities.contains(&capture_entity) || entities.contains(&source_entity) {
+                        changed |= entities.insert(capture_entity);
+                        changed |= entities.insert(source_entity);
+                    }
+                }
+            }
+        }
+        entities
     }
 }
 
@@ -203,17 +265,19 @@ impl fmt::Display for EvidenceIntegrityError {
 
 impl std::error::Error for EvidenceIntegrityError {}
 
-impl<'a> SemanticAuthority<'a> {
-    pub(crate) const fn complete(self) -> Option<CompleteSemanticAuthority<'a>> {
-        match self {
-            Self::Checked {
+impl<'a> SemanticQueryContext<'a> {
+    pub(crate) const fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
+        match self.evidence {
+            SemanticEvidence::Checked {
                 checked,
                 source_index,
-            } => Some(CompleteSemanticAuthority {
+            } => Some(CompleteSemanticQuery {
                 checked,
                 source_index,
             }),
-            Self::Bodies(_) | Self::Names(_) | Self::Declarations(_) => None,
+            SemanticEvidence::Bodies(_)
+            | SemanticEvidence::Names(_)
+            | SemanticEvidence::Declarations(_) => None,
         }
     }
 
@@ -228,13 +292,13 @@ impl<'a> SemanticAuthority<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        match self {
-            Self::Checked { checked, .. } => checked
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked
                 .bodies()
                 .get(body)
                 .map(TypedBodyEvidence::Available)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body)),
-            Self::Bodies(analysis) => match analysis
+            SemanticEvidence::Bodies(analysis) => match analysis
                 .body_evidence(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
             {
@@ -245,7 +309,7 @@ impl<'a> SemanticAuthority<'a> {
                     TypedBodyUnavailability::BodyRejected,
                 )),
             },
-            Self::Names(analysis) => match analysis
+            SemanticEvidence::Names(analysis) => match analysis
                 .body_names()
                 .evidence(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
@@ -257,7 +321,7 @@ impl<'a> SemanticAuthority<'a> {
                     TypedBodyEvidence::Unavailable(TypedBodyUnavailability::NamesRejected),
                 ),
             },
-            Self::Declarations(_) => Ok(TypedBodyEvidence::Unavailable(
+            SemanticEvidence::Declarations(_) => Ok(TypedBodyEvidence::Unavailable(
                 TypedBodyUnavailability::TypingNotReached,
             )),
         }
@@ -348,8 +412,8 @@ impl<'a> SemanticAuthority<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        let names = match self {
-            Self::Checked { checked, .. } => {
+        let names = match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => {
                 let checked_body = checked
                     .bodies()
                     .get(body)
@@ -360,7 +424,7 @@ impl<'a> SemanticAuthority<'a> {
                     .map(SemanticFact::Available)
                     .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
             }
-            Self::Bodies(analysis) => {
+            SemanticEvidence::Bodies(analysis) => {
                 let names = analysis
                     .body_names()
                     .get(body)
@@ -371,11 +435,11 @@ impl<'a> SemanticAuthority<'a> {
                     .map(SemanticFact::Available)
                     .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
             }
-            Self::Names(analysis) => analysis
+            SemanticEvidence::Names(analysis) => analysis
                 .body_names()
                 .evidence(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?,
-            Self::Declarations(_) => {
+            SemanticEvidence::Declarations(_) => {
                 return Ok(SemanticFact::Unavailable(
                     ScopeUnavailability::NameResolutionNotReached,
                 ));

@@ -37,12 +37,12 @@ impl AnalysisSnapshot {
             return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
         };
         let Some(index) = self
-            .semantic_authority()
+            .semantic_query()
             .map(|authority| authority.source_index())
         else {
             return SemanticQuerySet::new(
                 Box::new([]),
-                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
             );
         };
         let bindings = index.bindings_for(selection.entity());
@@ -76,12 +76,12 @@ impl AnalysisSnapshot {
             return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
         };
         let Some(index) = self
-            .semantic_authority()
+            .semantic_query()
             .map(|authority| authority.source_index())
         else {
             return SemanticQuerySet::new(
                 Box::new([]),
-                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
             );
         };
         let bindings = index.bindings_for(selection.entity());
@@ -122,10 +122,10 @@ impl AnalysisSnapshot {
                 authority_coverage(self),
             ));
         };
-        let Some(authority) = self.semantic_authority() else {
+        let Some(authority) = self.semantic_query() else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
-                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
             ));
         };
         let coverage = authority.typed_body_coverage()?;
@@ -146,10 +146,10 @@ impl AnalysisSnapshot {
 }
 
 fn authority_coverage(snapshot: &AnalysisSnapshot) -> SemanticCoverage {
-    if snapshot.semantic_authority().is_some() {
+    if snapshot.semantic_query().is_some() {
         SemanticCoverage::Complete
     } else {
-        SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority)
+        SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence)
     }
 }
 

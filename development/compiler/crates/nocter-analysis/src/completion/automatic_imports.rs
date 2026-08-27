@@ -10,11 +10,12 @@ use nocter_syntax::{CommentKind, NodeKind, SyntaxElement, SyntaxTree};
 
 use super::{Candidate, SemanticCompletion, SemanticCompletionEdit, exported_candidate};
 use crate::AnalysisSnapshot;
-use crate::semantic::SemanticAuthority;
+use crate::semantic::SemanticQueryContext;
 
 /// Inconsistency while deriving an importable name and its source edit.
 #[derive(Debug)]
 pub enum AutomaticImportError {
+    Presentation(crate::presentation::PresentationError),
     UnknownSource(SourceId),
     SyntaxUnavailable(SourceId),
     UnknownModule(ModuleId),
@@ -26,6 +27,7 @@ pub enum AutomaticImportError {
 impl fmt::Display for AutomaticImportError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Presentation(error) => error.fmt(formatter),
             Self::UnknownSource(source) => {
                 write!(formatter, "automatic-import source {source:?} is absent")
             }
@@ -54,11 +56,29 @@ impl fmt::Display for AutomaticImportError {
     }
 }
 
-impl std::error::Error for AutomaticImportError {}
+impl std::error::Error for AutomaticImportError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Presentation(error) => Some(error),
+            Self::UnknownSource(_)
+            | Self::SyntaxUnavailable(_)
+            | Self::UnknownModule(_)
+            | Self::UnknownPackage(_)
+            | Self::UnknownSymbol(_)
+            | Self::SemanticModuleUnavailable(_) => None,
+        }
+    }
+}
+
+impl From<crate::presentation::PresentationError> for AutomaticImportError {
+    fn from(error: crate::presentation::PresentationError) -> Self {
+        Self::Presentation(error)
+    }
+}
 
 pub(super) fn completions(
     snapshot: &AnalysisSnapshot,
-    program: SemanticAuthority<'_>,
+    program: SemanticQueryContext<'_>,
     source: SourceId,
     module: ModuleId,
     visible: &BTreeMap<Symbol, Candidate>,
@@ -131,7 +151,7 @@ pub(super) fn completions(
                     SemanticCompletion::new(
                         label,
                         candidate.kind,
-                        program.completion_detail(candidate.entity, &spellings),
+                        program.completion_detail(candidate.entity, &spellings)?,
                     )
                     .with_entity(candidate.entity)
                     .with_additional_edit(insertion.edit(&import))

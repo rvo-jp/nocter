@@ -7,7 +7,7 @@ use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
 use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::{AnalysisState, CurrentAnalysis, CurrentSemanticAuthority};
+use crate::{AnalysisState, CurrentAnalysis, CurrentSemanticEvidence};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum SpellingContext {
@@ -27,14 +27,15 @@ impl AnalysisQuerySession {
     pub(super) fn for_state(state: &AnalysisState) -> Self {
         let interruption_count = match state {
             AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::Semantic(semantic),
+                semantic_evidence: CurrentSemanticEvidence::Analysis(semantic),
                 ..
             }) => semantic
                 .bodies()
                 .map_or(0, |recovery| recovery.interruptions().count()),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),
+                semantic_evidence:
+                    CurrentSemanticEvidence::Unavailable | CurrentSemanticEvidence::Target(_),
                 ..
             }) => 0,
         };

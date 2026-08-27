@@ -1682,7 +1682,9 @@ mod tests {
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
         let empty = request_completion(&mut server, &uri, 3, 0, 24);
-        assert!(empty.response().unwrap().contains("\"result\":[]"));
+        let response = empty.response().unwrap();
+        assert!(response.contains("\"isIncomplete\":true"), "{response}");
+        assert!(response.contains("\"items\":[]"), "{response}");
         assert!(empty.issue().is_none(), "{:?}", empty.issue());
     }
 

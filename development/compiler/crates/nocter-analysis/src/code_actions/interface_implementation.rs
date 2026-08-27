@@ -165,8 +165,8 @@ fn insertion_context<'snapshot>(
     missing: &MissingInterfaceImplementationMethods,
 ) -> Result<Option<InsertionContext<'snapshot>>, InterfaceImplementationActionError> {
     let recovery = snapshot
-        .semantic_authority()
-        .and_then(|authority| authority.declaration_analysis())
+        .semantic_query()
+        .and_then(|query| query.declaration_recovery())
         .ok_or(InterfaceImplementationActionError::MissingRecovery)?;
     let graph = recovery.graph();
     let interface_implementation = graph

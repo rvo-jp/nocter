@@ -20,7 +20,6 @@ mod callable_source;
 mod code_actions;
 mod completion;
 mod documents;
-mod evidence;
 mod highlights;
 mod inlay_hints;
 mod navigation;
@@ -52,6 +51,7 @@ pub use inlay_hints::{SemanticInlayHint, SemanticInlayHintError, SemanticInlayHi
 pub use navigation::SemanticLocation;
 pub use presentation::{PresentationError, SemanticPresentation};
 pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
+pub(crate) use semantic::evidence;
 pub use semantic::{SemanticQueryError, SemanticSelection, SemanticSubject};
 pub use signature::{SemanticParameterLabel, SemanticSignatureError, SemanticSignatureHelp};
 pub use source_context::SourceContextError;
@@ -92,7 +92,7 @@ enum AnalysisState {
 struct CurrentAnalysis {
     unit: Box<DiscoveredUnit>,
     failure: Option<CurrentAnalysisFailure>,
-    authority: CurrentSemanticAuthority,
+    semantic_evidence: CurrentSemanticEvidence,
 }
 
 #[derive(Debug)]
@@ -102,9 +102,9 @@ enum CurrentAnalysisFailure {
 }
 
 #[derive(Debug)]
-enum CurrentSemanticAuthority {
-    None,
-    Semantic(Box<SemanticAnalysis>),
+enum CurrentSemanticEvidence {
+    Unavailable,
+    Analysis(Box<SemanticAnalysis>),
     Target(Box<CompiledTarget>),
 }
 
@@ -117,8 +117,8 @@ impl CurrentAnalysis {
         Self {
             unit: Box::new(unit),
             failure: Some(CurrentAnalysisFailure::Syntax(failure)),
-            authority: semantic.map_or(CurrentSemanticAuthority::None, |semantic| {
-                CurrentSemanticAuthority::Semantic(Box::new(semantic))
+            semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
+                CurrentSemanticEvidence::Analysis(Box::new(semantic))
             }),
         }
     }
@@ -131,8 +131,8 @@ impl CurrentAnalysis {
         Self {
             unit: Box::new(unit),
             failure: Some(CurrentAnalysisFailure::Compilation(error)),
-            authority: semantic.map_or(CurrentSemanticAuthority::None, |semantic| {
-                CurrentSemanticAuthority::Semantic(Box::new(semantic))
+            semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
+                CurrentSemanticEvidence::Analysis(Box::new(semantic))
             }),
         }
     }
@@ -141,7 +141,7 @@ impl CurrentAnalysis {
         Self {
             unit: Box::new(unit),
             failure: None,
-            authority: CurrentSemanticAuthority::Target(Box::new(target)),
+            semantic_evidence: CurrentSemanticEvidence::Target(Box::new(target)),
         }
     }
 }
@@ -260,8 +260,8 @@ impl AnalysisSnapshot {
     /// target availability.
     #[must_use]
     pub fn has_checked_semantics(&self) -> bool {
-        self.semantic_authority()
-            .and_then(crate::semantic::SemanticAuthority::complete)
+        self.semantic_query()
+            .and_then(crate::semantic::SemanticQueryContext::complete)
             .is_some()
     }
 
@@ -304,12 +304,13 @@ impl AnalysisSnapshot {
     pub(crate) fn retained_semantic(&self) -> Option<&SemanticAnalysis> {
         match &self.state {
             AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::Semantic(semantic),
+                semantic_evidence: CurrentSemanticEvidence::Analysis(semantic),
                 ..
             }) => Some(semantic),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::Current(CurrentAnalysis {
-                authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),
+                semantic_evidence:
+                    CurrentSemanticEvidence::Unavailable | CurrentSemanticEvidence::Target(_),
                 ..
             }) => None,
         }

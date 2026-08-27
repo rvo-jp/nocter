@@ -5,17 +5,37 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::CompilationTarget;
-use nocter_model::PackageIdentity;
+use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
 
 use crate::{
-    AnalysisSnapshot, AnalysisStatus, GenerationId, SemanticCoverage, TypedBodyUnavailability,
+    AnalysisSnapshot, AnalysisStatus, EvidenceIntegrityError, GenerationId, SemanticCoverage,
+    TypedBodyUnavailability,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {
+    let tree = TempTree::new();
+    let (_, snapshot) =
+        bundled_snapshot(&tree, "func subject(): i32 { 1 }\n", GenerationId::new(56));
+    let query = snapshot.semantic_query().expect("semantic query");
+    let domain_len = query.graph().declarations().bodies().iter().count();
+    let mut identities = ArenaBuilder::<BodyId, ()>::new();
+    let mut missing = None;
+    for _ in 0..=domain_len {
+        missing = Some(identities.insert(()));
+    }
+    let missing = missing.unwrap();
+
+    assert_eq!(
+        query.typed_body_evidence(missing).unwrap_err(),
+        EvidenceIntegrityError::MissingBodyDomain(missing)
+    );
+}
 
 #[test]
 fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
@@ -181,8 +201,8 @@ fn repeated_checked_member_queries_are_semantically_identical() {
         .unwrap();
     let offset = ByteOffset::new(u32::try_from(source_text.find("len").unwrap()).unwrap());
     let accepted_type_count = snapshot
-        .semantic_authority()
-        .and_then(crate::semantic::SemanticAuthority::complete)
+        .semantic_query()
+        .and_then(crate::semantic::SemanticQueryContext::complete)
         .expect("checked authority")
         .checked()
         .types()
@@ -192,11 +212,12 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     let second = snapshot.semantic_completions(source.id(), offset).unwrap();
 
     assert_eq!(first, second);
+    assert_eq!(first.coverage(), &SemanticCoverage::Complete);
     assert!(first.iter().any(|completion| completion.label() == "len"));
     assert_eq!(
         snapshot
-            .semantic_authority()
-            .and_then(crate::semantic::SemanticAuthority::complete)
+            .semantic_query()
+            .and_then(crate::semantic::SemanticQueryContext::complete)
             .expect("checked authority")
             .checked()
             .types()
@@ -217,8 +238,8 @@ fn repeated_recovery_member_queries_are_semantically_identical() {
     let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(52));
     assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
     let recovery = snapshot
-        .semantic_authority()
-        .and_then(|authority| authority.body_analysis())
+        .semantic_query()
+        .and_then(|query| query.body_recovery())
         .expect("typed body recovery");
     assert!(matches!(
         recovery
@@ -238,6 +259,7 @@ fn repeated_recovery_member_queries_are_semantically_identical() {
     let second = snapshot.semantic_completions(source.id(), offset).unwrap();
 
     assert_eq!(first, second);
+    assert!(matches!(first.coverage(), SemanticCoverage::Partial(_)));
 }
 
 #[test]
@@ -339,8 +361,8 @@ fn declaration_failure_retains_the_diagnostics_of_rejected_body_evidence() {
         .collect::<Vec<_>>();
     assert_eq!(codes, ["E0208", "E0392"]);
     let recovery = snapshot
-        .semantic_authority()
-        .and_then(|authority| authority.body_analysis())
+        .semantic_query()
+        .and_then(|query| query.body_recovery())
         .expect("body evidence beneath declaration rejection");
     assert_eq!(recovery.rejection_diagnostics().count(), 1);
     assert!(

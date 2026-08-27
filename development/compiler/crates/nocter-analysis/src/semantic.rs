@@ -11,6 +11,9 @@ use crate::presentation::{
 use crate::source_context::SourceContextError;
 use crate::source_selection::select_source_binding;
 
+#[path = "evidence.rs"]
+pub(crate) mod evidence;
+
 /// One exact interactive source occurrence selected independently of presentation or protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SemanticSelection {
@@ -81,7 +84,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Option<SemanticSelection> {
-        semantic_selection_from(self.semantic_authority()?.source_index(), source, offset)
+        semantic_selection_from(self.semantic_query()?.source_index(), source, offset)
     }
 
     /// Resolves one exact source position through the deepest current semantic authority.
@@ -101,7 +104,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSubject>, SemanticQueryError> {
-        let Some(authority) = self.semantic_authority() else {
+        let Some(authority) = self.semantic_query() else {
             return Ok(None);
         };
         let index = authority.source_index();
@@ -125,39 +128,48 @@ impl AnalysisSnapshot {
         }))
     }
 
-    pub(crate) fn semantic_authority(&self) -> Option<SemanticAuthority<'_>> {
+    pub(crate) fn semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
         if let crate::AnalysisState::Current(crate::CurrentAnalysis {
-            authority: crate::CurrentSemanticAuthority::Target(target),
+            semantic_evidence: crate::CurrentSemanticEvidence::Target(target),
             ..
         }) = &self.state
         {
-            return Some(SemanticAuthority::Checked {
-                checked: target.program().checked(),
-                source_index: target.source_index(),
+            return Some(SemanticQueryContext {
+                evidence: SemanticEvidence::Checked {
+                    checked: target.program().checked(),
+                    source_index: target.source_index(),
+                },
             });
         }
         match self.retained_semantic()? {
-            nocter_session::SemanticAnalysis::Checked(checked) => {
-                Some(SemanticAuthority::Checked {
+            nocter_session::SemanticAnalysis::Checked(checked) => Some(SemanticQueryContext {
+                evidence: SemanticEvidence::Checked {
                     checked: checked.program(),
                     source_index: checked.source_index(),
-                })
-            }
-            nocter_session::SemanticAnalysis::Bodies(analysis) => {
-                Some(SemanticAuthority::Bodies(analysis))
-            }
-            nocter_session::SemanticAnalysis::Names(analysis) => {
-                Some(SemanticAuthority::Names(analysis))
-            }
+                },
+            }),
+            nocter_session::SemanticAnalysis::Bodies(analysis) => Some(SemanticQueryContext {
+                evidence: SemanticEvidence::Bodies(analysis),
+            }),
+            nocter_session::SemanticAnalysis::Names(analysis) => Some(SemanticQueryContext {
+                evidence: SemanticEvidence::Names(analysis),
+            }),
             nocter_session::SemanticAnalysis::Declarations(analysis) => {
-                Some(SemanticAuthority::Declarations(analysis))
+                Some(SemanticQueryContext {
+                    evidence: SemanticEvidence::Declarations(analysis),
+                })
             }
         }
     }
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum SemanticAuthority<'a> {
+pub(crate) struct SemanticQueryContext<'a> {
+    evidence: SemanticEvidence<'a>,
+}
+
+#[derive(Clone, Copy)]
+enum SemanticEvidence<'a> {
     Checked {
         checked: &'a nocter_checking::CheckedProgram,
         source_index: &'a nocter_source_index::SourceIndex,
@@ -167,56 +179,60 @@ pub(crate) enum SemanticAuthority<'a> {
     Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
 }
 
-impl<'a> SemanticAuthority<'a> {
+impl<'a> SemanticQueryContext<'a> {
     pub(crate) fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
-        match self {
-            Self::Checked { checked, .. } => checked.source_ownership(),
-            Self::Bodies(analysis) => analysis.prepared().source_ownership(),
-            Self::Names(recovery) => recovery.source_ownership(),
-            Self::Declarations(recovery) => recovery.source_ownership(),
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked.source_ownership(),
+            SemanticEvidence::Bodies(analysis) => analysis.prepared().source_ownership(),
+            SemanticEvidence::Names(recovery) => recovery.source_ownership(),
+            SemanticEvidence::Declarations(recovery) => recovery.source_ownership(),
         }
     }
 
     pub(crate) fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
-        match self {
-            Self::Checked { source_index, .. } => source_index,
-            Self::Bodies(analysis) => analysis.source_index(),
-            Self::Names(recovery) => recovery.source_index(),
-            Self::Declarations(recovery) => recovery.source_index(),
+        match self.evidence {
+            SemanticEvidence::Checked { source_index, .. } => source_index,
+            SemanticEvidence::Bodies(analysis) => analysis.source_index(),
+            SemanticEvidence::Names(recovery) => recovery.source_index(),
+            SemanticEvidence::Declarations(recovery) => recovery.source_index(),
         }
     }
 
     pub(crate) fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
-        match self {
-            Self::Checked { checked, .. } => checked.graph(),
-            Self::Bodies(analysis) => analysis.prepared().graph(),
-            Self::Names(recovery) => recovery.graph(),
-            Self::Declarations(recovery) => recovery.graph(),
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked.graph(),
+            SemanticEvidence::Bodies(analysis) => analysis.prepared().graph(),
+            SemanticEvidence::Names(recovery) => recovery.graph(),
+            SemanticEvidence::Declarations(recovery) => recovery.graph(),
         }
     }
 
     pub(crate) fn types(&self) -> &'a nocter_model::TypeStore {
-        match self {
-            Self::Checked { checked, .. } => checked.types(),
-            Self::Bodies(analysis) => analysis.prepared().types(),
-            Self::Names(recovery) => recovery.types(),
-            Self::Declarations(recovery) => recovery.types(),
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked.types(),
+            SemanticEvidence::Bodies(analysis) => analysis.prepared().types(),
+            SemanticEvidence::Names(recovery) => recovery.types(),
+            SemanticEvidence::Declarations(recovery) => recovery.types(),
         }
     }
 
-    pub(crate) const fn body_analysis(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
-        match self {
-            Self::Bodies(analysis) => Some(analysis),
-            Self::Checked { .. } | Self::Names(_) | Self::Declarations(_) => None,
+    pub(crate) const fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
+        match self.evidence {
+            SemanticEvidence::Bodies(analysis) => Some(analysis),
+            SemanticEvidence::Checked { .. }
+            | SemanticEvidence::Names(_)
+            | SemanticEvidence::Declarations(_) => None,
         }
     }
 
-    pub(crate) const fn declaration_analysis(
+    pub(crate) const fn declaration_recovery(
         &self,
     ) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
-        match self {
-            Self::Declarations(analysis) => Some(analysis),
-            Self::Checked { .. } | Self::Bodies(_) | Self::Names(_) => None,
+        match self.evidence {
+            SemanticEvidence::Declarations(analysis) => Some(analysis),
+            SemanticEvidence::Checked { .. }
+            | SemanticEvidence::Bodies(_)
+            | SemanticEvidence::Names(_) => None,
         }
     }
 
@@ -224,16 +240,22 @@ impl<'a> SemanticAuthority<'a> {
         &self,
         entity: SemanticEntity,
         spellings: &crate::presentation::visible_spelling::VisibleSpellings,
-    ) -> Option<Box<str>> {
-        match self {
-            Self::Checked { checked, .. } => {
-                crate::presentation::presentation(checked, entity, spellings)
+    ) -> Result<Option<Box<str>>, PresentationError> {
+        let presentation = match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => Ok(crate::presentation::presentation(
+                checked, entity, spellings,
+            )),
+            SemanticEvidence::Bodies(analysis) => {
+                body_recovery_presentation(analysis, entity, spellings)
             }
-            Self::Bodies(analysis) => body_recovery_presentation(analysis, entity, spellings),
-            Self::Names(analysis) => name_recovery_presentation(analysis, entity, spellings),
-            Self::Declarations(analysis) => declaration_presentation(analysis, entity, spellings),
-        }
-        .map(|presentation| Box::<str>::from(presentation.code()))
+            SemanticEvidence::Names(analysis) => {
+                Ok(name_recovery_presentation(analysis, entity, spellings))
+            }
+            SemanticEvidence::Declarations(analysis) => {
+                Ok(declaration_presentation(analysis, entity, spellings))
+            }
+        }?;
+        Ok(presentation.map(|presentation| Box::<str>::from(presentation.code())))
     }
 
     fn presentation(
@@ -242,13 +264,17 @@ impl<'a> SemanticAuthority<'a> {
         spellings: &crate::presentation::visible_spelling::VisibleSpellings,
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, PresentationError> {
-        match self {
-            Self::Checked { checked, .. } => {
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => {
                 hover_presentation(checked, entity, spellings, source).map(Some)
             }
-            Self::Bodies(analysis) => Ok(body_recovery_presentation(analysis, entity, spellings)),
-            Self::Names(recovery) => Ok(name_recovery_presentation(recovery, entity, spellings)),
-            Self::Declarations(recovery) => {
+            SemanticEvidence::Bodies(analysis) => {
+                body_recovery_presentation(analysis, entity, spellings)
+            }
+            SemanticEvidence::Names(recovery) => {
+                Ok(name_recovery_presentation(recovery, entity, spellings))
+            }
+            SemanticEvidence::Declarations(recovery) => {
                 Ok(declaration_presentation(recovery, entity, spellings))
             }
         }

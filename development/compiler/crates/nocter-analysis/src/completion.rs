@@ -12,10 +12,12 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
-use crate::evidence::EvidenceIntegrityError;
+use crate::evidence::{
+    EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
+};
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
-use crate::semantic::SemanticAuthority;
+use crate::semantic::SemanticQueryContext;
 use crate::source_context::SourceContextError;
 use crate::source_selection::{select_source_binding, select_source_candidates};
 
@@ -151,6 +153,7 @@ pub enum SemanticCompletionKind {
 pub enum SemanticCompletionError {
     SourceContext(SourceContextError),
     Evidence(EvidenceIntegrityError),
+    Presentation(crate::presentation::PresentationError),
     Member(MemberCompletionError),
     Construction(ConstructionCompletionError),
     StructuralField(StructuralFieldCompletionError),
@@ -164,6 +167,7 @@ impl fmt::Display for SemanticCompletionError {
         match self {
             Self::SourceContext(error) => error.fmt(formatter),
             Self::Evidence(error) => error.fmt(formatter),
+            Self::Presentation(error) => error.fmt(formatter),
             Self::Member(error) => error.fmt(formatter),
             Self::Construction(error) => error.fmt(formatter),
             Self::StructuralField(error) => error.fmt(formatter),
@@ -179,6 +183,7 @@ impl std::error::Error for SemanticCompletionError {
         match self {
             Self::SourceContext(error) => Some(error),
             Self::Evidence(error) => Some(error),
+            Self::Presentation(error) => Some(error),
             Self::Member(error) => Some(error),
             Self::Construction(error) => Some(error),
             Self::StructuralField(error) => Some(error),
@@ -198,6 +203,12 @@ impl From<SourceContextError> for SemanticCompletionError {
 impl From<EvidenceIntegrityError> for SemanticCompletionError {
     fn from(error: EvidenceIntegrityError) -> Self {
         Self::Evidence(error)
+    }
+}
+
+impl From<crate::presentation::PresentationError> for SemanticCompletionError {
+    fn from(error: crate::presentation::PresentationError) -> Self {
+        Self::Presentation(error)
     }
 }
 
@@ -258,11 +269,15 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Result<Box<[SemanticCompletion]>, SemanticCompletionError> {
+    ) -> Result<SemanticQuerySet<SemanticCompletion>, SemanticCompletionError> {
         let keyword_completions = keywords::completions(self, source, offset);
-        let Some(program) = self.semantic_authority() else {
-            return Ok(keyword_completions);
+        let Some(program) = self.semantic_query() else {
+            return Ok(SemanticQuerySet::new(
+                keyword_completions,
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
+            ));
         };
+        let coverage = program.typed_body_coverage()?;
         let index = program.source_index();
         let module = program.source_ownership().module_for_source(source)?;
         let spellings = self
@@ -273,7 +288,7 @@ impl AnalysisSnapshot {
             if let Some(completions) =
                 associated_types::checked_completions(checked, source, offset, &spellings)?
             {
-                return Ok(completions);
+                return Ok(SemanticQuerySet::new(completions, coverage));
             }
             if let Some(completions) = enum_patterns::checked_completions(
                 checked,
@@ -283,9 +298,10 @@ impl AnalysisSnapshot {
                 offset,
                 &spellings,
             )? {
-                return Ok(completions);
+                return Ok(SemanticQuerySet::new(completions, coverage));
             }
             if let Some(completions) = structural_fields::checked_completions(
+                complete,
                 checked,
                 index,
                 self.syntax_trees(),
@@ -293,14 +309,15 @@ impl AnalysisSnapshot {
                 offset,
                 &spellings,
             )? {
-                return Ok(completions);
+                return Ok(SemanticQuerySet::new(completions, coverage));
             }
             if let Some(completions) =
                 construction::checked_completions(checked, index, source, offset, &spellings)?
             {
-                return Ok(completions);
+                return Ok(SemanticQuerySet::new(completions, coverage));
             }
             if let Some(completions) = checked_member_completions(
+                complete,
                 checked,
                 &self.queries.checked_members,
                 index,
@@ -308,13 +325,13 @@ impl AnalysisSnapshot {
                 offset,
                 &spellings,
             )? {
-                return Ok(completions);
+                return Ok(SemanticQuerySet::new(completions, coverage));
             }
         }
         if let Some(completions) =
             interrupted_completions(program, &self.queries, source, offset, &spellings)?
         {
-            return Ok(completions);
+            return Ok(SemanticQuerySet::new(completions, coverage));
         }
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
@@ -323,34 +340,37 @@ impl AnalysisSnapshot {
         }
         let automatic_imports =
             automatic_imports::completions(self, program, source, module, &candidates)?;
-        let mut completions = candidates
-            .into_iter()
-            .filter_map(|(name, candidate)| {
-                let label = program.graph().symbols().spelling(name)?;
-                Some(
-                    SemanticCompletion::new(
-                        label,
-                        candidate.kind,
-                        program.completion_detail(candidate.entity, &spellings),
-                    )
-                    .with_entity(candidate.entity),
+        let mut completions = Vec::new();
+        for (name, candidate) in candidates {
+            let Some(label) = program.graph().symbols().spelling(name) else {
+                continue;
+            };
+            completions.push(
+                SemanticCompletion::new(
+                    label,
+                    candidate.kind,
+                    program.completion_detail(candidate.entity, &spellings)?,
                 )
-            })
-            .collect::<Vec<_>>();
+                .with_entity(candidate.entity),
+            );
+        }
         completions.extend(automatic_imports);
         completions.extend(keyword_completions);
-        Ok(completions.into_boxed_slice())
+        Ok(SemanticQuerySet::new(
+            completions.into_boxed_slice(),
+            coverage,
+        ))
     }
 }
 
 fn interrupted_completions(
-    authority: SemanticAuthority<'_>,
+    authority: SemanticQueryContext<'_>,
     queries: &crate::query_session::AnalysisQuerySession,
     source: SourceId,
     offset: ByteOffset,
     spellings: &VisibleSpellings,
 ) -> Result<Option<Box<[SemanticCompletion]>>, SemanticCompletionError> {
-    let Some(recovery) = authority.body_analysis() else {
+    let Some(recovery) = authority.body_recovery() else {
         return Ok(None);
     };
     let Some((interruption_index, interruption)) =
@@ -445,6 +465,7 @@ fn interrupted_completions(
 }
 
 fn checked_member_completions(
+    query: crate::evidence::CompleteSemanticQuery<'_>,
     program: &CheckedProgram,
     session: &nocter_checking::MemberCompletionQuerySession,
     index: &SourceIndex,
@@ -462,22 +483,24 @@ fn checked_member_completions(
     let Some(member_range) = member_range else {
         return Ok(None);
     };
-    let receiver_selection =
-        select_source_candidates(index.bindings_in(source).filter_map(|binding| {
-            let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
-                return None;
-            };
-            let range = binding.origin().span().range();
-            if !range.contains_cursor(offset) || !range.contains_range(member_range) {
-                return None;
-            }
-            let node = program.bodies().get(body_id)?.nodes().get(node_id)?;
-            let CheckedOperation::Call(call) = node.operation() else {
-                return None;
-            };
-            Some((*binding, (body_id, call.receiver()?)))
-        }))
-        .unique();
+    let mut receiver_candidates = Vec::new();
+    for binding in index.bindings_in(source) {
+        let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
+            continue;
+        };
+        let range = binding.origin().span().range();
+        if !range.contains_cursor(offset) || !range.contains_range(member_range) {
+            continue;
+        }
+        let CheckedOperation::Call(call) = query.checked_operation(body_id, node_id)? else {
+            continue;
+        };
+        let Some(receiver) = call.receiver() else {
+            continue;
+        };
+        receiver_candidates.push((*binding, (body_id, receiver)));
+    }
+    let receiver_selection = select_source_candidates(receiver_candidates.into_iter()).unique();
     let Some((body_id, receiver)) = receiver_selection else {
         return Ok(None);
     };
@@ -566,7 +589,7 @@ fn add_module_candidates(
 }
 
 fn add_scope_candidates(
-    program: SemanticAuthority<'_>,
+    program: SemanticQueryContext<'_>,
     index: &SourceIndex,
     source: SourceId,
     offset: ByteOffset,

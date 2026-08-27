@@ -26,6 +26,7 @@ pub struct SemanticPresentation {
 /// An internal inconsistency while rendering checked semantic data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PresentationError {
+    Evidence(crate::EvidenceIntegrityError),
     InvalidEntity(SemanticEntity),
     InvalidNominalPresentation(nocter_model::NominalTypeId),
     SourceVisibility(nocter_checking::SourceVisibilityError),
@@ -34,6 +35,7 @@ pub enum PresentationError {
 impl fmt::Display for PresentationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Evidence(error) => error.fmt(formatter),
             Self::InvalidEntity(entity) => {
                 write!(formatter, "cannot render semantic entity {entity:?}")
             }
@@ -51,9 +53,16 @@ impl fmt::Display for PresentationError {
 impl std::error::Error for PresentationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Evidence(error) => Some(error),
             Self::SourceVisibility(error) => Some(error),
             Self::InvalidEntity(_) | Self::InvalidNominalPresentation(_) => None,
         }
+    }
+}
+
+impl From<crate::EvidenceIntegrityError> for PresentationError {
+    fn from(error: crate::EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 
@@ -142,12 +151,21 @@ pub(super) fn body_recovery_presentation(
     recovery: &nocter_checking::BodyAnalysisRecovery,
     entity: SemanticEntity,
     spellings: &visible_spelling::VisibleSpellings,
-) -> Option<SemanticPresentation> {
+) -> Result<Option<SemanticPresentation>, PresentationError> {
     let prepared = recovery.prepared();
     let mut renderer = Renderer::new(prepared.graph(), prepared.types(), spellings);
     match entity {
         SemanticEntity::LocalBinding(body, id) => {
-            let local = recovery.typed_body(body)?.locals().get(id)?;
+            let evidence = recovery
+                .body_evidence(body)
+                .ok_or(crate::EvidenceIntegrityError::MissingBodyDomain(body))?;
+            let Some(checked) = evidence.typed() else {
+                return Ok(None);
+            };
+            let local = checked
+                .locals()
+                .get(id)
+                .ok_or(crate::EvidenceIntegrityError::MissingLocalBinding { body, local: id })?;
             let introducer = match local.declaration().kind() {
                 LocalBindingKind::Mutable => "var",
                 LocalBindingKind::Immutable
@@ -157,29 +175,42 @@ pub(super) fn body_recovery_presentation(
                 | LocalBindingKind::Catch
                 | LocalBindingKind::ClosureParameter => "let",
             };
-            write!(
-                renderer.output,
-                "{introducer} {}: ",
-                renderer.symbol(local.declaration().name())?
-            )
-            .ok()?;
-            renderer.ty(local.ty())?;
+            let Some(name) = renderer.symbol(local.declaration().name()) else {
+                return Ok(None);
+            };
+            write!(renderer.output, "{introducer} {name}: ").ok();
+            if renderer.ty(local.ty()).is_none() {
+                return Ok(None);
+            }
         }
         SemanticEntity::Capture(body, id) => {
-            let capture = recovery.typed_body(body)?.captures().get(id)?;
-            write!(
-                renderer.output,
-                "capture {}: ",
-                renderer.symbol(capture.declaration().name())?
-            )
-            .ok()?;
-            renderer.ty(capture.ty())?;
+            let evidence = recovery
+                .body_evidence(body)
+                .ok_or(crate::EvidenceIntegrityError::MissingBodyDomain(body))?;
+            let Some(checked) = evidence.typed() else {
+                return Ok(None);
+            };
+            let capture = checked
+                .captures()
+                .get(id)
+                .ok_or(crate::EvidenceIntegrityError::MissingCapture { body, capture: id })?;
+            let Some(name) = renderer.symbol(capture.declaration().name()) else {
+                return Ok(None);
+            };
+            write!(renderer.output, "capture {name}: ").ok();
+            if renderer.ty(capture.ty()).is_none() {
+                return Ok(None);
+            }
         }
-        _ => renderer.entity(None, entity)?,
+        _ => {
+            if renderer.entity(None, entity).is_none() {
+                return Ok(None);
+            }
+        }
     }
-    Some(SemanticPresentation {
+    Ok(Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
-    })
+    }))
 }
 
 pub(super) fn name_recovery_presentation(

@@ -69,10 +69,10 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
     ) -> Result<SemanticQuerySet<SemanticHighlight>, EvidenceIntegrityError> {
-        let Some(authority) = self.semantic_authority() else {
+        let Some(authority) = self.semantic_query() else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
-                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
             ));
         };
         let coverage = authority.typed_body_coverage()?;
@@ -106,7 +106,7 @@ impl AnalysisSnapshot {
 }
 
 fn highlight(
-    authority: crate::semantic::SemanticAuthority<'_>,
+    authority: crate::semantic::SemanticQueryContext<'_>,
     binding: &SourceBinding,
 ) -> Result<Option<SemanticHighlight>, EvidenceIntegrityError> {
     let Some((kind, readonly)) = classify(authority, binding)? else {
@@ -130,7 +130,7 @@ fn highlight(
 }
 
 fn classify(
-    authority: crate::semantic::SemanticAuthority<'_>,
+    authority: crate::semantic::SemanticQueryContext<'_>,
     binding: &SourceBinding,
 ) -> Result<Option<(SemanticHighlightKind, bool)>, EvidenceIntegrityError> {
     let graph = authority.graph();

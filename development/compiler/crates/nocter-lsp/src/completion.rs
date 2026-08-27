@@ -55,48 +55,62 @@ pub enum CompletionItemKind {
 /// Renders a complete, deterministically ordered completion array.
 #[must_use]
 pub fn completion_result(items: &[CompletionItem<'_>]) -> Value {
-    Value::Array(
-        items
-            .iter()
-            .map(|item| {
-                let mut members = vec![
-                    Member {
-                        name: "label".into(),
-                        value: Value::String(item.label.into()),
-                    },
-                    Member {
-                        name: "kind".into(),
-                        value: Value::Number((item.kind as u8).to_string().into()),
-                    },
-                ];
-                if let Some(detail) = item.detail {
-                    members.push(Member {
-                        name: "detail".into(),
-                        value: Value::String(detail.into()),
-                    });
-                }
-                if !item.additional_text_edits.is_empty() {
-                    members.push(Member {
-                        name: "additionalTextEdits".into(),
-                        value: Value::Array(
-                            item.additional_text_edits
-                                .iter()
-                                .map(text_edit_value)
-                                .collect(),
-                        ),
-                    });
-                }
-                Value::Object(members)
-            })
-            .collect(),
-    )
+    Value::Array(items.iter().map(completion_item_value).collect())
+}
+
+/// Renders a completion list whose semantic coverage is incomplete.
+#[must_use]
+pub fn incomplete_completion_result(items: &[CompletionItem<'_>]) -> Value {
+    Value::Object(vec![
+        Member {
+            name: "isIncomplete".into(),
+            value: Value::Bool(true),
+        },
+        Member {
+            name: "items".into(),
+            value: Value::Array(items.iter().map(completion_item_value).collect()),
+        },
+    ])
+}
+
+fn completion_item_value(item: &CompletionItem<'_>) -> Value {
+    let mut members = vec![
+        Member {
+            name: "label".into(),
+            value: Value::String(item.label.into()),
+        },
+        Member {
+            name: "kind".into(),
+            value: Value::Number((item.kind as u8).to_string().into()),
+        },
+    ];
+    if let Some(detail) = item.detail {
+        members.push(Member {
+            name: "detail".into(),
+            value: Value::String(detail.into()),
+        });
+    }
+    if !item.additional_text_edits.is_empty() {
+        members.push(Member {
+            name: "additionalTextEdits".into(),
+            value: Value::Array(
+                item.additional_text_edits
+                    .iter()
+                    .map(text_edit_value)
+                    .collect(),
+            ),
+        });
+    }
+    Value::Object(members)
 }
 
 #[cfg(test)]
 mod tests {
     use nocter_json::write_value;
 
-    use super::{CompletionItem, CompletionItemKind, completion_result};
+    use super::{
+        CompletionItem, CompletionItemKind, completion_result, incomplete_completion_result,
+    };
     use crate::{Position, Range, TextEdit};
 
     #[test]
@@ -132,6 +146,23 @@ mod tests {
         assert_eq!(
             rendered,
             "[{\"label\":\"print\",\"kind\":3,\"additionalTextEdits\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"newText\":\"use std/io.print\\n\\n\"}]}]"
+        );
+    }
+
+    #[test]
+    fn incomplete_semantic_coverage_is_explicit_in_the_protocol_result() {
+        let mut rendered = String::new();
+        write_value(
+            &mut rendered,
+            &incomplete_completion_result(&[CompletionItem::new(
+                "value",
+                CompletionItemKind::Variable,
+                None,
+            )]),
+        );
+        assert_eq!(
+            rendered,
+            "{\"isIncomplete\":true,\"items\":[{\"label\":\"value\",\"kind\":6}]}"
         );
     }
 }

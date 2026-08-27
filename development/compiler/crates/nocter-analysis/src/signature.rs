@@ -68,7 +68,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSignatureHelp>, SemanticSignatureError> {
-        let Some(authority) = self.semantic_authority() else {
+        let Some(authority) = self.semantic_query() else {
             return Ok(None);
         };
         let index = authority.source_index();

@@ -143,6 +143,22 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
 }
 
 #[test]
+fn language_server_consumes_analysis_queries_not_semantic_storage() {
+    let dependencies = production_dependencies("nocter-language-server");
+    for forbidden in [
+        "nocter-checking",
+        "nocter-declarations",
+        "nocter-source-index",
+        "nocter-target-program",
+    ] {
+        assert!(
+            !dependencies.contains(forbidden),
+            "language-server protocol code must not consume {forbidden} directly"
+        );
+    }
+}
+
+#[test]
 fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
     let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
     for crate_name in crate_names() {

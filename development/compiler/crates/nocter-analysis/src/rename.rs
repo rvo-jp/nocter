@@ -1,7 +1,5 @@
-use std::collections::BTreeSet;
 use std::fmt;
 
-use nocter_checking::NameTarget;
 use nocter_source::{ByteOffset, SourceFile, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::is_valid_name;
@@ -79,8 +77,8 @@ impl AnalysisSnapshot {
             return Err(SemanticRenameError::InvalidReplacement(replacement.into()));
         }
         let Some(authority) = self
-            .semantic_authority()
-            .and_then(crate::semantic::SemanticAuthority::complete)
+            .semantic_query()
+            .and_then(crate::semantic::SemanticQueryContext::complete)
         else {
             return Ok(None);
         };
@@ -103,7 +101,7 @@ impl AnalysisSnapshot {
             return Ok(None);
         }
         let index = authority.source_index();
-        let entities = rename_family(authority.checked(), selection.entity());
+        let entities = authority.rename_family(selection.entity());
         let mut edits = Vec::new();
         for entity in &entities {
             for binding in index.bindings_for(*entity) {
@@ -218,33 +216,6 @@ impl AnalysisSnapshot {
         };
         unit.is_root_package_source(file.name().as_str())
     }
-}
-
-fn rename_family(
-    checked: &nocter_checking::CheckedProgram,
-    selected: SemanticEntity,
-) -> BTreeSet<SemanticEntity> {
-    let mut entities = BTreeSet::from([selected]);
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for (body_id, body) in checked.bodies().iter() {
-            for (capture_id, capture) in body.captures().iter() {
-                let capture_entity = SemanticEntity::Capture(body_id, capture_id);
-                let source_entity = match capture.declaration().source() {
-                    NameTarget::Parameter(parameter) => SemanticEntity::Parameter(parameter),
-                    NameTarget::Local(local) => SemanticEntity::LocalBinding(body_id, local),
-                    NameTarget::Capture(capture) => SemanticEntity::Capture(body_id, capture),
-                    NameTarget::Exported(_) => continue,
-                };
-                if entities.contains(&capture_entity) || entities.contains(&source_entity) {
-                    changed |= entities.insert(capture_entity);
-                    changed |= entities.insert(source_entity);
-                }
-            }
-        }
-    }
-    entities
 }
 
 const fn renameable_entity(entity: SemanticEntity) -> bool {
