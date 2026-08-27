@@ -173,9 +173,10 @@ accepted or rejected with its source-backed reason; an internal inconsistency ca
 partial semantic evidence. Protocol-independent queries are the only authority allowed to join
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
 complete. The kernel validates the complete source projection against its declaration and
-body-local domains once per immutable generation; only the sealed context is visible to feature
-code. A dangling binding, documentation owner, or visible name is an integrity failure rather than
-an ordinary empty result. Query accelerators are lazy caches keyed by compiler-owned identities;
+body-local domains, source map, syntax trees, and source ownership once per immutable generation;
+only the sealed context is visible to feature code. A dangling binding, documentation owner,
+visible name, source, syntax origin, or module owner is an integrity failure rather than an ordinary
+empty result. Query accelerators are lazy caches keyed by compiler-owned identities;
 they never infer an evidence-domain size or become a second semantic authority. A target failure
 therefore does not erase checked source semantics, while
 retaining checked semantics does not turn that target failure into success. A

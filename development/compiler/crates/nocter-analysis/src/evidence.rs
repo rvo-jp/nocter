@@ -3,7 +3,9 @@ use std::fmt;
 
 use nocter_checking::{CaptureMode, LocalBindingKind, NameTarget};
 use nocter_model::{BodyId, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, TypeId};
+use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceIndex};
+use nocter_syntax::{SyntaxOrigin, SyntaxTree};
 
 use super::{SemanticEvidence, SemanticQueryContext};
 
@@ -226,11 +228,34 @@ pub enum TypedBodyUnavailability {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EvidenceIntegrityError {
     MissingSemanticEntity(SemanticEntity),
+    MissingIndexedSource(SourceId),
+    MissingSourceOwner(SourceId),
+    InvalidSourceOwner {
+        source: SourceId,
+        module: nocter_model::ModuleId,
+    },
+    MissingSourceSyntax(SourceId),
+    InvalidSourceOrigin {
+        source: SourceId,
+        syntax: SyntaxOrigin,
+    },
     MissingBodyDomain(BodyId),
-    MissingBodyNode { body: BodyId, node: BodyNodeId },
-    MissingLocalBinding { body: BodyId, local: LocalBindingId },
-    MissingCapture { body: BodyId, capture: CaptureId },
-    MissingBodyScope { body: BodyId, scope: BodyScopeId },
+    MissingBodyNode {
+        body: BodyId,
+        node: BodyNodeId,
+    },
+    MissingLocalBinding {
+        body: BodyId,
+        local: LocalBindingId,
+    },
+    MissingCapture {
+        body: BodyId,
+        capture: CaptureId,
+    },
+    MissingBodyScope {
+        body: BodyId,
+        scope: BodyScopeId,
+    },
 }
 
 impl fmt::Display for EvidenceIntegrityError {
@@ -239,6 +264,29 @@ impl fmt::Display for EvidenceIntegrityError {
             Self::MissingSemanticEntity(entity) => {
                 write!(formatter, "analysis evidence has no domain for {entity:?}")
             }
+            Self::MissingIndexedSource(source) => {
+                write!(formatter, "source projection references absent {source}")
+            }
+            Self::MissingSourceOwner(source) => {
+                write!(
+                    formatter,
+                    "analysis evidence has no semantic owner for {source}"
+                )
+            }
+            Self::InvalidSourceOwner { source, module } => write!(
+                formatter,
+                "analysis evidence assigns {source} to absent module {module:?}"
+            ),
+            Self::MissingSourceSyntax(source) => {
+                write!(
+                    formatter,
+                    "analysis evidence has no syntax tree for {source}"
+                )
+            }
+            Self::InvalidSourceOrigin { source, syntax } => write!(
+                formatter,
+                "source projection references absent syntax {syntax:?} in {source}"
+            ),
             Self::MissingBodyDomain(body) => {
                 write!(
                     formatter,
@@ -270,7 +318,47 @@ impl fmt::Display for EvidenceIntegrityError {
 impl std::error::Error for EvidenceIntegrityError {}
 
 impl<'a> SemanticQueryContext<'a> {
-    pub(crate) fn validate_source_index(&self) -> Result<(), EvidenceIntegrityError> {
+    pub(crate) fn validate_generation(
+        &self,
+        sources: &SourceMap,
+        syntax_trees: &[SyntaxTree],
+    ) -> Result<(), EvidenceIntegrityError> {
+        for source in sources.iter() {
+            let source = source.id();
+            let module = self
+                .source_ownership()
+                .module_for_source(source)
+                .map_err(|_| EvidenceIntegrityError::MissingSourceOwner(source))?;
+            if self.graph().modules().get(module).is_none() {
+                return Err(EvidenceIntegrityError::InvalidSourceOwner { source, module });
+            }
+        }
+        for source in self.source_index().source_ids().collect::<BTreeSet<_>>() {
+            if sources.get(source).is_none() {
+                return Err(EvidenceIntegrityError::MissingIndexedSource(source));
+            }
+        }
+        for origin in self.source_index().origins() {
+            let source = origin.source();
+            let tree = syntax_trees
+                .iter()
+                .find(|tree| tree.source() == source)
+                .ok_or(EvidenceIntegrityError::MissingSourceSyntax(source))?;
+            let valid = match origin.syntax() {
+                SyntaxOrigin::Node(node) => {
+                    nocter_source_index::SourceOrigin::from_node(tree, node) == Ok(origin)
+                }
+                SyntaxOrigin::Token(token) => {
+                    nocter_source_index::SourceOrigin::from_token(tree, token) == Ok(origin)
+                }
+            };
+            if !valid {
+                return Err(EvidenceIntegrityError::InvalidSourceOrigin {
+                    source,
+                    syntax: origin.syntax(),
+                });
+            }
+        }
         let entities = self
             .source_index()
             .semantic_entities()

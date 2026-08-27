@@ -63,8 +63,11 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - Analysis owns the only join between source occurrences and semantic evidence. Before exposing a
   query context, it validates every identity referenced by `SourceIndex`: authored bindings,
   documentation owners, and editor-visible names. The result is sealed once per immutable
-  generation and cached; feature code has no access to an unvalidated context. A dangling entity
-  is therefore an integrity failure for the generation, never a feature-specific empty result.
+  generation and cached. The same seal proves that every retained origin belongs to the current
+  source and syntax snapshots and that every source has one existing semantic module owner.
+  Feature code has no access to an unvalidated context. A dangling entity, source, syntax origin,
+  or owner is therefore an integrity failure for the generation, never a feature-specific empty
+  result.
 - Editor features consume typed query results. They cannot inspect checking recovery or join raw
   `SourceIndex` bindings to bodies.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
@@ -103,7 +106,8 @@ The reconstruction is complete only when:
 - all expected unavailable states are ordinary query outcomes rather than internal errors;
 - architecture gates enforce those dependency and type boundaries;
 - a shared state-by-feature matrix covers complete, declaration-rejected, name-rejected,
-  body-rejected, syntax-incomplete, and integrity-failure generations;
+  body-rejected, and syntax-incomplete generations, while kernel integrity tests cover absent
+  semantic domains and architecture gates enforce whole-generation sealing;
 - the old semantic-stage query model and all compatibility wrappers are absent;
 - workspace tests, warnings-denied Clippy, formatting, generated documentation, and repository
   integrity checks pass.

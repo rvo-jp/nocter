@@ -171,7 +171,7 @@ fn semantic_features_cannot_acquire_an_unsealed_query_context() {
         "an unsealed semantic context must not be visible to feature modules"
     );
     assert!(
-        semantic.contains("validate_semantics(|| query.validate_source_index())?"),
+        semantic.contains("validate_generation(self.sources(), self.syntax_trees())"),
         "the public crate query path must seal the complete source projection"
     );
 

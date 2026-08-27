@@ -157,43 +157,46 @@ impl AnalysisSnapshot {
         let Some(query) = self.unvalidated_semantic_query() else {
             return Ok(None);
         };
-        self.queries
-            .validate_semantics(|| query.validate_source_index())?;
+        self.queries.validate_semantics(|| {
+            query.validate_generation(self.sources(), self.syntax_trees())
+        })?;
         Ok(Some(query))
     }
 
     fn unvalidated_semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
-        if let crate::AnalysisState::Current(crate::CurrentAnalysis {
-            semantic_evidence: crate::CurrentSemanticEvidence::Target(target),
-            ..
-        }) = &self.state
-        {
-            return Some(SemanticQueryContext {
-                evidence: SemanticEvidence::Checked {
-                    checked: target.program().checked(),
-                    source_index: target.source_index(),
-                },
-            });
-        }
-        match self.retained_semantic()? {
-            nocter_session::SemanticAnalysis::Checked(checked) => Some(SemanticQueryContext {
-                evidence: SemanticEvidence::Checked {
+        let evidence = match &self.state {
+            crate::AnalysisState::Current(crate::CurrentAnalysis {
+                semantic_evidence: crate::CurrentSemanticEvidence::Target(target),
+                ..
+            }) => SemanticEvidence::Checked {
+                checked: target.program().checked(),
+                source_index: target.source_index(),
+            },
+            crate::AnalysisState::Current(crate::CurrentAnalysis {
+                semantic_evidence: crate::CurrentSemanticEvidence::Analysis(semantic),
+                ..
+            }) => match semantic.as_ref() {
+                nocter_session::SemanticAnalysis::Checked(checked) => SemanticEvidence::Checked {
                     checked: checked.program(),
                     source_index: checked.source_index(),
                 },
-            }),
-            nocter_session::SemanticAnalysis::Bodies(analysis) => Some(SemanticQueryContext {
-                evidence: SemanticEvidence::Bodies(analysis),
-            }),
-            nocter_session::SemanticAnalysis::Names(analysis) => Some(SemanticQueryContext {
-                evidence: SemanticEvidence::Names(analysis),
-            }),
-            nocter_session::SemanticAnalysis::Declarations(analysis) => {
-                Some(SemanticQueryContext {
-                    evidence: SemanticEvidence::Declarations(analysis),
-                })
-            }
-        }
+                nocter_session::SemanticAnalysis::Bodies(analysis) => {
+                    SemanticEvidence::Bodies(analysis)
+                }
+                nocter_session::SemanticAnalysis::Names(analysis) => {
+                    SemanticEvidence::Names(analysis)
+                }
+                nocter_session::SemanticAnalysis::Declarations(analysis) => {
+                    SemanticEvidence::Declarations(analysis)
+                }
+            },
+            crate::AnalysisState::DiscoveryFailed(_)
+            | crate::AnalysisState::Current(crate::CurrentAnalysis {
+                semantic_evidence: crate::CurrentSemanticEvidence::Unavailable,
+                ..
+            }) => return None,
+        };
+        Some(SemanticQueryContext { evidence })
     }
 }
 

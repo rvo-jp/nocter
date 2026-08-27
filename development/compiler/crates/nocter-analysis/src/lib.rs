@@ -289,21 +289,6 @@ impl AnalysisSnapshot {
         }
     }
 
-    pub(crate) fn retained_semantic(&self) -> Option<&SemanticAnalysis> {
-        match &self.state {
-            AnalysisState::Current(CurrentAnalysis {
-                semantic_evidence: CurrentSemanticEvidence::Analysis(semantic),
-                ..
-            }) => Some(semantic),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                semantic_evidence:
-                    CurrentSemanticEvidence::Unavailable | CurrentSemanticEvidence::Target(_),
-                ..
-            }) => None,
-        }
-    }
-
     #[must_use]
     pub const fn discovery_failure(&self) -> Option<&DiscoveryFailure> {
         match &self.state {

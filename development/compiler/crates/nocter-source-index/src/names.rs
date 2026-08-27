@@ -36,6 +36,10 @@ impl SourceVisibleNames {
         self.by_source.values().flatten().map(|name| name.parts().1)
     }
 
+    pub(crate) fn sources(&self) -> impl Iterator<Item = SourceId> + '_ {
+        self.by_source.keys().copied()
+    }
+
     pub(crate) fn into_builder(self) -> SourceVisibleNamesBuilder {
         SourceVisibleNamesBuilder {
             by_source: self

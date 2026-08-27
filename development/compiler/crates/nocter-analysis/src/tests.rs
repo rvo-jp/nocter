@@ -419,8 +419,14 @@ fn name_recovery_retains_every_rejected_body_diagnostic() {
             .collect::<Vec<_>>(),
         ["E0340", "E0340"]
     );
-    let Some(nocter_session::SemanticAnalysis::Names(recovery)) = snapshot.retained_semantic()
+    let crate::AnalysisState::Current(crate::CurrentAnalysis {
+        semantic_evidence: crate::CurrentSemanticEvidence::Analysis(semantic),
+        ..
+    }) = &snapshot.state
     else {
+        panic!("expected retained semantic evidence")
+    };
+    let nocter_session::SemanticAnalysis::Names(recovery) = semantic.as_ref() else {
         panic!("expected name evidence")
     };
     assert_eq!(recovery.body_names().rejection_diagnostics().count(), 2);

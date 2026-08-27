@@ -91,6 +91,28 @@ impl SourceIndex {
             .chain(self.visible_names.entities())
     }
 
+    /// Returns every physical source identity referenced anywhere in this projection.
+    pub fn source_ids(&self) -> impl Iterator<Item = SourceId> + '_ {
+        self.by_source
+            .iter()
+            .map(|binding| binding.origin().source())
+            .chain(
+                self.occurrence_documentation
+                    .iter()
+                    .map(|entry| entry.origin().source()),
+            )
+            .chain(self.visible_names.sources())
+    }
+
+    /// Returns every syntax-backed origin retained by this projection.
+    pub fn origins(&self) -> impl Iterator<Item = SourceOrigin> + '_ {
+        self.by_source.iter().map(|binding| binding.origin()).chain(
+            self.occurrence_documentation
+                .iter()
+                .map(OccurrenceDocumentation::origin),
+        )
+    }
+
     /// Restricts this index to diagnostic-origin projection for semantic consumers.
     #[must_use]
     pub const fn diagnostic_origins(&self) -> crate::DiagnosticOrigins<'_> {
@@ -493,6 +515,10 @@ mod tests {
         assert_eq!(index.bindings_at(source, ByteOffset::new(6)).count(), 2);
         assert_eq!(index.bindings_at(source, ByteOffset::new(31)).count(), 0);
         assert_eq!(index.bindings_in(source).count(), 2);
+        assert_eq!(
+            index.origins().collect::<std::collections::HashSet<_>>(),
+            std::collections::HashSet::from([declaration_origin, module_origin])
+        );
     }
 
     #[test]
@@ -611,6 +637,13 @@ mod tests {
                 SemanticEntity::DeclarationSite(site),
             ]),
             "sealing must see identities that have no authored binding"
+        );
+        assert_eq!(
+            index
+                .source_ids()
+                .collect::<std::collections::BTreeSet<_>>(),
+            std::collections::BTreeSet::from([source]),
+            "sealing must see sources that appear only in visible-name metadata"
         );
     }
 

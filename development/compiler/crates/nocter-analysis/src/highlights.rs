@@ -139,13 +139,16 @@ fn classify(
     let kind = match entity {
         SemanticEntity::BuiltinType(_) => SemanticHighlightKind::Type,
         SemanticEntity::Module(_) => SemanticHighlightKind::Namespace,
-        SemanticEntity::NominalType(id) => match declarations.nominal_types().get(id) {
-            Some(declaration) => match declaration.shape() {
+        SemanticEntity::NominalType(id) => {
+            let declaration = declarations
+                .nominal_types()
+                .get(id)
+                .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
+            match declaration.shape() {
                 NominalShape::Struct { .. } => SemanticHighlightKind::Struct,
                 NominalShape::Enum { .. } => SemanticHighlightKind::Enum,
-            },
-            None => return Ok(None),
-        },
+            }
+        }
         SemanticEntity::TypeAlias(_) | SemanticEntity::AssociatedType(_) => {
             SemanticHighlightKind::Type
         }
@@ -155,9 +158,10 @@ fn classify(
             return Ok(Some((SemanticHighlightKind::Variable, true)));
         }
         SemanticEntity::Parameter(id) => {
-            let Some(parameter) = declarations.parameters().get(id) else {
-                return Ok(None);
-            };
+            let parameter = declarations
+                .parameters()
+                .get(id)
+                .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
             let readonly = match parameter.role() {
                 ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => true,
                 ParameterRole::Receiver(capability) => capability == CallableCapability::Readonly,
@@ -183,8 +187,12 @@ fn classify(
             )));
         }
         SemanticEntity::Variant(_) => SemanticHighlightKind::EnumMember,
-        SemanticEntity::Callable(id) => match declarations.callables().get(id) {
-            Some(callable) => match callable.kind() {
+        SemanticEntity::Callable(id) => {
+            let callable = declarations
+                .callables()
+                .get(id)
+                .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
+            match callable.kind() {
                 CallableKind::Function
                 | CallableKind::Primitive
                 | CallableKind::ConstructionFunction
@@ -195,9 +203,8 @@ fn classify(
                 | CallableKind::Ordering
                 | CallableKind::Index
                 | CallableKind::Expansion => SemanticHighlightKind::Method,
-            },
-            None => return Ok(None),
-        },
+            }
+        }
         SemanticEntity::Test(_) => SemanticHighlightKind::Function,
         SemanticEntity::OpaqueType(_) => SemanticHighlightKind::Keyword,
         SemanticEntity::Package(_)
