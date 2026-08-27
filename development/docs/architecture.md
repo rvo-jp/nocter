@@ -49,9 +49,11 @@ selection. The checking pipeline may own and extend the complete `SourceIndex` b
 result; checking rules cannot read it as semantic evidence.
 
 When a lowering boundary creates new semantic identities, it consumes the existing `SourceIndex`
-into its duplicate-checking builder, adds exact projections, and freezes both deterministic lookup
-orders again. It does not create a phase-specific parallel source index. Canonical semantic
-programs never depend on this projection value.
+into one projection builder, adds exact projections, and freezes both deterministic lookup orders
+again. Duplicate bindings or documentation become `SourceProjectionIssue` values owned by the
+finished index. They cannot enter a lowering or checking error and therefore cannot change whether
+the semantic program exists. The query seal rejects an inconsistent projection before editor facts
+are exposed. Canonical semantic programs never depend on this projection value.
 
 Declaration lowering also records each source's effective visible spellings in `SourceIndex`.
 This editor-only projection is emitted beside, not read back from, the `FrontendBindings` consumed
@@ -168,7 +170,9 @@ only the disk-backed request type and cannot mistake editor bytes for persistent
 `AnalysisSnapshot` retains the accepted generation identity, source overlay, reached source and
 syntax snapshots, complete retained diagnostics, one diagnostic status, and one independent
 semantic evidence result. The status is discovery failure, syntax failure, compiler failure, or
-target-validated success. Recovered name and body analysis classifies every declared body as
+target-validated success. Session exposes both a successful target and retained recovery through
+one borrowed `SemanticEvidenceView`; analysis does not inspect session storage variants or rebuild
+their common graph, type, ownership, and projection contract. Recovered name and body analysis classifies every declared body as
 accepted or rejected with its source-backed reason; an internal inconsistency cannot manufacture
 partial semantic evidence. Protocol-independent queries are the only authority allowed to join
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
@@ -187,9 +191,11 @@ failed current generation never exposes an older successful semantic program. Di
 retain their reached syntax trees as well as sources, so invalidation and syntax-aware recovery do
 not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable accepted-
 document boundary. It requires strictly increasing change versions, ignores stale changes without
-advancing generation, applies included save text before analysis, and freezes a new complete overlay
-for every accepted open, change, save, or close. Previously emitted overlays never observe later
-document mutations.
+advancing generation, applies included save text before analysis, and freezes one
+`WorkspaceSourceRevision` for every accepted open, change, save, close, or external change batch.
+Each revision contains the complete overlay, exact open-document set, and complete change set;
+workspace analysis never reconstructs those facts from earlier generations. Previously emitted
+revisions never observe later document mutations.
 
 `nocter-source` is the sole coordinate-conversion authority. Compiler phases retain normalized
 UTF-8 byte offsets and never store editor positions. Each immutable `SourceFile` converts those
@@ -281,8 +287,8 @@ notifications produce no protocol response but remain typed server issues. Initi
 responses preserve request identity, and clean versus premature exit produces an explicit process
 status. The transport loop writes only framed JSON-RPC messages to its output.
 
-Every accepted document transition now retains the canonical document that triggered its immutable
-source generation. `WorkspaceAnalyses` first selects the exact compiler-owned standard root. Other
+Every accepted document transition now retains one complete immutable source revision.
+`WorkspaceAnalyses` first selects the exact compiler-owned standard root. Other
 documents select the deepest `index.nct` ancestor bounded by the owning initialized root; that
 declaration selects package mode, while a `.nct` file without such an ancestor selects single-file
 mode. Package mode resolves the complete exact graph under mandatory locked/offline policy and
@@ -295,9 +301,11 @@ accepted overlay recomputes the scope membership of known documents. A membershi
 each surviving old or new scope exactly once and invalidates an empty scope in one atomic analysis
 batch; a changed dependency source also refreshes each latest scope whose retained source map
 reaches it. Independent scopes are not recompiled. Closed reached sources use a derived
-source-to-scope index that prefers their physical owner and then canonical scope identity; generation
-recency never selects semantic context. A successful stale program therefore cannot answer queries
-after package-topology or shared-source changes.
+source-to-scope index. An exact selected document scope wins; otherwise a unique physical owner may
+answer. If multiple current package contexts reach the same dependency source and none owns it,
+lookup returns `AmbiguousDocumentAnalysis` instead of selecting by path, insertion, or generation
+order. A successful stale or arbitrarily ordered program therefore cannot answer queries after
+package-topology or shared-source changes.
 
 `DiagnosticPublisher` projects only compiler-owned `SourceDiagnostic` values. Primary and related
 origins resolve through the snapshot's own `SourceMap`, and normalized byte spans convert through
@@ -517,7 +525,10 @@ body boundary, exact primitive registry resolution, target capability selection,
 `TargetProgram` validation in one fixed ownership chain. Lower stages remain independently
 testable, but a command must not publish success from one of those partial boundaries. A completed
 session retains the `TargetProgram` and `SourceIndex` as separate immutable values; source
-projection never enters target semantic identity.
+projection never enters target semantic identity. Production compilation, retained editor
+recovery, and incomplete-body admission all use the same recovering lowering, preparation, and
+body-checking traversal. Syntax admission changes only the accepted input. Evidence retention is a
+decision made after that traversal, so it cannot select a parallel semantic implementation.
 
 Executable-producing session requests additionally own presentation-name selection. The request
 selects the sole executable or one declared name among the exact command-root packages, resolves it
@@ -1395,9 +1406,9 @@ crate scaffolding is not evidence that a responsibility has been designed.
 Editor analysis may retain explicit invalid syntax and immutable semantic evidence from the current
 generation. It never converts incomplete source into a second successful semantic model. Name and
 body recovery classify every declared body as accepted or rejected, and each rejection owns the
-source reason that makes its absent facts legitimate. The session owns the sole sum of declaration,
-name-evidence, body-evidence, and checked results; analysis exposes semantic capabilities through
-one query boundary over that sum or the successful target. Hover, completion, definition,
+source reason that makes its absent facts legitimate. The session owns the sole stored authority
+and projects it once into `SemanticEvidenceView`; a successful target uses that same contract.
+Analysis exposes semantic capabilities through one sealed query boundary over the view. Hover, completion, definition,
 implementation, references, rename, tokens, signature help, inlay hints, diagnostics, and code
 actions consume those query outcomes rather than maintaining feature-local recovery adapters.
 Every generation first freezes its complete open-document overlay; package resolution, discovery,

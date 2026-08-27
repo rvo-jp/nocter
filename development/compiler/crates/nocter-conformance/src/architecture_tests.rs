@@ -263,6 +263,94 @@ fn semantic_features_cannot_acquire_an_unsealed_query_context() {
 }
 
 #[test]
+fn session_semantics_have_one_stage_graph_and_one_query_handoff() {
+    let compiler = workspace().join("crates");
+    let pipeline = fs::read_to_string(compiler.join("nocter-session/src/semantic_pipeline.rs"))
+        .expect("session semantic pipeline");
+    for forbidden in [
+        "EvidenceRetention",
+        "lower_compile_unit_declarations(&",
+        "prepare_program_checking(&",
+        "check_prepared_program(&",
+    ] {
+        assert!(
+            !pipeline.contains(forbidden),
+            "session pipeline still selects a parallel semantic traversal through {forbidden}"
+        );
+    }
+
+    let query = fs::read_to_string(compiler.join("nocter-analysis/src/query/mod.rs"))
+        .expect("semantic query kernel");
+    for forbidden in [
+        "AnalysisState",
+        "CurrentSemanticEvidence",
+        "CompiledTarget",
+        "SemanticEvidenceBundle",
+        "target.program().checked()",
+    ] {
+        assert!(
+            !query.contains(forbidden),
+            "query kernel reconstructs session storage through {forbidden}"
+        );
+    }
+    assert!(
+        query.contains("evidence: self.semantic_evidence()?"),
+        "query kernel must consume the snapshot's single session-evidence handoff"
+    );
+}
+
+#[test]
+fn source_projection_integrity_cannot_fail_semantic_construction() {
+    for relative in ["nocter-declaration-lowering/src", "nocter-checking/src"] {
+        let root = workspace().join("crates").join(relative);
+        for path in rust_sources(&root) {
+            let source = fs::read_to_string(&path).expect("semantic production source");
+            for forbidden in [
+                "DuplicateSourceBinding",
+                "DuplicateDocumentation",
+                "SourceProjectionIssue",
+                ".issues()",
+            ] {
+                assert!(
+                    !source.contains(forbidden),
+                    "{} lets editor projection integrity affect semantics through {forbidden}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    let index = fs::read_to_string(workspace().join("crates/nocter-source-index/src/index.rs"))
+        .expect("source projection builder");
+    assert!(
+        index.contains("issues: Vec<SourceProjectionIssue>"),
+        "source projection builder must own its integrity report"
+    );
+    assert!(
+        !index.contains("Result<(), DuplicateSourceBinding>")
+            && !index.contains("Result<(), DuplicateDocumentation>"),
+        "source projection insertion must not return a semantic-pipeline failure"
+    );
+}
+
+#[test]
+fn workspace_analysis_never_chooses_authority_by_order() {
+    let analysis =
+        fs::read_to_string(workspace().join("crates/nocter-language-server/src/analysis.rs"))
+            .expect("workspace analysis owner");
+    assert!(
+        analysis.contains("AmbiguousDocumentAnalysis"),
+        "multiple current contexts need an explicit typed outcome"
+    );
+    for forbidden in ["source_scope_priority", "min_by_key(|scope|"] {
+        assert!(
+            !analysis.contains(forbidden),
+            "workspace analysis still chooses semantic authority by order through {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn query_caches_do_not_derive_a_second_semantic_domain() {
     let path = workspace().join("crates/nocter-analysis/src/query/session.rs");
     let source = fs::read_to_string(&path).expect("analysis query session");

@@ -7,8 +7,8 @@ evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); ol
 remain under `development/releases/` and are not repeated here.
 
 The [v0.18.0 Phase 0, Phase 1, Phase 2, and twice-reopened Phase 3 work](milestones/v0.18.0.md) is
-implemented, but release qualification is blocked by the active
-[semantic-tooling reconstruction](docs/semantic-tooling-reconstruction.md). Phase 3 replaced body-semantic mutation plus rollback with
+implemented. The [semantic-tooling reconstruction](docs/semantic-tooling-reconstruction.md) now
+closes the checking-to-workspace authority chain; release qualification is the next gate. Phase 3 replaced body-semantic mutation plus rollback with
 persistent immutable authorities and explicit type, copyability, and closure transactions. Its
 reopened review then separated read-only type snapshots from construction ownership, kept type and
 copyability in one semantic authority through every checking stage, bound checked member input to
@@ -22,10 +22,12 @@ post-phase architecture audit then removed repeated target-directive parsing, so
 primitive and standard-role selection, repeated package-target validation, source projection from
 prepared semantic state, duplicated built-in type vocabularies, and standard-API spelling checks
 in interface-implementation code actions. Executable architecture gates now protect these
-boundaries. Phase 3 changes no language behavior. The current task replaces optional sparse editor
-recovery, lossy session diagnostic composition, and feature-local semantic joins with explicit
-per-domain evidence and coverage contracts. v0.18.0 release qualification resumes only after that
-completion gate closes.
+boundaries. Phase 3 changes no language behavior. The completed reconstruction replaces optional
+sparse editor recovery, lossy session diagnostic composition, and feature-local semantic joins
+with explicit per-domain evidence and coverage contracts. One semantic pipeline now produces every
+session outcome; source projection integrity cannot fail semantics; session provides one evidence
+handoff to queries; workspace revisions are complete values; and ambiguous shared-source contexts
+are rejected rather than ordered.
 
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.

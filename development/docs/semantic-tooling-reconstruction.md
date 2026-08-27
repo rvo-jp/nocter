@@ -56,10 +56,13 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 ## Responsibility Boundaries
 
 - Checking owns the reason why one semantic fact was accepted or rejected.
-- Session composes complete phase reports. It does not discard a later analysis diagnostic merely
-  because an earlier production error remains the command's canonical failure.
+- Session runs one lowering, preparation, and body-checking graph for production and recovery.
+  Syntax admission changes its input contract, while evidence retention happens only after the
+  traversal. Session composes complete reports and does not discard a later analysis diagnostic
+  merely because an earlier production error remains the command's canonical failure.
 - `SourceIndex` remains only a bidirectional source-coordinate and semantic-identity projection. It
-  does not acquire phase flags, recovery policy, or feature behavior.
+  does not acquire phase flags, recovery policy, or feature behavior. Its builder records
+  projection integrity issues in the finished projection instead of returning semantic errors.
 - Analysis owns the only join between source occurrences and semantic evidence. Before exposing a
   query context, it validates every identity referenced by `SourceIndex`: authored bindings,
   documentation owners, and editor-visible names. The result is sealed once per immutable
@@ -72,8 +75,14 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   between checking evidence and `SourceIndex`. Its module tree may consume those input contracts;
   no sibling analysis responsibility or protocol adapter can name the sealed context, checking
   recovery, or raw source projection. They consume only typed query results.
+- Session projects every stored semantic outcome, including a successful target, through one
+  `SemanticEvidenceView`. Analysis storage owns the only call to that projection; the query kernel
+  cannot inspect session variants or recreate their common semantic inputs.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
+- Workspace analysis consumes one complete source revision containing overlay, open-document set,
+  and changes. A dependency source reached by multiple current package contexts produces typed
+  ambiguity unless one context physically owns it; ordering never supplies authority.
 
 Each responsibility knows only the contract exported by the previous boundary. Protocol code does
 not know checking representation, checking does not know editor features, and `SourceIndex` does
@@ -99,6 +108,7 @@ The reconstruction is complete only when:
 - every recovered body and name domain has an explicit accepted or rejected state;
 - every rejected authored domain retains its source diagnostic in the same immutable result;
 - internal failures cannot construct source-semantic recovery;
+- production and recovery cannot select different semantic stage functions;
 - session composition retains every diagnostic that explains retained evidence;
 - every join between `SourceIndex` and checking bodies or scopes is confined to the private query
   responsibility, whose outward API contains only typed query results;
@@ -112,5 +122,7 @@ The reconstruction is complete only when:
   body-rejected, and syntax-incomplete generations, while kernel integrity tests cover absent
   semantic domains and architecture gates enforce whole-generation sealing;
 - the old semantic-stage query model and all compatibility wrappers are absent;
+- source projection integrity cannot fail semantic construction;
+- workspace context selection cannot use path, insertion, or generation ordering as a tie-breaker;
 - workspace tests, warnings-denied Clippy, formatting, generated documentation, and repository
   integrity checks pass.
