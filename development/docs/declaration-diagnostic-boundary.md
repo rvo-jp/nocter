@@ -79,7 +79,7 @@ one row have the same classification and boundary reason.
 |---|---|---|
 | `LoweringError::Rule` | authored rule | `E0270` and `E0271` retain exact source-edge subjects. |
 | `DuplicatePackage`, `DuplicateModule`, `DuplicateSourcePath`, `DuplicateSource`, `UnknownPackage`, `MissingSource`, `InvalidPackageDeclaration`, `InvalidModuleSource`, `InvalidModuleSegment`, `InvalidModuleLayout`, `InvalidPackageModuleSet`, `InvalidSingleFilePackage`, `MissingSourceVisibilityResolution`, `DuplicateSourceVisibilityResolution`, `InvalidSourceVisibilityResolution`, `UnknownSourceVisibilityTarget`, `MissingUseResolution`, `DuplicateUseResolution`, `InvalidUseResolution`, `UnknownUseTarget` | discovery contract | Package discovery owns identities, physical source ownership, layouts, and one exact-source visibility edge per authored `see` plus one module edge per authored `use`. |
-| `InconsistentSyntax`, `MissingCollectedSymbol`, `Program`, `DuplicateSourceBinding` | compiler integrity | Valid syntax projection, complete symbol collection, legal builder operations, and unique source bindings are earlier-pass guarantees. |
+| `InconsistentSyntax`, `MissingCollectedSymbol`, `Program` | compiler integrity | Valid syntax projection, complete symbol collection, and legal semantic builder operations are earlier-pass guarantees. Source-projection issues remain outside this error domain. |
 
 | Surface error | Class | Reason |
 |---|---|---|
@@ -95,26 +95,26 @@ one row have the same classification and boundary reason.
 | `DeclarationContractError::InterfaceImplementationOutsideRoot` | authored rule | `E0254` keeps each `impl Interface` fact in the module root while exact-header open instance fragments let private sources provide the ordinary method bodies. The authored source role is validated before representative selection. |
 | `DeclarationContractError::MissingRepresentation`, `MismatchedRepresentation`, `DuplicateRepresentation`, `RepresentationCompletedAgain` | authored rule | `E0255`-`E0258` distinguish public nominal contracts from their one private representation definition. |
 | `DeclarationContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
-| every `ReservationError` variant: `Contract`, `Program`, `DuplicateSourceBinding`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, valid owners, and unused builder/source-index slots. |
+| every `ReservationError` variant: `Contract`, `Program`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, and valid owners. |
 
 | Header/generic error | Class | Reason |
 |---|---|---|
 | `HeaderError::Namespace` | authored rule | `E0240`-`E0242` retain the exact name or visibility syntax. |
-| `HeaderError::Program`, `DuplicateSourceBinding`, `MissingDeclaration`, `MissingSource`, `MissingName`, `InconsistentName`, `InvalidVisibility`, `InconsistentSource` | compiler integrity | Parsing and surface collection close declaration names and visibility forms; contract joining and topology close representative names and sources. |
+| `HeaderError::Program`, `MissingDeclaration`, `MissingSource`, `MissingName`, `InconsistentName`, `InvalidVisibility`, `InconsistentSource` | compiler integrity | Parsing and surface collection close declaration names and visibility forms; contract joining and topology close representative names and sources. |
 | `GenericError::Rule` | authored rule | `E0280`-`E0282` retain the offending binder and any first/inherited binder. |
-| `GenericError::MissingSource`, `InconsistentSource`, `InconsistentBinder`, `InvalidOwner`, `InconsistentContract`, `DuplicateSourceBinding` | compiler integrity | Generic preparation consumes canonical surface owners and exact joined headers. |
+| `GenericError::MissingSource`, `InconsistentSource`, `InconsistentBinder`, `InvalidOwner`, `InconsistentContract` | compiler integrity | Generic preparation consumes canonical surface owners and exact joined headers. |
 
 | Import/prelude error | Class | Reason |
 |---|---|---|
 | `ImportError::Rule`, `ImportError::Namespace`, `PreludeError::Rule` | authored rule | `E0260`-`E0262`, `E0412`, and shared namespace rules retain exact import syntax. |
-| `ImportError::Program`, `DuplicateSourceBinding`, `MissingSource`, `InvalidSyntax`, `UnknownModule`, `InvalidVisibility`, `DependencyCycle`, `InconsistentSource` | compiler integrity | Topology, syntax, header visibility, and canonical dependency ordering are complete before import preparation. |
+| `ImportError::Program`, `MissingSource`, `InvalidSyntax`, `UnknownModule`, `InvalidVisibility`, `DependencyCycle`, `InconsistentSource` | compiler integrity | Topology, syntax, header visibility, and canonical dependency ordering are complete before import preparation. |
 | `PreludeError::UnknownModule` | discovery contract | Toolchain discovery must provide the selected standard prelude identity. |
 | `PreludeError::InconsistentImport`, `Program` | compiler integrity | Authored imports retain their path nodes, and the builder owns prelude attachment authority. |
 
 | Type error | Class | Reason |
 |---|---|---|
 | `TypeBindingError::Rule` | authored rule | `E0290`-`E0302` retain exact type, name, argument, requirement, and duplicate subjects. |
-| `TypeBindingError::MissingSource`, `InvalidSyntax`, `InconsistentSource`, `DuplicateSourceBinding` | compiler integrity | Binding accepts syntax-complete declarations and canonical source/symbol projections. |
+| `TypeBindingError::MissingSource`, `InvalidSyntax`, `InconsistentSource` | compiler integrity | Binding accepts syntax-complete declarations and canonical source/symbol projections. |
 | `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0314` consume subjects retained in `NormalizationOrigins`. |
 | `TypeNormalizationError::InvalidBoundType`, `InconsistentTypeStore`, `MissingInterfaceApplicationContext`, `MissingAlias`, `InvalidSelf`, `InconsistentAssociatedIndex` | compiler integrity | Every item is a broken binding-arena, canonical-store, declaration-context, or semantic-index invariant. |
 
@@ -122,7 +122,7 @@ one row have the same classification and boundary reason.
 |---|---|---|
 | `HeaderDefinitionError::Rule` | authored rule | `E0315`-`E0319`, `E0321`-`E0326`, and constant-expression rules retain exact provenance, result-type, associated-binding, argument-pack, or constant subjects. |
 | `HeaderDefinitionError::Declaration` | authored rule | `E0200`-`E0213` collect syntax-independent semantic declaration sites and project the complete report through the frozen source index. |
-| `MissingSource`, `MissingName`, `MissingSite`, `MissingType`, `MissingCallableResult`, `InvalidOwner`, `InvalidSurface`, `InvalidTypePattern`, `InvalidTargetGate`, `InvalidProvenance`, `InconsistentType`, `InconsistentSource`, `MissingDiagnosticSubject`, `Definition`, `Program`, `DuplicateSourceBinding` | compiler integrity | All are absent normalized state, an invalid semantic relationship, a failed exact source projection, or rejected builder authority after the responsible authored rule has already been separated. |
+| `MissingSource`, `MissingName`, `MissingSite`, `MissingType`, `MissingCallableResult`, `InvalidOwner`, `InvalidSurface`, `InvalidTypePattern`, `InvalidTargetGate`, `InvalidProvenance`, `InconsistentType`, `InconsistentSource`, `MissingDiagnosticSubject`, `Definition`, `Program` | compiler integrity | All are absent normalized state, an invalid semantic relationship, or rejected semantic builder authority after the responsible authored rule has already been separated. |
 
 `ProgramBuildError::InvalidProgram(Declaration)` is the only nested builder failure converted to a
 public declaration-diagnostic collection. `InvalidProgram(Integrity)`, all other `ProgramBuildError` variants,
