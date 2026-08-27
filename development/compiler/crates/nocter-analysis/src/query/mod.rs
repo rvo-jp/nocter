@@ -205,21 +205,23 @@ impl AnalysisSnapshot {
             crate::AnalysisState::Current(crate::CurrentAnalysis {
                 semantic_evidence: crate::CurrentSemanticEvidence::Analysis(semantic),
                 ..
-            }) => match semantic.as_ref() {
-                nocter_session::SemanticAnalysis::Checked(checked) => SemanticEvidence::Checked {
-                    checked: checked.program(),
-                    source_index: checked.source_index(),
-                },
-                nocter_session::SemanticAnalysis::Bodies(analysis) => {
+            }) => {
+                let semantic = semantic.as_ref();
+                if let Some(checked) = semantic.checked() {
+                    SemanticEvidence::Checked {
+                        checked: checked.program(),
+                        source_index: checked.source_index(),
+                    }
+                } else if let Some(analysis) = semantic.body_analysis() {
                     SemanticEvidence::Bodies(analysis)
-                }
-                nocter_session::SemanticAnalysis::Names(analysis) => {
+                } else if let Some(analysis) = semantic.name_analysis() {
                     SemanticEvidence::Names(analysis)
-                }
-                nocter_session::SemanticAnalysis::Declarations(analysis) => {
+                } else if let Some(analysis) = semantic.declaration_analysis() {
                     SemanticEvidence::Declarations(analysis)
+                } else {
+                    return None;
                 }
-            },
+            }
             crate::AnalysisState::DiscoveryFailed(_)
             | crate::AnalysisState::Current(crate::CurrentAnalysis {
                 semantic_evidence: crate::CurrentSemanticEvidence::Unavailable,

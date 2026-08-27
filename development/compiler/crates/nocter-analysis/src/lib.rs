@@ -10,7 +10,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
 use nocter_session::{
-    CompileSessionError, CompiledTarget, SemanticAnalysis, analyze_incomplete_syntax,
+    CompileSessionError, CompiledTarget, SemanticEvidenceBundle, analyze_incomplete_syntax,
     analyze_target,
 };
 use nocter_source::SourceMap;
@@ -84,7 +84,7 @@ enum CurrentAnalysisFailure {
 #[derive(Debug)]
 enum CurrentSemanticEvidence {
     Unavailable,
-    Analysis(Box<SemanticAnalysis>),
+    Analysis(Box<SemanticEvidenceBundle>),
     Target(Box<CompiledTarget>),
 }
 
@@ -92,7 +92,7 @@ impl CurrentAnalysis {
     fn syntax(
         unit: DiscoveredUnit,
         failure: Option<CompileSessionError>,
-        semantic: Option<SemanticAnalysis>,
+        semantic: Option<SemanticEvidenceBundle>,
     ) -> Self {
         Self {
             unit: Box::new(unit),
@@ -106,7 +106,7 @@ impl CurrentAnalysis {
     fn compilation(
         unit: DiscoveredUnit,
         error: CompileSessionError,
-        semantic: Option<SemanticAnalysis>,
+        semantic: Option<SemanticEvidenceBundle>,
     ) -> Self {
         Self {
             unit: Box::new(unit),

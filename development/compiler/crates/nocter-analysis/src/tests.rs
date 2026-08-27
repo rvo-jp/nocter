@@ -379,9 +379,7 @@ fn name_recovery_retains_every_rejected_body_diagnostic() {
     else {
         panic!("expected retained semantic evidence")
     };
-    let nocter_session::SemanticAnalysis::Names(recovery) = semantic.as_ref() else {
-        panic!("expected name evidence")
-    };
+    let recovery = semantic.name_analysis().expect("expected name evidence");
     assert_eq!(recovery.body_names().rejection_diagnostics().count(), 2);
     assert_eq!(
         recovery

@@ -170,10 +170,11 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
 
     let failure = analyze_target(&unit).unwrap_err();
     assert!(!failure.error().source_diagnostics().is_empty());
-    let nocter_session::SemanticAnalysis::Bodies(body_analysis) = failure.semantic().unwrap()
-    else {
-        panic!("expected body evidence")
-    };
+    let body_analysis = failure
+        .semantic()
+        .unwrap()
+        .body_analysis()
+        .expect("expected body evidence");
     let prepared = body_analysis.prepared();
     assert!(!prepared.graph().declarations().callables().is_empty());
     assert!(!body_analysis.body_names().is_empty());
@@ -215,9 +216,11 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
 
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostics()[0].code(), "E0340");
-    let nocter_session::SemanticAnalysis::Names(recovery) = failure.semantic().unwrap() else {
-        panic!("expected name evidence")
-    };
+    let recovery = failure
+        .semantic()
+        .unwrap()
+        .name_analysis()
+        .expect("expected name evidence");
     assert!(!recovery.graph().declarations().callables().is_empty());
     assert!(!recovery.body_names().is_empty());
     assert!(!recovery.source_index().is_empty());
@@ -247,10 +250,11 @@ fn interface_implementation_failure_retains_declarations_without_claiming_later_
 
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostics()[0].code(), "E0350");
-    let nocter_session::SemanticAnalysis::Declarations(declarations) = failure.semantic().unwrap()
-    else {
-        panic!("expected declaration evidence")
-    };
+    let declarations = failure
+        .semantic()
+        .unwrap()
+        .declaration_analysis()
+        .expect("expected declaration evidence");
     assert!(
         !declarations
             .graph()
@@ -282,9 +286,7 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
     assert!(unit.has_syntax_errors());
     let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
     let semantic = analysis.semantic().expect("typed syntax recovery");
-    let nocter_session::SemanticAnalysis::Bodies(recovery) = semantic else {
-        panic!("expected body evidence")
-    };
+    let recovery = semantic.body_analysis().expect("expected body evidence");
     assert!(matches!(
         recovery.interruptions().next().unwrap().kind(),
         nocter_checking::TypedBodyInterruptionKind::MemberSelection { .. }
@@ -350,9 +352,9 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
         "E0350"
     );
     let semantic = analysis.semantic().expect("declaration analysis");
-    let nocter_session::SemanticAnalysis::Declarations(declarations) = semantic else {
-        panic!("expected declaration evidence")
-    };
+    let declarations = semantic
+        .declaration_analysis()
+        .expect("expected declaration evidence");
     assert!(
         !declarations
             .graph()
@@ -400,9 +402,7 @@ fn incomplete_syntax_preserves_an_earlier_name_failure() {
         "E0340"
     );
     let semantic = analysis.semantic().expect("name analysis");
-    let nocter_session::SemanticAnalysis::Names(names) = semantic else {
-        panic!("expected name evidence")
-    };
+    let names = semantic.name_analysis().expect("expected name evidence");
     assert!(!names.body_names().is_empty());
 }
 
