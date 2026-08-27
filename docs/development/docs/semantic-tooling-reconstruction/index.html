@@ -201,7 +201,8 @@
   demand itself; a scope with no open members emits only an invalidation generation.</li><li><code>nocter-language-server</code> owns URI identity, LSP lifecycle, and protocol projection. Its production
   dependency graph cannot name package resolution, discovery, compiler sessions, model storage, or
   syntax trees; preparation diagnostics are normalized by workspace analysis before crossing the
-  boundary.</li><li>Rename and code-action publication requires one consumed <code>ValidatedSemanticMutation</code>. Analysis
+  boundary. <code>AnalysisSnapshot</code> keeps raw syntax and compiler failures crate-private; protocol tests
+  assert its public status and normalized diagnostics instead of depending on storage variants.</li><li>Rename and code-action publication requires one consumed <code>ValidatedSemanticMutation</code>. Analysis
   derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
   workspace compilation cannot substitute another overlay, and validation retains the resulting
   candidate snapshot in the same value. The candidate must pass the cached whole-projection query

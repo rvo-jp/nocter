@@ -103,7 +103,8 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - `nocter-language-server` owns URI identity, LSP lifecycle, and protocol projection. Its production
   dependency graph cannot name package resolution, discovery, compiler sessions, model storage, or
   syntax trees; preparation diagnostics are normalized by workspace analysis before crossing the
-  boundary.
+  boundary. `AnalysisSnapshot` keeps raw syntax and compiler failures crate-private; protocol tests
+  assert its public status and normalized diagnostics instead of depending on storage variants.
 - Rename and code-action publication requires one consumed `ValidatedSemanticMutation`. Analysis
   derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
   workspace compilation cannot substitute another overlay, and validation retains the resulting

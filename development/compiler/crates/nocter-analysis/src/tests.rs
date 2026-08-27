@@ -136,7 +136,6 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     assert!(!snapshot.sources().is_empty());
     assert!(!snapshot.syntax_trees().is_empty());
     assert_eq!(snapshot.diagnostics()[0].code(), "E0263");
-    assert!(snapshot.discovery_failure().is_some());
     assert!(!snapshot.seals_semantic_mutation().unwrap());
 }
 
@@ -602,9 +601,8 @@ fn namespace_call_accepts_the_callable_reexport_selected_by_name_resolution() {
     assert_eq!(
         snapshot.status(),
         AnalysisStatus::Complete,
-        "re-export fixture diagnostics: {:#?}; failure: {:#?}",
-        snapshot.diagnostics(),
-        snapshot.compilation_failure()
+        "re-export fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
     );
 }
 

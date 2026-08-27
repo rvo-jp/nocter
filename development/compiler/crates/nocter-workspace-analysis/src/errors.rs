@@ -16,24 +16,25 @@ pub(crate) fn preparation_diagnostics(
         return Ok(Box::new([]));
     };
     let subject = error.subject();
-    let source = failure.reached().sources().get(subject.source()).ok_or(
-        WorkspaceDiagnosticError::MissingSource(subject.source().index()),
-    )?;
+    let source = failure
+        .reached()
+        .sources()
+        .get(subject.source())
+        .ok_or_else(|| WorkspaceDiagnosticError::missing_source(subject.source().index()))?;
     let tree = failure
         .reached()
         .syntax_trees()
         .iter()
         .find(|tree| tree.node(subject).is_some())
-        .ok_or(WorkspaceDiagnosticError::MissingSyntaxSubject {
-            source: subject.source().index(),
-            node: subject.index(),
+        .ok_or_else(|| {
+            WorkspaceDiagnosticError::missing_syntax_subject(
+                subject.source().index(),
+                subject.index(),
+            )
         })?;
-    let node = tree
-        .node(subject)
-        .ok_or(WorkspaceDiagnosticError::MissingSyntaxSubject {
-            source: subject.source().index(),
-            node: subject.index(),
-        })?;
+    let node = tree.node(subject).ok_or_else(|| {
+        WorkspaceDiagnosticError::missing_syntax_subject(subject.source().index(), subject.index())
+    })?;
     Ok(Box::new([nocter_diagnostics::SourceDiagnostic::new(
         "E0800",
         error.to_string(),
@@ -45,21 +46,40 @@ pub(crate) fn preparation_diagnostics(
 
 /// A package diagnostic identity absent from the exact preparation snapshot that produced it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkspaceDiagnosticError {
+pub struct WorkspaceDiagnosticError {
+    kind: WorkspaceDiagnosticErrorKind,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WorkspaceDiagnosticErrorKind {
     MissingSource(u32),
     MissingSyntaxSubject { source: u32, node: usize },
 }
 
+impl WorkspaceDiagnosticError {
+    const fn missing_source(source: u32) -> Self {
+        Self {
+            kind: WorkspaceDiagnosticErrorKind::MissingSource(source),
+        }
+    }
+
+    const fn missing_syntax_subject(source: u32, node: usize) -> Self {
+        Self {
+            kind: WorkspaceDiagnosticErrorKind::MissingSyntaxSubject { source, node },
+        }
+    }
+}
+
 impl fmt::Display for WorkspaceDiagnosticError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingSource(source) => {
+        match self.kind {
+            WorkspaceDiagnosticErrorKind::MissingSource(source) => {
                 write!(
                     formatter,
                     "package diagnostic refers to missing source {source}"
                 )
             }
-            Self::MissingSyntaxSubject { source, node } => {
+            WorkspaceDiagnosticErrorKind::MissingSyntaxSubject { source, node } => {
                 write!(
                     formatter,
                     "package diagnostic refers to missing syntax node {source}:{node}"

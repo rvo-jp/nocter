@@ -752,9 +752,8 @@ mod tests {
         assert_eq!(
             analyzed.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
-            "diagnostics={:?}, failure={:?}",
-            analyzed.primary().snapshot().unwrap().diagnostics(),
-            analyzed.primary().snapshot().unwrap().compilation_failure()
+            "diagnostics={:?}",
+            analyzed.primary().snapshot().unwrap().diagnostics()
         );
     }
 
@@ -778,9 +777,8 @@ mod tests {
         assert_eq!(
             first.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
-            "diagnostics={:?}, failure={:?}",
-            first.primary().snapshot().unwrap().diagnostics(),
-            first.primary().snapshot().unwrap().compilation_failure()
+            "diagnostics={:?}",
+            first.primary().snapshot().unwrap().diagnostics()
         );
 
         let implementation_generation = documents

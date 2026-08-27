@@ -514,7 +514,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let definition = server.receive(&format!(
@@ -625,7 +625,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let hover = server.receive(&format!(
@@ -728,7 +728,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let definition = server.receive(&format!(
@@ -815,7 +815,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let definition = server.receive(&format!(
@@ -906,9 +906,7 @@ mod tests {
         assert_eq!(
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
-            "discovery={:?}, compilation={:?}, diagnostics={:?}",
-            snapshot.discovery_failure(),
-            snapshot.compilation_failure(),
+            "diagnostics={:?}",
             snapshot.diagnostics()
         );
 
@@ -1042,7 +1040,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let renamed = server.receive(&format!(
@@ -1122,7 +1120,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let renamed = server.receive(&format!(
@@ -1163,7 +1161,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let help = server.receive(&format!(
@@ -1216,7 +1214,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let help = server.receive(&format!(
@@ -1273,7 +1271,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let signature = server.receive(&format!(
@@ -1342,7 +1340,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
 
         let body = server.receive(&format!(
@@ -1728,7 +1726,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
         let hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":26}}}}}}"
@@ -2082,7 +2080,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
     }
 
@@ -2364,9 +2362,8 @@ mod tests {
         assert_eq!(
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
-            "compilation={:?}, discovery={:?}",
-            snapshot.compilation_failure(),
-            snapshot.discovery_failure()
+            "diagnostics={:?}",
+            snapshot.diagnostics()
         );
 
         let completion = request_completion(&mut server, &uri, 2, 3, 4);
@@ -2782,7 +2779,7 @@ mod tests {
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
             "{:?}",
-            snapshot.compilation_failure()
+            snapshot.diagnostics()
         );
     }
 

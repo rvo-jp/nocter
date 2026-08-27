@@ -247,7 +247,7 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub fn syntax_trees(&self) -> &[SyntaxTree] {
+    pub(crate) fn syntax_trees(&self) -> &[SyntaxTree] {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.syntax_trees(),
             AnalysisState::Current(analysis) => analysis.unit.syntax_trees(),
@@ -255,15 +255,7 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub const fn discovery_failure(&self) -> Option<&DiscoveryFailure> {
-        match &self.state {
-            AnalysisState::DiscoveryFailed(failure) => Some(failure),
-            AnalysisState::Current(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn compilation_failure(&self) -> Option<&CompileSessionError> {
+    pub(crate) const fn compilation_failure(&self) -> Option<&CompileSessionError> {
         match &self.state {
             AnalysisState::Current(
                 CurrentAnalysis {
