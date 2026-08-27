@@ -5,3 +5,17 @@ disallowed-types = [
     { path = "nocter_persistent::PersistentMap", reason = "persistent storage mechanics must remain behind semantic authorities" },
     { path = "nocter_persistent::PersistentVector", reason = "persistent storage mechanics must remain behind semantic authorities" },
 ]
+
+disallowed-methods = [
+    { path = "nocter_declaration_lowering::lower_compile_unit_declarations_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_declaration_lowering::lower_incomplete_body_declarations_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_checking::prepare_program_checking_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_checking::prepare_analysis_program_checking_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_checking::check_prepared_program_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_checking::analyze_prepared_program_bodies", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
+    { path = "nocter_source_index::SourceIndex::issues", reason = "source projection integrity is consumed only by the analysis evidence kernel" },
+    { path = "nocter_session::SemanticEvidenceView::checked", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
+    { path = "nocter_session::SemanticEvidenceView::body_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
+    { path = "nocter_session::SemanticEvidenceView::name_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
+    { path = "nocter_session::SemanticEvidenceView::declaration_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
+]

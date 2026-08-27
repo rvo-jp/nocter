@@ -10,6 +10,7 @@ use crate::AnalysisSnapshot;
 mod callable_source;
 mod code_actions;
 mod completion;
+#[allow(clippy::disallowed_methods)]
 mod evidence;
 mod highlights;
 mod inlay_hints;

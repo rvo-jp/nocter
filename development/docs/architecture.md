@@ -184,7 +184,9 @@ complete. The kernel validates the complete source projection against its declar
 body-local domains, source map, syntax trees, and source ownership once per immutable generation;
 only the evidence module can inspect raw checked and recovery inputs. Feature modules receive
 complete, interruption, declaration-mutation, or common-fact capabilities and cannot restate phase
-fallback order. Neither the `AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
+fallback order. Snapshot storage is a sibling responsibility, so the query tree cannot access
+`AnalysisState`, compiler failures, or stored session variants through Rust's descendant privacy.
+Neither the `AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
 `CompleteSemanticQuery`, checking recovery, or `SourceIndex`; they receive only complete
 protocol-independent query results. A dangling binding, documentation owner, visible name, source,
 syntax origin, or module owner is an integrity failure rather than an ordinary empty result. Query
@@ -205,6 +207,12 @@ revision document set to package, toolchain-standard, or single-file scopes befo
 It probes each canonical package-root candidate at most once for that revision and retains typed
 selection failures beside successful selections; individual documents cannot reread topology or
 observe a different overlay.
+
+Architecture gates operate on resolved structure: Rust visibility for intra-crate state,
+Cargo-metadata dependency graphs for crate direction, and Clippy's resolved type and method paths
+for restricted semantic constructors, recovery stage entry points, and source-projection issue
+consumption. Source-text substring tests are not architecture gates because aliases, re-exports,
+formatting, or renamed wrappers can evade or accidentally trigger them.
 
 `nocter-source` is the sole coordinate-conversion authority. Compiler phases retain normalized
 UTF-8 byte offsets and never store editor positions. Each immutable `SourceFile` converts those

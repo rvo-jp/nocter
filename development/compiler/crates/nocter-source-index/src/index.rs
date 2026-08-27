@@ -499,6 +499,7 @@ impl fmt::Display for SourceProjectionIssue {
 impl std::error::Error for SourceProjectionIssue {}
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use nocter_declarations::{DeclarationProgramBuilder, ModuleNamespace, ModulePath, Visibility};
     use nocter_model::{DeclarationSiteId, ModuleId, Symbol, SymbolTable};

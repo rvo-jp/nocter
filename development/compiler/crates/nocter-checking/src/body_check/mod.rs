@@ -54,6 +54,7 @@ mod opaque_tests;
 #[cfg(test)]
 mod operator_tests;
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod outcome_tests;
 #[cfg(test)]
 mod pattern_tests;

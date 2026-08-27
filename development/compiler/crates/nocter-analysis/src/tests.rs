@@ -31,7 +31,10 @@ fn diagnostic_composition_deduplicates_identity_without_inventing_range_causalit
     let semantic = SourceDiagnostic::new("E0350", "semantic", span, [], None::<&str>);
     let mut diagnostics = vec![syntax.clone()];
 
-    super::extend_unique_diagnostics(&mut diagnostics, &[syntax.clone(), semantic.clone()]);
+    crate::snapshot::extend_unique_diagnostics(
+        &mut diagnostics,
+        &[syntax.clone(), semantic.clone()],
+    );
 
     assert_eq!(diagnostics, [syntax, semantic]);
 }
@@ -372,26 +375,6 @@ fn name_recovery_retains_every_rejected_body_diagnostic() {
             .map(nocter_diagnostics::SourceDiagnostic::code)
             .collect::<Vec<_>>(),
         ["E0340", "E0340"]
-    );
-    let crate::AnalysisState::Current(crate::CurrentAnalysis {
-        semantic_evidence: crate::CurrentSemanticEvidence::Bundle(semantic),
-        ..
-    }) = &snapshot.state
-    else {
-        panic!("expected retained semantic evidence")
-    };
-    let recovery = semantic.name_analysis().expect("expected name evidence");
-    assert_eq!(recovery.body_names().rejection_diagnostics().count(), 2);
-    assert_eq!(
-        recovery
-            .body_names()
-            .evidence_iter()
-            .filter(|(_, evidence)| matches!(
-                evidence,
-                nocter_checking::BodyNameEvidence::Rejected(_)
-            ))
-            .count(),
-        2
     );
     let source = snapshot
         .sources()

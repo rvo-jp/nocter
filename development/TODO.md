@@ -40,6 +40,11 @@ expanded production-path architecture gates protect these boundaries. Changed fi
 active demand but cannot join it, and an empty scope emits an invalidation-only generation without
 running the compiler pipeline.
 
+The later whole-compiler review removed source-text architecture scans. Snapshot storage now lives
+in a sibling module that query code cannot inspect, workspace scope selection freezes one topology
+per revision, and resolved Clippy method gates restrict recovery-stage orchestration, phase-specific
+semantic evidence, and source-projection issue consumption to their reviewed owners.
+
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
 `SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body

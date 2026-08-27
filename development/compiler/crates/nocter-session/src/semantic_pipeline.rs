@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_methods)]
+
 use nocter_checking::{
     CheckedProgramOutput, analyze_prepared_program_bodies, check_prepared_program_recovering,
     prepare_analysis_program_checking_recovering, prepare_program_checking_recovering,

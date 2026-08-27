@@ -85,7 +85,10 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - The query kernel owns the only raw checked/declaration/name/body evidence accessors, and those
   accessors are private to its evidence module. Completion and code-action modules receive narrow
   capabilities such as an exact body interruption or declaration mutation authority. They cannot
-  name a recovery snapshot or implement their own phase fallback order.
+  name a recovery snapshot or implement their own phase fallback order. Snapshot storage lives in
+  a sibling module rather than the crate root, so Rust privacy prevents the query tree from reading
+  `AnalysisState` or its session-storage variants. Compiler-resolved Clippy rules restrict the few
+  cross-crate raw phase methods to the evidence kernel.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
 - Workspace analysis consumes one complete source revision containing overlay, open-document set,
@@ -106,6 +109,10 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 Each responsibility knows only the contract exported by the previous boundary. Protocol code does
 not know checking representation, checking does not know editor features, and `SourceIndex` does
 not know either.
+
+Architecture enforcement uses Rust visibility, exact Cargo dependency graphs, compiler-resolved
+disallowed types and methods, and behavioral invariants. It does not scan source text for names or
+call spellings; such scans can be bypassed by aliases and can fail after harmless formatting.
 
 ## Migration Boundary
 
