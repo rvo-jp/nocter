@@ -4,9 +4,10 @@ use nocter_model::{Arena, TypeProjection, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
 
+use crate::body_evidence::{TypedInterruptionEvidence, TypedInterruptionSnapshot};
 use crate::member_completion::{MemberCompletionContext, select_member_completions};
 use crate::{
-    CheckedBody, ConstructionCompletionCandidate, ConstructionCompletionError,
+    BodyEvidence, ConstructionCompletionCandidate, ConstructionCompletionError,
     MemberCompletionCandidate, MemberCompletionError, PreparedSemanticProgram,
     TypedBodyInterruption, TypedBodyInterruptionKind,
 };
@@ -88,30 +89,6 @@ impl DeclarationAnalysisRecovery {
     }
 }
 
-#[derive(Debug)]
-struct TypedInterruptionSnapshot {
-    interruption: TypedBodyInterruption,
-    evidence: TypedInterruptionEvidence,
-}
-
-/// Exact semantic capability retained for one typed interruption.
-///
-/// Most completion kinds are fully described by the interruption itself. Member selection needs
-/// its provisional type/copy authority, while outcome repair needs only one closed type
-/// projection. Keeping these cases distinct prevents unrelated editor failures from retaining an
-/// entire mutable checker store.
-#[derive(Debug)]
-pub(crate) enum TypedInterruptionEvidence {
-    None,
-    MemberSelection(Box<MemberInterruptionEvidence>),
-    Outcome(Box<TypeProjection>),
-}
-
-#[derive(Debug)]
-pub(crate) struct MemberInterruptionEvidence {
-    pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
-}
-
 /// Inconsistency between an interruption kind and its retained recovery capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InterruptionEvidenceError;
@@ -136,8 +113,7 @@ pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
     body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,
     source_index: SourceIndex,
-    typed: Box<[TypedInterruptionSnapshot]>,
-    bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
+    bodies: Arena<nocter_model::BodyId, BodyEvidence>,
 }
 
 impl BodyAnalysisRecovery {
@@ -145,21 +121,12 @@ impl BodyAnalysisRecovery {
         prepared: PreparedSemanticProgram,
         body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,
         source_index: SourceIndex,
-        typed: Vec<(TypedBodyInterruption, TypedInterruptionEvidence)>,
-        bodies: Arena<nocter_model::BodyId, Option<CheckedBody>>,
+        bodies: Arena<nocter_model::BodyId, BodyEvidence>,
     ) -> Self {
         Self {
             prepared,
             body_names,
             source_index,
-            typed: typed
-                .into_iter()
-                .map(|(interruption, evidence)| TypedInterruptionSnapshot {
-                    interruption,
-                    evidence,
-                })
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
             bodies,
         }
     }
@@ -185,13 +152,37 @@ impl BodyAnalysisRecovery {
     /// evidence only: it has not passed whole-program ownership, provenance, or target closure and
     /// cannot be converted into a [`crate::CheckedProgram`].
     #[must_use]
-    pub fn body(&self, body: nocter_model::BodyId) -> Option<&CheckedBody> {
-        self.bodies.get(body)?.as_ref()
+    pub fn body_evidence(&self, body: nocter_model::BodyId) -> Option<&BodyEvidence> {
+        self.bodies.get(body)
     }
 
+    /// Iterates the explicit evidence state of every declared body in canonical identity order.
     #[must_use]
-    pub fn interruptions(&self) -> impl ExactSizeIterator<Item = &TypedBodyInterruption> {
-        self.typed.iter().map(|typed| &typed.interruption)
+    pub fn body_evidence_iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (nocter_model::BodyId, &BodyEvidence)> {
+        self.bodies.iter()
+    }
+
+    /// Iterates every source diagnostic that explains a rejected body in canonical body order.
+    pub fn rejection_diagnostics(
+        &self,
+    ) -> impl Iterator<Item = &nocter_diagnostics::SourceDiagnostic> {
+        self.bodies
+            .iter()
+            .filter_map(|(_, evidence)| evidence.rejection()?.diagnostic())
+    }
+
+    /// Returns typed facts only when this exact body completed typed construction.
+    #[must_use]
+    pub fn typed_body(&self, body: nocter_model::BodyId) -> Option<&crate::CheckedBody> {
+        self.body_evidence(body)?.typed()
+    }
+
+    pub fn interruptions(&self) -> impl Iterator<Item = &TypedBodyInterruption> {
+        self.bodies
+            .iter()
+            .filter_map(|(_, evidence)| evidence.rejection()?.interruption())
     }
 
     /// Selects the narrowest typed interruption containing one editor position.
@@ -212,15 +203,13 @@ impl BodyAnalysisRecovery {
         source: SourceId,
         offset: ByteOffset,
     ) -> Option<(usize, &TypedBodyInterruption)> {
-        self.typed
-            .iter()
+        self.interruptions()
             .enumerate()
-            .filter(|typed| {
-                let origin = typed.1.interruption.origin();
+            .filter(|(_, interruption)| {
+                let origin = interruption.origin();
                 origin.source() == source && origin.span().range().contains_cursor(offset)
             })
-            .min_by_key(|typed| typed.1.interruption.origin().span().range().len())
-            .map(|(position, typed)| (position, &typed.interruption))
+            .min_by_key(|(_, interruption)| interruption.origin().span().range().len())
     }
 
     /// Selects the narrowest typed interruption associated with one diagnostic range.
@@ -230,23 +219,22 @@ impl BodyAnalysisRecovery {
         source: SourceId,
         range: TextRange,
     ) -> Option<&TypedBodyInterruption> {
-        self.typed
-            .iter()
-            .filter(|typed| {
-                let origin = typed.interruption.origin();
+        self.interruptions()
+            .filter(|interruption| {
+                let origin = interruption.origin();
                 let interruption = origin.span().range();
                 origin.source() == source
                     && (interruption.overlaps(range)
                         || interruption.contains_range(range)
                         || range.contains_range(interruption))
             })
-            .min_by_key(|typed| typed.interruption.origin().span().range().len())
-            .map(|typed| &typed.interruption)
+            .min_by_key(|interruption| interruption.origin().span().range().len())
     }
 
     fn snapshot(&self, interruption: &TypedBodyInterruption) -> Option<&TypedInterruptionSnapshot> {
-        self.typed
+        self.bodies
             .iter()
+            .filter_map(|(_, evidence)| evidence.rejection()?.snapshot())
             .find(|typed| typed.interruption == *interruption)
     }
 

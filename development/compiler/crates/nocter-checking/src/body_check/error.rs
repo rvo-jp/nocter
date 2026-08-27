@@ -219,6 +219,7 @@ pub enum BodyCheckInternalError {
     DuplicateProjection(DuplicateSourceBinding),
     MissingSource(SemanticEntity),
     UnconsumedNameUses(BodyId),
+    MissingBodyEvidence(BodyId),
     NonCanonicalBody(BodyId),
     OwnershipState,
     FieldSelection,

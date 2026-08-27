@@ -3,32 +3,46 @@ use nocter_frontend_bindings::SourceOwnershipTable;
 use nocter_model::{Arena, BodyId, TypeStore};
 use nocter_source_index::SourceIndex;
 
-use crate::ResolvedBodyNames;
+use crate::{BodyNameEvidence, ResolvedBodyNames};
 
-/// Sparse body-name authority retained after one or more independent body-name failures.
-///
-/// Every declared body owns one slot. A missing slot means that body did not establish a valid
-/// lexical recovery contract; it does not hide successfully resolved bodies that happen to follow
-/// it in declaration order.
+/// Explicit lexical-name evidence for every declared body.
 #[derive(Debug)]
-pub struct PartialBodyNames {
-    bodies: Arena<BodyId, Option<ResolvedBodyNames>>,
+pub struct BodyNameEvidenceTable {
+    bodies: Arena<BodyId, BodyNameEvidence>,
 }
 
-impl PartialBodyNames {
-    pub(crate) const fn new(bodies: Arena<BodyId, Option<ResolvedBodyNames>>) -> Self {
+impl BodyNameEvidenceTable {
+    pub(crate) const fn new(bodies: Arena<BodyId, BodyNameEvidence>) -> Self {
         Self { bodies }
     }
 
     #[must_use]
     pub fn get(&self, body: BodyId) -> Option<&ResolvedBodyNames> {
-        self.bodies.get(body)?.as_ref()
+        self.bodies.get(body)?.usable_names()
+    }
+
+    #[must_use]
+    pub fn evidence(&self, body: BodyId) -> Option<&BodyNameEvidence> {
+        self.bodies.get(body)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (BodyId, &ResolvedBodyNames)> {
         self.bodies
             .iter()
-            .filter_map(|(body, names)| names.as_ref().map(|names| (body, names)))
+            .filter_map(|(body, evidence)| evidence.usable_names().map(|names| (body, names)))
+    }
+
+    #[must_use]
+    pub fn evidence_iter(&self) -> impl ExactSizeIterator<Item = (BodyId, &BodyNameEvidence)> {
+        self.bodies.iter()
+    }
+
+    pub fn rejection_diagnostics(
+        &self,
+    ) -> impl Iterator<Item = &nocter_diagnostics::SourceDiagnostic> {
+        self.bodies
+            .iter()
+            .filter_map(|(_, evidence)| Some(evidence.rejection()?.diagnostic()))
     }
 
     #[must_use]
@@ -51,7 +65,7 @@ impl PartialBodyNames {
 pub struct NameAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
-    body_names: PartialBodyNames,
+    body_names: BodyNameEvidenceTable,
     source_ownership: SourceOwnershipTable,
     source_index: SourceIndex,
 }
@@ -60,14 +74,14 @@ impl NameAnalysisRecovery {
     pub(crate) const fn new(
         graph: DeclarationGraph,
         types: TypeStore,
-        body_names: Arena<BodyId, Option<ResolvedBodyNames>>,
+        body_names: Arena<BodyId, BodyNameEvidence>,
         source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
     ) -> Self {
         Self {
             graph,
             types,
-            body_names: PartialBodyNames::new(body_names),
+            body_names: BodyNameEvidenceTable::new(body_names),
             source_ownership,
             source_index,
         }
@@ -89,7 +103,7 @@ impl NameAnalysisRecovery {
     }
 
     #[must_use]
-    pub const fn body_names(&self) -> &PartialBodyNames {
+    pub const fn body_names(&self) -> &BodyNameEvidenceTable {
         &self.body_names
     }
 

@@ -81,13 +81,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Option<SemanticSelection> {
-        selected_binding(self.semantic_authority()?.source_index(), source, offset).map(|binding| {
-            SemanticSelection {
-                entity: binding.entity(),
-                role: binding.role(),
-                range: binding.origin().span().range(),
-            }
-        })
+        semantic_selection_from(self.semantic_authority()?.source_index(), source, offset)
     }
 
     /// Resolves one exact source position through the deepest current semantic authority.
@@ -210,24 +204,6 @@ impl<'a> SemanticAuthority<'a> {
         }
     }
 
-    pub(crate) fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
-        match self {
-            Self::Checked { checked, .. } => Some(checked),
-            Self::Bodies(_) | Self::Names(_) | Self::Declarations(_) => None,
-        }
-    }
-
-    pub(crate) fn body(
-        &self,
-        body: nocter_model::BodyId,
-    ) -> Option<&'a nocter_checking::CheckedBody> {
-        match self {
-            Self::Checked { checked, .. } => checked.bodies().get(body),
-            Self::Bodies(analysis) => analysis.body(body),
-            Self::Names(_) | Self::Declarations(_) => None,
-        }
-    }
-
     pub(crate) const fn body_analysis(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
         match self {
             Self::Bodies(analysis) => Some(analysis),
@@ -241,19 +217,6 @@ impl<'a> SemanticAuthority<'a> {
         match self {
             Self::Declarations(analysis) => Some(analysis),
             Self::Checked { .. } | Self::Bodies(_) | Self::Names(_) => None,
-        }
-    }
-
-    pub(crate) fn scope(
-        &self,
-        body: nocter_model::BodyId,
-        scope: nocter_model::BodyScopeId,
-    ) -> Option<&'a nocter_checking::BodyScope> {
-        match self {
-            Self::Checked { checked, .. } => checked.bodies().get(body)?.scopes().get(scope),
-            Self::Bodies(analysis) => analysis.body_names().get(body)?.scopes().get(scope),
-            Self::Names(analysis) => analysis.body_names().get(body)?.scopes().get(scope),
-            Self::Declarations(_) => None,
         }
     }
 
@@ -327,6 +290,18 @@ impl From<PresentationError> for SemanticQueryError {
     fn from(error: PresentationError) -> Self {
         Self::Presentation(error)
     }
+}
+
+pub(crate) fn semantic_selection_from(
+    index: &nocter_source_index::SourceIndex,
+    source: SourceId,
+    offset: ByteOffset,
+) -> Option<SemanticSelection> {
+    selected_binding(index, source, offset).map(|binding| SemanticSelection {
+        entity: binding.entity(),
+        role: binding.role(),
+        range: binding.origin().span().range(),
+    })
 }
 
 fn selected_binding(

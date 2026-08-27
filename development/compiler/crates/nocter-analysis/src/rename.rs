@@ -78,7 +78,15 @@ impl AnalysisSnapshot {
         if !is_valid_name(replacement) {
             return Err(SemanticRenameError::InvalidReplacement(replacement.into()));
         }
-        let Some(selection) = self.semantic_selection(source, offset) else {
+        let Some(authority) = self
+            .semantic_authority()
+            .and_then(crate::semantic::SemanticAuthority::complete)
+        else {
+            return Ok(None);
+        };
+        let Some(selection) =
+            crate::semantic::semantic_selection_from(authority.source_index(), source, offset)
+        else {
             return Ok(None);
         };
         if !renameable_entity(selection.entity()) {
@@ -94,13 +102,8 @@ impl AnalysisSnapshot {
         if !is_valid_name(spelling) {
             return Ok(None);
         }
-        let Some(index) = self
-            .semantic_authority()
-            .map(|authority| authority.source_index())
-        else {
-            return Ok(None);
-        };
-        let entities = rename_family(self, selection.entity());
+        let index = authority.source_index();
+        let entities = rename_family(authority.checked(), selection.entity());
         let mut edits = Vec::new();
         for entity in &entities {
             for binding in index.bindings_for(*entity) {
@@ -218,16 +221,10 @@ impl AnalysisSnapshot {
 }
 
 fn rename_family(
-    snapshot: &AnalysisSnapshot,
+    checked: &nocter_checking::CheckedProgram,
     selected: SemanticEntity,
 ) -> BTreeSet<SemanticEntity> {
     let mut entities = BTreeSet::from([selected]);
-    let Some(checked) = snapshot
-        .semantic_authority()
-        .and_then(|authority| authority.checked())
-    else {
-        return entities;
-    };
     let mut changed = true;
     while changed {
         changed = false;

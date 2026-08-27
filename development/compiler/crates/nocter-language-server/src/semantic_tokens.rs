@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::SemanticHighlightKind;
+use nocter_analysis::{EvidenceIntegrityError, SemanticHighlightKind};
 use nocter_json::Value;
 use nocter_lsp::{
     SemanticToken, SemanticTokenEncodingError, SemanticTokenType, SemanticTokensParams,
@@ -23,9 +23,14 @@ pub(crate) fn query_semantic_tokens(
         return Ok(Value::Null);
     };
     let source = document.source();
-    let tokens = document
+    let semantic = document
         .snapshot()
         .semantic_highlights(source.id())
+        .map_err(SemanticTokensQueryError::Evidence)?;
+    // Full-document tokens may truthfully project reached ranges from a partial generation; unlike
+    // references, this result does not claim workspace-wide occurrence completeness.
+    let tokens = semantic
+        .values()
         .iter()
         .copied()
         .map(|highlight| {
@@ -70,6 +75,7 @@ const fn token_type(kind: SemanticHighlightKind) -> SemanticTokenType {
 #[derive(Debug)]
 pub enum SemanticTokensQueryError {
     Document(SemanticDocumentError),
+    Evidence(EvidenceIntegrityError),
     Coordinate(CoordinateError),
     Multiline,
     Encoding(SemanticTokenEncodingError),
@@ -79,6 +85,7 @@ impl fmt::Display for SemanticTokensQueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Document(error) => error.fmt(formatter),
+            Self::Evidence(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
             Self::Multiline => formatter.write_str("semantic token range spans multiple lines"),
             Self::Encoding(error) => error.fmt(formatter),
@@ -90,6 +97,7 @@ impl std::error::Error for SemanticTokensQueryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Document(error) => Some(error),
+            Self::Evidence(error) => Some(error),
             Self::Coordinate(error) => Some(error),
             Self::Encoding(error) => Some(error),
             Self::Multiline => None,

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::SourceContextError;
+use nocter_analysis::SemanticSignatureError;
 use nocter_json::Value;
 use nocter_lsp::{SignatureHelpParams, SignatureParameter, signature_help_result};
 use nocter_source::{CoordinateError, Utf16Position};
@@ -65,7 +65,7 @@ fn utf16_offset(label: &str, byte: usize) -> Result<u32, SignatureQueryError> {
 pub enum SignatureQueryError {
     Document(SemanticDocumentError),
     Coordinate(CoordinateError),
-    Semantic(SourceContextError),
+    Semantic(SemanticSignatureError),
     InvalidLabelRange(usize),
 }
 

@@ -8,6 +8,9 @@ use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
 
 use crate::AnalysisSnapshot;
 use crate::callable_source::project_callable_source;
+use crate::evidence::{
+    EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
+};
 use crate::semantic::SemanticAuthority;
 use crate::source_context::SourceContextError;
 
@@ -47,12 +50,8 @@ pub enum SemanticInlayHintKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticInlayHintError {
     SourceContext(SourceContextError),
+    Evidence(EvidenceIntegrityError),
     MissingSyntax(SourceId),
-    MissingBody(nocter_model::BodyId),
-    MissingLocal {
-        body: nocter_model::BodyId,
-        local: nocter_model::LocalBindingId,
-    },
     MissingCallable(nocter_model::CallableId),
     MissingCallableProvenance(nocter_model::CallableId),
     InvalidCallableSource(nocter_model::CallableId),
@@ -65,12 +64,9 @@ impl fmt::Display for SemanticInlayHintError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SourceContext(error) => error.fmt(formatter),
+            Self::Evidence(error) => error.fmt(formatter),
             Self::MissingSyntax(source) => {
                 write!(formatter, "inlay-hint syntax for {source:?} is absent")
-            }
-            Self::MissingBody(body) => write!(formatter, "inlay-hint body {body:?} is absent"),
-            Self::MissingLocal { body, local } => {
-                write!(formatter, "inlay-hint local {body:?}/{local:?} is absent")
             }
             Self::MissingCallable(callable) => {
                 write!(formatter, "inlay-hint callable {callable:?} is absent")
@@ -104,9 +100,8 @@ impl std::error::Error for SemanticInlayHintError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::SourceContext(error) => Some(error),
+            Self::Evidence(error) => Some(error),
             Self::MissingSyntax(_)
-            | Self::MissingBody(_)
-            | Self::MissingLocal { .. }
             | Self::MissingCallable(_)
             | Self::MissingCallableProvenance(_)
             | Self::InvalidCallableSource(_)
@@ -120,6 +115,12 @@ impl std::error::Error for SemanticInlayHintError {
 impl From<SourceContextError> for SemanticInlayHintError {
     fn from(error: SourceContextError) -> Self {
         Self::SourceContext(error)
+    }
+}
+
+impl From<EvidenceIntegrityError> for SemanticInlayHintError {
+    fn from(error: EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 
@@ -138,10 +139,14 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
         requested: TextRange,
-    ) -> Result<Box<[SemanticInlayHint]>, SemanticInlayHintError> {
+    ) -> Result<SemanticQuerySet<SemanticInlayHint>, SemanticInlayHintError> {
         let Some(authority) = self.semantic_authority() else {
-            return Ok(Box::new([]));
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+            ));
         };
+        let coverage = authority.typed_body_coverage()?;
         let index = authority.source_index();
         let module = authority.source_ownership().module_for_source(source)?;
         let syntax = self
@@ -163,7 +168,7 @@ impl AnalysisSnapshot {
         hints.extend(context.callable_provenance_hints()?);
         hints.sort_unstable_by_key(|hint| (hint.position, hint.kind));
         hints.dedup_by_key(|hint| (hint.position, hint.kind));
-        Ok(hints.into_boxed_slice())
+        Ok(SemanticQuerySet::new(hints.into_boxed_slice(), coverage))
     }
 }
 
@@ -193,14 +198,13 @@ impl InlayContext<'_> {
             if !self.requested.contains_offset(position) {
                 continue;
             }
-            let checked_body = self
+            let Ok(checked_local) = self
                 .authority
-                .body(body)
-                .ok_or(SemanticInlayHintError::MissingBody(body))?;
-            let checked_local = checked_body
-                .locals()
-                .get(local)
-                .ok_or(SemanticInlayHintError::MissingLocal { body, local })?;
+                .local_binding_fact(body, local)?
+                .into_result()
+            else {
+                continue;
+            };
             let entity = binding.entity();
             let rendered = crate::presentation::type_presentation_with_spellings(
                 self.authority.graph(),
@@ -219,9 +223,10 @@ impl InlayContext<'_> {
     }
 
     fn callable_provenance_hints(&self) -> Result<Vec<SemanticInlayHint>, SemanticInlayHintError> {
-        let Some(checked) = self.authority.checked() else {
+        let Some(complete) = self.authority.complete() else {
             return Ok(Vec::new());
         };
+        let checked = complete.checked();
         let mut hints = Vec::new();
         for binding in self.index.bindings_in(self.source) {
             if binding.role() != SourceRole::Declaration {

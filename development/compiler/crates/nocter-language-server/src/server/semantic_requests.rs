@@ -163,7 +163,8 @@ impl LanguageServer {
                 let detail = Value::String(error.to_string().into_boxed_str());
                 let code = match error {
                     SemanticTokensQueryError::Document(_) => ResponseErrorCode::InvalidParams,
-                    SemanticTokensQueryError::Coordinate(_)
+                    SemanticTokensQueryError::Evidence(_)
+                    | SemanticTokensQueryError::Coordinate(_)
                     | SemanticTokensQueryError::Multiline
                     | SemanticTokensQueryError::Encoding(_) => ResponseErrorCode::InternalError,
                 };
@@ -348,9 +349,9 @@ impl LanguageServer {
                     NavigationQueryError::Document(_) | NavigationQueryError::Coordinate(_) => {
                         ResponseErrorCode::InvalidParams
                     }
-                    NavigationQueryError::MissingSource(_) | NavigationQueryError::Uri(_) => {
-                        ResponseErrorCode::InternalError
-                    }
+                    NavigationQueryError::Evidence(_)
+                    | NavigationQueryError::MissingSource(_)
+                    | NavigationQueryError::Uri(_) => ResponseErrorCode::InternalError,
                 };
                 ServerStep {
                     response: Some(render_error_response(Some(id), code, Some(&detail))),
@@ -549,6 +550,53 @@ mod tests {
         assert!(response.contains("\"line\":0,\"character\":5"));
         assert!(response.contains("\"line\":2,\"character\":17"));
         assert!(declarations.issue().is_none());
+    }
+
+    #[test]
+    fn references_do_not_present_partial_occurrence_coverage_as_complete() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let source_text = concat!(
+            "func target(): i32 { 1 }\n",
+            "func rejected(input: i32?): i32 {\n",
+            "    let reached = target()\n",
+            "    input?\n",
+            "}\n",
+            "func retained(): i32 { target() }\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, source_text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":25}}}}}}"
+        ));
+        assert!(
+            definition
+                .response()
+                .is_some_and(|response| response.contains("\"line\":0,\"character\":5")),
+            "{:?}",
+            definition.response()
+        );
+
+        let references = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":6}},\"context\":{{\"includeDeclaration\":true}}}}}}"
+        ));
+        assert_eq!(
+            references.response(),
+            Some(r#"{"jsonrpc":"2.0","id":3,"result":null}"#)
+        );
+        assert!(references.issue().is_none(), "{:?}", references.issue());
     }
 
     #[test]
@@ -2142,6 +2190,66 @@ mod tests {
             "{:?}",
             extending_past_hint.issue()
         );
+    }
+
+    #[test]
+    fn inlay_hints_skip_rejected_body_evidence_without_hiding_typed_siblings() {
+        let temporary = TemporaryDirectory::new();
+        let source_path = temporary.path().join("main.nct");
+        let source = concat!(
+            "func rejected(input: i32?): i32 {\n",
+            "    let unavailable = 1\n",
+            "    input?\n",
+            "}\n",
+            "func retained(): i32 {\n",
+            "    let available = 2\n",
+            "    available\n",
+            "}\n",
+        );
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert!(
+            snapshot
+                .diagnostics()
+                .iter()
+                .any(|error| error.code() == "E0392")
+        );
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":2,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":7,\"character\":1}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "\"position\":{\"line\":5,\"character\":17},",
+                "\"label\":\": i32\",\"kind\":1"
+            )),
+            "{response}"
+        );
+        assert!(
+            !response.contains("\"line\":1,\"character\":19"),
+            "{response}"
+        );
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 
     #[test]

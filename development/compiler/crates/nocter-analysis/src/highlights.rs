@@ -1,10 +1,12 @@
-use nocter_checking::{CaptureMode, LocalBindingKind};
 use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
 use nocter_model::CallableCapability;
 use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
+use crate::evidence::{
+    EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
+};
 use crate::source_selection::select_source_binding;
 
 /// Protocol-independent semantic classification of one source range.
@@ -58,16 +60,29 @@ pub enum SemanticHighlightKind {
 
 impl AnalysisSnapshot {
     /// Classifies every exact semantic binding available from the deepest current authority.
-    #[must_use]
-    pub fn semantic_highlights(&self, source: SourceId) -> Box<[SemanticHighlight]> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when a source occurrence names a semantic domain absent from the
+    /// immutable evidence result.
+    pub fn semantic_highlights(
+        &self,
+        source: SourceId,
+    ) -> Result<SemanticQuerySet<SemanticHighlight>, EvidenceIntegrityError> {
         let Some(authority) = self.semantic_authority() else {
-            return Box::new([]);
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+            ));
         };
+        let coverage = authority.typed_body_coverage()?;
         let index = authority.source_index();
-        let candidates = index
-            .bindings_in(source)
-            .filter(|binding| highlight(authority, binding).is_some())
-            .collect::<Vec<_>>();
+        let mut candidates = Vec::new();
+        for binding in index.bindings_in(source) {
+            if highlight(authority, binding)?.is_some() {
+                candidates.push(binding);
+            }
+        }
         let mut highlights = Vec::new();
         let mut start = 0;
         while start < candidates.len() {
@@ -77,51 +92,59 @@ impl AnalysisSnapshot {
                 + start;
             if let Some(binding) =
                 select_source_binding(candidates[start..end].iter().copied(), |_| true).unique()
-                && let Some(highlight) = highlight(authority, &binding)
+                && let Some(highlight) = highlight(authority, &binding)?
             {
                 highlights.push(highlight);
             }
             start = end;
         }
-        highlights.into_boxed_slice()
+        Ok(SemanticQuerySet::new(
+            highlights.into_boxed_slice(),
+            coverage,
+        ))
     }
 }
 
 fn highlight(
     authority: crate::semantic::SemanticAuthority<'_>,
     binding: &SourceBinding,
-) -> Option<SemanticHighlight> {
-    let (kind, readonly) = classify(authority, binding)?;
+) -> Result<Option<SemanticHighlight>, EvidenceIntegrityError> {
+    let Some((kind, readonly)) = classify(authority, binding)? else {
+        return Ok(None);
+    };
     if matches!(binding.entity(), SemanticEntity::Module(_))
         && binding.role() != SourceRole::Reference
     {
-        return None;
+        return Ok(None);
     }
     let range = binding.origin().span().range();
     if range.is_empty() {
-        return None;
+        return Ok(None);
     }
-    Some(SemanticHighlight {
+    Ok(Some(SemanticHighlight {
         range,
         kind,
         declaration: binding.role() != SourceRole::Reference,
         readonly,
-    })
+    }))
 }
 
 fn classify(
     authority: crate::semantic::SemanticAuthority<'_>,
     binding: &SourceBinding,
-) -> Option<(SemanticHighlightKind, bool)> {
+) -> Result<Option<(SemanticHighlightKind, bool)>, EvidenceIntegrityError> {
     let graph = authority.graph();
     let entity = binding.entity();
     let declarations = graph.declarations();
     let kind = match entity {
         SemanticEntity::BuiltinType(_) => SemanticHighlightKind::Type,
         SemanticEntity::Module(_) => SemanticHighlightKind::Namespace,
-        SemanticEntity::NominalType(id) => match declarations.nominal_types().get(id)?.shape() {
-            NominalShape::Struct { .. } => SemanticHighlightKind::Struct,
-            NominalShape::Enum { .. } => SemanticHighlightKind::Enum,
+        SemanticEntity::NominalType(id) => match declarations.nominal_types().get(id) {
+            Some(declaration) => match declaration.shape() {
+                NominalShape::Struct { .. } => SemanticHighlightKind::Struct,
+                NominalShape::Enum { .. } => SemanticHighlightKind::Enum,
+            },
+            None => return Ok(None),
         },
         SemanticEntity::TypeAlias(_) | SemanticEntity::AssociatedType(_) => {
             SemanticHighlightKind::Type
@@ -129,44 +152,51 @@ fn classify(
         SemanticEntity::Interface(_) => SemanticHighlightKind::Interface,
         SemanticEntity::GenericParameter(_) => SemanticHighlightKind::TypeParameter,
         SemanticEntity::Constant(_) => {
-            return Some((SemanticHighlightKind::Variable, true));
+            return Ok(Some((SemanticHighlightKind::Variable, true)));
         }
         SemanticEntity::Parameter(id) => {
-            let parameter = declarations.parameters().get(id)?;
+            let Some(parameter) = declarations.parameters().get(id) else {
+                return Ok(None);
+            };
             let readonly = match parameter.role() {
                 ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => true,
                 ParameterRole::Receiver(capability) => capability == CallableCapability::Readonly,
             };
-            return Some((SemanticHighlightKind::Parameter, readonly));
+            return Ok(Some((SemanticHighlightKind::Parameter, readonly)));
         }
         SemanticEntity::LocalBinding(body, id) => {
-            let local = authority.body(body)?.locals().get(id)?;
-            let readonly = local.declaration().kind() != LocalBindingKind::Mutable;
-            return Some((SemanticHighlightKind::Variable, readonly));
+            let Ok(local) = authority.local_binding_fact(body, id)?.into_result() else {
+                return Ok(None);
+            };
+            return Ok(Some((SemanticHighlightKind::Variable, local.readonly())));
         }
         SemanticEntity::Capture(body, id) => {
-            let capture = authority.body(body)?.captures().get(id)?;
-            let readonly = capture.declaration().mode() == CaptureMode::Readonly;
-            return Some((SemanticHighlightKind::Variable, readonly));
+            let Ok(readonly) = authority.capture_readonly_fact(body, id)?.into_result() else {
+                return Ok(None);
+            };
+            return Ok(Some((SemanticHighlightKind::Variable, readonly)));
         }
         SemanticEntity::Field(_) => {
-            return Some((
+            return Ok(Some((
                 SemanticHighlightKind::Property,
                 binding.access() == Some(SourceAccess::Readonly),
-            ));
+            )));
         }
         SemanticEntity::Variant(_) => SemanticHighlightKind::EnumMember,
-        SemanticEntity::Callable(id) => match declarations.callables().get(id)?.kind() {
-            CallableKind::Function
-            | CallableKind::Primitive
-            | CallableKind::ConstructionFunction
-            | CallableKind::Literal(_) => SemanticHighlightKind::Function,
-            CallableKind::Method
-            | CallableKind::Coercion
-            | CallableKind::Equality
-            | CallableKind::Ordering
-            | CallableKind::Index
-            | CallableKind::Expansion => SemanticHighlightKind::Method,
+        SemanticEntity::Callable(id) => match declarations.callables().get(id) {
+            Some(callable) => match callable.kind() {
+                CallableKind::Function
+                | CallableKind::Primitive
+                | CallableKind::ConstructionFunction
+                | CallableKind::Literal(_) => SemanticHighlightKind::Function,
+                CallableKind::Method
+                | CallableKind::Coercion
+                | CallableKind::Equality
+                | CallableKind::Ordering
+                | CallableKind::Index
+                | CallableKind::Expansion => SemanticHighlightKind::Method,
+            },
+            None => return Ok(None),
         },
         SemanticEntity::Test(_) => SemanticHighlightKind::Function,
         SemanticEntity::OpaqueType(_) => SemanticHighlightKind::Keyword,
@@ -181,7 +211,7 @@ fn classify(
         | SemanticEntity::Requirement(_)
         | SemanticEntity::Body(_)
         | SemanticEntity::BodyScope(..)
-        | SemanticEntity::BodyNode(..) => return None,
+        | SemanticEntity::BodyNode(..) => return Ok(None),
     };
-    Some((kind, false))
+    Ok(Some((kind, false)))
 }

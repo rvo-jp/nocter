@@ -147,7 +147,7 @@ pub(super) fn body_recovery_presentation(
     let mut renderer = Renderer::new(prepared.graph(), prepared.types(), spellings);
     match entity {
         SemanticEntity::LocalBinding(body, id) => {
-            let local = recovery.body(body)?.locals().get(id)?;
+            let local = recovery.typed_body(body)?.locals().get(id)?;
             let introducer = match local.declaration().kind() {
                 LocalBindingKind::Mutable => "var",
                 LocalBindingKind::Immutable
@@ -166,7 +166,7 @@ pub(super) fn body_recovery_presentation(
             renderer.ty(local.ty())?;
         }
         SemanticEntity::Capture(body, id) => {
-            let capture = recovery.body(body)?.captures().get(id)?;
+            let capture = recovery.typed_body(body)?.captures().get(id)?;
             write!(
                 renderer.output,
                 "capture {}: ",

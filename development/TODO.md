@@ -6,8 +6,9 @@ Nocter v0.17.0 is published and externally audited. Exact source, artifact, and 
 evidence belongs to [`development/releases/v0.17.0.md`](releases/v0.17.0.md); older release records
 remain under `development/releases/` and are not repeated here.
 
-The [v0.18.0 Phase 0, Phase 1, Phase 2, and twice-reopened Phase 3 work](milestones/v0.18.0.md) and
-their adversarial reviews are complete. Phase 3 replaced body-semantic mutation plus rollback with
+The [v0.18.0 Phase 0, Phase 1, Phase 2, and twice-reopened Phase 3 work](milestones/v0.18.0.md) is
+implemented, but release qualification is blocked by the active
+[semantic-tooling reconstruction](docs/semantic-tooling-reconstruction.md). Phase 3 replaced body-semantic mutation plus rollback with
 persistent immutable authorities and explicit type, copyability, and closure transactions. Its
 reopened review then separated read-only type snapshots from construction ownership, kept type and
 copyability in one semantic authority through every checking stage, bound checked member input to
@@ -21,7 +22,10 @@ post-phase architecture audit then removed repeated target-directive parsing, so
 primitive and standard-role selection, repeated package-target validation, source projection from
 prepared semantic state, duplicated built-in type vocabularies, and standard-API spelling checks
 in interface-implementation code actions. Executable architecture gates now protect these
-boundaries. Phase 3 changes no language behavior. v0.18.0 release qualification is the next task.
+boundaries. Phase 3 changes no language behavior. The current task replaces optional sparse editor
+recovery, lossy session diagnostic composition, and feature-local semantic joins with explicit
+per-domain evidence and coverage contracts. v0.18.0 release qualification resumes only after that
+completion gate closes.
 
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
@@ -47,7 +51,9 @@ Declaration and lowering exemptions are limited to their program/type-constructi
 iteration is linear, final copyability closure scans only appended types without traversing the
 closed prefix, and structural storage and concreteness facts are computed once at interning.
 Closure drafts and final definitions share one immutable core. The twice-reopened adversarial
-review found no open correctness or architecture issue. Complete workspace
+review found no remaining persistent-authority issue, but a later cross-feature audit found that
+editor recovery still lacked an explicit availability, completeness, and diagnostic-causality
+contract. Complete workspace
 tests, warnings-denied all-target Clippy, formatting, generated documentation, and repository
 whitespace validation passed on the final tree.
 

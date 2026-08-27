@@ -20,6 +20,7 @@ and standard-library behavior belongs exclusively in
 - [Current Handoff](../TODO.md)
 - [v0.18.0 Construction Surface Simplification](../milestones/v0.18.0.md)
 - [Persistent Semantic Authority](persistent-semantic-authority.md)
+- [Semantic Tooling Reconstruction](semantic-tooling-reconstruction.md)
 - [v0.18.0 Phase 0 Construction Review](../reviews/v0.18.0-phase-0.md)
 - [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
 - [v0.17.0 Release Preparation](../milestones/v0.17.0-release-preparation.md)
@@ -48,6 +49,7 @@ language behavior. Git history and published release records preserve chronology
 | Machine layout, machine program, ARM64, and Mach-O ownership | `machine-program-design.md` |
 | Declaration validation authority, diagnostic cardinality, and lowering failure classification | `declaration-diagnostic-boundary.md` |
 | Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
+| Semantic recovery evidence, query coverage, and editor availability | `semantic-tooling-reconstruction.md` |
 | Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
 | Active v0.18.0 construction-surface contract and completion gate | `../milestones/v0.18.0.md` |
 | Completed v0.17.0 scope and release qualification | `../milestones/v0.17.0.md` and `../milestones/v0.17.0-release-preparation.md` |

@@ -12,6 +12,7 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 
 use crate::AnalysisSnapshot;
+use crate::evidence::EvidenceIntegrityError;
 use crate::presentation::visible_spelling::VisibleSpellings;
 use crate::presentation::{prepared_presentation, presentation};
 use crate::semantic::SemanticAuthority;
@@ -149,6 +150,7 @@ pub enum SemanticCompletionKind {
 #[derive(Debug)]
 pub enum SemanticCompletionError {
     SourceContext(SourceContextError),
+    Evidence(EvidenceIntegrityError),
     Member(MemberCompletionError),
     Construction(ConstructionCompletionError),
     StructuralField(StructuralFieldCompletionError),
@@ -161,6 +163,7 @@ impl fmt::Display for SemanticCompletionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SourceContext(error) => error.fmt(formatter),
+            Self::Evidence(error) => error.fmt(formatter),
             Self::Member(error) => error.fmt(formatter),
             Self::Construction(error) => error.fmt(formatter),
             Self::StructuralField(error) => error.fmt(formatter),
@@ -175,6 +178,7 @@ impl std::error::Error for SemanticCompletionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::SourceContext(error) => Some(error),
+            Self::Evidence(error) => Some(error),
             Self::Member(error) => Some(error),
             Self::Construction(error) => Some(error),
             Self::StructuralField(error) => Some(error),
@@ -188,6 +192,12 @@ impl std::error::Error for SemanticCompletionError {
 impl From<SourceContextError> for SemanticCompletionError {
     fn from(error: SourceContextError) -> Self {
         Self::SourceContext(error)
+    }
+}
+
+impl From<EvidenceIntegrityError> for SemanticCompletionError {
+    fn from(error: EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 
@@ -258,7 +268,8 @@ impl AnalysisSnapshot {
         let spellings = self
             .queries
             .source_spellings(program.graph(), module, index, source);
-        if let Some(checked) = program.checked() {
+        if let Some(complete) = program.complete() {
+            let checked = complete.checked();
             if let Some(completions) =
                 associated_types::checked_completions(checked, source, offset, &spellings)?
             {
@@ -308,7 +319,7 @@ impl AnalysisSnapshot {
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
         if let Some((body, scope)) = containing_scope(index, source, offset) {
-            add_scope_candidates(program, index, source, offset, body, scope, &mut candidates);
+            add_scope_candidates(program, index, source, offset, body, scope, &mut candidates)?;
         }
         let automatic_imports =
             automatic_imports::completions(self, program, source, module, &candidates)?;
@@ -562,11 +573,11 @@ fn add_scope_candidates(
     body: BodyId,
     mut scope: BodyScopeId,
     candidates: &mut BTreeMap<Symbol, Candidate>,
-) {
+) -> Result<(), EvidenceIntegrityError> {
     let mut chain = Vec::new();
     loop {
-        let Some(current) = program.scope(body, scope) else {
-            return;
+        let Ok(current) = program.body_scope_fact(body, scope)?.into_result() else {
+            return Ok(());
         };
         chain.push(scope);
         let Some(parent) = current.parent() else {
@@ -575,8 +586,8 @@ fn add_scope_candidates(
         scope = parent;
     }
     for scope in chain.into_iter().rev() {
-        let Some(scope) = program.scope(body, scope) else {
-            continue;
+        let Ok(scope) = program.body_scope_fact(body, scope)?.into_result() else {
+            return Ok(());
         };
         for binding in scope.bindings() {
             let Some(candidate) = name_candidate(program.graph(), body, binding.target()) else {
@@ -587,6 +598,7 @@ fn add_scope_candidates(
             }
         }
     }
+    Ok(())
 }
 
 fn local_is_available(

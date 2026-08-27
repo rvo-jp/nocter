@@ -19,7 +19,9 @@ use nocter_source_index::{
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
-use crate::{BodySourceCatalog, BodySourceError, catalog_body_sources};
+use crate::{
+    BodyNameEvidence, BodySourceCatalog, BodySourceError, NameRejection, catalog_body_sources,
+};
 
 pub use diagnostic::NameRule;
 pub use model::{
@@ -29,7 +31,7 @@ pub use model::{
 use resolver::BodyNameResolver;
 
 pub(crate) struct PartialNameResolution {
-    pub(crate) bodies: Arena<BodyId, Option<ResolvedBodyNames>>,
+    pub(crate) bodies: Arena<BodyId, BodyNameEvidence>,
     pub(crate) source_index: SourceIndex,
 }
 
@@ -281,7 +283,14 @@ fn resolve_cataloged_body_names_active<'syntax>(
                         projections.extend(partial.projections);
                         partial.body
                     });
-                    let actual = bodies.insert(partial);
+                    let diagnostic = failure
+                        .error
+                        .source_diagnostic()
+                        .expect("source-backed name rejection")
+                        .clone();
+                    let actual = bodies.insert(BodyNameEvidence::Rejected(NameRejection::new(
+                        diagnostic, partial,
+                    )));
                     if actual != expected {
                         return Err(RecoveringNameResolutionError {
                             error: Box::new(
@@ -296,7 +305,7 @@ fn resolve_cataloged_body_names_active<'syntax>(
                     continue;
                 }
             };
-        let actual = bodies.insert(Some(resolved.body));
+        let actual = bodies.insert(BodyNameEvidence::Resolved(resolved.body));
         if actual != expected {
             return Err(RecoveringNameResolutionError {
                 error: Box::new(NameResolutionInternalError::InvalidBodyOwner(expected).into()),
@@ -324,8 +333,11 @@ fn resolve_cataloged_body_names_active<'syntax>(
     }
 
     let bodies = bodies
-        .try_finish_with(|body, names| {
-            names.ok_or(NameResolutionInternalError::InvalidBodyOwner(body))
+        .try_finish_with(|body, evidence| {
+            let BodyNameEvidence::Resolved(names) = evidence else {
+                return Err(NameResolutionInternalError::InvalidBodyOwner(body));
+            };
+            Ok(names)
         })
         .map_err(|error| RecoveringNameResolutionError {
             error: Box::new(error.into()),

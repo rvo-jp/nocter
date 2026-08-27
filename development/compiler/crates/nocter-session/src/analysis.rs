@@ -17,6 +17,7 @@ use crate::{CompileSessionError, CompiledTarget, SemanticAnalysis};
 pub struct CompileTargetFailure {
     error: CompileSessionError,
     semantic: Option<Box<SemanticAnalysis>>,
+    diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
 
 /// Best-effort source analysis performed beneath an authoritative syntax failure.
@@ -27,6 +28,7 @@ pub struct CompileTargetFailure {
 pub struct IncompleteSyntaxAnalysis {
     failure: Option<CompileSessionError>,
     semantic: Option<Box<SemanticAnalysis>>,
+    diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
 
 impl IncompleteSyntaxAnalysis {
@@ -34,13 +36,16 @@ impl IncompleteSyntaxAnalysis {
         Self {
             failure: None,
             semantic: None,
+            diagnostics: Box::new([]),
         }
     }
 
     fn failed(error: CompileSessionError, semantic: Option<SemanticAnalysis>) -> Self {
+        let diagnostics = analysis_diagnostics(Some(&error), semantic.as_ref());
         Self {
             failure: Some(error),
             semantic: semantic.map(Box::new),
+            diagnostics,
         }
     }
 
@@ -55,16 +60,33 @@ impl IncompleteSyntaxAnalysis {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (Option<CompileSessionError>, Option<SemanticAnalysis>) {
-        (self.failure, self.semantic.map(|semantic| *semantic))
+    pub const fn source_diagnostics(&self) -> &[nocter_diagnostics::SourceDiagnostic] {
+        &self.diagnostics
+    }
+
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        Option<CompileSessionError>,
+        Option<SemanticAnalysis>,
+        Box<[nocter_diagnostics::SourceDiagnostic]>,
+    ) {
+        (
+            self.failure,
+            self.semantic.map(|semantic| *semantic),
+            self.diagnostics,
+        )
     }
 }
 
 impl CompileTargetFailure {
     fn new(error: CompileSessionError, semantic: Option<SemanticAnalysis>) -> Self {
+        let diagnostics = analysis_diagnostics(Some(&error), semantic.as_ref());
         Self {
             error,
             semantic: semantic.map(Box::new),
+            diagnostics,
         }
     }
 
@@ -78,15 +100,64 @@ impl CompileTargetFailure {
         self.semantic.as_deref()
     }
 
+    /// Returns every source diagnostic that explains this analysis result, including rejected
+    /// body evidence retained beneath an earlier production failure.
     #[must_use]
-    pub fn into_parts(self) -> (CompileSessionError, Option<SemanticAnalysis>) {
-        (self.error, self.semantic.map(|semantic| *semantic))
+    pub const fn source_diagnostics(&self) -> &[nocter_diagnostics::SourceDiagnostic] {
+        &self.diagnostics
+    }
+
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        CompileSessionError,
+        Option<SemanticAnalysis>,
+        Box<[nocter_diagnostics::SourceDiagnostic]>,
+    ) {
+        (
+            self.error,
+            self.semantic.map(|semantic| *semantic),
+            self.diagnostics,
+        )
     }
 
     #[must_use]
     pub fn into_error(self) -> CompileSessionError {
         self.error
     }
+}
+
+fn analysis_diagnostics(
+    error: Option<&CompileSessionError>,
+    semantic: Option<&SemanticAnalysis>,
+) -> Box<[nocter_diagnostics::SourceDiagnostic]> {
+    let mut diagnostics = error
+        .into_iter()
+        .flat_map(CompileSessionError::source_diagnostics)
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Some(semantic) = semantic {
+        let mut retain = |diagnostic: &nocter_diagnostics::SourceDiagnostic| {
+            if !diagnostics.contains(diagnostic) {
+                diagnostics.push(diagnostic.clone());
+            }
+        };
+        match semantic {
+            SemanticAnalysis::Names(analysis) => {
+                for diagnostic in analysis.body_names().rejection_diagnostics() {
+                    retain(diagnostic);
+                }
+            }
+            SemanticAnalysis::Bodies(analysis) => {
+                for diagnostic in analysis.rejection_diagnostics() {
+                    retain(diagnostic);
+                }
+            }
+            SemanticAnalysis::Declarations(_) | SemanticAnalysis::Checked(_) => {}
+        }
+    }
+    diagnostics.into_boxed_slice()
 }
 
 /// Runs one immutable discovery snapshot while retaining the deepest valid current-generation

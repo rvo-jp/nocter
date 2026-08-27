@@ -20,6 +20,7 @@ mod callable_source;
 mod code_actions;
 mod completion;
 mod documents;
+mod evidence;
 mod highlights;
 mod inlay_hints;
 mod navigation;
@@ -42,13 +43,17 @@ pub use completion::{
 pub use documents::{
     AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
 };
+pub use evidence::{
+    EvidenceIntegrityError, SemanticBodyGap, SemanticCoverage, SemanticQuerySet,
+    SemanticSetUnavailability, TypedBodyUnavailability,
+};
 pub use highlights::{SemanticHighlight, SemanticHighlightKind};
 pub use inlay_hints::{SemanticInlayHint, SemanticInlayHintError, SemanticInlayHintKind};
 pub use navigation::SemanticLocation;
 pub use presentation::{PresentationError, SemanticPresentation};
 pub use rename::{SemanticRenameEdit, SemanticRenameError, SemanticRenamePlan};
 pub use semantic::{SemanticQueryError, SemanticSelection, SemanticSubject};
-pub use signature::{SemanticParameterLabel, SemanticSignatureHelp};
+pub use signature::{SemanticParameterLabel, SemanticSignatureError, SemanticSignatureHelp};
 pub use source_context::SourceContextError;
 pub use source_edits::SemanticSourceEdit;
 
@@ -175,14 +180,18 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
-            let (failure, semantic) = analyze_incomplete_syntax(&unit).map_or(
-                (None, None),
-                nocter_session::IncompleteSyntaxAnalysis::into_parts,
-            );
+            let (failure, semantic, semantic_diagnostics) = analyze_incomplete_syntax(&unit)
+                .map_or(
+                    (
+                        None,
+                        None,
+                        Box::<[nocter_diagnostics::SourceDiagnostic]>::default(),
+                    ),
+                    nocter_session::IncompleteSyntaxAnalysis::into_parts,
+                );
             let mut diagnostics = unit.syntax_diagnostics().into_vec();
-            if let Some(failure) = failure.as_ref() {
-                let independent = failure
-                    .source_diagnostics()
+            {
+                let independent = semantic_diagnostics
                     .iter()
                     .filter(|diagnostic| independent_diagnostic(&diagnostics, diagnostic))
                     .cloned()
@@ -208,8 +217,7 @@ impl AnalysisSnapshot {
                 }
             }
             Err(failure) => {
-                let (error, semantic) = (*failure).into_parts();
-                let diagnostics = error.source_diagnostics().into();
+                let (error, semantic, diagnostics) = (*failure).into_parts();
                 let state =
                     AnalysisState::Current(CurrentAnalysis::compilation(unit, error, semantic));
                 Self {
@@ -253,7 +261,7 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn has_checked_semantics(&self) -> bool {
         self.semantic_authority()
-            .and_then(|authority| authority.checked())
+            .and_then(crate::semantic::SemanticAuthority::complete)
             .is_some()
     }
 

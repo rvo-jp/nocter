@@ -142,7 +142,14 @@ fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
     assert_eq!(failure.error.source_diagnostic().unwrap().code(), "E0340");
     let recovery = failure.recovery.unwrap();
     let (_, body) = recovery.bodies.iter().next().unwrap();
-    let body = body.as_ref().expect("failing body recovery");
+    assert_eq!(
+        body.rejection()
+            .expect("rejected name evidence")
+            .diagnostic()
+            .code(),
+        "E0340"
+    );
+    let body = body.usable_names().expect("failing body recovery");
     let names = body
         .scopes()
         .iter()
@@ -162,7 +169,7 @@ fn name_rule_retains_only_scopes_and_bindings_resolved_before_it() {
     let later = recovery
         .bodies
         .iter()
-        .filter_map(|(_, body)| body.as_ref())
+        .filter_map(|(_, body)| body.usable_names())
         .find(|body| {
             body.locals().iter().any(|(_, local)| {
                 program.graph().symbols().spelling(local.name()) == Some("retained")

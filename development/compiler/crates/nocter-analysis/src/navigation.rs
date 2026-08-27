@@ -2,6 +2,9 @@ use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
 use crate::AnalysisSnapshot;
+use crate::evidence::{
+    EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
+};
 
 /// One source-owned semantic navigation target before URI and coordinate projection.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -29,15 +32,18 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Box<[SemanticLocation]> {
+    ) -> SemanticQuerySet<SemanticLocation> {
         let Some(selection) = self.semantic_selection(source, offset) else {
-            return Box::new([]);
+            return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
         };
         let Some(index) = self
             .semantic_authority()
             .map(|authority| authority.source_index())
         else {
-            return Box::new([]);
+            return SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+            );
         };
         let bindings = index.bindings_for(selection.entity());
         let preferred = if bindings
@@ -48,11 +54,14 @@ impl AnalysisSnapshot {
         } else {
             SourceRole::Implementation
         };
-        locations(
-            selection.entity(),
-            bindings
-                .iter()
-                .filter(|binding| binding.role() == preferred),
+        SemanticQuerySet::new(
+            locations(
+                selection.entity(),
+                bindings
+                    .iter()
+                    .filter(|binding| binding.role() == preferred),
+            ),
+            SemanticCoverage::Complete,
         )
     }
 
@@ -62,15 +71,18 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Box<[SemanticLocation]> {
+    ) -> SemanticQuerySet<SemanticLocation> {
         let Some(selection) = self.semantic_selection(source, offset) else {
-            return Box::new([]);
+            return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
         };
         let Some(index) = self
             .semantic_authority()
             .map(|authority| authority.source_index())
         else {
-            return Box::new([]);
+            return SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+            );
         };
         let bindings = index.bindings_for(selection.entity());
         let preferred = if bindings
@@ -81,38 +93,63 @@ impl AnalysisSnapshot {
         } else {
             SourceRole::Declaration
         };
-        locations(
-            selection.entity(),
-            bindings
-                .iter()
-                .filter(|binding| binding.role() == preferred),
+        SemanticQuerySet::new(
+            locations(
+                selection.entity(),
+                bindings
+                    .iter()
+                    .filter(|binding| binding.role() == preferred),
+            ),
+            SemanticCoverage::Complete,
         )
     }
 
     /// Finds every reached occurrence of the exact semantic identity at `offset`.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when a source occurrence names a semantic domain absent from the
+    /// immutable evidence result.
     pub fn semantic_references(
         &self,
         source: SourceId,
         offset: ByteOffset,
         include_declarations: bool,
-    ) -> Box<[SemanticLocation]> {
+    ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
         let Some(selection) = self.semantic_selection(source, offset) else {
-            return Box::new([]);
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                authority_coverage(self),
+            ));
         };
-        let Some(index) = self
-            .semantic_authority()
-            .map(|authority| authority.source_index())
-        else {
-            return Box::new([]);
+        let Some(authority) = self.semantic_authority() else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority),
+            ));
         };
-        locations(
-            selection.entity(),
-            index
-                .bindings_for(selection.entity())
-                .iter()
-                .filter(|binding| include_declarations || binding.role() == SourceRole::Reference),
-        )
+        let coverage = authority.typed_body_coverage()?;
+        Ok(SemanticQuerySet::new(
+            locations(
+                selection.entity(),
+                authority
+                    .source_index()
+                    .bindings_for(selection.entity())
+                    .iter()
+                    .filter(|binding| {
+                        include_declarations || binding.role() == SourceRole::Reference
+                    }),
+            ),
+            coverage,
+        ))
+    }
+}
+
+fn authority_coverage(snapshot: &AnalysisSnapshot) -> SemanticCoverage {
+    if snapshot.semantic_authority().is_some() {
+        SemanticCoverage::Complete
+    } else {
+        SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticAuthority)
     }
 }
 

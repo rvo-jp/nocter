@@ -17,10 +17,12 @@ SourceId + byte offset
   -> SemanticSelection
 ```
 
-Hover renders through the deepest completed semantic authority: checked data when available and
-the exact declaration, name, or prepared-body contract otherwise. Definition and references retain
-the selected semantic identity and project its existing `SourceIndex` bindings; they never search
-source text. A failed generation never consults an older successful snapshot.
+Hover renders through the current semantic evidence: checked data when available and exact
+declaration, resolved-name, or typed-body evidence otherwise. The shared analysis query boundary
+decides whether a referenced body domain is available, rejected, or not reached; presentation code
+does not infer that state from a missing arena slot. Definition and references retain the selected
+semantic identity and project its existing `SourceIndex` bindings; they never search source text.
+A failed generation never consults an older successful snapshot.
 One shared source-context resolver selects the unique declaration or implementation module that
 owns a physical source. Hover, completion, and signature help consume that identity; module-path
 references cannot become source owners. A missing or conflicting owner is an internal query error,
@@ -198,10 +200,11 @@ body, while its private typed snapshot remains available only to checker-owned r
 All independently recoverable body interruptions are retained, regardless of which body supplied
 the first canonical diagnostic. An interruption is not a partial `CheckedBody`, does not
 manufacture a dispatch, and is usable only at its exact source range in that failed generation.
-Independently successful bodies use a separate sparse body table. Their source projections and
-typed locals remain queryable even when another body or an analysis-only declaration authority
-diagnostic rejects the generation; failed bodies never contribute invented checked nodes.
-Local type inlay hints consume that sparse body capability. Provenance inlays remain absent until
+One body-evidence table contains exactly one typed or rejected value for every declared body.
+Independently successful bodies retain queryable source projections and typed locals when another
+body or an analysis-only declaration authority diagnostic rejects the generation; failed bodies
+never contribute invented checked nodes. Local type inlay hints consume the shared typed-body
+evidence query. Provenance inlays remain absent until
 the whole-program provenance table completes.
 
 The production declaration-lowering and compile-input entries still reject every syntax error.
@@ -215,11 +218,11 @@ fixed before it. This supports `value.` completion without inserting a synthetic
 compiling modified source.
 
 When lexical name resolution rejects authored source, its editor-only entry may freeze one
-`NameAnalysisRecovery`. The value contains the declaration graph and type store together with a
-sparse slot for every declared body. A failing body's slot contains only scopes, bindings, and
-source projections fixed before that body's rule failure; independently resolved later bodies keep
-their complete lexical slots. Unresolved spellings receive no synthetic targets, and the sparse
-table cannot enter body checking. Name completion can therefore use the exact current generation
+`NameAnalysisRecovery`. The value contains the declaration graph and type store together with one
+resolved or rejected evidence value for every declared body. A failing body's rejection may retain
+only scopes, bindings, and source projections fixed before that body's rule failure; independently
+resolved later bodies keep their complete lexical evidence. Unresolved spellings receive no
+synthetic targets, and the evidence table cannot enter body checking. Name completion can therefore use the exact current generation
 without making unrelated bodies depend on traversal order, editor-side token lookup, or a stale
 successful snapshot. This recovery stage is distinct from the complete pre-body stage retained
 after a typed-body failure.

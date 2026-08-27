@@ -31,7 +31,7 @@ impl AnalysisQuerySession {
                 ..
             }) => semantic
                 .bodies()
-                .map_or(0, |recovery| recovery.interruptions().len()),
+                .map_or(0, |recovery| recovery.interruptions().count()),
             AnalysisState::DiscoveryFailed(_)
             | AnalysisState::Current(CurrentAnalysis {
                 authority: CurrentSemanticAuthority::None | CurrentSemanticAuthority::Target(_),

@@ -249,15 +249,16 @@ fn recover_body_construction_failure(
 ) -> crate::BodyCheckFailure {
     let RecoveringBodyConstructionFailure {
         error,
-        interruptions,
+        rejections,
         checked_bodies,
         projections,
+        recoverable,
     } = failure;
-    let recovery = if retain_prepared {
+    let recovery = if retain_prepared && recoverable {
         build_body_analysis_recovery(
             prepared,
             checked_semantics,
-            interruptions,
+            rejections,
             checked_bodies,
             projections,
         )
@@ -271,24 +272,27 @@ fn recover_body_construction_failure(
 fn build_body_analysis_recovery(
     mut prepared: BodyCheckingParts<'_>,
     checked_semantics: crate::semantic_authority::SemanticAuthority,
-    interruptions: Vec<(
-        crate::TypedBodyInterruption,
-        crate::recovery::TypedInterruptionEvidence,
-    )>,
+    rejections: Vec<(BodyId, crate::BodyRejection)>,
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
 ) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
     prepared.source_index = extend_source_index(prepared.source_index, projections)?;
     let mut checked_bodies = checked_bodies.into_iter().peekable();
-    let mut recovered = ArenaBuilder::<BodyId, Option<CheckedBody>>::new();
+    let mut rejections = rejections.into_iter().peekable();
+    let mut recovered = ArenaBuilder::<BodyId, crate::BodyEvidence>::new();
     for (body, _) in prepared.environment.graph().declarations().bodies().iter() {
         let value = if checked_bodies
             .peek()
             .is_some_and(|(candidate, _)| *candidate == body)
         {
-            checked_bodies.next().map(|(_, output)| output.body)
+            crate::BodyEvidence::Typed(checked_bodies.next().expect("peeked checked body").1.body)
+        } else if rejections
+            .peek()
+            .is_some_and(|(candidate, _)| *candidate == body)
+        {
+            crate::BodyEvidence::Rejected(rejections.next().expect("peeked body rejection").1)
         } else {
-            None
+            return Err(BodyCheckInternalError::MissingBodyEvidence(body));
         };
         let actual = recovered.insert(value);
         if actual != body {
@@ -298,12 +302,14 @@ fn build_body_analysis_recovery(
     if let Some((body, _)) = checked_bodies.next() {
         return Err(BodyCheckInternalError::NonCanonicalBody(body));
     }
+    if let Some((body, _)) = rejections.next() {
+        return Err(BodyCheckInternalError::NonCanonicalBody(body));
+    }
     let (prepared, body_names, source_index) = prepared.into_semantic_parts(checked_semantics);
     Ok(crate::BodyAnalysisRecovery::new(
         prepared,
         body_names,
         source_index,
-        interruptions,
         recovered.finish(),
     ))
 }
@@ -443,7 +449,7 @@ fn check_declared_bodies<'input, 'syntax>(
     let mut opaque_witnesses = Vec::new();
     let mut associated_type_completion_contexts = Vec::new();
     let mut first_error = None;
-    let mut interruptions = Vec::new();
+    let mut rejections = Vec::new();
     for (body, _) in facts.graph().declarations().bodies().iter() {
         let source = body_sources
             .get(body)
@@ -464,30 +470,30 @@ fn check_declared_bodies<'input, 'syntax>(
             Err(BodyAttemptFailure::Direct(failure)) => {
                 return Err(RecoveringBodyConstructionFailure {
                     error: Box::new(failure.into_parts().0),
-                    interruptions: Vec::new(),
+                    rejections: Vec::new(),
                     checked_bodies: Vec::new(),
                     projections: Vec::new(),
+                    recoverable: false,
                 });
             }
             Err(BodyAttemptFailure::Recovering {
                 failure,
                 interruption_state,
             }) => {
-                let (error, interruption) = failure.into_parts();
-                let recoverable = interruption.is_some() || error.source_diagnostic().is_some();
-                if let Some(interruption) = interruption {
-                    let evidence = interruption_state
-                        .expect("typed interruption must retain its semantic state");
-                    interruptions.push((interruption, evidence));
-                }
-                if !recoverable {
-                    return Err(RecoveringBodyConstructionFailure {
-                        error: Box::new(error),
-                        interruptions,
-                        checked_bodies,
-                        projections,
-                    });
-                }
+                let (rejection, error) =
+                    match classify_body_rejection(body, failure, interruption_state) {
+                        Ok(rejection) => rejection,
+                        Err(error) => {
+                            return Err(RecoveringBodyConstructionFailure {
+                                error: Box::new(error),
+                                rejections,
+                                checked_bodies,
+                                projections,
+                                recoverable: false,
+                            });
+                        }
+                    };
+                rejections.push((body, rejection));
                 if first_error.is_none() {
                     first_error = Some(error);
                 }
@@ -505,9 +511,10 @@ fn check_declared_bodies<'input, 'syntax>(
     if let Some(error) = first_error {
         return Err(RecoveringBodyConstructionFailure {
             error: Box::new(error),
-            interruptions,
+            rejections,
             checked_bodies,
             projections,
+            recoverable: true,
         });
     }
     Ok(CheckedBodiesOutput {
@@ -516,6 +523,35 @@ fn check_declared_bodies<'input, 'syntax>(
         opaque_witnesses,
         associated_type_completion_contexts,
     })
+}
+
+fn classify_body_rejection(
+    body: BodyId,
+    failure: super::error::BodyConstructionFailure,
+    interruption_state: Option<crate::body_evidence::TypedInterruptionEvidence>,
+) -> Result<(crate::BodyRejection, BodyCheckError), BodyCheckError> {
+    let (error, interruption) = failure.into_parts();
+    let diagnostic = error.source_diagnostic().cloned();
+    let recovery = match (interruption, interruption_state) {
+        (Some(interruption), Some(evidence)) => {
+            crate::body_evidence::BodyRejectionRecovery::typed(interruption, evidence)
+        }
+        (None, None) => crate::body_evidence::BodyRejectionRecovery::None,
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(BodyCheckInternalError::MissingBodyEvidence(body).into());
+        }
+    };
+    let reason = if let Some(diagnostic) = diagnostic {
+        crate::BodyRejectionReason::Authored(diagnostic)
+    } else if matches!(
+        recovery,
+        crate::body_evidence::BodyRejectionRecovery::Typed(_)
+    ) {
+        crate::BodyRejectionReason::IncompleteSyntax
+    } else {
+        return Err(error);
+    };
+    Ok((crate::BodyRejection::new(reason, recovery), error))
 }
 
 fn attempt_body<'input, 'syntax>(
@@ -568,33 +604,33 @@ enum BodyAttemptFailure {
     Direct(super::error::BodyConstructionFailure),
     Recovering {
         failure: super::error::BodyConstructionFailure,
-        interruption_state: Option<crate::recovery::TypedInterruptionEvidence>,
+        interruption_state: Option<crate::body_evidence::TypedInterruptionEvidence>,
     },
 }
 
 fn retain_interruption_evidence(
     failure: &super::error::BodyConstructionFailure,
     semantics: crate::semantic_authority::SemanticAuthority,
-) -> Result<Option<crate::recovery::TypedInterruptionEvidence>, BodyCheckInternalError> {
+) -> Result<Option<crate::body_evidence::TypedInterruptionEvidence>, BodyCheckInternalError> {
     let Some(interruption) = failure.interruption() else {
         return Ok(None);
     };
     let evidence = match interruption.kind() {
         crate::TypedBodyInterruptionKind::MemberSelection { .. } => {
-            crate::recovery::TypedInterruptionEvidence::MemberSelection(Box::new(
-                crate::recovery::MemberInterruptionEvidence { semantics },
+            crate::body_evidence::TypedInterruptionEvidence::MemberSelection(Box::new(
+                crate::body_evidence::MemberInterruptionEvidence { semantics },
             ))
         }
         crate::TypedBodyInterruptionKind::OutcomeContract {
             proposed_result, ..
-        } => crate::recovery::TypedInterruptionEvidence::Outcome(Box::new(
+        } => crate::body_evidence::TypedInterruptionEvidence::Outcome(Box::new(
             semantics.types().project(*proposed_result)?,
         )),
         crate::TypedBodyInterruptionKind::ConstructionSelection { .. }
         | crate::TypedBodyInterruptionKind::StructuralConstruction { .. }
         | crate::TypedBodyInterruptionKind::EnumPattern { .. }
         | crate::TypedBodyInterruptionKind::AssociatedTypeProjection { .. } => {
-            crate::recovery::TypedInterruptionEvidence::None
+            crate::body_evidence::TypedInterruptionEvidence::None
         }
     };
     Ok(Some(evidence))
@@ -627,21 +663,20 @@ struct BodyConstructionInput<'input, 'syntax> {
 
 struct RecoveringBodyConstructionFailure {
     error: Box<BodyCheckError>,
-    interruptions: Vec<(
-        crate::TypedBodyInterruption,
-        crate::recovery::TypedInterruptionEvidence,
-    )>,
+    rejections: Vec<(BodyId, crate::BodyRejection)>,
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
+    recoverable: bool,
 }
 
 impl RecoveringBodyConstructionFailure {
     fn single(error: BodyCheckError) -> Self {
         Self {
             error: Box::new(error),
-            interruptions: Vec::new(),
+            rejections: Vec::new(),
             checked_bodies: Vec::new(),
             projections: Vec::new(),
+            recoverable: false,
         }
     }
 }

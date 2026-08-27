@@ -162,11 +162,14 @@ only the disk-backed request type and cannot mistake editor bytes for persistent
 
 `nocter-analysis` is the protocol-independent owner of one editor generation. Its immutable
 `AnalysisSnapshot` retains the accepted generation identity, source overlay, reached source and
-syntax snapshots, diagnostics, one diagnostic status, and one independent semantic authority. The
-status is discovery failure, syntax failure, compiler failure, or target-validated success. The
-authority is absent or is exactly the deepest completed declaration, name, body, checked, or target
-stage from that same generation. A target failure therefore does not erase checked source
-semantics, while retaining checked semantics does not turn that target failure into success. A
+syntax snapshots, complete retained diagnostics, one diagnostic status, and one independent
+semantic evidence result. The status is discovery failure, syntax failure, compiler failure, or
+target-validated success. Recovered name and body analysis classifies every declared body as
+accepted or rejected with its source-backed reason; an internal inconsistency cannot manufacture
+partial semantic evidence. Protocol-independent queries are the only authority allowed to join
+that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
+complete. A target failure therefore does not erase checked source semantics, while retaining
+checked semantics does not turn that target failure into success. A
 failed current generation never exposes an older successful semantic program. Discovery failures
 retain their reached syntax trees as well as sources, so invalidation and syntax-aware recovery do
 not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable accepted-
@@ -1361,12 +1364,14 @@ crate scaffolding is not evidence that a responsibility has been designed.
 
 ## Error-Tolerant Tooling
 
-Editor analysis may retain explicit invalid syntax and the deepest completed semantic stage in an
-immutable snapshot. It never converts incomplete source into a second successful semantic model.
-The session owns the sole sum of declaration, name, body, and checked stages; analysis exposes one
-borrowed capability view over that sum or the successful target. Hover, completion, definition,
+Editor analysis may retain explicit invalid syntax and immutable semantic evidence from the current
+generation. It never converts incomplete source into a second successful semantic model. Name and
+body recovery classify every declared body as accepted or rejected, and each rejection owns the
+source reason that makes its absent facts legitimate. The session owns the sole sum of declaration,
+name-evidence, body-evidence, and checked results; analysis exposes semantic capabilities through
+one query boundary over that sum or the successful target. Hover, completion, definition,
 implementation, references, rename, tokens, signature help, inlay hints, diagnostics, and code
-actions all select through that view rather than maintaining feature-local recovery adapters.
+actions consume those query outcomes rather than maintaining feature-local recovery adapters.
 Every generation first freezes its complete open-document overlay; package resolution, discovery,
 syntax, and semantic analysis all consume that one value.
 
@@ -1380,9 +1385,10 @@ production checking transition. Their sole body endpoint stops before ownership 
 Declaration validation constructs either a declaration-only value or the distinct body-analysis
 input type; no public checking entry accepts the former and no caller-controlled capability test
 opens that boundary.
-Body checking is transactional per body: independently successful bodies and their source
-projections remain as sparse editor evidence when another body fails, while executable dispatch and
-target closure remain unavailable. Type-store, copyability, and closure-table rollback boundaries
+Body checking is transactional per body: every body receives either typed evidence or a rejected
+evidence value, while independently successful bodies and their source projections remain usable
+when another body fails. Executable dispatch and target closure remain unavailable. Type-store,
+copyability, and closure-table rollback boundaries
 are captured together. Each journaled copyability or closure authority issues a fresh opaque
 transaction identity and validates it before commit or rollback; a token from another store or an
 earlier transaction cannot control the active journal. Transaction identities are construction
@@ -1413,8 +1419,9 @@ import candidate attached to completion, and publish it only when the ordinary c
 the candidate overlay. The adapter ignores client diagnostic contents and never derives edits from
 diagnostic messages or help strings.
 
-Each phase-specific failure retains only its own deepest completed contract. The session composes
-those contracts into the one semantic-stage sum. An interface-implementation-table failure owns declaration
+Each phase-specific failure retains its complete evidence contract and every diagnostic that
+explains a rejected domain. The session composes those contracts into the one semantic-result sum.
+An interface-implementation-table failure owns declaration
 analysis containing the graph, monotonic type store, and source index, but no interface-implementation table,
 construction surface, name result, or checked body. While selecting
 required interface methods, the checker captures every missing method after applying the same

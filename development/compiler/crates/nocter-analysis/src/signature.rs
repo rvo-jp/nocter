@@ -1,9 +1,12 @@
+use std::fmt;
+
 use nocter_checking::{ArgumentPackSegment, CallTarget, CheckedOperation};
 use nocter_model::{BodyId, BodyNodeId};
 use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use crate::AnalysisSnapshot;
+use crate::evidence::EvidenceIntegrityError;
 use crate::presentation::{
     SemanticPresentation, closure_signature_presentation, static_signature_presentation,
 };
@@ -64,7 +67,7 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Result<Option<SemanticSignatureHelp>, SourceContextError> {
+    ) -> Result<Option<SemanticSignatureHelp>, SemanticSignatureError> {
         let Some(authority) = self.semantic_authority() else {
             return Ok(None);
         };
@@ -73,22 +76,24 @@ impl AnalysisSnapshot {
         let spellings = self
             .queries
             .source_spellings(authority.graph(), from, index, source);
-        let Some((body_id, call)) =
-            select_source_candidates(index.bindings_in(source).filter_map(|binding| {
-                let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
-                    return None;
-                };
-                let range = binding.origin().span().range();
-                if !range.contains_cursor(offset) {
-                    return None;
-                }
-                let node = authority.body(body_id)?.nodes().get(node_id)?;
-                let CheckedOperation::Call(call) = node.operation() else {
-                    return None;
-                };
-                Some((*binding, (body_id, call)))
-            }))
-            .unique()
+        let mut candidates = Vec::new();
+        for binding in index.bindings_in(source) {
+            let SemanticEntity::BodyNode(body_id, node_id) = binding.entity() else {
+                continue;
+            };
+            let range = binding.origin().span().range();
+            if !range.contains_cursor(offset) {
+                continue;
+            }
+            let Ok(operation) = authority.checked_operation(body_id, node_id)?.into_result() else {
+                continue;
+            };
+            let CheckedOperation::Call(call) = operation else {
+                continue;
+            };
+            candidates.push((*binding, (body_id, call)));
+        }
+        let Some((body_id, call)) = select_source_candidates(candidates.into_iter()).unique()
         else {
             return Ok(None);
         };
@@ -103,9 +108,11 @@ impl AnalysisSnapshot {
                 selection,
                 &spellings,
             ),
-            CallTarget::ClosureValue { closure, .. } => authority
-                .checked()
-                .and_then(|checked| closure_signature_presentation(checked, *closure, &spellings)),
+            CallTarget::ClosureValue { closure, .. } => {
+                authority.complete().and_then(|authority| {
+                    closure_signature_presentation(authority.checked(), *closure, &spellings)
+                })
+            }
         };
         let Some(rendered) = rendered else {
             return Ok(None);
@@ -135,6 +142,43 @@ impl AnalysisSnapshot {
             parameters,
             active_parameter,
         }))
+    }
+}
+
+/// An internal inconsistency while answering a signature-help query.
+#[derive(Debug)]
+pub enum SemanticSignatureError {
+    SourceContext(SourceContextError),
+    Evidence(EvidenceIntegrityError),
+}
+
+impl fmt::Display for SemanticSignatureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SourceContext(error) => error.fmt(formatter),
+            Self::Evidence(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for SemanticSignatureError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceContext(error) => Some(error),
+            Self::Evidence(error) => Some(error),
+        }
+    }
+}
+
+impl From<SourceContextError> for SemanticSignatureError {
+    fn from(error: SourceContextError) -> Self {
+        Self::SourceContext(error)
+    }
+}
+
+impl From<EvidenceIntegrityError> for SemanticSignatureError {
+    fn from(error: EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 

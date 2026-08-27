@@ -11,7 +11,9 @@ use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
 
-use crate::{AnalysisSnapshot, AnalysisStatus, GenerationId};
+use crate::{
+    AnalysisSnapshot, AnalysisStatus, GenerationId, SemanticCoverage, TypedBodyUnavailability,
+};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -180,8 +182,9 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     let offset = ByteOffset::new(u32::try_from(source_text.find("len").unwrap()).unwrap());
     let accepted_type_count = snapshot
         .semantic_authority()
-        .and_then(|authority| authority.checked())
+        .and_then(crate::semantic::SemanticAuthority::complete)
         .expect("checked authority")
+        .checked()
         .types()
         .type_count();
 
@@ -193,8 +196,9 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     assert_eq!(
         snapshot
             .semantic_authority()
-            .and_then(|authority| authority.checked())
+            .and_then(crate::semantic::SemanticAuthority::complete)
             .expect("checked authority")
+            .checked()
             .types()
             .type_count(),
         accepted_type_count
@@ -319,6 +323,96 @@ fn declaration_diagnostics_are_complete_while_safe_body_semantics_remain_availab
 }
 
 #[test]
+fn declaration_failure_retains_the_diagnostics_of_rejected_body_evidence() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "primitive func rejected_primitive(): usize\n",
+        "func invalid(input: i32?): i32 { input? }\n",
+    );
+    let (source_path, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(54));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    let codes = snapshot
+        .diagnostics()
+        .iter()
+        .map(nocter_diagnostics::SourceDiagnostic::code)
+        .collect::<Vec<_>>();
+    assert_eq!(codes, ["E0208", "E0392"]);
+    let recovery = snapshot
+        .semantic_authority()
+        .and_then(|authority| authority.body_analysis())
+        .expect("body evidence beneath declaration rejection");
+    assert_eq!(recovery.rejection_diagnostics().count(), 1);
+    assert!(
+        recovery
+            .body_evidence_iter()
+            .any(|(_, evidence)| matches!(evidence, nocter_checking::BodyEvidence::Rejected(_)))
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str() == source_path.to_str().unwrap())
+        .unwrap();
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    let SemanticCoverage::Partial(gaps) = highlights.coverage() else {
+        panic!("rejected body was reported as complete coverage")
+    };
+    assert!(
+        gaps.iter()
+            .any(|gap| gap.reason() == TypedBodyUnavailability::BodyRejected)
+    );
+}
+
+#[test]
+fn name_recovery_retains_every_rejected_body_diagnostic() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func first(): void { unknown_first\nreturn }\n",
+        "func second(): void { unknown_second\nreturn }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(55));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .map(nocter_diagnostics::SourceDiagnostic::code)
+            .collect::<Vec<_>>(),
+        ["E0340", "E0340"]
+    );
+    let recovery = snapshot
+        .retained_semantic()
+        .and_then(nocter_session::SemanticAnalysis::names)
+        .expect("name evidence");
+    assert_eq!(recovery.body_names().rejection_diagnostics().count(), 2);
+    assert_eq!(
+        recovery
+            .body_names()
+            .evidence_iter()
+            .filter(|(_, evidence)| matches!(
+                evidence,
+                nocter_checking::BodyNameEvidence::Rejected(_)
+            ))
+            .count(),
+        2
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    let SemanticCoverage::Partial(gaps) = highlights.coverage() else {
+        panic!("name rejection was reported as complete coverage")
+    };
+    assert!(
+        gaps.iter()
+            .any(|gap| gap.reason() == TypedBodyUnavailability::NamesRejected)
+    );
+}
+
+#[test]
 fn quarantined_operation_shapes_cannot_block_independent_body_semantics() {
     for (generation, rejected, expected_code) in [
         (
@@ -425,11 +519,13 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
         .unwrap()
         .expect("declaration subject");
     assert_eq!(subject.presentation().code(), "pub interface Readable");
-    let rename = snapshot
-        .semantic_rename(source.id(), offset, "ReadableValue")
-        .unwrap()
-        .expect("failed-generation rename plan");
-    assert!(!rename.edits().is_empty());
+    assert!(
+        snapshot
+            .semantic_rename(source.id(), offset, "ReadableValue")
+            .unwrap()
+            .is_none(),
+        "rename must require complete semantic occurrence coverage"
+    );
     let actions = snapshot
         .semantic_code_actions(
             source.id(),

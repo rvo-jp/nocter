@@ -288,6 +288,12 @@ fn recovery_collects_body_interruptions_independently_of_declaration_order() {
         let recovery = failure.recovery().expect("body recovery");
         let interruptions = recovery.interruptions().collect::<Vec<_>>();
         assert_eq!(interruptions.len(), 2);
+        assert_eq!(recovery.rejection_diagnostics().count(), 2);
+        assert!(
+            recovery
+                .body_evidence_iter()
+                .all(|(_, evidence)| matches!(evidence, crate::BodyEvidence::Rejected(_)))
+        );
         for interruption in &interruptions {
             let origin = interruption.origin();
             assert_eq!(
@@ -349,7 +355,7 @@ fn recovery_retains_independently_successful_typed_bodies() {
             .declarations()
             .bodies()
             .iter()
-            .filter_map(|(body, _)| recovery.body(body))
+            .filter_map(|(body, _)| recovery.typed_body(body))
             .collect::<Vec<_>>();
 
         assert_eq!(recovered.len(), 1);

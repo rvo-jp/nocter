@@ -748,6 +748,7 @@ mod tests {
             .unwrap();
         let binding = snapshot
             .semantic_highlights(source.id())
+            .unwrap()
             .iter()
             .find(|highlight| highlight.range().start().get() == failure_start)
             .copied()
@@ -876,6 +877,7 @@ mod tests {
         assert!(
             snapshot
                 .semantic_highlights(source.id())
+                .unwrap()
                 .iter()
                 .any(|highlight| {
                     highlight.kind() == SemanticHighlightKind::Variable
@@ -1120,7 +1122,10 @@ mod tests {
             .map(|(start, _)| u32::try_from(start + "if len > buffer.".len()).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(field_starts.len(), 2);
-        let highlights = memory.snapshot().semantic_highlights(memory.source().id());
+        let highlights = memory
+            .snapshot()
+            .semantic_highlights(memory.source().id())
+            .unwrap();
         let readonly = highlights
             .iter()
             .find(|highlight| highlight.range().start().get() == field_starts[0])
@@ -1169,6 +1174,7 @@ mod tests {
         let receiver = document
             .snapshot()
             .semantic_highlights(document.source().id())
+            .unwrap()
             .iter()
             .find(|highlight| highlight.range().start().get() == receiver_start)
             .copied()
@@ -1188,6 +1194,7 @@ mod tests {
         let opaque = document
             .snapshot()
             .semantic_highlights(document.source().id())
+            .unwrap()
             .iter()
             .find(|highlight| highlight.range().start().get() == some_start)
             .copied()
@@ -1196,7 +1203,10 @@ mod tests {
         assert_eq!(document.source().text_at(opaque.range()), Some("some"));
 
         for source in document.snapshot().sources().iter() {
-            let highlights = document.snapshot().semantic_highlights(source.id());
+            let highlights = document
+                .snapshot()
+                .semantic_highlights(source.id())
+                .unwrap();
             for highlight in &highlights {
                 let range = source.utf16_range(highlight.range()).unwrap();
                 assert_eq!(

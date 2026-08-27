@@ -11,6 +11,7 @@ mod admitted_operations;
 mod associated_type_completion;
 mod associated_type_resolution;
 mod body_check;
+mod body_evidence;
 mod body_sources;
 mod checked;
 mod concrete_destruction;
@@ -28,6 +29,7 @@ mod instance_operations;
 mod interface_implementation;
 mod loans;
 mod member_completion;
+mod name_evidence;
 mod name_recovery;
 mod names;
 mod ownership;
@@ -61,6 +63,7 @@ pub use body_check::{
     TypedBodyInterruptionKind, analyze_prepared_program_bodies, check_prepared_program,
     check_prepared_program_recovering,
 };
+pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
 pub use body_sources::{BodySource, BodySourceCatalog, BodySourceError, catalog_body_sources};
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
@@ -128,7 +131,8 @@ pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionError, MemberCompletionQuerySession,
     MemberCompletionTarget,
 };
-pub use name_recovery::{NameAnalysisRecovery, PartialBodyNames};
+pub use name_evidence::{BodyNameEvidence, NameRejection};
+pub use name_recovery::{BodyNameEvidenceTable, NameAnalysisRecovery};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse, ScopeBinding,

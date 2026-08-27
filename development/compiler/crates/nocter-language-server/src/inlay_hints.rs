@@ -36,7 +36,10 @@ pub(crate) fn query_inlay_hints(
         .snapshot()
         .semantic_inlay_hints(document.source().id(), requested)
         .map_err(InlayHintQueryError::Semantic)?;
+    // Inlay hints describe only exact reached positions in this document. Partial body coverage is
+    // therefore publishable; absent body facts do not become inferred hints.
     let positions = semantic
+        .values()
         .iter()
         .map(|hint| {
             document
@@ -46,6 +49,7 @@ pub(crate) fn query_inlay_hints(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let hints = semantic
+        .values()
         .iter()
         .zip(&positions)
         .map(|(hint, position)| {

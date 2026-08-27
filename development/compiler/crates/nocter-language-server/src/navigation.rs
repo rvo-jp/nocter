@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
-use nocter_analysis::{AnalysisSnapshot, SemanticLocation};
+use nocter_analysis::{AnalysisSnapshot, EvidenceIntegrityError, SemanticLocation};
 use nocter_json::Value;
 use nocter_lsp::{
     DefinitionParams, DocumentUri, DocumentUriError, ImplementationParams, Location, Position,
@@ -25,10 +25,11 @@ pub(crate) fn query_definition(
     let locations = document
         .snapshot()
         .semantic_definition(document.source().id(), offset);
-    if locations.is_empty() {
+    if locations.is_empty() || !locations.coverage().is_complete() {
         return Ok(Value::Null);
     }
-    project_locations(document.snapshot(), &locations).map(|locations| locations_result(&locations))
+    project_locations(document.snapshot(), locations.values())
+        .map(|locations| locations_result(&locations))
 }
 
 /// Answers one implementation request through exact compiler identity.
@@ -44,10 +45,11 @@ pub(crate) fn query_implementation(
     let locations = document
         .snapshot()
         .semantic_implementation(document.source().id(), offset);
-    if locations.is_empty() {
+    if locations.is_empty() || !locations.coverage().is_complete() {
         return Ok(Value::Null);
     }
-    project_locations(document.snapshot(), &locations).map(|locations| locations_result(&locations))
+    project_locations(document.snapshot(), locations.values())
+        .map(|locations| locations_result(&locations))
 }
 
 /// Answers one references request through exact compiler identity and reached sources only.
@@ -60,12 +62,15 @@ pub(crate) fn query_references(
         return Ok(Value::Array(Vec::new()));
     };
     let offset = byte_offset(&document, params.position())?;
-    let locations = document.snapshot().semantic_references(
-        document.source().id(),
-        offset,
-        params.include_declaration(),
-    );
-    project_locations(document.snapshot(), &locations).map(|locations| locations_result(&locations))
+    let locations = document
+        .snapshot()
+        .semantic_references(document.source().id(), offset, params.include_declaration())
+        .map_err(NavigationQueryError::Evidence)?;
+    if !locations.coverage().is_complete() {
+        return Ok(Value::Null);
+    }
+    project_locations(document.snapshot(), locations.values())
+        .map(|locations| locations_result(&locations))
 }
 
 fn positioned_document<'a>(
@@ -116,6 +121,7 @@ fn project_locations(
 #[derive(Debug)]
 pub enum NavigationQueryError {
     Document(SemanticDocumentError),
+    Evidence(EvidenceIntegrityError),
     Coordinate(CoordinateError),
     MissingSource(SourceId),
     Uri(DocumentUriError),
@@ -125,6 +131,7 @@ impl fmt::Display for NavigationQueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Document(error) => error.fmt(formatter),
+            Self::Evidence(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
             Self::MissingSource(source) => {
                 write!(formatter, "navigation source is missing: {source}")
@@ -138,6 +145,7 @@ impl std::error::Error for NavigationQueryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Document(error) => Some(error),
+            Self::Evidence(error) => Some(error),
             Self::Coordinate(error) => Some(error),
             Self::Uri(error) => Some(error),
             Self::MissingSource(_) => None,
