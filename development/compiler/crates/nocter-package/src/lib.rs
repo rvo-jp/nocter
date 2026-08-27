@@ -31,8 +31,9 @@ pub use resolution::{
     PackageResolutionError, PackageResolutionFailure, PackageResolutionPolicy,
     PackageResolutionRequest, ResolvedPackageSelection, StandardPackage, resolve_package_graph,
     resolve_package_graph_with_source_overlay, resolve_package_selection,
-    resolve_package_selection_with_source_overlay, resolve_package_selection_with_source_snapshot,
-    resolve_standard_package, resolve_standard_package_with_source_overlay,
+    resolve_package_selection_with_root_catalog, resolve_package_selection_with_source_overlay,
+    resolve_package_selection_with_source_snapshot, resolve_standard_package,
+    resolve_standard_package_with_root_catalog, resolve_standard_package_with_source_overlay,
 };
-pub use root_probe::{PackageRootProbeError, has_package_declaration};
+pub use root_probe::{PackageRootCatalog, PackageRootCatalogBuilder, PackageRootProbeError};
 pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

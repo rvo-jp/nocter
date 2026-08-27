@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
@@ -10,8 +11,8 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use crate::{
     DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
-    PackageDeclarationError, PackageLockSourceError, PackageLockSourceUpdate,
-    decode_package_declaration,
+    PackageDeclarationError, PackageLockSourceError, PackageLockSourceUpdate, PackageRootCatalog,
+    PackageRootCatalogBuilder, PackageRootProbeError, decode_package_declaration,
 };
 
 /// One externally resolved package before its authored declaration is loaded and verified.
@@ -128,7 +129,7 @@ impl ResolvedPackageSnapshot {
 /// Immutable, syntax-owning exact package graph input for source discovery.
 #[derive(Clone, Debug)]
 pub struct ResolvedPackageGraph {
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
     packages: Vec<ResolvedPackageSnapshot>,
@@ -137,15 +138,15 @@ pub struct ResolvedPackageGraph {
 /// Reached package source and syntax retained even when exact graph resolution fails.
 #[derive(Clone, Debug)]
 pub struct PackageSourceSnapshot {
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
 }
 
 impl PackageSourceSnapshot {
-    pub(crate) fn empty(source_overlay: SourceOverlay) -> Self {
+    pub(crate) fn from_root_catalog(package_roots: PackageRootCatalog) -> Self {
         Self {
-            source_overlay,
+            package_roots,
             sources: SourceMap::new(),
             syntax: Vec::new(),
         }
@@ -153,7 +154,7 @@ impl PackageSourceSnapshot {
 
     #[must_use]
     pub const fn source_overlay(&self) -> &SourceOverlay {
-        &self.source_overlay
+        self.package_roots.source_overlay()
     }
 
     #[must_use]
@@ -192,8 +193,20 @@ impl ResolvedPackageGraph {
     ///
     /// Returns the same exact errors as [`Self::load`].
     pub fn load_with_source_overlay(
-        mut specs: Vec<ResolvedPackageSpec>,
+        specs: Vec<ResolvedPackageSpec>,
         source_overlay: SourceOverlay,
+    ) -> Result<Self, PackageGraphError> {
+        Self::load_with_root_catalog(specs, PackageRootCatalog::new(source_overlay))
+    }
+
+    /// Loads exact packages while retaining package-root facts already selected for this overlay.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same exact errors as [`Self::load_with_source_overlay`].
+    pub fn load_with_root_catalog(
+        mut specs: Vec<ResolvedPackageSpec>,
+        package_roots: PackageRootCatalog,
     ) -> Result<Self, PackageGraphError> {
         specs.sort_unstable_by(|left, right| left.identity.cmp(&right.identity));
         let mut identities = BTreeSet::new();
@@ -202,7 +215,7 @@ impl ResolvedPackageGraph {
                 return Err(PackageGraphError::DuplicatePackage(spec.identity.clone()));
             }
         }
-        let mut builder = PackageGraphBuilder::new(source_overlay);
+        let mut builder = PackageGraphBuilder::new(package_roots);
         let mut edges = BTreeMap::new();
         for spec in specs {
             let identity = spec.identity.clone();
@@ -241,7 +254,7 @@ impl ResolvedPackageGraph {
 
     #[must_use]
     pub const fn source_overlay(&self) -> &SourceOverlay {
-        &self.source_overlay
+        self.package_roots.source_overlay()
     }
 
     /// Renders one package declaration with its validated effective locks.
@@ -285,22 +298,17 @@ impl ResolvedPackageGraph {
     pub fn into_parts(
         self,
     ) -> (
-        SourceOverlay,
+        PackageRootCatalog,
         SourceMap,
         Vec<SyntaxTree>,
         Vec<ResolvedPackageSnapshot>,
     ) {
-        (
-            self.source_overlay,
-            self.sources,
-            self.syntax,
-            self.packages,
-        )
+        (self.package_roots, self.sources, self.syntax, self.packages)
     }
 }
 
 pub(crate) struct PackageGraphBuilder {
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalogBuilder,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
     packages: BTreeMap<PackageIdentity, LoadedPackageSnapshot>,
@@ -308,9 +316,9 @@ pub(crate) struct PackageGraphBuilder {
 }
 
 impl PackageGraphBuilder {
-    pub(crate) fn new(source_overlay: SourceOverlay) -> Self {
+    pub(crate) fn new(package_roots: PackageRootCatalog) -> Self {
         Self {
-            source_overlay,
+            package_roots: package_roots.into_builder(),
             sources: SourceMap::new(),
             syntax: Vec::new(),
             packages: BTreeMap::new(),
@@ -323,7 +331,8 @@ impl PackageGraphBuilder {
         identity: PackageIdentity,
         root: &Path,
     ) -> Result<(), PackageGraphError> {
-        let canonical_root = canonical_package_root_with_overlay(&self.source_overlay, root)?;
+        let canonical_root =
+            canonical_package_root_with_overlay(self.package_roots.source_overlay(), root)?;
         self.load_canonical(identity, canonical_root)
     }
 
@@ -336,7 +345,7 @@ impl PackageGraphBuilder {
             return Err(PackageGraphError::DuplicatePackage(identity));
         }
         let package = load_package(
-            &self.source_overlay,
+            &mut self.package_roots,
             identity.clone(),
             canonical_root,
             &mut self.roots,
@@ -353,7 +362,7 @@ impl PackageGraphBuilder {
 
     pub(crate) fn source_snapshot(&self) -> PackageSourceSnapshot {
         PackageSourceSnapshot {
-            source_overlay: self.source_overlay.clone(),
+            package_roots: self.package_roots.snapshot(),
             sources: self.sources.clone(),
             syntax: self.syntax.clone(),
         }
@@ -382,9 +391,9 @@ impl PackageGraphBuilder {
         if let Some(identity) = edges.into_keys().next() {
             return Err(PackageGraphError::UnknownPackage(identity));
         }
-        validate_path_roots(&self.source_overlay, &packages)?;
+        validate_path_roots(self.package_roots.source_overlay(), &packages)?;
         Ok(ResolvedPackageGraph {
-            source_overlay: self.source_overlay,
+            package_roots: self.package_roots.finish(),
             sources: self.sources,
             syntax: self.syntax,
             packages,
@@ -434,7 +443,7 @@ impl LoadedPackageSnapshot {
 }
 
 fn load_package(
-    source_overlay: &SourceOverlay,
+    package_roots: &mut PackageRootCatalogBuilder,
     identity: PackageIdentity,
     canonical_root: PathBuf,
     roots: &mut BTreeMap<PathBuf, PackageIdentity>,
@@ -454,35 +463,28 @@ fn load_package(
             path: canonical_root,
         });
     }
-    let declaration_path = canonical_root.join("index.nct");
-    if !regular_file(source_overlay, &declaration_path)? {
+    let Some(root_source) = package_roots
+        .root_source(&canonical_root)
+        .map_err(PackageGraphError::PackageRootProbe)?
+    else {
         return Err(PackageGraphError::MissingPackageRootSource {
             package: identity,
-            path: declaration_path,
+            path: canonical_root.join("index.nct"),
         });
-    }
-    let declaration_path = canonicalize(
-        source_overlay,
-        "canonicalize package root source",
-        &declaration_path,
-    )?;
+    };
+    let declaration_path = root_source.path().to_path_buf();
     if !declaration_path.starts_with(&canonical_root) {
         return Err(PackageGraphError::InvalidPackageRoot {
             package: identity,
             path: declaration_path,
         });
     }
-    let bytes =
-        source_overlay
-            .read(&declaration_path)
-            .map_err(|error| PackageGraphError::Filesystem {
-                operation: "read",
-                path: declaration_path.clone(),
-                error,
-            })?;
     let canonical_name = canonical_text(&declaration_path)?;
     let source_id = sources
-        .add_bytes(SourceName::new(canonical_name.as_ref()), &bytes)
+        .add_bytes(
+            SourceName::new(canonical_name.as_ref()),
+            root_source.bytes(),
+        )
         .map_err(|error| PackageGraphError::Source {
             path: declaration_path.clone(),
             error,
@@ -517,7 +519,7 @@ fn load_package(
         display_name,
         canonical_root,
         declaration_path,
-        root_source_bytes: bytes.into_boxed_slice(),
+        root_source_bytes: root_source.bytes().into(),
         declaration_syntax,
         declaration,
     })
@@ -694,26 +696,15 @@ fn canonicalize(
         })
 }
 
-fn regular_file(source_overlay: &SourceOverlay, path: &Path) -> Result<bool, PackageGraphError> {
-    match source_overlay.is_file(path) {
-        Ok(is_file) => Ok(is_file),
-        Err(error) => Err(PackageGraphError::Filesystem {
-            operation: "inspect",
-            path: path.into(),
-            error,
-        }),
-    }
-}
-
-fn canonical_text(path: &Path) -> Result<Box<str>, PackageGraphError> {
-    path.to_str()
+fn directory_name(path: &Path) -> Result<Box<str>, PackageGraphError> {
+    path.file_name()
+        .and_then(|name| name.to_str())
         .map(Into::into)
         .ok_or_else(|| PackageGraphError::NonUnicodeCanonicalPath(path.into()))
 }
 
-fn directory_name(path: &Path) -> Result<Box<str>, PackageGraphError> {
-    path.file_name()
-        .and_then(|name| name.to_str())
+fn canonical_text(path: &Path) -> Result<Box<str>, PackageGraphError> {
+    path.to_str()
         .map(Into::into)
         .ok_or_else(|| PackageGraphError::NonUnicodeCanonicalPath(path.into()))
 }
@@ -766,6 +757,7 @@ pub enum PackageGraphError {
     },
     NonUnicodeCanonicalPath(PathBuf),
     Declaration(PackageDeclarationError),
+    PackageRootProbe(Arc<PackageRootProbeError>),
     Filesystem {
         operation: &'static str,
         path: PathBuf,
@@ -857,6 +849,7 @@ impl fmt::Display for PackageGraphError {
                 )
             }
             Self::Declaration(error) => error.fmt(formatter),
+            Self::PackageRootProbe(error) => error.fmt(formatter),
             Self::Filesystem {
                 operation,
                 path,
@@ -873,6 +866,7 @@ impl std::error::Error for PackageGraphError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Declaration(error) => Some(error),
+            Self::PackageRootProbe(error) => Some(error.as_ref()),
             Self::Filesystem { error, .. } => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
@@ -929,6 +923,27 @@ mod tests {
 
     fn identity(value: &str) -> PackageIdentity {
         PackageIdentity::new(value)
+    }
+
+    #[test]
+    fn package_loading_reuses_a_topology_root_source() {
+        let tree = TempTree::new();
+        tree.source(
+            "app/index.nct",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        );
+        let root = fs::canonicalize(tree.0.join("app")).unwrap();
+        let mut catalog = PackageRootCatalogBuilder::new(SourceOverlay::empty());
+        assert!(catalog.has_package_declaration(&root).unwrap());
+
+        let graph = ResolvedPackageGraph::load_with_root_catalog(
+            vec![ResolvedPackageSpec::new(identity("app"), root)],
+            catalog.finish(),
+        )
+        .unwrap();
+
+        assert_eq!(graph.sources().len(), 1);
+        assert_eq!(graph.syntax_trees().len(), 1);
     }
 
     #[test]

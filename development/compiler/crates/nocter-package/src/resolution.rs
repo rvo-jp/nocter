@@ -14,7 +14,8 @@ use crate::graph::{
 };
 use crate::{
     DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
-    PackageLockOverlay, PackageSourceSnapshot, PackageStoreOverlay, ResolvedPackageGraph,
+    PackageLockOverlay, PackageRootCatalog, PackageSourceSnapshot, PackageStoreOverlay,
+    ResolvedPackageGraph,
 };
 
 /// Immutable policy controlling whether exact resolution may request lock or fetch authority.
@@ -208,7 +209,20 @@ pub fn resolve_package_selection_with_source_snapshot(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
-    let empty_snapshot = || PackageSourceSnapshot::empty(source_overlay.clone());
+    resolve_package_selection_with_root_catalog(request, PackageRootCatalog::new(source_overlay))
+}
+
+/// Resolves through package-root facts already selected from one immutable source view.
+///
+/// # Errors
+///
+/// Returns the same exact resolution error and reached-source snapshot as
+/// [`resolve_package_selection_with_source_snapshot`].
+pub fn resolve_package_selection_with_root_catalog(
+    request: PackageResolutionRequest,
+    package_roots: PackageRootCatalog,
+) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
+    let empty_snapshot = || PackageSourceSnapshot::from_root_catalog(package_roots.clone());
     let PackageResolutionRequest {
         root: requested_root,
         nocter_home,
@@ -217,20 +231,21 @@ pub fn resolve_package_selection_with_source_snapshot(
         lock_overlay,
         store_overlay,
     } = request;
-    let root = canonical_package_root_with_overlay(&source_overlay, &requested_root)
+    let source_overlay = package_roots.source_overlay();
+    let root = canonical_package_root_with_overlay(source_overlay, &requested_root)
         .map_err(PackageResolutionError::Graph)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
     let root_id = PackageId::from_canonical_path(&root)
         .map_err(PackageResolutionError::PackageId)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?
         .package_identity();
-    let standard_root = canonical_package_root_with_overlay(&source_overlay, &standard.root)
+    let standard_root = canonical_package_root_with_overlay(source_overlay, &standard.root)
         .map_err(PackageResolutionError::Graph)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
     let standard_id = standard.identity;
 
     let source_overlay_for_resolution = source_overlay.clone();
-    let mut builder = PackageGraphBuilder::new(source_overlay);
+    let mut builder = PackageGraphBuilder::new(package_roots);
     let mut roots = BTreeMap::new();
     let mut pending = BTreeMap::new();
     if let Err(error) = insert_package(
@@ -421,13 +436,25 @@ pub fn resolve_standard_package_with_source_overlay(
     standard: StandardPackage,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
+    resolve_standard_package_with_root_catalog(standard, PackageRootCatalog::new(source_overlay))
+}
+
+/// Loads the selected standard package from an existing package-root catalog.
+///
+/// # Errors
+///
+/// Returns the same graph errors as [`resolve_standard_package_with_source_overlay`].
+pub fn resolve_standard_package_with_root_catalog(
+    standard: StandardPackage,
+    package_roots: PackageRootCatalog,
+) -> Result<ResolvedPackageGraph, PackageGraphError> {
     let identity = standard.identity;
-    ResolvedPackageGraph::load_with_source_overlay(
+    ResolvedPackageGraph::load_with_root_catalog(
         vec![
             crate::ResolvedPackageSpec::new(identity.clone(), standard.root)
                 .with_standard_dependency(identity),
         ],
-        source_overlay,
+        package_roots,
     )
 }
 

@@ -127,7 +127,9 @@ Package interpretation and package-state mutation are separate:
 
 Resolution consumes an immutable filesystem view. Acquisition and package-state publication cannot
 run through an editor overlay. A failed transaction cannot expose a partial lock, package tree, or
-installation. Package display names never replace canonical package identities.
+installation. Package display names never replace canonical package identities. Workspace topology
+freezes a revision-local package-root catalog; package loading and discovery extend that catalog
+without reopening a root already selected from the same overlay.
 
 ## Editor Generation Boundary
 

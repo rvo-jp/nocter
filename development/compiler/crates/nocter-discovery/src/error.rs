@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use nocter_compile_input::ModuleIdentity;
 use nocter_model::PackageIdentity;
@@ -36,7 +37,7 @@ pub enum DiscoveryError {
     DuplicatePackage(PackageIdentity),
     UnknownPackage(PackageIdentity),
     Toolchain(ToolchainDiscoveryError),
-    PackageRootProbe(nocter_package::PackageRootProbeError),
+    PackageRootProbe(Arc<nocter_package::PackageRootProbeError>),
     InvalidPackageRoot {
         package: PackageIdentity,
         path: PathBuf,

@@ -1,54 +1,206 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceError, SourceMap, SourceName};
-use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, parse};
+use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
-/// Inspects whether a directory's `index.nct` declares a package.
+/// Immutable package-root facts selected from one exact source overlay.
 ///
-/// A physical `index.nct` alone declares a module. Only a top-level `#package` directive promotes
-/// that module to a package root. The probe intentionally does not decode the complete package
-/// record; malformed package data is diagnosed later by package loading rather than silently
-/// changing physical ownership.
-///
-/// # Errors
-///
-/// Returns the exact source-selection or source-decoding failure encountered while inspecting an
-/// existing `index.nct`. A missing index is reported as `Ok(false)`.
-pub fn has_package_declaration(
-    source_overlay: &SourceOverlay,
-    directory: &Path,
-) -> Result<bool, PackageRootProbeError> {
-    let path = directory.join("index.nct");
-    if !source_overlay
-        .is_file(&path)
-        .map_err(|source| PackageRootProbeError::Filesystem {
-            path: path.clone(),
-            source,
-        })?
-    {
-        return Ok(false);
+/// A catalog carries the exact bytes that justified every cached fact. Package loading can assign
+/// those bytes its semantic source identity without reopening an `index.nct`, while discovery can
+/// reuse the same root decisions when validating traversal.
+#[derive(Clone, Debug)]
+pub struct PackageRootCatalog {
+    source_overlay: SourceOverlay,
+    roots: BTreeMap<PathBuf, PackageRootProbe>,
+}
+
+impl PackageRootCatalog {
+    #[must_use]
+    pub fn new(source_overlay: SourceOverlay) -> Self {
+        Self {
+            source_overlay,
+            roots: BTreeMap::new(),
+        }
     }
-    let bytes = source_overlay
-        .read(&path)
-        .map_err(|source| PackageRootProbeError::Filesystem {
-            path: path.clone(),
-            source,
+
+    #[must_use]
+    pub fn into_builder(self) -> PackageRootCatalogBuilder {
+        PackageRootCatalogBuilder { catalog: self }
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        &self.source_overlay
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.roots.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.roots.is_empty()
+    }
+}
+
+/// Construction authority for one package-root catalog.
+///
+/// Each canonical directory is inspected at most once. Successful and failed probes are retained,
+/// so document order and repeated boundary checks cannot change which source bytes were observed.
+#[derive(Debug)]
+pub struct PackageRootCatalogBuilder {
+    catalog: PackageRootCatalog,
+}
+
+impl PackageRootCatalogBuilder {
+    #[must_use]
+    pub fn new(source_overlay: SourceOverlay) -> Self {
+        Self {
+            catalog: PackageRootCatalog::new(source_overlay),
+        }
+    }
+
+    /// Reports whether a canonical directory's `index.nct` declares a package.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact retained source-selection or source-decoding failure. A missing index is
+    /// reported as `Ok(false)`.
+    pub fn has_package_declaration(
+        &mut self,
+        directory: &Path,
+    ) -> Result<bool, Arc<PackageRootProbeError>> {
+        Ok(self.probe(directory)?.is_some_and(|root| root.is_package))
+    }
+
+    #[must_use]
+    pub fn finish(self) -> PackageRootCatalog {
+        self.catalog
+    }
+
+    pub(crate) fn snapshot(&self) -> PackageRootCatalog {
+        self.catalog.clone()
+    }
+
+    pub(crate) fn root_source(
+        &mut self,
+        directory: &Path,
+    ) -> Result<Option<PackageRootSource>, Arc<PackageRootProbeError>> {
+        self.probe(directory)
+    }
+
+    #[must_use]
+    pub const fn source_overlay(&self) -> &SourceOverlay {
+        self.catalog.source_overlay()
+    }
+
+    fn probe(
+        &mut self,
+        directory: &Path,
+    ) -> Result<Option<PackageRootSource>, Arc<PackageRootProbeError>> {
+        if let Some(probe) = self.catalog.roots.get(directory) {
+            return probe.result();
+        }
+        let result = self.read_root(directory);
+        let probe = match result {
+            Ok(root) => PackageRootProbe::Resolved(root),
+            Err(error) => PackageRootProbe::Failed(Arc::new(error)),
+        };
+        let result = probe.result();
+        self.catalog.roots.insert(directory.to_path_buf(), probe);
+        result
+    }
+
+    fn read_root(
+        &mut self,
+        directory: &Path,
+    ) -> Result<Option<PackageRootSource>, PackageRootProbeError> {
+        let requested_path = directory.join("index.nct");
+        if !self
+            .catalog
+            .source_overlay
+            .is_file(&requested_path)
+            .map_err(|source| PackageRootProbeError::Filesystem {
+                path: requested_path.clone(),
+                source,
+            })?
+        {
+            return Ok(None);
+        }
+        let path = self
+            .catalog
+            .source_overlay
+            .canonicalize(&requested_path)
+            .map_err(|source| PackageRootProbeError::Filesystem {
+                path: requested_path,
+                source,
+            })?;
+        let bytes = self.catalog.source_overlay.read(&path).map_err(|source| {
+            PackageRootProbeError::Filesystem {
+                path: path.clone(),
+                source,
+            }
         })?;
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_bytes(SourceName::new(path.to_string_lossy().as_ref()), &bytes)
-        .map_err(|source| PackageRootProbeError::Source {
-            path: path.clone(),
-            source,
-        })?;
-    let source = sources
-        .get(source_id)
-        .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
-    let syntax = parse(source, ParseGoal::SourceFile);
-    Ok(syntax.children(syntax.root_id()).iter().any(|element| {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new(path.to_string_lossy().as_ref()), &bytes)
+            .map_err(|source| PackageRootProbeError::Source {
+                path: path.clone(),
+                source,
+            })?;
+        let source_file = sources
+            .get(source)
+            .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
+        let tree = parse(source_file, ParseGoal::SourceFile);
+        let is_package = has_package_directive(source_file, &tree);
+        Ok(Some(PackageRootSource {
+            path,
+            bytes: bytes.into(),
+            is_package,
+        }))
+    }
+}
+
+#[derive(Clone, Debug)]
+enum PackageRootProbe {
+    Resolved(Option<PackageRootSource>),
+    Failed(Arc<PackageRootProbeError>),
+}
+
+impl PackageRootProbe {
+    fn result(&self) -> Result<Option<PackageRootSource>, Arc<PackageRootProbeError>> {
+        match self {
+            Self::Resolved(root) => Ok(root.clone()),
+            Self::Failed(error) => Err(Arc::clone(error)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PackageRootSource {
+    path: PathBuf,
+    bytes: Arc<[u8]>,
+    is_package: bool,
+}
+
+impl PackageRootSource {
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+fn has_package_directive(source: &nocter_source::SourceFile, syntax: &SyntaxTree) -> bool {
+    syntax.children(syntax.root_id()).iter().any(|element| {
         let SyntaxElement::Node(node) = element else {
             return false;
         };
@@ -61,7 +213,7 @@ pub fn has_package_declaration(
                 };
                 source.text_at(token.range()) == Some("package")
             })
-    }))
+    })
 }
 
 #[derive(Debug)]
@@ -104,21 +256,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn distinguishes_package_modules_from_child_modules() {
+    fn retains_one_parsed_source_for_repeated_root_queries() {
         let root =
             std::env::temp_dir().join(format!("nocter-package-root-probe-{}", std::process::id()));
-        let child = root.join("child");
-        fs::create_dir_all(&child).unwrap();
+        fs::create_dir_all(&root).unwrap();
         fs::write(
             root.join("index.nct"),
             "#package: { name: \"app\", version: \"0.1.0\", }\n",
         )
         .unwrap();
-        fs::write(child.join("index.nct"), "pub struct Child\n").unwrap();
 
-        let overlay = SourceOverlay::empty();
-        assert!(has_package_declaration(&overlay, &root).unwrap());
-        assert!(!has_package_declaration(&overlay, &child).unwrap());
+        let root = fs::canonicalize(root).unwrap();
+        let mut catalog = PackageRootCatalogBuilder::new(SourceOverlay::empty());
+        assert!(catalog.has_package_declaration(&root).unwrap());
+        assert!(catalog.has_package_declaration(&root).unwrap());
+        assert_eq!(catalog.finish().len(), 1);
 
         fs::remove_dir_all(root).unwrap();
     }

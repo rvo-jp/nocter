@@ -15,7 +15,7 @@ the language server.
 ## Internal Responsibilities
 
 - revision causality and owner-sequence validation
-- package-root probing and topology freeze
+- package-root catalog construction and topology freeze
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
 
@@ -23,6 +23,8 @@ the language server.
 
 - Every document has exactly one selected or rejected topology result per revision.
 - Topology is computed once and cannot vary between documents in the same revision.
+- Compilation receives the exact package-root catalog that topology used; it cannot repeat root
+  selection against the overlay.
 - Ambiguous shared-source contexts are rejected rather than ordered.
 - Changed/closed files may invalidate demand but cannot create demand.
 - Foreign, cloned, or non-increasing revisions cannot mutate latest state.

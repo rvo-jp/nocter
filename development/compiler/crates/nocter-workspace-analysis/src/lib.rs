@@ -106,6 +106,7 @@ impl std::error::Error for WorkspaceRevisionError {}
 
 struct ScopeTransition {
     selections: BTreeMap<PathBuf, DocumentScopeSelection>,
+    package_roots: nocter_package::PackageRootCatalog,
     active_selected: BTreeMap<PathBuf, AnalysisScope>,
     affected: BTreeSet<AnalysisScope>,
     invalidated: Vec<AnalysisScope>,
@@ -277,8 +278,8 @@ impl WorkspaceAnalyses {
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let selections = WorkspaceTopology::build(&self.configuration, source_overlay, documents)
-            .into_selections();
+        let (selections, package_roots) =
+            WorkspaceTopology::build(&self.configuration, source_overlay, documents).into_parts();
         let selected = selections
             .iter()
             .filter_map(|(path, selection)| match selection {
@@ -313,6 +314,7 @@ impl WorkspaceAnalyses {
         let primary_scope = selected.get(document).cloned();
         ScopeTransition {
             selections,
+            package_roots,
             active_selected,
             affected,
             invalidated,
@@ -371,7 +373,7 @@ impl WorkspaceAnalyses {
                             &self.configuration,
                             &input,
                             generation,
-                            source_overlay.clone(),
+                            transition.package_roots.clone(),
                         )
                     } else {
                         WorkspaceAnalysisState::InvalidationOnly {
@@ -459,7 +461,7 @@ impl WorkspaceAnalyses {
             &self.configuration,
             &input,
             source.generation(),
-            candidate.source_overlay().clone(),
+            nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
         ) {
             WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }

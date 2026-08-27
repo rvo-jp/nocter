@@ -82,13 +82,15 @@ pub(crate) fn module_sources(
 pub(crate) fn toolchain_standard_modules(
     package: &PackageIdentity,
     root: &Path,
-    source_overlay: &SourceOverlay,
+    package_roots: &mut nocter_package::PackageRootCatalogBuilder,
 ) -> Result<Vec<ModuleIdentity>, DiscoveryError> {
+    let source_overlay = package_roots.source_overlay().clone();
     let mut pending = BTreeSet::from([root.to_path_buf()]);
     let mut modules = Vec::new();
     while let Some(directory) = pending.pop_first() {
         if directory != root
-            && nocter_package::has_package_declaration(source_overlay, &directory)
+            && package_roots
+                .has_package_declaration(&directory)
                 .map_err(DiscoveryError::PackageRootProbe)?
         {
             continue;

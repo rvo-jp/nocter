@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
 
@@ -14,6 +13,7 @@ use crate::WorkspaceConfiguration;
 /// observed source bytes.
 pub(super) struct WorkspaceTopology {
     selections: BTreeMap<PathBuf, DocumentScopeSelection>,
+    package_roots: nocter_package::PackageRootCatalog,
 }
 
 pub(super) enum DocumentScopeSelection {
@@ -27,55 +27,38 @@ impl WorkspaceTopology {
         source_overlay: &SourceOverlay,
         documents: BTreeSet<PathBuf>,
     ) -> Self {
-        Self::build_with_probe(
-            configuration,
-            source_overlay,
-            documents,
-            nocter_package::has_package_declaration,
-        )
-    }
-
-    fn build_with_probe(
-        configuration: &WorkspaceConfiguration,
-        source_overlay: &SourceOverlay,
-        documents: BTreeSet<PathBuf>,
-        mut probe: impl FnMut(
-            &SourceOverlay,
-            &Path,
-        ) -> Result<bool, nocter_package::PackageRootProbeError>,
-    ) -> Self {
         let mut package_roots =
-            BTreeMap::<PathBuf, Result<bool, Arc<nocter_package::PackageRootProbeError>>>::new();
+            nocter_package::PackageRootCatalogBuilder::new(source_overlay.clone());
         let selections = documents
             .into_iter()
             .map(|document| {
-                let selection = match select_scope(
-                    configuration,
-                    source_overlay,
-                    &document,
-                    &mut package_roots,
-                    &mut probe,
-                ) {
+                let selection = match select_scope(configuration, &document, &mut package_roots) {
                     Ok(scope) => DocumentScopeSelection::Selected(scope),
                     Err(error) => DocumentScopeSelection::Rejected(error),
                 };
                 (document, selection)
             })
             .collect();
-        Self { selections }
+        Self {
+            selections,
+            package_roots: package_roots.finish(),
+        }
     }
 
-    pub(super) fn into_selections(self) -> BTreeMap<PathBuf, DocumentScopeSelection> {
-        self.selections
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        BTreeMap<PathBuf, DocumentScopeSelection>,
+        nocter_package::PackageRootCatalog,
+    ) {
+        (self.selections, self.package_roots)
     }
 }
 
 fn select_scope(
     configuration: &WorkspaceConfiguration,
-    source_overlay: &SourceOverlay,
     document: &Path,
-    package_roots: &mut BTreeMap<PathBuf, Result<bool, Arc<nocter_package::PackageRootProbeError>>>,
-    probe: &mut impl FnMut(&SourceOverlay, &Path) -> Result<bool, nocter_package::PackageRootProbeError>,
+    package_roots: &mut nocter_package::PackageRootCatalogBuilder,
 ) -> Result<AnalysisScope, WorkspaceAnalysisError> {
     if document
         .extension()
@@ -99,17 +82,10 @@ fn select_scope(
         .parent()
         .ok_or_else(|| WorkspaceAnalysisError::outside_workspace(document.to_path_buf()))?;
     loop {
-        let root = package_roots
-            .entry(directory.to_path_buf())
-            .or_insert_with(|| probe(source_overlay, directory).map_err(Arc::new));
-        match root {
+        match package_roots.has_package_declaration(directory) {
             Ok(true) => return Ok(AnalysisScope::Package(directory.to_path_buf())),
             Ok(false) => {}
-            Err(error) => {
-                return Err(WorkspaceAnalysisError::package_root_probe(Arc::clone(
-                    error,
-                )));
-            }
+            Err(error) => return Err(WorkspaceAnalysisError::package_root_probe(error)),
         }
         if directory == workspace {
             break;
@@ -124,7 +100,6 @@ fn select_scope(
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
     use std::collections::BTreeSet;
     use std::fs;
 
@@ -149,25 +124,19 @@ mod tests {
             fs::canonicalize(source_a).unwrap(),
             fs::canonicalize(source_b).unwrap(),
         ]);
-        let probes = Cell::new(0);
-
-        let topology = WorkspaceTopology::build_with_probe(
+        let topology = WorkspaceTopology::build(
             &configuration(temporary.path()),
             &SourceOverlay::empty(),
             documents,
-            |overlay, directory| {
-                probes.set(probes.get() + 1);
-                nocter_package::has_package_declaration(overlay, directory)
-            },
         );
 
-        let selections = topology.into_selections();
+        let (selections, package_roots) = topology.into_parts();
         assert_eq!(selections.len(), 2);
         assert!(
             selections
                 .values()
                 .all(|selection| matches!(selection, DocumentScopeSelection::Selected(_)))
         );
-        assert_eq!(probes.get(), 1);
+        assert_eq!(package_roots.len(), 1);
     }
 }

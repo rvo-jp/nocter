@@ -13,7 +13,7 @@ state, choose compiler semantics, or publish files. Acquisition and mutation use
 ## Internal Responsibilities
 
 - package declaration and lock decoding
-- root probing and canonical package identity
+- revision-local package-root source catalog and canonical package identity
 - dependency graph resolution
 - package-store and lock overlays for validation
 
@@ -22,4 +22,7 @@ state, choose compiler semantics, or publish files. Acquisition and mutation use
 - `index.nct` with `#package` is the sole package-root declaration.
 - Dependency aliases never replace canonical package identities.
 - Resolution is deterministic and independent of filesystem enumeration order.
+- One root catalog retains the exact bytes and result behind every package-boundary decision.
+  Package loading assigns cached bytes its semantic source identity, while discovery reuses the
+  decision instead of reopening or reclassifying the root.
 - An overlay is an input view, not authority to publish persistent state.

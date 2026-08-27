@@ -4,10 +4,9 @@ use std::path::{Path, PathBuf};
 use nocter_analysis::{AnalysisSnapshot, GenerationId};
 use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
-use nocter_filesystem::SourceOverlay;
 use nocter_package::{
-    PackageResolutionPolicy, PackageResolutionRequest,
-    resolve_package_selection_with_source_snapshot, resolve_standard_package_with_source_overlay,
+    PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
+    resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
 use nocter_session::bundled_standard_toolchain;
 
@@ -19,8 +18,9 @@ pub(crate) fn compile_scope(
     configuration: &WorkspaceConfiguration,
     input: &ScopeCompilationInput,
     generation: GenerationId,
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
 ) -> WorkspaceAnalysisState {
+    let source_overlay = package_roots.source_overlay().clone();
     let discovered = match input {
         ScopeCompilationInput::Package {
             root,
@@ -29,13 +29,13 @@ pub(crate) fn compile_scope(
             configuration,
             root,
             requested_sources,
-            source_overlay.clone(),
+            package_roots.clone(),
         ),
         ScopeCompilationInput::ToolchainStandard => {
-            discover_toolchain_standard(configuration, source_overlay.clone())
+            discover_toolchain_standard(configuration, package_roots.clone())
         }
         ScopeCompilationInput::SingleFile(source) => {
-            discover_single_file(configuration, source, source_overlay.clone())
+            discover_single_file(configuration, source, package_roots)
         }
     };
     match discovered {
@@ -59,12 +59,12 @@ pub(crate) fn compile_scope(
 
 fn discover_toolchain_standard(
     configuration: &WorkspaceConfiguration,
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let package =
-        resolve_standard_package_with_source_overlay(toolchain.standard().clone(), source_overlay)
+        resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
             .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     discover(DiscoveryRequest::toolchain_standard(
         toolchain.target(),
@@ -78,17 +78,17 @@ fn discover_package(
     configuration: &WorkspaceConfiguration,
     root: &Path,
     requested_sources: &[PathBuf],
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
-    let selected = resolve_package_selection_with_source_snapshot(
+    let selected = resolve_package_selection_with_root_catalog(
         PackageResolutionRequest::new(
             root,
             toolchain.nocter_home(),
             toolchain.standard().clone(),
             PackageResolutionPolicy::new(true, true),
         ),
-        source_overlay,
+        package_roots,
     )
     .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     let root_package = selected.root().clone();
@@ -139,12 +139,12 @@ fn discover_package(
 fn discover_single_file(
     configuration: &WorkspaceConfiguration,
     source: &Path,
-    source_overlay: SourceOverlay,
+    package_roots: PackageRootCatalog,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let packages =
-        resolve_standard_package_with_source_overlay(toolchain.standard().clone(), source_overlay)
+        resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
             .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     discover(DiscoveryRequest::single_file(
         toolchain.target(),

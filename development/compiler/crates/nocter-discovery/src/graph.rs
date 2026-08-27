@@ -36,6 +36,7 @@ struct PackageState {
 #[derive(Debug)]
 struct LoadedPackages {
     states: BTreeMap<PackageIdentity, PackageState>,
+    package_roots: nocter_package::PackageRootCatalogBuilder,
     source_overlay: SourceOverlay,
     sources: SourceMap,
     syntax: Vec<SyntaxTree>,
@@ -58,6 +59,7 @@ enum Work {
 struct Builder {
     target: nocter_model::CompilationTarget,
     packages: BTreeMap<PackageIdentity, PackageState>,
+    package_roots: nocter_package::PackageRootCatalogBuilder,
     source_overlay: SourceOverlay,
     root_packages: Vec<PackageIdentity>,
     sources: SourceMap,
@@ -118,7 +120,7 @@ impl Builder {
                 (loaded_package_graph(packages), roots, None, root_packages)
             }
             DiscoveryLayout::ToolchainStandard { package } => {
-                let loaded = loaded_package_graph(package);
+                let mut loaded = loaded_package_graph(package);
                 let standard = toolchain.standard_package().clone();
                 let state = loaded
                     .states
@@ -127,7 +129,7 @@ impl Builder {
                 let roots = toolchain_standard_modules(
                     &standard,
                     &state.canonical_root,
-                    &loaded.source_overlay,
+                    &mut loaded.package_roots,
                 )?;
                 (loaded, roots, None, vec![standard])
             }
@@ -143,6 +145,7 @@ impl Builder {
         };
         let LoadedPackages {
             states: packages,
+            package_roots,
             source_overlay,
             sources,
             syntax,
@@ -158,6 +161,7 @@ impl Builder {
         Ok(Self {
             target,
             packages,
+            package_roots,
             source_overlay,
             root_packages,
             sources,
@@ -341,7 +345,9 @@ impl Builder {
                 nocter_target_selection::TargetSelectionError::MissingSource(tree.source()),
             )
         })?;
-        for (declaration, authored_path) in source_visibility_paths(source, tree)? {
+        let source_visibility_paths = source_visibility_paths(source, tree)?;
+        let active_use_paths = active_use_paths(source, tree, self.target_selection.selection())?;
+        for (declaration, authored_path) in source_visibility_paths {
             let target =
                 self.resolve_source_visibility(&module, &path, declaration, &authored_path)?;
             if self.package(module.package())?.mode == PackageMode::SingleFile {
@@ -353,9 +359,7 @@ impl Builder {
             self.source_visibility_resolutions
                 .push(SourceVisibilityResolutionInput::new(declaration, target));
         }
-        for (declaration, authored_path) in
-            active_use_paths(source, tree, self.target_selection.selection())?
-        {
+        for (declaration, authored_path) in active_use_paths {
             let target = self.resolve_use(&module, &path, declaration, &authored_path)?;
             self.module_dependencies
                 .push(DiscoveredModuleDependency::new(
@@ -370,13 +374,13 @@ impl Builder {
     }
 
     fn resolve_source_visibility(
-        &self,
+        &mut self,
         importer: &ModuleIdentity,
         source: &Path,
         declaration: nocter_syntax::NodeId,
         authored: &str,
     ) -> Result<Box<str>, DiscoveryError> {
-        let package = self.package(importer.package())?;
+        let package_mode = self.package(importer.package())?.mode;
         let source_directory = source.parent().ok_or_else(|| {
             source_visibility_error(
                 declaration,
@@ -395,7 +399,7 @@ impl Builder {
         let candidate = canonicalize_dependency(&self.source_overlay, &candidate)?;
         self.validate_package_boundary(importer.package(), &candidate)
             .map_err(|error| source_visibility_boundary_error(declaration, authored, error))?;
-        if package.mode == PackageMode::Declared {
+        if package_mode == PackageMode::Declared {
             let owner = self
                 .nearest_module(importer.package(), &candidate)
                 .map_err(|error| source_visibility_boundary_error(declaration, authored, error))?;
@@ -411,14 +415,14 @@ impl Builder {
     }
 
     fn resolve_use(
-        &self,
+        &mut self,
         importer: &ModuleIdentity,
         source: &Path,
         declaration: nocter_syntax::NodeId,
         authored: &str,
     ) -> Result<ModuleIdentity, DiscoveryError> {
-        let package = self.package(importer.package())?;
-        if package.mode == PackageMode::SingleFile
+        let package_mode = self.package(importer.package())?.mode;
+        if package_mode == PackageMode::SingleFile
             && (authored.starts_with("./")
                 || authored.starts_with("../")
                 || authored.starts_with('/'))
@@ -436,7 +440,8 @@ impl Builder {
             self.resolve_module_candidate(importer.package(), &segments[1..])
         } else {
             let alias = segments[0];
-            let Some(target_package) = package.dependencies.get(alias) else {
+            let Some(target_package) = self.package(importer.package())?.dependencies.get(alias)
+            else {
                 return Err(use_error(
                     declaration,
                     authored,
@@ -445,7 +450,8 @@ impl Builder {
                     },
                 ));
             };
-            self.resolve_module_candidate(target_package, &segments[1..])
+            let target_package = target_package.clone();
+            self.resolve_module_candidate(&target_package, &segments[1..])
         };
         result.map_err(|error| match error {
             ResolveError::Use(failure) => use_error(declaration, authored, failure),
@@ -454,18 +460,20 @@ impl Builder {
     }
 
     fn resolve_relative(
-        &self,
+        &mut self,
         importer: &ModuleIdentity,
         source: &Path,
         authored: &str,
     ) -> Result<ModuleIdentity, ResolveError> {
-        let package = self
+        let canonical_root = self
             .packages
             .get(importer.package())
-            .ok_or(UseFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?
+            .canonical_root
+            .clone();
         let source_directory = source.parent().ok_or(UseFailure::OutsidePackage)?;
         let relative = source_directory
-            .strip_prefix(&package.canonical_root)
+            .strip_prefix(&canonical_root)
             .map_err(|_| UseFailure::OutsidePackage)?;
         let mut components = normalized_components(relative)?;
         for component in authored.split('/') {
@@ -477,11 +485,9 @@ impl Builder {
                 segment => components.push(segment.into()),
             }
         }
-        let base = components
-            .iter()
-            .fold(package.canonical_root.clone(), |path, segment| {
-                path.join(Path::new(segment.as_ref()))
-            });
+        let base = components.iter().fold(canonical_root, |path, segment| {
+            path.join(Path::new(segment.as_ref()))
+        });
         let module_candidate = base.join("index.nct");
         if !regular_file(&self.source_overlay, &module_candidate)? {
             return Err(UseFailure::NotFound.into());
@@ -490,19 +496,19 @@ impl Builder {
     }
 
     fn resolve_module_candidate(
-        &self,
+        &mut self,
         package: &PackageIdentity,
         segments: &[&str],
     ) -> Result<ModuleIdentity, ResolveError> {
-        let state = self
+        let canonical_root = self
             .packages
             .get(package)
-            .ok_or(UseFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?
+            .canonical_root
+            .clone();
         let root = segments
             .iter()
-            .fold(state.canonical_root.clone(), |path, segment| {
-                path.join(segment)
-            })
+            .fold(canonical_root, |path, segment| path.join(segment))
             .join("index.nct");
         if !regular_file(&self.source_overlay, &root)? {
             return Err(UseFailure::NotFound.into());
@@ -511,19 +517,21 @@ impl Builder {
     }
 
     fn resolve_existing_module(
-        &self,
+        &mut self,
         package: &PackageIdentity,
         root: &Path,
     ) -> Result<ModuleIdentity, ResolveError> {
         let root = canonicalize_dependency(&self.source_overlay, root)?;
         self.validate_package_boundary(package, &root)?;
-        let state = self
+        let canonical_root = self
             .packages
             .get(package)
-            .ok_or(UseFailure::OutsidePackage)?;
+            .ok_or(UseFailure::OutsidePackage)?
+            .canonical_root
+            .clone();
         let directory = root.parent().ok_or(UseFailure::InvalidModuleDirectory)?;
         let relative = directory
-            .strip_prefix(&state.canonical_root)
+            .strip_prefix(&canonical_root)
             .map_err(|_| UseFailure::OutsidePackage)?;
         let path = normalized_components(relative)?;
         Ok(ModuleIdentity::new(
@@ -567,13 +575,13 @@ impl Builder {
     }
 
     fn validate_inside_package(
-        &self,
+        &mut self,
         package: &PackageIdentity,
         path: &Path,
         expected_module: Option<&ModuleIdentity>,
     ) -> Result<(), DiscoveryError> {
-        let state = self.package(package)?;
-        if !path.starts_with(&state.canonical_root) {
+        let canonical_root = self.package(package)?.canonical_root.clone();
+        if !path.starts_with(&canonical_root) {
             return Err(DiscoveryError::InvalidPackageRoot {
                 package: package.clone(),
                 path: path.to_path_buf(),
@@ -591,7 +599,7 @@ impl Builder {
                 });
             }
             let root = path.parent().unwrap_or(path);
-            let relative = root.strip_prefix(&state.canonical_root).map_err(|_| {
+            let relative = root.strip_prefix(&canonical_root).map_err(|_| {
                 DiscoveryError::InvalidPackageRoot {
                     package: package.clone(),
                     path: path.to_path_buf(),
@@ -615,7 +623,7 @@ impl Builder {
     }
 
     fn validate_package_boundary(
-        &self,
+        &mut self,
         package: &PackageIdentity,
         path: &Path,
     ) -> Result<(), ResolveError> {
@@ -628,7 +636,9 @@ impl Builder {
         }
         let mut directory = path.parent().ok_or(UseFailure::OutsidePackage)?;
         while directory != state.canonical_root {
-            if nocter_package::has_package_declaration(&self.source_overlay, directory)
+            if self
+                .package_roots
+                .has_package_declaration(directory)
                 .map_err(DiscoveryError::PackageRootProbe)?
             {
                 return Err(UseFailure::CrossesPackage {
@@ -715,7 +725,8 @@ fn join_module_path(root: &Path, path: &[Box<str>]) -> PathBuf {
 }
 
 fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPackages {
-    let (source_overlay, sources, syntax, packages) = graph.into_parts();
+    let (package_roots, sources, syntax, packages) = graph.into_parts();
+    let source_overlay = package_roots.source_overlay().clone();
     let states = packages
         .into_iter()
         .map(|package| {
@@ -735,6 +746,7 @@ fn loaded_package_graph(graph: nocter_package::ResolvedPackageGraph) -> LoadedPa
         .collect();
     LoadedPackages {
         states,
+        package_roots: package_roots.into_builder(),
         source_overlay,
         sources,
         syntax,
