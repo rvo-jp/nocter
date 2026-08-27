@@ -360,22 +360,24 @@ impl LanguageServer {
         };
         match generation {
             Ok(Some(generation)) => {
-                let analysis = self
+                let batch = self
                     .analyses
                     .as_mut()
                     .expect("initialized server owns workspace analyses")
                     .analyze(generation);
-                match self.diagnostics.publish(&analysis) {
-                    Ok(outbound) => ServerStep {
-                        outbound,
-                        analyses: vec![analysis].into_boxed_slice(),
-                        ..ServerStep::default()
-                    },
-                    Err(error) => ServerStep {
-                        analyses: vec![analysis].into_boxed_slice(),
-                        issues: vec![ServerIssue::Diagnostics(error)].into_boxed_slice(),
-                        ..ServerStep::default()
-                    },
+                let mut outbound = Vec::new();
+                let mut issues = Vec::new();
+                for analysis in batch.publication_order() {
+                    match self.diagnostics.publish(analysis) {
+                        Ok(messages) => outbound.extend(messages.into_vec()),
+                        Err(error) => issues.push(ServerIssue::Diagnostics(error)),
+                    }
+                }
+                ServerStep {
+                    outbound: outbound.into_boxed_slice(),
+                    analyses: batch.into_generations(),
+                    issues: issues.into_boxed_slice(),
+                    ..ServerStep::default()
                 }
             }
             Ok(None) => ServerStep::default(),
@@ -420,16 +422,18 @@ impl LanguageServer {
                     continue;
                 }
             };
-            let analysis = self
+            let batch = self
                 .analyses
                 .as_mut()
                 .expect("initialized server owns workspace analyses")
                 .analyze(generation);
-            match self.diagnostics.publish(&analysis) {
-                Ok(messages) => outbound.extend(messages.into_vec()),
-                Err(error) => issues.push(ServerIssue::Diagnostics(error)),
+            for analysis in batch.publication_order() {
+                match self.diagnostics.publish(analysis) {
+                    Ok(messages) => outbound.extend(messages.into_vec()),
+                    Err(error) => issues.push(ServerIssue::Diagnostics(error)),
+                }
             }
-            snapshots.push(analysis);
+            snapshots.extend(batch.into_generations().into_vec());
         }
         ServerStep {
             outbound: outbound.into_boxed_slice(),

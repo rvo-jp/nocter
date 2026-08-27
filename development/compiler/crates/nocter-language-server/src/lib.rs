@@ -22,7 +22,8 @@ mod workspace;
 mod workspace_edits;
 
 pub use analysis::{
-    AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
+    AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisBatch, WorkspaceAnalysisError,
+    WorkspaceAnalysisGeneration,
 };
 pub use code_actions::CodeActionQueryError;
 pub use completion::CompletionQueryError;

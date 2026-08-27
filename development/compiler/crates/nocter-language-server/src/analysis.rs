@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -113,6 +114,44 @@ impl WorkspaceAnalysisGeneration {
     }
 }
 
+/// One atomic workspace-analysis transition and every scope generation it refreshed.
+#[derive(Debug)]
+pub struct WorkspaceAnalysisBatch {
+    primary: Arc<WorkspaceAnalysisGeneration>,
+    related: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+}
+
+impl WorkspaceAnalysisBatch {
+    #[must_use]
+    pub const fn primary(&self) -> &Arc<WorkspaceAnalysisGeneration> {
+        &self.primary
+    }
+
+    pub fn generations(&self) -> impl Iterator<Item = &Arc<WorkspaceAnalysisGeneration>> {
+        std::iter::once(&self.primary).chain(self.related.iter())
+    }
+
+    pub fn publication_order(&self) -> impl Iterator<Item = &Arc<WorkspaceAnalysisGeneration>> {
+        self.related.iter().chain(std::iter::once(&self.primary))
+    }
+
+    #[must_use]
+    pub fn into_generations(self) -> Box<[Arc<WorkspaceAnalysisGeneration>]> {
+        std::iter::once(self.primary)
+            .chain(self.related)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    }
+}
+
+impl Deref for WorkspaceAnalysisBatch {
+    type Target = WorkspaceAnalysisGeneration;
+
+    fn deref(&self) -> &Self::Target {
+        &self.primary
+    }
+}
+
 #[derive(Debug)]
 enum WorkspaceAnalysisState {
     Complete(Box<AnalysisSnapshot>),
@@ -129,6 +168,7 @@ pub struct WorkspaceAnalyses {
     configuration: WorkspaceConfiguration,
     latest: BTreeMap<AnalysisScope, Arc<WorkspaceAnalysisGeneration>>,
     document_scopes: BTreeMap<PathBuf, AnalysisScope>,
+    source_scopes: BTreeMap<PathBuf, BTreeSet<AnalysisScope>>,
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
 }
 
@@ -139,6 +179,7 @@ impl WorkspaceAnalyses {
             configuration,
             latest: BTreeMap::new(),
             document_scopes: BTreeMap::new(),
+            source_scopes: BTreeMap::new(),
             unscoped: BTreeMap::new(),
         }
     }
@@ -160,75 +201,169 @@ impl WorkspaceAnalyses {
             .and_then(|scope| self.latest.get(scope))
             .or_else(|| self.unscoped.get(document))
             .or_else(|| {
-                let name = document.to_str()?;
-                self.latest
-                    .values()
-                    .filter(|generation| {
-                        generation
-                            .reached_sources()
-                            .is_some_and(|sources| sources.find_by_name(name).is_some())
-                    })
-                    .max_by_key(|generation| generation.generation())
+                self.source_scopes
+                    .get(document)?
+                    .iter()
+                    .min_by_key(|scope| source_scope_priority(scope, document))
+                    .and_then(|scope| self.latest.get(scope))
             })
             .map(Arc::as_ref)
     }
 
     /// Selects one bounded package or single-file scope and runs its exact accepted overlay through
     /// locked, offline, read-only compiler preparation and target checking.
-    pub fn analyze(
-        &mut self,
-        accepted: AcceptedDocumentGeneration,
-    ) -> Arc<WorkspaceAnalysisGeneration> {
+    pub fn analyze(&mut self, accepted: AcceptedDocumentGeneration) -> WorkspaceAnalysisBatch {
         let (document, source) = accepted.into_parts();
         let generation = source.generation();
         let source_overlay = source.into_source_overlay();
-        let selected = select_scope(&self.configuration, &source_overlay, &document);
-        let (scope, state) = match selected {
-            Ok(scope) => {
-                let state = compile_scope(
-                    &self.configuration,
-                    &scope,
-                    &document,
-                    generation,
-                    source_overlay,
-                );
-                (Some(scope), state)
+        let mut documents = self
+            .document_scopes
+            .keys()
+            .chain(self.unscoped.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        documents.insert(document.clone());
+
+        let selections = documents
+            .iter()
+            .map(|candidate| {
+                (
+                    candidate.clone(),
+                    select_scope(&self.configuration, &source_overlay, candidate),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut members = BTreeMap::<AnalysisScope, Vec<PathBuf>>::new();
+        let mut affected = BTreeSet::new();
+        for candidate in &documents {
+            let previous = self.document_scopes.get(candidate);
+            let selected = selections
+                .get(candidate)
+                .and_then(|result| result.as_ref().ok());
+            if previous != selected {
+                affected.extend(previous.cloned());
+                affected.extend(selected.cloned());
             }
-            Err(error) => (
-                None,
-                WorkspaceAnalysisState::PreparationFailed {
-                    source_overlay,
+            if let Some(scope) = selected {
+                members
+                    .entry(scope.clone())
+                    .or_default()
+                    .push(candidate.clone());
+            }
+        }
+        if let Some(scope) = selections
+            .get(&document)
+            .and_then(|result| result.as_ref().ok())
+        {
+            affected.insert(scope.clone());
+        }
+        for (scope, latest) in &self.latest {
+            if generation_reaches_document(latest, &document) {
+                affected.insert(scope.clone());
+            }
+        }
+
+        let invalidated = affected
+            .iter()
+            .filter(|scope| !members.contains_key(*scope))
+            .cloned()
+            .collect::<Vec<_>>();
+        for scope in &invalidated {
+            self.latest.remove(scope);
+        }
+
+        let primary_scope = selections
+            .get(&document)
+            .and_then(|result| result.as_ref().ok())
+            .cloned();
+        let mut scoped_results = BTreeMap::new();
+        for scope in &affected {
+            let Some(scope_members) = members.get(scope) else {
+                continue;
+            };
+            let representative = if primary_scope.as_ref() == Some(scope) {
+                document.clone()
+            } else {
+                scope_members[0].clone()
+            };
+            let state = compile_scope(
+                &self.configuration,
+                scope,
+                &representative,
+                generation,
+                source_overlay.clone(),
+            );
+            let result = Arc::new(WorkspaceAnalysisGeneration {
+                document: representative,
+                scope: Some(scope.clone()),
+                invalidated: if primary_scope.as_ref() == Some(scope) {
+                    invalidated.clone().into_boxed_slice()
+                } else {
+                    Box::new([])
+                },
+                generation,
+                state,
+            });
+            self.latest.insert(scope.clone(), Arc::clone(&result));
+            scoped_results.insert(scope.clone(), result);
+        }
+
+        let mut related = Vec::new();
+        for candidate in &documents {
+            if selections.get(candidate).is_some_and(Result::is_ok) {
+                self.unscoped.remove(candidate);
+                continue;
+            }
+            let changed = self.document_scopes.contains_key(candidate) || candidate == &document;
+            if !changed {
+                continue;
+            }
+            let error = select_scope(&self.configuration, &source_overlay, candidate)
+                .expect_err("failed scope selection must remain deterministic");
+            let result = Arc::new(WorkspaceAnalysisGeneration {
+                document: candidate.clone(),
+                scope: None,
+                invalidated: if candidate == &document {
+                    invalidated.clone().into_boxed_slice()
+                } else {
+                    Box::new([])
+                },
+                generation,
+                state: WorkspaceAnalysisState::PreparationFailed {
+                    source_overlay: source_overlay.clone(),
                     error,
                 },
-            ),
-        };
-        let mut invalidated = Vec::new();
-        if let Some(previous) = self.document_scopes.remove(&document)
-            && scope.as_ref() != Some(&previous)
-        {
-            self.latest.remove(&previous);
-            invalidated.push(previous);
+            });
+            self.unscoped.insert(candidate.clone(), Arc::clone(&result));
+            if candidate != &document {
+                related.push(result);
+            }
         }
-        let result = Arc::new(WorkspaceAnalysisGeneration {
-            document,
-            scope: scope.clone(),
-            invalidated: invalidated.into_boxed_slice(),
-            generation,
-            state,
-        });
-        self.unscoped.remove(&result.document);
-        match scope {
-            Some(scope) => {
+
+        self.document_scopes.clear();
+        for (candidate, selected) in &selections {
+            if let Ok(scope) = selected {
                 self.document_scopes
-                    .insert(result.document.clone(), scope.clone());
-                self.latest.insert(scope, Arc::clone(&result));
-            }
-            None => {
-                self.unscoped
-                    .insert(result.document.clone(), Arc::clone(&result));
+                    .insert(candidate.clone(), scope.clone());
             }
         }
-        result
+
+        let primary = match primary_scope {
+            Some(scope) => scoped_results
+                .remove(&scope)
+                .expect("primary scope is always affected"),
+            None => self
+                .unscoped
+                .get(&document)
+                .cloned()
+                .expect("primary unscoped generation"),
+        };
+        related.extend(scoped_results.into_values());
+        self.rebuild_source_scopes();
+        WorkspaceAnalysisBatch {
+            primary,
+            related: related.into_boxed_slice(),
+        }
     }
 
     /// Compiles a speculative overlay without publishing or replacing an accepted generation.
@@ -253,6 +388,40 @@ impl WorkspaceAnalyses {
             WorkspaceAnalysisState::PreparationFailed { .. } => None,
         }
     }
+
+    fn rebuild_source_scopes(&mut self) {
+        self.source_scopes.clear();
+        for (scope, generation) in &self.latest {
+            let Some(sources) = generation.reached_sources() else {
+                continue;
+            };
+            for source in sources.iter() {
+                self.source_scopes
+                    .entry(PathBuf::from(source.name().as_str()))
+                    .or_default()
+                    .insert(scope.clone());
+            }
+        }
+    }
+}
+
+fn source_scope_priority(scope: &AnalysisScope, document: &Path) -> (u8, AnalysisScope) {
+    let owns_source = match scope {
+        AnalysisScope::Package(root) | AnalysisScope::ToolchainStandard(root) => {
+            document.starts_with(root)
+        }
+        AnalysisScope::SingleFile(source) => document == source,
+    };
+    (u8::from(!owns_source), scope.clone())
+}
+
+fn generation_reaches_document(generation: &WorkspaceAnalysisGeneration, document: &Path) -> bool {
+    let Some(name) = document.to_str() else {
+        return false;
+    };
+    generation
+        .reached_sources()
+        .is_some_and(|sources| sources.find_by_name(name).is_some())
 }
 
 fn select_scope(
@@ -537,12 +706,15 @@ mod tests {
 
     use nocter_analysis::AnalysisStatus;
     use nocter_json::parse;
-    use nocter_lsp::{DidOpenParams, InitializeParams};
+    use nocter_lsp::{DidChangeParams, DidOpenParams, InitializeParams};
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
     use super::*;
-    use crate::{DocumentWorkspace, LanguageServerEnvironment, LanguageServerToolchain};
+    use crate::{
+        DocumentWorkspace, DocumentWorkspaceChange, LanguageServerEnvironment,
+        LanguageServerToolchain,
+    };
 
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -710,6 +882,66 @@ mod tests {
         );
     }
 
+    #[test]
+    fn package_topology_change_reassigns_every_known_document_atomically() {
+        let temporary = TemporaryDirectory::new();
+        let index = temporary.path().join("index.nct");
+        let helper = temporary.path().join("helper.nct");
+        let package_text = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func main(): i32 { return 0 }\n",
+        );
+        let helper_text = "func helper(): i32 { return 1 }\n";
+        fs::write(&index, package_text).unwrap();
+        fs::write(&helper, helper_text).unwrap();
+        let configuration = configuration(temporary.path());
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration);
+
+        let index_generation = documents
+            .open(&open_params(&index, 1, package_text))
+            .unwrap();
+        let canonical_index = index_generation.path().to_path_buf();
+        let first = analyses.analyze(index_generation);
+        let package_scope = first.scope().unwrap().clone();
+
+        let helper_generation = documents
+            .open(&open_params(&helper, 1, helper_text))
+            .unwrap();
+        let canonical_helper = helper_generation.path().to_path_buf();
+        let second = analyses.analyze(helper_generation);
+        assert_eq!(second.scope(), Some(&package_scope));
+
+        let DocumentWorkspaceChange::Accepted(changed) = documents
+            .change(&change_params(&index, 2, "func main(): i32 { return 0 }\n"))
+            .unwrap()
+        else {
+            panic!("current topology change was ignored")
+        };
+        let batch = analyses.analyze(changed);
+
+        assert_eq!(
+            batch.scope(),
+            Some(&AnalysisScope::SingleFile(canonical_index.clone()))
+        );
+        assert_eq!(batch.invalidated_scopes(), &[package_scope]);
+        assert!(batch.generations().any(|generation| {
+            generation.scope() == Some(&AnalysisScope::SingleFile(canonical_helper.clone()))
+        }));
+        assert_eq!(
+            analyses
+                .latest_for_document(&canonical_index)
+                .and_then(WorkspaceAnalysisGeneration::scope),
+            Some(&AnalysisScope::SingleFile(canonical_index))
+        );
+        assert_eq!(
+            analyses
+                .latest_for_document(&canonical_helper)
+                .and_then(WorkspaceAnalysisGeneration::scope),
+            Some(&AnalysisScope::SingleFile(canonical_helper))
+        );
+    }
+
     fn configuration(root: &Path) -> WorkspaceConfiguration {
         configuration_with_standard(root, &standard_root())
     }
@@ -750,6 +982,28 @@ mod tests {
                 concat!(
                     "{{\"textDocument\":{{\"uri\":\"file://{}\",",
                     "\"languageId\":\"nocter\",\"version\":{},\"text\":\"{}\"}}}}"
+                ),
+                path.display(),
+                version,
+                escaped
+            ))
+            .unwrap(),
+        ))
+        .unwrap()
+    }
+
+    fn change_params(path: &Path, version: i32, text: &str) -> DidChangeParams {
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\r', "\\r")
+            .replace('\n', "\\n")
+            .replace('\t', "\\t");
+        DidChangeParams::decode(Some(
+            parse(&format!(
+                concat!(
+                    "{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":{}}},",
+                    "\"contentChanges\":[{{\"text\":\"{}\"}}]}}"
                 ),
                 path.display(),
                 version,

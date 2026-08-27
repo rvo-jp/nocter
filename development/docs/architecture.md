@@ -290,9 +290,14 @@ discovers the package root plus every declared executable and test module. Toolc
 loads its closed package once and catalogs every module. Single-file mode resolves only the
 toolchain standard support package. All three routes pass the same source overlay through discovery
 and `AnalysisSnapshot` target checking. Latest results are stored by package, toolchain-standard, or
-standalone-file scope and shared with request/publication outputs through immutable ownership. If a
-document changes scope, its prior scoped result is removed before the new result is visible, so a
-successful stale program cannot answer queries after package topology changes.
+standalone-file scope and shared with request/publication outputs through immutable ownership. Every
+accepted overlay recomputes the scope membership of known documents. A membership change refreshes
+each surviving old or new scope exactly once and invalidates an empty scope in one atomic analysis
+batch; a changed dependency source also refreshes each latest scope whose retained source map
+reaches it. Independent scopes are not recompiled. Closed reached sources use a derived
+source-to-scope index that prefers their physical owner and then canonical scope identity; generation
+recency never selects semantic context. A successful stale program therefore cannot answer queries
+after package-topology or shared-source changes.
 
 `DiagnosticPublisher` projects only compiler-owned `SourceDiagnostic` values. Primary and related
 origins resolve through the snapshot's own `SourceMap`, and normalized byte spans convert through
