@@ -1,8 +1,16 @@
 # Development Milestones
 
-This directory contains the active development milestone and historical milestone records.
+This directory contains one active development milestone and historical milestone records.
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
+
+## Active Milestone
+
+The [v0.18.0 milestone](v0.18.0.md) has completed Phases 0 through 3. Release qualification is its
+remaining gate. The milestone owns scope and completion criteria; the handoff owns only the next
+concrete action.
+
+## Historical Milestones
 
 The [v0.17.0 milestone](v0.17.0.md) and its
 [release preparation](v0.17.0-release-preparation.md) are complete, and v0.17.0 is published. The
@@ -16,5 +24,6 @@ The [v0.17.0 milestone](v0.17.0.md) and its
 refactoring was superseded before publication by a specification-first compiler rewrite. The
 [release preparation](v0.14.0-release-preparation.md) is complete.
 
-Every other milestone file records past work only. Historical records are not normative language
-sources and must not be used to reconstruct behavior missing from the current specification.
+Every milestone other than v0.18.0 records past work only. Historical records are not normative
+language sources and must not be used to reconstruct behavior missing from the current
+specification.

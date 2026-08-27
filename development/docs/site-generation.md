@@ -37,8 +37,11 @@ from the website even before its overview gains a dedicated section.
 
 Generation fails when two sources claim one output path, a local Markdown link or heading anchor is
 unresolved, a local link escapes the repository, or the syntax highlighter's keyword set differs
-from the lexical specification. Links inside fenced and inline code remain example text rather than
-navigation and are excluded from link validation.
+from the lexical specification. It also requires one colocated `README.md` for every compiler
+workspace member and rejects a crate manifest under `development/compiler/crates/` that is absent
+from the workspace manifest. Each crate README must carry its exact crate heading plus
+`Responsibility`, `Contract`, and `Invariants` sections. Links inside fenced and inline code remain
+example text rather than navigation and are excluded from link validation.
 
 ## Editing Rule
 

@@ -1,0 +1,27 @@
+# nocter-model
+
+## Responsibility
+
+Own dependency-light semantic identity domains, package/target identities, symbols, structural type
+keys, immutable type snapshots, and type-construction authority.
+
+## Contract
+
+Semantic stages exchange model IDs only with the immutable authority that gives them meaning. The
+crate publishes read-only type products and owner-scoped construction operations; it does not know
+syntax, source ranges, declaration storage, editor features, or machine layout.
+
+## Internal Responsibilities
+
+- dense semantic ID domains and arenas
+- deterministic symbols and package identities
+- structural type interning and projections
+- exact-lineage type transactions
+- persistent closure identity sequences
+
+## Invariants
+
+- Type identity never depends on spelling, source order, or source location.
+- A read-only `TypeStore` cannot open a transaction.
+- Sibling or stale authorities cannot exchange or commit bare identities.
+- Storage implementation remains private to the semantic owner.

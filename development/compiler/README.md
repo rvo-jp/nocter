@@ -19,10 +19,11 @@ contracts, or milestone status.
   presentation boundary.
 - [`Cargo.toml`](Cargo.toml) is the canonical workspace-member list. Crate manifests and public Rust
   APIs are the canonical dependency and implementation surface.
-- [The active milestone](../milestones/v0.17.0.md) owns the completed v0.17.0 Phase 0 scope;
-  [v0.17.0 release preparation](../milestones/v0.17.0-release-preparation.md) owns the active
-  candidate qualification; [the handoff](../TODO.md) owns only the next concrete work
-  and current blockers.
+- Each workspace crate's `README.md` owns that crate's responsibility, input/output contract,
+  internal responsibility split, and local invariants. It may name another crate only through that
+  crate's exported contract.
+- [The active milestone](../milestones/v0.18.0.md) owns v0.18.0 scope and completion gates;
+  [the handoff](../TODO.md) owns only the next concrete work and current blockers.
 
 The compiler derives behavior from the current specification. The implementation removed before
 v0.14.0 remains available through Git history only and is not a behavioral or architectural input.
@@ -43,6 +44,15 @@ Source projection, diagnostics, editor analysis, command composition, and packag
 side authorities with explicit inputs. They cannot create a second semantic pipeline or let a later
 stage reinterpret an earlier stage's private representation. The architecture document owns the
 complete boundary rules.
+
+## Crate Documentation
+
+Every workspace member has a colocated `README.md`. Start with
+[`crates/nocter-session/README.md`](crates/nocter-session/README.md) for compiler orchestration,
+[`crates/nocter-checking/README.md`](crates/nocter-checking/README.md) for semantic checking,
+[`crates/nocter-analysis/README.md`](crates/nocter-analysis/README.md) for editor queries, or
+[`crates/nocter-machine/README.md`](crates/nocter-machine/README.md) for native lowering. The
+workspace manifest, rather than a copied crate list, remains the membership authority.
 
 ## Verification
 

@@ -69,7 +69,7 @@ The JSON form is one LF-terminated object:
           "alias": "std",
           "source": "standard",
           "lock": null,
-          "resolved": "toolchain-std-v0.14.0"
+          "resolved": "toolchain-std-v<release>"
         }
       ]
     }
@@ -77,8 +77,10 @@ The JSON form is one LF-terminated object:
 }
 ```
 
+`<release>` in the example is replaced by the exact release identity of the selected installation.
 `source` is exactly `standard`, `git`, `archive`, or `path`. `lock` is JSON null when absent. Every
-valid package has a version. The root package and bundled standard package are ordinary entries in `packages`.
+valid package has a version. The root package and bundled standard package are ordinary entries in
+`packages`.
 Graph resolution uses only authored locks and already installed exact packages. When a required
 lock or package is absent, it reports the normal resolution requirement without downloading,
 creating package-store state, or editing `index.nct`; the user may run `nocter fetch` explicitly.
@@ -325,7 +327,7 @@ does not partially rewrite `index.nct`.
 ### Acquisition Protocols
 
 Nocter performs remote package acquisition inside the `nocter` process. It does not invoke `git`,
-`curl`, or another downloader. The supported v0.14.0 remote sources are deliberately narrow:
+`curl`, or another downloader. The supported remote sources are deliberately narrow:
 
 - Git repositories fetched from a public `https://` URL
 - `.tar.gz` archives fetched from a public `https://` URL

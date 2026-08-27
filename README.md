@@ -120,9 +120,9 @@ The v0.17.0 compiler parses, checks, builds, and runs the supported language on 
 emits ARM64 Mach-O executables directly. Unsupported runtime forms are rejected with source-backed
 diagnostics before machine code is emitted.
 
-The [language specification](spec/README.md) describes the published v0.17.0 language. The
-`v0.17.0` repository tag preserves the exact compiler, standard library, specification, packaging
-inputs, and public release documentation.
+The working-tree [language specification](spec/README.md) describes the adopted, unreleased
+v0.18.0 language contract. The `v0.17.0` repository tag preserves the exact published compiler,
+standard library, specification, packaging inputs, and public release documentation.
 
 ## Learn More
 

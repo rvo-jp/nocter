@@ -17,6 +17,8 @@ Before compiler work, read:
 - `docs/architecture.md`
 - `docs/maintenance.md`
 
+Before editing a compiler crate, also read that crate's colocated `README.md` completely.
+
 Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
 rewrite them.
 
@@ -78,11 +80,22 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
   behavior
 - `development/milestones/v0.18.0.md`: active design scope and completed phase records
 - `development/releases/v0.17.0.md`: latest published release evidence
-- `development/milestones/v0.16.0.md`: completed release history only
-- `development/milestones/v0.14.0.md`: completed rewrite history only
-- `development/docs/architecture.md`: compiler dependency and authority boundaries
-- `development/TODO.md`: short-lived handoff and unresolved work
+- `development/docs/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
+  authority boundaries only
+- `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output
+  contract, internal responsibility split, and local invariants
+- `development/docs/*.md`: cross-crate contracts and completed design records; never a duplicate
+  owner of crate internals
+- `development/TODO.md`: next concrete work and current blockers only
+- `development/milestones/` and `development/reviews/`: plans, historical rationale, findings, and
+  remediation evidence; never current crate-internal authority
 - `development/releases/`: immutable published release evidence only
+
+Every workspace member must have one colocated `README.md`. `development/compiler/Cargo.toml` owns
+workspace membership, crate manifests own exact dependencies, and Rust source/rustdoc owns exact
+APIs. Do not duplicate those lists in prose. When a crate's internal responsibility changes, update
+its README in the same commit. When only a cross-crate edge changes, update architecture or the
+owning boundary document instead.
 
 Write public documentation in English. Edit source Markdown and regenerate the website with
 `node docs/build-docs.js`.

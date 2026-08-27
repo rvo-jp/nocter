@@ -7,5 +7,17 @@ An implementation qualification proves the recorded implementation against its s
 tests. A final design review asks a different question: whether each responsibility can be replaced
 internally without forcing consumers that use only its contract to change.
 
-- [v0.17.0 analysis authority reconstruction](v0.17.0-analysis-authority.md) — active
-- [v0.14.0 final design review](v0.14.0-final-design.md) — active
+## Current Candidate Reviews
+
+- [v0.18.0 Phase 0 construction review](v0.18.0-phase-0.md) — complete
+- [v0.18.0 Phase 1 builtin declaration review](v0.18.0-phase-1.md) — complete
+- [v0.18.0 Phase 2 interface implementation review](v0.18.0-phase-2.md) — complete
+- [v0.18.0 Phase 3 persistent authority review](v0.18.0-phase-3.md) — complete
+- [v0.18.0 persistent semantic authority record](v0.18.0-persistent-semantic-authority.md) — complete
+- [v0.18.0 semantic tooling reconstruction record](v0.18.0-semantic-tooling-reconstruction.md) — complete
+
+## Historical Foundation Reviews
+
+- [v0.17.0 analysis authority reconstruction](v0.17.0-analysis-authority.md)
+- [v0.14.0 final design review](v0.14.0-final-design.md)
+- [v0.14.0 grammar closure audit](v0.14.0-grammar-audit.md)

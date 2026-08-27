@@ -102,6 +102,7 @@ const sourceFiles = collectSourceFiles(PROJECT_ROOT);
 const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 
 validateNocterLexicon();
+validateCrateDocumentation();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
 cleanGeneratedHtml();
@@ -135,6 +136,57 @@ function validateNocterLexicon() {
     }
 }
 
+function validateCrateDocumentation() {
+    const compilerRoot = path.join(PROJECT_ROOT, "development/compiler");
+    const manifestPath = path.join(compilerRoot, "Cargo.toml");
+    const manifest = fs.readFileSync(manifestPath, "utf8");
+    const members = manifest.match(/members\s*=\s*\[([\s\S]*?)\]/)?.[1]
+        .match(/"[^"]+"/g)
+        ?.map(value => value.slice(1, -1)) || [];
+
+    if (members.length === 0) {
+        throw new Error("Cannot find workspace members in development/compiler/Cargo.toml");
+    }
+
+    const documentedMembers = new Set();
+    for (const member of members) {
+        const memberRoot = path.join(compilerRoot, member);
+        const readme = path.join(memberRoot, "README.md");
+
+        if (!fs.existsSync(path.join(memberRoot, "Cargo.toml"))) {
+            throw new Error(`Workspace member ${member} has no Cargo.toml`);
+        }
+        if (!fs.existsSync(readme)) {
+            throw new Error(`Workspace member ${member} has no colocated README.md`);
+        }
+        const readmeSource = fs.readFileSync(readme, "utf8");
+        const crateName = path.basename(memberRoot);
+        const requiredSections = [
+            `# ${crateName}`,
+            "## Responsibility",
+            "## Contract",
+            "## Invariants"
+        ];
+        for (const section of requiredSections) {
+            if (!readmeSource.split("\n").includes(section)) {
+                throw new Error(`Workspace member ${member} README.md is missing ${section}`);
+            }
+        }
+        documentedMembers.add(path.resolve(memberRoot));
+    }
+
+    const cratesRoot = path.join(compilerRoot, "crates");
+    for (const entry of fs.readdirSync(cratesRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+            continue;
+        }
+        const crateRoot = path.join(cratesRoot, entry.name);
+        if (fs.existsSync(path.join(crateRoot, "Cargo.toml")) && !documentedMembers.has(crateRoot)) {
+            throw new Error(`Documented compiler crate crates/${entry.name} is absent from the workspace manifest`);
+        }
+    }
+}
+
 console.log(`Generated ${sourceFiles.length} HTML pages in ${path.relative(PROJECT_ROOT, OUTPUT_ROOT)}/`);
 
 function cleanGeneratedHtml() {
@@ -151,7 +203,12 @@ function cleanGeneratedHtml() {
         }
 
         if (entry.isDirectory() && entry.name !== "assets") {
-            fs.rmSync(fullPath, { recursive: true, force: true });
+            fs.rmSync(fullPath, {
+                recursive: true,
+                force: true,
+                maxRetries: 5,
+                retryDelay: 50
+            });
         }
     }
 }

@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-25">
+    <meta property="article:modified_time" content="2026-08-27">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Compiler Workspace - Nocter">
     <meta name="twitter:description" content="This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Compiler Workspace - Nocter","description":"This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Compiler Workspace - Nocter","description":"This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-27","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -128,8 +128,11 @@
                 <li><a href="../docs/target-program-design/index.html#content">target and executable program design</a></li>
                 <li><a href="../docs/machine-program-design/index.html#content">machine program design</a></li>
                 <li><a href="../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="../milestones/v0.17.0/index.html#content">The active milestone</a></li>
-                <li><a href="../milestones/v0.17.0-release-preparation/index.html#content">v0.17.0 release preparation</a></li>
+                <li><a href="../milestones/v0.18.0/index.html#content">The active milestone</a></li>
+                <li><a href="./crates/nocter-session/index.html#content">`crates/nocter-session/README.md`</a></li>
+                <li><a href="./crates/nocter-checking/index.html#content">`crates/nocter-checking/README.md`</a></li>
+                <li><a href="./crates/nocter-analysis/index.html#content">`crates/nocter-analysis/README.md`</a></li>
+                <li><a href="./crates/nocter-machine/index.html#content">`crates/nocter-machine/README.md`</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -143,17 +146,17 @@
   <a href="../docs/target-program-design/index.html#content">target and executable program design</a>, and
   <a href="../docs/machine-program-design/index.html#content">machine program design</a> own their detailed stage contracts.</li><li><a href="../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a> owns the compiler-to-editor
   presentation boundary.</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/compiler/Cargo.toml"><code>Cargo.toml</code></a> is the canonical workspace-member list. Crate manifests and public Rust
-  APIs are the canonical dependency and implementation surface.</li><li><a href="../milestones/v0.17.0/index.html#content">The active milestone</a> owns the completed v0.17.0 Phase 0 scope;
-  <a href="../milestones/v0.17.0-release-preparation/index.html#content">v0.17.0 release preparation</a> owns the active
-  candidate qualification; <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the handoff</a> owns only the next concrete work
-  and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
+  APIs are the canonical dependency and implementation surface.</li><li>Each workspace crate's <code>README.md</code> owns that crate's responsibility, input/output contract,
+  internal responsibility split, and local invariants. It may name another crate only through that
+  crate's exported contract.</li><li><a href="../milestones/v0.18.0/index.html#content">The active milestone</a> owns v0.18.0 scope and completion gates;
+  <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the handoff</a> owns only the next concrete work and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
   -&gt; syntax and declarations
   -&gt; checking
   -&gt; target validation and executable specialization
   -&gt; MIR
   -&gt; machine program
   -&gt; ARM64 and Mach-O emission
-</code></pre><p>Source projection, diagnostics, editor analysis, command composition, and package acquisition are side authorities with explicit inputs. They cannot create a second semantic pipeline or let a later stage reinterpret an earlier stage's private representation. The architecture document owns the complete boundary rules.</p><h2 id="verification">Verification</h2><p>Run from the repository root:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> <span class="token-option">--check</span>
+</code></pre><p>Source projection, diagnostics, editor analysis, command composition, and package acquisition are side authorities with explicit inputs. They cannot create a second semantic pipeline or let a later stage reinterpret an earlier stage's private representation. The architecture document owns the complete boundary rules.</p><h2 id="crate-documentation">Crate Documentation</h2><p>Every workspace member has a colocated <code>README.md</code>. Start with <a href="./crates/nocter-session/index.html#content"><code>crates/nocter-session/README.md</code></a> for compiler orchestration, <a href="./crates/nocter-checking/index.html#content"><code>crates/nocter-checking/README.md</code></a> for semantic checking, <a href="./crates/nocter-analysis/index.html#content"><code>crates/nocter-analysis/README.md</code></a> for editor queries, or <a href="./crates/nocter-machine/index.html#content"><code>crates/nocter-machine/README.md</code></a> for native lowering. The workspace manifest, rather than a copied crate list, remains the membership authority.</p><h2 id="verification">Verification</h2><p>Run from the repository root:</p><pre><code class="language-sh"><span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> <span class="token-option">--check</span>
 <span class="token-function">cargo</span> clippy <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
 <span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
 </code></pre><p>Cargo writes incremental build artifacts to <code>development/compiler/target/</code>. The directory is ignored by Git and is a disposable cache, not repository state. Reclaim it without touching source or release artifacts with:</p><pre><code class="language-sh"><span class="token-function">cargo</span> clean <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml

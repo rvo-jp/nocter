@@ -1,13 +1,10 @@
-# Target, Executable, and MIR Program Design
+# Target, Executable, and MIR Boundary
 
-This document defines target validation, executable specialization, and MIR implementation
-responsibilities. It does not define language behavior. Target names and gates, package targets,
-entry contracts, CLI acceptance, generic requirements, ABI rules, and primitive contracts remain
-owned by the public specification.
+This document owns the cross-crate handoff from checked semantics to concrete MIR. Internal design
+belongs in the [`nocter-target-program`](../compiler/crates/nocter-target-program/README.md) and
+[`nocter-mir`](../compiler/crates/nocter-mir/README.md) READMEs.
 
-## Boundaries
-
-The pipeline has three consuming program boundaries:
+## Pipeline
 
 ```text
 CheckedProgram + ToolchainSnapshot
@@ -16,411 +13,47 @@ CheckedProgram + ToolchainSnapshot
   -> MirProgram
 ```
 
-`TargetProgram` is the sole public success boundary shared by `check`, `build`, and `run`. It owns
-the complete `CheckedProgram`; a target identity cannot be paired with a graph checked for another
-target. It validates target availability, compiler-selected primitive completeness, package target
-identity, and every selected-target buildability condition. A library-only package may stop at
-this boundary. It does not receive a synthetic entry.
+`TargetProgram` is the common public acceptance boundary for `check`, `build`, and `run`. It owns the
+selected target and validates target availability, toolchain primitive completeness, package target
+identity, and target-dependent buildability once. A library-only check may stop at this boundary.
 
-`ExecutableProgram` retains immutable shared ownership of one `TargetProgram` and consumes one
-exact executable or test selection. Multiple package targets therefore reuse the same checked and
-target-validated graph while each builds an independent entry-driven reachable closure. Each
-executable owns its monomorphized item table and freezes every concrete interface-implementation dispatch. It
-cannot retain a callable requirement that MIR would have to resolve again.
+`ExecutableProgram` consumes one exact executable or native-test selection and closes its reachable
+monomorphized callable graph. It freezes concrete dispatch, closure/drop instances, primitive
+dependencies, and executable type representations before MIR.
 
-The implemented executable root is compiler-owned metadata, not a synthetic source declaration. A
-process root names one dense entry item and its process-result contract. A test root retains direct
-test cases in declaration order and maps each case to a dense item. Empty test targets remain valid.
+`MirProgram` consumes that closed graph and expresses concrete control flow, places, operations,
+cleanup, regions, outcomes, packs, and calls. MIR validation checks internal representation
+integrity; it cannot reject a source-language capability already accepted by Target.
 
-`MirProgram` consumes one `ExecutableProgram`. It owns concrete control-flow graphs, places,
-operations, calls, and cleanup edges. MIR validation checks representation integrity only; it does
-not reject a source-language capability accepted by `TargetProgram`.
+## Dispatch Contract
 
-## Selected Target Authority
+Checking retains abstract requirements for generic bodies and owns the selector capable of proving
+their concrete substitutions. Executable specialization asks that authority once and stores the
+selected direct callable, primitive, closure body, coercion-plus-operation plan, or other closed
+dispatch result.
 
-`CompilationTarget` is a closed syntax-independent identity in `nocter-model`. Recognition is
-separate from implementation availability: all names listed by the specification can select
-frontend declarations, while target-program validation currently accepts only `arm64-darwin`.
-The compile-unit input requires an explicit target, and `DeclarationGraph` retains it through
-`CheckedProgram`.
+MIR receives only that result. It cannot inspect interface implementations, instance declarations,
+requirements, method names, or source visibility. Callable values are statically witnessed and do
+not become an erased runtime interface or vtable.
 
-Target-gate selection occurs once before semantic identities are allocated. One temporary
-selection inventory is shared by:
+## Representation Contract
 
-- discovery-edge validation, which ignores block imports contained in inactive items
-- symbol collection, which omits every token and decoded string owned by an inactive item
-- declaration-surface collection, which omits the declaration and its complete body
+Executable specialization freezes every concrete nominal field/variant payload and opaque witness
+needed by reachable items. MIR uses those identities when constructing concrete places and
+operations. Machine layout later assigns storage and ABI classification; Target and MIR do not
+implement machine layout.
 
-This order permits disjoint target declarations to reuse a name and prevents inactive source from
-changing active symbol IDs or producing name, type, body, ownership, or import diagnostics. Later
-stages receive only the selected declaration graph; they do not inspect `#target` syntax or filter
-semantic arenas. An unknown gate name is an authored `E0233` failure. A recognized reserved name is
-valid source and becomes an availability error only when that target is selected.
+## Entry and Reachability
 
-## Toolchain Snapshot
+An executable or test root is compiler-owned metadata, not a synthetic source declaration.
+Reachability starts from that exact root and follows checked call/dependency identities. Runtime
+symbol spelling is generated after selection and cannot be used to locate a semantic item.
 
-The target-program crate receives one immutable toolchain snapshot selected before validation.
-It contains typed target identity, ABI identity, executable-writer identity, and the exact standard
-primitive registry. Paths, environment variables, package display names, and runtime symbol
-spellings are discovery metadata and cannot grant capability.
+## Required Invariants
 
-The snapshot and checked graph must name the same target and exact standard package. Target
-validation resolves each required primitive role to its already checked semantic declaration and
-stores the resulting identity table in `TargetProgram`. Missing, duplicate, wrong-signature, or
-wrong-authority primitives are target-program failures. MIR and code generation consume the table;
-they never search declarations by spelling.
-
-The implemented registry contains 49 closed roles matching the selected standard-library source
-boundary. Discovery attaches each role to one `CallableId`; `PrimitiveRegistry` rejects missing,
-duplicate, or aliased attachments before a snapshot exists. `TargetProgram` then validates the
-attached declaration's canonical standard module, name, visibility, generic shape, parameters,
-result, provenance, target gate, and absence of a source body. It also rejects every primitive
-declaration not attached to a role. The `arm64-darwin` syscall result is part of that contract: its
-nominal authority, gate, copy declaration, field order, field names, field types, and field
-visibility are checked rather than inferred by the backend.
-
-Target recognition alone grants no backend capability. `CompilationTarget` remains the closed
-frontend identity, while `ToolchainSnapshot::select` is the sole implementation-availability
-authority. Only `arm64-darwin` currently selects the indivisible Arm64 backend, Nocter
-Arm64-Darwin ABI, and Arm64 Mach-O writer. Reserved targets fail before a `TargetProgram` can be
-constructed.
-
-## Package Targets and Entries
-
-Package discovery selects each relevant `#executable` and `#test` record and resolves its exact
-module. Directive path interpretation ends at discovery. The existing typed `PackageTargetId`
-arena is populated during declaration lowering and becomes the only target selection index.
-
-The implemented lowering input pairs an exact package-directive `NodeId` with the resolved
-`ModuleIdentity`. The directive remains the authority for target kind, decoded name, and source
-order; the resolution supplies only the module edge. Lowering validates that the node is a direct
-target directive in the owning package and that the module belongs to that package, then reserves
-the typed target in canonical package/source order. `SourceIndex` projects `PackageTargetId` to the
-exact name literal. Duplicate selected names and declaration positions cannot enter a frozen
-program.
-
-Target validation checks that every supplied target belongs to its package and selected module.
-Executable construction selects one `PackageTargetId`; no filename convention or imported `main`
-fallback exists. Entry lookup uses the selected module's authored namespace and requires its exact
-top-level `main` callable to satisfy the specified non-generic, parameter-free process-result
-contract. Test targets instead select direct `test` declarations in source order.
-
-Single-file mode creates one explicit executable selection owned by discovery. It does not mutate
-the source into a package declaration and does not introduce a parallel entry algorithm.
-
-That selection is implemented as one ordinary semantic `PackageTargetId`: `PackageMode::SingleFile`
-supplies the sole root module and source display name, and the target projects to the complete file
-root. Package and file execution therefore enter the same target and entry selectors.
-
-Executable entry selection reads only the selected module's authored namespace. It freezes the
-exact target, package, module, callable, body, source result type, and classified process-result
-contract. Only top-level, non-generic, parameter-free functions returning `void`, `void!`, `i32`,
-`i32!`, `usize`, or `usize!` are accepted. Prelude fallback, imported modules, re-exported
-callables, and same-spelled non-functions have no entry authority.
-
-Test-target selection filters the checked `TestId` arena by the exact selected module and retains
-canonical declaration order. Each selected case freezes its declaration, name, and body. Imported
-modules and dependencies are not traversed, and no callable or synthetic source `main` is created.
-
-## Instantiation Authority
-
-A monomorphized callable key contains callable identity and the complete owner-plus-callable
-generic domain keyed by `GenericParameterId`. Receiver type is not stored a second time: an
-instance, construction, or interface-implementation target is reconstructed from its declaration and that one
-substitution. The canonical key rejects missing, extra, duplicate, and still-symbolic arguments.
-The work queue is deterministic by the complete key.
-
-Executable specialization forks the checked type store while preserving its existing `TypeId`
-prefix. Applying generic substitutions may intern additional concrete types only in this fork.
-One checking-owned concrete dispatch resolver consumes checked `StaticSelection` values and
-produces semantic-shaped plans containing direct callable, compiler primitive, or indirect
-callable-value steps. A plain invocation contains one step. A comparison retains independent
-left-operand coercion, right-operand coercion, and operation lanes. An index projection retains an
-independent receiver coercion and operation lane. This shape prevents ordered step arrays from
-losing which value a coercion consumes. Interface requirements resolve through the retained
-interface-implementation authority, including required/default method selection. MIR never receives an
-unresolved `RequirementId`.
-
-An opaque method invocation is a distinct representation lane rather than an ordinary invocation
-whose receiver type happens not to match. It freezes the specialized opaque type, exact checked
-witness type, source receiver representation, target receiver representation, and selected direct
-operation. Source and target preserve the same owned, readonly, or readwrite capability. Exact
-compiler-selected interface operations and ordinary method lookup share the advertised opaque
-interface evidence path; collection iteration therefore uses the same lane as a source method
-call. The public opaque identity remains intact until MIR explicitly opens that receiver.
-
-The same resolver owns concrete destruction planning and its specialized type-store fork. A plan
-records a nominal type's exact drop-body substitution before its reverse-order field or active
-variant payload work, and recursively covers arrays, outcomes, closure environments, and opaque
-witness representations. Copy types and move-only representations with no owned destruction work
-produce no plan. Closure definitions retain each environment binding together with the type
-actually stored in that field; a readwrite capture is therefore move-only without being mistaken
-for ownership of its referent. Opaque destruction opens only the checked witness table after the
-opaque generic domain is concrete. The executable closure can enumerate every required drop body
-without rematching types or reconstructing storage layout.
-
-Checked cleanup dependencies preserve their representation shape rather than collapsing to a type
-set. Complete values use ordinary recursive glue. An enum residual records its exact active variant
-and still-initialized payload identities after pattern transfer; its plan excludes both moved
-payloads and an owner drop body that already ran before transfer. This distinction prevents a later
-generic lowering from turning residual cleanup into a second whole-enum destruction.
-
-One executable dependency traversal covers calls, receiver and operand coercions, comparisons,
-index projections, iteration, typed literals, interpolation, closures, explicit pattern drops,
-and every scheduled cleanup type. It excludes source retained under `Unreachable` and unreachable
-pattern fallbacks. This is the only edge inventory from which the monomorphization queue may grow.
-An explicit pattern drop retains both its `DropId` and the complete declaration-generic
-substitution selected from the subject type; a later stage never rematches a source type pattern.
-
-Instantiation substitutes the checked signature and body, proves retained requirements through
-the checked program's interface-implementation authority, resolves abstract dispatch once, and enqueues exact
-callees, drop bodies, construction members, closures, and compiler-generated semantic operations.
-Opaque witnesses become concrete at this boundary. Unreachable generic declarations are not
-instantiated and cannot create target code.
-
-This closure is implemented with `CallableInstanceKey`, `ClosureInstanceKey`, and
-`DropInstanceKey`, each validated against the complete declaration-owned generic domain. A
-`BTreeSet` work queue closes semantic keys; dense `ExecutableItemId` values are assigned only after
-closure, in full key order. Discovery order and first-use queue order therefore cannot affect item
-identity. Each executable body freezes source-to-concrete type edges, direct item IDs, typed
-standard and structural primitive calls, statically specialized callable-value plans, nested
-closure IDs, exact drop item IDs, and cleanup-specific destruction plans. Bodyless direct calls are
-accepted only when the selected toolchain registry assigns their callable to a primitive role.
-
-Each item separately freezes its complete concrete runtime signature even when a parameter is
-unused by the body. Callable receivers precede ordinary parameters and materialize their declared
-owned, readonly-borrow, or readwrite-borrow capability instead of reusing the owner type. Closure
-signatures add one capability-correct environment input before closure parameters. Drop bodies
-retain their exact readwrite receiver, and tests have no inputs. Each standard primitive call also
-freezes its concrete signature. A primitive whose execution depends on semantic work additionally
-retains a typed dependency at this boundary. Pointer destruction, for example, records both its
-concrete subject and either the complete concrete destruction plan or the positive fact that the
-subject needs no destruction. It also closes every user-drop body named recursively by that plan.
-Later stages therefore never recover destruction from a primitive name, role, or generic type
-argument. Signature and dependency specialization belong to executable construction; MIR cannot
-apply generic substitution, infer ABI inputs from body references, or reopen destruction
-selection.
-
-Each closure item additionally freezes one concrete environment layout: its `ClosureId`, concrete
-closure type, invocation capability, and every capture binding paired with the concrete type stored
-in that field. A borrow capture therefore remains a borrow field rather than being collapsed to its
-referent. The enclosing executable body points to that exact item, so MIR construction, capture
-projection, invocation, and destruction all consume one layout authority. Each executable body
-also freezes the deterministic first-use node domain reached from its root. Preparation passes may
-not scan sibling closure roots merely because those nodes occupy the same checked-body arena.
-
-Structural callable contracts remain generic bounds and never become sized runtime values.
-Executable construction specializes the bound subject, requires its concrete closure type, and
-resolves the generated closure body into the reachable item graph. The frozen invocation retains
-that body, the concrete subject and contract, and optional post-call destruction. When an owned
-contract invokes a closure whose intrinsic body capability is readonly or readwrite, MIR moves the
-environment into temporary storage, calls the body through the capability-correct borrow, then
-runs the frozen destruction plan after a returning call. An intrinsically owned body receives the
-environment after all explicit arguments succeed. Both cases stage an owned callable operand in
-the canonical expression-temporary slot before argument evaluation; checked propagation cleanup
-uses that same slot. There is no erased callable object, vtable, or indirect callable ABI in MIR.
-
-Static strings remain typed readonly `&str` constants. Typed string construction consumes its
-already frozen literal dispatch and calls the specialized literal item directly. Every MIR call
-records whether it inherits lexical allocation or temporarily overrides it with an existing place.
-Only executable items whose exact declaration kind is a typed literal accept an override, and the
-place must resolve to the compiler-selected aborting allocator or allocation-context nominal. This
-keeps allocation context out of ordinary source ABI parameters and makes restoration a call-boundary
-obligation rather than an inferred backend convention.
-
-Typed argument packs use a dedicated executable and MIR input schema. The checked pack
-parameter cannot become one ordinary element-typed input, a slice, a `Vec`, or an erased variadic
-ABI. Executable construction must freeze the element type and either the source-ordered
-fixed/spread producers or one exact incoming-pack forwarding edge. MIR must then materialize checked total length,
-single-acquisition spread state, per-element transfer, remaining-element cleanup, and the pack
-body's length and consuming-loop operations explicitly. This entire lane is now represented
-without lowering to a misleading ordinary call.
-
-`ExecutableSignature` now separates its ordinary input list from one optional
-`ExecutablePackInput`. That pack input freezes the source `ParameterId`, specialized element type,
-and exact `Optional<T>` type returned by consuming iteration; it never receives an ordinary
-parameter position. Functions, methods, construction functions, interface methods, and sequence
-literals may acquire this schema. Every ordinary packed call has one
-`ExecutableArgumentPackPlan`; every reachable sequence expression has one
-`ExecutableSequencePlan`. A prepared plan freezes the exact pack input, source-ordered fixed values
-and spread producers, concrete iterator/item/contribution types, retained `next` and exact-size
-selections, and the concrete destruction plan for every fixed value and spread iterator. A
-forwarding plan instead proves that the caller's incoming pack has the same specialized
-element/next contract and retains no producers or cleanup recipes. A sequence plan also
-freezes its dense constructor item, specialized result, and allocation selection. Those plans
-enqueue their reachable user drop bodies during executable closure,
-so MIR never rematches a segment type to clean an unconsumed suffix. Construction rejects a plan
-whose value or contribution type differs from the pack element, whose sequence constructor has
-ordinary inputs, or whose iterator operations do not resolve to invocations. The shared
-`ExecutablePackSegment` contract is independent of the sequence-construction plan.
-
-Literal bodies lower the executable schema to one `MirPackInput`. `PackLength` reads its exact
-length and `PackNext` consumes one element as the frozen `Optional<T>`; neither operation accepts a
-normal value operand. `DestroyPack` is effect-only and must be the final operation before every
-return. MIR validation compares the complete pack schema with the executable item, validates the
-optional payload, rejects pack operations in ordinary functions, and rejects any returning pack
-body that does not destroy its remaining state exactly once. Fallthrough, explicit return, and
-outcome propagation all use the same exit operation.
-
-Caller lowering instantiates each prepared plan as one `MirPackArgument`. It first
-resolves the call-scoped allocation place, then evaluates and acquires fixed and spread segments in
-source order. Only after every segment is prepared does it invoke each frozen readonly exact-size
-operation and combine the fixed count and dynamic counts with ordinary checked `usize` addition.
-Each spread then retains one readwrite receiver and exact `next` target; direct items and copied
-readonly items are separate contribution modes. The literal call has no ordinary pack arguments.
-It transfers the total, the source-ordered segment owners, and their consuming operations through
-the hidden pack lane. A forwarding plan emits the distinct `MirCallPack::Forwarded` contract and
-passes the incoming descriptor without constructing or aliasing another owner.
-
-Cleanup which must run inside that transferred state uses `MirDestructionPlan`. This recursive
-schema replaces every user drop selection with its dense executable item before MIR and retains
-exact concrete fields, variants, array elements, optional/fallible payloads, closure captures, and
-opaque witnesses. The MIR validator checks the complete destruction shape and every nested item;
-the program validator checks each deferred user drop signature. It also validates nested spread
-calls and requires the caller's pack element/next pair to equal the callee's `MirPackInput`. Thus a
-missing pack, ordinary call masquerading as a literal call, or unresolved cleanup recipe cannot
-cross the MIR boundary.
-
-Interpolation does not introduce a MIR string-builder operation or expose the standard `String`
-layout. Checking freezes the compiler-selected owned-String constructor, text-appending method,
-and one formatter selection per expression. Executable dependency closure resolves and retains all
-of those ordinary callable edges. MIR invokes the constructor under the checked allocation
-selection, initializes the interpolation node's canonical value-storage slot, and then invokes
-text appenders and formatters in source order. Formatter operands use the common readonly operand
-and opaque-receiver preparation lanes. Normal completion moves the finished value out of its sole
-slot. Postfix propagation and explicit return destroy that same partially initialized slot through
-the checked cleanup schedule; a forced-outcome trap has no invented cleanup edge. Neither MIR nor
-the backend recognizes `String`, `empty`, `push_str`, or `format_into` by spelling.
-
-## MIR Authority
-
-Each instantiated body lowers to dense basic-block and operation arenas. Terminators name exact
-successors. Calls name monomorphized item IDs. Places retain concrete projection and storage
-identity. Cleanup schedules already frozen in checked HIR become explicit MIR edges in their
-recorded order; MIR does not infer cleanup timing from syntax or operation kind.
-
-The canonical schema gives locals, drop flags, places, SSA values, operations, and blocks distinct
-dense identity domains. Typed block parameters are the only merge-value mechanism. A block owns
-one ordered operation list and exactly one terminator; conditional cleanup branches on an explicit
-drop flag. Enum, optional, and fallible switches inspect a typed place directly, so cleanup and
-pattern lowering never move an aggregate merely to recover its active representation.
-
-Construction is mutable only through `MirBodyBuilder`, `MirFunctionBuilder`, and
-`MirProgramBuilder`; finishing consumes every builder. `MirBody` is the one storage, SSA, and CFG
-schema shared by callable functions and compiler-owned roots. `MirFunction` adds only its dense
-item identity and callable result contract; roots therefore do not forge an executable item.
-Body validation receives a narrow immutable environment containing
-only the concrete type store, declaration members needed for projection validation, concrete
-closure layouts, and the closed executable-item domain. It validates specialized nominal and
-closure-capture projections, aggregate layout, local and place capability, operation typing, edge
-arguments, reachability, SSA dominance, switch shape, and owner-specific terminal behavior.
-Program validation then checks direct calls, closure environment signatures, drop invocations,
-and the exact entry call of every root against the complete function arena. This split permits
-future per-item incremental validation without giving MIR access to source or package setup state.
-
-One process root calls the selected entry exactly once and turns all six accepted result contracts
-into explicit process exits. Fallible results are stored once and switched in place. Success exits
-with zero or the returned `i32`/`usize`; failure moves the owned error handle, performs one
-allocation-free `ReportError` boundary effect, releases the complete node chain, and exits with
-status one. `void!` success has no
-fictional SSA payload. Test targets retain one independent root body per declaration-order case,
-so the native runner can launch separate processes without a synthetic source `main`; an empty
-target has no invented root case. `Exit` and `ReportError` are valid only in root bodies, while
-`Return` is valid only in callable bodies.
-
-The ARM64 boundary materializes the shared closed function/data payload once for a test target and
-projects each retained root into a separate executable entry. It does not synthesize a source
-callable or a combined in-process dispatcher. A failing root reports the root code and
-outer-to-inner messages through allocation-free target code, releases the handle, and exits with
-status one, so one process failure cannot suppress a later declaration-order run.
-
-Opaque values use one `Opaque` aggregate and one `OpaqueWitness` place projection. Construction
-must supply the exact concrete witness frozen for that opaque application. Projection must produce
-the same witness. The MIR validation environment exposes the concrete runtime representation for a
-`TypeId`; it does not expose nominal fields, variants, generic substitutions, opaque declarations,
-interface selection, or witness-member lookup. MIR therefore checks representation integrity
-without reopening declaration state or specializing a type for a second time.
-
-The implemented MIR validator requires closed successors, valid typed place projections, resolved
-and signature-correct call targets, SSA dominance, complete terminal behavior, and one consistent
-ordered region stack across every CFG edge. Flow-sensitive initialized-use validation remains
-coupled to pending whole-function storage validation; documentation must not claim that gate before
-it exists. These are compiler integrity checks over an accepted program, not a second source
-diagnostic system.
-
-## Construction Order
-
-1. Select and validate target gates before import and symbol processing.
-2. Freeze the selected target into `DeclarationGraph` and preserve it through checking.
-3. Lower discovery-owned package targets into typed semantic identities. **Complete.**
-4. Introduce the target-program crate and immutable toolchain capability snapshot. **Complete.**
-5. Validate selected-target availability, standard primitive roles, package targets, and complete
-   buildability into `TargetProgram`. **Complete.**
-6. Select an executable/test entry, define canonical concrete callable/closure/drop keys, enumerate
-   checked-body dependencies, resolve concrete dispatch and destruction plans, and close one
-   deterministic reachable item graph. **Complete.**
-7. Define typed MIR identities, immutable builders, CFG schema, and closed validation. **Complete.**
-8. Lower concrete checked bodies, cleanup schedules, and compiler-owned process/test roots into
-   validated MIR. **Complete.**
-
-The current end-to-end lowering slice covers concrete signatures, constants, primitive integer
-operations, aggregate construction, ordinary copy/move/borrow places, initialization and
-assignment, value-producing branches, short-circuit logic, returns, direct and standard-primitive
-calls, receiver preparation and one-step receiver coercion, borrow conversions, and primitive or
-selected comparisons. Comparison lowering consumes source-selected operand coercions and
-specialization-selected coercions through the same lane-preserving plan. Selected and coerced
-indexing lowers a place prefix, borrows it with the frozen receiver capability, invokes its exact
-coercion/operator lane, and continues projection from the returned borrow. Nested field projection
-and readwrite storage therefore use the same MIR place model as ordinary storage. The slice runs
-through the complete source-to-executable fixture rather than a second hand-built input model.
-Outcome injection and tags lower to typed aggregates. Propagation, force, and recovery materialize
-their operand exactly once, switch on storage, and move a typed payload projection only on the
-selected branch. Propagation reconstructs its failure with retained inner-to-outer result layers;
-recovery initializes an authored catch binding before lowering its fallback. Unconditional
-cleanup schedules lower at their checked event timing and consume only executable destruction
-plans. They cover owned paths and staged values, assignment replacement, propagation failure,
-user drop calls, reverse struct/array payloads, active enum/outcome payload switches, opaque
-witnesses, and region release. Borrowed receiver roots remain initialized inputs but never become
-callee-owned cleanup. One canonical value-storage slot is shared by borrow preparation, outcome
-inspection, pattern projection, and cleanup. Conditional path and value schedules use
-explicit entry-visible drop flags updated on initialization, move, replacement, and destruction.
-Exact typed place interning makes the flag and ordinary storage operations share one identity.
-Block fallthrough and explicit control transfer consume the same checked `BeforeTransfer` cleanup
-events. Explicit drop, compound integer assignment, `break`, `continue`, while and infinite loops,
-and integer ranges lower into closed CFG; a checked nonbreaking loop has no synthetic exit, and a
-range uses a dedicated increment latch. Collection loops consume frozen source-expansion and
-`next` dispatch, retain one canonical iterator slot, borrow it at the loop header, switch on the
-returned optional place, and move only a present payload into the loop binding. Exhaustion, break,
-and return cleanup share the iterator drop flag. Enum patterns switch directly on retained,
-consumed, temporary, or borrow-dereferenced subject storage. Checked binding modes select payload
-copy, move, or borrow without repeating copyability proof, while one checked remainder plan
-selects complete or variant-residual destruction. Mutually exclusive remainders use independent
-drop flags on the shared subject slot, and value-producing arms join through typed block
-parameters. Lexical region entry creates one compiler-owned allocation-context local directly as a
-non-movable resource; it never materializes the handle as an SSA value. Every ordinary call,
-literal call, and authored destruction freezes either the function-entry context, the exact active
-region local, or an explicit source-selected place. Region exit remains part of the ordinary
-cleanup schedule, which orders inner values before child release on fallthrough and every explicit
-transfer. MIR validation interprets region state as an ordered CFG stack: creation, current-context
-selection, inner-first release, merge agreement, and normal-terminal emptiness are all checked.
-Validation also requires the compiler-selected allocator and allocation-context nominal identities
-for both operations. Concrete closures lower through a binding-preserving aggregate tied to one
-executable closure item. Direct closure calls borrow or consume that same environment according to
-its frozen capability. Inside the closure body, hidden environment and stored-borrow dereferences
-remain explicit typed place projections; move captures participate in the ordinary cleanup-flag
-and recursive-destruction machinery. Generic callable-bound invocations resolve to those same
-closure items and direct calls. Contract-owned invocation of a non-owned body retains explicit
-post-call environment destruction rather than hiding ownership in call ABI behavior. Other
-unsupported checked operations still fail; the current slice cannot silently omit accepted
-semantics.
-
-## Prohibited Designs
-
-- filtering target-gated declarations after namespace or body checking
-- storing a target as an unchecked string after compilation setup
-- matching a toolchain, standard package, primitive, entry, or runtime item by display spelling
-- allowing checking input and declaration/checked graphs to carry different targets
-- reparsing package target paths after discovery
-- creating separate generic-instance or interface-implementation indexes for MIR and code generation
-- representing composite dispatch as a flat step sequence that loses operand ownership
-- returning public `check` success before selected-target buildability is complete
+- Target acceptance is shared by all commands and runs once per checked/toolchain pair.
+- Executable roots cannot be invented for library-only packages.
+- Concrete substitutions contain every owner and callable generic argument exactly once.
+- Every reachable call has a frozen target or primitive role before MIR.
+- MIR cannot inspect syntax, declarations, source projection, or generic proof inputs.
+- A later backend failure is an integrity/output failure, not a second language diagnostic.

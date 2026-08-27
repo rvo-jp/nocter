@@ -9,21 +9,11 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
-- [v0.18.0 construction surface simplification](milestones/v0.18.0.md)
-- [v0.18.0 Phase 0 construction review](reviews/v0.18.0-phase-0.md)
-- [v0.17.0 practical application foundations](milestones/v0.17.0.md)
-- [v0.17.0 release preparation](milestones/v0.17.0-release-preparation.md)
-- [v0.17.0 publication and audit](releases/v0.17.0.md)
-- [v0.16.0 practical failure values](milestones/v0.16.0.md)
-- [v0.16.0 release preparation](milestones/v0.16.0-release-preparation.md)
+- [Active v0.18.0 milestone](milestones/v0.18.0.md)
+- [v0.18.0 design reviews](reviews/README.md)
+- [Latest published release qualification](releases/v0.17.0.md)
 - [Compiler architecture](docs/architecture.md)
-- [Checked program design](docs/checked-program-design.md)
-- [Target and executable program design](docs/target-program-design.md)
-- [Machine program and native target design](docs/machine-program-design.md)
-- [Declaration diagnostic boundary](docs/declaration-diagnostic-boundary.md)
-- [Semantic presentation design](docs/semantic-presentation-design.md)
-- [Grammar conformance plan](docs/grammar-conformance.md)
-- [Maintenance policy](docs/maintenance.md)
+- [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)
 
 The active compiler workspace is under `development/compiler/`. The previous compiler is preserved

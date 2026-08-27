@@ -1,65 +1,49 @@
-# Nocter Development Documents
+# Nocter Architecture Documentation
 
-This directory contains the active implementation design for the Nocter compiler. Public language
-and standard-library behavior belongs exclusively in
-[`spec/`](../../spec/README.md).
+This directory owns cross-crate implementation contracts for the active Nocter compiler. Public
+language and standard-library behavior belongs exclusively in
+[`spec/`](../../spec/README.md). A workspace crate's internal mechanism belongs in that crate's
+colocated `README.md`, not in this directory.
 
-## Active Documents
+## Reading Order
 
-- [Compiler Rewrite Architecture](architecture.md)
-- [Checked Program Design](checked-program-design.md)
-- [Target and Executable Program Design](target-program-design.md)
-- [Machine Program and Native Target Design](machine-program-design.md)
+1. [Compiler Architecture](architecture.md) — pipeline, side authorities, and dependency rules.
+2. The relevant [workspace crate README](../compiler/README.md#crate-documentation) — one crate's
+   inputs, outputs, internal responsibilities, and invariants.
+3. A cross-crate contract below when a decision spans more than one crate.
+4. The active [milestone](../milestones/v0.18.0.md) or completed [review](../reviews/README.md) only
+   when implementation history or qualification evidence is needed.
+
+## Cross-Crate Contracts
+
+- [Checked Program Boundary](checked-program-design.md)
+- [Target, Executable, and MIR Boundary](target-program-design.md)
+- [Machine Program and Native Target Boundary](machine-program-design.md)
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
-- [Semantic Presentation Design](semantic-presentation-design.md)
-- [Standard Library Source Design](standard-library-source-design.md)
-- [Analysis Authority Reconstruction](../reviews/v0.17.0-analysis-authority.md)
-- [Grammar Conformance Plan](grammar-conformance.md)
-- [Maintenance](maintenance.md)
+- [Semantic Presentation Boundary](semantic-presentation-design.md)
+- [Grammar Conformance](grammar-conformance.md)
+- [Standard-Library Source Design](standard-library-source-design.md)
+- [Maintenance Policy](maintenance.md)
 - [Documentation Site Generation](site-generation.md)
-- [Current Handoff](../TODO.md)
-- [v0.18.0 Construction Surface Simplification](../milestones/v0.18.0.md)
-- [Persistent Semantic Authority](persistent-semantic-authority.md)
-- [Semantic Tooling Reconstruction](semantic-tooling-reconstruction.md)
-- [v0.18.0 Phase 0 Construction Review](../reviews/v0.18.0-phase-0.md)
-- [v0.17.0 Practical Application Foundations](../milestones/v0.17.0.md)
-- [v0.17.0 Release Preparation](../milestones/v0.17.0-release-preparation.md)
-- [v0.17.0 Publication and Audit](../releases/v0.17.0.md)
-- [v0.16.0 Practical Failure Values](../milestones/v0.16.0.md)
-- [v0.16.0 Release Preparation](../milestones/v0.16.0-release-preparation.md)
 
-## Completed Foundation Records
-
-- [Grammar Closure Audit](grammar-audit.md)
-- [v0.14.0 Rewrite Milestone](../milestones/v0.14.0.md)
-- [v0.14.0 Implementation Qualification](../milestones/v0.14.0-qualification.md)
-
-Superseded implementation design is retained under `development/archive/` and excluded from the
-generated website. It must not be consulted to determine current compiler structure or unspecified
-language behavior. Git history and published release records preserve chronology.
+Superseded implementation design lives under `development/archive/` and is excluded from the
+generated website. It must not be consulted to determine current compiler behavior.
 
 ## Information Ownership
 
 | Information | Sole owner |
 |---|---|
-| Public language and standard-library behavior | `spec/` |
-| Compiler dependency direction and cross-stage authority boundaries | `architecture.md` |
-| Checked-program responsibilities and construction order | `checked-program-design.md` |
-| Target validation, executable specialization, and MIR ownership | `target-program-design.md` |
-| Machine layout, machine program, ARM64, and Mach-O ownership | `machine-program-design.md` |
-| Declaration validation authority, diagnostic cardinality, and lowering failure classification | `declaration-diagnostic-boundary.md` |
-| Compiler-owned semantic rendering and editor query inputs | `semantic-presentation-design.md` |
-| Semantic recovery evidence, query coverage, and editor availability | `semantic-tooling-reconstruction.md` |
-| Standard-library contract and implementation-source separation | `standard-library-source-design.md` |
-| Active v0.18.0 construction-surface contract and completion gate | `../milestones/v0.18.0.md` |
-| Completed v0.17.0 scope and release qualification | `../milestones/v0.17.0.md` and `../milestones/v0.17.0-release-preparation.md` |
-| Grammar-gate inventory and closure progress | `grammar-audit.md` |
-| Parser test derivation from the grammar | `grammar-conformance.md` |
-| Completed v0.16.0 scope and release qualification | `../milestones/v0.16.0.md` and `../milestones/v0.16.0-release-preparation.md` |
-| Completed v0.15.0 scope and release qualification | `../milestones/v0.15.0.md` and `../milestones/v0.15.0-release-preparation.md` |
-| Completed v0.14.0 rewrite scope and qualification | `../milestones/v0.14.0.md` and `../milestones/v0.14.0-qualification.md` |
-| Next concrete work and blockers | `../TODO.md` |
-| Published qualification evidence | `../releases/` |
-| Documentation generation | `site-generation.md` |
+| Public language, standard-library, CLI, diagnostic, and editor behavior | `spec/` |
+| Published versions and downloads | root `releases/` |
+| Compiler pipeline and cross-crate dependency direction | `architecture.md` |
+| One crate's responsibility, internal modules, and invariants | that crate's `README.md` |
+| Exact Rust workspace membership and dependency edges | `development/compiler/Cargo.toml` and crate manifests |
+| Exact Rust API | Rust source and rustdoc |
+| Active scope and completion gates | `development/milestones/v0.18.0.md` |
+| Review findings and remediation evidence | `development/reviews/` |
+| Next concrete work and blockers | `development/TODO.md` |
+| Published-candidate qualification evidence | `development/releases/` |
 
-Do not duplicate normative rules in development documents. Link to the owning specification rule.
+Do not copy a crate's module layout into a cross-crate document. Do not copy milestone progress into
+architecture. A cross-crate document may name the contracts on both sides of a boundary, but it must
+not explain either side's private implementation.
