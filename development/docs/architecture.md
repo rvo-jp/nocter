@@ -259,8 +259,9 @@ responses before lifecycle dispatch. A response completes exactly one retained r
 repeated identities and invalid result shapes remain typed protocol issues rather than being
 mistaken for client requests.
 
-`nocter-language-server` is that composition layer. An existing document resolves to its physical
-canonical file; a new unsaved document resolves through one existing canonical parent. The
+`nocter-language-server` is the protocol/filesystem composition layer. An existing document
+resolves to its physical canonical file; a new unsaved document resolves through one existing
+canonical parent. The
 `DocumentWorkspace` freezes the resulting URI-to-path association only after open succeeds and
 reuses it for every change, save, and close. Later filesystem or symlink changes therefore cannot
 move an open document between compiler identities, and failed transitions cannot partially mutate
@@ -305,6 +306,11 @@ responses preserve request identity, and clean versus premature exit produces an
 status. The transport loop writes only framed JSON-RPC messages to its output.
 
 Every accepted document transition now retains one complete immutable source revision.
+`nocter-workspace-analysis` owns `WorkspaceAnalyses`, package resolution, discovery, compilation,
+scope invalidation, and package-diagnostic normalization. It canonicalizes and validates workspace
+roots once into the same configuration used for every topology decision. `nocter-language-server`
+can name only its immutable generations and protocol-independent analysis queries; its Cargo graph
+has no direct package, discovery, session, model, syntax, or source-index dependency.
 `WorkspaceAnalyses` first selects the exact compiler-owned standard root. Other
 documents select the deepest `index.nct` ancestor bounded by the owning initialized root; that
 declaration selects package mode, while a `.nct` file without such an ancestor selects single-file

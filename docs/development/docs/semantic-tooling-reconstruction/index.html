@@ -190,14 +190,18 @@
   a sibling module rather than the crate root, so Rust privacy prevents the query tree from reading
   <code>AnalysisState</code> or its session-storage variants. Compiler-resolved Clippy rules restrict the few
   cross-crate raw phase methods to the evidence kernel.</li><li>The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
-  JSON-RPC <code>-32603</code>; expected unavailability and partial coverage are ordinary semantic outcomes.</li><li>Workspace analysis consumes one complete source revision containing overlay, open-document set,
-  and changes. It derives one <code>WorkspaceTopology</code> for the entire revision; package-root facts are
-  memoized by canonical directory, and every document scope or scope-selection failure comes from
-  that single product. One package compilation input contains the module roots for every currently selected
-  source as well as the package and declared target roots. A dependency source reached by multiple
-  current package contexts produces typed ambiguity unless one context physically owns it;
-  ordering never supplies authority. A changed or closed file may invalidate an active demand but
-  never becomes demand itself; a scope with no open members emits only an invalidation generation.</li><li>Rename and code-action publication requires one consumed <code>ValidatedSemanticMutation</code>. Analysis
+  JSON-RPC <code>-32603</code>; expected unavailability and partial coverage are ordinary semantic outcomes.</li><li><code>nocter-workspace-analysis</code> consumes one complete source revision containing overlay,
+  open-document set, and changes. It canonicalizes and validates workspace roots once, then derives
+  one <code>WorkspaceTopology</code> for the entire revision; package-root facts are memoized by canonical
+  directory, and every document scope or scope-selection failure comes from that single product.
+  One package compilation input contains the module roots for every currently selected source as
+  well as the package and declared target roots. A dependency source reached by multiple current
+  package contexts produces typed ambiguity unless one context physically owns it; ordering never
+  supplies authority. A changed or closed file may invalidate an active demand but never becomes
+  demand itself; a scope with no open members emits only an invalidation generation.</li><li><code>nocter-language-server</code> owns URI identity, LSP lifecycle, and protocol projection. Its production
+  dependency graph cannot name package resolution, discovery, compiler sessions, model storage, or
+  syntax trees; preparation diagnostics are normalized by workspace analysis before crossing the
+  boundary.</li><li>Rename and code-action publication requires one consumed <code>ValidatedSemanticMutation</code>. Analysis
   derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
   workspace compilation cannot substitute another overlay, and validation retains the resulting
   candidate snapshot in the same value. The candidate must pass the cached whole-projection query

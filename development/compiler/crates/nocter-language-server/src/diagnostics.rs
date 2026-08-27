@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_json::{Member, Value};
 use nocter_lsp::{DocumentUri, DocumentUriError, render_notification};
-use nocter_package::{PackageGraphError, PackageResolutionError};
 use nocter_source::{CoordinateError, SourceMap, Utf16Range};
 
 use crate::{AnalysisScope, WorkspaceAnalysisGeneration};
@@ -93,10 +92,13 @@ fn project_analysis(
     analysis: &WorkspaceAnalysisGeneration,
 ) -> Result<BTreeMap<DocumentUri, ProjectedDocument>, DiagnosticPublicationError> {
     let mut projected = BTreeMap::new();
-    if let Some(snapshot) = analysis.snapshot() {
-        for diagnostic in snapshot.diagnostics() {
-            let (uri, path, value) = project_diagnostic(diagnostic, snapshot.sources())?;
-            let version = snapshot
+    if let Some(sources) = analysis.reached_sources() {
+        for diagnostic in analysis
+            .diagnostics()
+            .map_err(DiagnosticPublicationError::Workspace)?
+        {
+            let (uri, path, value) = project_diagnostic(diagnostic, sources)?;
+            let version = analysis
                 .source_overlay()
                 .document(&path)
                 .map(|document| document.version().get());
@@ -111,51 +113,6 @@ fn project_analysis(
             }
             document.diagnostics.push(value);
         }
-    } else if let Some(crate::WorkspaceAnalysisError::Package(failure)) =
-        analysis.preparation_failure()
-        && let PackageResolutionError::Graph(PackageGraphError::Declaration(error)) =
-            failure.error()
-    {
-        let subject = error.subject();
-        let sources = failure.reached().sources();
-        let source =
-            sources
-                .get(subject.source())
-                .ok_or(DiagnosticPublicationError::MissingSource(
-                    subject.source().index(),
-                ))?;
-        let tree = failure
-            .reached()
-            .syntax_trees()
-            .iter()
-            .find(|tree| tree.node(subject).is_some())
-            .ok_or(DiagnosticPublicationError::MissingSyntaxSubject {
-                source: subject.source().index(),
-                node: subject.index(),
-            })?;
-        let node = tree
-            .node(subject)
-            .expect("selected syntax tree contains package declaration subject");
-        let diagnostic = SourceDiagnostic::new(
-            "E0800",
-            error.to_string(),
-            source.span(node.range()),
-            [],
-            None::<Box<str>>,
-        );
-        let (uri, path, value) = project_diagnostic(&diagnostic, sources)?;
-        let version = failure
-            .reached()
-            .source_overlay()
-            .document(&path)
-            .map(|document| document.version().get());
-        projected.insert(
-            uri,
-            ProjectedDocument {
-                version,
-                diagnostics: vec![value],
-            },
-        );
     }
     Ok(projected)
 }
@@ -273,8 +230,8 @@ pub enum DiagnosticPublicationError {
     MissingSource(u32),
     Coordinate(CoordinateError),
     Uri(DocumentUriError),
+    Workspace(crate::WorkspaceDiagnosticError),
     InconsistentDocumentVersion(PathBuf),
-    MissingSyntaxSubject { source: u32, node: usize },
 }
 
 impl fmt::Display for DiagnosticPublicationError {
@@ -285,14 +242,11 @@ impl fmt::Display for DiagnosticPublicationError {
             }
             Self::Coordinate(error) => error.fmt(formatter),
             Self::Uri(error) => error.fmt(formatter),
+            Self::Workspace(error) => error.fmt(formatter),
             Self::InconsistentDocumentVersion(path) => write!(
                 formatter,
                 "diagnostics disagree on open-document version for {}",
                 path.display()
-            ),
-            Self::MissingSyntaxSubject { source, node } => write!(
-                formatter,
-                "package diagnostic refers to missing syntax node {source}:{node}"
             ),
         }
     }
@@ -303,9 +257,8 @@ impl std::error::Error for DiagnosticPublicationError {
         match self {
             Self::Coordinate(error) => Some(error),
             Self::Uri(error) => Some(error),
-            Self::MissingSource(_)
-            | Self::InconsistentDocumentVersion(_)
-            | Self::MissingSyntaxSubject { .. } => None,
+            Self::Workspace(error) => Some(error),
+            Self::MissingSource(_) | Self::InconsistentDocumentVersion(_) => None,
         }
     }
 }
@@ -344,7 +297,7 @@ mod tests {
         let failed = analyses.analyze(accepted);
         let mut publisher = DiagnosticPublisher::new();
 
-        let emitted = publisher.publish(&failed).unwrap();
+        let emitted = publisher.publish(failed.primary()).unwrap();
 
         assert_eq!(emitted.len(), 1);
         assert!(emitted[0].contains("file:///"));
@@ -359,7 +312,7 @@ mod tests {
             panic!("newer document version must be accepted")
         };
         let complete = analyses.analyze(changed);
-        let cleared = publisher.publish(&complete).unwrap();
+        let cleared = publisher.publish(complete.primary()).unwrap();
 
         assert_eq!(cleared.len(), 1);
         assert!(cleared[0].contains("\"diagnostics\":[]"));
@@ -384,15 +337,16 @@ mod tests {
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
         let failed = analyses.analyze(accepted);
 
-        let emitted = DiagnosticPublisher::new().publish(&failed).unwrap();
+        let emitted = DiagnosticPublisher::new()
+            .publish(failed.primary())
+            .unwrap();
 
         assert_eq!(emitted.len(), 1);
         assert!(emitted[0].contains("textDocument/publishDiagnostics"));
         assert!(emitted[0].contains("\"code\":\"E0800\""));
         assert!(emitted[0].contains("\"version\":1"));
         assert!(!emitted[0].contains("window/showMessage"));
-        assert_eq!(failed.reached_sources().unwrap().len(), 2);
-        assert_eq!(failed.reached_syntax_trees().len(), 2);
+        assert_eq!(failed.primary().reached_sources().unwrap().len(), 2);
     }
 
     fn configuration(root: &Path) -> WorkspaceConfiguration {
@@ -413,7 +367,7 @@ mod tests {
             .unwrap(),
         ))
         .unwrap();
-        WorkspaceConfiguration::resolve(&environment, &params).unwrap()
+        crate::workspace::resolve_workspace_configuration(&environment, &params).unwrap()
     }
 
     fn open_params(path: &Path, version: i32, text: &str) -> DidOpenParams {

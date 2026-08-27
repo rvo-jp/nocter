@@ -7,7 +7,7 @@ use nocter_filesystem::SourceOverlay;
 use super::{AnalysisScope, WorkspaceAnalysisError};
 use crate::WorkspaceConfiguration;
 
-/// The complete document-to-compilation-scope decision for one workspace source revision.
+/// The complete document-to-compilation-scope decision for one workspace-source revision.
 ///
 /// Scope selection is evaluated against one immutable overlay. Package-root probes are shared by
 /// every document in the revision, so document order cannot change either the chosen scope or the
@@ -91,7 +91,7 @@ fn select_scope(
         .and_then(|extension| extension.to_str())
         != Some("nct")
     {
-        return Err(WorkspaceAnalysisError::UnsupportedSource(
+        return Err(WorkspaceAnalysisError::unsupported_source(
             document.to_path_buf(),
         ));
     }
@@ -103,10 +103,10 @@ fn select_scope(
     }
     let workspace = configuration
         .root_for_document(document)
-        .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
+        .ok_or_else(|| WorkspaceAnalysisError::outside_workspace(document.to_path_buf()))?;
     let mut directory = document
         .parent()
-        .ok_or_else(|| WorkspaceAnalysisError::OutsideWorkspace(document.to_path_buf()))?;
+        .ok_or_else(|| WorkspaceAnalysisError::outside_workspace(document.to_path_buf()))?;
     loop {
         let root = package_roots
             .entry(directory.to_path_buf())
@@ -114,7 +114,11 @@ fn select_scope(
         match root {
             Ok(true) => return Ok(AnalysisScope::Package(directory.to_path_buf())),
             Ok(false) => {}
-            Err(error) => return Err(WorkspaceAnalysisError::PackageRootProbe(Arc::clone(error))),
+            Err(error) => {
+                return Err(WorkspaceAnalysisError::package_root_probe(Arc::clone(
+                    error,
+                )));
+            }
         }
         if directory == workspace {
             break;

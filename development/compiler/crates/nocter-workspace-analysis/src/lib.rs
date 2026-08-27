@@ -1,176 +1,37 @@
+//! Protocol-independent ownership of workspace topology and compiler analysis generations.
+//!
+//! One accepted source revision becomes one topology decision and the minimum affected set of
+//! package, toolchain-standard, or single-file compiler generations. Editor protocols consume the
+//! resulting immutable products without importing package resolution, discovery, or session
+//! internals.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::io;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_analysis::{
-    AnalysisSnapshot, EvidenceIntegrityError, GenerationId, SemanticMutationCandidate,
-    ValidatedSemanticMutation,
+    EvidenceIntegrityError, GenerationId, SemanticMutationCandidate, ValidatedSemanticMutation,
 };
-use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::SourceOverlay;
-use nocter_package::{
-    PackageGraphError, PackageResolutionFailure, PackageResolutionPolicy, PackageResolutionRequest,
-    resolve_package_selection_with_source_snapshot, resolve_standard_package_with_source_overlay,
-};
-use nocter_session::bundled_standard_toolchain;
 
-use crate::{AcceptedDocumentRevision, WorkspaceConfiguration};
-
+mod compilation;
 mod compilation_input;
+mod configuration;
+mod errors;
+mod generation;
 mod topology;
 
+use compilation::compile_scope;
 use compilation_input::ScopeCompilationInput;
+pub use configuration::{WorkspaceConfiguration, WorkspaceConfigurationError, WorkspaceToolchain};
+use errors::preparation_diagnostics;
+pub use errors::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
+use generation::WorkspaceAnalysisState;
+pub use generation::{
+    AcceptedDocumentRevision, AnalysisScope, WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration,
+};
 use topology::WorkspaceTopology;
-
-/// The compiler input boundary selected for one document generation.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum AnalysisScope {
-    Package(PathBuf),
-    ToolchainStandard(PathBuf),
-    SingleFile(PathBuf),
-}
-
-impl AnalysisScope {
-    #[must_use]
-    pub fn path(&self) -> &Path {
-        match self {
-            Self::Package(path) | Self::ToolchainStandard(path) | Self::SingleFile(path) => path,
-        }
-    }
-}
-
-/// The complete outcome retained for one scope in an accepted workspace generation.
-#[derive(Debug)]
-pub struct WorkspaceAnalysisGeneration {
-    scope: Option<AnalysisScope>,
-    invalidated: Box<[AnalysisScope]>,
-    generation: GenerationId,
-    state: WorkspaceAnalysisState,
-}
-
-impl WorkspaceAnalysisGeneration {
-    #[must_use]
-    pub const fn scope(&self) -> Option<&AnalysisScope> {
-        self.scope.as_ref()
-    }
-
-    #[must_use]
-    pub const fn invalidated_scopes(&self) -> &[AnalysisScope] {
-        &self.invalidated
-    }
-
-    #[must_use]
-    pub const fn generation(&self) -> GenerationId {
-        self.generation
-    }
-
-    #[must_use]
-    pub const fn snapshot(&self) -> Option<&AnalysisSnapshot> {
-        match &self.state {
-            WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
-            WorkspaceAnalysisState::PreparationFailed { .. }
-            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn preparation_failure(&self) -> Option<&WorkspaceAnalysisError> {
-        match &self.state {
-            WorkspaceAnalysisState::PreparationFailed { error, .. } => Some(error),
-            WorkspaceAnalysisState::Complete(_)
-            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn source_overlay(&self) -> &SourceOverlay {
-        match &self.state {
-            WorkspaceAnalysisState::Complete(snapshot) => snapshot.source_overlay(),
-            WorkspaceAnalysisState::PreparationFailed { source_overlay, .. }
-            | WorkspaceAnalysisState::InvalidationOnly { source_overlay } => source_overlay,
-        }
-    }
-
-    #[must_use]
-    pub fn reached_sources(&self) -> Option<&nocter_source::SourceMap> {
-        match &self.state {
-            WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot.sources()),
-            WorkspaceAnalysisState::PreparationFailed {
-                error: WorkspaceAnalysisError::Package(failure),
-                ..
-            } => Some(failure.reached().sources()),
-            WorkspaceAnalysisState::PreparationFailed { .. }
-            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub fn reached_syntax_trees(&self) -> &[nocter_syntax::SyntaxTree] {
-        match &self.state {
-            WorkspaceAnalysisState::Complete(snapshot) => snapshot.syntax_trees(),
-            WorkspaceAnalysisState::PreparationFailed {
-                error: WorkspaceAnalysisError::Package(failure),
-                ..
-            } => failure.reached().syntax_trees(),
-            WorkspaceAnalysisState::PreparationFailed { .. }
-            | WorkspaceAnalysisState::InvalidationOnly { .. } => &[],
-        }
-    }
-}
-
-/// One atomic workspace-analysis transition and every scope generation it refreshed.
-#[derive(Debug)]
-pub struct WorkspaceAnalysisBatch {
-    primary: Arc<WorkspaceAnalysisGeneration>,
-    related: Box<[Arc<WorkspaceAnalysisGeneration>]>,
-}
-
-impl WorkspaceAnalysisBatch {
-    #[must_use]
-    pub const fn primary(&self) -> &Arc<WorkspaceAnalysisGeneration> {
-        &self.primary
-    }
-
-    pub fn generations(&self) -> impl Iterator<Item = &Arc<WorkspaceAnalysisGeneration>> {
-        std::iter::once(&self.primary).chain(self.related.iter())
-    }
-
-    pub fn publication_order(&self) -> impl Iterator<Item = &Arc<WorkspaceAnalysisGeneration>> {
-        self.related.iter().chain(std::iter::once(&self.primary))
-    }
-
-    #[must_use]
-    pub fn into_generations(self) -> Box<[Arc<WorkspaceAnalysisGeneration>]> {
-        std::iter::once(self.primary)
-            .chain(self.related)
-            .collect::<Vec<_>>()
-            .into_boxed_slice()
-    }
-}
-
-impl Deref for WorkspaceAnalysisBatch {
-    type Target = WorkspaceAnalysisGeneration;
-
-    fn deref(&self) -> &Self::Target {
-        &self.primary
-    }
-}
-
-#[derive(Debug)]
-enum WorkspaceAnalysisState {
-    Complete(Box<AnalysisSnapshot>),
-    PreparationFailed {
-        source_overlay: SourceOverlay,
-        error: WorkspaceAnalysisError,
-    },
-    InvalidationOnly {
-        source_overlay: SourceOverlay,
-    },
-}
 
 /// Sequential owner of the latest immutable analysis for each package, toolchain standard, or
 /// standalone file.
@@ -236,13 +97,9 @@ impl WorkspaceAnalyses {
         }
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub const fn configuration(&self) -> &WorkspaceConfiguration {
-        &self.configuration
-    }
-
-    #[must_use]
-    pub fn latest(&self, scope: &AnalysisScope) -> Option<&WorkspaceAnalysisGeneration> {
+    fn latest(&self, scope: &AnalysisScope) -> Option<&WorkspaceAnalysisGeneration> {
         self.latest.get(scope).map(Arc::as_ref)
     }
 
@@ -342,10 +199,7 @@ impl WorkspaceAnalyses {
         self.unscoped
             .retain(|path, _| open_documents.contains(path));
         self.rebuild_source_scopes();
-        WorkspaceAnalysisBatch {
-            primary,
-            related: related.into_boxed_slice(),
-        }
+        WorkspaceAnalysisBatch::new(primary, related.into_boxed_slice())
     }
 
     fn plan_transition(
@@ -435,15 +289,15 @@ impl WorkspaceAnalyses {
                     .active_selected
                     .values()
                     .any(|selected| selected == scope);
-                let result = Arc::new(WorkspaceAnalysisGeneration {
-                    scope: active.then(|| scope.clone()),
-                    invalidated: if primary {
+                let result = Arc::new(WorkspaceAnalysisGeneration::new(
+                    active.then(|| scope.clone()),
+                    if primary {
                         transition.invalidated.clone().into_boxed_slice()
                     } else {
                         Box::new([])
                     },
                     generation,
-                    state: if active {
+                    if active {
                         compile_scope(
                             &self.configuration,
                             &input,
@@ -455,7 +309,7 @@ impl WorkspaceAnalyses {
                             source_overlay: source_overlay.clone(),
                         }
                     },
-                });
+                ));
                 if active {
                     self.latest.insert(scope.clone(), Arc::clone(&result));
                 }
@@ -485,19 +339,20 @@ impl WorkspaceAnalyses {
                 .failures
                 .remove(candidate)
                 .expect("every unscoped document retains its selection failure");
-            let result = Arc::new(WorkspaceAnalysisGeneration {
-                scope: None,
-                invalidated: if candidate == document {
+            let result = Arc::new(WorkspaceAnalysisGeneration::new(
+                None,
+                if candidate == document {
                     transition.invalidated.clone().into_boxed_slice()
                 } else {
                     Box::new([])
                 },
                 generation,
-                state: WorkspaceAnalysisState::PreparationFailed {
+                WorkspaceAnalysisState::PreparationFailed {
                     source_overlay: source_overlay.clone(),
+                    diagnostics: preparation_diagnostics(&error),
                     error,
                 },
-            });
+            ));
             self.unscoped.insert(candidate.clone(), Arc::clone(&result));
             if candidate != document {
                 related.push(result);
@@ -510,7 +365,12 @@ impl WorkspaceAnalyses {
     ///
     /// Mutation features use this as a transaction preflight. The candidate travels through the
     /// same package resolution, discovery, and compiler pipeline as accepted editor state.
-    pub(crate) fn validate_candidate<'source>(
+    ///
+    /// # Errors
+    ///
+    /// Returns an evidence-integrity failure when the compiled candidate cannot establish the
+    /// complete semantic relation required by the mutation transaction.
+    pub fn validate_candidate<'source>(
         &self,
         analysis: &WorkspaceAnalysisGeneration,
         candidate: SemanticMutationCandidate<'source>,
@@ -576,265 +436,101 @@ fn generation_reaches_document(generation: &WorkspaceAnalysisGeneration, documen
         .is_some_and(|sources| sources.find_by_name(name).is_some())
 }
 
-fn compile_scope(
-    configuration: &WorkspaceConfiguration,
-    input: &ScopeCompilationInput,
-    generation: GenerationId,
-    source_overlay: SourceOverlay,
-) -> WorkspaceAnalysisState {
-    let discovered = match input {
-        ScopeCompilationInput::Package {
-            root,
-            requested_sources,
-        } => discover_package(
-            configuration,
-            root,
-            requested_sources,
-            source_overlay.clone(),
-        ),
-        ScopeCompilationInput::ToolchainStandard => {
-            discover_toolchain_standard(configuration, source_overlay.clone())
-        }
-        ScopeCompilationInput::SingleFile(source) => {
-            discover_single_file(configuration, source, source_overlay.clone())
-        }
-    };
-    match discovered {
-        Ok(unit) => {
-            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::compile(generation, unit)))
-        }
-        Err(AnalysisPreparationFailure::Discovery(failure)) => {
-            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_discovery_failure(
-                generation, failure,
-            )))
-        }
-        Err(AnalysisPreparationFailure::Preparation(error)) => {
-            WorkspaceAnalysisState::PreparationFailed {
-                source_overlay,
-                error,
-            }
-        }
-    }
-}
-
-fn discover_toolchain_standard(
-    configuration: &WorkspaceConfiguration,
-    source_overlay: SourceOverlay,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
-    let toolchain = configuration.toolchain();
-    let standard = toolchain.standard().identity().clone();
-    let package =
-        resolve_standard_package_with_source_overlay(toolchain.standard().clone(), source_overlay)
-            .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover(DiscoveryRequest::toolchain_standard(
-        toolchain.target(),
-        package,
-        bundled_standard_toolchain(&standard),
-    ))
-    .map_err(AnalysisPreparationFailure::Discovery)
-}
-
-fn discover_package(
-    configuration: &WorkspaceConfiguration,
-    root: &Path,
-    requested_sources: &[PathBuf],
-    source_overlay: SourceOverlay,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
-    let toolchain = configuration.toolchain();
-    let selected = resolve_package_selection_with_source_snapshot(
-        PackageResolutionRequest::new(
-            root,
-            toolchain.nocter_home(),
-            toolchain.standard().clone(),
-            PackageResolutionPolicy::new(true, true),
-        ),
-        source_overlay,
-    )
-    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    let root_package = selected.root().clone();
-    let standard = selected.standard().clone();
-    let package = selected
-        .graph()
-        .packages()
-        .iter()
-        .find(|package| package.identity() == &root_package)
-        .ok_or_else(|| {
-            AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::MissingRootPackage(
-                root_package.clone(),
-            ))
-        })?;
-    let mut roots = BTreeSet::new();
-    roots.insert(ModuleIdentity::new(
-        root_package.clone(),
-        Vec::<Box<str>>::new(),
-    ));
-    for source in requested_sources {
-        roots.insert(
-            nocter_discovery::module_for_source(
-                &root_package,
-                root,
-                source,
-                selected.graph().source_overlay(),
-            )
-            .map_err(|error| {
-                AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::ModuleOwner(error))
-            })?,
-        );
-    }
-    if let Some(declaration) = package.declaration() {
-        roots.extend(declaration.targets().iter().map(|target| {
-            ModuleIdentity::new(root_package.clone(), target.module().iter().cloned())
-        }));
-    }
-    let (packages, _, _) = selected.into_parts();
-    discover(DiscoveryRequest::declared(
-        toolchain.target(),
-        packages,
-        roots.into_iter().collect(),
-        bundled_standard_toolchain(&standard),
-    ))
-    .map_err(AnalysisPreparationFailure::Discovery)
-}
-
-fn discover_single_file(
-    configuration: &WorkspaceConfiguration,
-    source: &Path,
-    source_overlay: SourceOverlay,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
-    let toolchain = configuration.toolchain();
-    let standard = toolchain.standard().identity().clone();
-    let packages =
-        resolve_standard_package_with_source_overlay(toolchain.standard().clone(), source_overlay)
-            .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover(DiscoveryRequest::single_file(
-        toolchain.target(),
-        source,
-        packages,
-        bundled_standard_toolchain(&standard),
-    ))
-    .map_err(AnalysisPreparationFailure::Discovery)
-}
-
-enum AnalysisPreparationFailure {
-    Preparation(WorkspaceAnalysisError),
-    Discovery(nocter_discovery::DiscoveryFailure),
-}
-
-#[derive(Debug)]
-pub enum WorkspaceAnalysisError {
-    OutsideWorkspace(PathBuf),
-    UnsupportedSource(PathBuf),
-    MissingRootPackage(nocter_model::PackageIdentity),
-    Package(PackageResolutionFailure),
-    StandardPackage(PackageGraphError),
-    PackageRootProbe(Arc<nocter_package::PackageRootProbeError>),
-    ModuleOwner(nocter_discovery::DiscoveryError),
-    Filesystem {
-        operation: &'static str,
-        path: PathBuf,
-        error: io::Error,
-    },
-}
-
-impl WorkspaceAnalysisError {
-    #[must_use]
-    pub const fn diagnostic_code(&self) -> &'static str {
-        match self {
-            Self::OutsideWorkspace(_)
-            | Self::UnsupportedSource(_)
-            | Self::Filesystem { .. }
-            | Self::ModuleOwner(_) => "E0702",
-            Self::Package(_) | Self::PackageRootProbe(_) => "E0800",
-            Self::StandardPackage(_) => "E0703",
-            Self::MissingRootPackage(_) => "E0900",
-        }
-    }
-}
-
-impl From<PackageResolutionFailure> for WorkspaceAnalysisError {
-    fn from(error: PackageResolutionFailure) -> Self {
-        Self::Package(error)
-    }
-}
-
-impl From<PackageGraphError> for WorkspaceAnalysisError {
-    fn from(error: PackageGraphError) -> Self {
-        Self::StandardPackage(error)
-    }
-}
-
-impl fmt::Display for WorkspaceAnalysisError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::OutsideWorkspace(path) => write!(
-                formatter,
-                "document is outside every initialized workspace root: {}",
-                path.display()
-            ),
-            Self::UnsupportedSource(path) => {
-                write!(
-                    formatter,
-                    "document is not a Nocter source file: {}",
-                    path.display()
-                )
-            }
-            Self::MissingRootPackage(package) => write!(
-                formatter,
-                "resolved package graph is missing root package {}",
-                package.as_str()
-            ),
-            Self::Package(error) => error.fmt(formatter),
-            Self::StandardPackage(error) => {
-                write!(formatter, "standard package is invalid: {error}")
-            }
-            Self::PackageRootProbe(error) => error.fmt(formatter),
-            Self::ModuleOwner(error) => {
-                write!(formatter, "cannot determine source module: {error}")
-            }
-            Self::Filesystem {
-                operation,
-                path,
-                error,
-            } => write!(formatter, "cannot {operation} {}: {error}", path.display()),
-        }
-    }
-}
-
-impl std::error::Error for WorkspaceAnalysisError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Package(error) => Some(error),
-            Self::StandardPackage(error) => Some(error),
-            Self::PackageRootProbe(error) => Some(error),
-            Self::ModuleOwner(error) => Some(error),
-            Self::Filesystem { error, .. } => Some(error),
-            Self::OutsideWorkspace(_)
-            | Self::UnsupportedSource(_)
-            | Self::MissingRootPackage(_) => None,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::AnalysisStatus;
-    use nocter_json::parse;
-    use nocter_lsp::{
-        DidChangeParams, DidCloseParams, DidOpenParams, DocumentUri, InitializeParams,
-    };
+    use nocter_analysis::{AnalysisStatus, DocumentChange, WorkspaceDocuments};
+    use nocter_filesystem::DocumentVersion;
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
     use super::*;
-    use crate::{
-        DocumentWorkspace, DocumentWorkspaceChange, LanguageServerEnvironment,
-        LanguageServerToolchain,
-    };
-
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+    enum DocumentWorkspaceChange {
+        Accepted(AcceptedDocumentRevision),
+        IgnoredStale,
+    }
+
+    #[derive(Default)]
+    struct DocumentWorkspace {
+        documents: WorkspaceDocuments,
+    }
+
+    impl DocumentWorkspace {
+        fn new() -> Self {
+            Self::default()
+        }
+
+        fn open(
+            &mut self,
+            path: &Path,
+            version: i32,
+            text: &str,
+        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+            let path = canonical_document_path(path)?;
+            let revision = self.documents.open(
+                path.clone(),
+                DocumentVersion::new(version),
+                Arc::<[u8]>::from(text.as_bytes()),
+            )?;
+            Ok(AcceptedDocumentRevision::new(path, revision))
+        }
+
+        fn change(
+            &mut self,
+            path: &Path,
+            version: i32,
+            text: &str,
+        ) -> Result<DocumentWorkspaceChange, Box<dyn std::error::Error>> {
+            let path = canonical_document_path(path)?;
+            Ok(
+                match self.documents.change(
+                    &path,
+                    DocumentVersion::new(version),
+                    Arc::<[u8]>::from(text.as_bytes()),
+                )? {
+                    DocumentChange::Accepted(revision) => DocumentWorkspaceChange::Accepted(
+                        AcceptedDocumentRevision::new(path, revision),
+                    ),
+                    DocumentChange::IgnoredStale { .. } => DocumentWorkspaceChange::IgnoredStale,
+                },
+            )
+        }
+
+        fn close(
+            &mut self,
+            path: &Path,
+        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+            let path = canonical_document_path(path)?;
+            let revision = self.documents.close(&path)?;
+            Ok(AcceptedDocumentRevision::new(path, revision))
+        }
+
+        fn refresh(
+            &mut self,
+            sources: &[&Path],
+        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+            let paths = sources
+                .iter()
+                .map(|path| canonical_document_path(path))
+                .collect::<Result<Vec<_>, _>>()?;
+            let primary = paths.first().ok_or("empty test refresh")?.clone();
+            let revision = self.documents.refresh(paths)?;
+            Ok(AcceptedDocumentRevision::new(primary, revision))
+        }
+    }
+
+    fn canonical_document_path(path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        if path.exists() {
+            return Ok(fs::canonicalize(path)?);
+        }
+        let parent = fs::canonicalize(path.parent().ok_or("document has no parent")?)?;
+        Ok(parent.join(path.file_name().ok_or("document has no file name")?))
+    }
 
     #[test]
     fn package_generation_uses_overlay_bytes_and_reaches_compiler_analysis() {
@@ -851,22 +547,28 @@ mod tests {
         let configuration = configuration(temporary.path());
         let mut documents = DocumentWorkspace::new();
         let accepted = documents
-            .open(&open_params(
+            .open(
                 &source,
                 7,
                 concat!(
                     "#package: { name: \"app\", version: \"0.0.0\", }\n",
                     "pub func answer(): i32 { return }\n",
                 ),
-            ))
+            )
             .unwrap();
         let canonical_source = accepted.path().to_path_buf();
         let mut analyses = WorkspaceAnalyses::new(configuration);
 
         let analyzed = analyses.analyze(accepted);
 
-        assert!(matches!(analyzed.scope(), Some(AnalysisScope::Package(_))));
-        let snapshot = analyzed.snapshot().expect("discovery reaches analysis");
+        assert!(matches!(
+            analyzed.primary().scope(),
+            Some(AnalysisScope::Package(_))
+        ));
+        let snapshot = analyzed
+            .primary()
+            .snapshot()
+            .expect("discovery reaches analysis");
         assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
         assert_eq!(
             snapshot
@@ -882,10 +584,10 @@ mod tests {
         );
         assert_eq!(
             analyses
-                .latest(analyzed.scope().unwrap())
+                .latest(analyzed.primary().scope().unwrap())
                 .unwrap()
                 .generation(),
-            analyzed.generation()
+            analyzed.primary().generation()
         );
     }
 
@@ -911,15 +613,16 @@ mod tests {
         let configuration = configuration(temporary.path());
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration.clone());
-        let first_revision = documents.open(&open_params(&first, 1, first_text)).unwrap();
+        let first_revision = documents.open(&first, 1, first_text).unwrap();
         let canonical_first = first_revision.path().to_path_buf();
         analyses.analyze(first_revision);
-        let second_revision = documents
-            .open(&open_params(&second, 1, second_text))
-            .unwrap();
+        let second_revision = documents.open(&second, 1, second_text).unwrap();
         let canonical_second = second_revision.path().to_path_buf();
         let generation = analyses.analyze(second_revision);
-        let snapshot = generation.snapshot().expect("package analysis snapshot");
+        let snapshot = generation
+            .primary()
+            .snapshot()
+            .expect("package analysis snapshot");
 
         assert!(
             snapshot
@@ -939,22 +642,15 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .generation(),
-            generation.generation()
+            generation.primary().generation()
         );
 
         let mut reverse_documents = DocumentWorkspace::new();
         let mut reverse_analyses = WorkspaceAnalyses::new(configuration);
-        reverse_analyses.analyze(
-            reverse_documents
-                .open(&open_params(&second, 1, second_text))
-                .unwrap(),
-        );
-        let reverse_generation = reverse_analyses.analyze(
-            reverse_documents
-                .open(&open_params(&first, 1, first_text))
-                .unwrap(),
-        );
-        let reverse_sources = reverse_generation.snapshot().unwrap().sources();
+        reverse_analyses.analyze(reverse_documents.open(&second, 1, second_text).unwrap());
+        let reverse_generation =
+            reverse_analyses.analyze(reverse_documents.open(&first, 1, first_text).unwrap());
+        let reverse_sources = reverse_generation.primary().snapshot().unwrap().sources();
         assert!(
             reverse_sources
                 .find_by_name(canonical_first.to_str().unwrap())
@@ -983,11 +679,12 @@ mod tests {
 
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
-        let opened = documents.open(&open_params(&root, 1, root_text)).unwrap();
+        let opened = documents.open(&root, 1, root_text).unwrap();
         let first = analyses.analyze(opened);
         let canonical_closed = fs::canonicalize(&closed).unwrap();
         assert!(
             first
+                .primary()
                 .snapshot()
                 .unwrap()
                 .sources()
@@ -995,12 +692,12 @@ mod tests {
                 .is_none()
         );
 
-        let uri = DocumentUri::from_file_path(&closed).unwrap();
-        let refreshed = documents.refresh(&[uri]).unwrap();
+        let refreshed = documents.refresh(&[&closed]).unwrap();
         let generation = analyses.analyze(refreshed);
 
         assert!(
             generation
+                .primary()
                 .snapshot()
                 .unwrap()
                 .sources()
@@ -1017,21 +714,21 @@ mod tests {
         let configuration = configuration(temporary.path());
         let mut documents = DocumentWorkspace::new();
         let accepted = documents
-            .open(&open_params(&source, 1, "func main(): void { return }\n"))
+            .open(&source, 1, "func main(): void { return }\n")
             .unwrap();
         let canonical_source = accepted.path().to_path_buf();
 
         let analyzed = WorkspaceAnalyses::new(configuration).analyze(accepted);
 
         assert_eq!(
-            analyzed.scope(),
+            analyzed.primary().scope(),
             Some(&AnalysisScope::SingleFile(canonical_source))
         );
         assert_eq!(
-            analyzed.snapshot().unwrap().status(),
+            analyzed.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
             "{:?}",
-            analyzed.snapshot().unwrap().diagnostics()
+            analyzed.primary().snapshot().unwrap().diagnostics()
         );
     }
 
@@ -1043,21 +740,21 @@ mod tests {
         let text = fs::read_to_string(&source).unwrap();
         let configuration = configuration_with_standard(workspace_root, &standard_root);
         let mut documents = DocumentWorkspace::new();
-        let accepted = documents.open(&open_params(&source, 1, &text)).unwrap();
+        let accepted = documents.open(&source, 1, &text).unwrap();
 
         let analyzed = WorkspaceAnalyses::new(configuration).analyze(accepted);
 
         assert_eq!(
-            analyzed.scope(),
+            analyzed.primary().scope(),
             Some(&AnalysisScope::ToolchainStandard(standard_root))
         );
-        assert!(analyzed.preparation_failure().is_none());
+        assert!(analyzed.primary().preparation_failure().is_none());
         assert_eq!(
-            analyzed.snapshot().unwrap().status(),
+            analyzed.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
             "diagnostics={:?}, failure={:?}",
-            analyzed.snapshot().unwrap().diagnostics(),
-            analyzed.snapshot().unwrap().compilation_failure()
+            analyzed.primary().snapshot().unwrap().diagnostics(),
+            analyzed.primary().snapshot().unwrap().compilation_failure()
         );
     }
 
@@ -1074,37 +771,36 @@ mod tests {
         );
         let configuration = configuration_with_standard(temporary.path(), &standard_root);
         let mut documents = DocumentWorkspace::new();
-        let contract_generation = documents
-            .open(&open_params(&contract, 1, &contract_text))
-            .unwrap();
+        let contract_generation = documents.open(&contract, 1, &contract_text).unwrap();
         let canonical_contract = contract_generation.path().to_path_buf();
         let mut analyses = WorkspaceAnalyses::new(configuration);
         let first = analyses.analyze(contract_generation);
         assert_eq!(
-            first.snapshot().unwrap().status(),
+            first.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
             "diagnostics={:?}, failure={:?}",
-            first.snapshot().unwrap().diagnostics(),
-            first.snapshot().unwrap().compilation_failure()
+            first.primary().snapshot().unwrap().diagnostics(),
+            first.primary().snapshot().unwrap().compilation_failure()
         );
 
         let implementation_generation = documents
-            .open(&open_params(&implementation, 3, &implementation_text))
+            .open(&implementation, 3, &implementation_text)
             .unwrap();
         let canonical_implementation = implementation_generation.path().to_path_buf();
         let second = analyses.analyze(implementation_generation);
 
-        assert_eq!(first.scope(), second.scope());
+        assert_eq!(first.primary().scope(), second.primary().scope());
         assert_eq!(
-            second.scope(),
+            second.primary().scope(),
             Some(&AnalysisScope::ToolchainStandard(standard_root))
         );
         assert_eq!(
-            second.snapshot().unwrap().status(),
+            second.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete
         );
         assert_eq!(
             second
+                .primary()
                 .source_overlay()
                 .document(&canonical_implementation)
                 .unwrap()
@@ -1117,7 +813,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .generation(),
-            second.generation()
+            second.primary().generation()
         );
     }
 
@@ -1136,7 +832,7 @@ mod tests {
             let text =
                 format!("#package: {{ name: \"{name}\", version: \"0.0.0\", }}\nuse std/fs\n");
             fs::write(&source, &text).unwrap();
-            analyses.analyze(documents.open(&open_params(&source, 1, &text)).unwrap());
+            analyses.analyze(documents.open(&source, 1, &text).unwrap());
         }
 
         let dependency_source = standard_root.join("fs/index.nct");
@@ -1170,22 +866,18 @@ mod tests {
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration);
 
-        let index_generation = documents
-            .open(&open_params(&index, 1, package_text))
-            .unwrap();
+        let index_generation = documents.open(&index, 1, package_text).unwrap();
         let canonical_index = index_generation.path().to_path_buf();
         let first = analyses.analyze(index_generation);
-        let package_scope = first.scope().unwrap().clone();
+        let package_scope = first.primary().scope().unwrap().clone();
 
-        let helper_generation = documents
-            .open(&open_params(&helper, 1, helper_text))
-            .unwrap();
+        let helper_generation = documents.open(&helper, 1, helper_text).unwrap();
         let canonical_helper = helper_generation.path().to_path_buf();
         let second = analyses.analyze(helper_generation);
-        assert_eq!(second.scope(), Some(&package_scope));
+        assert_eq!(second.primary().scope(), Some(&package_scope));
 
         let DocumentWorkspaceChange::Accepted(changed) = documents
-            .change(&change_params(&index, 2, "func main(): i32 { return 0 }\n"))
+            .change(&index, 2, "func main(): i32 { return 0 }\n")
             .unwrap()
         else {
             panic!("current topology change was ignored")
@@ -1193,11 +885,11 @@ mod tests {
         let batch = analyses.analyze(changed);
 
         assert_eq!(
-            batch.scope(),
+            batch.primary().scope(),
             Some(&AnalysisScope::SingleFile(canonical_index.clone()))
         );
-        assert_eq!(batch.invalidated_scopes(), &[package_scope]);
-        assert!(batch.generations().any(|generation| {
+        assert_eq!(batch.primary().invalidated_scopes(), &[package_scope]);
+        assert!(batch.publication_order().any(|generation| {
             generation.scope() == Some(&AnalysisScope::SingleFile(canonical_helper.clone()))
         }));
         assert_eq!(
@@ -1225,19 +917,19 @@ mod tests {
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration);
         let opened = documents
-            .open(&open_params(&source, 1, "func main(): void { return }\n"))
+            .open(&source, 1, "func main(): void { return }\n")
             .unwrap();
         let canonical = opened.path().to_path_buf();
         let active = analyses.analyze(opened);
-        let active_scope = active.scope().unwrap().clone();
+        let active_scope = active.primary().scope().unwrap().clone();
         assert!(analyses.latest_for_document(&canonical).unwrap().is_some());
 
-        let closed = documents.close(&close_params(&source)).unwrap();
+        let closed = documents.close(&source).unwrap();
         let invalidation = analyses.analyze(closed);
 
-        assert!(invalidation.scope().is_none());
-        assert!(invalidation.snapshot().is_none());
-        assert_eq!(invalidation.invalidated_scopes(), &[active_scope]);
+        assert!(invalidation.primary().scope().is_none());
+        assert!(invalidation.primary().snapshot().is_none());
+        assert_eq!(invalidation.primary().invalidated_scopes(), &[active_scope]);
         assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
     }
 
@@ -1246,82 +938,19 @@ mod tests {
     }
 
     fn configuration_with_standard(root: &Path, standard_root: &Path) -> WorkspaceConfiguration {
-        let environment = LanguageServerEnvironment::new(
-            root,
-            LanguageServerToolchain::new(
+        WorkspaceConfiguration::resolve(
+            [fs::canonicalize(root).unwrap()],
+            WorkspaceToolchain::new(
                 CompilationTarget::Arm64Darwin,
                 root,
                 StandardPackage::new(PackageIdentity::new("toolchain:std"), standard_root),
             ),
-        );
-        let params = InitializeParams::decode(Some(
-            parse(&format!(
-                "{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}",
-                root.display()
-            ))
-            .unwrap(),
-        ))
-        .unwrap();
-        WorkspaceConfiguration::resolve(&environment, &params).unwrap()
+        )
+        .unwrap()
     }
 
     fn standard_root() -> PathBuf {
         fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap()
-    }
-
-    fn open_params(path: &Path, version: i32, text: &str) -> DidOpenParams {
-        let escaped = text
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\r', "\\r")
-            .replace('\n', "\\n")
-            .replace('\t', "\\t");
-        DidOpenParams::decode(Some(
-            parse(&format!(
-                concat!(
-                    "{{\"textDocument\":{{\"uri\":\"file://{}\",",
-                    "\"languageId\":\"nocter\",\"version\":{},\"text\":\"{}\"}}}}"
-                ),
-                path.display(),
-                version,
-                escaped
-            ))
-            .unwrap(),
-        ))
-        .unwrap()
-    }
-
-    fn change_params(path: &Path, version: i32, text: &str) -> DidChangeParams {
-        let escaped = text
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\r', "\\r")
-            .replace('\n', "\\n")
-            .replace('\t', "\\t");
-        DidChangeParams::decode(Some(
-            parse(&format!(
-                concat!(
-                    "{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":{}}},",
-                    "\"contentChanges\":[{{\"text\":\"{}\"}}]}}"
-                ),
-                path.display(),
-                version,
-                escaped
-            ))
-            .unwrap(),
-        ))
-        .unwrap()
-    }
-
-    fn close_params(path: &Path) -> DidCloseParams {
-        DidCloseParams::decode(Some(
-            parse(&format!(
-                "{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}",
-                path.display()
-            ))
-            .unwrap(),
-        ))
-        .unwrap()
     }
 
     pub(super) struct TemporaryDirectory(PathBuf);

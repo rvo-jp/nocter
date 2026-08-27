@@ -3,46 +3,13 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_analysis::{
-    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceRevision,
-};
+use nocter_analysis::{DocumentChange, DocumentStateError, WorkspaceDocuments};
 use nocter_filesystem::DocumentVersion;
 use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, DocumentUri};
 
+use nocter_workspace_analysis::AcceptedDocumentRevision;
+
 use crate::{DocumentPathError, DocumentPathResolver};
-
-/// One accepted source generation paired with the stable document identity that triggered it.
-#[derive(Clone, Debug)]
-pub struct AcceptedDocumentRevision {
-    path: PathBuf,
-    source: WorkspaceSourceRevision,
-}
-
-impl AcceptedDocumentRevision {
-    fn new(path: PathBuf, source: WorkspaceSourceRevision) -> Self {
-        Self { path, source }
-    }
-
-    #[must_use]
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    #[must_use]
-    pub const fn generation(&self) -> nocter_analysis::GenerationId {
-        self.source.generation()
-    }
-
-    #[must_use]
-    pub const fn source_overlay(&self) -> &nocter_filesystem::SourceOverlay {
-        self.source.source_overlay()
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (PathBuf, WorkspaceSourceRevision) {
-        (self.path, self.source)
-    }
-}
 
 /// A document change either advances analysis or is ignored by the version gate.
 #[derive(Clone, Debug)]

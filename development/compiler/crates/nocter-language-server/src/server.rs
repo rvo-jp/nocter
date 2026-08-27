@@ -20,6 +20,7 @@ mod issues;
 mod semantic_matrix_tests;
 mod semantic_requests;
 
+use crate::workspace::resolve_workspace_configuration;
 use issues::InitializeFailure;
 pub use issues::{ClientResponseError, ServerIssue};
 
@@ -151,7 +152,7 @@ impl LanguageServer {
         match InitializeParams::decode(params)
             .map_err(InitializeFailure::Parameters)
             .and_then(|params| {
-                WorkspaceConfiguration::resolve(&self.environment, &params)
+                resolve_workspace_configuration(&self.environment, &params)
                     .map(|workspace| (params, workspace))
                     .map_err(InitializeFailure::Workspace)
             }) {

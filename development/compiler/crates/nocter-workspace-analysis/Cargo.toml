@@ -1,5 +1,5 @@
 [package]
-name = "nocter-language-server"
+name = "nocter-workspace-analysis"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,16 +8,14 @@ publish = false
 
 [dependencies]
 nocter-analysis = { path = "../nocter-analysis" }
+nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-discovery = { path = "../nocter-discovery" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-filesystem = { path = "../nocter-filesystem" }
-nocter-json = { path = "../nocter-json" }
-nocter-lsp = { path = "../nocter-lsp" }
-nocter-source = { path = "../nocter-source" }
-nocter-workspace-analysis = { path = "../nocter-workspace-analysis" }
-
-[dev-dependencies]
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
+nocter-session = { path = "../nocter-session" }
+nocter-source = { path = "../nocter-source" }
 
 [lints]
 workspace = true

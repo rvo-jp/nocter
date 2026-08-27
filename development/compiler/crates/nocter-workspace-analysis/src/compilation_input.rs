@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use super::AnalysisScope;
 
-/// Complete compiler demand for one workspace analysis scope.
+/// Complete compiler demand for one workspace-analysis scope.
 ///
 /// A package generation is authoritative for every currently selected source in that package, so
 /// no physical source may act as a representative compiler root.

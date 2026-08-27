@@ -172,6 +172,7 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
     for crate_name in [
         "nocter-session",
         "nocter-analysis",
+        "nocter-workspace-analysis",
         "nocter-language-server",
     ] {
         let closure = production_dependency_closure(crate_name);
@@ -191,13 +192,62 @@ fn language_server_consumes_analysis_queries_not_semantic_storage() {
     let dependencies = production_dependencies("nocter-language-server");
     for forbidden in [
         "nocter-checking",
+        "nocter-compile-input",
         "nocter-declarations",
+        "nocter-discovery",
+        "nocter-model",
+        "nocter-package",
+        "nocter-session",
         "nocter-source-index",
+        "nocter-syntax",
         "nocter-target-program",
     ] {
         assert!(
             !dependencies.contains(forbidden),
             "language-server protocol code must not consume {forbidden} directly"
+        );
+    }
+}
+
+#[test]
+fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
+    let expected = [
+        (
+            "nocter-workspace-analysis",
+            &[
+                "nocter-analysis",
+                "nocter-compile-input",
+                "nocter-diagnostics",
+                "nocter-discovery",
+                "nocter-filesystem",
+                "nocter-model",
+                "nocter-package",
+                "nocter-session",
+                "nocter-source",
+            ][..],
+        ),
+        (
+            "nocter-language-server",
+            &[
+                "nocter-analysis",
+                "nocter-diagnostics",
+                "nocter-filesystem",
+                "nocter-json",
+                "nocter-lsp",
+                "nocter-source",
+                "nocter-workspace-analysis",
+            ][..],
+        ),
+    ];
+    for (crate_name, dependencies) in expected {
+        let expected = dependencies
+            .iter()
+            .map(|dependency| (*dependency).to_owned())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            production_dependencies(crate_name),
+            expected,
+            "review every new production dependency for {crate_name}"
         );
     }
 }

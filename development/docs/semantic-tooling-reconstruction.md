@@ -91,14 +91,19 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   cross-crate raw phase methods to the evidence kernel.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
-- Workspace analysis consumes one complete source revision containing overlay, open-document set,
-  and changes. It derives one `WorkspaceTopology` for the entire revision; package-root facts are
-  memoized by canonical directory, and every document scope or scope-selection failure comes from
-  that single product. One package compilation input contains the module roots for every currently selected
-  source as well as the package and declared target roots. A dependency source reached by multiple
-  current package contexts produces typed ambiguity unless one context physically owns it;
-  ordering never supplies authority. A changed or closed file may invalidate an active demand but
-  never becomes demand itself; a scope with no open members emits only an invalidation generation.
+- `nocter-workspace-analysis` consumes one complete source revision containing overlay,
+  open-document set, and changes. It canonicalizes and validates workspace roots once, then derives
+  one `WorkspaceTopology` for the entire revision; package-root facts are memoized by canonical
+  directory, and every document scope or scope-selection failure comes from that single product.
+  One package compilation input contains the module roots for every currently selected source as
+  well as the package and declared target roots. A dependency source reached by multiple current
+  package contexts produces typed ambiguity unless one context physically owns it; ordering never
+  supplies authority. A changed or closed file may invalidate an active demand but never becomes
+  demand itself; a scope with no open members emits only an invalidation generation.
+- `nocter-language-server` owns URI identity, LSP lifecycle, and protocol projection. Its production
+  dependency graph cannot name package resolution, discovery, compiler sessions, model storage, or
+  syntax trees; preparation diagnostics are normalized by workspace analysis before crossing the
+  boundary.
 - Rename and code-action publication requires one consumed `ValidatedSemanticMutation`. Analysis
   derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
   workspace compilation cannot substitute another overlay, and validation retains the resulting

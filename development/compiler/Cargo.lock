@@ -1892,17 +1892,14 @@ name = "nocter-language-server"
 version = "0.0.0"
 dependencies = [
  "nocter-analysis",
- "nocter-compile-input",
  "nocter-diagnostics",
- "nocter-discovery",
  "nocter-filesystem",
  "nocter-json",
  "nocter-lsp",
  "nocter-model",
  "nocter-package",
- "nocter-session",
  "nocter-source",
- "nocter-syntax",
+ "nocter-workspace-analysis",
 ]
 
 [[package]]
@@ -2109,6 +2106,21 @@ dependencies = [
 [[package]]
 name = "nocter-toolchain-contract"
 version = "0.0.0"
+
+[[package]]
+name = "nocter-workspace-analysis"
+version = "0.0.0"
+dependencies = [
+ "nocter-analysis",
+ "nocter-compile-input",
+ "nocter-diagnostics",
+ "nocter-discovery",
+ "nocter-filesystem",
+ "nocter-model",
+ "nocter-package",
+ "nocter-session",
+ "nocter-source",
+]
 
 [[package]]
 name = "nonempty"
