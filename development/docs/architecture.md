@@ -168,8 +168,10 @@ target-validated success. Recovered name and body analysis classifies every decl
 accepted or rejected with its source-backed reason; an internal inconsistency cannot manufacture
 partial semantic evidence. Protocol-independent queries are the only authority allowed to join
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
-complete. A target failure therefore does not erase checked source semantics, while retaining
-checked semantics does not turn that target failure into success. A
+complete. Every interactive occurrence is validated against its declaration or body-local domain
+before a feature consumes it; a dangling source binding is an integrity failure rather than an
+ordinary empty result. A target failure therefore does not erase checked source semantics, while
+retaining checked semantics does not turn that target failure into success. A
 failed current generation never exposes an older successful semantic program. Discovery failures
 retain their reached syntax trees as well as sources, so invalidation and syntax-aware recovery do
 not require reopening files. The same crate's `WorkspaceDocuments` is the only mutable accepted-

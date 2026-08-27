@@ -78,13 +78,24 @@ impl SemanticSubject {
 
 impl AnalysisSnapshot {
     /// Resolves one exact interactive semantic occurrence without rendering it.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the selected source binding has no semantic domain in the
+    /// current evidence result.
     pub fn semantic_selection(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> Option<SemanticSelection> {
-        semantic_selection_from(self.semantic_query()?.source_index(), source, offset)
+    ) -> Result<Option<SemanticSelection>, crate::EvidenceIntegrityError> {
+        let Some(query) = self.semantic_query() else {
+            return Ok(None);
+        };
+        let selection = semantic_selection_from(query.source_index(), source, offset);
+        if let Some(selection) = selection {
+            query.validate_interactive_entity(selection.entity())?;
+        }
+        Ok(selection)
     }
 
     /// Resolves one exact source position through the deepest current semantic authority.
@@ -111,6 +122,7 @@ impl AnalysisSnapshot {
         let Some(binding) = selected_binding(index, source, offset) else {
             return Ok(None);
         };
+        authority.validate_interactive_entity(binding.entity())?;
         let module = authority.source_ownership().module_for_source(source)?;
         let spellings = self
             .queries
@@ -284,6 +296,7 @@ impl<'a> SemanticQueryContext<'a> {
 /// An internal failure while answering a semantic presentation query.
 #[derive(Debug)]
 pub enum SemanticQueryError {
+    Evidence(crate::EvidenceIntegrityError),
     SourceContext(SourceContextError),
     Presentation(PresentationError),
 }
@@ -291,6 +304,7 @@ pub enum SemanticQueryError {
 impl fmt::Display for SemanticQueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Evidence(error) => error.fmt(formatter),
             Self::SourceContext(error) => error.fmt(formatter),
             Self::Presentation(error) => error.fmt(formatter),
         }
@@ -300,9 +314,16 @@ impl fmt::Display for SemanticQueryError {
 impl std::error::Error for SemanticQueryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Evidence(error) => Some(error),
             Self::SourceContext(error) => Some(error),
             Self::Presentation(error) => Some(error),
         }
+    }
+}
+
+impl From<crate::EvidenceIntegrityError> for SemanticQueryError {
+    fn from(error: crate::EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 

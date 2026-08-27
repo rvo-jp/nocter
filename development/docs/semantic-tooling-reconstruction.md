@@ -61,6 +61,9 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - `SourceIndex` remains only a bidirectional source-coordinate and semantic-identity projection. It
   does not acquire phase flags, recovery policy, or feature behavior.
 - Analysis owns the only join between source occurrences and semantic evidence.
+- The query context validates every interactive `SourceIndex` entity against its semantic domain
+  before selection, navigation, highlighting, presentation, or mutation. A dangling entity is an
+  integrity failure, never an empty editor result.
 - Editor features consume typed query results. They cannot inspect checking recovery or join raw
   `SourceIndex` bindings to bodies.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes

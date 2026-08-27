@@ -5,10 +5,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, PackageIdentity};
+use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, ModuleId, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
+use nocter_source_index::SemanticEntity;
 
 use crate::{
     AnalysisSnapshot, AnalysisStatus, EvidenceIntegrityError, GenerationId, SemanticCoverage,
@@ -34,6 +35,20 @@ fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {
     assert_eq!(
         query.typed_body_evidence(missing).unwrap_err(),
         EvidenceIntegrityError::MissingBodyDomain(missing)
+    );
+
+    let module_count = query.graph().modules().iter().count();
+    let mut module_identities = ArenaBuilder::<ModuleId, ()>::new();
+    let mut missing_module = None;
+    for _ in 0..=module_count {
+        missing_module = Some(module_identities.insert(()));
+    }
+    let missing_module = missing_module.unwrap();
+    assert_eq!(
+        query
+            .validate_interactive_entity(SemanticEntity::Module(missing_module))
+            .unwrap_err(),
+        EvidenceIntegrityError::MissingSemanticEntity(SemanticEntity::Module(missing_module))
     );
 }
 
@@ -173,9 +188,18 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
         subject.presentation().code(),
         "pub func metadata(path: &str): Metadata!"
     );
-    assert_eq!(snapshot.semantic_definition(source.id(), offset).len(), 1);
     assert_eq!(
-        snapshot.semantic_implementation(source.id(), offset).len(),
+        snapshot
+            .semantic_definition(source.id(), offset)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        snapshot
+            .semantic_implementation(source.id(), offset)
+            .unwrap()
+            .len(),
         1
     );
 }
@@ -295,7 +319,7 @@ fn named_builtin_uses_present_and_navigate_through_the_selected_declaration() {
         .expect("builtin type use has no semantic subject");
 
     assert_eq!(subject.presentation().code(), "primitive type i32");
-    let definitions = snapshot.semantic_definition(source.id(), offset);
+    let definitions = snapshot.semantic_definition(source.id(), offset).unwrap();
     assert_eq!(definitions.len(), 1);
     let definition_source = snapshot
         .sources()

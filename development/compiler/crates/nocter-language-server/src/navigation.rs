@@ -24,7 +24,8 @@ pub(crate) fn query_definition(
     let offset = byte_offset(&document, params.position())?;
     let locations = document
         .snapshot()
-        .semantic_definition(document.source().id(), offset);
+        .semantic_definition(document.source().id(), offset)
+        .map_err(NavigationQueryError::Evidence)?;
     if locations.is_empty() || !locations.coverage().is_complete() {
         return Ok(Value::Null);
     }
@@ -44,7 +45,8 @@ pub(crate) fn query_implementation(
     let offset = byte_offset(&document, params.position())?;
     let locations = document
         .snapshot()
-        .semantic_implementation(document.source().id(), offset);
+        .semantic_implementation(document.source().id(), offset)
+        .map_err(NavigationQueryError::Evidence)?;
     if locations.is_empty() || !locations.coverage().is_complete() {
         return Ok(Value::Null);
     }

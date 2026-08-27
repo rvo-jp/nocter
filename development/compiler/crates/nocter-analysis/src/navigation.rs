@@ -27,23 +27,29 @@ impl SemanticLocation {
 
 impl AnalysisSnapshot {
     /// Finds the authored definition of the exact semantic occurrence at `offset`.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the selected occurrence has no semantic domain.
     pub fn semantic_definition(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> SemanticQuerySet<SemanticLocation> {
-        let Some(selection) = self.semantic_selection(source, offset) else {
-            return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
+    ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
+        let Some(selection) = self.semantic_selection(source, offset)? else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                authority_coverage(self),
+            ));
         };
         let Some(index) = self
             .semantic_query()
             .map(|authority| authority.source_index())
         else {
-            return SemanticQuerySet::new(
+            return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
-            );
+            ));
         };
         let bindings = index.bindings_for(selection.entity());
         let preferred = if bindings
@@ -54,7 +60,7 @@ impl AnalysisSnapshot {
         } else {
             SourceRole::Implementation
         };
-        SemanticQuerySet::new(
+        Ok(SemanticQuerySet::new(
             locations(
                 selection.entity(),
                 bindings
@@ -62,27 +68,33 @@ impl AnalysisSnapshot {
                     .filter(|binding| binding.role() == preferred),
             ),
             SemanticCoverage::Complete,
-        )
+        ))
     }
 
     /// Finds the authored implementation of the exact semantic occurrence at `offset`.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the selected occurrence has no semantic domain.
     pub fn semantic_implementation(
         &self,
         source: SourceId,
         offset: ByteOffset,
-    ) -> SemanticQuerySet<SemanticLocation> {
-        let Some(selection) = self.semantic_selection(source, offset) else {
-            return SemanticQuerySet::new(Box::new([]), authority_coverage(self));
+    ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
+        let Some(selection) = self.semantic_selection(source, offset)? else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                authority_coverage(self),
+            ));
         };
         let Some(index) = self
             .semantic_query()
             .map(|authority| authority.source_index())
         else {
-            return SemanticQuerySet::new(
+            return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
-            );
+            ));
         };
         let bindings = index.bindings_for(selection.entity());
         let preferred = if bindings
@@ -93,7 +105,7 @@ impl AnalysisSnapshot {
         } else {
             SourceRole::Declaration
         };
-        SemanticQuerySet::new(
+        Ok(SemanticQuerySet::new(
             locations(
                 selection.entity(),
                 bindings
@@ -101,7 +113,7 @@ impl AnalysisSnapshot {
                     .filter(|binding| binding.role() == preferred),
             ),
             SemanticCoverage::Complete,
-        )
+        ))
     }
 
     /// Finds every reached occurrence of the exact semantic identity at `offset`.
@@ -116,7 +128,7 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
         include_declarations: bool,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
-        let Some(selection) = self.semantic_selection(source, offset) else {
+        let Some(selection) = self.semantic_selection(source, offset)? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 authority_coverage(self),

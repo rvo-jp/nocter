@@ -76,10 +76,10 @@ impl AnalysisSnapshot {
         if !is_valid_name(replacement) {
             return Err(SemanticRenameError::InvalidReplacement(replacement.into()));
         }
-        let Some(authority) = self
-            .semantic_query()
-            .and_then(crate::semantic::SemanticQueryContext::complete)
-        else {
+        let Some(query) = self.semantic_query() else {
+            return Ok(None);
+        };
+        let Some(authority) = query.complete() else {
             return Ok(None);
         };
         let Some(selection) =
@@ -87,6 +87,7 @@ impl AnalysisSnapshot {
         else {
             return Ok(None);
         };
+        query.validate_interactive_entity(selection.entity())?;
         if !renameable_entity(selection.entity()) {
             return Ok(None);
         }
@@ -186,7 +187,7 @@ impl AnalysisSnapshot {
                 return false;
             };
             let candidate_range = TextRange::new(ByteOffset::new(start), ByteOffset::new(end));
-            let Some(selection) =
+            let Ok(Some(selection)) =
                 candidate.semantic_selection(candidate_source.id(), candidate_range.start())
             else {
                 return false;
@@ -239,6 +240,7 @@ const fn renameable_entity(entity: SemanticEntity) -> bool {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticRenameError {
+    Evidence(crate::EvidenceIntegrityError),
     InvalidReplacement(Box<str>),
     MissingSource(SourceId),
     InvalidRange { source: SourceId, range: TextRange },
@@ -249,6 +251,7 @@ pub enum SemanticRenameError {
 impl fmt::Display for SemanticRenameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Evidence(error) => error.fmt(formatter),
             Self::InvalidReplacement(name) => {
                 write!(formatter, "rename replacement is not a Nocter name: {name}")
             }
@@ -275,4 +278,21 @@ impl fmt::Display for SemanticRenameError {
     }
 }
 
-impl std::error::Error for SemanticRenameError {}
+impl std::error::Error for SemanticRenameError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Evidence(error) => Some(error),
+            Self::InvalidReplacement(_)
+            | Self::MissingSource(_)
+            | Self::InvalidRange { .. }
+            | Self::InconsistentSpelling { .. }
+            | Self::ReadOnlyOccurrence(_) => None,
+        }
+    }
+}
+
+impl From<crate::EvidenceIntegrityError> for SemanticRenameError {
+    fn from(error: crate::EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
+    }
+}

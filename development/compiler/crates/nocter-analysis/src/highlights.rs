@@ -135,6 +135,7 @@ fn classify(
 ) -> Result<Option<(SemanticHighlightKind, bool)>, EvidenceIntegrityError> {
     let graph = authority.graph();
     let entity = binding.entity();
+    authority.validate_interactive_entity(entity)?;
     let declarations = graph.declarations();
     let kind = match entity {
         SemanticEntity::BuiltinType(_) => SemanticHighlightKind::Type,
