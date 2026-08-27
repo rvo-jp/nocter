@@ -21,7 +21,8 @@ mod query;
 mod source_edits;
 
 pub use documents::{
-    AcceptedSourceGeneration, DocumentChange, DocumentStateError, WorkspaceDocuments,
+    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceChange,
+    WorkspaceSourceChangeKind, WorkspaceSourceRevision,
 };
 pub use query::{
     EvidenceIntegrityError, InterfaceImplementationActionError, OutcomeActionError,

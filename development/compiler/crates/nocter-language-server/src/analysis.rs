@@ -15,7 +15,7 @@ use nocter_package::{
 };
 use nocter_session::bundled_standard_toolchain;
 
-use crate::{AcceptedDocumentGeneration, WorkspaceConfiguration};
+use crate::{AcceptedDocumentRevision, WorkspaceConfiguration};
 
 /// The compiler input boundary selected for one document generation.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -175,6 +175,7 @@ pub struct WorkspaceAnalyses {
 struct ScopeTransition {
     documents: BTreeSet<PathBuf>,
     selected: BTreeMap<PathBuf, AnalysisScope>,
+    active_selected: BTreeMap<PathBuf, AnalysisScope>,
     failures: BTreeMap<PathBuf, WorkspaceAnalysisError>,
     members: BTreeMap<AnalysisScope, Vec<PathBuf>>,
     affected: BTreeSet<AnalysisScope>,
@@ -227,11 +228,26 @@ impl WorkspaceAnalyses {
     ///
     /// Panics only when the internally planned primary transition fails to publish its generation.
     /// That condition indicates a broken workspace-transition invariant, not invalid user source.
-    pub fn analyze(&mut self, accepted: AcceptedDocumentGeneration) -> WorkspaceAnalysisBatch {
+    pub fn analyze(&mut self, accepted: AcceptedDocumentRevision) -> WorkspaceAnalysisBatch {
         let (document, source) = accepted.into_parts();
         let generation = source.generation();
+        let open_documents = source
+            .open_documents()
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let changed_documents = source
+            .changes()
+            .iter()
+            .map(|change| change.path().to_path_buf())
+            .collect::<BTreeSet<_>>();
         let source_overlay = source.into_source_overlay();
-        let mut transition = self.plan_transition(&document, &source_overlay);
+        let mut transition = self.plan_transition(
+            &document,
+            &open_documents,
+            &changed_documents,
+            &source_overlay,
+        );
         for scope in &transition.invalidated {
             self.latest.remove(scope);
         }
@@ -239,7 +255,7 @@ impl WorkspaceAnalyses {
             self.refresh_scoped(&document, generation, &source_overlay, &transition);
         let mut related =
             self.refresh_unscoped(&document, generation, &source_overlay, &mut transition);
-        self.document_scopes = transition.selected;
+        self.document_scopes = transition.active_selected.clone();
         let primary = match transition.primary_scope {
             Some(scope) => scoped_results
                 .remove(&scope)
@@ -251,6 +267,14 @@ impl WorkspaceAnalyses {
                 .expect("primary unscoped generation"),
         };
         related.extend(scoped_results.into_values());
+        let active_scopes = transition
+            .active_selected
+            .values()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        self.latest.retain(|scope, _| active_scopes.contains(scope));
+        self.unscoped
+            .retain(|path, _| open_documents.contains(path));
         self.rebuild_source_scopes();
         WorkspaceAnalysisBatch {
             primary,
@@ -258,14 +282,17 @@ impl WorkspaceAnalyses {
         }
     }
 
-    fn plan_transition(&self, document: &Path, source_overlay: &SourceOverlay) -> ScopeTransition {
-        let mut documents = self
-            .document_scopes
-            .keys()
-            .chain(self.unscoped.keys())
+    fn plan_transition(
+        &self,
+        document: &Path,
+        open_documents: &BTreeSet<PathBuf>,
+        changed_documents: &BTreeSet<PathBuf>,
+        source_overlay: &SourceOverlay,
+    ) -> ScopeTransition {
+        let documents = open_documents
+            .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        documents.insert(document.to_path_buf());
         let mut selected = BTreeMap::new();
         let mut failures = BTreeMap::new();
         for candidate in &documents {
@@ -278,6 +305,11 @@ impl WorkspaceAnalyses {
                 }
             }
         }
+        let active_selected = selected
+            .iter()
+            .filter(|(path, _)| open_documents.contains(*path))
+            .map(|(path, scope)| (path.clone(), scope.clone()))
+            .collect::<BTreeMap<_, _>>();
         let members = selected.iter().fold(
             BTreeMap::<AnalysisScope, Vec<PathBuf>>::new(),
             |mut members, (candidate, scope)| {
@@ -288,25 +320,30 @@ impl WorkspaceAnalyses {
                 members
             },
         );
-        let mut affected = self.changed_scopes(&documents, &selected);
+        let mut affected = self.changed_scopes(open_documents, &active_selected);
         if let Some(scope) = selected.get(document) {
             affected.insert(scope.clone());
         }
-        affected.extend(
-            self.latest
-                .iter()
-                .filter(|(_, latest)| generation_reaches_document(latest, document))
-                .map(|(scope, _)| scope.clone()),
-        );
+        for changed in changed_documents {
+            affected.extend(selected.get(changed).cloned());
+            affected.extend(
+                self.latest
+                    .iter()
+                    .filter(|(_, latest)| generation_reaches_document(latest, changed))
+                    .map(|(scope, _)| scope.clone()),
+            );
+        }
+        let active_scopes = active_selected.values().collect::<BTreeSet<_>>();
         let invalidated = affected
             .iter()
-            .filter(|scope| !members.contains_key(*scope))
+            .filter(|scope| !active_scopes.contains(scope))
             .cloned()
             .collect();
         let primary_scope = selected.get(document).cloned();
         ScopeTransition {
             documents,
             selected,
+            active_selected,
             failures,
             members,
             affected,
@@ -756,7 +793,7 @@ mod tests {
 
     use nocter_analysis::AnalysisStatus;
     use nocter_json::parse;
-    use nocter_lsp::{DidChangeParams, DidOpenParams, InitializeParams};
+    use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, InitializeParams};
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
@@ -992,6 +1029,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn closing_a_document_removes_it_from_the_current_workspace_domain() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("standalone.nct");
+        fs::write(&source, "func main(): void { return }\n").unwrap();
+        let configuration = configuration(temporary.path());
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration);
+        let opened = documents
+            .open(&open_params(&source, 1, "func main(): void { return }\n"))
+            .unwrap();
+        let canonical = opened.path().to_path_buf();
+        analyses.analyze(opened);
+        assert!(analyses.latest_for_document(&canonical).is_some());
+
+        let closed = documents.close(&close_params(&source)).unwrap();
+        analyses.analyze(closed);
+
+        assert!(analyses.latest_for_document(&canonical).is_none());
+    }
+
     fn configuration(root: &Path) -> WorkspaceConfiguration {
         configuration_with_standard(root, &standard_root())
     }
@@ -1058,6 +1116,17 @@ mod tests {
                 path.display(),
                 version,
                 escaped
+            ))
+            .unwrap(),
+        ))
+        .unwrap()
+    }
+
+    fn close_params(path: &Path) -> DidCloseParams {
+        DidCloseParams::decode(Some(
+            parse(&format!(
+                "{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}",
+                path.display()
             ))
             .unwrap(),
         ))

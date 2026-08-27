@@ -10,7 +10,7 @@ use nocter_lsp::{
 };
 
 use crate::{
-    AcceptedDocumentGeneration, DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange,
+    AcceptedDocumentRevision, DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange,
     LanguageServerEnvironment, WorkspaceAnalyses, WorkspaceAnalysisGeneration,
     WorkspaceConfiguration,
 };
@@ -328,7 +328,7 @@ impl LanguageServer {
         if method == "workspace/didChangeWatchedFiles" {
             return self.watched_files(params);
         }
-        let generation: Result<Option<AcceptedDocumentGeneration>, ServerIssue> = match method {
+        let generation: Result<Option<AcceptedDocumentRevision>, ServerIssue> = match method {
             "textDocument/didOpen" => DidOpenParams::decode(params)
                 .map_err(ServerIssue::Parameters)
                 .and_then(|params| self.documents.open(&params).map_err(ServerIssue::Documents))
@@ -407,37 +407,43 @@ impl LanguageServer {
                 };
             }
         };
-        let mut snapshots = Vec::new();
+        let mut seen = BTreeSet::new();
+        let changed = params
+            .changes()
+            .iter()
+            .filter_map(|change| {
+                seen.insert(change.uri().clone())
+                    .then(|| change.uri().clone())
+            })
+            .collect::<Vec<_>>();
+        if changed.is_empty() {
+            return ServerStep::default();
+        }
+        let generation = match self.documents.refresh(&changed) {
+            Ok(generation) => generation,
+            Err(error) => {
+                return ServerStep {
+                    issues: vec![ServerIssue::Documents(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                };
+            }
+        };
+        let batch = self
+            .analyses
+            .as_mut()
+            .expect("initialized server owns workspace analyses")
+            .analyze(generation);
         let mut outbound = Vec::new();
         let mut issues = Vec::new();
-        let mut seen = BTreeSet::new();
-        for change in params.changes() {
-            if !seen.insert(change.uri().clone()) {
-                continue;
+        for analysis in batch.publication_order() {
+            match self.diagnostics.publish(analysis) {
+                Ok(messages) => outbound.extend(messages.into_vec()),
+                Err(error) => issues.push(ServerIssue::Diagnostics(error)),
             }
-            let generation = match self.documents.refresh(change.uri()) {
-                Ok(generation) => generation,
-                Err(error) => {
-                    issues.push(ServerIssue::Documents(error));
-                    continue;
-                }
-            };
-            let batch = self
-                .analyses
-                .as_mut()
-                .expect("initialized server owns workspace analyses")
-                .analyze(generation);
-            for analysis in batch.publication_order() {
-                match self.diagnostics.publish(analysis) {
-                    Ok(messages) => outbound.extend(messages.into_vec()),
-                    Err(error) => issues.push(ServerIssue::Diagnostics(error)),
-                }
-            }
-            snapshots.extend(batch.into_generations().into_vec());
         }
         ServerStep {
             outbound: outbound.into_boxed_slice(),
-            analyses: snapshots.into_boxed_slice(),
+            analyses: batch.into_generations(),
             issues: issues.into_boxed_slice(),
             ..ServerStep::default()
         }

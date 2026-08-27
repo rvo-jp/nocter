@@ -29,7 +29,7 @@ pub use code_actions::CodeActionQueryError;
 pub use completion::CompletionQueryError;
 pub use diagnostics::{DiagnosticPublicationError, DiagnosticPublisher};
 pub use documents::{
-    AcceptedDocumentGeneration, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
+    AcceptedDocumentRevision, DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspaceError,
 };
 pub use hover::HoverQueryError;
 pub use inlay_hints::InlayHintQueryError;
