@@ -1,5 +1,5 @@
 use nocter_source::SourceFile;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node, node_is_complete};
 
 use crate::DiscoveryError;
 
@@ -16,6 +16,9 @@ pub(crate) fn source_visibility_paths(
         if tree.node(*declaration).map(nocter_syntax::SyntaxNode::kind)
             != Some(NodeKind::SourceVisibilityDeclaration)
         {
+            continue;
+        }
+        if !node_is_complete(tree, *declaration) {
             continue;
         }
         let path = direct_node(tree, *declaration, NodeKind::SourceVisibilityPath)

@@ -145,14 +145,6 @@ impl WorkspaceAnalysisBatch {
             .map(Arc::as_ref)
             .chain(std::iter::once(self.primary.as_ref()))
     }
-
-    #[must_use]
-    pub fn into_generations(self) -> Box<[Arc<WorkspaceAnalysisGeneration>]> {
-        std::iter::once(self.primary)
-            .chain(self.related)
-            .collect::<Vec<_>>()
-            .into_boxed_slice()
-    }
 }
 
 #[derive(Debug)]

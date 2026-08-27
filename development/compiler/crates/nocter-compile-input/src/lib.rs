@@ -507,7 +507,11 @@ impl<'syntax> CompileUnitInput<'syntax> {
     /// Directly constructed inputs retain the exact target-selection failure for declaration
     /// diagnostics rather than asking lowering to repeat the scan.
     pub fn target_selection(&self) -> Result<&TargetSelection, TargetSelectionError> {
-        self.target_selection.as_ref().map_err(|error| *error)
+        let selection = self.target_selection.as_ref().map_err(|error| *error)?;
+        if let Some(error) = selection.authored_error() {
+            return Err(error);
+        }
+        Ok(selection)
     }
 
     #[must_use]

@@ -1396,6 +1396,45 @@ mod tests {
     }
 
     #[test]
+    fn incomplete_body_retains_hover_for_a_complete_module_import() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("index.nct");
+        let value_directory = temporary.path().join("value");
+        std::fs::create_dir(&value_directory).unwrap();
+        std::fs::write(value_directory.join("index.nct"), "pub struct Value {}\n").unwrap();
+        let text = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "use ./value.Value\n",
+            "\n",
+            "func inspect(value: Value): void {\n",
+            "    value.\n",
+            "}\n",
+        );
+        std::fs::write(&source, text).unwrap();
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":22}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct Value"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
+    #[test]
     fn completion_retains_only_current_scopes_before_a_name_error() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

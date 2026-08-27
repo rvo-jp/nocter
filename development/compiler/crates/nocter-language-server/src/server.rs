@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use nocter_json::Value;
 use nocter_lsp::{
@@ -11,9 +10,11 @@ use nocter_lsp::{
 
 use crate::{
     DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange, LanguageServerEnvironment,
-    WorkspaceAnalyses, WorkspaceAnalysisGeneration, WorkspaceConfiguration,
-    WorkspaceSourceRevision,
+    WorkspaceAnalyses, WorkspaceConfiguration, WorkspaceSourceRevision,
 };
+
+#[cfg(test)]
+use crate::{WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};
 
 mod issues;
 #[cfg(test)]
@@ -29,7 +30,8 @@ pub use issues::{ClientResponseError, ServerIssue};
 pub struct ServerStep {
     response: Option<String>,
     outbound: Box<[String]>,
-    analyses: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+    #[cfg(test)]
+    analysis: Option<WorkspaceAnalysisBatch>,
     issues: Box<[ServerIssue]>,
     exit_code: Option<i32>,
 }
@@ -45,18 +47,23 @@ impl ServerStep {
         &self.outbound
     }
 
+    #[cfg(test)]
     #[must_use]
     pub fn generation(&self) -> Option<&WorkspaceAnalysisGeneration> {
-        self.analyses.first().map(Arc::as_ref)
+        self.analysis.as_ref().map(WorkspaceAnalysisBatch::primary)
     }
 
+    #[cfg(test)]
     #[must_use]
     pub fn analysis(&self) -> Option<&WorkspaceAnalysisGeneration> {
         self.generation()
     }
 
+    #[cfg(test)]
     pub fn analyses(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
-        self.analyses.iter().map(Arc::as_ref)
+        self.analysis
+            .iter()
+            .flat_map(WorkspaceAnalysisBatch::publication_order)
     }
 
     #[must_use]
@@ -435,7 +442,8 @@ impl LanguageServer {
         }
         ServerStep {
             outbound: outbound.into_boxed_slice(),
-            analyses: batch.into_generations(),
+            #[cfg(test)]
+            analysis: Some(batch),
             issues: issues.into_boxed_slice(),
             ..ServerStep::default()
         }

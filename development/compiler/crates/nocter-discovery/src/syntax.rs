@@ -1,5 +1,5 @@
 use nocter_source::SourceFile;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node};
+use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree, direct_node, node_is_complete};
 
 use crate::DiscoveryError;
 
@@ -19,6 +19,7 @@ pub(crate) fn active_use_paths(
             kind,
             NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
         ) && active.use_is_active(node)
+            && node_is_complete(tree, node)
         {
             let path = use_path_node(tree, node)
                 .and_then(|path| tree.node(path))

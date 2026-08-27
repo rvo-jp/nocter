@@ -333,9 +333,6 @@ impl Builder {
             ));
 
         let tree = &self.syntax[syntax_index];
-        if tree.has_errors() {
-            return Ok(());
-        }
         self.target_selection
             .include_tree(self.target, &self.sources, tree)
             .map_err(DiscoveryError::TargetSelection)?;

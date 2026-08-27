@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{NodeId, NodeKind, SyntaxTree, child_node_iter, direct_node};
+use nocter_syntax::{NodeId, NodeKind, SyntaxTree, child_node_iter, direct_node, node_is_complete};
 
 type SyntaxKey = (SourceId, usize);
 
@@ -21,6 +21,7 @@ pub struct TargetSelection {
     item_targets: BTreeMap<SyntaxKey, CompilationTarget>,
     inactive_items: BTreeSet<SyntaxKey>,
     inactive_uses: BTreeSet<SyntaxKey>,
+    authored_error: Option<TargetSelectionError>,
 }
 
 /// Sole incremental construction authority used while discovery closes a package graph.
@@ -34,8 +35,9 @@ impl TargetSelection {
     ///
     /// # Errors
     ///
-    /// Returns an error when source storage is inconsistent with a tree or a gate names a target
-    /// unknown to this compiler release.
+    /// Returns an error when source storage is inconsistent with a tree. An authored unknown
+    /// target is retained by the completed selection so discovery can safely deactivate its item
+    /// before declaration lowering emits the source diagnostic.
     pub fn prepare<'tree>(
         target: CompilationTarget,
         sources: &SourceMap,
@@ -64,13 +66,23 @@ impl TargetSelection {
         !self.inactive_uses.contains(&key(declaration))
     }
 
+    /// Returns the first source-authored target error retained by this selection.
+    ///
+    /// Selection remains usable for dependency discovery when such an error exists: the invalid
+    /// gated item is inactive, and declaration lowering later projects this retained error through
+    /// the ordinary source-diagnostic boundary.
+    #[must_use]
+    pub const fn authored_error(&self) -> Option<TargetSelectionError> {
+        self.authored_error
+    }
+
     fn collect_tree(
         &mut self,
         target: CompilationTarget,
         sources: &SourceMap,
         tree: &SyntaxTree,
     ) -> Result<(), TargetSelectionError> {
-        if tree.has_errors() || tree.root().kind() != NodeKind::SourceFile {
+        if tree.root().kind() != NodeKind::SourceFile {
             return Ok(());
         }
         let source = sources
@@ -86,19 +98,36 @@ impl TargetSelection {
             let Some(gate) = direct_node(tree, child, NodeKind::TargetDirective) else {
                 continue;
             };
+            if !node_is_complete(tree, gate) {
+                self.deactivate_item(tree, child)?;
+                continue;
+            }
             let literal = descendant(tree, gate, NodeKind::StringLiteral)
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
             let name = nocter_syntax::decode_string_literal(source, tree, literal)
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
-            let selected = CompilationTarget::from_name(&name)
-                .ok_or(TargetSelectionError::UnknownTarget(literal))?;
+            let Some(selected) = CompilationTarget::from_name(&name) else {
+                if self.authored_error.is_none() {
+                    self.authored_error = Some(TargetSelectionError::UnknownTarget(literal));
+                }
+                self.deactivate_item(tree, child)?;
+                continue;
+            };
             self.item_targets.insert(key(child), selected);
             if selected != target {
-                self.inactive_items.insert(key(child));
-                self.collect_inactive_uses(tree, child)?;
+                self.deactivate_item(tree, child)?;
             }
         }
         Ok(())
+    }
+
+    fn deactivate_item(
+        &mut self,
+        tree: &SyntaxTree,
+        item: NodeId,
+    ) -> Result<(), TargetSelectionError> {
+        self.inactive_items.insert(key(item));
+        self.collect_inactive_uses(tree, item)
     }
 
     fn collect_inactive_uses(
@@ -132,8 +161,8 @@ impl TargetSelectionBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error when the source snapshot is inconsistent or a gate names an unknown
-    /// target.
+    /// Returns an error when the source snapshot is inconsistent. Authored target errors remain
+    /// inside the selection as inactive-item evidence.
     pub fn include_tree(
         &mut self,
         target: CompilationTarget,
@@ -197,6 +226,110 @@ mod tests {
         assert_eq!(selection.item_target(items[1]), None);
         assert!(!selection.use_is_active(uses[0]));
         assert!(selection.use_is_active(uses[1]));
+    }
+
+    #[test]
+    fn selects_complete_target_gates_beside_an_incomplete_body() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("gated.nct"),
+                b"#target: \"x64-linux\"\nfunc inactive(): void {\n    use ./missing\n    return\n}\nfunc active(): void {\n    use ./available\n    let value =\n}\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        assert!(tree.has_errors());
+
+        let uses = descendants_of_kind(&tree, NodeKind::BlockUseDeclaration);
+        let items = descendants_of_kind(&tree, NodeKind::Item);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
+
+        assert_eq!(uses.len(), 2);
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            selection.item_target(items[0]),
+            Some(CompilationTarget::X64Linux)
+        );
+        assert!(!selection.item_is_active(items[0]));
+        assert!(!selection.use_is_active(uses[0]));
+        assert!(selection.item_is_active(items[1]));
+        assert!(selection.use_is_active(uses[1]));
+    }
+
+    #[test]
+    fn incomplete_target_gate_never_activates_its_item_imports() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("gated.nct"),
+                b"#target:\nfunc unavailable(): void {\n    use ./missing\n    return\n}\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        assert!(tree.has_errors());
+
+        let uses = descendants_of_kind(&tree, NodeKind::BlockUseDeclaration);
+        let items = descendants_of_kind(&tree, NodeKind::Item);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
+
+        assert_eq!(uses.len(), 1);
+        assert_eq!(items.len(), 1);
+        assert!(!selection.item_is_active(items[0]));
+        assert!(!selection.use_is_active(uses[0]));
+    }
+
+    #[test]
+    fn unknown_target_beside_incomplete_syntax_cannot_preempt_syntax_recovery() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("gated.nct"),
+                b"#target: \"mips-templeos\"\nfunc unavailable(): void {\n    use ./missing\n    return\n}\nfunc broken(): void {\n    let value =\n}\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        assert!(tree.has_errors());
+
+        let uses = descendants_of_kind(&tree, NodeKind::BlockUseDeclaration);
+        let items = descendants_of_kind(&tree, NodeKind::Item);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
+
+        assert_eq!(uses.len(), 1);
+        assert_eq!(items.len(), 2);
+        assert!(matches!(
+            selection.authored_error(),
+            Some(TargetSelectionError::UnknownTarget(_))
+        ));
+        assert!(!selection.item_is_active(items[0]));
+        assert!(!selection.use_is_active(uses[0]));
+        assert!(selection.item_is_active(items[1]));
+    }
+
+    #[test]
+    fn unknown_target_is_retained_beside_a_safe_inactive_selection() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("gated.nct"),
+                b"#target: \"mips-templeos\"\nfunc unavailable(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        assert!(!tree.has_errors());
+
+        let items = descendants_of_kind(&tree, NodeKind::Item);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert!(matches!(
+            selection.authored_error(),
+            Some(TargetSelectionError::UnknownTarget(_))
+        ));
+        assert!(!selection.item_is_active(items[0]));
     }
 
     fn descendants_of_kind(tree: &SyntaxTree, kind: NodeKind) -> Vec<NodeId> {

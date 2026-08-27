@@ -652,6 +652,124 @@ fn inactive_target_imports_do_not_probe_the_filesystem() {
 }
 
 #[test]
+fn incomplete_body_preserves_complete_source_and_module_edges() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
+    tree.source(
+        "app/index.nct",
+        concat!(
+            "see ./helper.nct\n",
+            "use ./value.Value\n",
+            "\n",
+            "func broken(): void {\n",
+            "    let value =\n",
+            "}\n",
+        ),
+    );
+    tree.source("app/helper.nct", "func helper(): void { return }\n");
+    tree.source("app/value/index.nct", "pub struct Value {}\n");
+
+    let root = module("workspace:app", &[]);
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![package(
+            "workspace:app",
+            "app",
+            &tree.path().join("app"),
+        )]),
+        vec![root.clone()],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    assert!(unit.compile_input().is_err());
+    let input = unit.analysis_input().unwrap();
+    assert_eq!(input.source_visibility_resolutions().len(), 1);
+    assert_eq!(input.use_resolutions().len(), 1);
+    assert_eq!(
+        input.use_resolutions()[0].target_module(),
+        &module("workspace:app", &["value"])
+    );
+    let root_sources = input
+        .modules()
+        .iter()
+        .find(|candidate| candidate.identity() == &root)
+        .unwrap()
+        .sources();
+    assert_eq!(root_sources.len(), 2);
+}
+
+#[test]
+fn incomplete_source_edges_are_not_resolved() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "see\n",
+            "use\n",
+        ),
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![package(
+            "workspace:app",
+            "app",
+            &tree.path().join("app"),
+        )]),
+        vec![module("workspace:app", &[])],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+
+    assert!(unit.has_syntax_errors());
+    let input = unit.analysis_input().unwrap();
+    assert!(input.source_visibility_resolutions().is_empty());
+    assert!(input.use_resolutions().is_empty());
+}
+
+#[test]
+fn unknown_target_reaches_the_authored_declaration_diagnostic_boundary() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "#target: \"mips-templeos\"\n",
+            "func unavailable(): void { return }\n",
+        ),
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![package(
+            "workspace:app",
+            "app",
+            &tree.path().join("app"),
+        )]),
+        vec![module("workspace:app", &[])],
+        minimal_toolchain("workspace:app"),
+    ))
+    .unwrap();
+    let input = unit.compile_input().unwrap();
+
+    let Err(nocter_declaration_lowering::DeclarationLoweringError::Surface(diagnostic)) =
+        nocter_declaration_lowering::lower_compile_unit_declarations(&input)
+    else {
+        panic!("unknown target did not reach the authored surface diagnostic");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        nocter_declaration_lowering::SurfaceRule::UnknownTargetGate
+    );
+}
+
+#[test]
 fn canonical_output_does_not_depend_on_request_order() {
     let tree = TempTree::new();
     for name in ["a", "b"] {

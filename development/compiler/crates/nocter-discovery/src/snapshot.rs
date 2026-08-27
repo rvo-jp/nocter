@@ -283,14 +283,6 @@ impl DiscoveredUnit {
         .with_package_target_resolutions(self.package_target_resolutions.clone())
         .with_toolchain(toolchain))
     }
-
-    #[must_use]
-    pub fn module_map(&self) -> BTreeMap<&ModuleIdentity, &DiscoveredModule> {
-        self.modules
-            .iter()
-            .map(|module| (&module.identity, module))
-            .collect()
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
