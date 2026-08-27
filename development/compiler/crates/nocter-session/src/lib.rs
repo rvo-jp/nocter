@@ -23,7 +23,7 @@ pub use executable::{
 };
 pub use output::{CompiledExecutable, CompiledTarget};
 pub use profile::bundled_standard_toolchain;
-pub use semantic_analysis::SemanticEvidenceBundle;
+pub use semantic_analysis::{SemanticEvidenceBundle, SemanticEvidenceView};
 pub use test_selection::TestTargetSelector;
 
 use nocter_discovery::DiscoveredUnit;

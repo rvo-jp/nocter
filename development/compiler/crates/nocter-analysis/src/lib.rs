@@ -10,8 +10,8 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
 use nocter_session::{
-    CompileSessionError, CompiledTarget, SemanticEvidenceBundle, analyze_incomplete_syntax,
-    analyze_target,
+    CompileSessionError, CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView,
+    analyze_incomplete_syntax, analyze_target,
 };
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
@@ -84,8 +84,18 @@ enum CurrentAnalysisFailure {
 #[derive(Debug)]
 enum CurrentSemanticEvidence {
     Unavailable,
-    Analysis(Box<SemanticEvidenceBundle>),
+    Bundle(Box<SemanticEvidenceBundle>),
     Target(Box<CompiledTarget>),
+}
+
+impl CurrentSemanticEvidence {
+    fn view(&self) -> Option<SemanticEvidenceView<'_>> {
+        match self {
+            Self::Unavailable => None,
+            Self::Bundle(bundle) => Some(bundle.view()),
+            Self::Target(target) => Some(target.semantic_evidence()),
+        }
+    }
 }
 
 impl CurrentAnalysis {
@@ -98,7 +108,7 @@ impl CurrentAnalysis {
             unit: Box::new(unit),
             failure: Some(CurrentAnalysisFailure::Syntax(failure)),
             semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
-                CurrentSemanticEvidence::Analysis(Box::new(semantic))
+                CurrentSemanticEvidence::Bundle(Box::new(semantic))
             }),
         }
     }
@@ -112,7 +122,7 @@ impl CurrentAnalysis {
             unit: Box::new(unit),
             failure: Some(CurrentAnalysisFailure::Compilation(error)),
             semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
-                CurrentSemanticEvidence::Analysis(Box::new(semantic))
+                CurrentSemanticEvidence::Bundle(Box::new(semantic))
             }),
         }
     }
@@ -136,6 +146,13 @@ pub struct AnalysisSnapshot {
 }
 
 impl AnalysisSnapshot {
+    fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
+        match &self.state {
+            AnalysisState::Current(analysis) => analysis.semantic_evidence.view(),
+            AnalysisState::DiscoveryFailed(_) => None,
+        }
+    }
+
     fn current_unit(&self) -> Option<&DiscoveredUnit> {
         match &self.state {
             AnalysisState::Current(analysis) => Some(&analysis.unit),

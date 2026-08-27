@@ -194,58 +194,15 @@ impl AnalysisSnapshot {
     }
 
     fn unvalidated_semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
-        let evidence = match &self.state {
-            crate::AnalysisState::Current(crate::CurrentAnalysis {
-                semantic_evidence: crate::CurrentSemanticEvidence::Target(target),
-                ..
-            }) => SemanticEvidence::Checked {
-                checked: target.program().checked(),
-                source_index: target.source_index(),
-            },
-            crate::AnalysisState::Current(crate::CurrentAnalysis {
-                semantic_evidence: crate::CurrentSemanticEvidence::Analysis(semantic),
-                ..
-            }) => {
-                let semantic = semantic.as_ref();
-                if let Some(checked) = semantic.checked() {
-                    SemanticEvidence::Checked {
-                        checked: checked.program(),
-                        source_index: checked.source_index(),
-                    }
-                } else if let Some(analysis) = semantic.body_analysis() {
-                    SemanticEvidence::Bodies(analysis)
-                } else if let Some(analysis) = semantic.name_analysis() {
-                    SemanticEvidence::Names(analysis)
-                } else if let Some(analysis) = semantic.declaration_analysis() {
-                    SemanticEvidence::Declarations(analysis)
-                } else {
-                    return None;
-                }
-            }
-            crate::AnalysisState::DiscoveryFailed(_)
-            | crate::AnalysisState::Current(crate::CurrentAnalysis {
-                semantic_evidence: crate::CurrentSemanticEvidence::Unavailable,
-                ..
-            }) => return None,
-        };
-        Some(SemanticQueryContext { evidence })
+        Some(SemanticQueryContext {
+            evidence: self.semantic_evidence()?,
+        })
     }
 }
 
 #[derive(Clone, Copy)]
 struct SemanticQueryContext<'a> {
-    evidence: SemanticEvidence<'a>,
-}
-
-#[derive(Clone, Copy)]
-enum SemanticEvidence<'a> {
-    Checked {
-        checked: &'a nocter_checking::CheckedProgram,
-        source_index: &'a nocter_source_index::SourceIndex,
-    },
-    Bodies(&'a nocter_checking::BodyAnalysisRecovery),
-    Names(&'a nocter_checking::NameAnalysisRecovery),
-    Declarations(&'a nocter_checking::DeclarationAnalysisRecovery),
+    evidence: nocter_session::SemanticEvidenceView<'a>,
 }
 
 impl<'a> SemanticQueryContext<'a> {
@@ -259,59 +216,37 @@ impl<'a> SemanticQueryContext<'a> {
     }
 
     fn source_ownership(&self) -> &'a nocter_checking::SourceOwnershipTable {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked.source_ownership(),
-            SemanticEvidence::Bodies(analysis) => analysis.prepared().source_ownership(),
-            SemanticEvidence::Names(recovery) => recovery.source_ownership(),
-            SemanticEvidence::Declarations(recovery) => recovery.source_ownership(),
-        }
+        self.evidence.source_ownership()
     }
 
-    fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
-        match self.evidence {
-            SemanticEvidence::Checked { source_index, .. } => source_index,
-            SemanticEvidence::Bodies(analysis) => analysis.source_index(),
-            SemanticEvidence::Names(recovery) => recovery.source_index(),
-            SemanticEvidence::Declarations(recovery) => recovery.source_index(),
-        }
+    const fn source_index(&self) -> &'a nocter_source_index::SourceIndex {
+        self.evidence.source_index()
     }
 
     fn graph(&self) -> &'a nocter_declarations::DeclarationGraph {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked.graph(),
-            SemanticEvidence::Bodies(analysis) => analysis.prepared().graph(),
-            SemanticEvidence::Names(recovery) => recovery.graph(),
-            SemanticEvidence::Declarations(recovery) => recovery.graph(),
-        }
+        self.evidence.graph()
     }
 
     fn types(&self) -> &'a nocter_model::TypeStore {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked.types(),
-            SemanticEvidence::Bodies(analysis) => analysis.prepared().types(),
-            SemanticEvidence::Names(recovery) => recovery.types(),
-            SemanticEvidence::Declarations(recovery) => recovery.types(),
-        }
+        self.evidence.types()
+    }
+
+    const fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
+        self.evidence.checked()
     }
 
     const fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
-        match self.evidence {
-            SemanticEvidence::Bodies(analysis) => Some(analysis),
-            SemanticEvidence::Checked { .. }
-            | SemanticEvidence::Names(_)
-            | SemanticEvidence::Declarations(_) => None,
-        }
+        self.evidence.body_analysis()
+    }
+
+    const fn name_recovery(&self) -> Option<&'a nocter_checking::NameAnalysisRecovery> {
+        self.evidence.name_analysis()
     }
 
     const fn declaration_recovery(
         &self,
     ) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
-        match self.evidence {
-            SemanticEvidence::Declarations(analysis) => Some(analysis),
-            SemanticEvidence::Checked { .. }
-            | SemanticEvidence::Bodies(_)
-            | SemanticEvidence::Names(_) => None,
-        }
+        self.evidence.declaration_analysis()
     }
 
     pub(in crate::query) fn completion_detail(
@@ -319,19 +254,18 @@ impl<'a> SemanticQueryContext<'a> {
         entity: SemanticEntity,
         spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
     ) -> Result<Option<Box<str>>, PresentationError> {
-        let presentation = match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => Ok(
-                crate::query::presentation::presentation(checked, entity, spellings),
-            ),
-            SemanticEvidence::Bodies(analysis) => {
-                body_recovery_presentation(analysis, entity, spellings)
-            }
-            SemanticEvidence::Names(analysis) => {
-                Ok(name_recovery_presentation(analysis, entity, spellings))
-            }
-            SemanticEvidence::Declarations(analysis) => {
-                Ok(declaration_presentation(analysis, entity, spellings))
-            }
+        let presentation = if let Some(checked) = self.checked() {
+            Ok(crate::query::presentation::presentation(
+                checked, entity, spellings,
+            ))
+        } else if let Some(analysis) = self.body_recovery() {
+            body_recovery_presentation(analysis, entity, spellings)
+        } else if let Some(analysis) = self.name_recovery() {
+            Ok(name_recovery_presentation(analysis, entity, spellings))
+        } else if let Some(analysis) = self.declaration_recovery() {
+            Ok(declaration_presentation(analysis, entity, spellings))
+        } else {
+            unreachable!("session semantic evidence always exposes one authority")
         }?;
         Ok(presentation.map(|presentation| Box::<str>::from(presentation.code())))
     }
@@ -342,19 +276,16 @@ impl<'a> SemanticQueryContext<'a> {
         spellings: &crate::query::presentation::visible_spelling::VisibleSpellings,
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, PresentationError> {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => {
-                hover_presentation(checked, entity, spellings, source).map(Some)
-            }
-            SemanticEvidence::Bodies(analysis) => {
-                body_recovery_presentation(analysis, entity, spellings)
-            }
-            SemanticEvidence::Names(recovery) => {
-                Ok(name_recovery_presentation(recovery, entity, spellings))
-            }
-            SemanticEvidence::Declarations(recovery) => {
-                Ok(declaration_presentation(recovery, entity, spellings))
-            }
+        if let Some(checked) = self.checked() {
+            hover_presentation(checked, entity, spellings, source).map(Some)
+        } else if let Some(analysis) = self.body_recovery() {
+            body_recovery_presentation(analysis, entity, spellings)
+        } else if let Some(recovery) = self.name_recovery() {
+            Ok(name_recovery_presentation(recovery, entity, spellings))
+        } else if let Some(recovery) = self.declaration_recovery() {
+            Ok(declaration_presentation(recovery, entity, spellings))
+        } else {
+            unreachable!("session semantic evidence always exposes one authority")
         }
     }
 }

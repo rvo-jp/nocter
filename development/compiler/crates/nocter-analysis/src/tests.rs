@@ -373,7 +373,7 @@ fn name_recovery_retains_every_rejected_body_diagnostic() {
         ["E0340", "E0340"]
     );
     let crate::AnalysisState::Current(crate::CurrentAnalysis {
-        semantic_evidence: crate::CurrentSemanticEvidence::Analysis(semantic),
+        semantic_evidence: crate::CurrentSemanticEvidence::Bundle(semantic),
         ..
     }) = &snapshot.state
     else {

@@ -7,7 +7,7 @@ use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceProjectionIssue};
 use nocter_syntax::{SyntaxOrigin, SyntaxTree};
 
-use super::{SemanticEvidence, SemanticQueryContext};
+use super::SemanticQueryContext;
 
 /// The completeness of one protocol-independent semantic set query.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -424,31 +424,35 @@ impl<'a> SemanticQueryContext<'a> {
     }
 
     fn scope_exists(&self, body: BodyId, scope: BodyScopeId) -> bool {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked
+        if let Some(checked) = self.checked() {
+            checked
                 .bodies()
                 .get(body)
-                .is_some_and(|body| body.scopes().get(scope).is_some()),
-            SemanticEvidence::Bodies(analysis) => analysis
+                .is_some_and(|body| body.scopes().get(scope).is_some())
+        } else if let Some(analysis) = self.body_recovery() {
+            analysis
                 .body_names()
                 .get(body)
-                .is_some_and(|names| names.scopes().get(scope).is_some()),
-            SemanticEvidence::Names(analysis) => analysis
+                .is_some_and(|names| names.scopes().get(scope).is_some())
+        } else if let Some(analysis) = self.name_recovery() {
+            analysis
                 .body_names()
                 .evidence(body)
                 .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.scopes().get(scope).is_some()),
-            SemanticEvidence::Declarations(_) => false,
+                .is_some_and(|names| names.scopes().get(scope).is_some())
+        } else {
+            false
         }
     }
 
     fn node_exists(&self, body: BodyId, node: BodyNodeId) -> bool {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked
+        if let Some(checked) = self.checked() {
+            checked
                 .bodies()
                 .get(body)
-                .is_some_and(|body| body.nodes().get(node).is_some()),
-            SemanticEvidence::Bodies(analysis) => match analysis.body_evidence(body) {
+                .is_some_and(|body| body.nodes().get(node).is_some())
+        } else if let Some(analysis) = self.body_recovery() {
+            match analysis.body_evidence(body) {
                 Some(nocter_checking::BodyEvidence::Typed(body)) => {
                     body.nodes().get(node).is_some()
                 }
@@ -456,61 +460,63 @@ impl<'a> SemanticQueryContext<'a> {
                 // Partial checked nodes and their source projections are discarded together, so
                 // the retained body-node domain is empty rather than unknown.
                 Some(nocter_checking::BodyEvidence::Rejected(_)) | None => false,
-            },
-            SemanticEvidence::Names(_) | SemanticEvidence::Declarations(_) => false,
+            }
+        } else {
+            false
         }
     }
 
     fn local_exists(&self, body: BodyId, local: LocalBindingId) -> bool {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked
+        if let Some(checked) = self.checked() {
+            checked
                 .bodies()
                 .get(body)
-                .is_some_and(|body| body.locals().get(local).is_some()),
-            SemanticEvidence::Bodies(analysis) => analysis
+                .is_some_and(|body| body.locals().get(local).is_some())
+        } else if let Some(analysis) = self.body_recovery() {
+            analysis
                 .body_names()
                 .get(body)
-                .is_some_and(|names| names.locals().get(local).is_some()),
-            SemanticEvidence::Names(analysis) => analysis
+                .is_some_and(|names| names.locals().get(local).is_some())
+        } else if let Some(analysis) = self.name_recovery() {
+            analysis
                 .body_names()
                 .evidence(body)
                 .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.locals().get(local).is_some()),
-            SemanticEvidence::Declarations(_) => false,
+                .is_some_and(|names| names.locals().get(local).is_some())
+        } else {
+            false
         }
     }
 
     fn capture_exists(&self, body: BodyId, capture: CaptureId) -> bool {
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked
+        if let Some(checked) = self.checked() {
+            checked
                 .bodies()
                 .get(body)
-                .is_some_and(|body| body.captures().get(capture).is_some()),
-            SemanticEvidence::Bodies(analysis) => analysis
+                .is_some_and(|body| body.captures().get(capture).is_some())
+        } else if let Some(analysis) = self.body_recovery() {
+            analysis
                 .body_names()
                 .get(body)
-                .is_some_and(|names| names.captures().get(capture).is_some()),
-            SemanticEvidence::Names(analysis) => analysis
+                .is_some_and(|names| names.captures().get(capture).is_some())
+        } else if let Some(analysis) = self.name_recovery() {
+            analysis
                 .body_names()
                 .evidence(body)
                 .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.captures().get(capture).is_some()),
-            SemanticEvidence::Declarations(_) => false,
+                .is_some_and(|names| names.captures().get(capture).is_some())
+        } else {
+            false
         }
     }
 
     pub(super) const fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
-        match self.evidence {
-            SemanticEvidence::Checked {
+        match self.checked() {
+            Some(checked) => Some(CompleteSemanticQuery {
                 checked,
-                source_index,
-            } => Some(CompleteSemanticQuery {
-                checked,
-                source_index,
+                source_index: self.source_index(),
             }),
-            SemanticEvidence::Bodies(_)
-            | SemanticEvidence::Names(_)
-            | SemanticEvidence::Declarations(_) => None,
+            None => None,
         }
     }
 
@@ -525,13 +531,14 @@ impl<'a> SemanticQueryContext<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => checked
+        if let Some(checked) = self.checked() {
+            checked
                 .bodies()
                 .get(body)
                 .map(TypedBodyEvidence::Available)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body)),
-            SemanticEvidence::Bodies(analysis) => match analysis
+                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))
+        } else if let Some(analysis) = self.body_recovery() {
+            match analysis
                 .body_evidence(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
             {
@@ -541,8 +548,9 @@ impl<'a> SemanticQueryContext<'a> {
                 nocter_checking::BodyEvidence::Rejected(_) => Ok(TypedBodyEvidence::Unavailable(
                     TypedBodyUnavailability::BodyRejected,
                 )),
-            },
-            SemanticEvidence::Names(analysis) => match analysis
+            }
+        } else if let Some(analysis) = self.name_recovery() {
+            match analysis
                 .body_names()
                 .evidence(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
@@ -553,10 +561,11 @@ impl<'a> SemanticQueryContext<'a> {
                 nocter_checking::BodyNameEvidence::Rejected(_) => Ok(
                     TypedBodyEvidence::Unavailable(TypedBodyUnavailability::NamesRejected),
                 ),
-            },
-            SemanticEvidence::Declarations(_) => Ok(TypedBodyEvidence::Unavailable(
+            }
+        } else {
+            Ok(TypedBodyEvidence::Unavailable(
                 TypedBodyUnavailability::TypingNotReached,
-            )),
+            ))
         }
     }
 
@@ -647,38 +656,35 @@ impl<'a> SemanticQueryContext<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        let names = match self.evidence {
-            SemanticEvidence::Checked { checked, .. } => {
-                let checked_body = checked
-                    .bodies()
-                    .get(body)
-                    .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
-                return checked_body
-                    .scopes()
-                    .get(scope)
-                    .map(SemanticFact::Available)
-                    .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
-            }
-            SemanticEvidence::Bodies(analysis) => {
-                let names = analysis
-                    .body_names()
-                    .get(body)
-                    .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
-                return names
-                    .scopes()
-                    .get(scope)
-                    .map(SemanticFact::Available)
-                    .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
-            }
-            SemanticEvidence::Names(analysis) => analysis
+        let names = if let Some(checked) = self.checked() {
+            let checked_body = checked
+                .bodies()
+                .get(body)
+                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
+            return checked_body
+                .scopes()
+                .get(scope)
+                .map(SemanticFact::Available)
+                .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
+        } else if let Some(analysis) = self.body_recovery() {
+            let names = analysis
+                .body_names()
+                .get(body)
+                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
+            return names
+                .scopes()
+                .get(scope)
+                .map(SemanticFact::Available)
+                .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
+        } else if let Some(analysis) = self.name_recovery() {
+            analysis
                 .body_names()
                 .evidence(body)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?,
-            SemanticEvidence::Declarations(_) => {
-                return Ok(SemanticFact::Unavailable(
-                    ScopeUnavailability::NameResolutionNotReached,
-                ));
-            }
+                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
+        } else {
+            return Ok(SemanticFact::Unavailable(
+                ScopeUnavailability::NameResolutionNotReached,
+            ));
         };
         let Some(names) = names.usable_names() else {
             return Ok(SemanticFact::Unavailable(
@@ -736,15 +742,12 @@ mod tests {
             .semantic_query()
             .expect("valid semantic index")
             .expect("semantic query");
-        let (body, evidence) = match query.evidence {
-            super::SemanticEvidence::Bodies(recovery) => recovery
-                .body_evidence_iter()
-                .find(|(_, evidence)| {
-                    matches!(evidence, nocter_checking::BodyEvidence::Rejected(_))
-                })
-                .expect("rejected body evidence"),
-            _ => panic!("expected body recovery"),
-        };
+        let (body, evidence) = query
+            .body_recovery()
+            .expect("expected body recovery")
+            .body_evidence_iter()
+            .find(|(_, evidence)| matches!(evidence, nocter_checking::BodyEvidence::Rejected(_)))
+            .expect("rejected body evidence");
         assert!(matches!(
             evidence,
             nocter_checking::BodyEvidence::Rejected(_)

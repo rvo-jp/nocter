@@ -2,7 +2,7 @@ use nocter_source_index::SourceIndex;
 use nocter_target_program::ExecutableProgram;
 use nocter_target_program::TargetProgram;
 
-use crate::ExecutableIdentity;
+use crate::{ExecutableIdentity, SemanticEvidenceView};
 
 /// A target-validated semantic program and its independent source projection.
 #[derive(Debug)]
@@ -69,6 +69,12 @@ impl CompiledTarget {
     #[must_use]
     pub const fn source_index(&self) -> &SourceIndex {
         &self.source_index
+    }
+
+    /// Borrows the same semantic-evidence contract used by failed analysis generations.
+    #[must_use]
+    pub fn semantic_evidence(&self) -> SemanticEvidenceView<'_> {
+        SemanticEvidenceView::from_checked(self.program.checked(), &self.source_index)
     }
 
     #[must_use]
