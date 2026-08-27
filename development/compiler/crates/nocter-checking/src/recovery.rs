@@ -12,13 +12,6 @@ use crate::{
     TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
-/// The exact semantic evidence retained when checking preparation rejects source.
-#[derive(Debug)]
-pub enum PreparationRecovery {
-    Declarations(Box<DeclarationAnalysisRecovery>),
-    Names(Box<crate::NameAnalysisRecovery>),
-}
-
 /// The complete declaration graph retained when a program-wide preparation rule rejects source.
 ///
 /// This boundary contains no interface implementation, construction, instance-operation, name, or body result.
@@ -208,13 +201,14 @@ impl BodyAnalysisRecovery {
 
     /// Selects the narrowest typed interruption associated with one diagnostic range.
     #[must_use]
-    pub fn interruption_overlapping(
+    pub fn interruption_position_overlapping(
         &self,
         source: SourceId,
         range: TextRange,
-    ) -> Option<&TypedBodyInterruption> {
+    ) -> Option<(usize, &TypedBodyInterruption)> {
         self.interruptions()
-            .filter(|interruption| {
+            .enumerate()
+            .filter(|(_, interruption)| {
                 let origin = interruption.origin();
                 let interruption = origin.span().range();
                 origin.source() == source
@@ -222,7 +216,7 @@ impl BodyAnalysisRecovery {
                         || interruption.contains_range(range)
                         || range.contains_range(interruption))
             })
-            .min_by_key(|interruption| interruption.origin().span().range().len())
+            .min_by_key(|(_, interruption)| interruption.origin().span().range().len())
     }
 
     fn snapshot(&self, interruption: &TypedBodyInterruption) -> Option<&TypedInterruptionSnapshot> {

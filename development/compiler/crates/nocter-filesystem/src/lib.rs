@@ -238,7 +238,7 @@ impl SourceOverlayBuilder {
         path: PathBuf,
         entry: OverlayEntry,
     ) -> Result<(), SourceOverlayError> {
-        validate_canonical_path(&path)?;
+        validate_source_path(&path)?;
         if self.entries.insert(path.clone(), entry).is_some() {
             return Err(SourceOverlayError::DuplicatePath(path));
         }
@@ -253,7 +253,12 @@ impl SourceOverlayBuilder {
     }
 }
 
-fn validate_canonical_path(path: &Path) -> Result<(), SourceOverlayError> {
+/// Validates the lexical path contract shared by source overlays and workspace revisions.
+///
+/// # Errors
+///
+/// Returns an error when `path` is relative or contains a current/parent-directory component.
+pub fn validate_source_path(path: &Path) -> Result<(), SourceOverlayError> {
     if !path.is_absolute() {
         return Err(SourceOverlayError::RelativePath(path.to_path_buf()));
     }

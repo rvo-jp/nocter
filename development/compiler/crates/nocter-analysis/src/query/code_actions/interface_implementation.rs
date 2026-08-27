@@ -1,6 +1,5 @@
 use std::fmt;
 
-use nocter_checking::MissingInterfaceImplementationMethods;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
@@ -14,7 +13,6 @@ use super::super::completion::SemanticCompletionError;
 #[derive(Debug)]
 pub enum InterfaceImplementationActionError {
     Evidence(crate::EvidenceIntegrityError),
-    MissingRecovery,
     MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
     MissingDeclarationSite(nocter_model::DeclarationSiteId),
     MissingSourceBinding(nocter_model::InterfaceImplementationId),
@@ -31,9 +29,6 @@ impl fmt::Display for InterfaceImplementationActionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Evidence(error) => error.fmt(formatter),
-            Self::MissingRecovery => {
-                formatter.write_str("missing-method code action has no declaration recovery")
-            }
             Self::MissingInterfaceImplementation(id) => {
                 write!(formatter, "missing interface implementation {id:?}")
             }
@@ -80,8 +75,7 @@ impl std::error::Error for InterfaceImplementationActionError {
         match self {
             Self::Evidence(error) => Some(error),
             Self::Completion(error) => Some(error),
-            Self::MissingRecovery
-            | Self::MissingInterfaceImplementation(_)
+            Self::MissingInterfaceImplementation(_)
             | Self::MissingDeclarationSite(_)
             | Self::MissingSourceBinding(_)
             | Self::MissingInstanceSource(_)
@@ -111,9 +105,10 @@ pub(super) fn missing_method_action(
     requested_source: SourceId,
     diagnostic_code: &str,
     diagnostic_range: TextRange,
-    missing: &MissingInterfaceImplementationMethods,
+    authority: crate::query::evidence::InterfaceImplementationMutationQuery<'_>,
 ) -> Result<Option<SemanticCodeAction>, InterfaceImplementationActionError> {
-    let context = insertion_context(snapshot, requested_source, missing)?;
+    let missing = authority.missing();
+    let context = insertion_context(snapshot, requested_source, authority)?;
     let Some(context) = context else {
         return Ok(None);
     };
@@ -159,7 +154,7 @@ pub(super) fn missing_method_action(
 }
 
 struct InsertionContext<'snapshot> {
-    authority: crate::query::evidence::DeclarationMutationQuery<'snapshot>,
+    authority: crate::query::evidence::InterfaceImplementationMutationQuery<'snapshot>,
     module: nocter_model::ModuleId,
     source: &'snapshot nocter_source::SourceFile,
     opening: ByteOffset,
@@ -169,12 +164,9 @@ struct InsertionContext<'snapshot> {
 fn insertion_context<'snapshot>(
     snapshot: &'snapshot AnalysisSnapshot,
     requested_source: SourceId,
-    missing: &MissingInterfaceImplementationMethods,
+    authority: crate::query::evidence::InterfaceImplementationMutationQuery<'snapshot>,
 ) -> Result<Option<InsertionContext<'snapshot>>, InterfaceImplementationActionError> {
-    let authority = snapshot
-        .semantic_query()?
-        .and_then(crate::query::evidence::SemanticQueryContext::declaration_mutation)
-        .ok_or(InterfaceImplementationActionError::MissingRecovery)?;
+    let missing = authority.missing();
     let graph = authority.graph();
     let interface_implementation = graph
         .declarations()
@@ -327,7 +319,7 @@ fn terminator_import_edits(
 
 fn action_title(
     graph: &nocter_declarations::DeclarationGraph,
-    missing: &MissingInterfaceImplementationMethods,
+    missing: &nocter_checking::MissingInterfaceImplementationMethods,
 ) -> Result<String, InterfaceImplementationActionError> {
     if missing.required().len() == 1 {
         let required = &missing.required()[0];

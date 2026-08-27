@@ -48,8 +48,8 @@ impl IncompleteSyntaxAnalysis {
     }
 
     #[must_use]
-    pub fn semantic(&self) -> Option<&SemanticEvidenceBundle> {
-        self.semantic.as_deref()
+    pub fn semantic_evidence(&self) -> Option<crate::SemanticEvidenceView<'_>> {
+        self.semantic.as_deref().map(SemanticEvidenceBundle::view)
     }
 
     #[must_use]
@@ -58,18 +58,13 @@ impl IncompleteSyntaxAnalysis {
     }
 
     #[must_use]
-    pub fn into_parts(
+    pub fn into_analysis_parts(
         self,
     ) -> (
-        Option<CompileSessionError>,
         Option<SemanticEvidenceBundle>,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
-        (
-            self.failure,
-            self.semantic.map(|semantic| *semantic),
-            self.diagnostics,
-        )
+        (self.semantic.map(|semantic| *semantic), self.diagnostics)
     }
 }
 
@@ -89,8 +84,8 @@ impl CompileTargetFailure {
     }
 
     #[must_use]
-    pub fn semantic(&self) -> Option<&SemanticEvidenceBundle> {
-        self.semantic.as_deref()
+    pub fn semantic_evidence(&self) -> Option<crate::SemanticEvidenceView<'_>> {
+        self.semantic.as_deref().map(SemanticEvidenceBundle::view)
     }
 
     /// Returns every source diagnostic that explains this analysis result, including rejected
@@ -101,18 +96,13 @@ impl CompileTargetFailure {
     }
 
     #[must_use]
-    pub fn into_parts(
+    pub fn into_analysis_parts(
         self,
     ) -> (
-        CompileSessionError,
         Option<SemanticEvidenceBundle>,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
-        (
-            self.error,
-            self.semantic.map(|semantic| *semantic),
-            self.diagnostics,
-        )
+        (self.semantic.map(|semantic| *semantic), self.diagnostics)
     }
 
     #[must_use]
@@ -131,21 +121,7 @@ fn analysis_diagnostics(
         .cloned()
         .collect::<Vec<_>>();
     if let Some(semantic) = semantic {
-        let mut retain = |diagnostic: &nocter_diagnostics::SourceDiagnostic| {
-            if !diagnostics.contains(diagnostic) {
-                diagnostics.push(diagnostic.clone());
-            }
-        };
-        if let Some(analysis) = semantic.name_analysis() {
-            for diagnostic in analysis.body_names().rejection_diagnostics() {
-                retain(diagnostic);
-            }
-        }
-        if let Some(analysis) = semantic.body_analysis() {
-            for diagnostic in analysis.rejection_diagnostics() {
-                retain(diagnostic);
-            }
-        }
+        semantic.extend_rejection_diagnostics(&mut diagnostics);
     }
     diagnostics.into_boxed_slice()
 }

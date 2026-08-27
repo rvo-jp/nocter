@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use nocter_analysis::{
     EvidenceIntegrityError, GenerationId, SemanticMutationCandidate, ValidatedSemanticMutation,
+    WorkspaceRevisionSequence, WorkspaceSourceRevision,
 };
 use nocter_filesystem::SourceOverlay;
 
@@ -28,16 +29,16 @@ pub use configuration::{WorkspaceConfiguration, WorkspaceConfigurationError, Wor
 use errors::preparation_diagnostics;
 pub use errors::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
 use generation::WorkspaceAnalysisState;
-pub use generation::{
-    AcceptedDocumentRevision, AnalysisScope, WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration,
-};
-use topology::WorkspaceTopology;
+pub use generation::{AnalysisScope, WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};
+use topology::{DocumentScopeSelection, WorkspaceTopology};
 
 /// Sequential owner of the latest immutable analysis for each package, toolchain standard, or
 /// standalone file.
 #[derive(Debug)]
 pub struct WorkspaceAnalyses {
     configuration: WorkspaceConfiguration,
+    revision_sequence: Option<WorkspaceRevisionSequence>,
+    latest_generation: Option<GenerationId>,
     latest: BTreeMap<AnalysisScope, Arc<WorkspaceAnalysisGeneration>>,
     document_scopes: BTreeMap<PathBuf, AnalysisScope>,
     source_scopes: BTreeMap<PathBuf, BTreeSet<AnalysisScope>>,
@@ -75,11 +76,37 @@ impl fmt::Display for AmbiguousDocumentAnalysis {
 
 impl std::error::Error for AmbiguousDocumentAnalysis {}
 
+/// A source revision that cannot advance this workspace analysis owner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkspaceRevisionError {
+    ForeignSequence,
+    NonIncreasing {
+        current: GenerationId,
+        received: GenerationId,
+    },
+}
+
+impl fmt::Display for WorkspaceRevisionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ForeignSequence => {
+                formatter.write_str("source revision belongs to another workspace sequence")
+            }
+            Self::NonIncreasing { current, received } => write!(
+                formatter,
+                "source revision generation {} does not advance current generation {}",
+                received.get(),
+                current.get()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for WorkspaceRevisionError {}
+
 struct ScopeTransition {
-    documents: BTreeSet<PathBuf>,
-    selected: BTreeMap<PathBuf, AnalysisScope>,
+    selections: BTreeMap<PathBuf, DocumentScopeSelection>,
     active_selected: BTreeMap<PathBuf, AnalysisScope>,
-    failures: BTreeMap<PathBuf, WorkspaceAnalysisError>,
     affected: BTreeSet<AnalysisScope>,
     invalidated: Vec<AnalysisScope>,
     primary_scope: Option<AnalysisScope>,
@@ -90,6 +117,8 @@ impl WorkspaceAnalyses {
     pub fn new(configuration: WorkspaceConfiguration) -> Self {
         Self {
             configuration,
+            revision_sequence: None,
+            latest_generation: None,
             latest: BTreeMap::new(),
             document_scopes: BTreeMap::new(),
             source_scopes: BTreeMap::new(),
@@ -148,12 +177,22 @@ impl WorkspaceAnalyses {
     /// Selects one bounded package or single-file scope and runs its exact accepted overlay through
     /// locked, offline, read-only compiler preparation and target checking.
     ///
+    /// # Errors
+    ///
+    /// Rejects a revision from another document owner or one that does not advance the accepted
+    /// generation. No workspace analysis state changes on rejection.
+    ///
     /// # Panics
     ///
-    /// Panics only when the internally planned primary transition fails to publish its generation.
+    /// Panics only when an internally planned primary transition fails to publish its generation.
     /// That condition indicates a broken workspace-transition invariant, not invalid user source.
-    pub fn analyze(&mut self, accepted: AcceptedDocumentRevision) -> WorkspaceAnalysisBatch {
-        let (document, source) = accepted.into_parts();
+    pub fn analyze(
+        &mut self,
+        source: WorkspaceSourceRevision,
+    ) -> Result<WorkspaceAnalysisBatch, WorkspaceRevisionError> {
+        self.validate_revision(&source)?;
+        let revision_sequence = source.sequence().clone();
+        let document = source.primary_document().to_path_buf();
         let generation = source.generation();
         let open_documents = source
             .open_documents()
@@ -199,7 +238,32 @@ impl WorkspaceAnalyses {
         self.unscoped
             .retain(|path, _| open_documents.contains(path));
         self.rebuild_source_scopes();
-        WorkspaceAnalysisBatch::new(primary, related.into_boxed_slice())
+        self.revision_sequence = Some(revision_sequence);
+        self.latest_generation = Some(generation);
+        Ok(WorkspaceAnalysisBatch::new(
+            primary,
+            related.into_boxed_slice(),
+        ))
+    }
+
+    fn validate_revision(
+        &self,
+        source: &WorkspaceSourceRevision,
+    ) -> Result<(), WorkspaceRevisionError> {
+        if let Some(sequence) = &self.revision_sequence
+            && sequence != source.sequence()
+        {
+            return Err(WorkspaceRevisionError::ForeignSequence);
+        }
+        if let Some(current) = self.latest_generation
+            && source.generation() <= current
+        {
+            return Err(WorkspaceRevisionError::NonIncreasing {
+                current,
+                received: source.generation(),
+            });
+        }
+        Ok(())
     }
 
     fn plan_transition(
@@ -213,8 +277,15 @@ impl WorkspaceAnalyses {
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let (documents, selected, failures) =
-            WorkspaceTopology::build(&self.configuration, source_overlay, documents).into_parts();
+        let selections = WorkspaceTopology::build(&self.configuration, source_overlay, documents)
+            .into_selections();
+        let selected = selections
+            .iter()
+            .filter_map(|(path, selection)| match selection {
+                DocumentScopeSelection::Selected(scope) => Some((path.clone(), scope.clone())),
+                DocumentScopeSelection::Rejected(_) => None,
+            })
+            .collect::<BTreeMap<_, _>>();
         let active_selected = selected
             .iter()
             .filter(|(path, _)| open_documents.contains(*path))
@@ -241,10 +312,8 @@ impl WorkspaceAnalyses {
             .collect();
         let primary_scope = selected.get(document).cloned();
         ScopeTransition {
-            documents,
-            selected,
+            selections,
             active_selected,
-            failures,
             affected,
             invalidated,
             primary_scope,
@@ -326,19 +395,15 @@ impl WorkspaceAnalyses {
         transition: &mut ScopeTransition,
     ) -> Vec<Arc<WorkspaceAnalysisGeneration>> {
         let mut related = Vec::new();
-        for candidate in &transition.documents {
-            if transition.selected.contains_key(candidate) {
-                self.unscoped.remove(candidate);
+        for (candidate, selection) in std::mem::take(&mut transition.selections) {
+            let DocumentScopeSelection::Rejected(error) = selection else {
+                self.unscoped.remove(&candidate);
                 continue;
-            }
-            let changed = self.document_scopes.contains_key(candidate) || candidate == document;
+            };
+            let changed = self.document_scopes.contains_key(&candidate) || candidate == document;
             if !changed {
                 continue;
             }
-            let error = transition
-                .failures
-                .remove(candidate)
-                .expect("every unscoped document retains its selection failure");
             let result = Arc::new(WorkspaceAnalysisGeneration::new(
                 None,
                 if candidate == document {
@@ -442,7 +507,9 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::{AnalysisStatus, DocumentChange, WorkspaceDocuments};
+    use nocter_analysis::{
+        AnalysisStatus, DocumentChange, WorkspaceDocuments, WorkspaceSourceRevision,
+    };
     use nocter_filesystem::DocumentVersion;
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
@@ -451,7 +518,7 @@ mod tests {
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
     enum DocumentWorkspaceChange {
-        Accepted(AcceptedDocumentRevision),
+        Accepted(WorkspaceSourceRevision),
         IgnoredStale,
     }
 
@@ -470,14 +537,14 @@ mod tests {
             path: &Path,
             version: i32,
             text: &str,
-        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+        ) -> Result<WorkspaceSourceRevision, Box<dyn std::error::Error>> {
             let path = canonical_document_path(path)?;
             let revision = self.documents.open(
                 path.clone(),
                 DocumentVersion::new(version),
                 Arc::<[u8]>::from(text.as_bytes()),
             )?;
-            Ok(AcceptedDocumentRevision::new(path, revision))
+            Ok(revision)
         }
 
         fn change(
@@ -493,9 +560,9 @@ mod tests {
                     DocumentVersion::new(version),
                     Arc::<[u8]>::from(text.as_bytes()),
                 )? {
-                    DocumentChange::Accepted(revision) => DocumentWorkspaceChange::Accepted(
-                        AcceptedDocumentRevision::new(path, revision),
-                    ),
+                    DocumentChange::Accepted(revision) => {
+                        DocumentWorkspaceChange::Accepted(revision)
+                    }
                     DocumentChange::IgnoredStale { .. } => DocumentWorkspaceChange::IgnoredStale,
                 },
             )
@@ -504,23 +571,21 @@ mod tests {
         fn close(
             &mut self,
             path: &Path,
-        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+        ) -> Result<WorkspaceSourceRevision, Box<dyn std::error::Error>> {
             let path = canonical_document_path(path)?;
             let revision = self.documents.close(&path)?;
-            Ok(AcceptedDocumentRevision::new(path, revision))
+            Ok(revision)
         }
 
         fn refresh(
             &mut self,
             sources: &[&Path],
-        ) -> Result<AcceptedDocumentRevision, Box<dyn std::error::Error>> {
+        ) -> Result<WorkspaceSourceRevision, Box<dyn std::error::Error>> {
             let paths = sources
                 .iter()
                 .map(|path| canonical_document_path(path))
                 .collect::<Result<Vec<_>, _>>()?;
-            let primary = paths.first().ok_or("empty test refresh")?.clone();
-            let revision = self.documents.refresh(paths)?;
-            Ok(AcceptedDocumentRevision::new(primary, revision))
+            Ok(self.documents.refresh(paths)?)
         }
     }
 
@@ -556,10 +621,10 @@ mod tests {
                 ),
             )
             .unwrap();
-        let canonical_source = accepted.path().to_path_buf();
+        let canonical_source = accepted.primary_document().to_path_buf();
         let mut analyses = WorkspaceAnalyses::new(configuration);
 
-        let analyzed = analyses.analyze(accepted);
+        let analyzed = analyses.analyze(accepted).unwrap();
 
         assert!(matches!(
             analyzed.primary().scope(),
@@ -614,11 +679,11 @@ mod tests {
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration.clone());
         let first_revision = documents.open(&first, 1, first_text).unwrap();
-        let canonical_first = first_revision.path().to_path_buf();
-        analyses.analyze(first_revision);
+        let canonical_first = first_revision.primary_document().to_path_buf();
+        analyses.analyze(first_revision).unwrap();
         let second_revision = documents.open(&second, 1, second_text).unwrap();
-        let canonical_second = second_revision.path().to_path_buf();
-        let generation = analyses.analyze(second_revision);
+        let canonical_second = second_revision.primary_document().to_path_buf();
+        let generation = analyses.analyze(second_revision).unwrap();
         let snapshot = generation
             .primary()
             .snapshot()
@@ -647,9 +712,12 @@ mod tests {
 
         let mut reverse_documents = DocumentWorkspace::new();
         let mut reverse_analyses = WorkspaceAnalyses::new(configuration);
-        reverse_analyses.analyze(reverse_documents.open(&second, 1, second_text).unwrap());
-        let reverse_generation =
-            reverse_analyses.analyze(reverse_documents.open(&first, 1, first_text).unwrap());
+        reverse_analyses
+            .analyze(reverse_documents.open(&second, 1, second_text).unwrap())
+            .unwrap();
+        let reverse_generation = reverse_analyses
+            .analyze(reverse_documents.open(&first, 1, first_text).unwrap())
+            .unwrap();
         let reverse_sources = reverse_generation.primary().snapshot().unwrap().sources();
         assert!(
             reverse_sources
@@ -680,7 +748,7 @@ mod tests {
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
         let opened = documents.open(&root, 1, root_text).unwrap();
-        let first = analyses.analyze(opened);
+        let first = analyses.analyze(opened).unwrap();
         let canonical_closed = fs::canonicalize(&closed).unwrap();
         assert!(
             first
@@ -693,7 +761,7 @@ mod tests {
         );
 
         let refreshed = documents.refresh(&[&closed]).unwrap();
-        let generation = analyses.analyze(refreshed);
+        let generation = analyses.analyze(refreshed).unwrap();
 
         assert!(
             generation
@@ -716,9 +784,11 @@ mod tests {
         let accepted = documents
             .open(&source, 1, "func main(): void { return }\n")
             .unwrap();
-        let canonical_source = accepted.path().to_path_buf();
+        let canonical_source = accepted.primary_document().to_path_buf();
 
-        let analyzed = WorkspaceAnalyses::new(configuration).analyze(accepted);
+        let analyzed = WorkspaceAnalyses::new(configuration)
+            .analyze(accepted)
+            .unwrap();
 
         assert_eq!(
             analyzed.primary().scope(),
@@ -742,7 +812,9 @@ mod tests {
         let mut documents = DocumentWorkspace::new();
         let accepted = documents.open(&source, 1, &text).unwrap();
 
-        let analyzed = WorkspaceAnalyses::new(configuration).analyze(accepted);
+        let analyzed = WorkspaceAnalyses::new(configuration)
+            .analyze(accepted)
+            .unwrap();
 
         assert_eq!(
             analyzed.primary().scope(),
@@ -771,9 +843,9 @@ mod tests {
         let configuration = configuration_with_standard(temporary.path(), &standard_root);
         let mut documents = DocumentWorkspace::new();
         let contract_generation = documents.open(&contract, 1, &contract_text).unwrap();
-        let canonical_contract = contract_generation.path().to_path_buf();
+        let canonical_contract = contract_generation.primary_document().to_path_buf();
         let mut analyses = WorkspaceAnalyses::new(configuration);
-        let first = analyses.analyze(contract_generation);
+        let first = analyses.analyze(contract_generation).unwrap();
         assert_eq!(
             first.primary().snapshot().unwrap().status(),
             AnalysisStatus::Complete,
@@ -784,8 +856,8 @@ mod tests {
         let implementation_generation = documents
             .open(&implementation, 3, &implementation_text)
             .unwrap();
-        let canonical_implementation = implementation_generation.path().to_path_buf();
-        let second = analyses.analyze(implementation_generation);
+        let canonical_implementation = implementation_generation.primary_document().to_path_buf();
+        let second = analyses.analyze(implementation_generation).unwrap();
 
         assert_eq!(first.primary().scope(), second.primary().scope());
         assert_eq!(
@@ -830,7 +902,9 @@ mod tests {
             let text =
                 format!("#package: {{ name: \"{name}\", version: \"0.0.0\", }}\nuse std/fs\n");
             fs::write(&source, &text).unwrap();
-            analyses.analyze(documents.open(&source, 1, &text).unwrap());
+            analyses
+                .analyze(documents.open(&source, 1, &text).unwrap())
+                .unwrap();
         }
 
         let dependency_source = standard_root.join("fs/index.nct");
@@ -865,13 +939,13 @@ mod tests {
         let mut analyses = WorkspaceAnalyses::new(configuration);
 
         let index_generation = documents.open(&index, 1, package_text).unwrap();
-        let canonical_index = index_generation.path().to_path_buf();
-        let first = analyses.analyze(index_generation);
+        let canonical_index = index_generation.primary_document().to_path_buf();
+        let first = analyses.analyze(index_generation).unwrap();
         let package_scope = first.primary().scope().unwrap().clone();
 
         let helper_generation = documents.open(&helper, 1, helper_text).unwrap();
-        let canonical_helper = helper_generation.path().to_path_buf();
-        let second = analyses.analyze(helper_generation);
+        let canonical_helper = helper_generation.primary_document().to_path_buf();
+        let second = analyses.analyze(helper_generation).unwrap();
         assert_eq!(second.primary().scope(), Some(&package_scope));
 
         let DocumentWorkspaceChange::Accepted(changed) = documents
@@ -880,7 +954,7 @@ mod tests {
         else {
             panic!("current topology change was ignored")
         };
-        let batch = analyses.analyze(changed);
+        let batch = analyses.analyze(changed).unwrap();
 
         assert_eq!(
             batch.primary().scope(),
@@ -917,18 +991,50 @@ mod tests {
         let opened = documents
             .open(&source, 1, "func main(): void { return }\n")
             .unwrap();
-        let canonical = opened.path().to_path_buf();
-        let active = analyses.analyze(opened);
+        let canonical = opened.primary_document().to_path_buf();
+        let active = analyses.analyze(opened).unwrap();
         let active_scope = active.primary().scope().unwrap().clone();
         assert!(analyses.latest_for_document(&canonical).unwrap().is_some());
 
         let closed = documents.close(&source).unwrap();
-        let invalidation = analyses.analyze(closed);
+        let invalidation = analyses.analyze(closed).unwrap();
 
         assert!(invalidation.primary().scope().is_none());
         assert!(invalidation.primary().snapshot().is_none());
         assert_eq!(invalidation.primary().invalidated_scopes(), &[active_scope]);
         assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
+    }
+
+    #[test]
+    fn analysis_rejects_out_of_order_and_foreign_revision_sequences() {
+        let temporary = TemporaryDirectory::new();
+        let first = temporary.path().join("first.nct");
+        let second = temporary.path().join("second.nct");
+        let text = "func main(): void { return }\n";
+        fs::write(&first, text).unwrap();
+        fs::write(&second, text).unwrap();
+
+        let mut documents = DocumentWorkspace::new();
+        let older = documents.open(&first, 1, text).unwrap();
+        let newer = documents.open(&second, 1, text).unwrap();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        analyses.analyze(newer).unwrap();
+        assert_eq!(
+            analyses.analyze(older).unwrap_err(),
+            WorkspaceRevisionError::NonIncreasing {
+                current: GenerationId::new(2),
+                received: GenerationId::new(1),
+            }
+        );
+        assert_eq!(analyses.latest_generation, Some(GenerationId::new(2)));
+
+        let mut foreign_documents = DocumentWorkspace::new();
+        let foreign = foreign_documents.open(&first, 2, text).unwrap();
+        assert_eq!(
+            analyses.analyze(foreign).unwrap_err(),
+            WorkspaceRevisionError::ForeignSequence
+        );
+        assert_eq!(analyses.latest_generation, Some(GenerationId::new(2)));
     }
 
     pub(super) fn configuration(root: &Path) -> WorkspaceConfiguration {

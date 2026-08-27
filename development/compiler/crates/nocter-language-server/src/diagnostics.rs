@@ -294,7 +294,7 @@ mod tests {
             ))
             .unwrap();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
-        let failed = analyses.analyze(accepted);
+        let failed = analyses.analyze(accepted).unwrap();
         let mut publisher = DiagnosticPublisher::new();
 
         let emitted = publisher.publish(failed.primary()).unwrap();
@@ -311,7 +311,7 @@ mod tests {
         let DocumentWorkspaceChange::Accepted(changed) = changed else {
             panic!("newer document version must be accepted")
         };
-        let complete = analyses.analyze(changed);
+        let complete = analyses.analyze(changed).unwrap();
         let cleared = publisher.publish(complete.primary()).unwrap();
 
         assert_eq!(cleared.len(), 1);
@@ -335,7 +335,7 @@ mod tests {
             ))
             .unwrap();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
-        let failed = analyses.analyze(accepted);
+        let failed = analyses.analyze(accepted).unwrap();
 
         let emitted = DiagnosticPublisher::new()
             .publish(failed.primary())

@@ -1,7 +1,6 @@
 use std::fmt;
 
-use nocter_checking::{InterfaceImplementationRule, NameRule, PreparationError};
-use nocter_session::CompileSessionError;
+use nocter_checking::{InterfaceImplementationRule, NameRule};
 use nocter_source::{SourceId, TextRange};
 
 use crate::{AnalysisSnapshot, SemanticSourceEdit};
@@ -143,7 +142,11 @@ impl AnalysisSnapshot {
                 continue;
             }
             if diagnostic.code() == InterfaceImplementationRule::MissingMethod.code() {
-                let Some(missing) = self.missing_interface_implementation_methods() else {
+                let Some(query) = self
+                    .semantic_query()
+                    .map_err(InterfaceImplementationActionError::from)?
+                    .and_then(crate::query::evidence::SemanticQueryContext::interface_implementation_mutation)
+                else {
                     continue;
                 };
                 if let Some(action) = interface_implementation::missing_method_action(
@@ -151,7 +154,7 @@ impl AnalysisSnapshot {
                     source,
                     diagnostic.code(),
                     range,
-                    missing,
+                    query,
                 )? {
                     actions.push(action);
                 }
@@ -198,17 +201,6 @@ impl AnalysisSnapshot {
         actions.sort_by(|left, right| left.title.cmp(&right.title));
         actions.dedup();
         Ok(actions.into_boxed_slice())
-    }
-
-    fn missing_interface_implementation_methods(
-        &self,
-    ) -> Option<&nocter_checking::MissingInterfaceImplementationMethods> {
-        let CompileSessionError::Preparation(PreparationError::InterfaceImplementation(error)) =
-            self.compilation_failure()?
-        else {
-            return None;
-        };
-        error.missing_methods()
     }
 }
 

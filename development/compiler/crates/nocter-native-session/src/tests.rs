@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_methods)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -171,7 +173,7 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     let failure = analyze_target(&unit).unwrap_err();
     assert!(!failure.error().source_diagnostics().is_empty());
     let body_analysis = failure
-        .semantic()
+        .semantic_evidence()
         .unwrap()
         .body_analysis()
         .expect("expected body evidence");
@@ -217,7 +219,7 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostics()[0].code(), "E0340");
     let recovery = failure
-        .semantic()
+        .semantic_evidence()
         .unwrap()
         .name_analysis()
         .expect("expected name evidence");
@@ -251,7 +253,7 @@ fn interface_implementation_failure_retains_declarations_without_claiming_later_
     let failure = analyze_target(&unit).unwrap_err();
     assert_eq!(failure.error().source_diagnostics()[0].code(), "E0350");
     let declarations = failure
-        .semantic()
+        .semantic_evidence()
         .unwrap()
         .declaration_analysis()
         .expect("expected declaration evidence");
@@ -285,7 +287,7 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
 
     assert!(unit.has_syntax_errors());
     let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
-    let semantic = analysis.semantic().expect("typed syntax recovery");
+    let semantic = analysis.semantic_evidence().expect("typed syntax recovery");
     let recovery = semantic.body_analysis().expect("expected body evidence");
     assert!(matches!(
         recovery.interruptions().next().unwrap().kind(),
@@ -310,7 +312,7 @@ fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
 
     assert!(unit.has_syntax_errors());
     let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
-    assert!(analysis.semantic().is_none());
+    assert!(analysis.semantic_evidence().is_none());
 }
 
 #[test]
@@ -351,7 +353,7 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
             .code(),
         "E0350"
     );
-    let semantic = analysis.semantic().expect("declaration analysis");
+    let semantic = analysis.semantic_evidence().expect("declaration analysis");
     let declarations = semantic
         .declaration_analysis()
         .expect("expected declaration evidence");
@@ -401,7 +403,7 @@ fn incomplete_syntax_preserves_an_earlier_name_failure() {
             .code(),
         "E0340"
     );
-    let semantic = analysis.semantic().expect("name analysis");
+    let semantic = analysis.semantic_evidence().expect("name analysis");
     let names = semantic.name_analysis().expect("expected name evidence");
     assert!(!names.body_names().is_empty());
 }

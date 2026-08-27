@@ -44,11 +44,25 @@ impl InterfaceImplementationBuildError {
     }
 
     #[must_use]
-    pub fn missing_methods(&self) -> Option<&MissingInterfaceImplementationMethods> {
+    #[cfg(test)]
+    pub(crate) fn missing_methods(&self) -> Option<&MissingInterfaceImplementationMethods> {
         match self {
             Self::Rule {
                 missing_methods, ..
             } => missing_methods.as_deref(),
+            Self::Internal(_) => None,
+        }
+    }
+
+    /// Removes editor repair evidence while preserving the diagnostic failure.
+    #[must_use]
+    pub(crate) fn take_missing_methods(
+        &mut self,
+    ) -> Option<Box<MissingInterfaceImplementationMethods>> {
+        match self {
+            Self::Rule {
+                missing_methods, ..
+            } => missing_methods.take(),
             Self::Internal(_) => None,
         }
     }

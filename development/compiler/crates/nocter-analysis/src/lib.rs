@@ -10,8 +10,8 @@ mod snapshot;
 mod source_edits;
 
 pub use documents::{
-    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceChange,
-    WorkspaceSourceChangeKind, WorkspaceSourceRevision,
+    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceRevisionSequence,
+    WorkspaceSourceChange, WorkspaceSourceChangeKind, WorkspaceSourceRevision,
 };
 pub use query::{
     EvidenceIntegrityError, InterfaceImplementationActionError, OutcomeActionError,
@@ -27,7 +27,7 @@ pub use query::{
 pub use snapshot::{AnalysisSnapshot, AnalysisStatus, GenerationId};
 pub use source_edits::{
     SemanticMutationBuildError, SemanticMutationCandidate, SemanticSourceEdit,
-    ValidatedSemanticMutation,
+    SemanticSourceEditGroup, ValidatedSemanticMutation,
 };
 
 #[cfg(test)]

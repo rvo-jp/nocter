@@ -294,11 +294,15 @@ fn recovery_collects_body_interruptions_independently_of_declaration_order() {
                 .body_evidence_iter()
                 .all(|(_, evidence)| matches!(evidence, crate::BodyEvidence::Rejected(_)))
         );
-        for interruption in &interruptions {
+        for (index, interruption) in interruptions.iter().enumerate() {
             let origin = interruption.origin();
             assert_eq!(
                 recovery.interruption_at(origin.source(), origin.span().range().start()),
                 Some(*interruption)
+            );
+            assert_eq!(
+                recovery.interruption_position_overlapping(origin.source(), origin.span().range()),
+                Some((index, *interruption))
             );
         }
         interruptions

@@ -3,9 +3,29 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError};
+use nocter_filesystem::{
+    DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError, validate_source_path,
+};
 
 use crate::GenerationId;
+
+/// Opaque identity shared by every revision emitted from one [`WorkspaceDocuments`] owner.
+#[derive(Clone, Debug)]
+pub struct WorkspaceRevisionSequence(Arc<()>);
+
+impl WorkspaceRevisionSequence {
+    fn new() -> Self {
+        Self(Arc::new(()))
+    }
+}
+
+impl PartialEq for WorkspaceRevisionSequence {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for WorkspaceRevisionSequence {}
 
 /// The source-state transition admitted into one workspace revision.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,7 +46,7 @@ pub struct WorkspaceSourceChange {
 
 impl WorkspaceSourceChange {
     #[must_use]
-    pub fn new(path: impl Into<PathBuf>, kind: WorkspaceSourceChangeKind) -> Self {
+    pub(crate) fn new(path: impl Into<PathBuf>, kind: WorkspaceSourceChangeKind) -> Self {
         Self {
             path: path.into(),
             kind,
@@ -48,15 +68,29 @@ impl WorkspaceSourceChange {
 ///
 /// Unlike a document event, a revision carries the exact open-document domain. Consumers never
 /// reconstruct current workspace membership from paths retained by an earlier generation.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct WorkspaceSourceRevision {
+    sequence: WorkspaceRevisionSequence,
     generation: GenerationId,
+    primary_document: PathBuf,
     source_overlay: SourceOverlay,
     open_documents: Box<[PathBuf]>,
     changes: Box<[WorkspaceSourceChange]>,
 }
 
 impl WorkspaceSourceRevision {
+    /// The opaque source-state sequence that admitted this revision.
+    #[must_use]
+    pub const fn sequence(&self) -> &WorkspaceRevisionSequence {
+        &self.sequence
+    }
+
+    /// The canonical document whose accepted event caused this revision.
+    #[must_use]
+    pub fn primary_document(&self) -> &Path {
+        &self.primary_document
+    }
+
     #[must_use]
     pub const fn generation(&self) -> GenerationId {
         self.generation
@@ -84,7 +118,7 @@ impl WorkspaceSourceRevision {
 }
 
 /// Outcome of one versioned document change.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum DocumentChange {
     Accepted(WorkspaceSourceRevision),
     IgnoredStale { current: DocumentVersion },
@@ -94,10 +128,21 @@ pub enum DocumentChange {
 ///
 /// Mutation stays here. Every accepted transition emits a complete immutable overlay suitable for
 /// exactly one [`crate::AnalysisSnapshot`].
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WorkspaceDocuments {
+    sequence: WorkspaceRevisionSequence,
     generation: u64,
     documents: BTreeMap<PathBuf, OpenDocument>,
+}
+
+impl Default for WorkspaceDocuments {
+    fn default() -> Self {
+        Self {
+            sequence: WorkspaceRevisionSequence::new(),
+            generation: 0,
+            documents: BTreeMap::new(),
+        }
+    }
 }
 
 impl WorkspaceDocuments {
@@ -254,6 +299,14 @@ impl WorkspaceDocuments {
         candidate: BTreeMap<PathBuf, OpenDocument>,
         changes: impl IntoIterator<Item = WorkspaceSourceChange>,
     ) -> Result<WorkspaceSourceRevision, DocumentStateError> {
+        let changes = changes.into_iter().collect::<Vec<_>>();
+        let primary_document = changes
+            .first()
+            .map(|change| change.path().to_path_buf())
+            .ok_or(DocumentStateError::EmptyTransition)?;
+        for change in &changes {
+            validate_source_path(change.path()).map_err(DocumentStateError::InvalidPath)?;
+        }
         let next = self
             .generation
             .checked_add(1)
@@ -270,14 +323,15 @@ impl WorkspaceDocuments {
             .cloned()
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let changes = changes.into_iter().collect::<Vec<_>>().into_boxed_slice();
         self.documents = candidate;
         self.generation = next;
         Ok(WorkspaceSourceRevision {
+            sequence: self.sequence.clone(),
             generation: GenerationId::new(next),
+            primary_document,
             source_overlay,
             open_documents,
-            changes,
+            changes: changes.into_boxed_slice(),
         })
     }
 }
@@ -287,6 +341,7 @@ pub enum DocumentStateError {
     AlreadyOpen(PathBuf),
     NotOpen(PathBuf),
     InvalidPath(SourceOverlayError),
+    EmptyTransition,
     GenerationExhausted,
 }
 
@@ -298,6 +353,9 @@ impl fmt::Display for DocumentStateError {
             }
             Self::NotOpen(path) => write!(formatter, "document is not open: {}", path.display()),
             Self::InvalidPath(error) => error.fmt(formatter),
+            Self::EmptyTransition => {
+                formatter.write_str("a workspace source transition must change at least one source")
+            }
             Self::GenerationExhausted => {
                 formatter.write_str("editor generation identity space is exhausted")
             }
@@ -309,7 +367,10 @@ impl std::error::Error for DocumentStateError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidPath(error) => Some(error),
-            Self::AlreadyOpen(_) | Self::NotOpen(_) | Self::GenerationExhausted => None,
+            Self::AlreadyOpen(_)
+            | Self::NotOpen(_)
+            | Self::EmptyTransition
+            | Self::GenerationExhausted => None,
         }
     }
 }
@@ -319,7 +380,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
-    use nocter_filesystem::DocumentVersion;
+    use nocter_filesystem::{DocumentVersion, SourceOverlayError};
 
     use super::{DocumentChange, DocumentStateError, WorkspaceDocuments};
     use crate::GenerationId;
@@ -342,6 +403,8 @@ mod tests {
 
         assert_eq!(first.generation(), GenerationId::new(1));
         assert_eq!(second.generation(), GenerationId::new(2));
+        assert_eq!(first.primary_document(), Path::new(PATH));
+        assert_eq!(second.primary_document(), Path::new(PATH));
         assert_eq!(
             first
                 .source_overlay()
@@ -452,5 +515,30 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![first.as_path(), second.as_path()]
         );
+        assert_eq!(revision.primary_document(), first);
+    }
+
+    #[test]
+    fn empty_refresh_cannot_create_an_unattributed_revision() {
+        let mut documents = WorkspaceDocuments::new();
+
+        assert!(matches!(
+            documents.refresh([]),
+            Err(DocumentStateError::EmptyTransition)
+        ));
+        assert_eq!(documents.current_generation(), GenerationId::new(0));
+    }
+
+    #[test]
+    fn refresh_rejects_noncanonical_change_paths_before_advancing() {
+        let mut documents = WorkspaceDocuments::new();
+
+        assert!(matches!(
+            documents.refresh([PathBuf::from("relative.nct")]),
+            Err(DocumentStateError::InvalidPath(
+                SourceOverlayError::RelativePath(_)
+            ))
+        ));
+        assert_eq!(documents.current_generation(), GenerationId::new(0));
     }
 }

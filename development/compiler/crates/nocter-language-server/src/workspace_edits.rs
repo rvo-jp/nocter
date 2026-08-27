@@ -1,34 +1,30 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
 
-use nocter_analysis::{SemanticSourceEdit, ValidatedSemanticMutation};
+use nocter_analysis::ValidatedSemanticMutation;
 use nocter_filesystem::DocumentVersion;
 use nocter_json::Value;
 use nocter_lsp::{
     DocumentEdit, DocumentUri, DocumentUriError, Position, Range, TextEdit, workspace_edit_result,
 };
-use nocter_source::{CoordinateError, SourceId};
+use nocter_source::CoordinateError;
 
 /// Projects compiler-owned byte edits as one versioned atomic LSP workspace edit.
 ///
 /// # Errors
 ///
-/// Returns source identity, URI, coordinate, or overlap errors without changing editor state.
+/// Returns URI or coordinate errors without changing editor state.
 pub(crate) fn project_workspace_edit(
     mutation: ValidatedSemanticMutation<'_>,
 ) -> Result<Value, WorkspaceEditError> {
-    let (snapshot, edits) = mutation.into_source_edits();
     let mut documents = Vec::new();
-    for (source_id, source_edits) in grouped_edits(&edits)? {
-        let source = snapshot
-            .sources()
-            .get(source_id)
-            .ok_or(WorkspaceEditError::MissingSource(source_id))?;
+    for source_edits in mutation.into_source_edit_groups() {
+        let source = source_edits.source();
         let path = Path::new(source.name().as_str());
         let uri = DocumentUri::from_file_path(path).map_err(WorkspaceEditError::Uri)?;
-        let version = snapshot.document_version(path).map(DocumentVersion::get);
+        let version = source_edits.document_version().map(DocumentVersion::get);
         let edits = source_edits
+            .edits()
             .iter()
             .map(|edit| {
                 let range = source
@@ -48,29 +44,8 @@ pub(crate) fn project_workspace_edit(
     Ok(workspace_edit_result(&documents))
 }
 
-fn grouped_edits(
-    edits: &[SemanticSourceEdit],
-) -> Result<BTreeMap<SourceId, Vec<&SemanticSourceEdit>>, WorkspaceEditError> {
-    let mut grouped = BTreeMap::<_, Vec<_>>::new();
-    for edit in edits {
-        grouped.entry(edit.source()).or_default().push(edit);
-    }
-    for (source, edits) in &mut grouped {
-        edits.sort_by_key(|edit| edit.range());
-        if edits
-            .windows(2)
-            .any(|pair| pair[0].range().end() > pair[1].range().start())
-        {
-            return Err(WorkspaceEditError::OverlappingEdits(*source));
-        }
-    }
-    Ok(grouped)
-}
-
 #[derive(Debug)]
 pub enum WorkspaceEditError {
-    MissingSource(SourceId),
-    OverlappingEdits(SourceId),
     Uri(DocumentUriError),
     Coordinate(CoordinateError),
 }
@@ -78,12 +53,6 @@ pub enum WorkspaceEditError {
 impl fmt::Display for WorkspaceEditError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingSource(source) => {
-                write!(formatter, "workspace edit source is missing: {source}")
-            }
-            Self::OverlappingEdits(source) => {
-                write!(formatter, "workspace edits overlap in {source}")
-            }
             Self::Uri(error) => error.fmt(formatter),
             Self::Coordinate(error) => error.fmt(formatter),
         }
@@ -95,7 +64,6 @@ impl std::error::Error for WorkspaceEditError {
         match self {
             Self::Uri(error) => Some(error),
             Self::Coordinate(error) => Some(error),
-            Self::MissingSource(_) | Self::OverlappingEdits(_) => None,
         }
     }
 }

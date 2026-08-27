@@ -4,8 +4,8 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure};
 use nocter_filesystem::{DocumentVersion, SourceOverlay};
 use nocter_session::{
-    CompileSessionError, CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView,
-    analyze_incomplete_syntax, analyze_target,
+    CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
+    analyze_target,
 };
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
@@ -40,20 +40,15 @@ pub enum AnalysisStatus {
 #[derive(Debug)]
 enum AnalysisState {
     DiscoveryFailed(DiscoveryFailure),
-    Current(CurrentAnalysis),
+    SyntaxFailed(CurrentAnalysis),
+    CompilationFailed(CurrentAnalysis),
+    Complete(CurrentAnalysis),
 }
 
 #[derive(Debug)]
 struct CurrentAnalysis {
     unit: Box<DiscoveredUnit>,
-    failure: Option<CurrentAnalysisFailure>,
     semantic_evidence: CurrentSemanticEvidence,
-}
-
-#[derive(Debug)]
-enum CurrentAnalysisFailure {
-    Syntax(Option<CompileSessionError>),
-    Compilation(CompileSessionError),
 }
 
 #[derive(Debug)]
@@ -74,28 +69,9 @@ impl CurrentSemanticEvidence {
 }
 
 impl CurrentAnalysis {
-    fn syntax(
-        unit: DiscoveredUnit,
-        failure: Option<CompileSessionError>,
-        semantic: Option<SemanticEvidenceBundle>,
-    ) -> Self {
+    fn recovered(unit: DiscoveredUnit, semantic: Option<SemanticEvidenceBundle>) -> Self {
         Self {
             unit: Box::new(unit),
-            failure: Some(CurrentAnalysisFailure::Syntax(failure)),
-            semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
-                CurrentSemanticEvidence::Bundle(Box::new(semantic))
-            }),
-        }
-    }
-
-    fn compilation(
-        unit: DiscoveredUnit,
-        error: CompileSessionError,
-        semantic: Option<SemanticEvidenceBundle>,
-    ) -> Self {
-        Self {
-            unit: Box::new(unit),
-            failure: Some(CurrentAnalysisFailure::Compilation(error)),
             semantic_evidence: semantic.map_or(CurrentSemanticEvidence::Unavailable, |semantic| {
                 CurrentSemanticEvidence::Bundle(Box::new(semantic))
             }),
@@ -105,7 +81,6 @@ impl CurrentAnalysis {
     fn complete(unit: DiscoveredUnit, target: CompiledTarget) -> Self {
         Self {
             unit: Box::new(unit),
-            failure: None,
             semantic_evidence: CurrentSemanticEvidence::Target(Box::new(target)),
         }
     }
@@ -123,14 +98,18 @@ pub struct AnalysisSnapshot {
 impl AnalysisSnapshot {
     pub(crate) fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
         match &self.state {
-            AnalysisState::Current(analysis) => analysis.semantic_evidence.view(),
+            AnalysisState::SyntaxFailed(analysis)
+            | AnalysisState::CompilationFailed(analysis)
+            | AnalysisState::Complete(analysis) => analysis.semantic_evidence.view(),
             AnalysisState::DiscoveryFailed(_) => None,
         }
     }
 
     pub(crate) fn current_unit(&self) -> Option<&DiscoveredUnit> {
         match &self.state {
-            AnalysisState::Current(analysis) => Some(&analysis.unit),
+            AnalysisState::SyntaxFailed(analysis)
+            | AnalysisState::CompilationFailed(analysis)
+            | AnalysisState::Complete(analysis) => Some(&analysis.unit),
             AnalysisState::DiscoveryFailed(_) => None,
         }
     }
@@ -152,18 +131,16 @@ impl AnalysisSnapshot {
     #[must_use]
     pub fn compile(generation: GenerationId, unit: DiscoveredUnit) -> Self {
         if unit.has_syntax_errors() {
-            let (failure, semantic, semantic_diagnostics) = analyze_incomplete_syntax(&unit)
-                .map_or(
-                    (
-                        None,
-                        None,
-                        Box::<[nocter_diagnostics::SourceDiagnostic]>::default(),
-                    ),
-                    nocter_session::IncompleteSyntaxAnalysis::into_parts,
-                );
+            let (semantic, semantic_diagnostics) = analyze_incomplete_syntax(&unit).map_or(
+                (
+                    None,
+                    Box::<[nocter_diagnostics::SourceDiagnostic]>::default(),
+                ),
+                nocter_session::IncompleteSyntaxAnalysis::into_analysis_parts,
+            );
             let mut diagnostics = unit.syntax_diagnostics().into_vec();
             extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
-            let state = AnalysisState::Current(CurrentAnalysis::syntax(unit, failure, semantic));
+            let state = AnalysisState::SyntaxFailed(CurrentAnalysis::recovered(unit, semantic));
             return Self {
                 generation,
                 diagnostics: diagnostics.into_boxed_slice(),
@@ -173,7 +150,7 @@ impl AnalysisSnapshot {
         }
         match analyze_target(&unit) {
             Ok(target) => {
-                let state = AnalysisState::Current(CurrentAnalysis::complete(unit, target));
+                let state = AnalysisState::Complete(CurrentAnalysis::complete(unit, target));
                 Self {
                     generation,
                     diagnostics: Box::new([]),
@@ -182,9 +159,9 @@ impl AnalysisSnapshot {
                 }
             }
             Err(failure) => {
-                let (error, semantic, diagnostics) = (*failure).into_parts();
+                let (semantic, diagnostics) = (*failure).into_analysis_parts();
                 let state =
-                    AnalysisState::Current(CurrentAnalysis::compilation(unit, error, semantic));
+                    AnalysisState::CompilationFailed(CurrentAnalysis::recovered(unit, semantic));
                 Self {
                     generation,
                     diagnostics,
@@ -204,17 +181,9 @@ impl AnalysisSnapshot {
     pub const fn status(&self) -> AnalysisStatus {
         match self.state {
             AnalysisState::DiscoveryFailed(_) => AnalysisStatus::DiscoveryFailed,
-            AnalysisState::Current(CurrentAnalysis {
-                failure: Some(CurrentAnalysisFailure::Syntax(_)),
-                ..
-            }) => AnalysisStatus::SyntaxFailed,
-            AnalysisState::Current(CurrentAnalysis {
-                failure: Some(CurrentAnalysisFailure::Compilation(_)),
-                ..
-            }) => AnalysisStatus::CompilationFailed,
-            AnalysisState::Current(CurrentAnalysis { failure: None, .. }) => {
-                AnalysisStatus::Complete
-            }
+            AnalysisState::SyntaxFailed(_) => AnalysisStatus::SyntaxFailed,
+            AnalysisState::CompilationFailed(_) => AnalysisStatus::CompilationFailed,
+            AnalysisState::Complete(_) => AnalysisStatus::Complete,
         }
     }
 
@@ -227,7 +196,9 @@ impl AnalysisSnapshot {
     pub const fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.source_overlay(),
-            AnalysisState::Current(analysis) => analysis.unit.source_overlay(),
+            AnalysisState::SyntaxFailed(analysis)
+            | AnalysisState::CompilationFailed(analysis)
+            | AnalysisState::Complete(analysis) => analysis.unit.source_overlay(),
         }
     }
 
@@ -242,7 +213,9 @@ impl AnalysisSnapshot {
     pub const fn sources(&self) -> &SourceMap {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.sources(),
-            AnalysisState::Current(analysis) => analysis.unit.sources(),
+            AnalysisState::SyntaxFailed(analysis)
+            | AnalysisState::CompilationFailed(analysis)
+            | AnalysisState::Complete(analysis) => analysis.unit.sources(),
         }
     }
 
@@ -250,28 +223,9 @@ impl AnalysisSnapshot {
     pub(crate) fn syntax_trees(&self) -> &[SyntaxTree] {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.syntax_trees(),
-            AnalysisState::Current(analysis) => analysis.unit.syntax_trees(),
-        }
-    }
-
-    #[must_use]
-    pub(crate) const fn compilation_failure(&self) -> Option<&CompileSessionError> {
-        match &self.state {
-            AnalysisState::Current(
-                CurrentAnalysis {
-                    failure: Some(CurrentAnalysisFailure::Syntax(Some(error))),
-                    ..
-                }
-                | CurrentAnalysis {
-                    failure: Some(CurrentAnalysisFailure::Compilation(error)),
-                    ..
-                },
-            ) => Some(error),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                failure: None | Some(CurrentAnalysisFailure::Syntax(None)),
-                ..
-            }) => None,
+            AnalysisState::SyntaxFailed(analysis)
+            | AnalysisState::CompilationFailed(analysis)
+            | AnalysisState::Complete(analysis) => analysis.unit.syntax_trees(),
         }
     }
 }

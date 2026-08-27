@@ -3,18 +3,18 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_analysis::{DocumentChange, DocumentStateError, WorkspaceDocuments};
+use nocter_analysis::{
+    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceRevision,
+};
 use nocter_filesystem::DocumentVersion;
 use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, DocumentUri};
-
-use nocter_workspace_analysis::AcceptedDocumentRevision;
 
 use crate::{DocumentPathError, DocumentPathResolver};
 
 /// A document change either advances analysis or is ignored by the version gate.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum DocumentWorkspaceChange {
-    Accepted(AcceptedDocumentRevision),
+    Accepted(WorkspaceSourceRevision),
     IgnoredStale { current: DocumentVersion },
 }
 
@@ -44,7 +44,7 @@ impl DocumentWorkspace {
     pub fn open(
         &mut self,
         params: &DidOpenParams,
-    ) -> Result<AcceptedDocumentRevision, DocumentWorkspaceError> {
+    ) -> Result<WorkspaceSourceRevision, DocumentWorkspaceError> {
         if self.paths.contains_key(params.uri()) {
             return Err(DocumentWorkspaceError::AlreadyOpenUri(params.uri().clone()));
         }
@@ -60,7 +60,7 @@ impl DocumentWorkspace {
             )
             .map_err(DocumentWorkspaceError::State)?;
         self.paths.insert(params.uri().clone(), path.clone());
-        Ok(AcceptedDocumentRevision::new(path, generation))
+        Ok(generation)
     }
 
     /// Applies one strictly newer full-document replacement to the open URI identity.
@@ -80,9 +80,7 @@ impl DocumentWorkspace {
                 Arc::<[u8]>::from(params.text().as_bytes()),
             )
             .map(|change| match change {
-                DocumentChange::Accepted(source) => {
-                    DocumentWorkspaceChange::Accepted(AcceptedDocumentRevision::new(path, source))
-                }
+                DocumentChange::Accepted(source) => DocumentWorkspaceChange::Accepted(source),
                 DocumentChange::IgnoredStale { current } => {
                     DocumentWorkspaceChange::IgnoredStale { current }
                 }
@@ -98,12 +96,11 @@ impl DocumentWorkspace {
     pub fn save(
         &mut self,
         params: &DidSaveParams,
-    ) -> Result<AcceptedDocumentRevision, DocumentWorkspaceError> {
+    ) -> Result<WorkspaceSourceRevision, DocumentWorkspaceError> {
         let path = self.require_path(params.uri())?.to_path_buf();
         let bytes = params.text().map(|text| Arc::<[u8]>::from(text.as_bytes()));
         self.documents
             .save(&path, bytes)
-            .map(|source| AcceptedDocumentRevision::new(path, source))
             .map_err(DocumentWorkspaceError::State)
     }
 
@@ -115,14 +112,14 @@ impl DocumentWorkspace {
     pub fn close(
         &mut self,
         params: &DidCloseParams,
-    ) -> Result<AcceptedDocumentRevision, DocumentWorkspaceError> {
+    ) -> Result<WorkspaceSourceRevision, DocumentWorkspaceError> {
         let path = self.require_path(params.uri())?.to_path_buf();
         let generation = self
             .documents
             .close(&path)
             .map_err(DocumentWorkspaceError::State)?;
         self.paths.remove(params.uri());
-        Ok(AcceptedDocumentRevision::new(path, generation))
+        Ok(generation)
     }
 
     /// Resolves one watched URI and emits a disk-refresh generation without changing accepted open
@@ -134,7 +131,7 @@ impl DocumentWorkspace {
     pub fn refresh(
         &mut self,
         uris: &[DocumentUri],
-    ) -> Result<AcceptedDocumentRevision, DocumentWorkspaceError> {
+    ) -> Result<WorkspaceSourceRevision, DocumentWorkspaceError> {
         let paths = uris
             .iter()
             .map(|uri| match self.path(uri) {
@@ -144,13 +141,8 @@ impl DocumentWorkspace {
                     .map_err(DocumentWorkspaceError::Path),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let primary = paths
-            .first()
-            .cloned()
-            .ok_or(DocumentWorkspaceError::EmptyRefresh)?;
         self.documents
             .refresh(paths)
-            .map(|source| AcceptedDocumentRevision::new(primary, source))
             .map_err(DocumentWorkspaceError::State)
     }
 
@@ -166,7 +158,6 @@ pub enum DocumentWorkspaceError {
     UnknownUri(DocumentUri),
     Path(DocumentPathError),
     State(DocumentStateError),
-    EmptyRefresh,
 }
 
 impl fmt::Display for DocumentWorkspaceError {
@@ -180,7 +171,6 @@ impl fmt::Display for DocumentWorkspaceError {
             }
             Self::Path(error) => error.fmt(formatter),
             Self::State(error) => error.fmt(formatter),
-            Self::EmptyRefresh => formatter.write_str("workspace refresh has no changed source"),
         }
     }
 }
@@ -190,7 +180,7 @@ impl std::error::Error for DocumentWorkspaceError {
         match self {
             Self::Path(error) => Some(error),
             Self::State(error) => Some(error),
-            Self::AlreadyOpenUri(_) | Self::UnknownUri(_) | Self::EmptyRefresh => None,
+            Self::AlreadyOpenUri(_) | Self::UnknownUri(_) => None,
         }
     }
 }

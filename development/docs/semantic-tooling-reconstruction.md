@@ -88,13 +88,21 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   name a recovery snapshot or implement their own phase fallback order. Snapshot storage lives in
   a sibling module rather than the crate root, so Rust privacy prevents the query tree from reading
   `AnalysisState` or its session-storage variants. Compiler-resolved Clippy rules restrict the few
-  cross-crate raw phase methods to the evidence kernel.
+  cross-crate raw phase methods to the evidence kernel. Failure-specific repair facts are removed
+  from the compiler error while checking constructs the typed preparation failure and stored only in the
+  declaration-recovery variant before it crosses the session boundary, so a feature cannot recover
+  a second authority by matching error variants or observe repair evidence beside a later phase.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
-- `nocter-workspace-analysis` consumes one complete source revision containing overlay,
-  open-document set, and changes. It canonicalizes and validates workspace roots once, then derives
+- `nocter-workspace-analysis` consumes one complete source revision containing its causal primary
+  document, overlay, open-document set, and non-empty changes. `WorkspaceDocuments` alone constructs
+  that inseparable transition, validates every changed path through the overlay canonical-path
+  contract, and emits a non-cloneable value carrying an opaque source-owner sequence. Workspace
+  analysis rejects foreign and non-increasing revisions before state mutation, canonicalizes and
+  validates workspace roots once, then derives
   one `WorkspaceTopology` for the entire revision; package-root facts are memoized by canonical
-  directory, and every document scope or scope-selection failure comes from that single product.
+  directory, and every document owns exactly one selected or rejected result in that product.
+  Scope and failure are never parallel maps that require a downstream completeness assertion.
   One package compilation input contains the module roots for every currently selected source as
   well as the package and declared target roots. A dependency source reached by multiple current
   package contexts produces typed ambiguity unless one context physically owns it; ordering never
@@ -103,14 +111,16 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - `nocter-language-server` owns URI identity, LSP lifecycle, and protocol projection. Its production
   dependency graph cannot name package resolution, discovery, compiler sessions, model storage, or
   syntax trees; preparation diagnostics are normalized by workspace analysis before crossing the
-  boundary. `AnalysisSnapshot` keeps raw syntax and compiler failures crate-private; protocol tests
-  assert its public status and normalized diagnostics instead of depending on storage variants.
+  boundary. `AnalysisSnapshot` keeps raw syntax crate-private and does not retain compiler failure
+  objects; protocol tests assert its public status and normalized diagnostics instead of depending
+  on storage variants.
 - Rename and code-action publication requires one consumed `ValidatedSemanticMutation`. Analysis
   derives its private overlay from the original immutable snapshot and exact compiler-owned edits;
   workspace compilation cannot substitute another overlay, and validation retains the resulting
   candidate snapshot in the same value. The candidate must pass the cached whole-projection query
-  seal used by read queries. Protocol projection consumes this transaction and receives no separate
-  snapshot or edit arguments.
+  seal used by read queries. Analysis resolves and orders edits into non-overlapping source groups
+  before compilation. Protocol projection consumes those groups and receives no separate snapshot,
+  edit arguments, or edit-validity policy.
 
 Each responsibility knows only the contract exported by the previous boundary. Protocol code does
 not know checking representation, checking does not know editor features, and `SourceIndex` does

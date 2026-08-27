@@ -10,7 +10,10 @@ use crate::navigation::NavigationQueryError;
 use crate::rename::RenameQueryError;
 use crate::semantic_tokens::SemanticTokensQueryError;
 use crate::signature::SignatureQueryError;
-use crate::{DiagnosticPublicationError, DocumentWorkspaceError, WorkspaceConfigurationError};
+use crate::{
+    DiagnosticPublicationError, DocumentWorkspaceError, WorkspaceConfigurationError,
+    WorkspaceRevisionError,
+};
 
 #[derive(Debug)]
 pub enum ServerIssue {
@@ -28,6 +31,7 @@ pub enum ServerIssue {
     Outbound(OutboundRequestError),
     ClientResponse(ClientResponseError),
     Workspace(WorkspaceConfigurationError),
+    WorkspaceRevision(WorkspaceRevisionError),
     Lifecycle(LifecycleTransitionError),
 }
 
@@ -48,6 +52,7 @@ impl fmt::Display for ServerIssue {
             Self::Outbound(error) => error.fmt(formatter),
             Self::ClientResponse(error) => error.fmt(formatter),
             Self::Workspace(error) => error.fmt(formatter),
+            Self::WorkspaceRevision(error) => error.fmt(formatter),
             Self::Lifecycle(error) => error.fmt(formatter),
         }
     }
@@ -70,6 +75,7 @@ impl std::error::Error for ServerIssue {
             Self::Outbound(error) => Some(error),
             Self::ClientResponse(error) => Some(error),
             Self::Workspace(error) => Some(error),
+            Self::WorkspaceRevision(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
         }
     }

@@ -90,18 +90,21 @@ impl<'a> SemanticQueryContext<'a> {
         range: TextRange,
     ) -> Option<InterruptedBodyQuery<'a>> {
         let recovery = self.body_recovery()?;
-        let interruption = recovery.interruption_overlapping(source, range)?;
+        let (index, interruption) = recovery.interruption_position_overlapping(source, range)?;
         Some(InterruptedBodyQuery {
             recovery,
-            index: 0,
+            index,
             interruption,
         })
     }
 
-    /// Borrows the declaration-only capability required by declaration repair actions.
-    pub(super) fn declaration_mutation(self) -> Option<DeclarationMutationQuery<'a>> {
+    /// Borrows the complete capability required to repair one failed interface implementation.
+    pub(super) fn interface_implementation_mutation(
+        self,
+    ) -> Option<InterfaceImplementationMutationQuery<'a>> {
         let recovery = self.declaration_recovery()?;
-        Some(DeclarationMutationQuery { recovery })
+        let missing = self.evidence.missing_interface_methods()?;
+        Some(InterfaceImplementationMutationQuery { recovery, missing })
     }
 
     pub(super) fn completion_detail(
@@ -259,11 +262,18 @@ impl<'a> InterruptedBodyQuery<'a> {
 
 /// Declaration semantics that can safely drive a source mutation.
 #[derive(Clone, Copy)]
-pub(super) struct DeclarationMutationQuery<'a> {
+pub(super) struct InterfaceImplementationMutationQuery<'a> {
     recovery: &'a nocter_checking::DeclarationAnalysisRecovery,
+    missing: &'a nocter_checking::MissingInterfaceImplementationMethods,
 }
 
-impl<'a> DeclarationMutationQuery<'a> {
+impl<'a> InterfaceImplementationMutationQuery<'a> {
+    pub(super) const fn missing(
+        self,
+    ) -> &'a nocter_checking::MissingInterfaceImplementationMethods {
+        self.missing
+    }
+
     pub(super) fn graph(self) -> &'a nocter_declarations::DeclarationGraph {
         self.recovery.graph()
     }

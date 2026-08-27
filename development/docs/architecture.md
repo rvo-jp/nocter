@@ -170,9 +170,10 @@ only the disk-backed request type and cannot mistake editor bytes for persistent
 
 `nocter-analysis` is the protocol-independent owner of one editor generation. Its immutable
 `AnalysisSnapshot` retains the accepted generation identity, source overlay, reached source and
-syntax snapshots, complete retained diagnostics, one diagnostic status, and one independent
-semantic evidence result. The status is discovery failure, syntax failure, compiler failure, or
-target-validated success. Session exposes both a successful target and retained recovery through
+syntax snapshots, complete retained diagnostics, and one independent semantic evidence result.
+Discovery failure, syntax failure, compiler failure, and target-validated success are exclusive
+storage variants rather than a current value plus a second optional status tag. Session exposes
+both a successful target and retained recovery through
 one borrowed `SemanticEvidenceView`; its borrowed authority is a sum, so mutually exclusive phase
 evidence cannot coexist as unrelated optional fields. Analysis does not inspect session storage
 variants or rebuild their common graph, type, ownership, and projection contract. Recovered name
@@ -183,9 +184,13 @@ that evidence to `SourceIndex` occurrences, and set-valued queries report whethe
 complete. The kernel validates the complete source projection against its declaration and
 body-local domains, source map, syntax trees, and source ownership once per immutable generation;
 only the evidence module can inspect raw checked and recovery inputs. Feature modules receive
-complete, interruption, declaration-mutation, or common-fact capabilities and cannot restate phase
-fallback order. Snapshot storage is a sibling responsibility, so the query tree cannot access
-`AnalysisState`, compiler failures, or stored session variants through Rust's descendant privacy.
+complete, stable-interruption, failure-bound declaration-mutation, or common-fact capabilities and
+cannot restate phase fallback order. Failure-specific repair evidence moves out of the compiler
+error exactly once while checking constructs the typed preparation failure. It can inhabit only the
+declaration-recovery variant of the semantic evidence sum; the diagnostic error no longer remains
+an alternate editor authority. Snapshot storage is a sibling responsibility, so the
+query tree cannot access `AnalysisState` or stored session variants through Rust's descendant
+privacy. Analysis snapshots retain normalized status and diagnostics, not raw compiler failures.
 Neither the `AnalysisSnapshot` boundary nor a protocol adapter can name `SemanticQueryContext`,
 `CompleteSemanticQuery`, checking recovery, or `SourceIndex`; they receive only complete
 protocol-independent query results. A dangling binding, documentation owner, visible name, source,
@@ -200,13 +205,19 @@ not require reopening files. The same crate's `WorkspaceDocuments` is the only m
 document boundary. It requires strictly increasing change versions, ignores stale changes without
 advancing generation, applies included save text before analysis, and freezes one
 `WorkspaceSourceRevision` for every accepted open, change, save, close, or external change batch.
-Each revision contains the complete overlay, exact open-document set, and complete change set;
-workspace analysis never reconstructs those facts from earlier generations. Previously emitted
-revisions never observe later document mutations. One `WorkspaceTopology` maps the complete
-revision document set to package, toolchain-standard, or single-file scopes before compilation.
-It probes each canonical package-root candidate at most once for that revision and retains typed
-selection failures beside successful selections; individual documents cannot reread topology or
-observe a different overlay.
+Each revision contains the canonical primary document that caused it, complete overlay, exact
+open-document set, and a non-empty complete change set. `WorkspaceDocuments` constructs those
+facts together and validates every changed path with the same canonical-path contract as overlays;
+no caller can pair an unrelated path with a revision, and workspace analysis never reconstructs
+them from earlier generations. Revisions carry an opaque source-owner sequence and are linear
+values. `WorkspaceAnalyses` rejects foreign or non-increasing revisions before changing its latest
+state. Previously emitted
+revisions never observe later document mutations. One `WorkspaceTopology` maps every member of the
+complete revision document set to exactly one selected package, toolchain-standard, or single-file
+scope or one rejected preparation result before compilation. Scope and failure are not parallel
+maps whose completeness must be rejoined later. It probes each canonical package-root candidate at
+most once for that revision; individual documents cannot reread topology or observe a different
+overlay.
 
 Architecture gates operate on resolved structure: Rust visibility for intra-crate state,
 Cargo-metadata dependency graphs for crate direction, and Clippy's resolved type and method paths
@@ -1481,9 +1492,12 @@ Source mutation features share one protocol-independent edit value containing an
 byte range, and replacement. Analysis binds a complete edit set to its immutable source snapshot and
 derives the only candidate overlay that workspace compilation may consume. The resulting candidate
 must retain that exact overlay and pass the whole semantic query seal. A consumed
-`ValidatedSemanticMutation` owns the original snapshot relation, ordered edits, and compiled
-candidate; LSP projection receives only that value and therefore cannot substitute an unrelated
-snapshot, edit set, or successful candidate. Overlapping edits, missing sources, invalid UTF-8
+`ValidatedSemanticMutation` owns the original snapshot relation, canonical source-grouped edits,
+and compiled candidate. Before candidate compilation, analysis resolves every source and orders
+its non-overlapping byte edits together with the accepted document version. LSP projection
+receives only the consumed groups and therefore cannot substitute an unrelated snapshot, regroup
+edits, repeat overlap policy, or supply a different successful candidate. Overlapping edits,
+missing sources, invalid UTF-8
 boundaries, source ownership failures, invalid syntax origins, missing semantic domains, and source
 projection issues cannot reach the client. Checked body completion alone is not publication
 authority. Target

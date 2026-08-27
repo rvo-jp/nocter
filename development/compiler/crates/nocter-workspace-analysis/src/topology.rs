@@ -13,9 +13,12 @@ use crate::WorkspaceConfiguration;
 /// every document in the revision, so document order cannot change either the chosen scope or the
 /// observed source bytes.
 pub(super) struct WorkspaceTopology {
-    documents: BTreeSet<PathBuf>,
-    selected: BTreeMap<PathBuf, AnalysisScope>,
-    failures: BTreeMap<PathBuf, WorkspaceAnalysisError>,
+    selections: BTreeMap<PathBuf, DocumentScopeSelection>,
+}
+
+pub(super) enum DocumentScopeSelection {
+    Selected(AnalysisScope),
+    Rejected(WorkspaceAnalysisError),
 }
 
 impl WorkspaceTopology {
@@ -43,39 +46,27 @@ impl WorkspaceTopology {
     ) -> Self {
         let mut package_roots =
             BTreeMap::<PathBuf, Result<bool, Arc<nocter_package::PackageRootProbeError>>>::new();
-        let mut selected = BTreeMap::new();
-        let mut failures = BTreeMap::new();
-        for document in &documents {
-            match select_scope(
-                configuration,
-                source_overlay,
-                document,
-                &mut package_roots,
-                &mut probe,
-            ) {
-                Ok(scope) => {
-                    selected.insert(document.clone(), scope);
-                }
-                Err(error) => {
-                    failures.insert(document.clone(), error);
-                }
-            }
-        }
-        Self {
-            documents,
-            selected,
-            failures,
-        }
+        let selections = documents
+            .into_iter()
+            .map(|document| {
+                let selection = match select_scope(
+                    configuration,
+                    source_overlay,
+                    &document,
+                    &mut package_roots,
+                    &mut probe,
+                ) {
+                    Ok(scope) => DocumentScopeSelection::Selected(scope),
+                    Err(error) => DocumentScopeSelection::Rejected(error),
+                };
+                (document, selection)
+            })
+            .collect();
+        Self { selections }
     }
 
-    pub(super) fn into_parts(
-        self,
-    ) -> (
-        BTreeSet<PathBuf>,
-        BTreeMap<PathBuf, AnalysisScope>,
-        BTreeMap<PathBuf, WorkspaceAnalysisError>,
-    ) {
-        (self.documents, self.selected, self.failures)
+    pub(super) fn into_selections(self) -> BTreeMap<PathBuf, DocumentScopeSelection> {
+        self.selections
     }
 }
 
@@ -140,7 +131,7 @@ mod tests {
     use nocter_filesystem::SourceOverlay;
 
     use super::super::tests::{TemporaryDirectory, configuration};
-    use super::WorkspaceTopology;
+    use super::{DocumentScopeSelection, WorkspaceTopology};
 
     #[test]
     fn probes_each_candidate_directory_once_for_the_whole_revision() {
@@ -170,9 +161,13 @@ mod tests {
             },
         );
 
-        let (_, selected, failures) = topology.into_parts();
-        assert_eq!(selected.len(), 2);
-        assert!(failures.is_empty());
+        let selections = topology.into_selections();
+        assert_eq!(selections.len(), 2);
+        assert!(
+            selections
+                .values()
+                .all(|selection| matches!(selection, DocumentScopeSelection::Selected(_)))
+        );
         assert_eq!(probes.get(), 1);
     }
 }

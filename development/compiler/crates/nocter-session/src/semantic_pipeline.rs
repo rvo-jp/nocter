@@ -74,10 +74,11 @@ pub(crate) fn run_semantic_pipeline(
     let prepared =
         prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
             .map_err(|failure| {
-                let (error, recovery) = failure.into_parts();
+                let (error, evidence) = failure.into_parts();
+                let evidence = evidence.map(SemanticEvidenceBundle::from_preparation_failure);
                 SemanticPipelineFailure {
                     error: Box::new(error.into()),
-                    evidence: recovery.map(SemanticEvidenceBundle::from_preparation),
+                    evidence,
                 }
             })?;
     let checked = check_prepared_program_recovering(&input, prepared).map_err(|failure| {
@@ -111,8 +112,8 @@ fn continue_rejected_declarations(
     ) {
         Ok(prepared) => prepared,
         Err(failure) => {
-            let (_, recovery) = failure.into_parts();
-            return recovery.map(SemanticEvidenceBundle::from_preparation);
+            let (_, evidence) = failure.into_parts();
+            return evidence.map(SemanticEvidenceBundle::from_preparation_failure);
         }
     };
     match analyze_prepared_program_bodies(input, prepared) {

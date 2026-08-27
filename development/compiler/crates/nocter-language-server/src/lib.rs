@@ -28,10 +28,11 @@ pub use documents::{DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspac
 pub use hover::HoverQueryError;
 pub use inlay_hints::InlayHintQueryError;
 pub use navigation::NavigationQueryError;
+pub use nocter_analysis::WorkspaceSourceRevision;
 pub use nocter_workspace_analysis::{
-    AcceptedDocumentRevision, AmbiguousDocumentAnalysis, AnalysisScope, WorkspaceAnalyses,
-    WorkspaceAnalysisBatch, WorkspaceAnalysisError, WorkspaceAnalysisGeneration,
-    WorkspaceConfiguration, WorkspaceDiagnosticError,
+    AmbiguousDocumentAnalysis, AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisBatch,
+    WorkspaceAnalysisError, WorkspaceAnalysisGeneration, WorkspaceConfiguration,
+    WorkspaceDiagnosticError, WorkspaceRevisionError,
     WorkspaceToolchain as LanguageServerToolchain,
 };
 pub use paths::{DocumentPathError, DocumentPathResolver};

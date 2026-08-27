@@ -51,7 +51,7 @@ impl SemanticSourceEdit {
 #[derive(Debug)]
 pub struct SemanticMutationCandidate<'source> {
     source: &'source AnalysisSnapshot,
-    edits: Box<[SemanticSourceEdit]>,
+    edit_groups: Box<[SemanticSourceEditGroup<'source>]>,
     overlay: SourceOverlay,
     expectation: SemanticMutationExpectation,
 }
@@ -87,11 +87,11 @@ impl<'source> SemanticMutationCandidate<'source> {
         edits: impl IntoIterator<Item = SemanticSourceEdit>,
         expectation: SemanticMutationExpectation,
     ) -> Result<Self, SemanticMutationBuildError> {
-        let edits = edits.into_iter().collect::<Vec<_>>().into_boxed_slice();
-        let overlay = candidate_overlay(source, &edits)?;
+        let edit_groups = canonical_edit_groups(source, edits)?;
+        let overlay = candidate_overlay(source, &edit_groups)?;
         Ok(Self {
             source,
-            edits,
+            edit_groups,
             overlay,
             expectation,
         })
@@ -130,8 +130,7 @@ impl<'source> SemanticMutationCandidate<'source> {
             return Ok(None);
         }
         Ok(Some(ValidatedSemanticMutation {
-            source: self.source,
-            edits: self.edits,
+            edit_groups: self.edit_groups,
             _candidate: candidate,
         }))
     }
@@ -156,24 +155,50 @@ fn same_overlay(expected: &SourceOverlay, actual: &SourceOverlay) -> bool {
 /// unrelated snapshot or edit set can borrow its validation authority.
 #[derive(Debug)]
 pub struct ValidatedSemanticMutation<'source> {
-    source: &'source AnalysisSnapshot,
-    edits: Box<[SemanticSourceEdit]>,
+    edit_groups: Box<[SemanticSourceEditGroup<'source>]>,
     _candidate: Box<AnalysisSnapshot>,
 }
 
 impl<'source> ValidatedSemanticMutation<'source> {
-    /// Consumes publication authority and returns its inseparable source generation and edits.
+    /// Consumes publication authority and returns canonical source-grouped edits.
     #[must_use]
-    pub fn into_source_edits(self) -> (&'source AnalysisSnapshot, Box<[SemanticSourceEdit]>) {
-        (self.source, self.edits)
+    pub fn into_source_edit_groups(self) -> Box<[SemanticSourceEditGroup<'source>]> {
+        self.edit_groups
+    }
+}
+
+/// Canonical non-overlapping edits for one source in ascending byte-range order.
+///
+/// Construction remains private to the mutation boundary. Protocol projections can translate
+/// coordinates but cannot regroup or reinterpret edit validity.
+#[derive(Debug)]
+pub struct SemanticSourceEditGroup<'source> {
+    source: &'source nocter_source::SourceFile,
+    document_version: Option<nocter_filesystem::DocumentVersion>,
+    edits: Box<[SemanticSourceEdit]>,
+}
+
+impl SemanticSourceEditGroup<'_> {
+    #[must_use]
+    pub const fn source(&self) -> &nocter_source::SourceFile {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn document_version(&self) -> Option<nocter_filesystem::DocumentVersion> {
+        self.document_version
+    }
+
+    #[must_use]
+    pub const fn edits(&self) -> &[SemanticSourceEdit] {
+        &self.edits
     }
 }
 
 fn candidate_overlay(
     snapshot: &AnalysisSnapshot,
-    edits: &[SemanticSourceEdit],
+    edit_groups: &[SemanticSourceEditGroup<'_>],
 ) -> Result<SourceOverlay, SemanticMutationBuildError> {
-    let grouped = grouped_edits(edits)?;
     let mut sources = BTreeMap::new();
     for (path, source) in snapshot.source_overlay().sources() {
         sources.insert(
@@ -188,8 +213,11 @@ fn candidate_overlay(
         let path = PathBuf::from(source.name().as_str());
         let version = snapshot.document_version(&path);
         let mut text = source.text().to_owned();
-        if let Some(source_edits) = grouped.get(&source.id()) {
-            for edit in source_edits.iter().rev() {
+        if let Some(group) = edit_groups
+            .iter()
+            .find(|group| group.source.id() == source.id())
+        {
+            for edit in group.edits.iter().rev() {
                 let start = usize::try_from(edit.range().start().get())
                     .map_err(|_| SemanticMutationBuildError::InvalidEdit(source.id()))?;
                 let end = usize::try_from(edit.range().end().get())
@@ -201,11 +229,6 @@ fn candidate_overlay(
             }
         }
         sources.insert(path, (version, SourceOverride::new(text.into_bytes())));
-    }
-    for source in grouped.keys() {
-        if snapshot.sources().get(*source).is_none() {
-            return Err(SemanticMutationBuildError::MissingSource(*source));
-        }
     }
     let mut builder = SourceOverlay::builder();
     for (path, (version, source)) in sources {
@@ -220,15 +243,19 @@ fn candidate_overlay(
     Ok(builder.finish())
 }
 
-fn grouped_edits(
-    edits: &[SemanticSourceEdit],
-) -> Result<BTreeMap<SourceId, Vec<&SemanticSourceEdit>>, SemanticMutationBuildError> {
+fn canonical_edit_groups(
+    snapshot: &AnalysisSnapshot,
+    edits: impl IntoIterator<Item = SemanticSourceEdit>,
+) -> Result<Box<[SemanticSourceEditGroup<'_>]>, SemanticMutationBuildError> {
     let mut grouped = BTreeMap::<_, Vec<_>>::new();
     for edit in edits {
         grouped.entry(edit.source()).or_default().push(edit);
     }
+    if grouped.is_empty() {
+        return Err(SemanticMutationBuildError::EmptyMutation);
+    }
     for (source, edits) in &mut grouped {
-        edits.sort_by_key(|edit| edit.range());
+        edits.sort_by_key(SemanticSourceEdit::range);
         if edits
             .windows(2)
             .any(|pair| pair[0].range().end() > pair[1].range().start())
@@ -236,12 +263,28 @@ fn grouped_edits(
             return Err(SemanticMutationBuildError::OverlappingEdits(*source));
         }
     }
-    Ok(grouped)
+    grouped
+        .into_iter()
+        .map(|(source, edits)| {
+            let source_file = snapshot
+                .sources()
+                .get(source)
+                .ok_or(SemanticMutationBuildError::MissingSource(source))?;
+            let path = std::path::Path::new(source_file.name().as_str());
+            Ok(SemanticSourceEditGroup {
+                source: source_file,
+                document_version: snapshot.document_version(path),
+                edits: edits.into_boxed_slice(),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Vec::into_boxed_slice)
 }
 
 /// Failure to derive one exact candidate overlay from compiler-owned source edits.
 #[derive(Debug)]
 pub enum SemanticMutationBuildError {
+    EmptyMutation,
     MissingSource(SourceId),
     InvalidEdit(SourceId),
     OverlappingEdits(SourceId),
@@ -251,6 +294,7 @@ pub enum SemanticMutationBuildError {
 impl fmt::Display for SemanticMutationBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::EmptyMutation => formatter.write_str("semantic mutation has no source edits"),
             Self::MissingSource(source) => {
                 write!(formatter, "mutation source is missing: {source}")
             }
@@ -267,7 +311,58 @@ impl std::error::Error for SemanticMutationBuildError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Overlay(error) => Some(error),
-            Self::MissingSource(_) | Self::InvalidEdit(_) | Self::OverlappingEdits(_) => None,
+            Self::EmptyMutation
+            | Self::MissingSource(_)
+            | Self::InvalidEdit(_)
+            | Self::OverlappingEdits(_) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_source::{ByteOffset, TextRange};
+
+    use super::*;
+    use crate::GenerationId;
+    use crate::tests::{TempTree, bundled_snapshot};
+
+    #[test]
+    fn canonical_edit_groups_are_non_empty_sorted_and_non_overlapping() {
+        let tree = TempTree::new();
+        let (_, snapshot) = bundled_snapshot(
+            &tree,
+            "func main(): void { return }\n",
+            GenerationId::new(80),
+        );
+        let source = snapshot.sources().iter().next().unwrap().id();
+        let range = |start, end| TextRange::new(ByteOffset::new(start), ByteOffset::new(end));
+
+        let groups = canonical_edit_groups(
+            &snapshot,
+            [
+                SemanticSourceEdit::new(source, range(8, 8), "later"),
+                SemanticSourceEdit::new(source, range(2, 2), "earlier"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].edits()[0].range(), range(2, 2));
+        assert_eq!(groups[0].edits()[1].range(), range(8, 8));
+
+        assert!(matches!(
+            canonical_edit_groups(&snapshot, []),
+            Err(SemanticMutationBuildError::EmptyMutation)
+        ));
+        assert!(matches!(
+            canonical_edit_groups(
+                &snapshot,
+                [
+                    SemanticSourceEdit::new(source, range(1, 5), "left"),
+                    SemanticSourceEdit::new(source, range(4, 7), "right"),
+                ],
+            ),
+            Err(SemanticMutationBuildError::OverlappingEdits(overlap)) if overlap == source
+        ));
     }
 }

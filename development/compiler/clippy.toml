@@ -18,4 +18,5 @@ disallowed-methods = [
     { path = "nocter_session::SemanticEvidenceView::body_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
     { path = "nocter_session::SemanticEvidenceView::name_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
     { path = "nocter_session::SemanticEvidenceView::declaration_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
+    { path = "nocter_session::SemanticEvidenceView::missing_interface_methods", reason = "semantic repair evidence is owned by the analysis evidence kernel" },
 ]

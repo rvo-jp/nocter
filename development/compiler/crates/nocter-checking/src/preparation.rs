@@ -305,14 +305,54 @@ pub enum PreparationError {
 #[derive(Debug)]
 pub struct PreparationFailure {
     error: PreparationError,
-    recovery: Option<Box<crate::PreparationRecovery>>,
+    evidence: Option<Box<PreparationFailureEvidence>>,
+}
+
+/// Typed editor repair evidence separated from one rejected preparation attempt.
+#[derive(Debug)]
+pub enum PreparationRepairEvidence {
+    MissingInterfaceMethods(Box<crate::MissingInterfaceImplementationMethods>),
+}
+
+/// Recovery and repair facts that are valid together for one preparation failure.
+#[derive(Debug)]
+pub enum PreparationFailureEvidence {
+    Declarations {
+        analysis: Box<crate::DeclarationAnalysisRecovery>,
+        repair: Option<PreparationRepairEvidence>,
+    },
+    Names(Box<crate::NameAnalysisRecovery>),
 }
 
 impl PreparationFailure {
-    fn new(error: PreparationError, recovery: Option<crate::PreparationRecovery>) -> Self {
+    const fn new(error: PreparationError) -> Self {
         Self {
             error,
-            recovery: recovery.map(Box::new),
+            evidence: None,
+        }
+    }
+
+    fn with_declaration_recovery(
+        mut error: PreparationError,
+        analysis: Box<crate::DeclarationAnalysisRecovery>,
+    ) -> Self {
+        let repair = error.take_repair_evidence();
+        Self {
+            error,
+            evidence: Some(Box::new(PreparationFailureEvidence::Declarations {
+                analysis,
+                repair,
+            })),
+        }
+    }
+
+    fn with_name_recovery(
+        error: PreparationError,
+        analysis: Box<crate::NameAnalysisRecovery>,
+    ) -> Self {
+        Self {
+            error,
+            evidence: Some(Box::new(PreparationFailureEvidence::Names(analysis))),
         }
     }
 
@@ -322,14 +362,14 @@ impl PreparationFailure {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (PreparationError, Option<crate::PreparationRecovery>) {
-        (self.error, self.recovery.map(|recovery| *recovery))
+    pub fn into_parts(self) -> (PreparationError, Option<PreparationFailureEvidence>) {
+        (self.error, self.evidence.map(|evidence| *evidence))
     }
 }
 
 impl From<PreparationError> for PreparationFailure {
     fn from(error: PreparationError) -> Self {
-        Self::new(error, None)
+        Self::new(error)
     }
 }
 
@@ -348,6 +388,26 @@ impl PreparationError {
             Self::InterfaceImplementation(error) => error.source_diagnostic(),
             Self::InstanceOperations(error) => error.source_diagnostic(),
             Self::NameResolution(error) => error.source_diagnostic(),
+        }
+    }
+
+    /// Removes declaration-repair evidence while leaving the authored diagnostic intact.
+    #[must_use]
+    fn take_repair_evidence(&mut self) -> Option<PreparationRepairEvidence> {
+        match self {
+            Self::InterfaceImplementation(error) => error
+                .take_missing_methods()
+                .map(PreparationRepairEvidence::MissingInterfaceMethods),
+            Self::MissingToolchain
+            | Self::TargetMismatch { .. }
+            | Self::TypeValidity(_)
+            | Self::Copyability(_)
+            | Self::DropTable(_)
+            | Self::ConstructionSurfaces(_)
+            | Self::InstanceOperations(_)
+            | Self::DeclarationPatterns(_)
+            | Self::StandardSemantics(_)
+            | Self::NameResolution(_) => None,
         }
     }
 }
@@ -617,10 +677,11 @@ fn prepare_program_checking_internal<'syntax>(
                         partial.source_index,
                     )
                 });
-            return Err(PreparationFailure::new(
-                PreparationError::NameResolution(*failure.error),
-                recovery.map(|recovery| crate::PreparationRecovery::Names(Box::new(recovery))),
-            ));
+            let error = PreparationError::NameResolution(*failure.error);
+            return Err(match recovery {
+                Some(recovery) => PreparationFailure::with_name_recovery(error, Box::new(recovery)),
+                None => PreparationFailure::new(error),
+            });
         }
     };
     let (body_sources, body_names, source_index) = resolution.into_parts();
@@ -715,15 +776,18 @@ fn declaration_failure(
     standard_semantics: Option<StandardSemanticTable>,
 ) -> PreparationFailure {
     let recovery = retain_recovery.then(|| {
-        crate::PreparationRecovery::Declarations(Box::new(crate::DeclarationAnalysisRecovery::new(
+        Box::new(crate::DeclarationAnalysisRecovery::new(
             graph,
             types,
             source_ownership,
             source_index,
             standard_semantics,
-        )))
+        ))
     });
-    PreparationFailure::new(error, recovery)
+    match recovery {
+        Some(recovery) => PreparationFailure::with_declaration_recovery(error, recovery),
+        None => PreparationFailure::new(error),
+    }
 }
 
 #[cfg(test)]

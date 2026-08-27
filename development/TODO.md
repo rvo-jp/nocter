@@ -45,6 +45,24 @@ in a sibling module that query code cannot inspect, workspace scope selection fr
 per revision, and resolved Clippy method gates restrict recovery-stage orchestration, phase-specific
 semantic evidence, and source-projection issue consumption to their reviewed owners.
 
+The subsequent full-boundary review removed the last caller-assembled workspace transition,
+raw compiler failures from analysis snapshots, phase-specific accessors from the session evidence
+bundle, fabricated interruption cache identities, and protocol-side edit regrouping. A
+`WorkspaceSourceRevision` now owns its causal primary document and non-empty change set;
+failure-specific repair evidence moves exactly once into semantic authority; every interruption
+query carries its real stable recovery index; and validated mutations publish canonical
+source-grouped edits with their accepted document versions. Release qualification remains the next
+gate after the repeated full review and complete verification finish.
+
+The repeated review then removed two representations made obsolete by that repair: snapshot status
+is now the `AnalysisState` variant itself instead of `Current + Option<Failure>`, and workspace
+topology stores one `Selected | Rejected` result per document instead of parallel scope and failure
+maps. Declaration repair evidence is structurally confined to declaration recovery and is split
+from the preparation error while checking constructs the typed failure, not attached to an
+arbitrary later evidence bundle. Workspace revisions are non-cloneable, validate every changed path
+through the overlay path contract, and carry an opaque owner sequence; workspace analysis rejects
+foreign or non-increasing input before changing latest state.
+
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
 `SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body

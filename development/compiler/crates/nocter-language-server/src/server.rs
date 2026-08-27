@@ -10,9 +10,9 @@ use nocter_lsp::{
 };
 
 use crate::{
-    AcceptedDocumentRevision, DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange,
-    LanguageServerEnvironment, WorkspaceAnalyses, WorkspaceAnalysisGeneration,
-    WorkspaceConfiguration,
+    DiagnosticPublisher, DocumentWorkspace, DocumentWorkspaceChange, LanguageServerEnvironment,
+    WorkspaceAnalyses, WorkspaceAnalysisGeneration, WorkspaceConfiguration,
+    WorkspaceSourceRevision,
 };
 
 mod issues;
@@ -329,7 +329,7 @@ impl LanguageServer {
         if method == "workspace/didChangeWatchedFiles" {
             return self.watched_files(params);
         }
-        let generation: Result<Option<AcceptedDocumentRevision>, ServerIssue> = match method {
+        let generation: Result<Option<WorkspaceSourceRevision>, ServerIssue> = match method {
             "textDocument/didOpen" => DidOpenParams::decode(params)
                 .map_err(ServerIssue::Parameters)
                 .and_then(|params| self.documents.open(&params).map_err(ServerIssue::Documents))
@@ -360,27 +360,7 @@ impl LanguageServer {
             _ => return ServerStep::default(),
         };
         match generation {
-            Ok(Some(generation)) => {
-                let batch = self
-                    .analyses
-                    .as_mut()
-                    .expect("initialized server owns workspace analyses")
-                    .analyze(generation);
-                let mut outbound = Vec::new();
-                let mut issues = Vec::new();
-                for analysis in batch.publication_order() {
-                    match self.diagnostics.publish(analysis) {
-                        Ok(messages) => outbound.extend(messages.into_vec()),
-                        Err(error) => issues.push(ServerIssue::Diagnostics(error)),
-                    }
-                }
-                ServerStep {
-                    outbound: outbound.into_boxed_slice(),
-                    analyses: batch.into_generations(),
-                    issues: issues.into_boxed_slice(),
-                    ..ServerStep::default()
-                }
-            }
+            Ok(Some(generation)) => self.analyze_revision(generation),
             Ok(None) => ServerStep::default(),
             Err(issue) => ServerStep {
                 issues: vec![issue].into_boxed_slice(),
@@ -427,11 +407,24 @@ impl LanguageServer {
                 };
             }
         };
-        let batch = self
+        self.analyze_revision(generation)
+    }
+
+    fn analyze_revision(&mut self, generation: WorkspaceSourceRevision) -> ServerStep {
+        let batch = match self
             .analyses
             .as_mut()
             .expect("initialized server owns workspace analyses")
-            .analyze(generation);
+            .analyze(generation)
+        {
+            Ok(batch) => batch,
+            Err(error) => {
+                return ServerStep {
+                    issues: vec![ServerIssue::WorkspaceRevision(error)].into_boxed_slice(),
+                    ..ServerStep::default()
+                };
+            }
+        };
         let mut outbound = Vec::new();
         let mut issues = Vec::new();
         for analysis in batch.publication_order() {

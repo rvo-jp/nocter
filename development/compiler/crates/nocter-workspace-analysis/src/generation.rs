@@ -6,40 +6,6 @@ use nocter_filesystem::SourceOverlay;
 
 use crate::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
 
-/// One accepted source revision paired with the canonical document that triggered it.
-#[derive(Clone, Debug)]
-pub struct AcceptedDocumentRevision {
-    path: PathBuf,
-    source: nocter_analysis::WorkspaceSourceRevision,
-}
-
-impl AcceptedDocumentRevision {
-    #[must_use]
-    pub fn new(path: PathBuf, source: nocter_analysis::WorkspaceSourceRevision) -> Self {
-        Self { path, source }
-    }
-
-    #[must_use]
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    #[must_use]
-    pub const fn generation(&self) -> GenerationId {
-        self.source.generation()
-    }
-
-    #[must_use]
-    pub const fn source_overlay(&self) -> &SourceOverlay {
-        self.source.source_overlay()
-    }
-
-    #[must_use]
-    pub(crate) fn into_parts(self) -> (PathBuf, nocter_analysis::WorkspaceSourceRevision) {
-        (self.path, self.source)
-    }
-}
-
 /// The compiler input boundary selected for one document generation.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AnalysisScope {
