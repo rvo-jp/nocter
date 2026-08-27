@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use nocter_analysis::{AnalysisSnapshot, SemanticSourceEdit};
+use nocter_analysis::{AnalysisSnapshot, SemanticMutationCapability, SemanticSourceEdit};
 use nocter_filesystem::{
     DocumentVersion, OpenDocument, SourceOverlay, SourceOverlayError, SourceOverride,
 };
@@ -74,6 +74,7 @@ pub(crate) fn candidate_overlay(
 ///
 /// Returns source identity, URI, coordinate, or overlap errors without changing editor state.
 pub(crate) fn project_workspace_edit(
+    _capability: SemanticMutationCapability<'_>,
     snapshot: &AnalysisSnapshot,
     edits: &[SemanticSourceEdit],
 ) -> Result<Value, WorkspaceEditError> {

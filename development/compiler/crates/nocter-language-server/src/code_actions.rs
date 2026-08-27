@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_analysis::SemanticCodeActionError;
+use nocter_analysis::{EvidenceIntegrityError, SemanticCodeActionError};
 use nocter_json::Value;
 use nocter_lsp::{CodeAction, CodeActionParams, code_actions_result};
 use nocter_source::{CoordinateError, Utf16Position, Utf16Range};
@@ -55,10 +55,13 @@ pub(crate) fn query_code_actions(
         ) else {
             continue;
         };
-        if !candidate.has_checked_semantics() {
+        let Some(capability) = candidate
+            .semantic_mutation_capability()
+            .map_err(CodeActionQueryError::CandidateEvidence)?
+        else {
             continue;
-        }
-        let edit = project_workspace_edit(document.snapshot(), action.edits())
+        };
+        let edit = project_workspace_edit(capability, document.snapshot(), action.edits())
             .map_err(CodeActionQueryError::WorkspaceEdit)?;
         validated.push((action, edit));
     }
@@ -75,6 +78,7 @@ pub enum CodeActionQueryError {
     Document(SemanticDocumentError),
     RequestCoordinate(CoordinateError),
     Semantic(SemanticCodeActionError),
+    CandidateEvidence(EvidenceIntegrityError),
     WorkspaceEdit(WorkspaceEditError),
 }
 
@@ -91,6 +95,7 @@ impl fmt::Display for CodeActionQueryError {
             Self::Document(error) => error.fmt(formatter),
             Self::RequestCoordinate(error) => error.fmt(formatter),
             Self::Semantic(error) => error.fmt(formatter),
+            Self::CandidateEvidence(error) => error.fmt(formatter),
             Self::WorkspaceEdit(error) => error.fmt(formatter),
         }
     }
@@ -102,6 +107,7 @@ impl std::error::Error for CodeActionQueryError {
             Self::Document(error) => Some(error),
             Self::RequestCoordinate(error) => Some(error),
             Self::Semantic(error) => Some(error),
+            Self::CandidateEvidence(error) => Some(error),
             Self::WorkspaceEdit(error) => Some(error),
         }
     }

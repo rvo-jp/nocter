@@ -50,10 +50,12 @@ result; checking rules cannot read it as semantic evidence.
 
 When a lowering boundary creates new semantic identities, it consumes the existing `SourceIndex`
 into one projection builder, adds exact projections, and freezes both deterministic lookup orders
-again. Duplicate bindings or documentation become `SourceProjectionIssue` values owned by the
-finished index. They cannot enter a lowering or checking error and therefore cannot change whether
-the semantic program exists. The query seal rejects an inconsistent projection before editor facts
-are exposed. Canonical semantic programs never depend on this projection value.
+again. Duplicate bindings, duplicate visible-name sets, conflicting visible-name mappings, or
+duplicate documentation become `SourceProjectionIssue` values owned by the finished index. A
+builder never selects one conflicting entity by insertion or identity order. Projection issues
+cannot enter a lowering or checking error and therefore cannot change whether the semantic program
+exists. The query seal rejects an inconsistent projection before editor facts are exposed.
+Canonical semantic programs never depend on this projection value.
 
 Declaration lowering also records each source's effective visible spellings in `SourceIndex`.
 This editor-only projection is emitted beside, not read back from, the `FrontendBindings` consumed
@@ -292,14 +294,18 @@ Every accepted document transition now retains one complete immutable source rev
 documents select the deepest `index.nct` ancestor bounded by the owning initialized root; that
 declaration selects package mode, while a `.nct` file without such an ancestor selects single-file
 mode. Package mode resolves the complete exact graph under mandatory locked/offline policy and
-discovers the package root plus every declared executable and test module. Toolchain-standard mode
-loads its closed package once and catalogs every module. Single-file mode resolves only the
+discovers the package root, every declared executable and test module, and the canonical module
+owning every source currently selected in that package scope. The complete set is one compiler
+input; no physical source represents its peers, and source ordering cannot change the discovered
+module roots. Toolchain-standard mode loads its closed package once and catalogs every module.
+Single-file mode resolves only the
 toolchain standard support package. All three routes pass the same source overlay through discovery
 and `AnalysisSnapshot` target checking. Latest results are stored by package, toolchain-standard, or
 standalone-file scope and shared with request/publication outputs through immutable ownership. Every
 accepted overlay recomputes the scope membership of known documents. A membership change refreshes
 each surviving old or new scope exactly once and invalidates an empty scope in one atomic analysis
-batch; a changed dependency source also refreshes each latest scope whose retained source map
+batch. An empty scope emits an invalidation-only generation and never enters discovery or semantic
+checking. A changed dependency source also refreshes each latest scope whose retained source map
 reaches it. Independent scopes are not recompiled. Closed reached sources use a derived
 source-to-scope index. An exact selected document scope wins; otherwise a unique physical owner may
 answer. If multiple current package contexts reach the same dependency source and none owns it,
@@ -1451,7 +1457,10 @@ Source mutation features share one protocol-independent edit value containing an
 byte range, and replacement. The language-server composition layer groups and validates these
 edits, applies them to an isolated copy of the accepted overlay, and projects the same ordered edits
 as versioned LSP `documentChanges`. Overlapping edits, missing sources, invalid UTF-8 boundaries,
-and a speculative candidate that does not reach checked semantics cannot reach the client. Target
+and a speculative candidate that cannot obtain a sealed semantic-mutation capability cannot reach
+the client. That capability validates source ownership, syntax origins, semantic domains, and all
+projection issues for the candidate generation; checked body completion alone is not publication
+authority. Target
 construction is required only for target-specific mutations. Automatic-import code actions select
 the current compiler diagnostic by stable rule code and exact source subject, reuse the semantic
 import candidate attached to completion, and publish it only when the ordinary compiler accepts

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use nocter_model::Symbol;
 use nocter_source::SourceId;
@@ -56,19 +56,52 @@ pub(crate) struct SourceVisibleNamesBuilder {
     by_source: HashMap<SourceId, Vec<SourceVisibleName>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum VisibleNameIssue {
+    DuplicateSource(SourceId),
+    ConflictingName {
+        source: SourceId,
+        name: Symbol,
+        existing: SemanticEntity,
+        duplicate: SemanticEntity,
+    },
+}
+
 impl SourceVisibleNamesBuilder {
     pub(crate) fn define(
         &mut self,
         source: SourceId,
         names: impl IntoIterator<Item = (Symbol, SemanticEntity)>,
-    ) {
+    ) -> Vec<VisibleNameIssue> {
+        if self.by_source.contains_key(&source) {
+            return vec![VisibleNameIssue::DuplicateSource(source)];
+        }
+        let mut selected = BTreeMap::new();
+        let mut issues = Vec::new();
+        for (name, entity) in names {
+            match selected.entry(name) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(entity);
+                }
+                std::collections::btree_map::Entry::Occupied(entry) if *entry.get() != entity => {
+                    issues.push(VisibleNameIssue::ConflictingName {
+                        source,
+                        name,
+                        existing: *entry.get(),
+                        duplicate: entity,
+                    });
+                }
+                std::collections::btree_map::Entry::Occupied(_) => {}
+            }
+        }
         self.by_source.insert(
             source,
-            names
+            selected
                 .into_iter()
                 .map(|(name, entity)| SourceVisibleName::new(name, entity))
                 .collect(),
         );
+        issues
     }
 
     pub(crate) fn finish(self) -> SourceVisibleNames {
@@ -76,11 +109,7 @@ impl SourceVisibleNamesBuilder {
             by_source: self
                 .by_source
                 .into_iter()
-                .map(|(source, mut names)| {
-                    names.sort_unstable_by_key(|name| name.parts());
-                    names.dedup_by_key(|name| name.parts().0);
-                    (source, names.into_boxed_slice())
-                })
+                .map(|(source, names)| (source, names.into_boxed_slice()))
                 .collect(),
         }
     }

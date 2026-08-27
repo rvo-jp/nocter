@@ -152,13 +152,22 @@ impl AnalysisSnapshot {
     ///
     /// This is the collision gate: a syntactically valid replacement is accepted only when normal
     /// discovery, lowering, name resolution, and checking rebuild the same semantic bindings.
-    #[must_use]
-    pub fn validates_rename_candidate(&self, plan: &SemanticRenamePlan, candidate: &Self) -> bool {
-        if !candidate.has_checked_semantics() {
-            return false;
-        }
+    ///
+    /// # Errors
+    ///
+    /// Returns the candidate generation's evidence-integrity failure instead of granting mutation
+    /// authority from checked bodies alone.
+    pub fn validate_rename_candidate<'candidate>(
+        &self,
+        plan: &SemanticRenamePlan,
+        candidate: &'candidate Self,
+    ) -> Result<Option<crate::SemanticMutationCapability<'candidate>>, crate::EvidenceIntegrityError>
+    {
+        let Some(capability) = candidate.semantic_mutation_capability()? else {
+            return Ok(None);
+        };
         let Ok(replacement_len_u32) = u32::try_from(plan.replacement.len()) else {
-            return false;
+            return Ok(None);
         };
         let replacement_len = i64::from(replacement_len_u32);
         let mut previous_source = None;
@@ -166,39 +175,39 @@ impl AnalysisSnapshot {
         let mut previous_end = ByteOffset::new(0);
         for edit in plan.edits() {
             let Some(original) = self.sources().get(edit.source()) else {
-                return false;
+                return Ok(None);
             };
             if previous_source != Some(edit.source()) {
                 previous_source = Some(edit.source());
                 displacement = 0;
             } else if edit.range().start() < previous_end {
-                return false;
+                return Ok(None);
             }
             let Some(candidate_source) = candidate.sources().find_by_name(original.name().as_str())
             else {
-                return false;
+                return Ok(None);
             };
             let start = i64::from(edit.range().start().get()) + displacement;
             let Ok(start) = u32::try_from(start) else {
-                return false;
+                return Ok(None);
             };
             let Some(end) = start.checked_add(replacement_len_u32) else {
-                return false;
+                return Ok(None);
             };
             let candidate_range = TextRange::new(ByteOffset::new(start), ByteOffset::new(end));
             let Ok(Some(selection)) =
                 candidate.semantic_selection(candidate_source.id(), candidate_range.start())
             else {
-                return false;
+                return Ok(None);
             };
             if selection.entity() != edit.entity() || selection.range() != candidate_range {
-                return false;
+                return Ok(None);
             }
             displacement +=
                 replacement_len - i64::from(edit.range().end().get() - edit.range().start().get());
             previous_end = edit.range().end();
         }
-        true
+        Ok(Some(capability))
     }
 
     fn require_source(&self, source: SourceId) -> Result<&SourceFile, SemanticRenameError> {

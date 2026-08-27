@@ -7,7 +7,7 @@ use crate::documentation::{
     EntityDocumentation, OccurrenceDocumentation, finish_entities, finish_occurrences,
     occurrence_sort_key,
 };
-use crate::names::{SourceVisibleNames, SourceVisibleNamesBuilder};
+use crate::names::{SourceVisibleNames, SourceVisibleNamesBuilder, VisibleNameIssue};
 use crate::{DocumentationOwner, SemanticEntity, SourceOrigin};
 
 /// The meaning of one semantic-to-source projection.
@@ -343,7 +343,12 @@ impl SourceIndexBuilder {
         source: SourceId,
         names: impl IntoIterator<Item = (nocter_model::Symbol, SemanticEntity)>,
     ) {
-        self.visible_names.define(source, names);
+        self.issues.extend(
+            self.visible_names
+                .define(source, names)
+                .into_iter()
+                .map(SourceProjectionIssue::from),
+        );
     }
 
     fn insert_binding(
@@ -433,6 +438,32 @@ fn source_sort_key(
 pub enum SourceProjectionIssue {
     DuplicateBinding(SourceBinding),
     DuplicateDocumentation(DocumentationOwner),
+    DuplicateVisibleNameSet(SourceId),
+    ConflictingVisibleName {
+        source: SourceId,
+        name: nocter_model::Symbol,
+        existing: SemanticEntity,
+        duplicate: SemanticEntity,
+    },
+}
+
+impl From<VisibleNameIssue> for SourceProjectionIssue {
+    fn from(issue: VisibleNameIssue) -> Self {
+        match issue {
+            VisibleNameIssue::DuplicateSource(source) => Self::DuplicateVisibleNameSet(source),
+            VisibleNameIssue::ConflictingName {
+                source,
+                name,
+                existing,
+                duplicate,
+            } => Self::ConflictingVisibleName {
+                source,
+                name,
+                existing,
+                duplicate,
+            },
+        }
+    }
 }
 
 impl fmt::Display for SourceProjectionIssue {
@@ -449,6 +480,18 @@ impl fmt::Display for SourceProjectionIssue {
                     "duplicate documentation projection for {owner:?}"
                 )
             }
+            Self::DuplicateVisibleNameSet(source) => {
+                write!(formatter, "duplicate visible-name set for {source:?}")
+            }
+            Self::ConflictingVisibleName {
+                source,
+                name,
+                existing,
+                duplicate,
+            } => write!(
+                formatter,
+                "visible name {name:?} in {source:?} maps to both {existing:?} and {duplicate:?}"
+            ),
         }
     }
 }
@@ -624,6 +667,46 @@ mod tests {
                 .collect::<std::collections::BTreeSet<_>>(),
             std::collections::BTreeSet::from([source]),
             "sealing must see sources that appear only in visible-name metadata"
+        );
+    }
+
+    #[test]
+    fn visible_name_conflicts_are_reported_instead_of_selected_by_entity_order() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("index.nct"), b"")
+            .unwrap();
+        let symbols = SymbolTable::from_spellings(["alias", "app"]);
+        let alias = symbols.get("alias").unwrap();
+        let app = symbols.get("app").unwrap();
+        let (module, site) = build_declaration_ids(symbols, app);
+        let existing = SemanticEntity::DeclarationSite(site);
+        let duplicate = SemanticEntity::Module(module);
+        let mut builder = SourceIndexBuilder::new();
+
+        builder.define_visible_names(
+            source,
+            [(alias, existing), (alias, existing), (alias, duplicate)],
+        );
+        builder.define_visible_names(source, [(alias, duplicate)]);
+        let index = builder.finish();
+
+        assert_eq!(
+            index.issues(),
+            &[
+                SourceProjectionIssue::ConflictingVisibleName {
+                    source,
+                    name: alias,
+                    existing,
+                    duplicate,
+                },
+                SourceProjectionIssue::DuplicateVisibleNameSet(source),
+            ]
+        );
+        assert_eq!(
+            index.visible_names_in(source).collect::<Vec<_>>(),
+            vec![(alias, existing)],
+            "invalid projection remains inspectable but can no longer hide its conflict"
         );
     }
 

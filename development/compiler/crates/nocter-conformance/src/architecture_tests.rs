@@ -265,18 +265,30 @@ fn semantic_features_cannot_acquire_an_unsealed_query_context() {
 #[test]
 fn session_semantics_have_one_stage_graph_and_one_query_handoff() {
     let compiler = workspace().join("crates");
-    let pipeline = fs::read_to_string(compiler.join("nocter-session/src/semantic_pipeline.rs"))
-        .expect("session semantic pipeline");
-    for forbidden in [
-        "EvidenceRetention",
-        "lower_compile_unit_declarations(&",
-        "prepare_program_checking(&",
-        "check_prepared_program(&",
-    ] {
-        assert!(
-            !pipeline.contains(forbidden),
-            "session pipeline still selects a parallel semantic traversal through {forbidden}"
-        );
+    let session = compiler.join("nocter-session/src");
+    let pipeline_path = session.join("semantic_pipeline.rs");
+    for path in rust_sources(&session) {
+        if path == pipeline_path
+            || path.components().any(|part| part.as_os_str() == "tests")
+            || path.file_name().and_then(|name| name.to_str()) == Some("tests.rs")
+        {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("session production source");
+        for stage_entry in [
+            "lower_compile_unit_declarations_recovering(",
+            "lower_incomplete_body_declarations_recovering(",
+            "prepare_program_checking_recovering(",
+            "prepare_analysis_program_checking_recovering(",
+            "check_prepared_program_recovering(",
+            "analyze_prepared_program_bodies(",
+        ] {
+            assert!(
+                !source.contains(stage_entry),
+                "{} bypasses the session's single semantic pipeline through {stage_entry}",
+                path.display()
+            );
+        }
     }
 
     let query = fs::read_to_string(compiler.join("nocter-analysis/src/query/mod.rs"))
@@ -342,7 +354,25 @@ fn workspace_analysis_never_chooses_authority_by_order() {
         analysis.contains("AmbiguousDocumentAnalysis"),
         "multiple current contexts need an explicit typed outcome"
     );
-    for forbidden in ["source_scope_priority", "min_by_key(|scope|"] {
+    assert!(
+        analysis.contains("ScopeCompilationInput")
+            && analysis.contains("for source in requested_sources"),
+        "package analysis must derive roots from its complete source demand"
+    );
+    let input = fs::read_to_string(
+        workspace().join("crates/nocter-language-server/src/analysis/compilation_input.rs"),
+    )
+    .expect("workspace compilation input");
+    assert!(
+        input.contains("requested_sources: Box<[PathBuf]>")
+            && input.contains("collect::<BTreeSet<_>>()"),
+        "package compilation input must canonicalize the complete source demand"
+    );
+    for forbidden in [
+        "source_scope_priority",
+        "min_by_key(|scope|",
+        "scope_members[0]",
+    ] {
         assert!(
             !analysis.contains(forbidden),
             "workspace analysis still chooses semantic authority by order through {forbidden}"
@@ -362,6 +392,28 @@ fn query_caches_do_not_derive_a_second_semantic_domain() {
         assert!(
             !source.contains(forbidden),
             "query cache must not inspect semantic storage through {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn editor_mutation_projection_requires_a_sealed_checked_capability() {
+    let compiler = workspace().join("crates");
+    let edits = fs::read_to_string(compiler.join("nocter-language-server/src/workspace_edits.rs"))
+        .expect("workspace edit boundary");
+    assert!(
+        edits.contains("_capability: SemanticMutationCapability<'_>"),
+        "protocol edit projection must require generation-borrowed sealed semantics"
+    );
+
+    for relative in [
+        "nocter-language-server/src/code_actions.rs",
+        "nocter-language-server/src/rename.rs",
+    ] {
+        let source = fs::read_to_string(compiler.join(relative)).expect("mutation adapter");
+        assert!(
+            !source.contains("has_checked_semantics"),
+            "{relative} uses an unsealed checked-semantics predicate"
         );
     }
 }

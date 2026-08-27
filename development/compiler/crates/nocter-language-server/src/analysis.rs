@@ -17,6 +17,10 @@ use nocter_session::bundled_standard_toolchain;
 
 use crate::{AcceptedDocumentRevision, WorkspaceConfiguration};
 
+mod compilation_input;
+
+use compilation_input::ScopeCompilationInput;
+
 /// The compiler input boundary selected for one document generation.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AnalysisScope {
@@ -34,10 +38,9 @@ impl AnalysisScope {
     }
 }
 
-/// The complete outcome retained for one accepted document generation.
+/// The complete outcome retained for one scope in an accepted workspace generation.
 #[derive(Debug)]
 pub struct WorkspaceAnalysisGeneration {
-    document: PathBuf,
     scope: Option<AnalysisScope>,
     invalidated: Box<[AnalysisScope]>,
     generation: GenerationId,
@@ -45,11 +48,6 @@ pub struct WorkspaceAnalysisGeneration {
 }
 
 impl WorkspaceAnalysisGeneration {
-    #[must_use]
-    pub fn document(&self) -> &Path {
-        &self.document
-    }
-
     #[must_use]
     pub const fn scope(&self) -> Option<&AnalysisScope> {
         self.scope.as_ref()
@@ -69,7 +67,8 @@ impl WorkspaceAnalysisGeneration {
     pub const fn snapshot(&self) -> Option<&AnalysisSnapshot> {
         match &self.state {
             WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
-            WorkspaceAnalysisState::PreparationFailed { .. } => None,
+            WorkspaceAnalysisState::PreparationFailed { .. }
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
         }
     }
 
@@ -77,7 +76,8 @@ impl WorkspaceAnalysisGeneration {
     pub const fn preparation_failure(&self) -> Option<&WorkspaceAnalysisError> {
         match &self.state {
             WorkspaceAnalysisState::PreparationFailed { error, .. } => Some(error),
-            WorkspaceAnalysisState::Complete(_) => None,
+            WorkspaceAnalysisState::Complete(_)
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
         }
     }
 
@@ -85,7 +85,8 @@ impl WorkspaceAnalysisGeneration {
     pub const fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             WorkspaceAnalysisState::Complete(snapshot) => snapshot.source_overlay(),
-            WorkspaceAnalysisState::PreparationFailed { source_overlay, .. } => source_overlay,
+            WorkspaceAnalysisState::PreparationFailed { source_overlay, .. }
+            | WorkspaceAnalysisState::InvalidationOnly { source_overlay } => source_overlay,
         }
     }
 
@@ -97,7 +98,8 @@ impl WorkspaceAnalysisGeneration {
                 error: WorkspaceAnalysisError::Package(failure),
                 ..
             } => Some(failure.reached().sources()),
-            WorkspaceAnalysisState::PreparationFailed { .. } => None,
+            WorkspaceAnalysisState::PreparationFailed { .. }
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
         }
     }
 
@@ -109,7 +111,8 @@ impl WorkspaceAnalysisGeneration {
                 error: WorkspaceAnalysisError::Package(failure),
                 ..
             } => failure.reached().syntax_trees(),
-            WorkspaceAnalysisState::PreparationFailed { .. } => &[],
+            WorkspaceAnalysisState::PreparationFailed { .. }
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => &[],
         }
     }
 }
@@ -158,6 +161,9 @@ enum WorkspaceAnalysisState {
     PreparationFailed {
         source_overlay: SourceOverlay,
         error: WorkspaceAnalysisError,
+    },
+    InvalidationOnly {
+        source_overlay: SourceOverlay,
     },
 }
 
@@ -208,7 +214,6 @@ struct ScopeTransition {
     selected: BTreeMap<PathBuf, AnalysisScope>,
     active_selected: BTreeMap<PathBuf, AnalysisScope>,
     failures: BTreeMap<PathBuf, WorkspaceAnalysisError>,
-    members: BTreeMap<AnalysisScope, Vec<PathBuf>>,
     affected: BTreeSet<AnalysisScope>,
     invalidated: Vec<AnalysisScope>,
     primary_scope: Option<AnalysisScope>,
@@ -308,8 +313,7 @@ impl WorkspaceAnalyses {
         for scope in &transition.invalidated {
             self.latest.remove(scope);
         }
-        let mut scoped_results =
-            self.refresh_scoped(&document, generation, &source_overlay, &transition);
+        let mut scoped_results = self.refresh_scoped(generation, &source_overlay, &transition);
         let mut related =
             self.refresh_unscoped(&document, generation, &source_overlay, &mut transition);
         self.document_scopes = transition.active_selected.clone();
@@ -367,16 +371,6 @@ impl WorkspaceAnalyses {
             .filter(|(path, _)| open_documents.contains(*path))
             .map(|(path, scope)| (path.clone(), scope.clone()))
             .collect::<BTreeMap<_, _>>();
-        let members = selected.iter().fold(
-            BTreeMap::<AnalysisScope, Vec<PathBuf>>::new(),
-            |mut members, (candidate, scope)| {
-                members
-                    .entry(scope.clone())
-                    .or_default()
-                    .push(candidate.clone());
-                members
-            },
-        );
         let mut affected = self.changed_scopes(open_documents, &active_selected);
         if let Some(scope) = selected.get(document) {
             affected.insert(scope.clone());
@@ -402,7 +396,6 @@ impl WorkspaceAnalyses {
             selected,
             active_selected,
             failures,
-            members,
             affected,
             invalidated,
             primary_scope,
@@ -428,7 +421,6 @@ impl WorkspaceAnalyses {
 
     fn refresh_scoped(
         &mut self,
-        document: &Path,
         generation: GenerationId,
         source_overlay: &SourceOverlay,
         transition: &ScopeTransition,
@@ -436,33 +428,43 @@ impl WorkspaceAnalyses {
         transition
             .affected
             .iter()
-            .filter_map(|scope| {
-                let scope_members = transition.members.get(scope)?;
+            .map(|scope| {
+                let scope_members = transition
+                    .active_selected
+                    .iter()
+                    .filter(|(_, selected)| *selected == scope)
+                    .map(|(source, _)| source.clone());
                 let primary = transition.primary_scope.as_ref() == Some(scope);
-                let representative = if primary {
-                    document.to_path_buf()
-                } else {
-                    scope_members[0].clone()
-                };
+                let input = ScopeCompilationInput::new(scope, scope_members);
+                let active = transition
+                    .active_selected
+                    .values()
+                    .any(|selected| selected == scope);
                 let result = Arc::new(WorkspaceAnalysisGeneration {
-                    document: representative.clone(),
-                    scope: Some(scope.clone()),
+                    scope: active.then(|| scope.clone()),
                     invalidated: if primary {
                         transition.invalidated.clone().into_boxed_slice()
                     } else {
                         Box::new([])
                     },
                     generation,
-                    state: compile_scope(
-                        &self.configuration,
-                        scope,
-                        &representative,
-                        generation,
-                        source_overlay.clone(),
-                    ),
+                    state: if active {
+                        compile_scope(
+                            &self.configuration,
+                            &input,
+                            generation,
+                            source_overlay.clone(),
+                        )
+                    } else {
+                        WorkspaceAnalysisState::InvalidationOnly {
+                            source_overlay: source_overlay.clone(),
+                        }
+                    },
                 });
-                self.latest.insert(scope.clone(), Arc::clone(&result));
-                Some((scope.clone(), result))
+                if active {
+                    self.latest.insert(scope.clone(), Arc::clone(&result));
+                }
+                (scope.clone(), result)
             })
             .collect()
     }
@@ -489,7 +491,6 @@ impl WorkspaceAnalyses {
                 .remove(candidate)
                 .expect("every unscoped document retains its selection failure");
             let result = Arc::new(WorkspaceAnalysisGeneration {
-                document: candidate.clone(),
                 scope: None,
                 invalidated: if candidate == document {
                     transition.invalidated.clone().into_boxed_slice()
@@ -521,15 +522,17 @@ impl WorkspaceAnalyses {
         generation: GenerationId,
         source_overlay: SourceOverlay,
     ) -> Option<Box<AnalysisSnapshot>> {
-        match compile_scope(
-            &self.configuration,
-            scope,
-            document,
-            generation,
-            source_overlay,
-        ) {
+        let requested_sources = self
+            .document_scopes
+            .iter()
+            .filter(|(_, selected)| *selected == scope)
+            .map(|(source, _)| source.clone())
+            .chain(std::iter::once(document.to_path_buf()));
+        let input = ScopeCompilationInput::new(scope, requested_sources);
+        match compile_scope(&self.configuration, &input, generation, source_overlay) {
             WorkspaceAnalysisState::Complete(snapshot) => Some(snapshot),
-            WorkspaceAnalysisState::PreparationFailed { .. } => None,
+            WorkspaceAnalysisState::PreparationFailed { .. }
+            | WorkspaceAnalysisState::InvalidationOnly { .. } => None,
         }
     }
 
@@ -612,19 +615,24 @@ fn select_scope(
 
 fn compile_scope(
     configuration: &WorkspaceConfiguration,
-    scope: &AnalysisScope,
-    document: &Path,
+    input: &ScopeCompilationInput,
     generation: GenerationId,
     source_overlay: SourceOverlay,
 ) -> WorkspaceAnalysisState {
-    let discovered = match scope {
-        AnalysisScope::Package(root) => {
-            discover_package(configuration, root, document, source_overlay.clone())
-        }
-        AnalysisScope::ToolchainStandard(_) => {
+    let discovered = match input {
+        ScopeCompilationInput::Package {
+            root,
+            requested_sources,
+        } => discover_package(
+            configuration,
+            root,
+            requested_sources,
+            source_overlay.clone(),
+        ),
+        ScopeCompilationInput::ToolchainStandard => {
             discover_toolchain_standard(configuration, source_overlay.clone())
         }
-        AnalysisScope::SingleFile(source) => {
+        ScopeCompilationInput::SingleFile(source) => {
             discover_single_file(configuration, source, source_overlay.clone())
         }
     };
@@ -666,7 +674,7 @@ fn discover_toolchain_standard(
 fn discover_package(
     configuration: &WorkspaceConfiguration,
     root: &Path,
-    document: &Path,
+    requested_sources: &[PathBuf],
     source_overlay: SourceOverlay,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
@@ -697,17 +705,19 @@ fn discover_package(
         root_package.clone(),
         Vec::<Box<str>>::new(),
     ));
-    roots.insert(
-        nocter_discovery::module_for_source(
-            &root_package,
-            root,
-            document,
-            selected.graph().source_overlay(),
-        )
-        .map_err(|error| {
-            AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::ModuleOwner(error))
-        })?,
-    );
+    for source in requested_sources {
+        roots.insert(
+            nocter_discovery::module_for_source(
+                &root_package,
+                root,
+                source,
+                selected.graph().source_overlay(),
+            )
+            .map_err(|error| {
+                AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::ModuleOwner(error))
+            })?,
+        );
+    }
     if let Some(declaration) = package.declaration() {
         roots.extend(declaration.targets().iter().map(|target| {
             ModuleIdentity::new(root_package.clone(), target.module().iter().cloned())
@@ -849,7 +859,9 @@ mod tests {
 
     use nocter_analysis::AnalysisStatus;
     use nocter_json::parse;
-    use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, InitializeParams};
+    use nocter_lsp::{
+        DidChangeParams, DidCloseParams, DidOpenParams, DocumentUri, InitializeParams,
+    };
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
@@ -890,7 +902,6 @@ mod tests {
 
         let analyzed = analyses.analyze(accepted);
 
-        assert_eq!(analyzed.document(), canonical_source);
         assert!(matches!(analyzed.scope(), Some(AnalysisScope::Package(_))));
         let snapshot = analyzed.snapshot().expect("discovery reaches analysis");
         assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
@@ -912,6 +923,127 @@ mod tests {
                 .unwrap()
                 .generation(),
             analyzed.generation()
+        );
+    }
+
+    #[test]
+    fn package_generation_retains_every_open_module_root_without_a_representative_source() {
+        let temporary = TemporaryDirectory::new();
+        fs::write(
+            temporary.path().join("index.nct"),
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
+        let first_directory = temporary.path().join("first");
+        let second_directory = temporary.path().join("second");
+        fs::create_dir(&first_directory).unwrap();
+        fs::create_dir(&second_directory).unwrap();
+        let first = first_directory.join("index.nct");
+        let second = second_directory.join("index.nct");
+        let first_text = "pub func first(): i32 { return 1 }\n";
+        let second_text = "pub func second(): i32 { return 2 }\n";
+        fs::write(&first, first_text).unwrap();
+        fs::write(&second, second_text).unwrap();
+
+        let configuration = configuration(temporary.path());
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration.clone());
+        let first_revision = documents.open(&open_params(&first, 1, first_text)).unwrap();
+        let canonical_first = first_revision.path().to_path_buf();
+        analyses.analyze(first_revision);
+        let second_revision = documents
+            .open(&open_params(&second, 1, second_text))
+            .unwrap();
+        let canonical_second = second_revision.path().to_path_buf();
+        let generation = analyses.analyze(second_revision);
+        let snapshot = generation.snapshot().expect("package analysis snapshot");
+
+        assert!(
+            snapshot
+                .sources()
+                .find_by_name(canonical_first.to_str().unwrap())
+                .is_some()
+        );
+        assert!(
+            snapshot
+                .sources()
+                .find_by_name(canonical_second.to_str().unwrap())
+                .is_some()
+        );
+        assert_eq!(
+            analyses
+                .latest_for_document(&canonical_first)
+                .unwrap()
+                .unwrap()
+                .generation(),
+            generation.generation()
+        );
+
+        let mut reverse_documents = DocumentWorkspace::new();
+        let mut reverse_analyses = WorkspaceAnalyses::new(configuration);
+        reverse_analyses.analyze(
+            reverse_documents
+                .open(&open_params(&second, 1, second_text))
+                .unwrap(),
+        );
+        let reverse_generation = reverse_analyses.analyze(
+            reverse_documents
+                .open(&open_params(&first, 1, first_text))
+                .unwrap(),
+        );
+        let reverse_sources = reverse_generation.snapshot().unwrap().sources();
+        assert!(
+            reverse_sources
+                .find_by_name(canonical_first.to_str().unwrap())
+                .is_some()
+        );
+        assert!(
+            reverse_sources
+                .find_by_name(canonical_second.to_str().unwrap())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn watched_source_change_does_not_add_a_closed_module_to_package_demand() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let root_text = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func main(): i32 { return 0 }\n",
+        );
+        fs::write(&root, root_text).unwrap();
+        let closed_directory = temporary.path().join("closed");
+        fs::create_dir(&closed_directory).unwrap();
+        let closed = closed_directory.join("index.nct");
+        fs::write(&closed, "pub func closed(): i32 { return 1 }\n").unwrap();
+
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let opened = documents.open(&open_params(&root, 1, root_text)).unwrap();
+        let first = analyses.analyze(opened);
+        let canonical_closed = fs::canonicalize(&closed).unwrap();
+        assert!(
+            first
+                .snapshot()
+                .unwrap()
+                .sources()
+                .find_by_name(canonical_closed.to_str().unwrap())
+                .is_none()
+        );
+
+        let uri = DocumentUri::from_file_path(&closed).unwrap();
+        let refreshed = documents.refresh(&[uri]).unwrap();
+        let generation = analyses.analyze(refreshed);
+
+        assert!(
+            generation
+                .snapshot()
+                .unwrap()
+                .sources()
+                .find_by_name(canonical_closed.to_str().unwrap())
+                .is_none(),
+            "a change invalidates current demand but does not become semantic demand itself"
         );
     }
 
@@ -1133,12 +1265,16 @@ mod tests {
             .open(&open_params(&source, 1, "func main(): void { return }\n"))
             .unwrap();
         let canonical = opened.path().to_path_buf();
-        analyses.analyze(opened);
+        let active = analyses.analyze(opened);
+        let active_scope = active.scope().unwrap().clone();
         assert!(analyses.latest_for_document(&canonical).unwrap().is_some());
 
         let closed = documents.close(&close_params(&source)).unwrap();
-        analyses.analyze(closed);
+        let invalidation = analyses.analyze(closed);
 
+        assert!(invalidation.scope().is_none());
+        assert!(invalidation.snapshot().is_none());
+        assert_eq!(invalidation.invalidated_scopes(), &[active_scope]);
         assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
     }
 

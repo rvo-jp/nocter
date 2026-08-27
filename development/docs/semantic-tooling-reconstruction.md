@@ -63,6 +63,8 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - `SourceIndex` remains only a bidirectional source-coordinate and semantic-identity projection. It
   does not acquire phase flags, recovery policy, or feature behavior. Its builder records
   projection integrity issues in the finished projection instead of returning semantic errors.
+  Visible-name sets reject duplicate source definitions and retain conflicting symbol-to-entity
+  mappings as issues; sorting or deduplication never chooses semantic identity.
 - Analysis owns the only join between source occurrences and semantic evidence. Before exposing a
   query context, it validates every identity referenced by `SourceIndex`: authored bindings,
   documentation owners, and editor-visible names. The result is sealed once per immutable
@@ -81,8 +83,14 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
   JSON-RPC `-32603`; expected unavailability and partial coverage are ordinary semantic outcomes.
 - Workspace analysis consumes one complete source revision containing overlay, open-document set,
-  and changes. A dependency source reached by multiple current package contexts produces typed
-  ambiguity unless one context physically owns it; ordering never supplies authority.
+  and changes. One package compilation input contains the module roots for every currently selected
+  source as well as the package and declared target roots. A dependency source reached by multiple
+  current package contexts produces typed ambiguity unless one context physically owns it;
+  ordering never supplies authority. A changed or closed file may invalidate an active demand but
+  never becomes demand itself; a scope with no open members emits only an invalidation generation.
+- Rename and code-action candidates require a generation-borrowed semantic-mutation capability.
+  Analysis issues it only after the whole source projection passes the same cached query seal used
+  by read queries; checked semantics without a valid projection cannot authorize an edit.
 
 Each responsibility knows only the contract exported by the previous boundary. Protocol code does
 not know checking representation, checking does not know editor features, and `SourceIndex` does
@@ -124,5 +132,8 @@ The reconstruction is complete only when:
 - the old semantic-stage query model and all compatibility wrappers are absent;
 - source projection integrity cannot fail semantic construction;
 - workspace context selection cannot use path, insertion, or generation ordering as a tie-breaker;
+- package compilation derives its complete module-root demand from all current scope members rather
+  than one representative document;
+- editor mutations cannot use an unsealed checked-semantics predicate as publication authority;
 - workspace tests, warnings-denied Clippy, formatting, generated documentation, and repository
   integrity checks pass.

@@ -81,7 +81,7 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     );
     assert!(!snapshot.diagnostics().is_empty());
     assert!(!snapshot.syntax_trees().is_empty());
-    assert!(!snapshot.has_checked_semantics());
+    assert!(snapshot.semantic_mutation_capability().unwrap().is_none());
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
     assert!(!snapshot.syntax_trees().is_empty());
     assert_eq!(snapshot.diagnostics()[0].code(), "E0263");
     assert!(snapshot.discovery_failure().is_some());
-    assert!(!snapshot.has_checked_semantics());
+    assert!(snapshot.semantic_mutation_capability().unwrap().is_none());
 }
 
 #[test]
@@ -156,6 +156,7 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
         "namespace fixture diagnostics: {:#?}",
         snapshot.diagnostics()
     );
+    assert!(snapshot.semantic_mutation_capability().unwrap().is_some());
 
     let source = snapshot
         .sources()
@@ -497,7 +498,7 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
     let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(47));
 
     assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
-    assert!(!snapshot.has_checked_semantics());
+    assert!(snapshot.semantic_mutation_capability().unwrap().is_none());
     let interface_implementation_diagnostic = snapshot
         .diagnostics()
         .iter()
@@ -559,8 +560,13 @@ fn rename_validation_rejects_a_candidate_without_checked_semantics() {
     );
     let (_, candidate) = bundled_snapshot(&tree, candidate_text, GenerationId::new(50));
     assert_eq!(candidate.status(), AnalysisStatus::CompilationFailed);
-    assert!(!candidate.has_checked_semantics());
-    assert!(!original.validates_rename_candidate(&plan, &candidate));
+    assert!(candidate.semantic_mutation_capability().unwrap().is_none());
+    assert!(
+        original
+            .validate_rename_candidate(&plan, &candidate)
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

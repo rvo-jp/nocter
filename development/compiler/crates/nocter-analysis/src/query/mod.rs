@@ -52,6 +52,15 @@ pub struct SemanticSelection {
     range: TextRange,
 }
 
+/// Proof that one checked generation passed the complete semantic/source-projection seal.
+///
+/// Editor mutations may be published only while this capability can be obtained. The borrowed
+/// snapshot prevents callers from carrying the proof into another generation.
+#[derive(Clone, Copy, Debug)]
+pub struct SemanticMutationCapability<'snapshot> {
+    _snapshot: &'snapshot AnalysisSnapshot,
+}
+
 impl SemanticSelection {
     #[must_use]
     pub const fn entity(self) -> SemanticEntity {
@@ -107,16 +116,25 @@ impl SemanticSubject {
 }
 
 impl AnalysisSnapshot {
-    /// Reports whether source semantics completed through type and body checking.
+    /// Seals a checked semantic generation for editor mutation.
     ///
-    /// Target construction may still have failed for an independent toolchain or ABI reason.
-    /// Semantic mutation validation uses this capability instead of conflating it with executable
-    /// target availability.
-    #[must_use]
-    pub fn has_checked_semantics(&self) -> bool {
-        self.unvalidated_semantic_query()
-            .and_then(SemanticQueryContext::complete)
-            .is_some()
+    /// Target construction may still have failed for an independent toolchain or ABI reason, but
+    /// all semantic identities, source ownership, syntax origins, and projection issues must be
+    /// valid before this capability is issued.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact current-generation evidence inconsistency instead of treating a corrupt
+    /// editor projection as an ordinary unavailable feature.
+    pub fn semantic_mutation_capability(
+        &self,
+    ) -> Result<Option<SemanticMutationCapability<'_>>, crate::EvidenceIntegrityError> {
+        let Some(query) = self.semantic_query()? else {
+            return Ok(None);
+        };
+        Ok(query
+            .complete()
+            .map(|_| SemanticMutationCapability { _snapshot: self }))
     }
 
     /// Resolves one exact interactive semantic occurrence without rendering it.

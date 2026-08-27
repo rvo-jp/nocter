@@ -29,6 +29,16 @@ session outcome; source projection integrity cannot fail semantics; session prov
 handoff to queries; workspace revisions are complete values; and ambiguous shared-source contexts
 are rejected rather than ordered.
 
+The subsequent authority-boundary review removed the remaining representative-source input from
+package analysis. Each package generation now derives one canonical module-root set from every
+current scope member, and speculative edits reuse that same complete demand. Visible-name
+projection conflicts are retained as `SourceProjectionIssue` values rather than normalized by
+entity order. Rename and code-action publication now require a generation-borrowed semantic-mutation
+capability issued only after the complete query seal succeeds. Behavioral multi-module tests and
+expanded production-path architecture gates protect these boundaries. Changed files invalidate
+active demand but cannot join it, and an empty scope emits an invalidation-only generation without
+running the compiler pipeline.
+
 The Phase 3 body authority is now migrated. `TypeStore` and `CopyabilityTable` are immutable;
 `TypeStore` has no mutation or branch-opening API, while `TypeAuthority` owns exact type lineage.
 `SemanticAuthority` keeps type and copyability ownership inseparable through preparation, body

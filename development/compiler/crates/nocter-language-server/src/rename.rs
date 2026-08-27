@@ -53,13 +53,14 @@ pub(crate) fn query_rename(
             overlay,
         )
         .ok_or(RenameQueryError::CandidateRejected)?;
-    if !document
+    let capability = document
         .snapshot()
-        .validates_rename_candidate(&plan, &candidate)
-    {
-        return Err(RenameQueryError::CandidateRejected);
-    }
-    project_workspace_edit(document.snapshot(), &edits).map_err(RenameQueryError::WorkspaceEdit)
+        .validate_rename_candidate(&plan, &candidate)
+        .map_err(nocter_analysis::SemanticRenameError::from)
+        .map_err(RenameQueryError::Semantic)?
+        .ok_or(RenameQueryError::CandidateRejected)?;
+    project_workspace_edit(capability, document.snapshot(), &edits)
+        .map_err(RenameQueryError::WorkspaceEdit)
 }
 
 #[derive(Debug)]
