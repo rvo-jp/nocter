@@ -1698,6 +1698,7 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1730,6 +1731,7 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1755,12 +1757,12 @@ dependencies = [
 name = "nocter-compile-input"
 version = "0.0.0"
 dependencies = [
- "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
  "nocter-target-selection",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1771,6 +1773,7 @@ dependencies = [
  "nocter-checking",
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-json",
  "nocter-language",
  "nocter-machine",
  "nocter-macho",
@@ -1807,6 +1810,7 @@ dependencies = [
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-selection",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1814,6 +1818,7 @@ name = "nocter-declarations"
 version = "0.0.0"
 dependencies = [
  "nocter-model",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1833,7 +1838,6 @@ dependencies = [
  "nocter-checking",
  "nocter-compile-input",
  "nocter-declaration-lowering",
- "nocter-declarations",
  "nocter-diagnostics",
  "nocter-filesystem",
  "nocter-model",
@@ -1845,6 +1849,7 @@ dependencies = [
  "nocter-target-program",
  "nocter-target-selection",
  "nocter-test-support",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -1940,6 +1945,7 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-target-program",
  "nocter-test-support",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -2030,6 +2036,7 @@ dependencies = [
  "nocter-source-index",
  "nocter-syntax",
  "nocter-target-program",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -2073,6 +2080,7 @@ dependencies = [
  "nocter-model",
  "nocter-runtime-contract",
  "nocter-test-support",
+ "nocter-toolchain-contract",
 ]
 
 [[package]]
@@ -2095,7 +2103,12 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
+ "nocter-toolchain-contract",
 ]
+
+[[package]]
+name = "nocter-toolchain-contract"
+version = "0.0.0"
 
 [[package]]
 name = "nonempty"

@@ -8,7 +8,6 @@ publish = false
 
 [dependencies]
 nocter-compile-input = { path = "../nocter-compile-input" }
-nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-model = { path = "../nocter-model" }
@@ -18,6 +17,7 @@ nocter-source = { path = "../nocter-source" }
 nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-selection = { path = "../nocter-target-selection" }
+nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking" }

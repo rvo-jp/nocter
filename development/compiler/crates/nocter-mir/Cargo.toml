@@ -13,6 +13,7 @@ nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]
+nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-test-support = { path = "../nocter-test-support" }

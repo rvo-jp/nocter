@@ -6,11 +6,12 @@ use nocter_model::{
     PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeAuthority, TypeStore,
     TypeTransaction,
 };
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 use crate::{
     DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas, ExportedEntity,
     ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
-    ProgramValidationError, StandardLibrary, StructuralAttachment, Visibility,
+    ProgramValidationError, StandardLibrary, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -545,7 +546,7 @@ impl DeclarationProgramBuilder {
     /// a different declaration.
     pub fn set_standard_declaration(
         &mut self,
-        role: crate::StandardDeclarationRole,
+        role: StandardDeclarationRole,
         declaration: crate::StandardDeclaration,
     ) -> Result<(), ProgramBuildError> {
         self.standard_library
@@ -912,7 +913,7 @@ pub enum ProgramBuildError {
     StandardModuleOutsidePackage,
     ConflictingStructuralAttachmentModule(StructuralAttachment),
     ConflictingBuiltinTypeModule(nocter_model::BuiltinType),
-    ConflictingStandardDeclaration(crate::StandardDeclarationRole),
+    ConflictingStandardDeclaration(StandardDeclarationRole),
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,

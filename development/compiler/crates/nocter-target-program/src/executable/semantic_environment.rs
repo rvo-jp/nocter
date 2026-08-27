@@ -19,9 +19,9 @@ impl ExecutableSemanticEnvironment {
         let semantics = target.checked().standard_semantics();
         Self {
             allocation_context: semantics
-                .nominal(nocter_declarations::StandardDeclarationRole::AllocationContext),
+                .nominal(nocter_toolchain_contract::StandardDeclarationRole::AllocationContext),
             aborting_allocator: semantics
-                .nominal(nocter_declarations::StandardDeclarationRole::AbortingAllocator),
+                .nominal(nocter_toolchain_contract::StandardDeclarationRole::AbortingAllocator),
         }
     }
 

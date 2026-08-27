@@ -416,8 +416,12 @@ contained physical boundary. The resulting immutable profile owns the release, c
 canonical compiler, standard-library, license, and notice paths. Its release owns the standard
 package identity. No command or compiler stage may inspect installation JSON independently.
 
-`nocter-compile-input` owns the immutable handoff vocabulary between discovery and semantic
-lowering. `nocter-discovery` consumes exact resolved package roots, inventories every physical
+`nocter-toolchain-contract` owns the dependency-free closed identities for compiler-selected
+standard declaration roles and anonymous structural attachments. Discovery, compile-input, and
+declaration construction all consume those identities directly; no earlier stage depends on the
+declaration graph merely to name a later semantic responsibility. `nocter-compile-input` composes
+those neutral identities with immutable syntax and model locators for the handoff from discovery
+to semantic lowering. `nocter-discovery` consumes exact resolved package roots, inventories every physical
 source owned by each selected directory module, distinguishes exact same-module `see` edges from directory-module `use` edges, rejects
 ambiguous physical candidates and nested-package or cross-module escapes, and retains one edge for
 every active authored `see` and `use`.
@@ -501,6 +505,11 @@ presentation index as semantic input. No later stage may recover toolchain
 authority from a package name, module path, declaration spelling, visibility guess, or
 opportunistic presence in the source graph. The complete authored standard source graph now passes
 declaration lowering and body checking through this boundary as one qualification case.
+
+Architecture tests read Cargo's resolved metadata rather than interpreting dependency-section
+text. They freeze reviewed core-layer edges and reject a declaration-storage dependency anywhere
+in the transitive discovery or compile-input graph, so manifest formatting, target sections, and
+dependency ordering cannot bypass the boundary.
 
 `nocter-session` owns the only production transition from a syntax-clean discovery snapshot to a
 target-validated semantic program. It invokes the declaration facade, checking preparation and

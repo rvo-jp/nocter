@@ -4,10 +4,11 @@ use crate::toolchain::ResolvedToolchainInput;
 use crate::{ImportViolation, ToolchainError};
 use nocter_declarations::{
     ExportedEntity, FallbackEntry, ModuleNamespace as SemanticModuleNamespace, NamespaceEntry,
-    ProgramBuildError, StandardDeclaration, StandardDeclarationRole, StructuralAttachment,
+    ProgramBuildError, StandardDeclaration,
 };
 use nocter_model::{BuiltinType, ModuleId, PackageId, Symbol};
 use nocter_syntax::SyntaxToken;
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 /// Authored namespaces plus compiler-selected universal and standard-prelude fallback entries.
 #[derive(Debug)]

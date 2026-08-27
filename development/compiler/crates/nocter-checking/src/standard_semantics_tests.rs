@@ -1,7 +1,7 @@
 use crate::test_support::StandardRoleInput;
 use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_declarations::StandardDeclarationRole;
 use nocter_syntax::NodeKind;
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::test_support::{Fixture, with_standard_roles};
 use crate::{PreparationError, StandardSemanticError, prepare_program_checking};

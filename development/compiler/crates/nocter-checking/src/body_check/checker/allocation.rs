@@ -1,6 +1,6 @@
-use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{BodyNodeId, BorrowCapability, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;

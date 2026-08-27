@@ -1,9 +1,9 @@
 use std::fmt;
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::BuiltinType;
 use nocter_runtime_contract::PrimitiveRole;
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 /// A structural toolchain-profile failure detectable without interpreting declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]

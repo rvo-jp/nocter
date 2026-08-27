@@ -49,9 +49,7 @@ pub use program::{
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,
 };
-pub use standard::{
-    StandardDeclaration, StandardDeclarationRole, StandardLibrary, StructuralAttachment,
-};
+pub use standard::{StandardDeclaration, StandardLibrary};
 pub use target::PackageTarget;
 pub use validate::{
     DeclarationDomain, DeclarationRule, DeclarationValidationReport, DeclarationViolation,

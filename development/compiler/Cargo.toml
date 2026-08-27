@@ -38,6 +38,7 @@ members = [
     "crates/nocter-target-program",
     "crates/nocter-target-selection",
     "crates/nocter-test-support",
+    "crates/nocter-toolchain-contract",
 ]
 resolver = "3"
 

@@ -12,6 +12,7 @@ nocter-checking = { path = "../nocter-checking" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-language = { path = "../nocter-language" }
+nocter-json = { path = "../nocter-json" }
 nocter-machine = { path = "../nocter-machine" }
 nocter-macho = { path = "../nocter-macho" }
 nocter-mir = { path = "../nocter-mir" }

@@ -1,10 +1,11 @@
 use std::fmt;
 
 use nocter_compile_input::ToolchainInput;
-use nocter_declarations::{ProgramBuildError, StandardDeclarationRole, StructuralAttachment};
+use nocter_declarations::ProgramBuildError;
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeId;
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 use crate::{
     DeclarationSurface, ImportViolation, ModuleIdentity, SurfaceDeclaration, SurfaceDeclarationId,

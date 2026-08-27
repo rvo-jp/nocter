@@ -1,7 +1,8 @@
-use nocter_declarations::{ExpansionCapability, StandardDeclarationRole};
+use nocter_declarations::ExpansionCapability;
 use nocter_model::{BorrowCapability, CallableCapability, CallableId, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, TokenKind};
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;

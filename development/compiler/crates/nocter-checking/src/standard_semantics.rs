@@ -3,12 +3,13 @@ use std::fmt;
 
 use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
-    StandardDeclaration, StandardDeclarationRole, Visibility,
+    StandardDeclaration, Visibility,
 };
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
     DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
 };
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 mod interpolation;
 

@@ -1,6 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::OnceLock;
+
+use nocter_json::{Member, Value};
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -10,39 +14,83 @@ fn workspace() -> PathBuf {
         .to_path_buf()
 }
 
-fn manifest(crate_name: &str) -> String {
-    let path = workspace()
-        .join("crates")
-        .join(crate_name)
-        .join("Cargo.toml");
-    fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()))
+fn object_member<'value>(members: &'value [Member], name: &str) -> &'value Value {
+    &members
+        .iter()
+        .find(|member| member.name.as_ref() == name)
+        .unwrap_or_else(|| panic!("cargo metadata object has no {name} member"))
+        .value
+}
+
+fn metadata_dependency_graph() -> &'static BTreeMap<String, BTreeSet<String>> {
+    static GRAPH: OnceLock<BTreeMap<String, BTreeSet<String>>> = OnceLock::new();
+    GRAPH.get_or_init(|| {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let output = Command::new(cargo)
+            .args(["metadata", "--format-version", "1", "--no-deps"])
+            .current_dir(workspace())
+            .output()
+            .expect("run cargo metadata for architecture tests");
+        assert!(
+            output.status.success(),
+            "cargo metadata failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let metadata = nocter_json::parse(
+            std::str::from_utf8(&output.stdout).expect("cargo metadata is UTF-8"),
+        )
+        .expect("cargo metadata is valid JSON");
+        let Value::Object(root) = metadata else {
+            panic!("cargo metadata root is an object");
+        };
+        let Value::Array(packages) = object_member(&root, "packages") else {
+            panic!("cargo metadata packages is an array");
+        };
+        packages
+            .iter()
+            .map(|package| {
+                let Value::Object(package) = package else {
+                    panic!("cargo metadata package is an object");
+                };
+                let Value::String(name) = object_member(package, "name") else {
+                    panic!("cargo metadata package name is a string");
+                };
+                let Value::Array(dependencies) = object_member(package, "dependencies") else {
+                    panic!("cargo metadata dependencies is an array");
+                };
+                let dependencies = dependencies
+                    .iter()
+                    .filter_map(|dependency| {
+                        let Value::Object(dependency) = dependency else {
+                            panic!("cargo metadata dependency is an object");
+                        };
+                        if !matches!(object_member(dependency, "kind"), Value::Null) {
+                            return None;
+                        }
+                        let Value::String(name) = object_member(dependency, "name") else {
+                            panic!("cargo metadata dependency name is a string");
+                        };
+                        Some(name.to_string())
+                    })
+                    .collect();
+                (name.to_string(), dependencies)
+            })
+            .collect()
+    })
 }
 
 fn production_dependencies(crate_name: &str) -> BTreeSet<String> {
-    let manifest = manifest(crate_name);
-    let Some((_, dependencies)) = manifest.split_once("[dependencies]\n") else {
-        return BTreeSet::new();
-    };
-    dependencies
-        .split("\n[")
-        .next()
-        .expect("dependency section exists")
-        .lines()
-        .filter_map(|line| line.split_once('=').map(|(name, _)| name.trim().to_owned()))
-        .filter(|name| !name.is_empty())
-        .collect()
+    metadata_dependency_graph()
+        .get(crate_name)
+        .unwrap_or_else(|| panic!("cargo metadata has no package {crate_name}"))
+        .clone()
 }
 
 fn production_dependency_closure(crate_name: &str) -> BTreeSet<String> {
     fn visit(crate_name: &str, closure: &mut BTreeSet<String>) {
         for dependency in production_dependencies(crate_name) {
             if closure.insert(dependency.clone())
-                && workspace()
-                    .join("crates")
-                    .join(&dependency)
-                    .join("Cargo.toml")
-                    .is_file()
+                && metadata_dependency_graph().contains_key(&dependency)
             {
                 visit(&dependency, closure);
             }
@@ -55,14 +103,7 @@ fn production_dependency_closure(crate_name: &str) -> BTreeSet<String> {
 }
 
 fn crate_names() -> Vec<String> {
-    let mut names = fs::read_dir(workspace().join("crates"))
-        .expect("compiler crate directory")
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().join("Cargo.toml").is_file())
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .collect::<Vec<_>>();
-    names.sort();
-    names
+    metadata_dependency_graph().keys().cloned().collect()
 }
 
 fn rust_sources(root: &Path) -> Vec<PathBuf> {
@@ -92,7 +133,10 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
             "nocter-model",
             &["nocter-language", "nocter-persistent"][..],
         ),
-        ("nocter-declarations", &["nocter-model"][..]),
+        (
+            "nocter-declarations",
+            &["nocter-model", "nocter-toolchain-contract"][..],
+        ),
         (
             "nocter-target-program",
             &[
@@ -100,6 +144,7 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
                 "nocter-declarations",
                 "nocter-model",
                 "nocter-runtime-contract",
+                "nocter-toolchain-contract",
             ][..],
         ),
         (
@@ -253,6 +298,21 @@ fn neutral_handoff_contracts_do_not_depend_on_editor_projection() {
         assert!(
             !dependencies.contains("nocter-source-index"),
             "{crate_name} must hand off syntax identities without editor projection"
+        );
+    }
+}
+
+#[test]
+fn toolchain_handoff_vocabulary_stays_below_declaration_construction() {
+    assert!(
+        production_dependencies("nocter-toolchain-contract").is_empty(),
+        "toolchain identities must remain a dependency-free closed vocabulary"
+    );
+    for crate_name in ["nocter-compile-input", "nocter-discovery"] {
+        let closure = production_dependency_closure(crate_name);
+        assert!(
+            !closure.contains("nocter-declarations"),
+            "{crate_name} must not recover toolchain identities from declaration storage"
         );
     }
 }

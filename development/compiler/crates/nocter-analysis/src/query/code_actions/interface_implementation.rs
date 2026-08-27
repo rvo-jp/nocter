@@ -1,10 +1,10 @@
 use std::fmt;
 
 use nocter_checking::MissingInterfaceImplementationMethods;
-use nocter_declarations::StandardDeclarationRole;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::SemanticCodeAction;
 use crate::query::presentation::required_interface_implementation_method_presentation;

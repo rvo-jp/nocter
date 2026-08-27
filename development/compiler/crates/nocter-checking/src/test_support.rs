@@ -18,13 +18,13 @@ pub(crate) struct Fixture {
 
 #[derive(Clone, Copy)]
 pub(crate) struct StandardRoleInput {
-    role: nocter_declarations::StandardDeclarationRole,
+    role: nocter_toolchain_contract::StandardDeclarationRole,
     declaration: nocter_syntax::SyntaxToken,
 }
 
 impl StandardRoleInput {
     pub(crate) const fn new(
-        role: nocter_declarations::StandardDeclarationRole,
+        role: nocter_toolchain_contract::StandardDeclarationRole,
         declaration: nocter_syntax::SyntaxToken,
     ) -> Self {
         Self { role, declaration }

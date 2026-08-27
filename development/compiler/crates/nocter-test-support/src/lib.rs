@@ -12,10 +12,10 @@ use nocter_compile_input::{
     ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleLocator,
     StructuralAttachmentInput, ToolchainInput, UseResolutionInput,
 };
-use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 const ERROR_SOURCE: &str = "\
 pub primitive type error

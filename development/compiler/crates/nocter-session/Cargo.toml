@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-checking = { path = "../nocter-checking" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }

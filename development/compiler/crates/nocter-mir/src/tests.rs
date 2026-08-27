@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_declarations::StandardDeclarationRole;
 use nocter_model::{
     Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, MirBlockId,
     NominalTypeId, TypeAuthority, TypeId, TypeKind, TypeStore, TypeTransaction,
 };
 use nocter_runtime_contract::{RuntimeTypeRepresentation, RuntimeTypeRepresentationTable};
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::{
     MirBinaryOperation, MirBodyBuildError, MirBodyBuilder, MirBranchTarget, MirCall,

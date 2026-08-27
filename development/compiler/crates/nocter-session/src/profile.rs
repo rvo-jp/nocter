@@ -2,10 +2,10 @@ use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, StandardRoleLocator,
     StructuralAttachmentInput, ToolchainInput,
 };
-use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_syntax::NodeKind;
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 /// Builds the exact standard-source profile bundled with this compiler.
 ///

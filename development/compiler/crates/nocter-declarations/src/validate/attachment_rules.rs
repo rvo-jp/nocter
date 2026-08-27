@@ -1,9 +1,7 @@
 use nocter_model::{AttachmentFamily, BorrowCapability, BuiltinType, ModuleId, TypeId, TypeKind};
+use nocter_toolchain_contract::StructuralAttachment;
 
-use crate::{
-    CallableDeclaration, DeclarationProgram, LiteralShape, ParameterRole, StructuralAttachment,
-    Visibility,
-};
+use crate::{CallableDeclaration, DeclarationProgram, LiteralShape, ParameterRole, Visibility};
 
 pub(super) fn outcome_payload(program: &DeclarationProgram, mut ty: TypeId) -> Option<TypeId> {
     loop {

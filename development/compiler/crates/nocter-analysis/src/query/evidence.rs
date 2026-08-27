@@ -448,8 +448,7 @@ impl<'a> SemanticQueryContext<'a> {
                 // Rejected body construction retains only its explicit interruption contract.
                 // Partial checked nodes and their source projections are discarded together, so
                 // the retained body-node domain is empty rather than unknown.
-                Some(nocter_checking::BodyEvidence::Rejected(_)) => false,
-                None => false,
+                Some(nocter_checking::BodyEvidence::Rejected(_)) | None => false,
             },
             SemanticEvidence::Names(_) | SemanticEvidence::Declarations(_) => false,
         }

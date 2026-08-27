@@ -4,12 +4,12 @@
 //! filesystem policy and performs no semantic work; producers resolve physical topology once and
 //! consumers treat every identity and edge as immutable input.
 
-use nocter_declarations::{StandardDeclarationRole, StructuralAttachment};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 mod dependency;
 mod identity;

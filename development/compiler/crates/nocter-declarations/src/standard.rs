@@ -3,28 +3,7 @@ use std::collections::BTreeMap;
 use nocter_model::{
     AssociatedTypeId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId, PackageId,
 };
-
-/// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
-///
-/// Roles are never inferred from source names or module paths. The declaration remains ordinary
-/// Nocter source; this identity only authorizes semantics that cannot be expressed by the language
-/// itself, such as interpolation construction and ambient allocation propagation.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum StandardDeclarationRole {
-    AbortingAllocator,
-    AllocationContext,
-    OwnedString,
-    InterpolationConstructor,
-    InterpolationTextAppender,
-    FormatInterface,
-    FormatMethod,
-    IteratorInterface,
-    IteratorItem,
-    IteratorNextMethod,
-    ExactSizeIteratorInterface,
-    ExactSizeIteratorRemainingLenMethod,
-    ProcessAbort,
-}
+use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 /// Exact declaration identity assigned one compiler-defined standard role during lowering.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -36,28 +15,11 @@ pub enum StandardDeclaration {
     Callable(CallableId),
 }
 
-/// One anonymous structural type surface that standard source declarations may extend.
-///
-/// Named builtin types derive their authority from their `primitive type` declarations. Only
-/// structural types without a declaration require a separate compiler-selected authority.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum StructuralAttachment {
-    Slice,
-}
-
-impl StructuralAttachment {
-    const COUNT: usize = 1;
-
-    const fn index(self) -> usize {
-        self as usize
-    }
-}
-
 /// Exact compiler-selected authority for standard-library-only declarations.
 #[derive(Debug)]
 pub struct StandardLibrary {
     package: PackageId,
-    structural_attachment_modules: [Option<ModuleId>; StructuralAttachment::COUNT],
+    structural_attachment_modules: BTreeMap<StructuralAttachment, ModuleId>,
     builtin_type_modules: [Option<ModuleId>; BuiltinType::COUNT],
     declarations: BTreeMap<StandardDeclarationRole, StandardDeclaration>,
 }
@@ -66,7 +28,7 @@ impl StandardLibrary {
     pub(crate) const fn new(package: PackageId) -> Self {
         Self {
             package,
-            structural_attachment_modules: [None; StructuralAttachment::COUNT],
+            structural_attachment_modules: BTreeMap::new(),
             builtin_type_modules: [None; BuiltinType::COUNT],
             declarations: BTreeMap::new(),
         }
@@ -130,11 +92,11 @@ impl StandardLibrary {
     }
 
     #[must_use]
-    pub const fn structural_attachment_module(
+    pub fn structural_attachment_module(
         &self,
         attachment: StructuralAttachment,
     ) -> Option<ModuleId> {
-        self.structural_attachment_modules[attachment.index()]
+        self.structural_attachment_modules.get(&attachment).copied()
     }
 
     pub(crate) fn set_structural_attachment_module(
@@ -142,14 +104,17 @@ impl StandardLibrary {
         attachment: StructuralAttachment,
         module: ModuleId,
     ) -> Result<(), ModuleId> {
-        let slot = &mut self.structural_attachment_modules[attachment.index()];
-        match *slot {
-            None => {
-                *slot = Some(module);
-                Ok(())
-            }
+        match self
+            .structural_attachment_modules
+            .insert(attachment, module)
+        {
+            None => Ok(()),
             Some(existing) if existing == module => Ok(()),
-            Some(existing) => Err(existing),
+            Some(existing) => {
+                self.structural_attachment_modules
+                    .insert(attachment, existing);
+                Err(existing)
+            }
         }
     }
 }

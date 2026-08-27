@@ -172,6 +172,16 @@ pub struct WorkspaceAnalyses {
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
 }
 
+struct ScopeTransition {
+    documents: BTreeSet<PathBuf>,
+    selected: BTreeMap<PathBuf, AnalysisScope>,
+    failures: BTreeMap<PathBuf, WorkspaceAnalysisError>,
+    members: BTreeMap<AnalysisScope, Vec<PathBuf>>,
+    affected: BTreeSet<AnalysisScope>,
+    invalidated: Vec<AnalysisScope>,
+    primary_scope: Option<AnalysisScope>,
+}
+
 impl WorkspaceAnalyses {
     #[must_use]
     pub fn new(configuration: WorkspaceConfiguration) -> Self {
@@ -212,143 +222,25 @@ impl WorkspaceAnalyses {
 
     /// Selects one bounded package or single-file scope and runs its exact accepted overlay through
     /// locked, offline, read-only compiler preparation and target checking.
+    ///
+    /// # Panics
+    ///
+    /// Panics only when the internally planned primary transition fails to publish its generation.
+    /// That condition indicates a broken workspace-transition invariant, not invalid user source.
     pub fn analyze(&mut self, accepted: AcceptedDocumentGeneration) -> WorkspaceAnalysisBatch {
         let (document, source) = accepted.into_parts();
         let generation = source.generation();
         let source_overlay = source.into_source_overlay();
-        let mut documents = self
-            .document_scopes
-            .keys()
-            .chain(self.unscoped.keys())
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        documents.insert(document.clone());
-
-        let selections = documents
-            .iter()
-            .map(|candidate| {
-                (
-                    candidate.clone(),
-                    select_scope(&self.configuration, &source_overlay, candidate),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut members = BTreeMap::<AnalysisScope, Vec<PathBuf>>::new();
-        let mut affected = BTreeSet::new();
-        for candidate in &documents {
-            let previous = self.document_scopes.get(candidate);
-            let selected = selections
-                .get(candidate)
-                .and_then(|result| result.as_ref().ok());
-            if previous != selected {
-                affected.extend(previous.cloned());
-                affected.extend(selected.cloned());
-            }
-            if let Some(scope) = selected {
-                members
-                    .entry(scope.clone())
-                    .or_default()
-                    .push(candidate.clone());
-            }
-        }
-        if let Some(scope) = selections
-            .get(&document)
-            .and_then(|result| result.as_ref().ok())
-        {
-            affected.insert(scope.clone());
-        }
-        for (scope, latest) in &self.latest {
-            if generation_reaches_document(latest, &document) {
-                affected.insert(scope.clone());
-            }
-        }
-
-        let invalidated = affected
-            .iter()
-            .filter(|scope| !members.contains_key(*scope))
-            .cloned()
-            .collect::<Vec<_>>();
-        for scope in &invalidated {
+        let mut transition = self.plan_transition(&document, &source_overlay);
+        for scope in &transition.invalidated {
             self.latest.remove(scope);
         }
-
-        let primary_scope = selections
-            .get(&document)
-            .and_then(|result| result.as_ref().ok())
-            .cloned();
-        let mut scoped_results = BTreeMap::new();
-        for scope in &affected {
-            let Some(scope_members) = members.get(scope) else {
-                continue;
-            };
-            let representative = if primary_scope.as_ref() == Some(scope) {
-                document.clone()
-            } else {
-                scope_members[0].clone()
-            };
-            let state = compile_scope(
-                &self.configuration,
-                scope,
-                &representative,
-                generation,
-                source_overlay.clone(),
-            );
-            let result = Arc::new(WorkspaceAnalysisGeneration {
-                document: representative,
-                scope: Some(scope.clone()),
-                invalidated: if primary_scope.as_ref() == Some(scope) {
-                    invalidated.clone().into_boxed_slice()
-                } else {
-                    Box::new([])
-                },
-                generation,
-                state,
-            });
-            self.latest.insert(scope.clone(), Arc::clone(&result));
-            scoped_results.insert(scope.clone(), result);
-        }
-
-        let mut related = Vec::new();
-        for candidate in &documents {
-            if selections.get(candidate).is_some_and(Result::is_ok) {
-                self.unscoped.remove(candidate);
-                continue;
-            }
-            let changed = self.document_scopes.contains_key(candidate) || candidate == &document;
-            if !changed {
-                continue;
-            }
-            let error = select_scope(&self.configuration, &source_overlay, candidate)
-                .expect_err("failed scope selection must remain deterministic");
-            let result = Arc::new(WorkspaceAnalysisGeneration {
-                document: candidate.clone(),
-                scope: None,
-                invalidated: if candidate == &document {
-                    invalidated.clone().into_boxed_slice()
-                } else {
-                    Box::new([])
-                },
-                generation,
-                state: WorkspaceAnalysisState::PreparationFailed {
-                    source_overlay: source_overlay.clone(),
-                    error,
-                },
-            });
-            self.unscoped.insert(candidate.clone(), Arc::clone(&result));
-            if candidate != &document {
-                related.push(result);
-            }
-        }
-
-        self.document_scopes.clear();
-        for (candidate, selected) in &selections {
-            if let Ok(scope) = selected {
-                self.document_scopes
-                    .insert(candidate.clone(), scope.clone());
-            }
-        }
-
-        let primary = match primary_scope {
+        let mut scoped_results =
+            self.refresh_scoped(&document, generation, &source_overlay, &transition);
+        let mut related =
+            self.refresh_unscoped(&document, generation, &source_overlay, &mut transition);
+        self.document_scopes = transition.selected;
+        let primary = match transition.primary_scope {
             Some(scope) => scoped_results
                 .remove(&scope)
                 .expect("primary scope is always affected"),
@@ -364,6 +256,164 @@ impl WorkspaceAnalyses {
             primary,
             related: related.into_boxed_slice(),
         }
+    }
+
+    fn plan_transition(&self, document: &Path, source_overlay: &SourceOverlay) -> ScopeTransition {
+        let mut documents = self
+            .document_scopes
+            .keys()
+            .chain(self.unscoped.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        documents.insert(document.to_path_buf());
+        let mut selected = BTreeMap::new();
+        let mut failures = BTreeMap::new();
+        for candidate in &documents {
+            match select_scope(&self.configuration, source_overlay, candidate) {
+                Ok(scope) => {
+                    selected.insert(candidate.clone(), scope);
+                }
+                Err(error) => {
+                    failures.insert(candidate.clone(), error);
+                }
+            }
+        }
+        let members = selected.iter().fold(
+            BTreeMap::<AnalysisScope, Vec<PathBuf>>::new(),
+            |mut members, (candidate, scope)| {
+                members
+                    .entry(scope.clone())
+                    .or_default()
+                    .push(candidate.clone());
+                members
+            },
+        );
+        let mut affected = self.changed_scopes(&documents, &selected);
+        if let Some(scope) = selected.get(document) {
+            affected.insert(scope.clone());
+        }
+        affected.extend(
+            self.latest
+                .iter()
+                .filter(|(_, latest)| generation_reaches_document(latest, document))
+                .map(|(scope, _)| scope.clone()),
+        );
+        let invalidated = affected
+            .iter()
+            .filter(|scope| !members.contains_key(*scope))
+            .cloned()
+            .collect();
+        let primary_scope = selected.get(document).cloned();
+        ScopeTransition {
+            documents,
+            selected,
+            failures,
+            members,
+            affected,
+            invalidated,
+            primary_scope,
+        }
+    }
+
+    fn changed_scopes(
+        &self,
+        documents: &BTreeSet<PathBuf>,
+        selected: &BTreeMap<PathBuf, AnalysisScope>,
+    ) -> BTreeSet<AnalysisScope> {
+        let mut affected = BTreeSet::new();
+        for candidate in documents {
+            let previous = self.document_scopes.get(candidate);
+            let next = selected.get(candidate);
+            if previous != next {
+                affected.extend(previous.cloned());
+                affected.extend(next.cloned());
+            }
+        }
+        affected
+    }
+
+    fn refresh_scoped(
+        &mut self,
+        document: &Path,
+        generation: GenerationId,
+        source_overlay: &SourceOverlay,
+        transition: &ScopeTransition,
+    ) -> BTreeMap<AnalysisScope, Arc<WorkspaceAnalysisGeneration>> {
+        transition
+            .affected
+            .iter()
+            .filter_map(|scope| {
+                let scope_members = transition.members.get(scope)?;
+                let primary = transition.primary_scope.as_ref() == Some(scope);
+                let representative = if primary {
+                    document.to_path_buf()
+                } else {
+                    scope_members[0].clone()
+                };
+                let result = Arc::new(WorkspaceAnalysisGeneration {
+                    document: representative.clone(),
+                    scope: Some(scope.clone()),
+                    invalidated: if primary {
+                        transition.invalidated.clone().into_boxed_slice()
+                    } else {
+                        Box::new([])
+                    },
+                    generation,
+                    state: compile_scope(
+                        &self.configuration,
+                        scope,
+                        &representative,
+                        generation,
+                        source_overlay.clone(),
+                    ),
+                });
+                self.latest.insert(scope.clone(), Arc::clone(&result));
+                Some((scope.clone(), result))
+            })
+            .collect()
+    }
+
+    fn refresh_unscoped(
+        &mut self,
+        document: &Path,
+        generation: GenerationId,
+        source_overlay: &SourceOverlay,
+        transition: &mut ScopeTransition,
+    ) -> Vec<Arc<WorkspaceAnalysisGeneration>> {
+        let mut related = Vec::new();
+        for candidate in &transition.documents {
+            if transition.selected.contains_key(candidate) {
+                self.unscoped.remove(candidate);
+                continue;
+            }
+            let changed = self.document_scopes.contains_key(candidate) || candidate == document;
+            if !changed {
+                continue;
+            }
+            let error = transition
+                .failures
+                .remove(candidate)
+                .expect("every unscoped document retains its selection failure");
+            let result = Arc::new(WorkspaceAnalysisGeneration {
+                document: candidate.clone(),
+                scope: None,
+                invalidated: if candidate == document {
+                    transition.invalidated.clone().into_boxed_slice()
+                } else {
+                    Box::new([])
+                },
+                generation,
+                state: WorkspaceAnalysisState::PreparationFailed {
+                    source_overlay: source_overlay.clone(),
+                    error,
+                },
+            });
+            self.unscoped.insert(candidate.clone(), Arc::clone(&result));
+            if candidate != document {
+                related.push(result);
+            }
+        }
+        related
     }
 
     /// Compiles a speculative overlay without publishing or replacing an accepted generation.

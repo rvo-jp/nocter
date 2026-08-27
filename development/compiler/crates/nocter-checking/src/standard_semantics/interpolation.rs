@@ -1,11 +1,11 @@
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, ParameterRole, StandardDeclarationRole,
-    Visibility,
+    CallableKind, CallableOwner, DeclarationGraph, ParameterRole, Visibility,
 };
 use nocter_model::{
     BorrowCapability, BuiltinType, CallableCapability, CallableId, DeclarationSiteId,
     NominalTypeId, TypeId, TypeKind, TypeStore,
 };
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::StandardSemanticError;
 
