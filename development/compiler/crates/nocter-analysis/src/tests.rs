@@ -3,12 +3,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
-use nocter_source::ByteOffset;
+use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
 
 use crate::{
     AnalysisSnapshot, AnalysisStatus, EvidenceIntegrityError, GenerationId, SemanticCoverage,
@@ -16,6 +17,25 @@ use crate::{
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn diagnostic_composition_deduplicates_identity_without_inventing_range_causality() {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_bytes(SourceName::new("diagnostics.nct"), b"diagnostic")
+        .unwrap();
+    let span = sources
+        .get(source)
+        .unwrap()
+        .span(TextRange::new(ByteOffset::new(4), ByteOffset::new(7)));
+    let syntax = SourceDiagnostic::new("E0120", "syntax", span, [], None::<&str>);
+    let semantic = SourceDiagnostic::new("E0350", "semantic", span, [], None::<&str>);
+    let mut diagnostics = vec![syntax.clone()];
+
+    super::extend_unique_diagnostics(&mut diagnostics, &[syntax.clone(), semantic.clone()]);
+
+    assert_eq!(diagnostics, [syntax, semantic]);
+}
 
 #[test]
 fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {

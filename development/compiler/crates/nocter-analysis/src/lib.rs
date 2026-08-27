@@ -190,14 +190,7 @@ impl AnalysisSnapshot {
                     nocter_session::IncompleteSyntaxAnalysis::into_parts,
                 );
             let mut diagnostics = unit.syntax_diagnostics().into_vec();
-            {
-                let independent = semantic_diagnostics
-                    .iter()
-                    .filter(|diagnostic| independent_diagnostic(&diagnostics, diagnostic))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                diagnostics.extend(independent);
-            }
+            extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
             let state = AnalysisState::Current(CurrentAnalysis::syntax(unit, failure, semantic));
             return Self {
                 generation,
@@ -319,17 +312,15 @@ impl AnalysisSnapshot {
     }
 }
 
-fn independent_diagnostic(existing: &[SourceDiagnostic], candidate: &SourceDiagnostic) -> bool {
-    existing.iter().all(|diagnostic| {
-        if diagnostic.primary().source() != candidate.primary().source() {
-            return true;
+fn extend_unique_diagnostics(
+    diagnostics: &mut Vec<SourceDiagnostic>,
+    candidates: &[SourceDiagnostic],
+) {
+    for diagnostic in candidates {
+        if !diagnostics.contains(diagnostic) {
+            diagnostics.push(diagnostic.clone());
         }
-        let existing = diagnostic.primary().span().range();
-        let candidate = candidate.primary().span().range();
-        !(existing.overlaps(candidate)
-            || existing.is_empty() && candidate.contains_cursor(existing.start())
-            || candidate.is_empty() && existing.contains_cursor(candidate.start()))
-    })
+    }
 }
 
 #[cfg(test)]
