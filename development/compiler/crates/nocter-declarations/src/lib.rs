@@ -1,5 +1,3 @@
-#![allow(clippy::disallowed_types)]
-
 //! Immutable, syntax-independent declaration graph.
 //!
 //! This crate depends only on [`nocter_model`]. It cannot contain source files, byte ranges,
@@ -15,6 +13,7 @@ mod declaration;
 mod import;
 mod namespace;
 mod path;
+#[allow(clippy::disallowed_types)]
 mod program;
 mod requirement;
 mod standard;

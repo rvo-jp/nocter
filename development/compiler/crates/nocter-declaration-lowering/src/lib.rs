@@ -1,5 +1,3 @@
-#![allow(clippy::disallowed_types)]
-
 //! One-way lowering from syntax snapshots to the immutable declaration program.
 //!
 //! Filesystem discovery and package fetching are inputs, not responsibilities of this crate. The
@@ -44,6 +42,7 @@ mod topology_diagnostic;
 mod topology_violation;
 mod type_binding_diagnostic;
 mod type_normalization_diagnostic;
+#[allow(clippy::disallowed_types)]
 mod types;
 mod visibility;
 
