@@ -270,35 +270,94 @@ impl fmt::Display for EvidenceIntegrityError {
 impl std::error::Error for EvidenceIntegrityError {}
 
 impl<'a> SemanticQueryContext<'a> {
-    pub(crate) fn validate_interactive_entity(
-        &self,
-        entity: SemanticEntity,
-    ) -> Result<(), EvidenceIntegrityError> {
+    pub(crate) fn validate_source_index(&self) -> Result<(), EvidenceIntegrityError> {
+        let entities = self
+            .source_index()
+            .semantic_entities()
+            .collect::<BTreeSet<_>>();
+        for entity in entities {
+            self.validate_entity_domain(entity)?;
+        }
+        Ok(())
+    }
+
+    fn validate_entity_domain(&self, entity: SemanticEntity) -> Result<(), EvidenceIntegrityError> {
         let graph = self.graph();
         let declarations = graph.declarations();
         let present = match entity {
+            SemanticEntity::Package(id) => graph.packages().get(id).is_some(),
+            SemanticEntity::PackageTarget(id) => graph.package_targets().get(id).is_some(),
             SemanticEntity::Module(id) => graph.modules().get(id).is_some(),
+            SemanticEntity::BuiltinType(_) => true,
+            SemanticEntity::Import(id) => graph.imports().get(id).is_some(),
+            SemanticEntity::DeclarationSite(id) => graph.declaration_sites().get(id).is_some(),
             SemanticEntity::NominalType(id) => declarations.nominal_types().get(id).is_some(),
             SemanticEntity::TypeAlias(id) => declarations.type_aliases().get(id).is_some(),
             SemanticEntity::Interface(id) => declarations.interfaces().get(id).is_some(),
             SemanticEntity::AssociatedType(id) => declarations.associated_types().get(id).is_some(),
-            SemanticEntity::Callable(id) => declarations.callables().get(id).is_some(),
             SemanticEntity::Constant(id) => declarations.constants().get(id).is_some(),
+            SemanticEntity::Callable(id) => declarations.callables().get(id).is_some(),
+            SemanticEntity::Construction(id) => declarations.constructions().get(id).is_some(),
+            SemanticEntity::Instance(id) => declarations.instances().get(id).is_some(),
+            SemanticEntity::InterfaceImplementation(id) => {
+                declarations.interface_implementations().get(id).is_some()
+            }
+            SemanticEntity::Drop(id) => declarations.drops().get(id).is_some(),
+            SemanticEntity::Test(id) => declarations.tests().get(id).is_some(),
             SemanticEntity::Field(id) => declarations.fields().get(id).is_some(),
             SemanticEntity::Variant(id) => declarations.variants().get(id).is_some(),
             SemanticEntity::GenericParameter(id) => {
                 declarations.generic_parameters().get(id).is_some()
             }
             SemanticEntity::Parameter(id) => declarations.parameters().get(id).is_some(),
-            SemanticEntity::Test(id) => declarations.tests().get(id).is_some(),
+            SemanticEntity::Requirement(id) => declarations.requirements().get(id).is_some(),
+            SemanticEntity::Body(id) => declarations.bodies().get(id).is_some(),
+            SemanticEntity::BodyScope(body, scope) => self.scope_exists(body, scope),
+            SemanticEntity::BodyNode(body, node) => self.node_exists(body, node),
             SemanticEntity::LocalBinding(body, local) => self.local_exists(body, local),
             SemanticEntity::Capture(body, capture) => self.capture_exists(body, capture),
-            _ => true,
+            SemanticEntity::OpaqueType(id) => declarations.opaque_types().get(id).is_some(),
         };
         if present {
             Ok(())
         } else {
             Err(EvidenceIntegrityError::MissingSemanticEntity(entity))
+        }
+    }
+
+    fn scope_exists(&self, body: BodyId, scope: BodyScopeId) -> bool {
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked
+                .bodies()
+                .get(body)
+                .is_some_and(|body| body.scopes().get(scope).is_some()),
+            SemanticEvidence::Bodies(analysis) => analysis
+                .body_names()
+                .get(body)
+                .is_some_and(|names| names.scopes().get(scope).is_some()),
+            SemanticEvidence::Names(analysis) => analysis
+                .body_names()
+                .evidence(body)
+                .and_then(nocter_checking::BodyNameEvidence::usable_names)
+                .is_some_and(|names| names.scopes().get(scope).is_some()),
+            SemanticEvidence::Declarations(_) => false,
+        }
+    }
+
+    fn node_exists(&self, body: BodyId, node: BodyNodeId) -> bool {
+        match self.evidence {
+            SemanticEvidence::Checked { checked, .. } => checked
+                .bodies()
+                .get(body)
+                .is_some_and(|body| body.nodes().get(node).is_some()),
+            SemanticEvidence::Bodies(analysis) => match analysis.body_evidence(body) {
+                Some(nocter_checking::BodyEvidence::Typed(body)) => {
+                    body.nodes().get(node).is_some()
+                }
+                Some(nocter_checking::BodyEvidence::Rejected(_)) => true,
+                None => false,
+            },
+            SemanticEvidence::Names(_) | SemanticEvidence::Declarations(_) => false,
         }
     }
 

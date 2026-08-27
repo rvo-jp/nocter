@@ -1,14 +1,13 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::ModuleId;
 use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
+use crate::EvidenceIntegrityError;
 use crate::presentation::visible_spelling::VisibleSpellings;
-use crate::{AnalysisState, CurrentAnalysis, CurrentSemanticEvidence};
-
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum SpellingContext {
     Module(ModuleId),
@@ -18,43 +17,36 @@ enum SpellingContext {
 /// Mutable, generation-local query accelerators kept outside immutable compiler products.
 #[derive(Debug, Default)]
 pub(super) struct AnalysisQuerySession {
-    pub(super) checked_members: nocter_checking::MemberCompletionQuerySession,
-    interrupted_members: Box<[nocter_checking::MemberCompletionQuerySession]>,
+    checked_members: nocter_checking::MemberCompletionQuerySession,
+    interrupted_members: Mutex<HashMap<usize, Arc<nocter_checking::MemberCompletionQuerySession>>>,
     spellings: Mutex<HashMap<SpellingContext, Arc<VisibleSpellings>>>,
+    semantic_integrity: OnceLock<Result<(), EvidenceIntegrityError>>,
 }
 
 impl AnalysisQuerySession {
-    pub(super) fn for_state(state: &AnalysisState) -> Self {
-        let interruption_count = match state {
-            AnalysisState::Current(CurrentAnalysis {
-                semantic_evidence: CurrentSemanticEvidence::Analysis(semantic),
-                ..
-            }) => semantic
-                .bodies()
-                .map_or(0, |recovery| recovery.interruptions().count()),
-            AnalysisState::DiscoveryFailed(_)
-            | AnalysisState::Current(CurrentAnalysis {
-                semantic_evidence:
-                    CurrentSemanticEvidence::Unavailable | CurrentSemanticEvidence::Target(_),
-                ..
-            }) => 0,
-        };
-        Self {
-            checked_members: nocter_checking::MemberCompletionQuerySession::default(),
-            interrupted_members: std::iter::repeat_with(
-                nocter_checking::MemberCompletionQuerySession::default,
-            )
-            .take(interruption_count)
-            .collect(),
-            spellings: Mutex::default(),
-        }
+    pub(super) const fn checked_members(&self) -> &nocter_checking::MemberCompletionQuerySession {
+        &self.checked_members
     }
 
     pub(super) fn interrupted_members(
         &self,
         index: usize,
-    ) -> Option<&nocter_checking::MemberCompletionQuerySession> {
-        self.interrupted_members.get(index)
+    ) -> Arc<nocter_checking::MemberCompletionQuerySession> {
+        let mut sessions = self
+            .interrupted_members
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        sessions
+            .entry(index)
+            .or_insert_with(|| Arc::new(nocter_checking::MemberCompletionQuerySession::default()))
+            .clone()
+    }
+
+    pub(super) fn validate_semantics(
+        &self,
+        validate: impl FnOnce() -> Result<(), EvidenceIntegrityError>,
+    ) -> Result<(), EvidenceIntegrityError> {
+        *self.semantic_integrity.get_or_init(validate)
     }
 
     pub(super) fn module_spellings(
@@ -92,5 +84,38 @@ impl AnalysisQuerySession {
             .entry(context)
             .or_insert_with(|| Arc::new(build()))
             .clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::AnalysisQuerySession;
+
+    #[test]
+    fn semantic_integrity_is_sealed_once_per_generation() {
+        let session = AnalysisQuerySession::default();
+        let validations = AtomicUsize::new(0);
+        for _ in 0..3 {
+            session
+                .validate_semantics(|| {
+                    validations.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+                .unwrap();
+        }
+        assert_eq!(validations.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn interrupted_query_caches_are_keyed_lazily() {
+        let session = AnalysisQuerySession::default();
+        let first = session.interrupted_members(41);
+        let same = session.interrupted_members(41);
+        let distinct = session.interrupted_members(99);
+
+        assert!(std::sync::Arc::ptr_eq(&first, &same));
+        assert!(!std::sync::Arc::ptr_eq(&first, &distinct));
     }
 }

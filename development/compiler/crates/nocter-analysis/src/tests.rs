@@ -5,11 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
-use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, ModuleId, PackageIdentity};
+use nocter_model::{ArenaBuilder, BodyId, CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
-use nocter_source_index::SemanticEntity;
 
 use crate::{
     AnalysisSnapshot, AnalysisStatus, EvidenceIntegrityError, GenerationId, SemanticCoverage,
@@ -23,7 +22,10 @@ fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {
     let tree = TempTree::new();
     let (_, snapshot) =
         bundled_snapshot(&tree, "func subject(): i32 { 1 }\n", GenerationId::new(56));
-    let query = snapshot.semantic_query().expect("semantic query");
+    let query = snapshot
+        .semantic_query()
+        .expect("valid semantic index")
+        .expect("semantic query");
     let domain_len = query.graph().declarations().bodies().iter().count();
     let mut identities = ArenaBuilder::<BodyId, ()>::new();
     let mut missing = None;
@@ -35,20 +37,6 @@ fn query_kernel_classifies_an_unknown_body_identity_as_an_integrity_failure() {
     assert_eq!(
         query.typed_body_evidence(missing).unwrap_err(),
         EvidenceIntegrityError::MissingBodyDomain(missing)
-    );
-
-    let module_count = query.graph().modules().iter().count();
-    let mut module_identities = ArenaBuilder::<ModuleId, ()>::new();
-    let mut missing_module = None;
-    for _ in 0..=module_count {
-        missing_module = Some(module_identities.insert(()));
-    }
-    let missing_module = missing_module.unwrap();
-    assert_eq!(
-        query
-            .validate_interactive_entity(SemanticEntity::Module(missing_module))
-            .unwrap_err(),
-        EvidenceIntegrityError::MissingSemanticEntity(SemanticEntity::Module(missing_module))
     );
 }
 
@@ -226,6 +214,7 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     let offset = ByteOffset::new(u32::try_from(source_text.find("len").unwrap()).unwrap());
     let accepted_type_count = snapshot
         .semantic_query()
+        .expect("valid semantic index")
         .and_then(crate::semantic::SemanticQueryContext::complete)
         .expect("checked authority")
         .checked()
@@ -241,6 +230,7 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     assert_eq!(
         snapshot
             .semantic_query()
+            .expect("valid semantic index")
             .and_then(crate::semantic::SemanticQueryContext::complete)
             .expect("checked authority")
             .checked()
@@ -263,6 +253,7 @@ fn repeated_recovery_member_queries_are_semantically_identical() {
     assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
     let recovery = snapshot
         .semantic_query()
+        .expect("valid semantic index")
         .and_then(|query| query.body_recovery())
         .expect("typed body recovery");
     assert!(matches!(
@@ -386,6 +377,7 @@ fn declaration_failure_retains_the_diagnostics_of_rejected_body_evidence() {
     assert_eq!(codes, ["E0208", "E0392"]);
     let recovery = snapshot
         .semantic_query()
+        .expect("valid semantic index")
         .and_then(|query| query.body_recovery())
         .expect("body evidence beneath declaration rejection");
     assert_eq!(recovery.rejection_diagnostics().count(), 1);
@@ -427,10 +419,10 @@ fn name_recovery_retains_every_rejected_body_diagnostic() {
             .collect::<Vec<_>>(),
         ["E0340", "E0340"]
     );
-    let recovery = snapshot
-        .retained_semantic()
-        .and_then(nocter_session::SemanticAnalysis::names)
-        .expect("name evidence");
+    let Some(nocter_session::SemanticAnalysis::Names(recovery)) = snapshot.retained_semantic()
+    else {
+        panic!("expected name evidence")
+    };
     assert_eq!(recovery.body_names().rejection_diagnostics().count(), 2);
     assert_eq!(
         recovery

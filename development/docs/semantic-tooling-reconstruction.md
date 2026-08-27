@@ -60,10 +60,11 @@ ordinary result. Mutation queries such as rename require complete coverage by ty
   because an earlier production error remains the command's canonical failure.
 - `SourceIndex` remains only a bidirectional source-coordinate and semantic-identity projection. It
   does not acquire phase flags, recovery policy, or feature behavior.
-- Analysis owns the only join between source occurrences and semantic evidence.
-- The query context validates every interactive `SourceIndex` entity against its semantic domain
-  before selection, navigation, highlighting, presentation, or mutation. A dangling entity is an
-  integrity failure, never an empty editor result.
+- Analysis owns the only join between source occurrences and semantic evidence. Before exposing a
+  query context, it validates every identity referenced by `SourceIndex`: authored bindings,
+  documentation owners, and editor-visible names. The result is sealed once per immutable
+  generation and cached; feature code has no access to an unvalidated context. A dangling entity
+  is therefore an integrity failure for the generation, never a feature-specific empty result.
 - Editor features consume typed query results. They cannot inspect checking recovery or join raw
   `SourceIndex` bindings to bodies.
 - The language server maps protocol-independent outcomes to LSP. Only an integrity failure becomes
@@ -95,6 +96,8 @@ The reconstruction is complete only when:
 - internal failures cannot construct source-semantic recovery;
 - session composition retains every diagnostic that explains retained evidence;
 - no analysis feature directly joins `SourceIndex` with checking bodies or scopes;
+- an unsealed semantic context is private to the query kernel, and whole-index validation is
+  performed at most once per generation;
 - no language-server feature depends directly on checking or source-index representation;
 - set queries distinguish complete and partial coverage, and mutation requires complete coverage;
 - all expected unavailable states are ordinary query outcomes rather than internal errors;

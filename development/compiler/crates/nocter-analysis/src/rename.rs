@@ -76,7 +76,7 @@ impl AnalysisSnapshot {
         if !is_valid_name(replacement) {
             return Err(SemanticRenameError::InvalidReplacement(replacement.into()));
         }
-        let Some(query) = self.semantic_query() else {
+        let Some(query) = self.semantic_query()? else {
             return Ok(None);
         };
         let Some(authority) = query.complete() else {
@@ -87,7 +87,6 @@ impl AnalysisSnapshot {
         else {
             return Ok(None);
         };
-        query.validate_interactive_entity(selection.entity())?;
         if !renameable_entity(selection.entity()) {
             return Ok(None);
         }

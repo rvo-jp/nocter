@@ -150,6 +150,10 @@ visibility, whitespace, or body as its editor range. Contract declarations, sepa
 implementations, and references remain explicit roles. Structural `TypeId` values are not source
 entities because one interned type can occur at many sites; source type uses attach to their owning
 declaration or checked expression instead.
+The projection also exposes one complete stream of every referenced semantic identity, including
+documentation owners and editor-visible names. It does not validate those identities itself or
+depend on declaration storage; the analysis query kernel seals that stream against the current
+semantic evidence.
 
 `nocter-filesystem` owns one immutable map from canonical absolute paths to accepted open-document
 bytes and versions. Reads select that map before disk, while writes, fetches, lock generation, and
@@ -168,9 +172,12 @@ target-validated success. Recovered name and body analysis classifies every decl
 accepted or rejected with its source-backed reason; an internal inconsistency cannot manufacture
 partial semantic evidence. Protocol-independent queries are the only authority allowed to join
 that evidence to `SourceIndex` occurrences, and set-valued queries report whether their coverage is
-complete. Every interactive occurrence is validated against its declaration or body-local domain
-before a feature consumes it; a dangling source binding is an integrity failure rather than an
-ordinary empty result. A target failure therefore does not erase checked source semantics, while
+complete. The kernel validates the complete source projection against its declaration and
+body-local domains once per immutable generation; only the sealed context is visible to feature
+code. A dangling binding, documentation owner, or visible name is an integrity failure rather than
+an ordinary empty result. Query accelerators are lazy caches keyed by compiler-owned identities;
+they never infer an evidence-domain size or become a second semantic authority. A target failure
+therefore does not erase checked source semantics, while
 retaining checked semantics does not turn that target failure into success. A
 failed current generation never exposes an older successful semantic program. Discovery failures
 retain their reached syntax trees as well as sources, so invalidation and syntax-aware recovery do

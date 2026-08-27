@@ -11,6 +11,7 @@ use crate::{AnalysisSnapshot, SemanticSourceEdit};
 
 #[derive(Debug)]
 pub enum OutcomeActionError {
+    Evidence(crate::EvidenceIntegrityError),
     MissingBody(nocter_model::BodyId),
     MissingCallable(nocter_model::CallableId),
     MissingDeclarationSite(nocter_model::DeclarationSiteId),
@@ -24,6 +25,7 @@ pub enum OutcomeActionError {
 impl fmt::Display for OutcomeActionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Evidence(error) => error.fmt(formatter),
             Self::MissingBody(id) => write!(formatter, "missing interrupted body {id:?}"),
             Self::MissingCallable(id) => write!(formatter, "missing interrupted callable {id:?}"),
             Self::MissingDeclarationSite(id) => {
@@ -51,7 +53,27 @@ impl fmt::Display for OutcomeActionError {
     }
 }
 
-impl std::error::Error for OutcomeActionError {}
+impl std::error::Error for OutcomeActionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Evidence(error) => Some(error),
+            Self::MissingBody(_)
+            | Self::MissingCallable(_)
+            | Self::MissingDeclarationSite(_)
+            | Self::MissingSourceBinding(_)
+            | Self::MissingSyntax(_)
+            | Self::InvalidCallableSource
+            | Self::MissingResultType(_)
+            | Self::UnrenderableResult(_) => None,
+        }
+    }
+}
+
+impl From<crate::EvidenceIntegrityError> for OutcomeActionError {
+    fn from(error: crate::EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
+    }
+}
 
 pub(super) fn callable_contract_action(
     snapshot: &AnalysisSnapshot,
@@ -59,10 +81,10 @@ pub(super) fn callable_contract_action(
     diagnostic_code: &str,
     diagnostic_range: TextRange,
 ) -> Result<Option<SemanticCodeAction>, OutcomeActionError> {
-    let Some(recovery) = snapshot
-        .semantic_query()
-        .and_then(|query| query.body_recovery())
-    else {
+    let Some(query) = snapshot.semantic_query()? else {
+        return Ok(None);
+    };
+    let Some(recovery) = query.body_recovery() else {
         return Ok(None);
     };
     let Some(interruption) = recovery.interruption_overlapping(requested_source, diagnostic_range)

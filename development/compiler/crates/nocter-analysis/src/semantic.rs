@@ -77,6 +77,18 @@ impl SemanticSubject {
 }
 
 impl AnalysisSnapshot {
+    /// Reports whether source semantics completed through type and body checking.
+    ///
+    /// Target construction may still have failed for an independent toolchain or ABI reason.
+    /// Semantic mutation validation uses this capability instead of conflating it with executable
+    /// target availability.
+    #[must_use]
+    pub fn has_checked_semantics(&self) -> bool {
+        self.unvalidated_semantic_query()
+            .and_then(SemanticQueryContext::complete)
+            .is_some()
+    }
+
     /// Resolves one exact interactive semantic occurrence without rendering it.
     ///
     /// # Errors
@@ -88,14 +100,14 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSelection>, crate::EvidenceIntegrityError> {
-        let Some(query) = self.semantic_query() else {
+        let Some(query) = self.semantic_query()? else {
             return Ok(None);
         };
-        let selection = semantic_selection_from(query.source_index(), source, offset);
-        if let Some(selection) = selection {
-            query.validate_interactive_entity(selection.entity())?;
-        }
-        Ok(selection)
+        Ok(semantic_selection_from(
+            query.source_index(),
+            source,
+            offset,
+        ))
     }
 
     /// Resolves one exact source position through the deepest current semantic authority.
@@ -115,14 +127,13 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<Option<SemanticSubject>, SemanticQueryError> {
-        let Some(authority) = self.semantic_query() else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(None);
         };
         let index = authority.source_index();
         let Some(binding) = selected_binding(index, source, offset) else {
             return Ok(None);
         };
-        authority.validate_interactive_entity(binding.entity())?;
         let module = authority.source_ownership().module_for_source(source)?;
         let spellings = self
             .queries
@@ -140,7 +151,18 @@ impl AnalysisSnapshot {
         }))
     }
 
-    pub(crate) fn semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
+    pub(crate) fn semantic_query(
+        &self,
+    ) -> Result<Option<SemanticQueryContext<'_>>, crate::EvidenceIntegrityError> {
+        let Some(query) = self.unvalidated_semantic_query() else {
+            return Ok(None);
+        };
+        self.queries
+            .validate_semantics(|| query.validate_source_index())?;
+        Ok(Some(query))
+    }
+
+    fn unvalidated_semantic_query(&self) -> Option<SemanticQueryContext<'_>> {
         if let crate::AnalysisState::Current(crate::CurrentAnalysis {
             semantic_evidence: crate::CurrentSemanticEvidence::Target(target),
             ..

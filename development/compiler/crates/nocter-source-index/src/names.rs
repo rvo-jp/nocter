@@ -32,6 +32,10 @@ impl SourceVisibleNames {
         self.by_source.get(&source).map_or(&[], AsRef::as_ref)
     }
 
+    pub(crate) fn entities(&self) -> impl Iterator<Item = SemanticEntity> + '_ {
+        self.by_source.values().flatten().map(|name| name.parts().1)
+    }
+
     pub(crate) fn into_builder(self) -> SourceVisibleNamesBuilder {
         SourceVisibleNamesBuilder {
             by_source: self

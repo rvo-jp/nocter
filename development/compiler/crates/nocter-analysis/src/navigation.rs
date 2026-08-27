@@ -36,19 +36,18 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
-        let Some(selection) = self.semantic_selection(source, offset)? else {
-            return Ok(SemanticQuerySet::new(
-                Box::new([]),
-                authority_coverage(self),
-            ));
-        };
-        let Some(index) = self
-            .semantic_query()
-            .map(|authority| authority.source_index())
-        else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
+            ));
+        };
+        let index = authority.source_index();
+        let Some(selection) = crate::semantic::semantic_selection_from(index, source, offset)
+        else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Complete,
             ));
         };
         let bindings = index.bindings_for(selection.entity());
@@ -81,19 +80,18 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
-        let Some(selection) = self.semantic_selection(source, offset)? else {
-            return Ok(SemanticQuerySet::new(
-                Box::new([]),
-                authority_coverage(self),
-            ));
-        };
-        let Some(index) = self
-            .semantic_query()
-            .map(|authority| authority.source_index())
-        else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
+            ));
+        };
+        let index = authority.source_index();
+        let Some(selection) = crate::semantic::semantic_selection_from(index, source, offset)
+        else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Complete,
             ));
         };
         let bindings = index.bindings_for(selection.entity());
@@ -128,16 +126,18 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
         include_declarations: bool,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
-        let Some(selection) = self.semantic_selection(source, offset)? else {
-            return Ok(SemanticQuerySet::new(
-                Box::new([]),
-                authority_coverage(self),
-            ));
-        };
-        let Some(authority) = self.semantic_query() else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
+            ));
+        };
+        let Some(selection) =
+            crate::semantic::semantic_selection_from(authority.source_index(), source, offset)
+        else {
+            return Ok(SemanticQuerySet::new(
+                Box::new([]),
+                SemanticCoverage::Complete,
             ));
         };
         let coverage = authority.typed_body_coverage()?;
@@ -154,14 +154,6 @@ impl AnalysisSnapshot {
             ),
             coverage,
         ))
-    }
-}
-
-fn authority_coverage(snapshot: &AnalysisSnapshot) -> SemanticCoverage {
-    if snapshot.semantic_query().is_some() {
-        SemanticCoverage::Complete
-    } else {
-        SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence)
     }
 }
 

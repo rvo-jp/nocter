@@ -171,7 +171,7 @@ impl AnalysisSnapshot {
         Self {
             generation,
             diagnostics,
-            queries: query_session::AnalysisQuerySession::for_state(&state),
+            queries: query_session::AnalysisQuerySession::default(),
             state,
         }
     }
@@ -202,7 +202,7 @@ impl AnalysisSnapshot {
             return Self {
                 generation,
                 diagnostics: diagnostics.into_boxed_slice(),
-                queries: query_session::AnalysisQuerySession::for_state(&state),
+                queries: query_session::AnalysisQuerySession::default(),
                 state,
             };
         }
@@ -212,7 +212,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics: Box::new([]),
-                    queries: query_session::AnalysisQuerySession::for_state(&state),
+                    queries: query_session::AnalysisQuerySession::default(),
                     state,
                 }
             }
@@ -223,7 +223,7 @@ impl AnalysisSnapshot {
                 Self {
                     generation,
                     diagnostics,
-                    queries: query_session::AnalysisQuerySession::for_state(&state),
+                    queries: query_session::AnalysisQuerySession::default(),
                     state,
                 }
             }
@@ -251,18 +251,6 @@ impl AnalysisSnapshot {
                 AnalysisStatus::Complete
             }
         }
-    }
-
-    /// Reports whether source semantics completed through type and body checking.
-    ///
-    /// Target construction may still have failed for an independent toolchain or ABI reason.
-    /// Semantic mutation validation uses this capability instead of conflating it with executable
-    /// target availability.
-    #[must_use]
-    pub fn has_checked_semantics(&self) -> bool {
-        self.semantic_query()
-            .and_then(crate::semantic::SemanticQueryContext::complete)
-            .is_some()
     }
 
     #[must_use]

@@ -69,6 +69,28 @@ pub struct SourceIndex {
 }
 
 impl SourceIndex {
+    /// Returns every semantic identity referenced anywhere in this projection.
+    ///
+    /// This includes authored occurrences, documentation ownership, and editor-visible names. A
+    /// semantic consumer can therefore seal the complete projection without knowing its storage
+    /// layout or repeating feature-specific validation.
+    pub fn semantic_entities(&self) -> impl Iterator<Item = SemanticEntity> + '_ {
+        self.by_entity
+            .iter()
+            .map(|binding| binding.entity())
+            .chain(
+                self.entity_documentation
+                    .iter()
+                    .map(EntityDocumentation::entity),
+            )
+            .chain(
+                self.occurrence_documentation
+                    .iter()
+                    .map(OccurrenceDocumentation::entity),
+            )
+            .chain(self.visible_names.entities())
+    }
+
     /// Restricts this index to diagnostic-origin projection for semantic consumers.
     #[must_use]
     pub const fn diagnostic_origins(&self) -> crate::DiagnosticOrigins<'_> {
@@ -567,15 +589,28 @@ mod tests {
         let symbols = SymbolTable::from_spellings(["alias", "app"]);
         let alias = symbols.get("alias").unwrap();
         let app = symbols.get("app").unwrap();
-        let (module, _) = build_declaration_ids(symbols, app);
+        let (module, site) = build_declaration_ids(symbols, app);
         let mut builder = SourceIndexBuilder::new();
         builder.define_visible_names(source, [(alias, SemanticEntity::Module(module))]);
+        builder
+            .insert_documentation(SemanticEntity::DeclarationSite(site), "docs")
+            .unwrap();
 
         let index = builder.finish().into_builder().finish();
 
         assert_eq!(
             index.visible_names_in(source).collect::<Vec<_>>(),
             vec![(alias, SemanticEntity::Module(module))]
+        );
+        assert_eq!(
+            index
+                .semantic_entities()
+                .collect::<std::collections::BTreeSet<_>>(),
+            std::collections::BTreeSet::from([
+                SemanticEntity::Module(module),
+                SemanticEntity::DeclarationSite(site),
+            ]),
+            "sealing must see identities that have no authored binding"
         );
     }
 

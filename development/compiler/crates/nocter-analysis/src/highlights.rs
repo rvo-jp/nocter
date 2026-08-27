@@ -69,7 +69,7 @@ impl AnalysisSnapshot {
         &self,
         source: SourceId,
     ) -> Result<SemanticQuerySet<SemanticHighlight>, EvidenceIntegrityError> {
-        let Some(authority) = self.semantic_query() else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
@@ -135,7 +135,6 @@ fn classify(
 ) -> Result<Option<(SemanticHighlightKind, bool)>, EvidenceIntegrityError> {
     let graph = authority.graph();
     let entity = binding.entity();
-    authority.validate_interactive_entity(entity)?;
     let declarations = graph.declarations();
     let kind = match entity {
         SemanticEntity::BuiltinType(_) => SemanticHighlightKind::Type,

@@ -12,7 +12,7 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::{CompileSessionError, CompiledTarget, SemanticAnalysis};
 
-/// A failed target analysis and the deepest current-generation semantic stage that remains valid.
+/// A failed target analysis and the exact current-generation semantic evidence that remains valid.
 #[derive(Debug)]
 pub struct CompileTargetFailure {
     error: CompileSessionError,
@@ -22,8 +22,8 @@ pub struct CompileTargetFailure {
 
 /// Best-effort source analysis performed beneath an authoritative syntax failure.
 ///
-/// The syntax outcome remains failed. This value independently retains a semantic-stage failure
-/// and the deepest completed semantic authority reached by that attempt.
+/// The syntax outcome remains failed. This value independently retains a semantic failure and the
+/// exact evidence contract reached by that attempt.
 #[derive(Debug)]
 pub struct IncompleteSyntaxAnalysis {
     failure: Option<CompileSessionError>,

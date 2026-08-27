@@ -271,7 +271,7 @@ impl AnalysisSnapshot {
         offset: ByteOffset,
     ) -> Result<SemanticQuerySet<SemanticCompletion>, SemanticCompletionError> {
         let keyword_completions = keywords::completions(self, source, offset);
-        let Some(program) = self.semantic_query() else {
+        let Some(program) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 keyword_completions,
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),
@@ -319,7 +319,7 @@ impl AnalysisSnapshot {
             if let Some(completions) = checked_member_completions(
                 complete,
                 checked,
-                &self.queries.checked_members,
+                self.queries.checked_members(),
                 index,
                 source,
                 offset,
@@ -380,10 +380,8 @@ fn interrupted_completions(
     };
     match interruption.kind() {
         TypedBodyInterruptionKind::MemberSelection { .. } => {
-            let Some(session) = queries.interrupted_members(interruption_index) else {
-                return Ok(None);
-            };
-            let Some(candidates) = recovery.interrupted_member_completions(session, interruption)
+            let session = queries.interrupted_members(interruption_index);
+            let Some(candidates) = recovery.interrupted_member_completions(&session, interruption)
             else {
                 return Ok(None);
             };

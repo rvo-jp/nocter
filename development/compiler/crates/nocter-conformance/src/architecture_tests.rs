@@ -159,6 +159,56 @@ fn language_server_consumes_analysis_queries_not_semantic_storage() {
 }
 
 #[test]
+fn semantic_features_cannot_acquire_an_unsealed_query_context() {
+    let analysis = workspace().join("crates/nocter-analysis/src");
+    let semantic = fs::read_to_string(analysis.join("semantic.rs")).expect("semantic query kernel");
+    assert!(
+        semantic.contains("fn unvalidated_semantic_query"),
+        "the raw query constructor must remain an explicit kernel boundary"
+    );
+    assert!(
+        !semantic.contains("pub(crate) fn unvalidated_semantic_query"),
+        "an unsealed semantic context must not be visible to feature modules"
+    );
+    assert!(
+        semantic.contains("validate_semantics(|| query.validate_source_index())?"),
+        "the public crate query path must seal the complete source projection"
+    );
+
+    for entry in fs::read_dir(&analysis).expect("analysis sources") {
+        let entry = entry.expect("analysis source entry");
+        let path = entry.path();
+        if path.file_name().and_then(|name| name.to_str()) == Some("semantic.rs")
+            || path.extension().and_then(|extension| extension.to_str()) != Some("rs")
+        {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("analysis source");
+        assert!(
+            !source.contains("unvalidated_semantic_query"),
+            "{} bypasses the sealed semantic query boundary",
+            path.display()
+        );
+    }
+}
+
+#[test]
+fn query_caches_do_not_derive_a_second_semantic_domain() {
+    let path = workspace().join("crates/nocter-analysis/src/query_session.rs");
+    let source = fs::read_to_string(&path).expect("analysis query session");
+    for forbidden in [
+        "AnalysisState",
+        "CurrentSemanticEvidence",
+        "interruption_count",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "query cache must not inspect semantic storage through {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
     let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
     for crate_name in crate_names() {

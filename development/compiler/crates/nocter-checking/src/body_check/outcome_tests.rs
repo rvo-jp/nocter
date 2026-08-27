@@ -355,7 +355,7 @@ fn recovery_retains_independently_successful_typed_bodies() {
             .declarations()
             .bodies()
             .iter()
-            .filter_map(|(body, _)| recovery.typed_body(body))
+            .filter_map(|(body, _)| recovery.body_evidence(body)?.typed())
             .collect::<Vec<_>>();
 
         assert_eq!(recovered.len(), 1);

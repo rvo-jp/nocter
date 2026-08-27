@@ -140,7 +140,7 @@ impl AnalysisSnapshot {
         source: SourceId,
         requested: TextRange,
     ) -> Result<SemanticQuerySet<SemanticInlayHint>, SemanticInlayHintError> {
-        let Some(authority) = self.semantic_query() else {
+        let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
                 SemanticCoverage::Unavailable(SemanticSetUnavailability::NoSemanticEvidence),

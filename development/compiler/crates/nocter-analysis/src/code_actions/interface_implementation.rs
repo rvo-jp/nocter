@@ -12,6 +12,7 @@ use crate::{AnalysisSnapshot, SemanticCompletionError, SemanticSourceEdit};
 
 #[derive(Debug)]
 pub enum InterfaceImplementationActionError {
+    Evidence(crate::EvidenceIntegrityError),
     MissingRecovery,
     MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),
     MissingDeclarationSite(nocter_model::DeclarationSiteId),
@@ -28,6 +29,7 @@ pub enum InterfaceImplementationActionError {
 impl fmt::Display for InterfaceImplementationActionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Evidence(error) => error.fmt(formatter),
             Self::MissingRecovery => {
                 formatter.write_str("missing-method code action has no declaration recovery")
             }
@@ -75,6 +77,7 @@ impl fmt::Display for InterfaceImplementationActionError {
 impl std::error::Error for InterfaceImplementationActionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Evidence(error) => Some(error),
             Self::Completion(error) => Some(error),
             Self::MissingRecovery
             | Self::MissingInterfaceImplementation(_)
@@ -93,6 +96,12 @@ impl std::error::Error for InterfaceImplementationActionError {
 impl From<SemanticCompletionError> for InterfaceImplementationActionError {
     fn from(error: SemanticCompletionError) -> Self {
         Self::Completion(error)
+    }
+}
+
+impl From<crate::EvidenceIntegrityError> for InterfaceImplementationActionError {
+    fn from(error: crate::EvidenceIntegrityError) -> Self {
+        Self::Evidence(error)
     }
 }
 
@@ -165,7 +174,7 @@ fn insertion_context<'snapshot>(
     missing: &MissingInterfaceImplementationMethods,
 ) -> Result<Option<InsertionContext<'snapshot>>, InterfaceImplementationActionError> {
     let recovery = snapshot
-        .semantic_query()
+        .semantic_query()?
         .and_then(|query| query.declaration_recovery())
         .ok_or(InterfaceImplementationActionError::MissingRecovery)?;
     let graph = recovery.graph();

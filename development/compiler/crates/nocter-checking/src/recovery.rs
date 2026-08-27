@@ -12,7 +12,7 @@ use crate::{
     TypedBodyInterruption, TypedBodyInterruptionKind,
 };
 
-/// The deepest semantic stage retained when checking preparation rejects source.
+/// The exact semantic evidence retained when checking preparation rejects source.
 #[derive(Debug)]
 pub enum PreparationRecovery {
     Declarations(Box<DeclarationAnalysisRecovery>),
@@ -106,8 +106,10 @@ impl std::error::Error for InterruptionEvidenceError {}
 /// The prepared program remains the syntax-independent authority for program-wide semantics.
 /// Lexical body names stay in this editor recovery layer. Every authored body failure may add one
 /// typed interruption backed by a private transactional type/copyability snapshot. Independently
-/// successful bodies are retained sparsely for local editor queries, but they have not passed
+/// successful bodies retain typed evidence for local editor queries, but they have not passed
 /// whole-program ownership, provenance, or target closure and cannot become a checked program.
+/// Every declared body owns exactly one [`BodyEvidence`] entry, so authored rejection is never
+/// represented by absence.
 #[derive(Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
@@ -148,9 +150,7 @@ impl BodyAnalysisRecovery {
         &self.source_index
     }
 
-    /// Returns typed facts for one independently successful body. The sparse body is analysis
-    /// evidence only: it has not passed whole-program ownership, provenance, or target closure and
-    /// cannot be converted into a [`crate::CheckedProgram`].
+    /// Returns the explicit evidence state for one declared body.
     #[must_use]
     pub fn body_evidence(&self, body: nocter_model::BodyId) -> Option<&BodyEvidence> {
         self.bodies.get(body)
@@ -171,12 +171,6 @@ impl BodyAnalysisRecovery {
         self.bodies
             .iter()
             .filter_map(|(_, evidence)| evidence.rejection()?.diagnostic())
-    }
-
-    /// Returns typed facts only when this exact body completed typed construction.
-    #[must_use]
-    pub fn typed_body(&self, body: nocter_model::BodyId) -> Option<&crate::CheckedBody> {
-        self.body_evidence(body)?.typed()
     }
 
     pub fn interruptions(&self) -> impl Iterator<Item = &TypedBodyInterruption> {

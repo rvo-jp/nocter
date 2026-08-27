@@ -4,11 +4,12 @@ use nocter_checking::{
 };
 use nocter_declaration_lowering::DeclarationLoweringRecovery;
 
-/// The deepest completed source-semantic stage retained by one analysis attempt.
+/// The exact current-generation source-semantic evidence retained by one analysis attempt.
 ///
 /// This sum belongs to session composition rather than an individual compiler phase. Each variant
-/// contains only the immutable contract produced by its owning phase and cannot enter a later
-/// production transition.
+/// contains only the immutable evidence contract produced by its owner and cannot enter a later
+/// production transition. Editor features do not consume or compare these variants directly;
+/// analysis converts them into capability-bearing query contexts.
 #[derive(Debug)]
 pub enum SemanticAnalysis {
     Declarations(Box<DeclarationAnalysisRecovery>),
@@ -41,37 +42,5 @@ impl SemanticAnalysis {
 
     pub(crate) fn from_checked(checked: CheckedProgramOutput) -> Self {
         Self::Checked(Box::new(checked))
-    }
-
-    #[must_use]
-    pub fn declarations(&self) -> Option<&DeclarationAnalysisRecovery> {
-        match self {
-            Self::Declarations(analysis) => Some(analysis),
-            Self::Names(_) | Self::Bodies(_) | Self::Checked(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn names(&self) -> Option<&NameAnalysisRecovery> {
-        match self {
-            Self::Names(analysis) => Some(analysis),
-            Self::Declarations(_) | Self::Bodies(_) | Self::Checked(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn bodies(&self) -> Option<&BodyAnalysisRecovery> {
-        match self {
-            Self::Bodies(analysis) => Some(analysis),
-            Self::Declarations(_) | Self::Names(_) | Self::Checked(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn checked(&self) -> Option<&CheckedProgramOutput> {
-        match self {
-            Self::Checked(analysis) => Some(analysis),
-            Self::Declarations(_) | Self::Names(_) | Self::Bodies(_) => None,
-        }
     }
 }
