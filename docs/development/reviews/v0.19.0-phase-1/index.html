@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compiler Design Reviews - Nocter</title>
-    <meta name="description" content="This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation status. It is non-normative: public behavior remains owned ">
+    <title>v0.19.0 Phase 1 Streaming Text Input Review - Nocter</title>
+    <meta name="description" content="Result: passed (2026-08-28). This review covers the public BufReader line contracts, reusable destination behavior, UTF-8 validation authority, terminal-st">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.19.0-phase-1/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Compiler Design Reviews - Nocter">
-    <meta property="og:description" content="This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation status. It is non-normative: public behavior remains owned ">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/">
+    <meta property="og:title" content="v0.19.0 Phase 1 Streaming Text Input Review - Nocter">
+    <meta property="og:description" content="Result: passed (2026-08-28). This review covers the public BufReader line contracts, reusable destination behavior, UTF-8 validation authority, terminal-st">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.19.0-phase-1/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Compiler Design Reviews - Nocter">
-    <meta name="twitter:description" content="This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation status. It is non-normative: public behavior remains owned ">
+    <meta name="twitter:title" content="v0.19.0 Phase 1 Streaming Text Input Review - Nocter">
+    <meta name="twitter:description" content="Result: passed (2026-08-28). This review covers the public BufReader line contracts, reusable destination behavior, UTF-8 validation authority, terminal-st">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Compiler Design Reviews - Nocter","description":"This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation status. It is non-normative: public behavior remains owned ","url":"https://nocter.dev/development/reviews/","mainEntityOfPage":"https://nocter.dev/development/reviews/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.19.0 Phase 1 Streaming Text Input Review - Nocter","description":"Result: passed (2026-08-28). This review covers the public BufReader line contracts, reusable destination behavior, UTF-8 validation authority, terminal-st","url":"https://nocter.dev/development/reviews/v0.19.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.19.0-phase-1/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.19.0 Phase 1","item":"https://nocter.dev/development/reviews/v0.19.0-phase-1/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -122,26 +122,48 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="./v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
-                <li><a href="./v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
-                <li><a href="./v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
-                <li><a href="./v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
-                <li><a href="./v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
-                <li><a href="./v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
-                <li><a href="./v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
-                <li><a href="./v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
-                <li><a href="./v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
-                <li><a href="./v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
-                <li><a href="./v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/README.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.19.0-phase-1.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="compiler-design-reviews">Compiler Design Reviews</h1><p>This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation status. It is non-normative: public behavior remains owned exclusively by <a href="../../spec/index.html#content"><code>spec/</code></a>.</p><p>An implementation qualification proves the recorded implementation against its specification and tests. A final design review asks a different question: whether each responsibility can be replaced internally without forcing consumers that use only its contract to change.</p><h2 id="current-candidate-reviews">Current Candidate Reviews</h2><ul><li><a href="./v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a> — complete</li><li><a href="./v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a> — complete</li><li><a href="./v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a> — complete</li><li><a href="./v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a> — complete</li><li><a href="./v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a> — complete</li><li><a href="./v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a> — complete</li><li><a href="./v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a> — complete</li><li><a href="./v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a> — complete</li></ul><h2 id="historical-foundation-reviews">Historical Foundation Reviews</h2><ul><li><a href="./v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li><li><a href="./v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li><li><a href="./v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li></ul>
+                <h1 id="v0-19-0-phase-1-streaming-text-input-review">v0.19.0 Phase 1 Streaming Text Input Review</h1><p><strong>Result: passed (2026-08-28).</strong> This review covers the public <code>BufReader</code> line contracts, reusable destination behavior, UTF-8 validation authority, terminal-state convergence, bounded storage, native behavior, standard-library dependency boundaries, and editor behavior introduced by v0.19.0 Phase 1.</p><h2 id="review-criteria">Review Criteria</h2><p>The review traced:</p><ul><li>every byte from an underlying partial read through delimiter classification, UTF-8 validation,
+  publication into <code>String</code>, and later destruction;</li><li>every transition caused by EOF, explicit close, I/O failure, invalid UTF-8, and recoverable
+  growth failure;</li><li>ownership of unread bytes, the incomplete line, the caller destination, UTF-8 policy, and the
+  stable <code>std.string.invalid_utf8</code> failure;</li><li>all new standard-library module dependencies and every public API added to <code>String</code> and
+  <code>BufReader</code>;</li><li>public contract and implementation-source hover, member completion, and navigation;</li><li>duplicate validators, raw-pointer-derived string views, compatibility wrappers, new compiler
+  primitives, and editor-only declaration reconstruction.</li></ul><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="a-borrowed-internal-utf-8-adapter-would-have-bypassed-result-provenance">A borrowed internal UTF-8 adapter would have bypassed result provenance</h3><p>The first implementation attempted to turn a validated byte slice into <code>&amp;str</code> inside <code>std/internal/utf8</code> and pass that borrow into existing string mutation. The checker correctly rejected the result: a package-internal helper cannot manufacture a returned borrow whose origin is not expressed by its contract. Weakening provenance or adding a privileged primitive would have made the compiler understand an implementation shortcut.</p><p>The accepted design keeps validation independent of representation. <code>std/internal/utf8</code> owns the validator and stable error construction; <code>String.try_push_utf8</code> validates first and then copies bytes into storage owned by <code>String</code>. <code>std/io/buffer</code> sees only that safe public operation and never constructs a string view from a raw pointer.</p><h3 id="byte-copying-initially-introduced-an-unnecessary-public-pointer-dependency">Byte copying initially introduced an unnecessary public pointer dependency</h3><p>The first <code>String.try_push_utf8</code> body computed an offset address through <code>std/ptr.addr</code>. The standard dependency guard rejected the new <code>string -&gt; ptr</code> edge. The operation now uses the package-internal byte-store contract, whose offset parameter already expresses the required copy. No user-facing pointer API or new compiler primitive is needed.</p><h3 id="a-buffered-reader-needs-one-raw-incomplete-line-owner">A buffered reader needs one raw incomplete-line owner</h3><p>Publishing bytes directly into the caller's <code>String</code> would temporarily violate the invariant that every <code>String</code> contains valid UTF-8. Validating each refill independently would reject a scalar split across reads. <code>BufReader</code> therefore owns one reusable <code>Vec&lt;u8&gt;</code> for the current line, validates the complete delimiter-free byte sequence, and only then publishes it. This is not a second text representation: the buffer is raw bytes, while <code>String</code> remains the sole owner of validated text storage.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/21-practical-standard-library.md</code> exclusively owns observable line, delimiter, EOF,
+  terminal, failure, and allocation-bound behavior.</li><li><code>std/io.File</code> retains interruption retry and target I/O policy. <code>BufReader</code> consumes only the
+  <code>Reader</code> result and does not reinterpret errno or syscall facts.</li><li><code>std/io/buffer</code> exclusively owns unread-byte position, incomplete-line bytes, and its terminal
+  state. One refill implementation serves byte reads and line reads.</li><li><code>std/internal/utf8</code> exclusively owns the UTF-8 state machine and the
+  <code>std.string.invalid_utf8</code> constructor. The public <code>std/string.is_valid_utf8</code> function is a thin
+  API projection onto that authority, not a second validator.</li><li><code>String</code> exclusively owns mutation of its representation. <code>try_push_utf8</code> validates before
+  reserving or publishing bytes, so invalid input leaves an existing value unchanged.</li><li>EOF preserves a pending final line long enough to publish it once, while every subsequent byte
+  and line operation observes the same terminal state. Failure and explicit close additionally
+  discard the incomplete line.</li><li>storage is bounded by the configured read buffer, the largest current line, and caller-retained
+  destination capacity. No completed line or complete file is retained.</li><li>the reviewed dependency set records only <code>io/buffer -&gt; string</code> and <code>string -&gt; internal/utf8</code> as
+  new ownership edges.</li><li>LSP tests consume the same checked standard-library declarations and bodies as compilation; no
+  editor-only declaration or method reconstruction was added.</li></ul><p>No unresolved correctness or responsibility-boundary finding remains in Phase 1 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed with <code>/private/tmp/nocter-v019-phase1</code> as the external Cargo target:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
+<span class="token-function">cargo</span> clippy <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml \
+  <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
+<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> -- <span class="token-option">--check</span>
+<span class="token-function">node</span> docs/build-docs.js
+<span class="token-function">git</span> diff <span class="token-option">--check</span>
+</code></pre><p>Native acceptance covers refill boundaries, a UTF-8 scalar split across refills, short final reads, lines larger than the buffer, empty lines, CRLF, lone CR, a final unterminated line, invalid UTF-8, repeated EOF, explicit close, zero requested capacity, destination reuse, and terminal failure. Editor acceptance covers member completion, imported navigation, and source-backed hover in both the public contract and implementation source.</p>
             </div>
         </main>
     </div>
@@ -157,6 +179,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

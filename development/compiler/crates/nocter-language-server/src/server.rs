@@ -1409,6 +1409,83 @@ mod tests {
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 
+    #[test]
+    fn streaming_line_contract_and_body_share_complete_editor_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nfunc inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line()?\\n    return\\n}}\\n\"}}}}}}"
+        ));
+
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":23}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"read_line\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"read_line_into\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":0,\"character\":20}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/io/buffer/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let contract =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/io/buffer/index.nct");
+        let text = fs::read_to_string(&contract).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method &+self.read_line(): String?!"))
+            .unwrap();
+        let character = source_line.find("read_line").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            contract.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub method &+BufReader.read_line(): String?!\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let body =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/io/buffer/buffering.nct");
+        let text = fs::read_to_string(&body).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("let ends_with_cr ="))
+            .unwrap();
+        let character = source_line.find("ends_with_cr").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            body.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nlet ends_with_cr: bool\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
     fn server(version: &str) -> LanguageServer {
         let root = std::env::temp_dir();
         LanguageServer::new(

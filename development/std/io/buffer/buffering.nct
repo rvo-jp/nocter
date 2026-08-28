@@ -3,12 +3,15 @@
 see ./index.nct
 
 use /io.{File, Reader, Writer}
+use /string.String
 use /vec.Vec
 
 struct BufReader {
     source: File
     buffer: Vec<u8>
     next: usize
+    line_buffer: Vec<u8>
+    is_finished: bool
 }
 
 construct BufReader {
@@ -17,28 +20,29 @@ construct BufReader {
     }
 
     func with_capacity(source: File, requested_capacity: usize): Self {
-        var storage: Vec<u8> = Vec.with_capacity(requested_capacity)
+        var capacity = requested_capacity
+        if capacity == 0 {
+            capacity = 1
+        }
+        let storage: Vec<u8> = Vec.with_capacity(capacity)
         return BufReader {
             source: move source,
             buffer: move storage,
             next: 0,
+            line_buffer: Vec.empty(),
+            is_finished: false,
         }
     }
 }
 
 func read(reader: &+BufReader, destination: &+[u8]): usize! {
+    if reader.is_finished {
+        return 0
+    }
     var written: usize = 0
     while written < destination.len() {
         if reader.next == reader.buffer.len() {
-            reader.buffer.clear()
-            var initialized: usize = 0
-            while initialized < reader.buffer.capacity() {
-                reader.buffer.push(0)
-                initialized += 1
-            }
-            let received: usize = reader.source.read(&+reader.buffer)?
-            reader.buffer.truncate(received)
-            reader.next = 0
+            let received = refill(reader)?
             if received == 0 {
                 break
             }
@@ -51,7 +55,119 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
     return written
 }
 
+func refill(reader: &+BufReader): usize! {
+    if reader.is_finished {
+        return 0
+    }
+    reader.buffer.clear()
+    var initialized: usize = 0
+    while initialized < reader.buffer.capacity() {
+        reader.buffer.push(0)
+        initialized += 1
+    }
+    let received = reader.source.read(&+reader.buffer) catch failure {
+        terminate_reader(reader)
+        return move failure
+    }
+    reader.buffer.truncate(received)
+    reader.next = 0
+    if received == 0 {
+        end_reader(reader)
+    }
+    return received
+}
+
+func read_line(reader: &+BufReader): String?! {
+    var result = String.empty()
+    let present = read_line_into(reader, &+result)?
+    if !present {
+        return none
+    }
+    return move result
+}
+
+func read_line_into(reader: &+BufReader, destination: &+String): bool! {
+    destination.clear()
+    if reader.is_finished {
+        return false
+    }
+    reader.line_buffer.clear()
+
+    while true {
+        if reader.next == reader.buffer.len() {
+            let received = refill(reader)?
+            if received == 0 {
+                if reader.line_buffer.len() == 0 {
+                    return false
+                }
+                return commit_line(reader, destination)?
+            }
+        }
+
+        let available: &[u8] = &reader.buffer
+        let byte = available[reader.next]
+        reader.next += 1
+        if byte == 10 {
+            let line: &[u8] = &reader.line_buffer
+            let ends_with_cr = line.len() != 0 && line[line.len() - 1] == 13
+            if ends_with_cr {
+                let _ = reader.line_buffer.pop()
+            }
+            return commit_line(reader, destination)?
+        }
+        reader.line_buffer.try_push(byte) catch failure {
+            terminate_reader(reader)
+            return move failure
+        }
+    }
+    return false
+}
+
+func commit_line(reader: &+BufReader, destination: &+String): bool! {
+    write_validated_line(&reader.line_buffer, destination) catch failure {
+        terminate_reader(reader)
+        return move failure
+    }
+    reader.line_buffer.clear()
+    return true
+}
+
+func write_validated_line(line: &Vec<u8>, destination: &+String): void! {
+    let bytes: &[u8] = line
+    destination.try_push_utf8(bytes)?
+    return
+}
+
+func end_reader(reader: &+BufReader): void {
+    if !reader.is_finished {
+        reader.source.close()
+        reader.is_finished = true
+    }
+    reader.buffer.clear()
+    reader.next = 0
+    return
+}
+
+func terminate_reader(reader: &+BufReader): void {
+    end_reader(reader)
+    reader.line_buffer.clear()
+    return
+}
+
 instance BufReader {
+    method &+self.read_line(): String?! {
+        return read_line(self)
+    }
+
+    method &+self.read_line_into(destination: &+String): bool! {
+        return read_line_into(self, destination)?
+    }
+
+    method &+self.close(): void {
+        terminate_reader(self)
+        return
+    }
+
     method &+self.read(destination: &+[u8]): usize! {
         return read(self, destination)?
     }

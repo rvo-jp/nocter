@@ -4,8 +4,9 @@ see ./index.nct
 see ./storage.nct
 see ./utf8.nct
 
+use /internal/ptr.{copy_ptr_to_ptr, copy_str_to_ptr}
+use /internal/utf8.validate_utf8
 use /mem.{TryAllocator, current_allocator, empty_page_buffer}
-use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 
 construct String {
     literal ""(text: &str): Self {
@@ -62,13 +63,9 @@ construct String {
     }
 
     func from_utf8(candidate: &[u8]): Self! {
-        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        validate_utf8(candidate)?
         var result = String.with_capacity(candidate.len())
-        var offset: usize = 0
-        while offset < candidate.len() {
-            store_u8_to_ptr(result.storage.bytes().ptr(), offset, candidate[offset])
-            offset += 1
-        }
+        copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
         result.len = candidate.len()
         return move result
     }
@@ -77,13 +74,9 @@ construct String {
         allocator: &+TryAllocator,
         candidate: &[u8],
     ): Self! from allocator {
-        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        validate_utf8(candidate)?
         var result = String.try_with_capacity(allocator, candidate.len())?
-        var offset: usize = 0
-        while offset < candidate.len() {
-            store_u8_to_ptr(result.storage.bytes().ptr(), offset, candidate[offset])
-            offset += 1
-        }
+        copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
         result.len = candidate.len()
         return move result
     }

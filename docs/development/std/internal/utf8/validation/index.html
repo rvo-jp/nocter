@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/io/buffer/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/io/buffer/index.nct.">
+    <title>development/std/internal/utf8/validation.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/internal/utf8/validation.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/io/buffer/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/internal/utf8/validation/">
     <link rel="icon" href="../../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/io/buffer/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/io/buffer/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/io/buffer/index/">
+    <meta property="og:title" content="development/std/internal/utf8/validation.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/internal/utf8/validation.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/internal/utf8/validation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/io/buffer/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/io/buffer/index.nct.">
+    <meta name="twitter:title" content="development/std/internal/utf8/validation.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/internal/utf8/validation.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/io/buffer/index.nct - Nocter","description":"Nocter source code for development/std/io/buffer/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/io/buffer/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Io","item":"https://nocter.dev/development/std/io/"},{"@type":"ListItem","position":5,"name":"Buffer","item":"https://nocter.dev/development/std/io/buffer/"},{"@type":"ListItem","position":6,"name":"Index","item":"https://nocter.dev/development/std/io/buffer/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/utf8/validation.nct - Nocter","description":"Nocter source code for development/std/internal/utf8/validation.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/utf8/validation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Utf8","item":"https://nocter.dev/development/std/internal/utf8/"},{"@type":"ListItem","position":6,"name":"Validation","item":"https://nocter.dev/development/std/internal/utf8/validation/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../../style.css">
 </head>
@@ -140,50 +140,66 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/io/buffer/index.nct</span>
+                <span class="markdown-path-text">/development/std/internal/utf8/validation.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Buffered file I/O.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Fallible flushes are always explicit. Dropping a writer discards an</span>
-<span class="token-comment">//! unflushed buffer instead of hiding an I/O failure in destruction.</span>
+                <h1>validation.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Shared UTF-8 state validation and stable failure policy.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>buffering<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BufReader</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> leading<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> candidate<span class="token-operator">[</span>offset<span class="token-operator">]</span>
+        <span class="token-keyword">if</span> leading <span class="token-operator">&lt;</span> <span class="token-number">128</span> <span class="token-operator">{</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">194</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">223</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+            <span class="token-operator">}</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">2</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">224</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">239</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">2</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">let</span> second<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">]</span>
+            <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>second<span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">2</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">224</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&lt;</span> <span class="token-number">160</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+            <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">237</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">160</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">3</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> leading <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">240</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> leading <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">244</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> offset <span class="token-operator">+</span> <span class="token-number">3</span> <span class="token-operator">&gt;</span><span class="token-operator">=</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">let</span> second<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">]</span>
+            <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>second<span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">2</span><span class="token-operator">]</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">is_continuation</span><span class="token-operator">(</span>candidate<span class="token-operator">[</span>offset <span class="token-operator">+</span> <span class="token-number">3</span><span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">240</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&lt;</span> <span class="token-number">144</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+            <span class="token-keyword">if</span> leading <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">244</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> second <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">144</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">4</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">true</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Returns one owned line without its LF or immediately preceding CR.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-    <span class="token-comment">/// Replaces `destination` with one line and reports false only at clean end of stream.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line_into</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span>
-
-    <span class="token-comment">/// Closes the source and makes every later read observe end of stream.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
-
-    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+<span class="token-keyword">func</span> <span class="token-function">validate_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BufWriter</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-keyword">func</span> <span class="token-function">is_continuation</span><span class="token-operator">(</span>byte<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> byte <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">128</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> byte <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">191</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+<span class="token-keyword">func</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.string.invalid_utf8"</span><span class="token-operator">,</span> <span class="token-string">"invalid UTF-8"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

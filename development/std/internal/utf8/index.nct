@@ -1,0 +1,9 @@
+//! Package-internal UTF-8 validation and stable failure construction.
+
+see ./validation.nct
+
+/// Returns whether the complete byte view is well-formed UTF-8.
+pub(/) func is_valid_utf8(candidate: &[u8]): bool
+
+/// Accepts well-formed UTF-8 or returns the stable string encoding error.
+pub(/) func validate_utf8(candidate: &[u8]): void!

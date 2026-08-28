@@ -466,6 +466,7 @@ instance String {
     pub method &+self.clear(): void
     pub method &+self.push_str(value: &str): void
     pub method &+self.try_push_str(value: &str): void!
+    pub method &+self.try_push_utf8(value: &[u8]): void!
 }
 
 ```
@@ -491,9 +492,10 @@ instance [T] where (&T == &T): bool {
 it does not consume either collection.
 
 Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
-`try_copy`, `try_reserve`, and `try_push_str` operations use a `TryAllocator`. Both surfaces use the
-same buffer implementation and preserve the same UTF-8 and publication
-invariants.
+`try_copy`, `try_reserve`, `try_push_str`, and `try_push_utf8` operations use a `TryAllocator`.
+`try_push_utf8` first validates the complete byte slice and publishes no bytes when validation or
+allocation fails. Both surfaces use the same buffer implementation and preserve the same UTF-8 and
+publication invariants.
 
 ### Borrowed String Ranges and Iteration
 

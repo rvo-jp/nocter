@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-26">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/io/buffer/buffering.nct - Nocter">
@@ -148,12 +148,15 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 <span class="token-keyword">struct</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
     source<span class="token-operator">:</span> <span class="token-type">File</span>
     buffer<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
     next<span class="token-operator">:</span> <span class="token-type">usize</span>
+    line_buffer<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
+    is_finished<span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
@@ -162,28 +165,29 @@
     <span class="token-operator">}</span>
 
     <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> storage<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">)</span>
+        <span class="token-keyword">var</span> capacity <span class="token-operator">=</span> requested_capacity
+        <span class="token-keyword">if</span> capacity <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+            capacity <span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> storage<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>capacity<span class="token-operator">)</span>
         <span class="token-keyword">return</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
             source<span class="token-operator">:</span> <span class="token-keyword">move</span> source<span class="token-operator">,</span>
             buffer<span class="token-operator">:</span> <span class="token-keyword">move</span> storage<span class="token-operator">,</span>
             next<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+            line_buffer<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            is_finished<span class="token-operator">:</span> <span class="token-keyword">false</span><span class="token-operator">,</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">read</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">,</span> destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> reader<span class="token-operator">.</span>is_finished <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">var</span> written<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> written <span class="token-operator">&lt;</span> destination<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> reader<span class="token-operator">.</span>next <span class="token-operator">=</span><span class="token-operator">=</span> reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
-            <span class="token-keyword">var</span> initialized<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-            <span class="token-keyword">while</span> initialized <span class="token-operator">&lt;</span> reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-                reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
-                initialized <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
-            <span class="token-operator">}</span>
-            <span class="token-keyword">let</span> received<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> reader<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>reader<span class="token-operator">.</span>buffer<span class="token-operator">)</span><span class="token-operator">?</span>
-            reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span>received<span class="token-operator">)</span>
-            reader<span class="token-operator">.</span>next <span class="token-operator">=</span> <span class="token-number">0</span>
+            <span class="token-keyword">let</span> received <span class="token-operator">=</span> <span class="token-function">refill</span><span class="token-operator">(</span>reader<span class="token-operator">)</span><span class="token-operator">?</span>
             <span class="token-keyword">if</span> received <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
                 <span class="token-keyword">break</span>
             <span class="token-operator">}</span>
@@ -196,7 +200,119 @@
     <span class="token-keyword">return</span> written
 <span class="token-operator">}</span>
 
+<span class="token-keyword">func</span> <span class="token-function">refill</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> reader<span class="token-operator">.</span>is_finished <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> initialized<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> initialized <span class="token-operator">&lt;</span> reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
+        initialized <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> received <span class="token-operator">=</span> reader<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>reader<span class="token-operator">.</span>buffer<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-function">terminate_reader</span><span class="token-operator">(</span>reader<span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
+    <span class="token-operator">}</span>
+    reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span>received<span class="token-operator">)</span>
+    reader<span class="token-operator">.</span>next <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">if</span> received <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-function">end_reader</span><span class="token-operator">(</span>reader<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> received
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">read_line</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> present <span class="token-operator">=</span> <span class="token-function">read_line_into</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>result<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>present <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">read_line_into</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">,</span> destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    destination<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> reader<span class="token-operator">.</span>is_finished <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+    <span class="token-operator">}</span>
+    reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+    <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> reader<span class="token-operator">.</span>next <span class="token-operator">=</span><span class="token-operator">=</span> reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">let</span> received <span class="token-operator">=</span> <span class="token-function">refill</span><span class="token-operator">(</span>reader<span class="token-operator">)</span><span class="token-operator">?</span>
+            <span class="token-keyword">if</span> received <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+                <span class="token-keyword">if</span> reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+                <span class="token-operator">}</span>
+                <span class="token-keyword">return</span> <span class="token-function">commit_line</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> destination<span class="token-operator">)</span><span class="token-operator">?</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">let</span> available<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>reader<span class="token-operator">.</span>buffer
+        <span class="token-keyword">let</span> byte <span class="token-operator">=</span> available<span class="token-operator">[</span>reader<span class="token-operator">.</span>next<span class="token-operator">]</span>
+        reader<span class="token-operator">.</span>next <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-keyword">if</span> byte <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
+            <span class="token-keyword">let</span> line<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>reader<span class="token-operator">.</span>line_buffer
+            <span class="token-keyword">let</span> ends_with_cr <span class="token-operator">=</span> line<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> line<span class="token-operator">[</span>line<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - <span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">13</span>
+            <span class="token-keyword">if</span> ends_with_cr <span class="token-operator">{</span>
+                <span class="token-keyword">let</span> _ <span class="token-operator">=</span> reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">pop</span><span class="token-operator">(</span><span class="token-operator">)</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">return</span> <span class="token-function">commit_line</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> destination<span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-operator">}</span>
+        reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">try_push</span><span class="token-operator">(</span>byte<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+            <span class="token-function">terminate_reader</span><span class="token-operator">(</span>reader<span class="token-operator">)</span>
+            <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">false</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">commit_line</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">,</span> destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_validated_line</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>reader<span class="token-operator">.</span>line_buffer<span class="token-operator">,</span> destination<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-function">terminate_reader</span><span class="token-operator">(</span>reader<span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
+    <span class="token-operator">}</span>
+    reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">true</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">write_validated_line</span><span class="token-operator">(</span>line<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> line
+    destination<span class="token-operator">.</span><span class="token-function">try_push_utf8</span><span class="token-operator">(</span>bytes<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">end_reader</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>reader<span class="token-operator">.</span>is_finished <span class="token-operator">{</span>
+        reader<span class="token-operator">.</span>source<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        reader<span class="token-operator">.</span>is_finished <span class="token-operator">=</span> <span class="token-keyword">true</span>
+    <span class="token-operator">}</span>
+    reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    reader<span class="token-operator">.</span>next <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">terminate_reader</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufReader</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-function">end_reader</span><span class="token-operator">(</span>reader<span class="token-operator">)</span>
+    reader<span class="token-operator">.</span>line_buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">read_line</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line_into</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">read_line_into</span><span class="token-operator">(</span>self<span class="token-operator">,</span> destination<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+        <span class="token-function">terminate_reader</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">read</span><span class="token-operator">(</span>self<span class="token-operator">,</span> destination<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>

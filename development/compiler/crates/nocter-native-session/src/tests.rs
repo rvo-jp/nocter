@@ -279,6 +279,91 @@ func main(): i32 {
 }
 
 #[test]
+fn standard_streaming_lines_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/io.File
+use std/io/buffer.BufReader
+use std/string.String
+
+func check_lines(): i32! {
+    var reader = BufReader.with_capacity(File.open("lines.txt")?, 3)
+    var line = String.with_capacity(64)
+    let original_capacity = line.capacity()
+
+    if !reader.read_line_into(&+line)? || (&line as &str) != "" { return 1 }
+    if !reader.read_line_into(&+line)? || (&line as &str) != "alpha" { return 2 }
+    if !reader.read_line_into(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
+    if !reader.read_line_into(&+line)? || (&line as &str) != "😀 split" { return 4 }
+    let final_line = reader.read_line()? otherwise { return 5 }
+    if (&final_line as &str) != "final" { return 6 }
+    if reader.read_line_into(&+line)? { return 7 }
+    if (&line as &str) != "" { return 8 }
+    if line.capacity() != original_capacity { return 9 }
+    let _after_eof = reader.read_line()? otherwise { return 0 }
+    return 10
+}
+
+func check_invalid_utf8(): i32! {
+    var reader = BufReader.with_capacity(File.open("invalid.txt")?, 2)
+    var line = String.copy("sentinel")
+    if !reader.read_line_into(&+line)? || (&line as &str) != "good" { return 1 }
+    let _present = reader.read_line_into(&+line) catch failure {
+        if !failure.has_code("std.string.invalid_utf8") { return 2 }
+        if (&line as &str) != "" { return 3 }
+        let _after_failure = reader.read_line()? otherwise { return 0 }
+        return 4
+    }
+    return 5
+}
+
+func check_zero_capacity_and_close(): i32! {
+    var reader = BufReader.with_capacity(File.open("single.txt")?, 0)
+    let line = reader.read_line()? otherwise { return 1 }
+    if (&line as &str) != "z" { return 2 }
+    let _after_eof = reader.read_line()? otherwise {
+        var closed = BufReader.new(File.open("single.txt")?)
+        closed.close()
+        let _after_close = closed.read_line()? otherwise { return 0 }
+        return 3
+    }
+    return 4
+}
+
+func main(): i32 {
+    let lines = check_lines() catch _ { return 20 }
+    if lines != 0 { return lines }
+    let invalid = check_invalid_utf8() catch _ { return 21 }
+    if invalid != 0 { return 10 + invalid }
+    let terminal = check_zero_capacity_and_close() catch _ { return 22 }
+    if terminal != 0 { return 30 + terminal }
+    return 42
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "streaming line fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    execute_streaming_lines(image.image(), &package_root.0, 42);
+}
+
+#[test]
 fn standard_directory_record_failures_are_terminal_in_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
@@ -925,6 +1010,33 @@ fn execute_directory_stream(image: &NativeImage, root: &Path, expected: i32) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_streaming_lines(image: &NativeImage, root: &Path, expected: i32) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("streaming-lines");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        root.join("lines.txt"),
+        b"\nalpha\r\nlone\rbeta\n\xf0\x9f\x98\x80 split\nfinal",
+    )
+    .unwrap();
+    fs::write(root.join("invalid.txt"), b"good\nbad\xff\nlater\n").unwrap();
+    fs::write(root.join("single.txt"), b"z").unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(expected),
+        "streaming line reader exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -945,6 +1057,9 @@ fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_directory_stream(_image: &NativeImage, _root: &Path, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_streaming_lines(_image: &NativeImage, _root: &Path, _expected: i32) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}

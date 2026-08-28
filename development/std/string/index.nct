@@ -66,4 +66,7 @@ instance String {
     pub method &+self.push_str(value: &str): void
 
     pub method &+self.try_push_str(value: &str): void!
+
+    /// Validates and appends UTF-8 bytes with recoverable allocation failure.
+    pub method &+self.try_push_utf8(value: &[u8]): void!
 }

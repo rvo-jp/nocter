@@ -4,6 +4,7 @@
 //! unflushed buffer instead of hiding an I/O failure in destruction.
 
 use /io.{File, Reader, Writer}
+use /string.String
 see ./buffering.nct
 
 pub struct BufReader
@@ -15,6 +16,15 @@ construct BufReader {
 }
 
 instance BufReader {
+    /// Returns one owned line without its LF or immediately preceding CR.
+    pub method &+self.read_line(): String?!
+
+    /// Replaces `destination` with one line and reports false only at clean end of stream.
+    pub method &+self.read_line_into(destination: &+String): bool!
+
+    /// Closes the source and makes every later read observe end of stream.
+    pub method &+self.close(): void
+
     impl Reader
 }
 

@@ -196,6 +196,42 @@ operations through static interface dispatch. A buffered writer reports I/O fail
 an explicit `flush` or `close`; dropping it discards unflushed bytes because destruction cannot
 return an error. Successful flush clears the buffer only after the underlying write succeeds.
 
+`BufReader` additionally exposes line-oriented text input:
+
+```nct
+instance BufReader {
+    pub method &+self.read_line(): String?!
+    pub method &+self.read_line_into(destination: &+String): bool!
+    pub method &+self.close(): void
+    impl Reader
+}
+```
+
+`read_line` returns an owned string, `none` only when end of stream is reached before another byte,
+and an error through the outer `!` layer. `read_line_into` clears `destination` before observing the
+stream, writes the next line into the same allocation when its retained capacity is sufficient,
+and returns `true`; it returns `false` with an empty destination for the same clean end-of-stream
+condition. An empty line therefore returns an empty present `String` or `true`, not end of stream.
+
+Line results exclude the terminating LF byte. One CR byte immediately before that LF is also
+excluded; a lone CR and every other byte are retained. EOF after line bytes returns that final
+unterminated line once. Repeated line reads after EOF or explicit `close` return `none` or `false`,
+and byte reads through `Reader` return zero.
+
+UTF-8 validation applies to the complete line after newline removal, so one scalar may cross any
+number of partial underlying reads. Invalid input fails with `std.string.invalid_utf8`; it is not
+replaced or lossily converted. The reusable destination is empty on invalid UTF-8, underlying read
+failure, or recoverable allocation failure. Any such line-step failure terminates the buffered
+reader because bytes may already have been consumed from its source. Later operations observe the
+terminal state instead of retrying an ambiguous partial line.
+
+The buffered reader retains its fixed read buffer and one reusable raw line buffer. It retains no
+earlier completed line and never collects the complete file. Memory is bounded by the configured
+read-buffer capacity plus the largest line observed and the caller's retained destination
+capacity. A requested read-buffer capacity of zero is normalized to one byte so refill always
+makes progress. Underlying interrupted reads retain the ordinary `File` retry behavior before a
+line operation observes failure.
+
 ## Numeric Text and Process State
 
 `std/num` parses decimal `usize`, `i32`, and `u8` values without allocation. Invalid syntax and
