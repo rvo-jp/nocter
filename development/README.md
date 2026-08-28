@@ -10,7 +10,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.18.0 milestone](milestones/v0.18.0.md)
-- [Active v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
+- [Qualified v0.18.0 release candidate](milestones/v0.18.0-release-preparation.md)
 - [v0.18.0 design reviews](reviews/README.md)
 - [Latest published release qualification](releases/v0.17.0.md)
 - [Compiler architecture](docs/architecture.md)
