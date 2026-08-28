@@ -1,7 +1,8 @@
 //! ARM64 instruction and physical-program authority.
 //!
-//! This crate consumes only [`nocter_machine::MachineProgram`]. Source, semantic, executable, and
-//! MIR representations are deliberately absent from its dependency graph.
+//! This crate consumes [`nocter_machine::MachineProgram`] plus the closed primitive roles in
+//! [`nocter_runtime_contract`]. Source, semantic, executable, and MIR representations are
+//! deliberately absent from its dependency graph.
 
 mod abi;
 mod address_code;

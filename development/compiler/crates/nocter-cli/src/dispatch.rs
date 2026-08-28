@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use nocter_command::{
-    CommandToolchain, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand,
-    ParsedGraphCommand, ParsedRunCommand, ParsedTestCommand, ResolvedProgramInput,
-    execute_prepared_build, execute_prepared_check, execute_prepared_fetch, execute_prepared_graph,
-    execute_prepared_run, execute_prepared_test,
+    CommandToolchain, HelpRequest, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
+    ParsedFetchCommand, ParsedFormatCommand, ParsedGraphCommand, ParsedInitCommand,
+    ParsedRunCommand, ParsedSourceInspectionCommand, ParsedTestCommand, ResolvedProgramInput,
+    execute_format, execute_init, execute_prepared_build, execute_prepared_check,
+    execute_prepared_fetch, execute_prepared_graph, execute_prepared_run, execute_prepared_test,
+    execute_source_inspection,
 };
 use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
@@ -15,47 +17,105 @@ use crate::{
     VersionReport,
 };
 
-pub(crate) fn execute_parsed_command(
-    command: ParsedCommand,
+pub(crate) enum CommandRoute {
+    Direct(DirectCommand),
+    Installed(InstalledCommand),
+}
+
+pub(crate) enum DirectCommand {
+    Help(HelpRequest),
+    Init(ParsedInitCommand),
+    SourceInspection(ParsedSourceInspectionCommand),
+    Format(ParsedFormatCommand),
+}
+
+pub(crate) enum InstalledCommand {
+    Version,
+    Doctor,
+    Graph(ParsedGraphCommand),
+    Fetch(ParsedFetchCommand),
+    Check(ParsedCheckCommand),
+    Build(ParsedBuildCommand),
+    Run(ParsedRunCommand),
+    Test(ParsedTestCommand),
+    Lsp,
+}
+
+/// Classifies one parsed command exactly once by whether it requires an installed toolchain.
+#[must_use]
+pub(crate) fn route(command: ParsedCommand) -> CommandRoute {
+    match command {
+        ParsedCommand::Help(request) => CommandRoute::Direct(DirectCommand::Help(request)),
+        ParsedCommand::Init(command) => CommandRoute::Direct(DirectCommand::Init(command)),
+        ParsedCommand::SourceInspection(command) => {
+            CommandRoute::Direct(DirectCommand::SourceInspection(command))
+        }
+        ParsedCommand::Format(command) => CommandRoute::Direct(DirectCommand::Format(command)),
+        ParsedCommand::Version => CommandRoute::Installed(InstalledCommand::Version),
+        ParsedCommand::Doctor => CommandRoute::Installed(InstalledCommand::Doctor),
+        ParsedCommand::Graph(command) => CommandRoute::Installed(InstalledCommand::Graph(command)),
+        ParsedCommand::Fetch(command) => CommandRoute::Installed(InstalledCommand::Fetch(command)),
+        ParsedCommand::Check(command) => CommandRoute::Installed(InstalledCommand::Check(command)),
+        ParsedCommand::Build(command) => CommandRoute::Installed(InstalledCommand::Build(command)),
+        ParsedCommand::Run(command) => CommandRoute::Installed(InstalledCommand::Run(command)),
+        ParsedCommand::Test(command) => CommandRoute::Installed(InstalledCommand::Test(command)),
+        ParsedCommand::Lsp => CommandRoute::Installed(InstalledCommand::Lsp),
+    }
+}
+
+pub(crate) fn execute_direct_command(
+    command: DirectCommand,
+    current_directory: &Path,
+) -> Result<InvocationOutcome, InvocationError> {
+    match command {
+        DirectCommand::Help(request) => Ok(InvocationOutcome::Help(request)),
+        DirectCommand::Init(command) => execute_init(command, current_directory)
+            .map(InvocationOutcome::Init)
+            .map_err(|error| InvocationError::new(InvocationErrorKind::Init(error), None)),
+        DirectCommand::SourceInspection(command) => {
+            execute_source_inspection(command, current_directory)
+                .map(InvocationOutcome::SourceInspection)
+                .map_err(|error| {
+                    InvocationError::new(InvocationErrorKind::SourceInspection(error), None)
+                })
+        }
+        DirectCommand::Format(command) => execute_format(command, current_directory)
+            .map(InvocationOutcome::Format)
+            .map_err(|error| InvocationError::new(InvocationErrorKind::Format(error), None)),
+    }
+}
+
+pub(crate) fn execute_installed_command(
+    command: InstalledCommand,
     current_directory: &Path,
     installation: &CompilerInstallation,
     toolchain: &CommandToolchain,
     presentation: Option<InvocationDiagnosticPresentation>,
 ) -> Result<InvocationOutcome, InvocationError> {
     match command {
-        ParsedCommand::Help(request) => Ok(InvocationOutcome::Help(request)),
-        ParsedCommand::Version => Ok(InvocationOutcome::Version(
+        InstalledCommand::Version => Ok(InvocationOutcome::Version(
             VersionReport::from_installation(installation),
         )),
-        ParsedCommand::Doctor => Ok(InvocationOutcome::Doctor(DoctorReport::from_installation(
+        InstalledCommand::Doctor => Ok(InvocationOutcome::Doctor(DoctorReport::from_installation(
             installation,
         ))),
-        ParsedCommand::Graph(command) => execute_graph(command, current_directory, toolchain),
-        ParsedCommand::Fetch(command) => {
+        InstalledCommand::Graph(command) => execute_graph(command, current_directory, toolchain),
+        InstalledCommand::Fetch(command) => {
             execute_fetch(command, current_directory, toolchain, presentation)
         }
-        ParsedCommand::Check(command) => {
+        InstalledCommand::Check(command) => {
             execute_check(command, current_directory, toolchain, presentation)
         }
-        ParsedCommand::Build(command) => {
+        InstalledCommand::Build(command) => {
             execute_build(command, current_directory, toolchain, presentation)
         }
-        ParsedCommand::Run(command) => {
+        InstalledCommand::Run(command) => {
             execute_run(command, current_directory, toolchain, presentation)
         }
-        ParsedCommand::Test(command) => {
+        InstalledCommand::Test(command) => {
             execute_test(command, current_directory, toolchain, presentation)
         }
-        ParsedCommand::SourceInspection(_) => {
-            unreachable!("source inspection executes before installation selection")
-        }
-        ParsedCommand::Format(_) => {
-            unreachable!("formatting executes before installation selection")
-        }
-        ParsedCommand::Init(_) => {
-            unreachable!("initialization executes before installation selection")
-        }
-        ParsedCommand::Lsp => Ok(InvocationOutcome::LanguageServer(Box::new(
+        InstalledCommand::Lsp => Ok(InvocationOutcome::LanguageServer(Box::new(
             LanguageServerLaunch::new(current_directory, installation.clone()),
         ))),
     }

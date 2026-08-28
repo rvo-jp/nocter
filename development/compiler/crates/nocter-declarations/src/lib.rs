@@ -1,6 +1,7 @@
 //! Immutable, syntax-independent declaration graph.
 //!
-//! This crate depends only on [`nocter_model`]. It cannot contain source files, byte ranges,
+//! This crate consumes semantic identities from [`nocter_model`] and closed standard-role
+//! vocabulary from [`nocter_toolchain_contract`]. It cannot contain source files, byte ranges,
 //! syntax nodes, or rendered type spellings. Syntax lowering constructs a [`DeclarationProgram`]
 //! and a separate source index; semantic stages consume this program without importing the
 //! lowering or syntax crates.

@@ -1,8 +1,9 @@
 //! Canonical filesystem-to-compile-input discovery for Nocter source graphs.
 //!
-//! Discovery is the only layer that probes package roots, source candidates, and directory-module
-//! roots. Its immutable result retains exact physical ownership and one selected edge for every
-//! active authored `see` and `use`; semantic consumers never reopen a path.
+//! Discovery extends the package layer's revision-local root catalog while it selects source
+//! candidates and directory-module roots. Its immutable result retains exact physical ownership
+//! and one selected edge for every active authored `see` and `use`; semantic consumers never
+//! reopen a path.
 
 mod diagnostic;
 mod error;

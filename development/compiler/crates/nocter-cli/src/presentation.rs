@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
-use nocter_command::{CommandArgumentFailure, DiagnosticFormat, ParsedCommand};
+use nocter_command::{CommandArgumentFailure, DiagnosticFormat};
 use nocter_diagnostics::{DiagnosticJsonContext, DiagnosticRenderError};
+
+use crate::dispatch::InstalledCommand;
 
 /// Presentation facts that become available progressively during one check invocation.
 #[derive(Clone, Debug)]
@@ -25,33 +27,29 @@ impl InvocationDiagnosticPresentation {
         })
     }
 
-    pub(crate) fn from_command(command: &ParsedCommand) -> Option<Self> {
+    pub(crate) fn from_command(command: &InstalledCommand) -> Option<Self> {
         match command {
-            ParsedCommand::Check(command) => Some(Self {
+            InstalledCommand::Check(command) => Some(Self {
                 command: "check",
                 format: command.format(),
                 target: None,
                 root: command.root_hint(),
                 root_absolute_path: None,
             }),
-            ParsedCommand::Test(command) => Some(Self {
+            InstalledCommand::Test(command) => Some(Self {
                 command: "test",
                 format: command.format(),
                 target: None,
                 root: Some(command.root_hint()),
                 root_absolute_path: None,
             }),
-            ParsedCommand::Help(_)
-            | ParsedCommand::Version
-            | ParsedCommand::Doctor
-            | ParsedCommand::Init(_)
-            | ParsedCommand::Graph(_)
-            | ParsedCommand::Fetch(_)
-            | ParsedCommand::Build(_)
-            | ParsedCommand::Run(_)
-            | ParsedCommand::SourceInspection(_)
-            | ParsedCommand::Format(_)
-            | ParsedCommand::Lsp => None,
+            InstalledCommand::Version
+            | InstalledCommand::Doctor
+            | InstalledCommand::Graph(_)
+            | InstalledCommand::Fetch(_)
+            | InstalledCommand::Build(_)
+            | InstalledCommand::Run(_)
+            | InstalledCommand::Lsp => None,
         }
     }
 

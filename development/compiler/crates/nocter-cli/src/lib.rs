@@ -9,8 +9,7 @@ use std::path::PathBuf;
 use nocter_command::{
     BuildCommandResult, CheckCommandPresentation, CheckCommandResult, CommandToolchain,
     DiagnosticFormat, ExecutedProgram, FetchCommandResult, FormatCommandResult, GraphCommandResult,
-    HelpRequest, InitCommandResult, ParsedCommand, SourceInspectionCommandResult, execute_format,
-    execute_init, execute_source_inspection, parse_command_invocation,
+    HelpRequest, InitCommandResult, SourceInspectionCommandResult, parse_command_invocation,
 };
 use nocter_diagnostics::{
     DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostics_json,
@@ -176,35 +175,13 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         let presentation = InvocationDiagnosticPresentation::from_argument_failure(&failure);
         InvocationError::new(InvocationErrorKind::Arguments(failure), presentation)
     })?;
-    if let ParsedCommand::Help(request) = &command {
-        return Ok(InvocationOutcome::Help(*request));
-    }
-    if let ParsedCommand::Init(_) = &command {
-        let ParsedCommand::Init(command) = command else {
-            unreachable!()
-        };
-        return execute_init(command, &current_directory)
-            .map(InvocationOutcome::Init)
-            .map_err(|error| InvocationError::new(InvocationErrorKind::Init(error), None));
-    }
-    if let ParsedCommand::SourceInspection(_) = &command {
-        let ParsedCommand::SourceInspection(command) = command else {
-            unreachable!()
-        };
-        return execute_source_inspection(command, &current_directory)
-            .map(InvocationOutcome::SourceInspection)
-            .map_err(|error| {
-                InvocationError::new(InvocationErrorKind::SourceInspection(error), None)
-            });
-    }
-    if let ParsedCommand::Format(_) = &command {
-        let ParsedCommand::Format(command) = command else {
-            unreachable!()
-        };
-        return execute_format(command, &current_directory)
-            .map(InvocationOutcome::Format)
-            .map_err(|error| InvocationError::new(InvocationErrorKind::Format(error), None));
-    }
+    let requested_target = command.requested_target();
+    let command = match dispatch::route(command) {
+        dispatch::CommandRoute::Direct(command) => {
+            return dispatch::execute_direct_command(command, &current_directory);
+        }
+        dispatch::CommandRoute::Installed(command) => command,
+    };
     let mut presentation = InvocationDiagnosticPresentation::from_command(&command);
     let home = NocterHome::resolve(NocterHomeRequest::new(configured_home, executable)).map_err(
         |error| {
@@ -222,8 +199,7 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
     })?;
     if let Some(presentation) = presentation.as_mut() {
         presentation.target = Some(
-            command
-                .requested_target()
+            requested_target
                 .unwrap_or(installation.manifest().default_target())
                 .name(),
         );
@@ -233,7 +209,7 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         installation.root(),
         installation.standard_package(),
     );
-    dispatch::execute_parsed_command(
+    dispatch::execute_installed_command(
         command,
         &current_directory,
         &installation,
