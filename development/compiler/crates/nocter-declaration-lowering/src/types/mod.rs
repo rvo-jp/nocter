@@ -177,14 +177,14 @@ pub enum BoundRequirementKind {
     },
     Copy(GenericParameterId),
     Equality {
-        operand: GenericParameterId,
+        operand: BoundTypeId,
     },
     Ordering {
-        operand: GenericParameterId,
+        operand: BoundTypeId,
     },
     Index {
         capability: BorrowCapability,
-        container: GenericParameterId,
+        container: BoundTypeId,
         index: BoundTypeId,
         result: BoundTypeId,
     },
@@ -194,7 +194,7 @@ pub enum BoundRequirementKind {
     },
     Expansion {
         capability: ExpansionCapability,
-        source: GenericParameterId,
+        source: BoundTypeId,
         result: BoundTypeId,
     },
     BinderRefinement {

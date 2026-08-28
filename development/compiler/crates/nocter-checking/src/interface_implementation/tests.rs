@@ -9,6 +9,7 @@ use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
 use super::{MethodSelection, build_interface_implementation_table};
+use crate::prepare_program_checking;
 
 #[test]
 fn required_and_default_methods_receive_exact_dispatch_selections() {
@@ -243,6 +244,23 @@ fn unsatisfied_associated_type_bound_has_its_own_rule() {
             .unwrap_err();
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0354");
+}
+
+#[test]
+fn interface_prerequisites_are_required_by_explicit_implementations() {
+    for source in [
+        "pub interface Base {}\npub interface Derived where Self impl Base {}\nstruct Value {}\ninstance Value { impl Derived }\n",
+        "pub interface Equatable where (&Self == &Self): bool {}\nstruct Value {}\ninstance Value { impl Equatable }\n",
+        "pub interface Base {}\npub interface Derived<T> where T impl Base {}\nstruct Argument {}\nstruct Value {}\ninstance Value { impl Derived<Argument> }\n",
+    ] {
+        let fixture = Fixture::new(source);
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, bindings, source_index) = lowered.into_checking_parts();
+        let error = prepare_program_checking(&input, program, &bindings, source_index).unwrap_err();
+
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0358");
+    }
 }
 
 struct Fixture {

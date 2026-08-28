@@ -41,14 +41,14 @@ pub enum RequirementKind {
     },
     Copy(GenericParameterId),
     Equality {
-        operand: GenericParameterId,
+        operand: TypeId,
     },
     Ordering {
-        operand: GenericParameterId,
+        operand: TypeId,
     },
     Index {
         capability: BorrowCapability,
-        container: GenericParameterId,
+        container: TypeId,
         index: TypeId,
         result: TypeId,
     },
@@ -58,7 +58,7 @@ pub enum RequirementKind {
     },
     Expansion {
         capability: ExpansionCapability,
-        source: GenericParameterId,
+        source: TypeId,
         result: TypeId,
     },
     BinderRefinement {

@@ -1008,14 +1008,14 @@ impl<'a> Renderer<'a> {
             }
             RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
                 self.output.push_str("(&");
-                self.generic_parameter(*operand)?;
+                self.ty(*operand)?;
                 self.output
                     .push_str(if matches!(requirement, RequirementKind::Equality { .. }) {
                         " == &"
                     } else {
                         " < &"
                     });
-                self.generic_parameter(*operand)?;
+                self.ty(*operand)?;
                 self.output.push_str("): bool");
             }
             RequirementKind::Index {
@@ -1029,7 +1029,7 @@ impl<'a> Renderer<'a> {
                     BorrowCapability::Readonly => "&",
                     BorrowCapability::ReadWrite => "&+",
                 });
-                self.generic_parameter(*container)?;
+                self.ty(*container)?;
                 self.output.push('[');
                 self.ty(*index)?;
                 self.output.push_str("]): ");
@@ -1051,7 +1051,7 @@ impl<'a> Renderer<'a> {
                     ExpansionCapability::ReadWrite => "&+",
                     ExpansionCapability::Owned => "",
                 });
-                self.generic_parameter(*source)?;
+                self.ty(*source)?;
                 self.output.push_str("): ");
                 self.ty(*result)?;
             }

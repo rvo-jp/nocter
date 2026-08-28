@@ -755,6 +755,14 @@ fn build_program_authorities(
         &declaration_patterns,
         operations.instances(),
     )?;
+    crate::interface_implementation::validate_interface_prerequisites(
+        graph,
+        types,
+        diagnostic_origins,
+        &interface_implementations,
+        &instance_operations,
+        &copyabilities,
+    )?;
     let body_assumptions = BodyAssumptionTable::build(graph, types, &declaration_patterns)?;
     Ok(PreparedProgramAuthorities {
         interface_implementations,

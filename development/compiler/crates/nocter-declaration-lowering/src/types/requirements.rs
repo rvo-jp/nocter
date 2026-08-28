@@ -149,15 +149,14 @@ fn bind_predicate(
             });
         }
         Some(NodeKind::ExpansionPredicate) => {
-            let token = direct_identifier(tree, predicate).ok_or(invalid_requirement(predicate))?;
-            let source = generic_from_token(namespaces, declaration, tree, token)?;
             let types = bound_types(tree, predicate, roots)?;
-            let [result_type] = types.as_slice() else {
+            let [source, result_type] = types.as_slice() else {
                 return Err(invalid_requirement(predicate));
             };
+            structural_subject(kinds, *source, predicate)?;
             result.push(BoundRequirementKind::Expansion {
                 capability: expansion_capability(tree, predicate),
-                source,
+                source: *source,
                 result: *result_type,
             });
         }
@@ -360,9 +359,10 @@ fn bind_operator(
     if has_punctuation(tree, predicate, Punctuation::EqualEqual)
         || has_punctuation(tree, predicate, Punctuation::Less)
     {
-        let left = generic_type(kinds, *first, predicate)?;
-        let right = generic_type(kinds, *second, predicate)?;
-        if left != right
+        let left_subject = structural_subject(kinds, *first, predicate)?;
+        let right_subject = structural_subject(kinds, *second, predicate)?;
+        let left = *first;
+        if left_subject != right_subject
             || !matches!(
                 kinds.get(third.index()),
                 Some(BoundTypeKind::Builtin(nocter_model::BuiltinType::Bool))
@@ -380,7 +380,10 @@ fn bind_operator(
     } else if has_punctuation(tree, predicate, Punctuation::LeftBracket) {
         result.push(BoundRequirementKind::Index {
             capability: borrow_capability(tree, predicate)?,
-            container: generic_type(kinds, *first, predicate)?,
+            container: {
+                structural_subject(kinds, *first, predicate)?;
+                *first
+            },
             index: *second,
             result: *third,
         });
@@ -447,6 +450,22 @@ fn generic_type(
 ) -> Result<GenericParameterId, TypeBindingError> {
     match kinds.get(ty.index()) {
         Some(BoundTypeKind::GenericParameter(parameter)) => Ok(*parameter),
+        _ => Err(invalid_requirement(predicate)),
+    }
+}
+
+fn structural_subject(
+    kinds: &[BoundTypeKind],
+    ty: BoundTypeId,
+    predicate: NodeId,
+) -> Result<RequirementSubject, TypeBindingError> {
+    match kinds.get(ty.index()) {
+        Some(BoundTypeKind::GenericParameter(parameter)) => {
+            Ok(RequirementSubject::GenericParameter(*parameter))
+        }
+        Some(BoundTypeKind::SelfType(ReservedEntity::Interface(interface))) => {
+            Ok(RequirementSubject::InterfaceSelf(*interface))
+        }
         _ => Err(invalid_requirement(predicate)),
     }
 }

@@ -111,7 +111,12 @@ impl InstanceOperationSelector<'_> {
             .filter(|assumption| assumption.predicate() == &predicate)
             .map(|assumption| {
                 StaticSelection::new(
-                    StaticDispatch::StructuralRequirement(assumption.declaration()),
+                    StaticDispatch::StructuralRequirement {
+                        requirement: assumption.declaration(),
+                        evidence: assumption
+                            .evidence()
+                            .expect("body requirement has frozen evidence"),
+                    },
                     GenericArguments::default(),
                 )
             })

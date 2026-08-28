@@ -83,7 +83,7 @@ impl Analyzer<'_, '_> {
                     &[],
                     state.current_allocation(),
                 )?,
-                StaticDispatch::StructuralRequirement(requirement) => {
+                StaticDispatch::StructuralRequirement { requirement, .. } => {
                     if !matches!(
                         self.graph
                             .declarations()
@@ -145,7 +145,7 @@ impl Analyzer<'_, '_> {
             | StaticDispatch::OpaqueMethod {
                 method: callable, ..
             } => callable,
-            StaticDispatch::StructuralRequirement(_) => {
+            StaticDispatch::StructuralRequirement { .. } => {
                 return Err(BodyCheckInternalError::ProvenanceAnalysis);
             }
         };
@@ -451,7 +451,7 @@ impl Analyzer<'_, '_> {
             }
             CallTarget::CallableValue { dispatch, .. } => {
                 let contract = match dispatch.dispatch() {
-                    StaticDispatch::StructuralRequirement(requirement) => self
+                    StaticDispatch::StructuralRequirement { requirement, .. } => self
                         .graph
                         .declarations()
                         .requirements()
@@ -707,6 +707,6 @@ fn static_callable(dispatch: StaticDispatch) -> Option<nocter_model::CallableId>
         | StaticDispatch::OpaqueMethod {
             method: callable, ..
         } => Some(callable),
-        StaticDispatch::StructuralRequirement(_) => None,
+        StaticDispatch::StructuralRequirement { .. } => None,
     }
 }

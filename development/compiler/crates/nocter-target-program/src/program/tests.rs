@@ -284,7 +284,7 @@ fn body_dependencies_follow_only_executable_checked_edges() {
             | StaticDispatch::InterfaceSelfMethod { .. }
             | StaticDispatch::InterfaceDefault { .. }
             | StaticDispatch::OpaqueMethod { .. }
-            | StaticDispatch::StructuralRequirement(_) => None,
+            | StaticDispatch::StructuralRequirement { .. } => None,
         })
         .collect::<Vec<_>>();
 
@@ -321,7 +321,7 @@ fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
         .find(|selection| {
             matches!(
                 selection.dispatch(),
-                StaticDispatch::StructuralRequirement(_)
+                StaticDispatch::StructuralRequirement { .. }
             )
         })
         .unwrap();
@@ -408,6 +408,64 @@ fn concrete_dispatch_maps_a_lexical_interface_method_to_its_interface_implementa
         CallableOwner::Instance(_)
     ));
     assert!(method_dispatch.generic_arguments().as_slice().is_empty());
+}
+
+#[test]
+fn concrete_dispatch_uses_frozen_transitive_interface_evidence() {
+    let target = build_target_program(&Fixture::with_app(
+        "pub interface Base<T> { pub method &self.read(): T }\n\
+         pub interface Derived<T> where Self impl Base<T> {}\n\
+         struct Value {}\n\
+         instance Value {\n\
+             impl Base<i32>\n\
+             impl Derived<i32>\n\
+             method &self.read(): i32 { 42 }\n\
+         }\n\
+         func generic<T>(input: &T): i32 where T impl Derived<i32> { input.read() }\n\
+         func main(): i32 {\n\
+             let value = Value {}\n\
+             return generic(&value)\n\
+         }\n",
+    ));
+    let generic = named_callable(&target, "generic");
+    let main = named_callable(&target, "main");
+    let main_dependencies = callable_dependencies(&target, main);
+    let generic_selection = main_dependencies
+        .selections()
+        .iter()
+        .find(|selection| selection.dispatch() == StaticDispatch::Direct(generic))
+        .unwrap();
+    let generic_key = CallableInstanceKey::new(
+        &target,
+        generic,
+        generic_selection.generic_arguments().clone(),
+    )
+    .unwrap();
+    let generic_dependencies = callable_dependencies(&target, generic);
+    let interface_selection = generic_dependencies
+        .selections()
+        .iter()
+        .find(|selection| matches!(selection.dispatch(), StaticDispatch::InterfaceMethod { .. }))
+        .unwrap();
+    let mut resolver = ConcreteDispatchResolver::new(target.checked());
+    let plan = resolver
+        .resolve(interface_selection, &generic_key.substitution())
+        .unwrap();
+
+    let ResolvedDispatchPlan::Invocation(ResolvedDispatchStep::Direct(method)) = plan else {
+        panic!("inherited interface method must resolve to its explicit base implementation")
+    };
+    assert_eq!(
+        target
+            .checked()
+            .graph()
+            .declarations()
+            .callables()
+            .get(method.callable())
+            .and_then(nocter_declarations::CallableDeclaration::name)
+            .and_then(|name| target.checked().graph().symbols().spelling(name)),
+        Some("read")
+    );
 }
 
 #[test]

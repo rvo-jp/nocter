@@ -47,7 +47,7 @@ impl Analyzer<'_, '_> {
             | crate::StaticDispatch::OpaqueMethod {
                 method: callable, ..
             } => callable,
-            crate::StaticDispatch::StructuralRequirement(_) => {
+            crate::StaticDispatch::StructuralRequirement { .. } => {
                 return Err(BodyCheckInternalError::LoanAnalysis);
             }
         };

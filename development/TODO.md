@@ -21,15 +21,17 @@ The documentation-authority migration is complete: all workspace crates own loca
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
 
-The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 adopts interface-header
-prerequisites through the existing `where` grammar and requires one normalized capability closure
-without implicit implementation inheritance.
+The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 is complete and reviewed. It
+freezes one interface-capability closure, validates explicit implementations, preserves inherited
+declaration identities, and migrates `ExactSizeIterator` without implicit implementation
+inheritance. The [Phase 0 review](reviews/v0.20.0-phase-0.md) records its boundary audit and
+qualification evidence.
 
 ## Next Work
 
-Implement and review the v0.20.0 Phase 0 interface-prerequisite closure. Update `ExactSizeIterator`
-only after generic checking, implementation validation, associated binding, concrete dispatch, and
-editor queries consume the same authority.
+Design v0.20.0 Phase 1 around the public `Hash` and `Hasher` contracts. Do not begin implementation
+until hashing semantics, deterministic test vectors, error behavior, and the exact dependency on
+the Phase 0 equality prerequisite have one accepted specification and completion gate.
 
 ## Blockers
 

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
 
 use nocter_declarations::{
@@ -586,8 +586,16 @@ impl Evaluator<'_> {
             }
             _ => match self.store.get(base) {
                 Some(TypeKind::InterfaceSelf(interface)) => {
-                    if let Some(associated) = self.context.associated.get(&(*interface, name)) {
-                        candidates.insert(*associated);
+                    let mut visited = HashSet::new();
+                    let mut effective = BTreeSet::new();
+                    self.collect_interface_associated(
+                        *interface,
+                        name,
+                        &mut visited,
+                        &mut effective,
+                    );
+                    if let Some(associated) = effective.into_iter().next() {
+                        candidates.insert(associated);
                     }
                 }
                 Some(TypeKind::GenericParameter(parameter)) => self.collect_parameter_associated(
@@ -728,11 +736,62 @@ impl Evaluator<'_> {
             else {
                 continue;
             };
-            if *candidate == subject
-                && let Some(associated) =
-                    self.context.associated.get(&(application.definition, name))
-            {
-                candidates.insert(*associated);
+            if *candidate == subject {
+                let mut visited = HashSet::new();
+                let mut effective = BTreeSet::new();
+                self.collect_interface_associated(
+                    application.definition,
+                    name,
+                    &mut visited,
+                    &mut effective,
+                );
+                if let Some(associated) = effective.into_iter().next() {
+                    candidates.insert(associated);
+                }
+            }
+        }
+    }
+
+    fn collect_interface_associated(
+        &self,
+        interface: InterfaceId,
+        name: Symbol,
+        visited: &mut HashSet<InterfaceId>,
+        candidates: &mut BTreeSet<AssociatedTypeId>,
+    ) {
+        if !visited.insert(interface) {
+            return;
+        }
+        if let Some(associated) = self.context.associated.get(&(interface, name)) {
+            candidates.insert(*associated);
+        }
+        let Some(declaration) = self
+            .context
+            .entity_declarations
+            .get(&ReservedEntity::Interface(interface))
+            .copied()
+        else {
+            return;
+        };
+        let Some(requirements) = self.context.bound_requirements.get(declaration.index()) else {
+            return;
+        };
+        for requirement in requirements {
+            let BoundRequirementKind::Interface {
+                subject: RequirementSubject::InterfaceSelf(owner),
+                application,
+                ..
+            } = requirement
+            else {
+                continue;
+            };
+            if *owner == interface {
+                self.collect_interface_associated(
+                    application.definition,
+                    name,
+                    visited,
+                    candidates,
+                );
             }
         }
     }
@@ -1079,12 +1138,12 @@ fn normalize_requirement(
             }
         }
         BoundRequirementKind::Copy(parameter) => RequirementKind::Copy(*parameter),
-        BoundRequirementKind::Equality { operand } => {
-            RequirementKind::Equality { operand: *operand }
-        }
-        BoundRequirementKind::Ordering { operand } => {
-            RequirementKind::Ordering { operand: *operand }
-        }
+        BoundRequirementKind::Equality { operand } => RequirementKind::Equality {
+            operand: evaluator.normalize(*operand, declaration)?,
+        },
+        BoundRequirementKind::Ordering { operand } => RequirementKind::Ordering {
+            operand: evaluator.normalize(*operand, declaration)?,
+        },
         BoundRequirementKind::Index {
             capability,
             container,
@@ -1092,7 +1151,7 @@ fn normalize_requirement(
             result,
         } => RequirementKind::Index {
             capability: *capability,
-            container: *container,
+            container: evaluator.normalize(*container, declaration)?,
             index: evaluator.normalize(*index, declaration)?,
             result: evaluator.normalize(*result, declaration)?,
         },
@@ -1106,7 +1165,7 @@ fn normalize_requirement(
             result,
         } => RequirementKind::Expansion {
             capability: *capability,
-            source: *source,
+            source: evaluator.normalize(*source, declaration)?,
             result: evaluator.normalize(*result, declaration)?,
         },
         BoundRequirementKind::BinderRefinement {

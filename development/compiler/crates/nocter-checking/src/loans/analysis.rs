@@ -447,7 +447,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 crate::StaticDispatch::Direct(callable) => {
                     self.map_callable_result(callable, Some(&source), &[])?
                 }
-                crate::StaticDispatch::StructuralRequirement(requirement) => {
+                crate::StaticDispatch::StructuralRequirement { requirement, .. } => {
                     if !matches!(
                         self.graph
                             .declarations()

@@ -21,6 +21,8 @@ pub enum DeclarationRule {
     IncompleteAssociatedTypes,
     InvalidOpaqueResult,
     InvalidLiteralSignature,
+    InterfacePrerequisiteCycle,
+    EffectiveInterfaceMemberCollision,
 }
 
 impl DeclarationRule {
@@ -41,6 +43,8 @@ impl DeclarationRule {
             Self::IncompleteAssociatedTypes => "E0211",
             Self::InvalidOpaqueResult => "E0212",
             Self::InvalidLiteralSignature => "E0213",
+            Self::InterfacePrerequisiteCycle => "E0327",
+            Self::EffectiveInterfaceMemberCollision => "E0328",
         }
     }
 
@@ -77,6 +81,10 @@ impl DeclarationRule {
             Self::InvalidLiteralSignature => {
                 "literal member does not match its language-defined shape"
             }
+            Self::InterfacePrerequisiteCycle => "interface prerequisites contain a cycle",
+            Self::EffectiveInterfaceMemberCollision => {
+                "interface prerequisites introduce conflicting member names"
+            }
         }
     }
 
@@ -99,6 +107,10 @@ impl DeclarationRule {
             | Self::BuiltinInterfaceImplementationAuthority
             | Self::InvalidInterfaceImplementationTarget
             | Self::InvalidOpaqueResult => None,
+            Self::InterfacePrerequisiteCycle => Some("another interface in the cycle is here"),
+            Self::EffectiveInterfaceMemberCollision => {
+                Some("the conflicting effective member is declared here")
+            }
         }
     }
 
@@ -136,6 +148,10 @@ impl DeclarationRule {
             }
             Self::InvalidLiteralSignature => {
                 "declare a public sequence element pack or one public readonly str parameter"
+            }
+            Self::InterfacePrerequisiteCycle => "remove one prerequisite edge from the cycle",
+            Self::EffectiveInterfaceMemberCollision => {
+                "rename or remove one conflicting inherited member"
             }
         }
     }

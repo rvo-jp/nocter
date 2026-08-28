@@ -46,7 +46,7 @@ construct Vec<T> {
     /// Consumes an exact iterator after reserving its initial reported remainder.
     pub func from_exact_iter<I>(
         iterator: I,
-    ): Self where I impl Iterator { .Item = T }, I impl ExactSizeIterator
+    ): Self where I impl ExactSizeIterator { .Item = T }
 
     pub func try_from_slice(
         allocator: &+TryAllocator,

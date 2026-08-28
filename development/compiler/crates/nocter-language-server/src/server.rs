@@ -1323,7 +1323,7 @@ mod tests {
         ));
         assert!(hover.response().unwrap().contains(concat!(
             "pub func Vec<T>.from_exact_iter<I>(iterator: I): Vec<T> where ",
-            "I impl Iterator { .Item = T }, I impl ExactSizeIterator"
+            "I impl ExactSizeIterator { .Item = T }"
         )));
 
         let iter_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/iter/index.nct");
@@ -1341,6 +1341,37 @@ mod tests {
         let response = hover.response().unwrap();
         assert!(response.contains("pub method &+Iterator.next(): Iterator.Item?"));
         assert!(!response.contains(" from self"));
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub interface ExactSizeIterator"))
+            .unwrap();
+        let character = source_line.find("ExactSizeIterator").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            iter_source.display()
+        ));
+        assert!(
+            hover
+                .response()
+                .unwrap()
+                .contains("pub interface ExactSizeIterator where Self impl Iterator")
+        );
+
+        let vec_text = fs::read_to_string(&vec_source).unwrap();
+        let (line, source_line) = vec_text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("I impl ExactSizeIterator { .Item = T }"))
+            .unwrap();
+        let character = source_line.find("Item").unwrap();
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            vec_source.display()
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/iter/index.nct"), "{response}");
     }
 
     #[test]

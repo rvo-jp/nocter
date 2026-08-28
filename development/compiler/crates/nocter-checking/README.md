@@ -19,6 +19,7 @@ beside, never inside, semantic output.
 - lexical name evidence and body scopes
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
+- specialized interface-capability evidence and prerequisite validation
 - ownership, loans, provenance, regions, cleanup, and destruction
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
@@ -29,6 +30,8 @@ beside, never inside, semantic output.
 - Type and copyability authority cannot be paired across generations.
 - A body transaction commits all semantic mutations together or is discarded/frozen as one branch.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
+- Generic lookup and concrete dispatch consume the same frozen capability-evidence identity; a
+  later stage cannot reinterpret the authored root requirement as a different predicate.
 - A checked query derives type and visibility from its own body generation.
 - `SourceIndex` cannot affect a semantic decision.
 

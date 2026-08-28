@@ -28,7 +28,7 @@ fn readonly_callable_requirement_freezes_dispatch_and_permits_repeated_calls() {
         *capability == CallableCapability::Readonly
             && matches!(
                 dispatch.dispatch(),
-                StaticDispatch::StructuralRequirement(_)
+                StaticDispatch::StructuralRequirement { .. }
             )
     }));
 }

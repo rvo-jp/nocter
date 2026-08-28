@@ -97,3 +97,5 @@ SourceFile
           ExpansionPredicate
             Type
               NamedType
+            Type
+              NamedType

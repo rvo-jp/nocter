@@ -25,8 +25,8 @@ pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::ConstantValue;
 pub use id::{
-    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId,
-    ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
+    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
+    ClosureId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
     GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
     LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
     MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,

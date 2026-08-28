@@ -89,7 +89,7 @@ construct Vec<T> {
 
     func from_exact_iter<I>(
         iterator: I,
-    ): Self where I impl Iterator { .Item = T }, I impl ExactSizeIterator {
+    ): Self where I impl ExactSizeIterator { .Item = T } {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()

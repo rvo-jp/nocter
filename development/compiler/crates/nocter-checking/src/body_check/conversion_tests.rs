@@ -113,7 +113,7 @@ fn generic_bodies_dispatch_coercion_through_the_lexical_requirement() {
     assert!(matches!(
         conversions[0].implementation(),
         BorrowConversionImplementation::Selected(selection)
-            if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement(_))
+            if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement { .. })
     ));
 }
 

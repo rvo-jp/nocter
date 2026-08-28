@@ -430,6 +430,18 @@ fn parses_interface_requirements_and_default_methods() {
 }
 
 #[test]
+fn parses_interface_self_structural_prerequisites() {
+    let tree = assert_syntax_ok(
+        "interface Capability where (&Self == &Self): bool, (...Self): i32 {}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::OperatorPredicate));
+    assert!(has_node_kind(&tree, NodeKind::ExpansionPredicate));
+    assert!(has_node_kind(&tree, NodeKind::SelfType));
+}
+
+#[test]
 fn rejects_implicit_interface_default_bodies() {
     let tree = parse_text(
         "interface Source { pub method self.consume(): void {} }\n",

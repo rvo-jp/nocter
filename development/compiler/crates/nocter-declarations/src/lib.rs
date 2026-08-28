@@ -12,6 +12,7 @@ mod callable;
 mod constant;
 mod declaration;
 mod import;
+mod interface_capability;
 mod namespace;
 mod path;
 #[allow(clippy::disallowed_types)]
@@ -39,6 +40,7 @@ pub use declaration::{
     OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
+pub use interface_capability::{InterfaceCapability, InterfaceCapabilityGraph};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
 pub use path::ModulePath;
 pub use program::{

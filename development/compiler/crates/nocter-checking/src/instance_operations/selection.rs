@@ -223,6 +223,22 @@ impl<'program> InstanceSelectionContext<'program> {
             visibility: CandidateVisibility::CheckedEvidence,
         }
     }
+
+    pub(crate) const fn for_prerequisite_validation(
+        graph: &'program DeclarationGraph,
+        interface_implementations: &'program InterfaceImplementationTable,
+        table: &'program InstanceOperationTable,
+        assumptions: &'program [CheckedRequirement],
+    ) -> Self {
+        Self {
+            graph,
+            interface_implementations,
+            table,
+            assumptions,
+            intrinsic_facts: &[],
+            visibility: CandidateVisibility::CheckedEvidence,
+        }
+    }
 }
 
 pub(crate) struct InstanceOperationSelector<'program> {
@@ -311,7 +327,12 @@ impl<'program> InstanceOperationSelector<'program> {
                 index: *index,
                 result: referent,
                 operation: Some(StaticSelection::new(
-                    StaticDispatch::StructuralRequirement(assumption.declaration()),
+                    StaticDispatch::StructuralRequirement {
+                        requirement: assumption.declaration(),
+                        evidence: assumption
+                            .evidence()
+                            .expect("body requirement has frozen evidence"),
+                    },
                     GenericArguments::default(),
                 )),
                 receiver_coercion: None,
@@ -475,7 +496,12 @@ impl<'program> InstanceOperationSelector<'program> {
                         receiver_capability: capability,
                         result_capability,
                         selection: StaticSelection::new(
-                            StaticDispatch::StructuralRequirement(assumption.declaration()),
+                            StaticDispatch::StructuralRequirement {
+                                requirement: assumption.declaration(),
+                                evidence: assumption
+                                    .evidence()
+                                    .expect("body requirement has frozen evidence"),
+                            },
                             GenericArguments::default(),
                         ),
                     }

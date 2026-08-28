@@ -8,6 +8,7 @@ pub enum InterfaceImplementationRule {
     IncompatibleMethod,
     OverlappingInterfaceImplementation,
     UnsatisfiedAssociatedBound,
+    UnsatisfiedPrerequisite,
 }
 
 impl InterfaceImplementationRule {
@@ -19,6 +20,7 @@ impl InterfaceImplementationRule {
             Self::IncompatibleMethod => "E0352",
             Self::OverlappingInterfaceImplementation => "E0353",
             Self::UnsatisfiedAssociatedBound => "E0354",
+            Self::UnsatisfiedPrerequisite => "E0358",
         }
     }
 }
@@ -99,6 +101,22 @@ pub(super) fn unsatisfied_associated_bound(
     )
 }
 
+pub(super) fn unsatisfied_prerequisite(
+    primary: SourceOrigin,
+    prerequisite: SourceOrigin,
+) -> SourceDiagnostic {
+    SourceDiagnostic::new(
+        InterfaceImplementationRule::UnsatisfiedPrerequisite.code(),
+        "interface implementation does not satisfy an interface prerequisite",
+        primary,
+        [DiagnosticNote::new(
+            "the prerequisite is declared here",
+            prerequisite,
+        )],
+        Some("add the required implementation or structural operation for the same target"),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -113,6 +131,7 @@ mod tests {
             InterfaceImplementationRule::IncompatibleMethod,
             InterfaceImplementationRule::OverlappingInterfaceImplementation,
             InterfaceImplementationRule::UnsatisfiedAssociatedBound,
+            InterfaceImplementationRule::UnsatisfiedPrerequisite,
         ];
         let codes: HashSet<_> = rules
             .into_iter()

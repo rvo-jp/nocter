@@ -324,7 +324,7 @@ fn lexical_index_requirement_dispatches_a_generic_place() {
 
     assert!(matches!(
         selection.dispatch(),
-        crate::StaticDispatch::StructuralRequirement(_)
+        crate::StaticDispatch::StructuralRequirement { .. }
     ));
     assert!(selection.generic_arguments().as_slice().is_empty());
 }

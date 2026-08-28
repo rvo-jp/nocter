@@ -4,9 +4,46 @@ use super::DeclarationRule;
 use super::outcome::{ValidationCollector, related_violation, violation};
 
 pub(super) fn validate(program: &DeclarationProgram, collector: &mut ValidationCollector) {
+    validate_interface_capabilities(program, collector);
     validate_nonempty_enums(program, collector);
     validate_complete_interface_implementations(program, collector);
     validate_opaque_results(program, collector);
+}
+
+fn validate_interface_capabilities(
+    program: &DeclarationProgram,
+    collector: &mut ValidationCollector,
+) {
+    for issue in program.graph().interface_capabilities().issues() {
+        match *issue {
+            crate::interface_capability::InterfaceCapabilityIssue::Cycle { interface, related } => {
+                let (Some(primary), Some(related)) = (
+                    program.declarations().interfaces().get(interface),
+                    program.declarations().interfaces().get(related),
+                ) else {
+                    continue;
+                };
+                collector.reject_program_fact(related_violation(
+                    DeclarationRule::InterfacePrerequisiteCycle,
+                    primary.site(),
+                    related.site(),
+                ));
+            }
+            crate::interface_capability::InterfaceCapabilityIssue::MemberCollision {
+                interface,
+                first,
+                second,
+            } => {
+                if program.declarations().interfaces().get(interface).is_some() {
+                    collector.reject_program_fact(related_violation(
+                        DeclarationRule::EffectiveInterfaceMemberCollision,
+                        second,
+                        first,
+                    ));
+                }
+            }
+        }
+    }
 }
 
 fn validate_nonempty_enums(program: &DeclarationProgram, collector: &mut ValidationCollector) {

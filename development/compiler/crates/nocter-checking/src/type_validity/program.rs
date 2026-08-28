@@ -275,7 +275,13 @@ fn validate_requirement(
                 entity,
             )
         }
-        RequirementKind::Index { index, result, .. } => {
+        RequirementKind::Index {
+            container,
+            index,
+            result,
+            ..
+        } => {
+            validate_position(types, source_index, *container, TypePosition::Data, entity)?;
             validate_position(types, source_index, *index, TypePosition::Data, entity)?;
             validate_position(types, source_index, *result, TypePosition::Data, entity)
         }
@@ -283,7 +289,8 @@ fn validate_requirement(
             validate_position(types, source_index, *source, TypePosition::Data, entity)?;
             validate_position(types, source_index, *target, TypePosition::Data, entity)
         }
-        RequirementKind::Expansion { result, .. } => {
+        RequirementKind::Expansion { source, result, .. } => {
+            validate_position(types, source_index, *source, TypePosition::Data, entity)?;
             validate_position(types, source_index, *result, TypePosition::Data, entity)
         }
         RequirementKind::BinderRefinement { replacement, .. } => validate_position(
@@ -293,9 +300,10 @@ fn validate_requirement(
             TypePosition::Data,
             entity,
         ),
-        RequirementKind::Copy(_)
-        | RequirementKind::Equality { .. }
-        | RequirementKind::Ordering { .. } => Ok(()),
+        RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
+            validate_position(types, source_index, *operand, TypePosition::Data, entity)
+        }
+        RequirementKind::Copy(_) => Ok(()),
     }
 }
 

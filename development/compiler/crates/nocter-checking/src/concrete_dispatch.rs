@@ -8,7 +8,7 @@ use nocter_model::{
 };
 
 use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
-use crate::interface_implementation::normalize_requirements;
+use crate::interface_implementation::substitute_predicate;
 use crate::{
     CheckedPredicate, CheckedProgram, ComparisonOperation, GenericArgument, GenericArguments,
     InstanceSelectionError, StaticDispatch, StaticSelection, SubstitutionError, TypeSubstitution,
@@ -205,8 +205,11 @@ impl<'program> ConcreteDispatchResolver<'program> {
             )),
             StaticDispatch::InterfaceMethod {
                 requirement,
+                evidence,
                 method,
-            } => self.resolve_interface_method(requirement, method, &arguments, enclosing),
+            } => {
+                self.resolve_interface_method(requirement, evidence, method, &arguments, enclosing)
+            }
             StaticDispatch::InterfaceSelfMethod { interface, method } => {
                 self.resolve_interface_self_method(interface, method, &arguments, enclosing)
             }
@@ -233,9 +236,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
             StaticDispatch::OpaqueMethod { opaque, method } => {
                 self.resolve_opaque_method(opaque, method, &arguments, enclosing)
             }
-            StaticDispatch::StructuralRequirement(requirement) => {
-                self.resolve_structural(requirement, enclosing)
-            }
+            StaticDispatch::StructuralRequirement {
+                requirement,
+                evidence,
+            } => self.resolve_structural(requirement, evidence, enclosing),
         }
     }
 
@@ -265,30 +269,15 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))
     }
 
-    fn normalized_requirement(
-        &mut self,
-        requirement: RequirementId,
-        substitution: &TypeSubstitution,
-    ) -> Result<CheckedPredicate, ConcreteDispatchError> {
-        let [normalized] = normalize_requirements(
-            self.program.graph(),
-            self.semantics.types_mut(),
-            substitution,
-            &[requirement],
-        )?
-        .try_into()
-        .map_err(|_| ConcreteDispatchError::UnknownRequirement(requirement))?;
-        Ok(normalized.predicate().clone())
-    }
-
     fn resolve_interface_method(
         &mut self,
         requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         surface: CallableId,
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let predicate = self.normalized_requirement(requirement, enclosing)?;
+        let predicate = self.normalized_evidence(evidence, enclosing)?;
         let CheckedPredicate::Interface {
             subject,
             application,
@@ -614,9 +603,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
     fn resolve_structural(
         &mut self,
         requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let predicate = self.normalized_requirement(requirement, enclosing)?;
+        let predicate = self.normalized_evidence(evidence, enclosing)?;
         match predicate {
             CheckedPredicate::Callable { subject, contract } => {
                 Ok(ResolvedDispatchPlan::Invocation(
@@ -649,6 +639,26 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 Err(ConcreteDispatchError::NonRuntimeRequirement(requirement))
             }
         }
+    }
+
+    fn normalized_evidence(
+        &mut self,
+        evidence: nocter_model::CapabilityEvidenceId,
+        substitution: &TypeSubstitution,
+    ) -> Result<CheckedPredicate, ConcreteDispatchError> {
+        let predicate = self
+            .program
+            .environment()
+            .body_assumptions()
+            .evidence(evidence)
+            .ok_or(ConcreteDispatchError::InvalidCapabilityEvidence(evidence))?
+            .predicate()
+            .clone();
+        Ok(substitute_predicate(
+            self.semantics.types_mut(),
+            substitution,
+            &predicate,
+        )?)
     }
 
     fn resolve_comparison(
@@ -906,6 +916,7 @@ fn builtin_index_result(
 #[derive(Debug)]
 pub enum ConcreteDispatchError {
     UnknownRequirement(RequirementId),
+    InvalidCapabilityEvidence(nocter_model::CapabilityEvidenceId),
     UnknownCallable(CallableId),
     InvalidInterfaceRequirement(RequirementId),
     InvalidInterfaceMethod {
@@ -952,6 +963,9 @@ impl fmt::Display for ConcreteDispatchError {
         match self {
             Self::UnknownRequirement(_) => {
                 formatter.write_str("concrete dispatch names an unknown requirement")
+            }
+            Self::InvalidCapabilityEvidence(_) => {
+                formatter.write_str("concrete dispatch names unknown capability evidence")
             }
             Self::UnknownCallable(_) => {
                 formatter.write_str("concrete dispatch names an unknown callable")

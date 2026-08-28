@@ -52,6 +52,7 @@ semantic_ids! {
     GenericParameterId,
     ParameterId,
     RequirementId,
+    CapabilityEvidenceId,
     BodyId,
     BodyNodeId,
     PlaceId,

@@ -11,7 +11,7 @@ instance MapIter<U, I, F> where I impl Iterator, F: &+func(item: I.Item): U {
     }
 }
 
-instance MapIter<U, I, F> where I impl Iterator, I impl ExactSizeIterator, F: &+func(item: I.Item): U {
+instance MapIter<U, I, F> where I impl ExactSizeIterator, F: &+func(item: I.Item): U {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
@@ -45,7 +45,7 @@ instance TakeIter<I> where I impl Iterator {
     }
 }
 
-instance TakeIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance TakeIter<I> where I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining < self.remaining {
@@ -68,7 +68,7 @@ instance SkipIter<I> where I impl Iterator {
     }
 }
 
-instance SkipIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance SkipIter<I> where I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining <= self.remaining_to_skip {
@@ -103,7 +103,7 @@ instance EnumerateIter<I> where I impl Iterator {
     }
 }
 
-instance EnumerateIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance EnumerateIter<I> where I impl ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }

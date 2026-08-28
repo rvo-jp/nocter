@@ -83,6 +83,7 @@ pub struct DeclarationGraph {
     imports: Arena<ImportId, ImportDeclaration>,
     package_targets: Arena<PackageTargetId, PackageTarget>,
     declarations: DeclarationArenas,
+    interface_capabilities: crate::InterfaceCapabilityGraph,
 }
 
 /// Immutable Phase 2 declaration graph and its canonical header-type store.
@@ -233,6 +234,11 @@ impl DeclarationGraph {
     #[must_use]
     pub const fn declarations(&self) -> &DeclarationArenas {
         &self.declarations
+    }
+
+    #[must_use]
+    pub const fn interface_capabilities(&self) -> &crate::InterfaceCapabilityGraph {
+        &self.interface_capabilities
     }
 }
 
@@ -712,7 +718,7 @@ impl DeclarationProgramBuilder {
                 namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
             })
             .map_err(ProgramBuildFailure::Error)?;
-        let program = DeclarationProgram {
+        let mut program = DeclarationProgram {
             graph: DeclarationGraph {
                 target: self.target,
                 symbols: self.symbols,
@@ -731,9 +737,12 @@ impl DeclarationProgramBuilder {
                     .finish()
                     .map_err(ProgramBuildError::from)
                     .map_err(ProgramBuildFailure::Error)?,
+                interface_capabilities: crate::InterfaceCapabilityGraph::default(),
             },
             types: self.types.freeze(),
         };
+        let interface_capabilities = crate::InterfaceCapabilityGraph::build(&program);
+        program.graph.interface_capabilities = interface_capabilities;
         crate::validate::validate_integrity(&program)
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)

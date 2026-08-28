@@ -303,6 +303,7 @@ fn validate_complete_interface_implementation(
         interface_implementation.associated_types(),
         interface_id,
         DeclarationDomain::InterfaceImplementation,
+        false,
     )?;
     Ok(())
 }
@@ -545,6 +546,7 @@ fn validate_opaque_types(program: &DeclarationProgram) -> Result<(), ProgramInte
             opaque.associated_types(),
             opaque.interface().interface(),
             DeclarationDomain::OpaqueType,
+            true,
         )?;
     }
     Ok(())

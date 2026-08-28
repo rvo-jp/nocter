@@ -197,7 +197,7 @@ func visit<C, I>(source: &C): void where (...&C): I, I impl Iterator {
             if matches!(
                 acquisition.acquisition(),
                 IterationAcquisition::Expansion(selection)
-                    if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement(_))
+                    if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement { .. })
             )
     ));
     assert!(matches!(

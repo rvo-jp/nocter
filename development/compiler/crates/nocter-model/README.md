@@ -14,6 +14,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 ## Internal Responsibilities
 
 - dense semantic ID domains and arenas
+- dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
 - exact-lineage type transactions

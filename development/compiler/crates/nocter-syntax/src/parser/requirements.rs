@@ -124,7 +124,7 @@ fn expansion_predicate(parser: &mut Parser<'_>) {
     {
         parser.bump();
     }
-    parser.expect_name();
+    types::type_(parser);
     parser.expect_punctuation(Punctuation::RightParen);
     parser.expect_punctuation(Punctuation::Colon);
     types::type_(parser);

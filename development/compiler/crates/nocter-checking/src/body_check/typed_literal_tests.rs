@@ -457,7 +457,7 @@ func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I impl Iterator { .I
             if matches!(
                 acquisition.acquisition(),
                 IterationAcquisition::Expansion(selection)
-                    if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement(_))
+                    if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement { .. })
             )
     ));
     assert!(matches!(

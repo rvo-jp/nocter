@@ -360,14 +360,15 @@ impl Analyzer<'_, '_> {
                     | StaticDispatch::OpaqueMethod {
                         method: callable, ..
                     } => callable,
-                    StaticDispatch::StructuralRequirement(_) => {
+                    StaticDispatch::StructuralRequirement { .. } => {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }
                 };
                 self.map_callable_result(callable, receiver, arguments)?
             }
             CallTarget::CallableValue { dispatch, .. } => {
-                let StaticDispatch::StructuralRequirement(requirement) = dispatch.dispatch() else {
+                let StaticDispatch::StructuralRequirement { requirement, .. } = dispatch.dispatch()
+                else {
                     return Err(BodyCheckInternalError::LoanAnalysis.into());
                 };
                 let contract = self

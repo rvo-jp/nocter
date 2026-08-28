@@ -782,7 +782,12 @@ impl InstanceOperationSelector<'_> {
             }
             evidence.push((
                 application.clone(),
-                LexicalInterfaceEvidence::Requirement(requirement.declaration()),
+                LexicalInterfaceEvidence::Requirement(
+                    requirement.declaration(),
+                    requirement
+                        .evidence()
+                        .expect("body requirement has frozen evidence"),
+                ),
             ));
         }
         evidence
@@ -841,15 +846,19 @@ pub(crate) fn receiver_supports(
 
 #[derive(Clone, Copy)]
 enum LexicalInterfaceEvidence {
-    Requirement(nocter_model::RequirementId),
+    Requirement(
+        nocter_model::RequirementId,
+        nocter_model::CapabilityEvidenceId,
+    ),
     InterfaceSelf,
 }
 
 impl LexicalInterfaceEvidence {
     fn dispatch(self, interface: nocter_model::InterfaceId, method: CallableId) -> StaticDispatch {
         match self {
-            Self::Requirement(requirement) => StaticDispatch::InterfaceMethod {
+            Self::Requirement(requirement, evidence) => StaticDispatch::InterfaceMethod {
                 requirement,
+                evidence,
                 method,
             },
             Self::InterfaceSelf => StaticDispatch::InterfaceSelfMethod { interface, method },

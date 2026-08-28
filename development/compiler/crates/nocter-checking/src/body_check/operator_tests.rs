@@ -373,9 +373,10 @@ fn generic_comparisons_dispatch_through_the_lexical_requirement() {
 
     assert_eq!(selections.len(), 3);
     assert!(
-        selections
-            .iter()
-            .all(|(dispatch, _, _)| matches!(dispatch, StaticDispatch::StructuralRequirement(_)))
+        selections.iter().all(|(dispatch, _, _)| matches!(
+            dispatch,
+            StaticDispatch::StructuralRequirement { .. }
+        ))
     );
     assert_eq!(
         (selections[1].1, selections[1].2),
@@ -407,6 +408,35 @@ fn conditional_comparison_instances_use_recursive_operation_proof() {
         })
         .count();
     assert_eq!(selected, 4);
+}
+
+#[test]
+fn interface_structural_prerequisite_exposes_equality_to_generic_bodies() {
+    let output = check(
+        "pub interface Equatable where (&Self == &Self): bool {}\n\
+         func equal<T>(left: &T, right: &T): bool where T impl Equatable { left == right }\n",
+    )
+    .unwrap();
+
+    assert!(
+        output
+            .program()
+            .bodies()
+            .iter()
+            .flat_map(|(_, body)| body.nodes().iter())
+            .any(|(_, node)| matches!(
+                node.operation(),
+                CheckedOperation::Comparison(comparison)
+                    if matches!(
+                        comparison.implementation(),
+                        ComparisonImplementation::Selected(selection)
+                            if matches!(
+                                selection.dispatch(),
+                                StaticDispatch::StructuralRequirement { .. }
+                            )
+                    )
+            ))
+    );
 }
 
 #[test]

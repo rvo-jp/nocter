@@ -18,6 +18,7 @@ callable bodies.
 - define-once semantic and presentation projection
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
+- construction-time binding of inherited associated names before declaration capability freeze
 - declaration surfaces and contract/definition joins
 - primitive, builtin, standard-role, and package-target projection
 - declaration recovery and diagnostic classification
@@ -30,3 +31,6 @@ callable bodies.
 - Projection rejects duplicate semantic relations before updating the companion source index, so
   the two products cannot silently retain different winners.
 - Contract and private definition joins use exact identities, not text matching downstream.
+- A derived associated binding resolves through bound prerequisite identities to the original
+  declaration; lowering never creates an alias declaration for inheritance. The accepted
+  declaration graph then freezes the effective identity so later stages do not repeat this binding.

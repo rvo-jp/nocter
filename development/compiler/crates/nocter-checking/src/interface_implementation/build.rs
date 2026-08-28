@@ -148,6 +148,7 @@ pub enum InterfaceImplementationInternalError {
     MissingSource(SemanticEntity),
     InvalidGenericType(GenericParameterId),
     InvalidInterfaceMethodSet(InterfaceId),
+    PrerequisiteSelection(Box<crate::InstanceSelectionError>),
     Substitution(SubstitutionError),
 }
 
@@ -183,6 +184,7 @@ impl fmt::Display for InterfaceImplementationInternalError {
                     "interface {interface:?} has duplicate method names"
                 )
             }
+            Self::PrerequisiteSelection(error) => error.fmt(formatter),
             Self::Substitution(error) => error.fmt(formatter),
         }
     }

@@ -92,7 +92,7 @@ pub interface Iterator {
 }
 
 /// Reports the exact number of values that the iterator has not yielded yet.
-pub interface ExactSizeIterator {
+pub interface ExactSizeIterator where Self impl Iterator {
     pub method &self.remaining_len(): usize
 }
 
@@ -100,7 +100,7 @@ instance MapIter<U, I, F> where I impl Iterator, F: &+func(item: I.Item): U {
     impl Iterator { .Item = U }
 }
 
-instance MapIter<U, I, F> where I impl Iterator, I impl ExactSizeIterator, F: &+func(item: I.Item): U {
+instance MapIter<U, I, F> where I impl ExactSizeIterator, F: &+func(item: I.Item): U {
     impl ExactSizeIterator
 }
 
@@ -112,7 +112,7 @@ instance TakeIter<I> where I impl Iterator {
     impl Iterator { .Item = I.Item }
 }
 
-instance TakeIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance TakeIter<I> where I impl ExactSizeIterator {
     impl ExactSizeIterator
 }
 
@@ -120,7 +120,7 @@ instance SkipIter<I> where I impl Iterator {
     impl Iterator { .Item = I.Item }
 }
 
-instance SkipIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance SkipIter<I> where I impl ExactSizeIterator {
     impl ExactSizeIterator
 }
 
@@ -132,7 +132,7 @@ instance EnumerateIter<I> where I impl Iterator {
     impl Iterator { .Item = Indexed<I.Item> }
 }
 
-instance EnumerateIter<I> where I impl Iterator, I impl ExactSizeIterator {
+instance EnumerateIter<I> where I impl ExactSizeIterator {
     impl ExactSizeIterator
 }
 

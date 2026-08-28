@@ -33,7 +33,7 @@ pub(in crate::query) fn static_signature_presentation(
         | StaticDispatch::OpaqueMethod {
             method: callable, ..
         } => renderer.callable(callable)?,
-        StaticDispatch::StructuralRequirement(requirement) => {
+        StaticDispatch::StructuralRequirement { requirement, .. } => {
             let requirement = graph.declarations().requirements().get(requirement)?;
             let RequirementKind::Callable { contract, .. } = requirement.kind() else {
                 return None;

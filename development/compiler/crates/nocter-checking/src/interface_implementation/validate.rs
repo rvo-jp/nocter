@@ -7,6 +7,9 @@ use super::diagnostic;
 use super::model::{CheckedInterfaceImplementation, InterfaceImplementationTable};
 use super::predicate::normalize_requirements;
 use super::selection::proves;
+use crate::instance_operations::{
+    InstanceOperationSelector, InstanceOperationTable, InstanceSelectionContext,
+};
 use crate::type_relations::TypeSubstitution;
 
 pub(super) fn validate_associated_bounds(
@@ -40,6 +43,70 @@ pub(super) fn validate_associated_bounds(
         };
         for associated in interface.associated_types() {
             validation.validate(*associated)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_interface_prerequisites(
+    graph: &DeclarationGraph,
+    types: &mut nocter_model::TypeTransaction,
+    source_index: DiagnosticOrigins<'_>,
+    table: &InterfaceImplementationTable,
+    instance_operations: &InstanceOperationTable,
+    copyabilities: &crate::CopyabilityTable,
+) -> Result<(), InterfaceImplementationBuildError> {
+    for (implementation_id, implementation) in table.entries() {
+        let interface_id = implementation.interface().interface();
+        let capability = graph.interface_capabilities().get(interface_id).ok_or(
+            InterfaceImplementationInternalError::MissingInterface(interface_id),
+        )?;
+        if capability.direct_prerequisites().is_empty() {
+            continue;
+        }
+        let declaration = graph
+            .declarations()
+            .interface_implementations()
+            .get(*implementation_id)
+            .ok_or(
+                InterfaceImplementationInternalError::MissingInterfaceImplementation(
+                    *implementation_id,
+                ),
+            )?;
+        let substitution = interface_implementation_substitution(graph, implementation)?;
+        let requirements = normalize_requirements(
+            graph,
+            types,
+            &substitution,
+            capability.direct_prerequisites(),
+        )?;
+        let mut copy_transaction = copyabilities.transaction();
+        let context = InstanceSelectionContext::for_prerequisite_validation(
+            graph,
+            table,
+            instance_operations,
+            implementation.requirements(),
+        );
+        let mut selector = InstanceOperationSelector::new(context, types, &mut copy_transaction);
+        for requirement in &requirements {
+            if !selector
+                .requirements_hold(
+                    std::slice::from_ref(requirement),
+                    &TypeSubstitution::default(),
+                )
+                .map_err(|error| {
+                    InterfaceImplementationInternalError::PrerequisiteSelection(Box::new(error))
+                })?
+            {
+                return Err(diagnostic::unsatisfied_prerequisite(
+                    source_origin(
+                        source_index,
+                        SemanticEntity::DeclarationSite(declaration.site()),
+                    )?,
+                    requirement_origin(source_index, requirement.declaration())?,
+                )
+                .into());
+            }
         }
     }
     Ok(())

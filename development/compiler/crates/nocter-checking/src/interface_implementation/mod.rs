@@ -34,3 +34,4 @@ pub(crate) use selection::{
     resolve_selected_associated_type, select_associated_implementation,
     select_interface_implementation,
 };
+pub(crate) use validate::validate_interface_prerequisites;

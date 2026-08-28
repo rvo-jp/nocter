@@ -1,5 +1,5 @@
 use nocter_declarations::{BodyOwner, CallableOwner, DeclarationGraph, InterfaceApplication};
-use nocter_model::{Arena, ArenaBuilder, BodyId, TypeKind};
+use nocter_model::{Arena, ArenaBuilder, BodyId, CapabilityEvidenceId, TypeKind};
 
 use crate::copyability::CopyProofs;
 use crate::declaration_patterns::DeclarationPatternTable;
@@ -27,6 +27,18 @@ pub(crate) struct BodyAssumptions {
 #[derive(Debug)]
 pub(crate) struct BodyAssumptionTable {
     entries: Arena<BodyId, BodyAssumptions>,
+    evidence: Arena<CapabilityEvidenceId, CapabilityEvidence>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CapabilityEvidence {
+    predicate: CheckedPredicate,
+}
+
+impl CapabilityEvidence {
+    pub(crate) const fn predicate(&self) -> &CheckedPredicate {
+        &self.predicate
+    }
 }
 
 impl BodyAssumptionTable {
@@ -36,6 +48,7 @@ impl BodyAssumptionTable {
         declaration_patterns: &DeclarationPatternTable,
     ) -> Result<Self, SubstitutionError> {
         let mut entries = ArenaBuilder::new();
+        let mut evidence = ArenaBuilder::new();
         for (body_id, body) in graph.declarations().bodies().iter() {
             let owner = body.owner();
             let actual = entries.insert(normalize_body_assumptions(
@@ -43,6 +56,7 @@ impl BodyAssumptionTable {
                 types,
                 declaration_patterns,
                 owner,
+                &mut evidence,
             )?);
             if actual != body_id {
                 return Err(SubstitutionError::InvalidStore);
@@ -50,11 +64,16 @@ impl BodyAssumptionTable {
         }
         Ok(Self {
             entries: entries.finish(),
+            evidence: evidence.finish(),
         })
     }
 
     pub(crate) fn get(&self, body: BodyId) -> Option<&BodyAssumptions> {
         self.entries.get(body)
+    }
+
+    pub(crate) fn evidence(&self, id: CapabilityEvidenceId) -> Option<&CapabilityEvidence> {
+        self.evidence.get(id)
     }
 }
 
@@ -78,6 +97,7 @@ fn normalize_body_assumptions(
     types: &mut nocter_model::TypeTransaction,
     declaration_patterns: &DeclarationPatternTable,
     owner: BodyOwner,
+    evidence: &mut ArenaBuilder<CapabilityEvidenceId, CapabilityEvidence>,
 ) -> Result<BodyAssumptions, SubstitutionError> {
     let BodyOwner::Callable(callable_id) = owner else {
         return Ok(BodyAssumptions {
@@ -142,6 +162,7 @@ fn normalize_body_assumptions(
         &substitution,
         callable.requirements(),
     )?);
+    let declared = freeze_declared_evidence(declared, evidence);
     let copy_proofs = CopyProofs::from_predicates(
         types,
         declared
@@ -154,4 +175,30 @@ fn normalize_body_assumptions(
         intrinsic: intrinsic.into_boxed_slice(),
         copy_proofs,
     })
+}
+
+fn freeze_declared_evidence(
+    declared: Vec<CheckedRequirement>,
+    evidence: &mut ArenaBuilder<CapabilityEvidenceId, CapabilityEvidence>,
+) -> Vec<CheckedRequirement> {
+    let mut result = Vec::with_capacity(declared.len());
+    for requirement in declared {
+        let declaration = requirement.declaration();
+        let predicate = requirement.predicate().clone();
+        if result
+            .iter()
+            .any(|existing: &CheckedRequirement| existing.predicate() == &predicate)
+        {
+            continue;
+        }
+        let id = evidence.insert(CapabilityEvidence {
+            predicate: predicate.clone(),
+        });
+        result.push(CheckedRequirement::with_evidence(
+            declaration,
+            predicate,
+            id,
+        ));
+    }
+    result
 }

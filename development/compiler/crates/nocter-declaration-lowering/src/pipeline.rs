@@ -1589,7 +1589,7 @@ mod tests {
     }
 
     #[test]
-    fn declaration_owned_g001_g018_boundaries_are_order_invariant() {
+    fn declaration_owned_g001_g020_boundaries_are_order_invariant() {
         let cases = [
             (
                 "G006",
@@ -1630,6 +1630,18 @@ mod tests {
                 "func equality<T, U>(): T where T = U { return }\n",
                 "type-binding",
                 "E0301",
+            ),
+            (
+                "G019",
+                "interface First where Self impl Second {}\ninterface Second where Self impl First {}\n",
+                "declaration",
+                "E0327",
+            ),
+            (
+                "G020",
+                "interface First { pub method &self.value(): i32 }\ninterface Second { pub method &self.value(): i32 }\ninterface Combined where Self impl First, Self impl Second {}\n",
+                "declaration",
+                "E0328",
             ),
         ];
 

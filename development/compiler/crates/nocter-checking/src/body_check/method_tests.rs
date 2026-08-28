@@ -609,3 +609,65 @@ fn method_selection_is_independent_of_compile_unit_input_order() {
         receiver_dispatches(&outputs[1])
     );
 }
+
+#[test]
+fn interface_prerequisite_exposes_inherited_methods_to_generic_bodies() {
+    let output = check(
+        "pub interface Base { pub method &self.value(): i32 }\n\
+         pub interface Derived where Self impl Base {}\n\
+         struct Value {}\n\
+         instance Value {\n\
+             impl Base\n\
+             impl Derived\n\
+             method &self.value(): i32 { 1 }\n\
+         }\n\
+         func read<T>(input: &T): i32 where T impl Derived { input.value() }\n",
+    )
+    .unwrap();
+
+    assert!(
+        receiver_dispatches(&output)
+            .iter()
+            .any(|(dispatch, _)| matches!(dispatch, StaticDispatch::InterfaceMethod { .. }))
+    );
+}
+
+#[test]
+fn transitive_interface_prerequisites_substitute_generic_arguments_once() {
+    let output = check(
+        "pub interface Base<T> { pub method &self.value(): T }\n\
+         pub interface Middle<U> where Self impl Base<U> {}\n\
+         pub interface Derived<V> where Self impl Middle<V> {}\n\
+         struct Value {}\n\
+         instance Value {\n\
+             impl Base<i32>\n\
+             impl Middle<i32>\n\
+             impl Derived<i32>\n\
+             method &self.value(): i32 { 1 }\n\
+         }\n\
+         func read<T>(input: &T): i32 where T impl Derived<i32> { input.value() }\n",
+    )
+    .unwrap();
+
+    assert!(
+        receiver_dispatches(&output)
+            .iter()
+            .any(|(dispatch, _)| matches!(dispatch, StaticDispatch::InterfaceMethod { .. }))
+    );
+}
+
+#[test]
+fn interface_prerequisite_exposes_capabilities_of_generic_arguments() {
+    let output = check(
+        "pub interface Base { pub method &self.value(): i32 }\n\
+         pub interface Derived<T> where T impl Base {}\n\
+         func read<T, U>(input: &U): i32 where T impl Derived<U> { input.value() }\n",
+    )
+    .unwrap();
+
+    assert!(
+        receiver_dispatches(&output)
+            .iter()
+            .any(|(dispatch, _)| matches!(dispatch, StaticDispatch::InterfaceMethod { .. }))
+    );
+}

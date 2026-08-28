@@ -33,6 +33,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                     associated_types,
                     application.interface(),
                     DeclarationDomain::Requirement,
+                    true,
                 )?;
             }
             RequirementKind::Callable { subject, contract } => {
@@ -49,9 +50,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 }
                 require_type(program, contract.result(), DeclarationDomain::Requirement)?;
             }
-            RequirementKind::Copy(parameter)
-            | RequirementKind::Equality { operand: parameter }
-            | RequirementKind::Ordering { operand: parameter } => {
+            RequirementKind::Copy(parameter) => {
                 require(
                     program.declarations().generic_parameters().get(*parameter),
                     DeclarationDomain::Requirement,
@@ -64,11 +63,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 result,
                 ..
             } => {
-                require(
-                    program.declarations().generic_parameters().get(*container),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
+                require_type(program, *container, DeclarationDomain::Requirement)?;
                 require_type(program, *index, DeclarationDomain::Requirement)?;
                 require_type(program, *result, DeclarationDomain::Requirement)?;
             }
@@ -77,12 +72,11 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 require_type(program, *target, DeclarationDomain::Requirement)?;
             }
             RequirementKind::Expansion { source, result, .. } => {
-                require(
-                    program.declarations().generic_parameters().get(*source),
-                    DeclarationDomain::Requirement,
-                    DeclarationDomain::GenericParameter,
-                )?;
+                require_type(program, *source, DeclarationDomain::Requirement)?;
                 require_type(program, *result, DeclarationDomain::Requirement)?;
+            }
+            RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
+                require_type(program, *operand, DeclarationDomain::Requirement)?;
             }
             RequirementKind::BinderRefinement {
                 parameter,
@@ -168,6 +162,7 @@ pub(super) fn validate_associated_bindings(
     bindings: &[AssociatedTypeBinding],
     interface: nocter_model::InterfaceId,
     owner: DeclarationDomain,
+    allow_inherited: bool,
 ) -> Result<(), ProgramIntegrityError> {
     let mut seen = HashSet::new();
     for binding in bindings {
@@ -182,7 +177,13 @@ pub(super) fn validate_associated_bindings(
             owner,
             DeclarationDomain::AssociatedType,
         )?;
-        if declaration.interface() != interface {
+        if declaration.interface() != interface
+            && !(allow_inherited
+                && program
+                    .graph()
+                    .interface_capabilities()
+                    .entails(interface, declaration.interface()))
+        {
             return Err(ProgramIntegrityError::OwnerMismatch(owner));
         }
         require_type(program, binding.ty(), owner)?;

@@ -16,6 +16,7 @@ coordinates, or checking internals.
 - declaration and member arenas
 - module, import, and prelude namespaces
 - callable, constant, and requirement contracts
+- canonical interface-prerequisite closure and effective member identities
 - visibility and path contracts
 - accepted/recovery admission shapes
 
@@ -25,3 +26,5 @@ coordinates, or checking internals.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
 - A declaration identity never contains a source range or rendered name.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
+- Interface prerequisite cycles and effective member collisions cannot cross the accepted-program
+  boundary.
