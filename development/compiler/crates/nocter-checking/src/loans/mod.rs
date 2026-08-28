@@ -36,6 +36,7 @@ impl<'program, 'syntax> LoanBodyInput<'program, 'syntax> {
 pub(crate) fn analyze_program_loans(
     graph: &DeclarationGraph,
     types: &TypeStore,
+    capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
@@ -45,5 +46,13 @@ pub(crate) fn analyze_program_loans(
         .iter()
         .map(|input| analysis::LoanBodyInput::new(input.source, input.body, input.origins))
         .collect::<Vec<_>>();
-    analysis::analyze_program(graph, types, drops, provenance, closures, &inputs)
+    analysis::analyze_program(
+        graph,
+        types,
+        capability_evidence,
+        drops,
+        provenance,
+        closures,
+        &inputs,
+    )
 }

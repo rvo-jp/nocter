@@ -42,7 +42,7 @@ impl ConcreteDispatchResolver<'_> {
         let resolver = AssociatedTypeResolver::new(
             program.graph(),
             program.interface_implementations(),
-            &[],
+            &[] as &[crate::CheckedRequirement],
             &[],
         );
         let reduced = resolver.reduce(self.types_mut(), substituted)?;

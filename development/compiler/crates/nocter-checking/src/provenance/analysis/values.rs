@@ -1,4 +1,4 @@
-use nocter_declarations::{ProvenanceOrigin, RequirementKind};
+use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, CallableId, TypeId};
 
 use super::Analyzer;
@@ -83,14 +83,12 @@ impl Analyzer<'_, '_> {
                     &[],
                     state.current_allocation(),
                 )?,
-                StaticDispatch::StructuralRequirement { requirement, .. } => {
+                StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(
-                        self.graph
-                            .declarations()
-                            .requirements()
-                            .get(requirement)
-                            .map(nocter_declarations::Requirement::kind),
-                        Some(RequirementKind::Expansion { .. })
+                        self.capability_evidence
+                            .get(evidence)
+                            .map(crate::body_check::CapabilityEvidence::predicate),
+                        Some(crate::CheckedPredicate::Expansion { .. })
                     ) {
                         return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                     }
@@ -451,13 +449,11 @@ impl Analyzer<'_, '_> {
             }
             CallTarget::CallableValue { dispatch, .. } => {
                 let contract = match dispatch.dispatch() {
-                    StaticDispatch::StructuralRequirement { requirement, .. } => self
-                        .graph
-                        .declarations()
-                        .requirements()
-                        .get(requirement)
-                        .and_then(|requirement| match requirement.kind() {
-                            RequirementKind::Callable { contract, .. } => Some(contract),
+                    StaticDispatch::StructuralRequirement { evidence } => self
+                        .capability_evidence
+                        .get(evidence)
+                        .and_then(|evidence| match evidence.predicate() {
+                            crate::CheckedPredicate::Callable { contract, .. } => Some(contract),
                             _ => None,
                         })
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,

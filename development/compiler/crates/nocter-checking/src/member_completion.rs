@@ -129,7 +129,8 @@ struct MemberCompletionQueryState {
 /// avoiding a full program-store clone for every keystroke.
 /// Per-generation mutable state used only while answering member-completion queries.
 ///
-/// This session deliberately lives outside [`CheckedProgram`] and [`PreparedSemanticProgram`].
+/// This session deliberately lives outside [`CheckedProgram`] and
+/// [`crate::PreparedSemanticProgram`].
 /// Each session belongs to exactly one immutable semantic authority. Callers that retain multiple
 /// checked or recovery authorities must retain one session for each authority.
 #[derive(Debug, Default)]

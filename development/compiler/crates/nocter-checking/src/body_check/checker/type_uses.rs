@@ -632,7 +632,7 @@ impl BodyChecker<'_, '_> {
         let mut candidates = self
             .assumptions
             .iter()
-            .map(crate::CheckedRequirement::predicate)
+            .map(crate::body_check::BodyRequirement::predicate)
             .chain(self.intrinsic_facts.iter())
             .filter_map(|predicate| {
                 let crate::CheckedPredicate::Interface {

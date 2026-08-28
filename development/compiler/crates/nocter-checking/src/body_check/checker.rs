@@ -134,6 +134,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     construction_surfaces: &'input crate::ConstructionSurfaceTable,
     instance_operations: &'input crate::InstanceOperationTable,
     standard_semantics: &'input crate::StandardSemanticTable,
+    capability_evidence: &'input super::CapabilityEvidenceTable,
     source_namespaces: &'input SourceNamespaceTable,
     source_access: crate::SourceAccessContext<'input>,
     diagnostic_origins: DiagnosticOrigins<'input>,
@@ -150,7 +151,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
-    assumptions: Vec<crate::CheckedRequirement>,
+    assumptions: Vec<super::BodyRequirement>,
     intrinsic_facts: Vec<crate::CheckedPredicate>,
     copy_proofs: CopyProofs,
     closure_result_inference: Option<closure_results::ClosureResultInference>,
@@ -221,6 +222,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let construction_surfaces = facts.construction_surfaces();
         let instance_operations = facts.instance_operations();
         let body_assumptions = facts.body_assumptions();
+        let capability_evidence = facts.capability_evidence();
         let standard_semantics = facts.standard_semantics();
         let source_namespaces = facts.source_namespaces();
         let source_access = body_source_access(facts, source)?;
@@ -279,6 +281,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             construction_surfaces,
             instance_operations,
             standard_semantics,
+            capability_evidence,
             source_namespaces,
             source_access,
             diagnostic_origins,

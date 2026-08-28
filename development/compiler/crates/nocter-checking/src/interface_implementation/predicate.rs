@@ -2,9 +2,7 @@ use nocter_declarations::{
     AssociatedTypeBinding, DeclarationGraph, ExpansionCapability, InterfaceApplication,
     RequirementKind, RequirementSubject,
 };
-use nocter_model::{
-    BorrowCapability, CallableContract, CapabilityEvidenceId, RequirementId, TypeId, TypeKind,
-};
+use nocter_model::{BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind};
 
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
@@ -44,48 +42,55 @@ pub enum CheckedPredicate {
     },
 }
 
-/// One normalized predicate retaining its declaration identity for diagnostics.
+/// One normalized declaration predicate used while proving declarations.
+///
+/// `root` is the requirement written on the declaration being checked. `origin` is the exact
+/// requirement declaration that contributed `predicate`; the two differ for a transitive
+/// interface prerequisite. Runtime/body evidence is deliberately represented by
+/// `BodyRequirement` instead of being optional here.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedRequirement {
-    declaration: RequirementId,
+    root: RequirementId,
+    origin: RequirementId,
     predicate: CheckedPredicate,
-    evidence: Option<CapabilityEvidenceId>,
 }
 
 impl CheckedRequirement {
-    pub(super) const fn new(declaration: RequirementId, predicate: CheckedPredicate) -> Self {
-        Self {
-            declaration,
-            predicate,
-            evidence: None,
-        }
-    }
-
-    pub(crate) const fn with_evidence(
-        declaration: RequirementId,
+    pub(super) const fn new(
+        root: RequirementId,
+        origin: RequirementId,
         predicate: CheckedPredicate,
-        evidence: CapabilityEvidenceId,
     ) -> Self {
         Self {
-            declaration,
+            root,
+            origin,
             predicate,
-            evidence: Some(evidence),
         }
     }
 
     #[must_use]
-    pub const fn declaration(&self) -> RequirementId {
-        self.declaration
+    pub const fn root(&self) -> RequirementId {
+        self.root
+    }
+
+    #[must_use]
+    pub const fn origin(&self) -> RequirementId {
+        self.origin
     }
 
     #[must_use]
     pub const fn predicate(&self) -> &CheckedPredicate {
         &self.predicate
     }
+}
 
-    #[must_use]
-    pub const fn evidence(&self) -> Option<CapabilityEvidenceId> {
-        self.evidence
+pub(crate) trait RequirementPredicate {
+    fn predicate(&self) -> &CheckedPredicate;
+}
+
+impl RequirementPredicate for CheckedRequirement {
+    fn predicate(&self) -> &CheckedPredicate {
+        self.predicate()
     }
 }
 
@@ -103,8 +108,19 @@ pub(crate) fn normalize_requirements(
             .get(*id)
             .ok_or(SubstitutionError::InvalidStore)?;
         let predicate = normalize_predicate(graph, types, substitution, requirement.kind())?;
-        let mut active = Vec::new();
-        expand_normalized_capability(graph, types, *id, predicate, &mut active, &mut normalized)?;
+        normalized.push(CheckedRequirement::new(*id, *id, predicate.clone()));
+        let CheckedPredicate::Interface { application, .. } = &predicate else {
+            continue;
+        };
+        let capability = graph
+            .interface_capabilities()
+            .get(application.interface())
+            .ok_or(SubstitutionError::InvalidStore)?;
+        for path in capability.prerequisite_paths() {
+            let (origin, predicate) =
+                specialize_prerequisite_path(graph, types, predicate.clone(), path)?;
+            normalized.push(CheckedRequirement::new(*id, origin, predicate));
+        }
     }
     let mut unique = Vec::new();
     for requirement in normalized {
@@ -118,64 +134,52 @@ pub(crate) fn normalize_requirements(
     Ok(unique)
 }
 
-fn expand_normalized_capability(
+fn specialize_prerequisite_path(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
-    root: RequirementId,
-    predicate: CheckedPredicate,
-    active: &mut Vec<nocter_model::InterfaceId>,
-    output: &mut Vec<CheckedRequirement>,
-) -> Result<(), SubstitutionError> {
-    output.push(CheckedRequirement::new(root, predicate.clone()));
-    let CheckedPredicate::Interface {
-        subject,
-        application,
-        associated_types,
-    } = predicate
-    else {
-        return Ok(());
-    };
-    let interface_id = application.interface();
-    if active.contains(&interface_id) {
-        return Ok(());
-    }
-    let interface = graph
-        .declarations()
-        .interfaces()
-        .get(interface_id)
-        .ok_or(SubstitutionError::InvalidStore)?;
-    let capability = graph
-        .interface_capabilities()
-        .get(interface_id)
-        .ok_or(SubstitutionError::InvalidStore)?;
-    let mut substitution = TypeSubstitution::default();
-    substitution.set_interface_self(interface_id, subject);
-    for (parameter, argument) in interface
-        .generic_parameters()
-        .iter()
-        .zip(application.arguments())
-    {
-        substitution.bind_generic(*parameter, *argument);
-    }
-    for binding in &associated_types {
-        substitution.bind_associated(binding.declaration(), binding.ty());
-    }
-    active.push(interface_id);
-    for prerequisite in capability.direct_prerequisites() {
+    mut context: CheckedPredicate,
+    path: &[RequirementId],
+) -> Result<(RequirementId, CheckedPredicate), SubstitutionError> {
+    for prerequisite in path {
+        let CheckedPredicate::Interface {
+            subject,
+            application,
+            associated_types,
+        } = context
+        else {
+            return Err(SubstitutionError::InvalidStore);
+        };
+        let interface_id = application.interface();
+        let interface = graph
+            .declarations()
+            .interfaces()
+            .get(interface_id)
+            .ok_or(SubstitutionError::InvalidStore)?;
+        let mut substitution = TypeSubstitution::default();
+        substitution.set_interface_self(interface_id, subject);
+        for (parameter, argument) in interface
+            .generic_parameters()
+            .iter()
+            .zip(application.arguments())
+        {
+            substitution.bind_generic(*parameter, *argument);
+        }
+        for binding in &associated_types {
+            substitution.bind_associated(binding.declaration(), binding.ty());
+        }
         let requirement = graph
             .declarations()
             .requirements()
             .get(*prerequisite)
             .ok_or(SubstitutionError::InvalidStore)?;
-        let predicate = inherit_associated_bindings(
+        context = inherit_associated_bindings(
             graph,
             normalize_predicate(graph, types, &substitution, requirement.kind())?,
             &associated_types,
         );
-        expand_normalized_capability(graph, types, root, predicate, active, output)?;
     }
-    active.pop();
-    Ok(())
+    let origin = *path.last().ok_or(SubstitutionError::InvalidStore)?;
+    Ok((origin, context))
 }
 
 fn inherit_associated_bindings(

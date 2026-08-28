@@ -1,5 +1,5 @@
-use super::BodyAssumptionTable;
 use super::error::BodyCheckInternalError;
+use super::{BodyAssumptionTable, CapabilityEvidenceTable};
 use crate::{
     BodySource, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     InterfaceImplementationTable, StandardSemanticTable,
@@ -18,6 +18,7 @@ pub(super) struct BodyProgramFacts<'program> {
     construction_surfaces: &'program ConstructionSurfaceTable,
     instance_operations: &'program InstanceOperationTable,
     body_assumptions: &'program BodyAssumptionTable,
+    capability_evidence: &'program CapabilityEvidenceTable,
     standard_semantics: &'program StandardSemanticTable,
     source_namespaces: &'program SourceNamespaceTable,
     source_access: &'program SourceAccessTable,
@@ -78,6 +79,7 @@ impl<'program> BodyProgramFacts<'program> {
             construction_surfaces: environment.construction_surfaces(),
             instance_operations: environment.instance_operations(),
             body_assumptions: environment.body_assumptions(),
+            capability_evidence: environment.capability_evidence(),
             standard_semantics: environment.standard_semantics(),
             source_namespaces: &prepared.source_namespaces,
             source_access: environment.source_access(),
@@ -107,6 +109,10 @@ impl<'program> BodyProgramFacts<'program> {
 
     pub(super) const fn body_assumptions(self) -> &'program BodyAssumptionTable {
         self.body_assumptions
+    }
+
+    pub(super) const fn capability_evidence(self) -> &'program CapabilityEvidenceTable {
+        self.capability_evidence
     }
 
     pub(super) const fn standard_semantics(self) -> &'program StandardSemanticTable {

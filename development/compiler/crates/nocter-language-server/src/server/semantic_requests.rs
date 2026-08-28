@@ -1183,6 +1183,45 @@ mod tests {
     }
 
     #[test]
+    fn signature_help_uses_exact_entailed_callable_evidence() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "interface Invokable<F> where F: &func(): i32 {}\n",
+            "func invoke<T, F>(callback: F): i32 where T impl Invokable<F> {\n",
+            "    return callback()\n",
+            "}\n",
+            "func main(): void { return }\n",
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let help = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":20}}}}}}"
+        ));
+        let response = help.response().unwrap();
+        assert!(response.contains("&func(): i32"), "{response}");
+        assert!(help.issue().is_none(), "{:?}", help.issue());
+    }
+
+    #[test]
     fn signature_help_renders_and_selects_the_final_argument_pack() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -5,7 +5,7 @@ use nocter_model::{InterfaceImplementationId, TypeId, TypeKind};
 
 use super::model::InterfaceImplementationTable;
 use super::overlap::match_pattern;
-use super::predicate::{CheckedPredicate, CheckedRequirement, substitute_predicate};
+use super::predicate::{CheckedPredicate, RequirementPredicate, substitute_predicate};
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// One explicit interface implementation selected for an exact interface application and subject type.
@@ -32,10 +32,10 @@ impl InterfaceImplementationSelection {
     }
 }
 
-pub(crate) fn proves(
+pub(crate) fn proves<R: RequirementPredicate>(
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
-    assumptions: &[CheckedRequirement],
+    assumptions: &[R],
     intrinsic_facts: &[CheckedPredicate],
     predicate: &CheckedPredicate,
 ) -> Result<bool, SubstitutionError> {
@@ -46,10 +46,10 @@ pub(crate) fn proves(
 ///
 /// Lexical assumptions may prove conditional requirements but are not returned as invented
 /// interface implementation declarations. Program-wide overlap validation guarantees at most one match.
-pub(crate) fn select_interface_implementation(
+pub(crate) fn select_interface_implementation<R: RequirementPredicate>(
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
-    assumptions: &[CheckedRequirement],
+    assumptions: &[R],
     intrinsic_facts: &[CheckedPredicate],
     subject: TypeId,
     application: &InterfaceApplication,
@@ -74,10 +74,10 @@ pub(crate) fn select_interface_implementation(
 /// Unlike ordinary interface dispatch, this searches every application of the associated type's
 /// owner interface. More than one applicable application is therefore an ambiguity even when the
 /// program-wide overlap rule permits those applications independently.
-pub(crate) fn select_associated_implementation(
+pub(crate) fn select_associated_implementation<R: RequirementPredicate>(
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
-    assumptions: &[CheckedRequirement],
+    assumptions: &[R],
     intrinsic_facts: &[CheckedPredicate],
     subject: TypeId,
     interface: nocter_model::InterfaceId,
@@ -105,20 +105,20 @@ pub(crate) fn resolve_selected_associated_type(
     selection.substitution().apply_type(types, bound)
 }
 
-struct Prover<'program> {
+struct Prover<'program, R> {
     types: &'program mut nocter_model::TypeTransaction,
     table: &'program InterfaceImplementationTable,
-    assumptions: &'program [CheckedRequirement],
+    assumptions: &'program [R],
     intrinsic_facts: &'program [CheckedPredicate],
     active: HashSet<CheckedPredicate>,
     proven: HashSet<CheckedPredicate>,
 }
 
-impl<'program> Prover<'program> {
+impl<'program, R: RequirementPredicate> Prover<'program, R> {
     fn new(
         types: &'program mut nocter_model::TypeTransaction,
         table: &'program InterfaceImplementationTable,
-        assumptions: &'program [CheckedRequirement],
+        assumptions: &'program [R],
         intrinsic_facts: &'program [CheckedPredicate],
     ) -> Self {
         Self {

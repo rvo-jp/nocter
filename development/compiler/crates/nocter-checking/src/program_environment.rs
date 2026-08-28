@@ -1,7 +1,7 @@
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::SourceAccessTable;
 
-use crate::body_check::BodyAssumptionTable;
+use crate::body_check::{BodyAssumptionTable, CapabilityEvidenceTable};
 use crate::{
     ConstructionSurfaceTable, DropTable, InstanceOperationTable, InterfaceImplementationTable,
     StandardSemanticTable,
@@ -18,6 +18,7 @@ pub(crate) struct ProgramEnvironment {
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     body_assumptions: BodyAssumptionTable,
+    capability_evidence: CapabilityEvidenceTable,
     drops: DropTable,
     standard_semantics: StandardSemanticTable,
     source_access: SourceAccessTable,
@@ -34,6 +35,7 @@ impl ProgramEnvironment {
         construction_surfaces: ConstructionSurfaceTable,
         instance_operations: InstanceOperationTable,
         body_assumptions: BodyAssumptionTable,
+        capability_evidence: CapabilityEvidenceTable,
         drops: DropTable,
         standard_semantics: StandardSemanticTable,
         source_access: SourceAccessTable,
@@ -44,6 +46,7 @@ impl ProgramEnvironment {
             construction_surfaces,
             instance_operations,
             body_assumptions,
+            capability_evidence,
             drops,
             standard_semantics,
             source_access,
@@ -64,6 +67,9 @@ impl ProgramEnvironment {
     }
     pub(crate) const fn body_assumptions(&self) -> &BodyAssumptionTable {
         &self.body_assumptions
+    }
+    pub(crate) const fn capability_evidence(&self) -> &CapabilityEvidenceTable {
+        &self.capability_evidence
     }
     pub(crate) const fn drops(&self) -> &DropTable {
         &self.drops

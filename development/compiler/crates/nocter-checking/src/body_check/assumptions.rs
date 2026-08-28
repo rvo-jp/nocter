@@ -14,7 +14,7 @@ use crate::{CheckedPredicate, CheckedRequirement};
 /// and deliberately cannot masquerade as authored requirements.
 #[derive(Debug)]
 pub(crate) struct BodyAssumptions {
-    declared: Box<[CheckedRequirement]>,
+    declared: Box<[BodyRequirement]>,
     intrinsic: Box<[CheckedPredicate]>,
     copy_proofs: CopyProofs,
 }
@@ -27,17 +27,62 @@ pub(crate) struct BodyAssumptions {
 #[derive(Debug)]
 pub(crate) struct BodyAssumptionTable {
     entries: Arena<BodyId, BodyAssumptions>,
-    evidence: Arena<CapabilityEvidenceId, CapabilityEvidence>,
+}
+
+/// Program-wide immutable authority for every structural dispatch fact admitted into a body.
+#[derive(Debug)]
+pub(crate) struct CapabilityEvidenceTable {
+    entries: Arena<CapabilityEvidenceId, CapabilityEvidence>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct CapabilityEvidence {
+pub struct CapabilityEvidence {
+    root: nocter_model::RequirementId,
+    origin: nocter_model::RequirementId,
     predicate: CheckedPredicate,
 }
 
 impl CapabilityEvidence {
-    pub(crate) const fn predicate(&self) -> &CheckedPredicate {
+    #[must_use]
+    pub const fn root(&self) -> nocter_model::RequirementId {
+        self.root
+    }
+
+    #[must_use]
+    pub const fn origin(&self) -> nocter_model::RequirementId {
+        self.origin
+    }
+
+    #[must_use]
+    pub const fn predicate(&self) -> &CheckedPredicate {
         &self.predicate
+    }
+}
+
+/// A declaration predicate admitted into one body with an exact immutable evidence identity.
+#[derive(Clone, Debug)]
+pub(crate) struct BodyRequirement {
+    requirement: CheckedRequirement,
+    evidence: CapabilityEvidenceId,
+}
+
+impl BodyRequirement {
+    pub(crate) const fn root(&self) -> nocter_model::RequirementId {
+        self.requirement.root()
+    }
+
+    pub(crate) const fn predicate(&self) -> &CheckedPredicate {
+        self.requirement.predicate()
+    }
+
+    pub(crate) const fn evidence(&self) -> CapabilityEvidenceId {
+        self.evidence
+    }
+}
+
+impl crate::interface_implementation::RequirementPredicate for BodyRequirement {
+    fn predicate(&self) -> &CheckedPredicate {
+        self.predicate()
     }
 }
 
@@ -46,7 +91,7 @@ impl BodyAssumptionTable {
         graph: &DeclarationGraph,
         types: &mut nocter_model::TypeTransaction,
         declaration_patterns: &DeclarationPatternTable,
-    ) -> Result<Self, SubstitutionError> {
+    ) -> Result<(Self, CapabilityEvidenceTable), SubstitutionError> {
         let mut entries = ArenaBuilder::new();
         let mut evidence = ArenaBuilder::new();
         for (body_id, body) in graph.declarations().bodies().iter() {
@@ -62,23 +107,29 @@ impl BodyAssumptionTable {
                 return Err(SubstitutionError::InvalidStore);
             }
         }
-        Ok(Self {
-            entries: entries.finish(),
-            evidence: evidence.finish(),
-        })
+        Ok((
+            Self {
+                entries: entries.finish(),
+            },
+            CapabilityEvidenceTable {
+                entries: evidence.finish(),
+            },
+        ))
     }
 
     pub(crate) fn get(&self, body: BodyId) -> Option<&BodyAssumptions> {
         self.entries.get(body)
     }
+}
 
-    pub(crate) fn evidence(&self, id: CapabilityEvidenceId) -> Option<&CapabilityEvidence> {
-        self.evidence.get(id)
+impl CapabilityEvidenceTable {
+    pub(crate) fn get(&self, id: CapabilityEvidenceId) -> Option<&CapabilityEvidence> {
+        self.entries.get(id)
     }
 }
 
 impl BodyAssumptions {
-    pub(crate) fn declared(&self) -> &[CheckedRequirement] {
+    pub(crate) fn declared(&self) -> &[BodyRequirement] {
         &self.declared
     }
 
@@ -167,7 +218,7 @@ fn normalize_body_assumptions(
         types,
         declared
             .iter()
-            .map(CheckedRequirement::predicate)
+            .map(BodyRequirement::predicate)
             .chain(intrinsic.iter()),
     );
     Ok(BodyAssumptions {
@@ -180,25 +231,25 @@ fn normalize_body_assumptions(
 fn freeze_declared_evidence(
     declared: Vec<CheckedRequirement>,
     evidence: &mut ArenaBuilder<CapabilityEvidenceId, CapabilityEvidence>,
-) -> Vec<CheckedRequirement> {
+) -> Vec<BodyRequirement> {
     let mut result = Vec::with_capacity(declared.len());
     for requirement in declared {
-        let declaration = requirement.declaration();
         let predicate = requirement.predicate().clone();
         if result
             .iter()
-            .any(|existing: &CheckedRequirement| existing.predicate() == &predicate)
+            .any(|existing: &BodyRequirement| existing.predicate() == &predicate)
         {
             continue;
         }
         let id = evidence.insert(CapabilityEvidence {
+            root: requirement.root(),
+            origin: requirement.origin(),
             predicate: predicate.clone(),
         });
-        result.push(CheckedRequirement::with_evidence(
-            declaration,
-            predicate,
-            id,
-        ));
+        result.push(BodyRequirement {
+            requirement,
+            evidence: id,
+        });
     }
     result
 }

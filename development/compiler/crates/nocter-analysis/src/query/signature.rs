@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_checking::{ArgumentPackSegment, CallTarget, CheckedOperation};
+use nocter_checking::{ArgumentPackSegment, CallTarget, CheckedOperation, StaticDispatch};
 use nocter_model::{BodyId, BodyNodeId};
 use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
@@ -106,6 +106,13 @@ impl AnalysisSnapshot {
                 authority.graph(),
                 authority.types(),
                 selection,
+                match selection.dispatch() {
+                    StaticDispatch::StructuralRequirement { evidence }
+                    | StaticDispatch::InterfaceMethod { evidence, .. } => {
+                        authority.capability_evidence(evidence)
+                    }
+                    _ => None,
+                },
                 &spellings,
             ),
             CallTarget::ClosureValue { closure, .. } => {

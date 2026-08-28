@@ -106,16 +106,13 @@ impl InstanceOperationSelector<'_> {
             ComparisonOperation::Less => CheckedPredicate::Ordering(target),
         };
         let mut selected = self
-            .assumptions
+            .body_assumptions()
             .iter()
             .filter(|assumption| assumption.predicate() == &predicate)
             .map(|assumption| {
                 StaticSelection::new(
                     StaticDispatch::StructuralRequirement {
-                        requirement: assumption.declaration(),
-                        evidence: assumption
-                            .evidence()
-                            .expect("body requirement has frozen evidence"),
+                        evidence: assumption.evidence(),
                     },
                     GenericArguments::default(),
                 )

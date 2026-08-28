@@ -5,29 +5,29 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, TypeId, TypeKind};
 
 use crate::interface_implementation::{
-    AssociatedImplementationSelection, InterfaceImplementationTable,
+    AssociatedImplementationSelection, InterfaceImplementationTable, RequirementPredicate,
     resolve_selected_associated_type, select_associated_implementation,
 };
 use crate::type_relations::{SubstitutionError, map_type_children};
-use crate::{CheckedPredicate, CheckedRequirement, is_concrete_type};
+use crate::{CheckedPredicate, is_concrete_type};
 
 /// The sole semantic authority for reducing associated projections after their names are bound.
 ///
 /// A symbolic base remains a projection. Once its base is concrete, the exact checked interface
 /// implementation selects and substitutes the associated value. Both body checking and executable
 /// specialization consume this contract.
-pub(crate) struct AssociatedTypeResolver<'program> {
+pub(crate) struct AssociatedTypeResolver<'program, R> {
     graph: &'program DeclarationGraph,
     implementations: &'program InterfaceImplementationTable,
-    assumptions: &'program [CheckedRequirement],
+    assumptions: &'program [R],
     intrinsic_facts: &'program [CheckedPredicate],
 }
 
-impl<'program> AssociatedTypeResolver<'program> {
+impl<'program, R: RequirementPredicate> AssociatedTypeResolver<'program, R> {
     pub(crate) const fn new(
         graph: &'program DeclarationGraph,
         implementations: &'program InterfaceImplementationTable,
-        assumptions: &'program [CheckedRequirement],
+        assumptions: &'program [R],
         intrinsic_facts: &'program [CheckedPredicate],
     ) -> Self {
         Self {

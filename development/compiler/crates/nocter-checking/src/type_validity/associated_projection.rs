@@ -40,7 +40,7 @@ pub(crate) fn validate_associated_projection_uses(
         let selection = select_associated_implementation(
             types,
             implementations,
-            &[],
+            &[] as &[crate::CheckedRequirement],
             &[],
             projection.base(),
             declaration.interface(),

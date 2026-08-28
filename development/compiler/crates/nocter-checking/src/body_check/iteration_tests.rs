@@ -207,6 +207,20 @@ func visit<C, I>(source: &C): void where (...&C): I, I impl Iterator {
 }
 
 #[test]
+fn interface_prerequisite_expansion_reaches_provenance_and_loan_analysis() {
+    check_iteration(
+        r"
+interface Expandable<I> where (...Self): I {}
+func visit<C, I>(source: C): void where C impl Expandable<I>, I impl Iterator {
+    for item in move source {}
+    return
+}
+",
+    )
+    .unwrap();
+}
+
+#[test]
 fn opaque_iterator_uses_its_advertised_exact_interface_evidence() {
     let output = check_iteration(
         r"

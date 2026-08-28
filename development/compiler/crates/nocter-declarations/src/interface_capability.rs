@@ -20,11 +20,18 @@ pub(crate) enum InterfaceCapabilityIssue {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DependencyVisit {
+    Active,
+    Complete,
+}
+
 /// Effective capabilities of one interface after prerequisite closure.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct InterfaceCapability {
     direct_prerequisites: Box<[RequirementId]>,
-    interfaces: Box<[InterfaceId]>,
+    prerequisite_paths: Box<[Box<[RequirementId]>]>,
+    inherited_interfaces: Box<[InterfaceId]>,
     methods: Box<[CallableId]>,
     associated_types: Box<[AssociatedTypeId]>,
 }
@@ -35,9 +42,19 @@ impl InterfaceCapability {
         &self.direct_prerequisites
     }
 
+    /// Canonical declaration paths for every direct and transitive prerequisite.
+    ///
+    /// Each path starts at a requirement declared by this interface and ends at the exact
+    /// requirement that contributes a predicate. Checking specializes these frozen paths instead
+    /// of traversing interface declarations again.
     #[must_use]
-    pub const fn interfaces(&self) -> &[InterfaceId] {
-        &self.interfaces
+    pub const fn prerequisite_paths(&self) -> &[Box<[RequirementId]>] {
+        &self.prerequisite_paths
+    }
+
+    #[must_use]
+    pub const fn inherited_interfaces(&self) -> &[InterfaceId] {
+        &self.inherited_interfaces
     }
 
     #[must_use]
@@ -72,6 +89,19 @@ impl InterfaceCapabilityGraph {
 
         let mut issues = Vec::new();
         let mut reported_cycles = BTreeSet::new();
+        let mut dependency_visits = BTreeMap::new();
+        let mut dependency_path = Vec::new();
+        for (interface_id, _) in declarations.interfaces().iter() {
+            collect_dependency_cycles(
+                declarations,
+                &direct,
+                interface_id,
+                &mut dependency_visits,
+                &mut dependency_path,
+                &mut reported_cycles,
+                &mut issues,
+            );
+        }
         let mut entries = ArenaBuilder::new();
         for (interface_id, _) in declarations.interfaces().iter() {
             let mut path = Vec::new();
@@ -83,20 +113,28 @@ impl InterfaceCapabilityGraph {
                 interface_id,
                 &mut path,
                 &mut ordered,
-                &mut reported_cycles,
-                &mut issues,
             );
             let mut seen = BTreeSet::new();
             ordered.retain(|candidate| seen.insert(*candidate));
             let (methods, associated_types) =
                 collect_members(declarations, interface_id, &ordered, &mut issues);
+            let mut prerequisite_paths = Vec::new();
+            collect_prerequisite_paths(
+                declarations,
+                &direct,
+                interface_id,
+                &mut vec![interface_id],
+                &mut Vec::new(),
+                &mut prerequisite_paths,
+            );
             let actual = entries.insert(InterfaceCapability {
                 direct_prerequisites: direct
                     .get(&interface_id)
                     .cloned()
                     .unwrap_or_default()
                     .into_boxed_slice(),
-                interfaces: ordered.into_boxed_slice(),
+                prerequisite_paths: prerequisite_paths.into_boxed_slice(),
+                inherited_interfaces: ordered.into_boxed_slice(),
                 methods: methods.into_boxed_slice(),
                 associated_types: associated_types.into_boxed_slice(),
             });
@@ -122,8 +160,99 @@ impl InterfaceCapabilityGraph {
         interface == candidate
             || self
                 .get(interface)
-                .is_some_and(|entry| entry.interfaces().contains(&candidate))
+                .is_some_and(|entry| entry.inherited_interfaces().contains(&candidate))
     }
+}
+
+fn collect_prerequisite_paths(
+    declarations: &DeclarationArenas,
+    direct: &BTreeMap<InterfaceId, Vec<RequirementId>>,
+    current: InterfaceId,
+    active: &mut Vec<InterfaceId>,
+    prefix: &mut Vec<RequirementId>,
+    output: &mut Vec<Box<[RequirementId]>>,
+) {
+    for requirement in direct.get(&current).into_iter().flatten() {
+        prefix.push(*requirement);
+        output.push(prefix.clone().into_boxed_slice());
+        if let Some(RequirementKind::Interface { application, .. }) = declarations
+            .requirements()
+            .get(*requirement)
+            .map(crate::Requirement::kind)
+        {
+            let prerequisite = application.interface();
+            if !active.contains(&prerequisite) {
+                active.push(prerequisite);
+                collect_prerequisite_paths(
+                    declarations,
+                    direct,
+                    prerequisite,
+                    active,
+                    prefix,
+                    output,
+                );
+                active.pop();
+            }
+        }
+        prefix.pop();
+    }
+}
+
+/// Validates every implication edge, including prerequisites whose subject is an interface
+/// parameter rather than contextual `Self`. Member inheritance is intentionally narrower and is
+/// collected separately by `collect_interfaces`.
+fn collect_dependency_cycles(
+    declarations: &DeclarationArenas,
+    direct: &BTreeMap<InterfaceId, Vec<RequirementId>>,
+    current: InterfaceId,
+    visits: &mut BTreeMap<InterfaceId, DependencyVisit>,
+    path: &mut Vec<InterfaceId>,
+    reported_cycles: &mut BTreeSet<(InterfaceId, InterfaceId)>,
+    issues: &mut Vec<InterfaceCapabilityIssue>,
+) {
+    match visits.get(&current).copied() {
+        Some(DependencyVisit::Complete) => return,
+        Some(DependencyVisit::Active) => {
+            let position = path
+                .iter()
+                .position(|candidate| *candidate == current)
+                .unwrap_or(0);
+            let mut cycle = path[position..].to_vec();
+            cycle.sort_unstable();
+            let first = cycle[0];
+            let related = cycle.get(1).copied().unwrap_or(first);
+            if reported_cycles.insert((first, related)) {
+                issues.push(InterfaceCapabilityIssue::Cycle {
+                    interface: first,
+                    related,
+                });
+            }
+            return;
+        }
+        None => {}
+    }
+    visits.insert(current, DependencyVisit::Active);
+    path.push(current);
+    for requirement_id in direct.get(&current).into_iter().flatten() {
+        let Some(RequirementKind::Interface { application, .. }) = declarations
+            .requirements()
+            .get(*requirement_id)
+            .map(crate::Requirement::kind)
+        else {
+            continue;
+        };
+        collect_dependency_cycles(
+            declarations,
+            direct,
+            application.interface(),
+            visits,
+            path,
+            reported_cycles,
+            issues,
+        );
+    }
+    path.pop();
+    visits.insert(current, DependencyVisit::Complete);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -134,20 +263,8 @@ fn collect_interfaces(
     current: InterfaceId,
     path: &mut Vec<InterfaceId>,
     ordered: &mut Vec<InterfaceId>,
-    reported_cycles: &mut BTreeSet<(InterfaceId, InterfaceId)>,
-    issues: &mut Vec<InterfaceCapabilityIssue>,
 ) {
-    if let Some(position) = path.iter().position(|candidate| *candidate == current) {
-        let mut cycle = path[position..].to_vec();
-        cycle.sort_unstable();
-        let first = cycle[0];
-        let related = cycle.get(1).copied().unwrap_or(first);
-        if reported_cycles.insert((first, related)) {
-            issues.push(InterfaceCapabilityIssue::Cycle {
-                interface: first,
-                related,
-            });
-        }
+    if path.contains(&current) {
         return;
     }
     path.push(current);
@@ -167,16 +284,7 @@ fn collect_interfaces(
             continue;
         }
         let prerequisite = application.interface();
-        collect_interfaces(
-            declarations,
-            direct,
-            root,
-            prerequisite,
-            path,
-            ordered,
-            reported_cycles,
-            issues,
-        );
+        collect_interfaces(declarations, direct, root, prerequisite, path, ordered);
         if prerequisite != root {
             ordered.push(prerequisite);
         }

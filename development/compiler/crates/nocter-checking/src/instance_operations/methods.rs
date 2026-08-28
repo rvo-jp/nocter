@@ -644,7 +644,7 @@ impl InstanceOperationSelector<'_> {
         let Some(selected) = select_interface_implementation(
             self.types,
             self.interface_implementations,
-            self.assumptions,
+            self.body_assumptions(),
             self.intrinsic_facts,
             target,
             application,
@@ -765,7 +765,7 @@ impl InstanceOperationSelector<'_> {
                 .then(|| (application.clone(), LexicalInterfaceEvidence::InterfaceSelf))
             })
             .collect::<Vec<_>>();
-        for requirement in self.assumptions {
+        for requirement in self.body_assumptions() {
             let CheckedPredicate::Interface {
                 subject,
                 application,
@@ -782,12 +782,7 @@ impl InstanceOperationSelector<'_> {
             }
             evidence.push((
                 application.clone(),
-                LexicalInterfaceEvidence::Requirement(
-                    requirement.declaration(),
-                    requirement
-                        .evidence()
-                        .expect("body requirement has frozen evidence"),
-                ),
+                LexicalInterfaceEvidence::Requirement(requirement.evidence()),
             ));
         }
         evidence
@@ -810,7 +805,7 @@ impl InstanceOperationSelector<'_> {
                 .map_err(|_| InstanceSelectionError::UnknownType(target))?;
             substitution.bind_associated(*associated, projection);
         }
-        for requirement in self.assumptions {
+        for requirement in self.body_assumptions() {
             let CheckedPredicate::Interface {
                 subject,
                 application,
@@ -846,21 +841,14 @@ pub(crate) fn receiver_supports(
 
 #[derive(Clone, Copy)]
 enum LexicalInterfaceEvidence {
-    Requirement(
-        nocter_model::RequirementId,
-        nocter_model::CapabilityEvidenceId,
-    ),
+    Requirement(nocter_model::CapabilityEvidenceId),
     InterfaceSelf,
 }
 
 impl LexicalInterfaceEvidence {
     fn dispatch(self, interface: nocter_model::InterfaceId, method: CallableId) -> StaticDispatch {
         match self {
-            Self::Requirement(requirement, evidence) => StaticDispatch::InterfaceMethod {
-                requirement,
-                evidence,
-                method,
-            },
+            Self::Requirement(evidence) => StaticDispatch::InterfaceMethod { evidence, method },
             Self::InterfaceSelf => StaticDispatch::InterfaceSelfMethod { interface, method },
         }
     }

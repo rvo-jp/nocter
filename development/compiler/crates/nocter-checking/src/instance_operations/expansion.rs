@@ -43,7 +43,7 @@ impl InstanceOperationSelector<'_> {
         source: TypeId,
         capability: ExpansionCapability,
     ) -> Vec<ExpansionCandidate> {
-        self.assumptions
+        self.body_assumptions()
             .iter()
             .filter_map(|assumption| {
                 let CheckedPredicate::Expansion {
@@ -59,10 +59,7 @@ impl InstanceOperationSelector<'_> {
                         result: *result,
                         selection: StaticSelection::new(
                             StaticDispatch::StructuralRequirement {
-                                requirement: assumption.declaration(),
-                                evidence: assumption
-                                    .evidence()
-                                    .expect("body requirement has frozen evidence"),
+                                evidence: assumption.evidence(),
                             },
                             GenericArguments::default(),
                         ),

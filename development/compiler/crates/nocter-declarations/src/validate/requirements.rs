@@ -182,7 +182,12 @@ pub(super) fn validate_associated_bindings(
                 && program
                     .graph()
                     .interface_capabilities()
-                    .entails(interface, declaration.interface()))
+                    .get(interface)
+                    .is_some_and(|capability| {
+                        capability
+                            .associated_types()
+                            .contains(&binding.declaration())
+                    }))
         {
             return Err(ProgramIntegrityError::OwnerMismatch(owner));
         }

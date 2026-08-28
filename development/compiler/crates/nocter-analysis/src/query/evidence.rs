@@ -52,6 +52,19 @@ impl<'a> SemanticQueryContext<'a> {
         self.evidence.types()
     }
 
+    pub(super) fn capability_evidence(
+        &self,
+        evidence: nocter_model::CapabilityEvidenceId,
+    ) -> Option<&'a nocter_checking::CapabilityEvidence> {
+        self.checked()
+            .and_then(|checked| checked.capability_evidence(evidence))
+            .or_else(|| {
+                self.body_recovery()?
+                    .prepared()
+                    .capability_evidence(evidence)
+            })
+    }
+
     fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
         self.evidence.checked()
     }

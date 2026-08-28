@@ -50,11 +50,19 @@ impl<'program, 'syntax> ProvenanceBodyInput<'program, 'syntax> {
 pub(crate) fn analyze_program_provenance(
     graph: &DeclarationGraph,
     types: &TypeStore,
+    capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
-    analysis::analyze_program(graph, types, interface_implementations, closures, inputs)
+    analysis::analyze_program(
+        graph,
+        types,
+        capability_evidence,
+        interface_implementations,
+        closures,
+        inputs,
+    )
 }
 
 fn input_for_body<'a, 'syntax>(

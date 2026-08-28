@@ -18,7 +18,7 @@ impl InstanceOperationSelector<'_> {
         for requirement in requirements {
             let predicate =
                 substitute_predicate(self.types, substitution, requirement.predicate())?;
-            if !self.proves_requirement(&predicate, requirement.declaration())? {
+            if !self.proves_requirement(&predicate, requirement.origin())? {
                 return Ok(false);
             }
         }
@@ -30,12 +30,7 @@ impl InstanceOperationSelector<'_> {
         predicate: &CheckedPredicate,
         declaration: nocter_model::RequirementId,
     ) -> Result<bool, InstanceSelectionError> {
-        if self
-            .assumptions
-            .iter()
-            .any(|assumption| assumption.predicate() == predicate)
-            || self.intrinsic_facts.contains(predicate)
-        {
+        if self.contains_assumption(predicate) || self.intrinsic_facts.contains(predicate) {
             return Ok(true);
         }
         if !self.active.insert(predicate.clone()) {
@@ -45,9 +40,14 @@ impl InstanceOperationSelector<'_> {
             CheckedPredicate::Copy(ty) => {
                 let proofs = CopyProofs::from_predicates(
                     self.types,
-                    self.assumptions
+                    self.proof_assumptions()
                         .iter()
                         .map(CheckedRequirement::predicate)
+                        .chain(
+                            self.body_assumptions()
+                                .iter()
+                                .map(crate::body_check::BodyRequirement::predicate),
+                        )
                         .chain(self.intrinsic_facts.iter()),
                 );
                 self.copyabilities
@@ -70,13 +70,36 @@ impl InstanceOperationSelector<'_> {
             CheckedPredicate::Ordering(ty) => {
                 self.proves_comparison(*ty, ComparisonOperation::Less)?
             }
-            _ => proves_predicate(
-                self.types,
-                self.interface_implementations,
-                self.assumptions,
-                self.intrinsic_facts,
-                predicate,
-            )?,
+            CheckedPredicate::Expansion {
+                capability,
+                source,
+                result,
+            } => {
+                self.select_expansions(*source, *capability)?
+                    .iter()
+                    .filter(|candidate| candidate.result() == *result)
+                    .count()
+                    == 1
+            }
+            _ => {
+                if self.uses_body_evidence() {
+                    proves_predicate(
+                        self.types,
+                        self.interface_implementations,
+                        self.body_assumptions(),
+                        self.intrinsic_facts,
+                        predicate,
+                    )?
+                } else {
+                    proves_predicate(
+                        self.types,
+                        self.interface_implementations,
+                        self.proof_assumptions(),
+                        self.intrinsic_facts,
+                        predicate,
+                    )?
+                }
+            }
         };
         self.active.remove(predicate);
         Ok(proven)

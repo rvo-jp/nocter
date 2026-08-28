@@ -1,7 +1,6 @@
 use nocter_checking::{
     CheckedProgram, ClosureParameter, GenericArguments, StaticDispatch, StaticSelection,
 };
-use nocter_declarations::RequirementKind;
 use nocter_model::{CallableCapability, TypeId, TypeStore};
 
 use super::{Renderer, SemanticPresentation};
@@ -15,6 +14,7 @@ pub(in crate::query) fn static_signature_presentation(
     graph: &nocter_declarations::DeclarationGraph,
     types: &TypeStore,
     selection: &StaticSelection,
+    evidence: Option<&nocter_checking::CapabilityEvidence>,
     spellings: &super::visible_spelling::VisibleSpellings,
 ) -> Option<RenderedSignature> {
     let mut renderer =
@@ -33,9 +33,10 @@ pub(in crate::query) fn static_signature_presentation(
         | StaticDispatch::OpaqueMethod {
             method: callable, ..
         } => renderer.callable(callable)?,
-        StaticDispatch::StructuralRequirement { requirement, .. } => {
-            let requirement = graph.declarations().requirements().get(requirement)?;
-            let RequirementKind::Callable { contract, .. } = requirement.kind() else {
+        StaticDispatch::StructuralRequirement { .. } => {
+            let nocter_checking::CheckedPredicate::Callable { contract, .. } =
+                evidence?.predicate()
+            else {
                 return None;
             };
             renderer.callable_contract(contract)?;

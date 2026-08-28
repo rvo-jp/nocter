@@ -120,19 +120,31 @@ struct LoopFlow {
     continues: Vec<ProvenanceState>,
 }
 
+#[derive(Clone, Copy)]
+struct ProgramFacts<'program> {
+    graph: &'program DeclarationGraph,
+    types: &'program TypeStore,
+    capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
+}
+
 pub(super) fn analyze_program(
     graph: &DeclarationGraph,
     types: &TypeStore,
+    capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProvenanceTable, BodyCheckError> {
-    let summaries = infer_program_summaries(graph, types, closures, inputs)?;
+    let facts = ProgramFacts {
+        graph,
+        types,
+        capability_evidence,
+    };
+    let summaries = infer_program_summaries(facts, closures, inputs)?;
     let interface_implementation_bounds =
         interface_implementation_origin_bounds(interface_implementations, &summaries.callables)?;
     let bodies = build_body_provenance(
-        graph,
-        types,
+        facts,
         closures,
         inputs,
         &summaries.callables,
@@ -149,12 +161,11 @@ pub(super) fn analyze_program(
 }
 
 fn infer_program_summaries(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
+    facts: ProgramFacts<'_>,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
 ) -> Result<ProgramSummaries, BodyCheckError> {
-    let mut summaries = initial_summaries(graph);
+    let mut summaries = initial_summaries(facts.graph);
     let mut closure_summaries = closures
         .definitions()
         .iter()
@@ -163,15 +174,14 @@ fn infer_program_summaries(
     loop {
         let previous = summaries.clone();
         let previous_closures = closure_summaries.clone();
-        for (callable, declaration) in graph.declarations().callables().iter() {
+        for (callable, declaration) in facts.graph.declarations().callables().iter() {
             let Some(body) = declaration.body() else {
                 continue;
             };
             let input = input_for_body(inputs, body)
                 .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
             let analysis =
-                Analyzer::new_declared(graph, types, &summaries, &closure_summaries, input)
-                    .analyze()?;
+                Analyzer::new_declared(facts, &summaries, &closure_summaries, input).analyze()?;
             let actual = CallableSummary::from_returned(&analysis.returned);
             let effective = match declaration.provenance() {
                 CallableProvenanceContract::Inferred => actual,
@@ -186,16 +196,9 @@ fn infer_program_summaries(
             let input = input_for_body(inputs, definition.owner()).ok_or(
                 BodyCheckInternalError::MissingBodySource(definition.owner()),
             )?;
-            let analysis = Analyzer::new_closure(
-                graph,
-                types,
-                &summaries,
-                &closure_summaries,
-                input,
-                closure,
-                definition,
-            )
-            .analyze()?;
+            let analysis = Analyzer::new_declared(facts, &summaries, &closure_summaries, input)
+                .for_closure(closure, definition)
+                .analyze()?;
             closure_summaries.insert(
                 closure,
                 ClosureSummary::from_returned(closure, &analysis.returned),
@@ -211,8 +214,7 @@ fn infer_program_summaries(
 }
 
 fn build_body_provenance(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
+    facts: ProgramFacts<'_>,
     closures: &ClosureTable,
     inputs: &[ProvenanceBodyInput<'_, '_>],
     summaries: &BTreeMap<CallableId, CallableSummary>,
@@ -220,14 +222,14 @@ fn build_body_provenance(
     interface_implementation_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
 ) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyCheckError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyProvenance>::new();
-    for (body, declaration) in graph.declarations().bodies().iter() {
+    for (body, declaration) in facts.graph.declarations().bodies().iter() {
         let input =
             input_for_body(inputs, body).ok_or(BodyCheckInternalError::MissingBodySource(body))?;
         let mut analysis =
-            Analyzer::new_declared(graph, types, summaries, closure_summaries, input).analyze()?;
+            Analyzer::new_declared(facts, summaries, closure_summaries, input).analyze()?;
         if let BodyOwner::Callable(callable) = declaration.owner() {
             validate_callable_returns(
-                types,
+                facts.types,
                 input,
                 callable,
                 summaries,
@@ -240,17 +242,11 @@ fn build_body_provenance(
             .iter()
             .filter(|(_, definition)| definition.owner() == body)
         {
-            let closure_analysis = Analyzer::new_closure(
-                graph,
-                types,
-                summaries,
-                closure_summaries,
-                input,
-                closure,
-                definition,
-            )
-            .analyze()?;
-            validate_closure_returns(types, input, closure, definition, &closure_analysis)?;
+            let closure_analysis =
+                Analyzer::new_declared(facts, summaries, closure_summaries, input)
+                    .for_closure(closure, definition)
+                    .analyze()?;
+            validate_closure_returns(facts.types, input, closure, definition, &closure_analysis)?;
             for (node, value) in closure_analysis.nodes {
                 if analysis.nodes.insert(node, value).is_some() {
                     return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
@@ -487,6 +483,7 @@ fn validate_closure_returns(
 struct Analyzer<'program, 'syntax> {
     graph: &'program DeclarationGraph,
     types: &'program TypeStore,
+    capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     summaries: &'program BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
     source: crate::BodySource<'syntax>,
@@ -503,24 +500,27 @@ struct Analyzer<'program, 'syntax> {
 
 impl<'program, 'syntax> Analyzer<'program, 'syntax> {
     fn new_declared(
-        graph: &'program DeclarationGraph,
-        types: &'program TypeStore,
+        facts: ProgramFacts<'program>,
         summaries: &'program BTreeMap<CallableId, CallableSummary>,
         closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
         input: &ProvenanceBodyInput<'program, 'syntax>,
     ) -> Self {
         let result_type = match input.source().owner() {
-            BodyOwner::Callable(callable) => {
-                graph.declarations().callables().get(callable).map_or_else(
-                    || types.builtin(BuiltinType::Void),
+            BodyOwner::Callable(callable) => facts
+                .graph
+                .declarations()
+                .callables()
+                .get(callable)
+                .map_or_else(
+                    || facts.types.builtin(BuiltinType::Void),
                     nocter_declarations::CallableDeclaration::result,
-                )
-            }
-            BodyOwner::Drop(_) | BodyOwner::Test(_) => types.builtin(BuiltinType::Void),
+                ),
+            BodyOwner::Drop(_) | BodyOwner::Test(_) => facts.types.builtin(BuiltinType::Void),
         };
         Self {
-            graph,
-            types,
+            graph: facts.graph,
+            types: facts.types,
+            capability_evidence: facts.capability_evidence,
             summaries,
             closure_summaries,
             source: input.source(),
@@ -536,20 +536,15 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         }
     }
 
-    fn new_closure(
-        graph: &'program DeclarationGraph,
-        types: &'program TypeStore,
-        summaries: &'program BTreeMap<CallableId, CallableSummary>,
-        closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
-        input: &ProvenanceBodyInput<'program, 'syntax>,
+    fn for_closure(
+        mut self,
         closure: ClosureId,
         definition: &'program crate::ClosureDefinition,
     ) -> Self {
-        let mut analyzer = Self::new_declared(graph, types, summaries, closure_summaries, input);
-        analyzer.root = definition.body();
-        analyzer.result_type = definition.signature().result();
-        analyzer.closure = Some((closure, definition));
-        analyzer
+        self.root = definition.body();
+        self.result_type = definition.signature().result();
+        self.closure = Some((closure, definition));
+        self
     }
 
     fn analyze(mut self) -> Result<BodyAnalysis, BodyCheckError> {

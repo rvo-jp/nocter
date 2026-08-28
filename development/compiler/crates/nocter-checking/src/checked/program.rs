@@ -69,6 +69,14 @@ impl CheckedProgram {
     }
 
     #[must_use]
+    pub fn capability_evidence(
+        &self,
+        evidence: nocter_model::CapabilityEvidenceId,
+    ) -> Option<&crate::CapabilityEvidence> {
+        self.environment.capability_evidence().get(evidence)
+    }
+
+    #[must_use]
     pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         self.environment.construction_surfaces()
     }

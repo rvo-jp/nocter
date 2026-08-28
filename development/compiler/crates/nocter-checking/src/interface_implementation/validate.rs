@@ -103,7 +103,7 @@ pub(crate) fn validate_interface_prerequisites(
                         source_index,
                         SemanticEntity::DeclarationSite(declaration.site()),
                     )?,
-                    requirement_origin(source_index, requirement.declaration())?,
+                    requirement_origin(source_index, requirement.origin())?,
                 )
                 .into());
             }
@@ -154,7 +154,7 @@ impl AssociatedValidationContext<'_> {
                         self.source_index,
                         SemanticEntity::DeclarationSite(self.interface_implementation_site),
                     )?,
-                    requirement_origin(self.source_index, requirement.declaration())?,
+                    requirement_origin(self.source_index, requirement.origin())?,
                 )
                 .into());
             }

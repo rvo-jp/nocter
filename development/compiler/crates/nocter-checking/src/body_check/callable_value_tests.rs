@@ -34,6 +34,24 @@ fn readonly_callable_requirement_freezes_dispatch_and_permits_repeated_calls() {
 }
 
 #[test]
+fn interface_prerequisite_callable_uses_its_exact_derived_evidence() {
+    let output = check(
+        "interface Invokable<F> where F: &func(): i32 {}\n\
+         func invoke<T, F>(callback: F): i32 where T impl Invokable<F> { callback() }\n",
+    )
+    .unwrap();
+
+    assert!(
+        callable_calls(&output)
+            .iter()
+            .any(|(_, _, dispatch)| matches!(
+                dispatch.dispatch(),
+                StaticDispatch::StructuralRequirement { .. }
+            ))
+    );
+}
+
+#[test]
 fn callable_contract_is_an_ordinary_local_type_annotation() {
     check(
         "func main(): i32 {\n    let callback: func(i32): i32 = (value) { value * 2 }\n    callback(4)\n}\n",

@@ -75,5 +75,6 @@ pub use pipeline::{
     analyze_prepared_program_bodies, check_prepared_program, check_prepared_program_recovering,
 };
 mod assumptions;
-pub(crate) use assumptions::BodyAssumptionTable;
+pub use assumptions::CapabilityEvidence;
+pub(crate) use assumptions::{BodyAssumptionTable, BodyRequirement, CapabilityEvidenceTable};
 pub(crate) use semantic_transaction::CheckedSemanticAuthority;

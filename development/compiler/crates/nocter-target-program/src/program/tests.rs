@@ -350,6 +350,52 @@ fn concrete_dispatch_resolves_a_generic_structural_comparison_to_a_primitive() {
 }
 
 #[test]
+fn concrete_dispatch_uses_the_exact_entailed_structural_predicate() {
+    let target = build_target_program(&Fixture::with_app(
+        "interface Equatable<T> where (&T == &T): bool {}\n\
+         struct Marker {}\n\
+         instance Marker { impl Equatable<i32> }\n\
+         func equal<U, T>(marker: &U, left: T, right: T): bool where U impl Equatable<T> {\n\
+             return left == right\n\
+         }\n\
+         func main(): void {\n\
+             let marker = Marker {}\n\
+             let _ = equal(&marker, 1, 2)\n\
+             return\n\
+         }\n",
+    ));
+    let main = named_callable(&target, "main");
+    let equal = named_callable(&target, "equal");
+    let main_dependencies = callable_dependencies(&target, main);
+    let call = main_dependencies
+        .selections()
+        .iter()
+        .find(|selection| selection.dispatch() == StaticDispatch::Direct(equal))
+        .unwrap();
+    let key = CallableInstanceKey::new(&target, equal, call.generic_arguments().clone()).unwrap();
+    let dependencies = callable_dependencies(&target, equal);
+    let structural = dependencies
+        .selections()
+        .iter()
+        .find(|selection| {
+            matches!(
+                selection.dispatch(),
+                StaticDispatch::StructuralRequirement { .. }
+            )
+        })
+        .unwrap();
+    let mut resolver = ConcreteDispatchResolver::new(target.checked());
+
+    assert!(matches!(
+        resolver.resolve(structural, &key.substitution()).unwrap(),
+        ResolvedDispatchPlan::Comparison {
+            operation: ResolvedDispatchStep::Primitive(ResolvedPrimitiveDispatch::Equality { .. }),
+            ..
+        }
+    ));
+}
+
+#[test]
 fn concrete_dispatch_maps_a_lexical_interface_method_to_its_interface_implementation_body() {
     let target = build_target_program(&Fixture::with_app(
         "pub interface Readable {\n\

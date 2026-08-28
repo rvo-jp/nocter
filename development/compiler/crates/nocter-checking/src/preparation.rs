@@ -11,7 +11,7 @@ use nocter_frontend_bindings::{FrontendBindings, SourceAccessTable, SourceNamesp
 use nocter_model::{Arena, BodyId, CompilationTarget, TypeAuthority, TypeStore};
 use nocter_source_index::{DiagnosticOrigins, SourceIndex};
 
-use crate::body_check::BodyAssumptionTable;
+use crate::body_check::{BodyAssumptionTable, CapabilityEvidenceTable};
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::instance_operations::build_instance_operation_table_from_ids;
 use crate::interface_implementation::build_interface_implementation_table_from_ids;
@@ -80,6 +80,7 @@ impl PreparedSemanticProgram {
             construction_surfaces,
             instance_operations,
             body_assumptions,
+            capability_evidence,
             copyabilities,
             drops,
         } = authorities;
@@ -90,6 +91,7 @@ impl PreparedSemanticProgram {
                 construction_surfaces,
                 instance_operations,
                 body_assumptions,
+                capability_evidence,
                 drops,
                 standard_semantics,
                 source_access,
@@ -111,6 +113,14 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
         self.environment.interface_implementations()
+    }
+
+    #[must_use]
+    pub fn capability_evidence(
+        &self,
+        evidence: nocter_model::CapabilityEvidenceId,
+    ) -> Option<&crate::CapabilityEvidence> {
+        self.environment.capability_evidence().get(evidence)
     }
 
     #[must_use]
@@ -587,6 +597,7 @@ struct PreparedProgramAuthorities {
     construction_surfaces: ConstructionSurfaceTable,
     instance_operations: InstanceOperationTable,
     body_assumptions: BodyAssumptionTable,
+    capability_evidence: CapabilityEvidenceTable,
     copyabilities: CopyabilityTable,
     drops: DropTable,
 }
@@ -763,12 +774,14 @@ fn build_program_authorities(
         &instance_operations,
         &copyabilities,
     )?;
-    let body_assumptions = BodyAssumptionTable::build(graph, types, &declaration_patterns)?;
+    let (body_assumptions, capability_evidence) =
+        BodyAssumptionTable::build(graph, types, &declaration_patterns)?;
     Ok(PreparedProgramAuthorities {
         interface_implementations,
         construction_surfaces,
         instance_operations,
         body_assumptions,
+        capability_evidence,
         copyabilities,
         drops,
     })

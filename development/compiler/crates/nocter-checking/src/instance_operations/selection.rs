@@ -5,6 +5,7 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{BorrowCapability, TypeId, TypeKind, TypeStore};
 
 use super::{CheckedInstanceMember, InstanceOperationTable};
+use crate::body_check::BodyRequirement;
 use crate::interface_implementation::normalize_requirements;
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, collect_generic_parameters,
@@ -178,11 +179,18 @@ enum CandidateVisibility<'program> {
 }
 
 #[derive(Clone, Copy)]
+enum SelectionAssumptions<'program> {
+    None,
+    Proof(&'program [CheckedRequirement]),
+    Body(&'program [BodyRequirement]),
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct InstanceSelectionContext<'program> {
     graph: &'program DeclarationGraph,
     interface_implementations: &'program InterfaceImplementationTable,
     table: &'program InstanceOperationTable,
-    assumptions: &'program [CheckedRequirement],
+    assumptions: SelectionAssumptions<'program>,
     intrinsic_facts: &'program [CheckedPredicate],
     visibility: CandidateVisibility<'program>,
 }
@@ -192,7 +200,7 @@ impl<'program> InstanceSelectionContext<'program> {
         graph: &'program DeclarationGraph,
         interface_implementations: &'program InterfaceImplementationTable,
         table: &'program InstanceOperationTable,
-        assumptions: &'program [CheckedRequirement],
+        assumptions: &'program [BodyRequirement],
         intrinsic_facts: &'program [CheckedPredicate],
         from: crate::SourceAccessContext<'program>,
     ) -> Self {
@@ -200,7 +208,7 @@ impl<'program> InstanceSelectionContext<'program> {
             graph,
             interface_implementations,
             table,
-            assumptions,
+            assumptions: SelectionAssumptions::Body(assumptions),
             intrinsic_facts,
             visibility: CandidateVisibility::Lexical(from),
         }
@@ -218,7 +226,7 @@ impl<'program> InstanceSelectionContext<'program> {
             graph,
             interface_implementations,
             table,
-            assumptions: &[],
+            assumptions: SelectionAssumptions::None,
             intrinsic_facts: &[],
             visibility: CandidateVisibility::CheckedEvidence,
         }
@@ -234,7 +242,7 @@ impl<'program> InstanceSelectionContext<'program> {
             graph,
             interface_implementations,
             table,
-            assumptions,
+            assumptions: SelectionAssumptions::Proof(assumptions),
             intrinsic_facts: &[],
             visibility: CandidateVisibility::CheckedEvidence,
         }
@@ -247,7 +255,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) interface_implementations: &'program InterfaceImplementationTable,
     pub(super) copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     pub(super) table: &'program InstanceOperationTable,
-    pub(super) assumptions: &'program [CheckedRequirement],
+    assumptions: SelectionAssumptions<'program>,
     pub(super) intrinsic_facts: &'program [CheckedPredicate],
     visibility: CandidateVisibility<'program>,
     pub(super) active: HashSet<CheckedPredicate>,
@@ -270,6 +278,36 @@ impl<'program> InstanceOperationSelector<'program> {
             visibility: context.visibility,
             active: HashSet::new(),
         }
+    }
+
+    pub(super) fn contains_assumption(&self, predicate: &CheckedPredicate) -> bool {
+        match self.assumptions {
+            SelectionAssumptions::None => false,
+            SelectionAssumptions::Proof(requirements) => requirements
+                .iter()
+                .any(|requirement| requirement.predicate() == predicate),
+            SelectionAssumptions::Body(requirements) => requirements
+                .iter()
+                .any(|requirement| requirement.predicate() == predicate),
+        }
+    }
+
+    pub(super) const fn body_assumptions(&self) -> &'program [BodyRequirement] {
+        match self.assumptions {
+            SelectionAssumptions::Body(requirements) => requirements,
+            SelectionAssumptions::None | SelectionAssumptions::Proof(_) => &[],
+        }
+    }
+
+    pub(super) const fn proof_assumptions(&self) -> &'program [CheckedRequirement] {
+        match self.assumptions {
+            SelectionAssumptions::Proof(requirements) => requirements,
+            SelectionAssumptions::None | SelectionAssumptions::Body(_) => &[],
+        }
+    }
+
+    pub(super) const fn uses_body_evidence(&self) -> bool {
+        matches!(self.assumptions, SelectionAssumptions::Body(_))
     }
 
     pub(super) fn callable_is_admissible(
@@ -302,7 +340,7 @@ impl<'program> InstanceOperationSelector<'program> {
         capability: BorrowCapability,
     ) -> Result<Vec<IndexOperationCandidate>, InstanceSelectionError> {
         let mut selected = Vec::new();
-        for assumption in self.assumptions {
+        for assumption in self.body_assumptions() {
             let CheckedPredicate::Index {
                 capability: required_capability,
                 container,
@@ -316,11 +354,11 @@ impl<'program> InstanceOperationSelector<'program> {
                 continue;
             }
             let (result_capability, referent) = borrow_result(self.types, *result).ok_or(
-                InstanceSelectionError::InvalidStructuralIndex(assumption.declaration()),
+                InstanceSelectionError::InvalidStructuralIndex(assumption.root()),
             )?;
             if result_capability != capability {
                 return Err(InstanceSelectionError::InvalidStructuralIndex(
-                    assumption.declaration(),
+                    assumption.root(),
                 ));
             }
             selected.push(IndexOperationCandidate {
@@ -328,10 +366,7 @@ impl<'program> InstanceOperationSelector<'program> {
                 result: referent,
                 operation: Some(StaticSelection::new(
                     StaticDispatch::StructuralRequirement {
-                        requirement: assumption.declaration(),
-                        evidence: assumption
-                            .evidence()
-                            .expect("body requirement has frozen evidence"),
+                        evidence: assumption.evidence(),
                     },
                     GenericArguments::default(),
                 )),
@@ -477,7 +512,7 @@ impl<'program> InstanceOperationSelector<'program> {
         source: TypeId,
         capability: BorrowCapability,
     ) -> Vec<CoercionCandidate> {
-        self.assumptions
+        self.body_assumptions()
             .iter()
             .filter_map(|assumption| {
                 let CheckedPredicate::Coercion {
@@ -497,10 +532,7 @@ impl<'program> InstanceOperationSelector<'program> {
                         result_capability,
                         selection: StaticSelection::new(
                             StaticDispatch::StructuralRequirement {
-                                requirement: assumption.declaration(),
-                                evidence: assumption
-                                    .evidence()
-                                    .expect("body requirement has frozen evidence"),
+                                evidence: assumption.evidence(),
                             },
                             GenericArguments::default(),
                         ),

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::{ProvenanceOrigin, RequirementKind};
+use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
@@ -367,17 +367,14 @@ impl Analyzer<'_, '_> {
                 self.map_callable_result(callable, receiver, arguments)?
             }
             CallTarget::CallableValue { dispatch, .. } => {
-                let StaticDispatch::StructuralRequirement { requirement, .. } = dispatch.dispatch()
-                else {
+                let StaticDispatch::StructuralRequirement { evidence } = dispatch.dispatch() else {
                     return Err(BodyCheckInternalError::LoanAnalysis.into());
                 };
                 let contract = self
-                    .graph
-                    .declarations()
-                    .requirements()
-                    .get(requirement)
-                    .and_then(|requirement| match requirement.kind() {
-                        RequirementKind::Callable { contract, .. } => Some(contract),
+                    .capability_evidence
+                    .get(evidence)
+                    .and_then(|evidence| match evidence.predicate() {
+                        crate::CheckedPredicate::Callable { contract, .. } => Some(contract),
                         _ => None,
                     })
                     .ok_or(BodyCheckInternalError::LoanAnalysis)?;

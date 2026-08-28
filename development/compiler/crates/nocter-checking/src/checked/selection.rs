@@ -9,7 +9,6 @@ use nocter_model::{
 pub enum StaticDispatch {
     Direct(CallableId),
     InterfaceMethod {
-        requirement: nocter_model::RequirementId,
         evidence: CapabilityEvidenceId,
         method: CallableId,
     },
@@ -30,7 +29,6 @@ pub enum StaticDispatch {
         method: CallableId,
     },
     StructuralRequirement {
-        requirement: nocter_model::RequirementId,
         evidence: CapabilityEvidenceId,
     },
 }

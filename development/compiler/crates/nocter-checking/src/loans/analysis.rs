@@ -42,14 +42,31 @@ impl<'program, 'syntax> LoanBodyInput<'program, 'syntax> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ProgramFacts<'program> {
+    graph: &'program DeclarationGraph,
+    types: &'program TypeStore,
+    capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
+    drops: &'program DropTable,
+    provenance: &'program ProvenanceTable,
+}
+
 pub(super) fn analyze_program(
     graph: &DeclarationGraph,
     types: &TypeStore,
+    capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
     inputs: &[LoanBodyInput<'_, '_>],
 ) -> Result<LoanTable, BodyCheckError> {
+    let facts = ProgramFacts {
+        graph,
+        types,
+        capability_evidence,
+        drops,
+        provenance,
+    };
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyLoans>::new();
     for (body, _) in graph.declarations().bodies().iter() {
         let input = inputs
@@ -57,24 +74,15 @@ pub(super) fn analyze_program(
             .find(|input| input.source.body() == body)
             .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
         let liveness = super::liveness::analyze(types, drops, input.body, input.body.root())?;
-        let mut checked =
-            Analyzer::new(graph, types, drops, provenance, input, &liveness, None).analyze()?;
+        let mut checked = Analyzer::new(facts, input, &liveness, None).analyze()?;
         for (closure, definition) in closures
             .definitions()
             .iter()
             .filter(|(_, definition)| definition.owner() == body)
         {
             let liveness = super::liveness::analyze(types, drops, input.body, definition.body())?;
-            let closure_checked = Analyzer::new(
-                graph,
-                types,
-                drops,
-                provenance,
-                input,
-                &liveness,
-                Some((closure, definition)),
-            )
-            .analyze()?;
+            let closure_checked =
+                Analyzer::new(facts, input, &liveness, Some((closure, definition))).analyze()?;
             checked.merge(closure_checked)?;
         }
         let mut live_before = ArenaBuilder::new();
@@ -139,6 +147,7 @@ struct LoopFlow {
 struct Analyzer<'program, 'syntax> {
     graph: &'program DeclarationGraph,
     types: &'program TypeStore,
+    capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     drops: &'program DropTable,
     provenance: &'program ProvenanceTable,
     input: &'program LoanBodyInput<'program, 'syntax>,
@@ -152,19 +161,17 @@ struct Analyzer<'program, 'syntax> {
 
 impl<'program, 'syntax> Analyzer<'program, 'syntax> {
     fn new(
-        graph: &'program DeclarationGraph,
-        types: &'program TypeStore,
-        drops: &'program DropTable,
-        provenance: &'program ProvenanceTable,
+        facts: ProgramFacts<'program>,
         input: &'program LoanBodyInput<'program, 'syntax>,
         liveness: &'program Liveness,
         closure: Option<(ClosureId, &'program ClosureDefinition)>,
     ) -> Self {
         Self {
-            graph,
-            types,
-            drops,
-            provenance,
+            graph: facts.graph,
+            types: facts.types,
+            capability_evidence: facts.capability_evidence,
+            drops: facts.drops,
+            provenance: facts.provenance,
             input,
             liveness,
             loans: BTreeMap::new(),
@@ -447,14 +454,12 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 crate::StaticDispatch::Direct(callable) => {
                     self.map_callable_result(callable, Some(&source), &[])?
                 }
-                crate::StaticDispatch::StructuralRequirement { requirement, .. } => {
+                crate::StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(
-                        self.graph
-                            .declarations()
-                            .requirements()
-                            .get(requirement)
-                            .map(nocter_declarations::Requirement::kind),
-                        Some(nocter_declarations::RequirementKind::Expansion { .. })
+                        self.capability_evidence
+                            .get(evidence)
+                            .map(crate::body_check::CapabilityEvidence::predicate),
+                        Some(crate::CheckedPredicate::Expansion { .. })
                     ) {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }

@@ -17,9 +17,7 @@ use crate::checked::{
 use crate::loans::{LoanBodyInput, analyze_program_loans};
 use crate::preparation::BodyCheckingParts;
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
-use crate::{
-    BodySource, BodySourceCatalog, CheckedBody, DropTable, PreparedChecking, ResolvedBodyNames,
-};
+use crate::{BodySource, BodySourceCatalog, CheckedBody, PreparedChecking, ResolvedBodyNames};
 
 /// Checks one prepared program without retaining a tooling recovery value.
 ///
@@ -198,10 +196,8 @@ fn complete_checked_program(
     checked_semantics.accept(cleanup);
 
     let (provenance, loans) = match analyze_checked_body_relations(
-        prepared.environment.graph(),
+        &prepared.environment,
         checked_semantics.semantics().types(),
-        prepared.environment.drops(),
-        prepared.environment.interface_implementations(),
         checked_semantics.closures(),
         &prepared.body_sources,
         &checked_bodies,
@@ -716,10 +712,8 @@ fn reserve_body_closures(
 }
 
 fn analyze_checked_body_relations(
-    graph: &nocter_declarations::DeclarationGraph,
+    environment: &crate::program_environment::ProgramEnvironment,
     types: &TypeStore,
-    drops: &DropTable,
-    interface_implementations: &crate::InterfaceImplementationTable,
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyOutput)],
@@ -738,9 +732,10 @@ fn analyze_checked_body_relations(
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
     let provenance = analyze_program_provenance(
-        graph,
+        environment.graph(),
         types,
-        interface_implementations,
+        environment.capability_evidence(),
+        environment.interface_implementations(),
         closures,
         &provenance_inputs,
     )?;
@@ -757,6 +752,14 @@ fn analyze_checked_body_relations(
             ))
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let loans = analyze_program_loans(graph, types, drops, &provenance, closures, &loan_inputs)?;
+    let loans = analyze_program_loans(
+        environment.graph(),
+        types,
+        environment.capability_evidence(),
+        environment.drops(),
+        &provenance,
+        closures,
+        &loan_inputs,
+    )?;
     Ok((provenance, loans))
 }

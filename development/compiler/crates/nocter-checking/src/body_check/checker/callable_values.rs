@@ -33,7 +33,7 @@ impl BodyChecker<'_, '_> {
         let selected = self.callable_contract(place.ty, node)?;
         if matches!(
             &selected,
-            CallableValueContract::Structural(_, _, contract) if contract.pack().is_some()
+            CallableValueContract::Structural(_, contract) if contract.pack().is_some()
         ) {
             return Err(self.rule(BodyRule::InvalidCall, suffix)?);
         }
@@ -43,7 +43,7 @@ impl BodyChecker<'_, '_> {
                 signature.parameter_types().collect::<Vec<_>>(),
                 signature.result(),
             ),
-            CallableValueContract::Structural(_, _, contract) => (
+            CallableValueContract::Structural(_, contract) => (
                 contract.capability(),
                 contract.parameters().to_vec(),
                 contract.result(),
@@ -72,19 +72,14 @@ impl BodyChecker<'_, '_> {
                 closure,
                 capability,
             },
-            CallableValueContract::Structural(requirement, evidence, _) => {
-                CallTarget::CallableValue {
-                    value,
-                    capability,
-                    dispatch: StaticSelection::new(
-                        StaticDispatch::StructuralRequirement {
-                            requirement,
-                            evidence,
-                        },
-                        GenericArguments::default(),
-                    ),
-                }
-            }
+            CallableValueContract::Structural(evidence, _) => CallTarget::CallableValue {
+                value,
+                capability,
+                dispatch: StaticSelection::new(
+                    StaticDispatch::StructuralRequirement { evidence },
+                    GenericArguments::default(),
+                ),
+            },
         };
         let call = self.add_node(
             node,
@@ -120,15 +115,7 @@ impl BodyChecker<'_, '_> {
             else {
                 return None;
             };
-            (*required_subject == subject).then(|| {
-                (
-                    requirement.declaration(),
-                    requirement
-                        .evidence()
-                        .expect("body requirement has frozen evidence"),
-                    contract.clone(),
-                )
-            })
+            (*required_subject == subject).then(|| (requirement.evidence(), contract.clone()))
         });
         let Some(selected) = candidates.next() else {
             return Err(self.rule(BodyRule::InvalidCall, node)?);
@@ -136,16 +123,13 @@ impl BodyChecker<'_, '_> {
         if candidates.next().is_some() {
             return Err(BodyCheckInternalError::CallContractSelection.into());
         }
-        Ok(CallableValueContract::Structural(
-            selected.0, selected.1, selected.2,
-        ))
+        Ok(CallableValueContract::Structural(selected.0, selected.1))
     }
 }
 
 enum CallableValueContract {
     Closure(ClosureId, crate::ClosureSignature),
     Structural(
-        nocter_model::RequirementId,
         nocter_model::CapabilityEvidenceId,
         nocter_model::CallableContract,
     ),

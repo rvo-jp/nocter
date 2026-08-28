@@ -252,6 +252,7 @@ fn interface_prerequisites_are_required_by_explicit_implementations() {
         "pub interface Base {}\npub interface Derived where Self impl Base {}\nstruct Value {}\ninstance Value { impl Derived }\n",
         "pub interface Equatable where (&Self == &Self): bool {}\nstruct Value {}\ninstance Value { impl Equatable }\n",
         "pub interface Base {}\npub interface Derived<T> where T impl Base {}\nstruct Argument {}\nstruct Value {}\ninstance Value { impl Derived<Argument> }\n",
+        "pub interface Viewable<T> where &+T as &str {}\nstruct Value<T> {}\ninstance Value<T> where &T as &str { impl Viewable<T> }\n",
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
@@ -261,6 +262,37 @@ fn interface_prerequisites_are_required_by_explicit_implementations() {
 
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0358");
     }
+}
+
+#[test]
+fn expansion_operation_proves_an_interface_prerequisite() {
+    let fixture = Fixture::new(
+        "pub interface Expandable where (...Self): i32 {}\n\
+         struct Value {}\n\
+         instance Value {\n\
+             impl Expandable\n\
+             operator (...self): i32 { return 1 }\n\
+         }\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, bindings, source_index) = lowered.into_checking_parts();
+
+    prepare_program_checking(&input, program, &bindings, source_index).unwrap();
+}
+
+#[test]
+fn generic_subject_prerequisite_cycles_are_rejected() {
+    let fixture = Fixture::new("pub interface Recursive<T> where T impl Recursive<T> {}\n");
+    let input = fixture.input(false);
+    let error = lower_compile_unit_declarations(&input).unwrap_err();
+
+    assert!(
+        error
+            .source_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0327")
+    );
 }
 
 struct Fixture {

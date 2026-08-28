@@ -203,12 +203,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
                     interface_self: None,
                 }),
             )),
-            StaticDispatch::InterfaceMethod {
-                requirement,
-                evidence,
-                method,
-            } => {
-                self.resolve_interface_method(requirement, evidence, method, &arguments, enclosing)
+            StaticDispatch::InterfaceMethod { evidence, method } => {
+                self.resolve_interface_method(evidence, method, &arguments, enclosing)
             }
             StaticDispatch::InterfaceSelfMethod { interface, method } => {
                 self.resolve_interface_self_method(interface, method, &arguments, enclosing)
@@ -236,10 +232,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
             StaticDispatch::OpaqueMethod { opaque, method } => {
                 self.resolve_opaque_method(opaque, method, &arguments, enclosing)
             }
-            StaticDispatch::StructuralRequirement {
-                requirement,
-                evidence,
-            } => self.resolve_structural(requirement, evidence, enclosing),
+            StaticDispatch::StructuralRequirement { evidence } => {
+                self.resolve_structural(evidence, enclosing)
+            }
         }
     }
 
@@ -271,12 +266,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn resolve_interface_method(
         &mut self,
-        requirement: RequirementId,
         evidence: nocter_model::CapabilityEvidenceId,
         surface: CallableId,
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
+        let requirement = self.evidence_root(evidence)?;
         let predicate = self.normalized_evidence(evidence, enclosing)?;
         let CheckedPredicate::Interface {
             subject,
@@ -291,10 +286,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
         if self
             .program
             .graph()
-            .declarations()
-            .interfaces()
+            .interface_capabilities()
             .get(application.interface())
-            .is_none_or(|interface| !interface.methods().contains(&surface))
+            .is_none_or(|capability| !capability.methods().contains(&surface))
         {
             return Err(ConcreteDispatchError::InvalidInterfaceMethod {
                 requirement,
@@ -602,10 +596,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn resolve_structural(
         &mut self,
-        requirement: RequirementId,
         evidence: nocter_model::CapabilityEvidenceId,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
+        let requirement = self.evidence_root(evidence)?;
         let predicate = self.normalized_evidence(evidence, enclosing)?;
         match predicate {
             CheckedPredicate::Callable { subject, contract } => {
@@ -649,8 +643,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
         let predicate = self
             .program
             .environment()
-            .body_assumptions()
-            .evidence(evidence)
+            .capability_evidence()
+            .get(evidence)
             .ok_or(ConcreteDispatchError::InvalidCapabilityEvidence(evidence))?
             .predicate()
             .clone();
@@ -659,6 +653,18 @@ impl<'program> ConcreteDispatchResolver<'program> {
             substitution,
             &predicate,
         )?)
+    }
+
+    fn evidence_root(
+        &self,
+        evidence: nocter_model::CapabilityEvidenceId,
+    ) -> Result<RequirementId, ConcreteDispatchError> {
+        self.program
+            .environment()
+            .capability_evidence()
+            .get(evidence)
+            .map(crate::body_check::CapabilityEvidence::root)
+            .ok_or(ConcreteDispatchError::InvalidCapabilityEvidence(evidence))
     }
 
     fn resolve_comparison(

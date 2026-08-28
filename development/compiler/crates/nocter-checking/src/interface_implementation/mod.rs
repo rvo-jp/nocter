@@ -23,6 +23,7 @@ pub use model::{
     CheckedInterfaceImplementation, InterfaceImplementationMethod, InterfaceImplementationTable,
     MethodSelection,
 };
+pub(crate) use predicate::RequirementPredicate;
 pub(crate) use predicate::normalize_requirements;
 pub(crate) use predicate::substitute_predicate;
 pub use predicate::{CheckedPredicate, CheckedRequirement};
