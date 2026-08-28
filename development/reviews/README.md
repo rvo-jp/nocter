@@ -9,6 +9,7 @@ internally without forcing consumers that use only its contract to change.
 
 ## Current Candidate Reviews
 
+- [v0.19.0 Phase 0 filesystem traversal review](v0.19.0-phase-0.md) — complete
 - [v0.18.0 Phase 0 construction review](v0.18.0-phase-0.md) — complete
 - [v0.18.0 Phase 1 builtin declaration review](v0.18.0-phase-1.md) — complete
 - [v0.18.0 Phase 2 interface implementation review](v0.18.0-phase-2.md) — complete

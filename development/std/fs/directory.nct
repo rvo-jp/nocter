@@ -1,0 +1,240 @@
+//! Darwin directory-stream ownership and native record decoding.
+
+see ./index.nct
+
+use /internal/io.io_error_from_os
+use /internal/os/darwin.{SyscallResult, errno_interrupted}
+use /internal/os/darwin.{dirent_inode_offset, dirent_name_length_offset, dirent_name_offset}
+use /internal/os/darwin.{dirent_record_length_offset, dirent_type_offset}
+use /internal/os/darwin.{dirent_type_directory, dirent_type_regular, dirent_type_symlink}
+use /internal/os/darwin.{open_directory_only, sys_close, sys_open}
+use /internal/os/darwin.{errno, error_from_errno, read_directory_entries}
+use /internal/os/darwin.{syscall1, syscall3}
+use /internal/path.{target_path_address, target_path_argument}
+use /internal/ptr.{from_addr, slice_from_raw_parts, take_value_at_ptr}
+use /mem.{RawBuffer, page_try_allocator}
+use /path.Utf8Path
+use /ptr.addr
+use /string.String
+
+#target: "arm64-darwin"
+const directory_buffer_size: usize = 16384
+
+struct DirEntry {
+    file_name: String
+    path: Utf8Path
+    file_type: FileType
+}
+
+struct ReadDir {
+    fd: usize
+    is_open: bool
+    is_finished: bool
+    base: Utf8Path
+    buffer: RawBuffer
+    buffer_offset: usize
+    buffer_len: usize
+}
+
+instance DirEntry {
+    method &self.file_name(): &str {
+        return &self.file_name
+    }
+
+    method &self.path(): &Utf8Path {
+        return &self.path
+    }
+
+    method &self.file_type(): FileType {
+        return self.file_type
+    }
+}
+
+instance ReadDir {
+    method &+self.next(): DirEntry?! {
+        return next_directory_entry(self)
+    }
+
+    method &+self.close(): void {
+        close_directory(self)
+        return
+    }
+}
+
+func read_dir(path: &str): ReadDir! {
+    let base = Utf8Path.new(path)?
+    var allocator = page_try_allocator()
+    let buffer = allocator.try_alloc(directory_buffer_size, 8)?
+    let fd = open_directory(path)?
+    return ReadDir {
+        fd: fd,
+        is_open: true,
+        is_finished: false,
+        base: move base,
+        buffer: move buffer,
+        buffer_offset: 0,
+        buffer_len: 0,
+    }
+}
+
+#target: "arm64-darwin"
+func open_directory(path: &str): usize! {
+    let argument = target_path_argument(path)?
+    var result: SyscallResult = syscall3(
+        sys_open,
+        target_path_address(&argument),
+        open_directory_only,
+        0,
+    )
+    while result.errno == errno_interrupted {
+        result = syscall3(
+            sys_open,
+            target_path_address(&argument),
+            open_directory_only,
+            0,
+        )
+    }
+    if result.errno != 0 {
+        return io_error_from_os(error_from_errno(errno(result.errno)))
+    }
+    return result.value
+}
+
+#target: "arm64-darwin"
+func refill_directory(reader: &+ReadDir): usize! {
+    var position: u64 = 0
+    let buffer = reader.buffer.bytes_mut()
+    var result: SyscallResult = read_directory_entries(reader.fd, buffer, &+position)
+    while result.errno == errno_interrupted {
+        result = read_directory_entries(reader.fd, buffer, &+position)
+    }
+    if result.errno != 0 {
+        return io_error_from_os(error_from_errno(errno(result.errno)))
+    }
+    if result.value > buffer.len() {
+        return invalid_directory_record()
+    }
+    reader.buffer_offset = 0
+    reader.buffer_len = result.value
+    return result.value
+}
+
+func next_directory_entry(reader: &+ReadDir): DirEntry?! {
+    if reader.is_finished || !reader.is_open {
+        return none
+    }
+
+    while true {
+        if reader.buffer_offset >= reader.buffer_len {
+            let received = refill_directory(reader) catch failure {
+                close_directory(reader)
+                return move failure
+            }
+            if received == 0 {
+                close_directory(reader)
+                return none
+            }
+        }
+
+        let record_start = reader.buffer_offset
+        let remaining = reader.buffer_len - record_start
+        if remaining <= dirent_name_offset {
+            return fail_directory(reader, invalid_directory_record())
+        }
+
+        let record_address = addr(reader.buffer.bytes().ptr()) + record_start
+        let inode_pointer: *u64 = from_addr(record_address)
+        let length_pointer: *u16 = from_addr(record_address)
+        let type_pointer: *u8 = from_addr(record_address)
+        let inode: u64 = take_value_at_ptr(inode_pointer, dirent_inode_offset)
+        let record_len: usize = take_value_at_ptr(
+            length_pointer,
+            dirent_record_length_offset,
+        ) as usize
+        let name_len: usize = take_value_at_ptr(
+            length_pointer,
+            dirent_name_length_offset,
+        ) as usize
+        let entry_type: u8 = take_value_at_ptr(type_pointer, dirent_type_offset)
+
+        if record_len <= dirent_name_offset || record_len > remaining {
+            return fail_directory(reader, invalid_directory_record())
+        }
+        if name_len == 0 || name_len >= record_len - dirent_name_offset {
+            return fail_directory(reader, invalid_directory_record())
+        }
+
+        let name_address = record_address + dirent_name_offset
+        let name_pointer: *u8 = from_addr(name_address)
+        let terminator: u8 = take_value_at_ptr(name_pointer, name_len)
+        if terminator != 0 {
+            return fail_directory(reader, invalid_directory_record())
+        }
+
+        reader.buffer_offset += record_len
+        if inode == 0 {
+            continue
+        }
+
+        let name_bytes = slice_from_raw_parts(name_pointer, name_len)
+        let name = String.from_utf8(name_bytes) catch _ {
+            return fail_directory(reader, invalid_utf8_name())
+        }
+        if (&name as &str) == "." || (&name as &str) == ".." {
+            continue
+        }
+
+        let path = reader.base.join(&name) catch failure {
+            close_directory(reader)
+            return move failure
+        }
+        return DirEntry {
+            file_name: move name,
+            path: move path,
+            file_type: file_type_from_dirent(entry_type),
+        }
+    }
+    return none
+}
+
+func file_type_from_dirent(value: u8): FileType {
+    if value == dirent_type_regular {
+        return FileType.regular
+    }
+    if value == dirent_type_directory {
+        return FileType.directory
+    }
+    if value == dirent_type_symlink {
+        return FileType.symlink
+    }
+    return FileType.other
+}
+
+func fail_directory(reader: &+ReadDir, failure: error): error {
+    close_directory(reader)
+    return move failure
+}
+
+func close_directory(reader: &+ReadDir): void {
+    if reader.is_open {
+        let _ = syscall1(sys_close, reader.fd)
+        reader.is_open = false
+    }
+    reader.is_finished = true
+    reader.buffer_offset = 0
+    reader.buffer_len = 0
+    return
+}
+
+func invalid_utf8_name(): error {
+    return error.new("std.fs.invalid_utf8_name", "directory entry name is not valid UTF-8")
+}
+
+func invalid_directory_record(): error {
+    return error.new("std.fs.invalid_directory_record", "OS returned an invalid directory record")
+}
+
+drop ReadDir(&+self) {
+    close_directory(self)
+    return
+}

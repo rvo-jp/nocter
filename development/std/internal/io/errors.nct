@@ -14,6 +14,9 @@ func io_error_from_os(os_error: OSError): error {
     if os_error.kind is OSErrorKind.not_found {
         return error.new("std.io.not_found", "file not found")
     }
+    if os_error.kind is OSErrorKind.not_directory {
+        return error.new("std.io.not_directory", "path is not a directory")
+    }
     if os_error.kind is OSErrorKind.permission_denied {
         return error.new("std.io.permission_denied", "permission denied")
     }

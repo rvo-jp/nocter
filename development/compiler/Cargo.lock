@@ -1962,6 +1962,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-diagnostics",
  "nocter-discovery",
+ "nocter-filesystem",
  "nocter-machine",
  "nocter-macho",
  "nocter-mir",

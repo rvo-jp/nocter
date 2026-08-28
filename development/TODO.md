@@ -6,6 +6,10 @@ Nocter v0.18.0 is [published and externally audited](releases/v0.18.0.md). Its P
 3 changes are implemented and reviewed, and the exact source, artifact, publication, and public
 re-download evidence is frozen. The `v0.18.0` tag and release asset must not be replaced.
 
+The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal is complete
+and reviewed. Its public stream, UTF-8 and error policy, Darwin record contract, close-once
+ownership, native behavior, and editor coverage are now the accepted basis for Phase 1.
+
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 `development/milestones/v0.18.0.md` and `development/reviews/` rather than this handoff.
@@ -16,8 +20,9 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Define the next milestone from concrete language or practical-API needs before changing the
-compiler or standard library. No post-v0.18.0 implementation phase is active.
+Specify v0.19.0 Phase 1 streaming text input. Fix the public reader shape, caller-provided reusable
+`String` contract, LF and CRLF handling, final-line and EOF behavior, invalid UTF-8 policy,
+interrupted and partial reads, and allocation bounds before implementation begins.
 
 ## Blockers
 

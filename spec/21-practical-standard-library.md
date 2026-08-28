@@ -95,10 +95,13 @@ Borrowed string paths are checked for NUL before a target call.
 pub enum FileType {
     regular
     directory
+    symlink
     other
 }
 
 pub copy struct Metadata
+pub struct DirEntry
+pub struct ReadDir
 
 instance Metadata {
     pub method &self.file_type(): FileType
@@ -107,11 +110,23 @@ instance Metadata {
     pub method &self.is_directory(): bool
 }
 
+instance DirEntry {
+    pub method &self.file_name(): &str
+    pub method &self.path(): &Utf8Path
+    pub method &self.file_type(): FileType
+}
+
+instance ReadDir {
+    pub method &+self.next(): DirEntry?!
+    pub method &+self.close(): void
+}
+
 pub func read(path: &str): Vec<u8>!
 pub func read_to_string(path: &str): String!
 pub func write(path: &str, value: &[u8]): void!
 pub func write_text(path: &str, text: &str): void!
 pub func metadata(path: &str): Metadata!
+pub func read_dir(path: &str): ReadDir!
 pub func exists(path: &str): bool!
 pub func remove_file(path: &str): void!
 pub func rename(from: &str, to: &str): void!
@@ -128,6 +143,26 @@ a second descriptor-I/O algorithm.
 `u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and
 `directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
 reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.
+
+`read_dir` opens exactly one directory and returns an owning stream. `ReadDir.next` returns
+`DirEntry?!`: the optional layer distinguishes clean end of stream and the failure layer reports an
+error encountered after construction. This stream does not implement `Iterator`, because the
+current iterator contract has no recoverable per-step failure channel. Entry order is the target's
+directory order and is not sorted. `.` and `..` are never returned.
+
+Each entry owns its UTF-8 file name and the path formed by joining the opened path spelling and
+entry name, independently of the stream buffer. The joined path is not made absolute or
+canonical. A name that is not valid UTF-8 fails with `std.fs.invalid_utf8_name`; it is never
+skipped or lossily converted. `DirEntry.file_type` classifies the entry itself without following a
+symbolic link. Symbolic links therefore return `FileType.symlink`; an unknown or nonportable target
+kind returns `other`. The type is a directory-entry snapshot and callers must perform a later
+filesystem query when races matter.
+
+End of stream, explicit `close`, a step failure, and destruction each converge on the same
+close-once state. After any of those terminal events, `next` returns `none`. An interrupted target
+read is retried before it becomes a public failure. A malformed target record fails with
+`std.fs.invalid_directory_record`, closes the stream, and cannot be retried against the same
+buffer. `read_dir` on a non-directory fails with `std.io.not_directory`.
 
 `exists` returns `false` only when the target classifies the path as absent, including a missing
 component or a dangling symbolic link. Permission denial and every other failure remain errors.

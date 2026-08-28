@@ -1,8 +1,10 @@
 //! Darwin error classification and ABI values.
 
 see ./index.nct
+see ./primitives.nct
 
 use /internal/os.{OSError, OSErrorKind, Platform}
+use /ptr.{addr, from_ref_mut}
 
 #target: "arm64-darwin"
 func errno(code: i32): Errno {
@@ -26,8 +28,11 @@ func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 35 {
         return OSErrorKind.would_block
     }
-    if value.code == 2 || value.code == 20 {
+    if value.code == 2 {
         return OSErrorKind.not_found
+    }
+    if value.code == 20 {
+        return OSErrorKind.not_directory
     }
     if value.code == 1 || value.code == 13 {
         return OSErrorKind.permission_denied
@@ -78,7 +83,14 @@ const sys_mmap: usize = 0x020000c5
 const sys_stat64: usize = 0x02000152
 
 #target: "arm64-darwin"
+const sys_getdirentries64: usize = 0x02000158
+
+#target: "arm64-darwin"
 const open_read_only: usize = 0
+
+#target: "arm64-darwin"
+// O_RDONLY | O_DIRECTORY | O_CLOEXEC
+const open_directory_only: usize = 0x01100000
 
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_TRUNC
@@ -128,3 +140,42 @@ const stat_mode_regular: u16 = 32768
 
 #target: "arm64-darwin"
 const stat_mode_directory: u16 = 16384
+
+#target: "arm64-darwin"
+const dirent_inode_offset: usize = 0
+
+#target: "arm64-darwin"
+const dirent_record_length_offset: usize = 16
+
+#target: "arm64-darwin"
+const dirent_name_length_offset: usize = 18
+
+#target: "arm64-darwin"
+const dirent_type_offset: usize = 20
+
+#target: "arm64-darwin"
+const dirent_name_offset: usize = 21
+
+#target: "arm64-darwin"
+const dirent_type_directory: u8 = 4
+
+#target: "arm64-darwin"
+const dirent_type_regular: u8 = 8
+
+#target: "arm64-darwin"
+const dirent_type_symlink: u8 = 10
+
+#target: "arm64-darwin"
+func read_directory_entries(
+    fd: usize,
+    buffer: &+[u8],
+    position: &+u64,
+): SyscallResult {
+    return syscall4(
+        sys_getdirentries64,
+        fd,
+        addr(buffer.ptr()),
+        buffer.len(),
+        addr(from_ref_mut(position)),
+    )
+}

@@ -136,6 +136,7 @@ pub(/) enum OSErrorKind {
     interrupted
     would_block
     not_found
+    not_directory
     permission_denied
     already_exists
     invalid_input

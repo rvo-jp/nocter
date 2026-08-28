@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
+use nocter_filesystem::{SourceOverlay, SourceOverride};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
@@ -13,7 +14,7 @@ use nocter_runtime_contract::PrimitiveRole;
 use nocter_test_support::PUBLIC_PACKAGE_EXAMPLES;
 
 use super::{
-    NativeImageSetCompileRequest, NativeTestCompileRequest, NativeTestTargetOutcome,
+    NativeImage, NativeImageSetCompileRequest, NativeTestCompileRequest, NativeTestTargetOutcome,
     compile_native_image, compile_native_images, compile_native_tests,
 };
 use nocter_session::{
@@ -22,6 +23,75 @@ use nocter_session::{
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+const DIRECTORY_RECORD_TEST_SOURCE: &[u8] = br#"see ./directory.nct
+
+use /internal/os/darwin.{dirent_inode_offset, dirent_name_length_offset}
+use /internal/os/darwin.{dirent_name_offset, dirent_record_length_offset}
+use /internal/os/darwin.{dirent_type_offset, dirent_type_regular}
+use /internal/ptr.{from_addr, store_u8_to_ptr}
+use /mem.page_try_allocator
+use /path.Utf8Path
+use /ptr.addr
+
+func test_reader(
+    record_len: u8,
+    name_len: u8,
+    name_byte: u8,
+    terminator: u8,
+): ReadDir! {
+    var allocator = page_try_allocator()
+    var buffer = allocator.try_alloc(64, 8)?
+    let address = addr(buffer.bytes_mut().ptr())
+    let type_pointer: *u8 = from_addr(address)
+    store_u8_to_ptr(type_pointer, dirent_inode_offset, 1)
+    store_u8_to_ptr(type_pointer, dirent_record_length_offset, record_len)
+    store_u8_to_ptr(type_pointer, dirent_record_length_offset + 1, 0)
+    store_u8_to_ptr(type_pointer, dirent_name_length_offset, name_len)
+    store_u8_to_ptr(type_pointer, dirent_name_length_offset + 1, 0)
+    store_u8_to_ptr(type_pointer, dirent_type_offset, dirent_type_regular)
+    store_u8_to_ptr(type_pointer, dirent_name_offset, name_byte)
+    store_u8_to_ptr(type_pointer, dirent_name_offset + name_len as usize, terminator)
+    let base = Utf8Path.new(".")?
+    return ReadDir {
+        fd: 999999,
+        is_open: true,
+        is_finished: false,
+        base: move base,
+        buffer: move buffer,
+        buffer_offset: 0,
+        buffer_len: 24,
+    }
+}
+
+test malformed_record_is_terminal {
+    var reader = test_reader(0, 0, 0, 0)?
+    let _entry = reader.next() catch failure {
+        if !failure.has_code("std.fs.invalid_directory_record") {
+            return error.new("test.wrong_error", "malformed record reported the wrong error")
+        }
+        let _after_failure = reader.next()? otherwise { return }
+        return error.new("test.not_terminal", "malformed record did not end the stream")
+    } otherwise {
+        return error.new("test.unexpected_eof", "malformed record produced end of stream")
+    }
+    return error.new("test.unexpected_entry", "malformed record produced an entry")
+}
+
+test invalid_utf8_name_is_terminal {
+    var reader = test_reader(24, 1, 255, 0)?
+    let _entry = reader.next() catch failure {
+        if !failure.has_code("std.fs.invalid_utf8_name") {
+            return error.new("test.wrong_error", "invalid UTF-8 reported the wrong error")
+        }
+        let _after_failure = reader.next()? otherwise { return }
+        return error.new("test.not_terminal", "invalid UTF-8 did not end the stream")
+    } otherwise {
+        return error.new("test.unexpected_eof", "invalid UTF-8 produced end of stream")
+    }
+    return error.new("test.unexpected_entry", "invalid UTF-8 produced an entry")
+}
+"#;
 
 struct TempPackage(PathBuf);
 
@@ -119,6 +189,139 @@ fn standard_string_concat_crosses_the_complete_native_session() {
 
     let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
     assert!(!image.image().bytes().is_empty());
+}
+
+#[test]
+fn standard_directory_stream_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/fs.{FileType, read_dir}
+
+func open_and_drop(): void! {
+    let stream = read_dir(".")?
+    return
+}
+
+func open_fails_with(path: &str, code: &str): bool {
+    let _stream = read_dir(path) catch failure {
+        return failure.has_code(code)
+    }
+    return false
+}
+
+func inspect_directory(): i32! {
+    var stream = read_dir(".")?
+    var saw_file = false
+    var saw_directory = false
+    var saw_symlink = false
+    var batch_count: usize = 0
+    while true {
+        let entry = stream.next()? otherwise { break }
+        let name = entry.file_name()
+        let path: &str = entry.path()
+        if name == "." || name == ".." { return 2 }
+        if name == "regular.txt" {
+            if entry.file_type() is FileType.regular { saw_file = true }
+            if !saw_file { return 3 }
+            if path != "./regular.txt" { return 4 }
+        }
+        if name == "nested" {
+            if entry.file_type() is FileType.directory { saw_directory = true }
+            if !saw_directory { return 5 }
+        }
+        if name == "link" {
+            if entry.file_type() is FileType.symlink { saw_symlink = true }
+            if !saw_symlink { return 6 }
+        }
+        if name.starts_with("batch-") { batch_count += 1 }
+    }
+    if !saw_file || !saw_directory || !saw_symlink || batch_count != 700 { return 7 }
+    if !open_fails_with("missing", "std.io.not_found") { return 8 }
+    if !open_fails_with("regular.txt", "std.io.not_directory") { return 9 }
+
+    var attempts: usize = 0
+    while attempts < 512 {
+        open_and_drop()?
+        attempts += 1
+    }
+
+    var closed = read_dir(".")?
+    closed.close()
+    let _after_close = closed.next()? otherwise { return 42 }
+    return 11
+}
+
+func main(): i32 {
+    return inspect_directory() catch _ { return 12 }
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "directory stream fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    execute_directory_stream(image.image(), &package_root.0, 42);
+}
+
+#[test]
+fn standard_directory_record_failures_are_terminal_in_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"directory-records\", module: \"./fs\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    overlay
+        .insert_source(
+            standard_root.join("fs/directory_phase0_test.nct"),
+            SourceOverride::new(DIRECTORY_RECORD_TEST_SOURCE.to_vec()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["fs"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(&unit)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("directory record tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 2);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
 }
 
 #[test]
@@ -658,6 +861,13 @@ fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
     ResolvedPackageGraph::load(packages).unwrap()
 }
 
+fn package_graph_with_overlay(
+    packages: Vec<ResolvedPackageSpec>,
+    overlay: SourceOverlay,
+) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load_with_source_overlay(packages, overlay).unwrap()
+}
+
 fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {
     let mut pending = vec![(root.to_path_buf(), Vec::new())];
     let mut modules = Vec::new();
@@ -687,3 +897,54 @@ fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {
     modules.sort();
     modules
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_directory_stream(image: &NativeImage, root: &Path, expected: i32) {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::process::Command;
+
+    let executable = root.join("directory-stream");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(root.join("regular.txt"), b"text").unwrap();
+    fs::create_dir(root.join("nested")).unwrap();
+    symlink("regular.txt", root.join("link")).unwrap();
+    for index in 0..700 {
+        fs::write(root.join(format!("batch-{index:04}")), b"").unwrap();
+    }
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(expected),
+        "directory stream exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join(name);
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "native test {name} exited with {status:?}"
+    );
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_directory_stream(_image: &NativeImage, _root: &Path, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}

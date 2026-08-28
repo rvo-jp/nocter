@@ -21,6 +21,7 @@ nocter-target-program = { path = "../nocter-target-program" }
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking" }
 nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-package = { path = "../nocter-package" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 nocter-test-support = { path = "../nocter-test-support" }

@@ -72,6 +72,9 @@ func exists_target(path: &str): bool! {
     if os_error.kind is OSErrorKind.not_found {
         return false
     }
+    if os_error.kind is OSErrorKind.not_directory {
+        return false
+    }
     return io_error_from_os(os_error)
 }
 

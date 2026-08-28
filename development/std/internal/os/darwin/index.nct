@@ -48,7 +48,13 @@ pub(/) const sys_mmap: usize
 pub(/) const sys_stat64: usize
 
 #target: "arm64-darwin"
+pub(/) const sys_getdirentries64: usize
+
+#target: "arm64-darwin"
 pub(/) const open_read_only: usize
+
+#target: "arm64-darwin"
+pub(/) const open_directory_only: usize
 
 #target: "arm64-darwin"
 pub(/) const open_create_truncate: usize
@@ -96,6 +102,30 @@ pub(/) const stat_mode_regular: u16
 pub(/) const stat_mode_directory: u16
 
 #target: "arm64-darwin"
+pub(/) const dirent_inode_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const dirent_record_length_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const dirent_name_length_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const dirent_type_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const dirent_name_offset: usize
+
+#target: "arm64-darwin"
+pub(/) const dirent_type_directory: u8
+
+#target: "arm64-darwin"
+pub(/) const dirent_type_regular: u8
+
+#target: "arm64-darwin"
+pub(/) const dirent_type_symlink: u8
+
+#target: "arm64-darwin"
 pub(/) primitive func syscall1(
     number: usize,
     a0: usize,
@@ -114,6 +144,13 @@ pub(/) primitive func syscall3(
     a0: usize,
     a1: usize,
     a2: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) func read_directory_entries(
+    fd: usize,
+    buffer: &+[u8],
+    position: &+u64,
 ): SyscallResult
 
 #target: "arm64-darwin"

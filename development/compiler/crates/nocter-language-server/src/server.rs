@@ -1341,6 +1341,74 @@ mod tests {
         assert!(!response.contains(" from self"));
     }
 
+    #[test]
+    fn directory_stream_contract_and_body_share_complete_editor_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs.read_dir\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+        ));
+
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":1,\"character\":20}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(response.contains("\"label\":\"read_dir\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":0,\"character\":14}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/fs/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let contract = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fs/index.nct");
+        let text = fs::read_to_string(&contract).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub func read_dir(path: &str): ReadDir!"))
+            .unwrap();
+        let character = source_line.find("read_dir").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            contract.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub func read_dir(path: &str): ReadDir!\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let body = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fs/directory.nct");
+        let text = fs::read_to_string(&body).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("if record_len <= dirent_name_offset"))
+            .unwrap();
+        let character = source_line.find("record_len").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            body.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nlet record_len: usize\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
     fn server(version: &str) -> LanguageServer {
         let root = std::env::temp_dir();
         LanguageServer::new(

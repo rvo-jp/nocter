@@ -4,7 +4,9 @@
 //! paths, errno values, syscalls, and metadata layout remain in `std/internal/os`.
 
 see ./filesystem.nct
+see ./directory.nct
 
+use /path.Utf8Path
 use /string.String
 use /vec.Vec
 
@@ -12,11 +14,18 @@ use /vec.Vec
 pub enum FileType {
     regular
     directory
+    symlink
     other
 }
 
 /// Portable metadata for one filesystem entry.
 pub copy struct Metadata
+
+/// One owned UTF-8 directory entry snapshot.
+pub struct DirEntry
+
+/// One fallible owning directory stream.
+pub struct ReadDir
 
 instance Metadata {
     pub method &self.file_type(): FileType
@@ -26,6 +35,25 @@ instance Metadata {
     pub method &self.is_file(): bool
 
     pub method &self.is_directory(): bool
+}
+
+instance DirEntry {
+    /// Returns the owned entry name without a lossy encoding conversion.
+    pub method &self.file_name(): &str
+
+    /// Returns an owned path formed by joining the opened path spelling and entry name.
+    pub method &self.path(): &Utf8Path
+
+    /// Classifies the entry itself without following a symbolic link.
+    pub method &self.file_type(): FileType
+}
+
+instance ReadDir {
+    /// Returns the next entry, `none` at end, or an error from this terminal stream.
+    pub method &+self.next(): DirEntry?!
+
+    /// Closes the stream. Later `next` calls return `none`.
+    pub method &+self.close(): void
 }
 
 /// Reads an entire file into independently owned byte storage.
@@ -42,6 +70,9 @@ pub func write_text(path: &str, text: &str): void!
 
 /// Returns target metadata after following symbolic links.
 pub func metadata(path: &str): Metadata!
+
+/// Opens one directory without sorting its entries.
+pub func read_dir(path: &str): ReadDir!
 
 /// Returns false only when the path is absent.
 pub func exists(path: &str): bool!
