@@ -12,7 +12,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 - [Completed v0.18.0 milestone](milestones/v0.18.0.md)
 - [v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
 - [v0.18.0 design reviews](reviews/README.md)
-- [Latest published release qualification](releases/v0.17.0.md)
+- [Latest published release qualification](releases/v0.18.0.md)
 - [Compiler architecture](docs/architecture.md)
 - [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)

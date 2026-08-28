@@ -458,7 +458,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/releases/</loc>
-    <lastmod>2026-08-25</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -507,6 +507,12 @@
   <url>
     <loc>https://nocter.dev/development/releases/v0.17.0/</loc>
     <lastmod>2026-08-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/releases/v0.18.0/</loc>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
