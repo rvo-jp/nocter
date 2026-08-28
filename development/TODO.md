@@ -6,10 +6,10 @@ Nocter v0.18.0 is [published and externally audited](releases/v0.18.0.md). Its P
 3 changes are implemented and reviewed, and the exact source, artifact, publication, and public
 re-download evidence is frozen. The `v0.18.0` tag and release asset must not be replaced.
 
-The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal and Phase 1
-streaming text input are complete and reviewed. Their public stream, UTF-8 and error policy,
-close-once ownership, bounded storage, native behavior, and editor coverage are now the accepted
-basis for Phase 2.
+The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal, Phase 1
+streaming text input, and Phase 2 collection ordering are complete and reviewed. Their public
+stream, UTF-8 and error policy, close-once ownership, bounded storage, move-only ordering, native
+behavior, and editor coverage are now the accepted basis for Phase 3.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -21,10 +21,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Specify v0.19.0 Phase 2 collection ordering. Fix the in-place slice API, `<` requirement, move-only
-element behavior, deterministic ordering contract, failure model, and scratch-storage bound before
-implementation begins. `Vec<T>` must reuse the slice implementation through coercion rather than
-owning a second algorithm.
+Design the v0.19.0 Phase 3 recursive text-search reference package under `examples/`. Fix its
+command-line contract, traversal and symlink policy, match and output format, deterministic ordering,
+error reporting, exit statuses, and bounded-memory acceptance before implementation begins. The
+package must use only public standard-library APIs.
 
 ## Blockers
 

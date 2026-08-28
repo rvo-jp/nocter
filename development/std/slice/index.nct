@@ -3,6 +3,7 @@
 //! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary
 //! source built on the narrow representation query below.
 
+see ./ordering.nct
 see ./views.nct
 
 instance [T] {
@@ -32,4 +33,8 @@ instance [T] {
 
     /// Orders elements lexicographically without consuming either slice.
     pub operator (&self < other: &Self): bool where (&T < &T): bool
+
+    /// Orders elements in place without allocation.
+    /// Equivalent elements may move relative to one another.
+    pub method &+self.sort(): void where (&T < &T): bool
 }

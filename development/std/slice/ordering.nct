@@ -1,0 +1,57 @@
+//! Allocation-free in-place slice ordering.
+
+see ./index.nct
+
+use /internal/ptr.{pointee_size, store_value_to_ptr, take_value_at_ptr}
+
+func swap_elements<T>(values: &+[T], left: usize, right: usize): void {
+    if left == right {
+        return
+    }
+    let pointer = values.ptr()
+    let element_size = pointee_size(pointer)
+    let left_value: T = take_value_at_ptr(pointer, left * element_size)
+    let right_value: T = take_value_at_ptr(pointer, right * element_size)
+    store_value_to_ptr(pointer, left * element_size, move right_value)
+    store_value_to_ptr(pointer, right * element_size, move left_value)
+    return
+}
+
+func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where (&T < &T): bool {
+    var root = initial_root
+    while root < end / 2 {
+        var child = root * 2 + 1
+        let right = child + 1
+        if right < end && values[child] < values[right] {
+            child = right
+        }
+        if !(values[root] < values[child]) {
+            return
+        }
+        swap_elements(values, root, child)
+        root = child
+    }
+    return
+}
+
+instance [T] {
+    method &+self.sort(): void where (&T < &T): bool {
+        if self.len() < 2 {
+            return
+        }
+
+        var root = self.len() / 2
+        while root != 0 {
+            root -= 1
+            sift_down(self, root, self.len())
+        }
+
+        var end = self.len()
+        while end > 1 {
+            end -= 1
+            swap_elements(self, 0, end)
+            sift_down(self, 0, end)
+        }
+        return
+    }
+}

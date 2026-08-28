@@ -93,6 +93,126 @@ test invalid_utf8_name_is_terminal {
 }
 "#;
 
+const COLLECTION_ORDERING_TEST_SOURCE: &str = r#"use std/string.String
+use std/vec.Vec
+
+struct Counter {
+    value: i32
+}
+
+struct Counters {
+    a: Counter
+    b: Counter
+    c: Counter
+    d: Counter
+}
+
+struct Tracked {
+    key: i32
+    serial: i32
+    counter: &+Counter
+}
+
+instance Tracked {
+    operator (&self < other: &Self): bool {
+        return self.key < other.key
+    }
+}
+
+drop Tracked(&+self) {
+    self.counter.value += 1
+    return
+}
+
+func check_slice_view(): i32 {
+    var values = Vec [4, 1, 3, 2, 2]
+    let view: &+[i32] = &+values as &+[i32]
+    view.sort()
+    if values[0] != 1 || values[1] != 2 || values[2] != 2 { return 1 }
+    if values[3] != 3 || values[4] != 4 { return 2 }
+
+    var empty: Vec<i32> = Vec.empty()
+    empty.sort()
+    var single = Vec [7]
+    single.sort()
+    if single[0] != 7 { return 3 }
+    var ordered = Vec [1, 2, 3]
+    ordered.sort()
+    if ordered[0] != 1 || ordered[1] != 2 || ordered[2] != 3 { return 4 }
+    return 0
+}
+
+func check_vec_and_coercion(): i32 {
+    var values: Vec<i32> = Vec.empty()
+    var value: i32 = 128
+    while value != 0 {
+        values.push(value)
+        value -= 1
+    }
+    values.sort()
+    var index: usize = 0
+    var expected: i32 = 1
+    while index < 128 {
+        if values[index] != expected { return 1 }
+        index += 1
+        expected += 1
+    }
+    return 0
+}
+
+func check_string_coercion(): i32 {
+    var values = Vec [String.copy("gamma"), String.copy("alpha"), String.copy("beta")]
+    values.sort()
+    if (&values[0] as &str) != "alpha" { return 1 }
+    if (&values[1] as &str) != "beta" { return 2 }
+    if (&values[2] as &str) != "gamma" { return 3 }
+    return 0
+}
+
+func sort_tracked(counters: &+Counters): i32 {
+    var values = Vec [
+        Tracked { key: 3, serial: 0, counter: &+counters.a },
+        Tracked { key: 1, serial: 1, counter: &+counters.b },
+        Tracked { key: 2, serial: 2, counter: &+counters.c },
+        Tracked { key: 2, serial: 3, counter: &+counters.d },
+    ]
+    values.sort()
+    if values[0].key != 1 || values[1].key != 2 { return 1 }
+    if values[2].key != 2 || values[3].key != 3 { return 2 }
+    let duplicates_preserved =
+        (values[1].serial == 2 && values[2].serial == 3) ||
+        (values[1].serial == 3 && values[2].serial == 2)
+    if !duplicates_preserved { return 3 }
+    return 0
+}
+
+func check_move_only_destruction(): i32 {
+    var counters = Counters {
+        a: Counter { value: 0 },
+        b: Counter { value: 0 },
+        c: Counter { value: 0 },
+        d: Counter { value: 0 },
+    }
+    let sort_result = sort_tracked(&+counters)
+    if sort_result != 0 { return sort_result }
+    if counters.a.value != 1 || counters.b.value != 1 { return 4 }
+    if counters.c.value != 1 || counters.d.value != 1 { return 5 }
+    return 0
+}
+
+func main(): i32 {
+    let slice = check_slice_view()
+    if slice != 0 { return 10 + slice }
+    let vector = check_vec_and_coercion()
+    if vector != 0 { return 20 + vector }
+    let strings = check_string_coercion()
+    if strings != 0 { return 30 + strings }
+    let tracked = check_move_only_destruction()
+    if tracked != 0 { return 40 + tracked }
+    return 0
+}
+"#;
+
 struct TempPackage(PathBuf);
 
 impl TempPackage {
@@ -361,6 +481,31 @@ func main(): i32 {
 
     let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
     execute_streaming_lines(image.image(), &package_root.0, 42);
+}
+
+#[test]
+fn standard_collection_ordering_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("main.nct", COLLECTION_ORDERING_TEST_SOURCE);
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "collection ordering fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "collection-ordering");
 }
 
 #[test]

@@ -1486,6 +1486,78 @@ mod tests {
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 
+    #[test]
+    fn collection_ordering_uses_slice_semantics_for_vec_editor_queries() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/vec.Vec\\nfunc inspect(values: &+Vec<i32>): void {{\\n    values.sort()\\n    return\\n}}\\n\"}}}}}}"
+        ));
+
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":11}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"sort\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":13}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/slice/index.nct"), "{response}");
+        assert!(!response.contains("/std/vec/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let contract = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/slice/index.nct");
+        let text = fs::read_to_string(&contract).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method &+self.sort(): void"))
+            .unwrap();
+        let character = source_line.find("sort").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            contract.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("sort(): void where (&T < &T): bool"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let body = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/slice/ordering.nct");
+        let text = fs::read_to_string(&body).unwrap();
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("let element_size = pointee_size(pointer)"))
+            .unwrap();
+        let character = source_line.find("element_size").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            body.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\nlet element_size: usize\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
     fn server(version: &str) -> LanguageServer {
         let root = std::env::temp_dir();
         LanguageServer::new(

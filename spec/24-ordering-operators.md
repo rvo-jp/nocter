@@ -82,6 +82,10 @@ The standard `[T]` instance compares elements lexicographically under
 `where (&T < &T): bool`. If one slice is a prefix of the other, the shorter slice is less. `Vec<T>`
 uses its readonly slice coercion and does not own a duplicate ordering declaration.
 
+The same requirement powers the standard readwrite-slice `sort` method. That collection API is
+specified separately in [Practical Standard Library](21-practical-standard-library.md); the `<`
+operator selects the order but does not prescribe the sorting algorithm.
+
 ## Tooling
 
 Formatting preserves the authored `<` declaration and requirement forms. Hover presents the
@@ -93,5 +97,5 @@ Compiler-private callable names are never public source or editor labels.
 ## Non-goals
 
 Strict ordering does not define partial ordering, three-way comparison values, floating-point
-behavior, sorting algorithms, comparator callbacks, hashing, or equality. Equality remains an
-independent operation.
+behavior, comparator callbacks, hashing, or equality. Equality remains an independent operation.
+The existence of a standard sorting consumer does not make sorting part of operator selection.

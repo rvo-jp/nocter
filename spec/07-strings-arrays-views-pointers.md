@@ -329,6 +329,7 @@ Representative collection operations:
 
 - `[T].len(): usize`, `[T].is_empty(): bool`, and `[T].ptr(): *T`
 - `[T].get(index: usize): &T?`, `[T].get_mut(index: usize): &+T?`, and `[T].first(): &T?`
+- `[T].sort(): void` on a readwrite slice when `where (&T < &T): bool` holds
 - `&Vec<T> as &[T]` for readonly contiguous storage
 - `&+Vec<T> as &+[T]` for readwrite contiguous storage
 - readonly, readwrite, and owned iteration through expansion operators and `Iterator.next()`
@@ -490,6 +491,9 @@ instance [T] where (&T == &T): bool {
 
 `Vec<T>` receives this readonly surface through its slice coercion. Comparison borrows elements;
 it does not consume either collection.
+
+Readwrite slices own in-place ordering. `Vec<T>` reaches the same `sort` method through its
+readwrite slice coercion and does not declare a forwarding method or a second algorithm.
 
 Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
 `try_copy`, `try_reserve`, `try_push_str`, and `try_push_utf8` operations use a `TryAllocator`.

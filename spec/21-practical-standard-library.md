@@ -43,6 +43,27 @@ implementation through its readonly slice coercion.
 `where (&T < &T): bool`. `String` and `Vec<T>` reach those declarations through the same readonly
 coercions; neither nominal container duplicates the algorithms.
 
+Readwrite slices define allocation-free in-place ordering:
+
+```nct
+instance [T] {
+    pub method &+self.sort(): void where (&T < &T): bool
+}
+```
+
+After `sort`, no later element is strictly less than an earlier element. The operation relies on
+the strict total order promised by the selected `<` implementation; it does not call equality or
+accept a comparator callback. It performs no allocation, uses constant auxiliary storage, and has
+`O(n log n)` worst-case comparisons and moves. It may reorder equivalent elements. Comparison
+borrows elements, while rearrangement transfers ownership without copying or destroying an
+element. The method reports no recoverable failure and introduces no allocation or bounds trap for
+a valid slice. If an authored `<` body traps, that termination remains behavior of the selected
+ordering operation; `sort` does not catch or reinterpret it.
+
+`Vec<T>` reaches the same method through its declared `&+Vec<T> as &+[T]` coercion and does not
+declare a forwarding method. Empty, one-element, already ordered, reverse-ordered, duplicate, and
+move-only element sequences follow the same contract.
+
 The allocation-free iterator terminal operations `find`, `contains`, `position`, `any`, `all`, and
 `fold` remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
 dispatch and do not require runtime interface objects. `contains` and `position` consume the
