@@ -14,16 +14,12 @@ func view(text: &String): &str {
     return str_from_raw_parts(text.storage.bytes().ptr(), text.len)
 }
 
-func capacity(text: &String): usize {
-    return text.storage.bytes().len()
-}
-
 instance String {
     coerce &self as &str {
         return view(self)
     }
 
     method &self.capacity(): usize {
-        return capacity(self)
+        return self.storage.bytes().len()
     }
 }

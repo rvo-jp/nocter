@@ -33,9 +33,7 @@ struct EnumerateIter<I> {
     next_index: usize
 }
 
-struct EmptyIter<T> {
-    exhausted: bool
-}
+struct EmptyIter<T> {}
 
 struct OnceIter<T> {
     item: T?
@@ -61,13 +59,9 @@ construct ViewIter<T> {
     }
 }
 
-func remaining<T>(iterator: &ViewIter<T>): usize {
-    return iterator.view.len() - iterator.next_index
-}
-
 instance ViewIter<T> {
     method &self.remaining_len(): usize {
-        return remaining(self)
+        return self.view.len() - self.next_index
     }
 
     method &+self.next(): &T? {

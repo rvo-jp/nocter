@@ -3,16 +3,12 @@ see ./adapters.nct
 
 //! Allocation-free mutable iteration over contiguous views.
 
-func mutable_from_view<T>(view: &+[T]): MutableViewIter<T> {
-    return MutableViewIter<T> {
-        view: view,
-        next_index: 0,
-    }
-}
-
 construct MutableViewIter<T> {
     func from_view(view: &+[T]): Self {
-        return mutable_from_view(view)
+        return MutableViewIter<T> {
+            view: view,
+            next_index: 0,
+        }
     }
 }
 

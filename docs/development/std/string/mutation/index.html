@@ -153,23 +153,23 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8<span class="token-operator">.</span>validate_utf8
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span>try_grow_owned
 
-<span class="token-keyword">func</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> text_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>len
     <span class="token-keyword">let</span> required_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>text_len<span class="token-operator">,</span> additional<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> current_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>storage<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> required_capacity <span class="token-operator">&lt;</span><span class="token-operator">=</span> current_capacity <span class="token-operator">{</span>
-        <span class="token-keyword">return</span>
+        <span class="token-keyword">return</span> required_capacity
     <span class="token-operator">}</span>
 
     <span class="token-keyword">let</span> next_capacity <span class="token-operator">=</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>current_capacity<span class="token-operator">,</span> required_capacity<span class="token-operator">)</span>
     <span class="token-function">try_grow_owned</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>text<span class="token-operator">.</span>storage<span class="token-operator">,</span> next_capacity<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span>
+    <span class="token-keyword">return</span> required_capacity
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">reserve</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> additional<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> additional<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
@@ -183,9 +183,9 @@
 <span class="token-keyword">func</span> <span class="token-function">try_push_str</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> value_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">let</span> old_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>len
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> value_len<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> next_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> value_len<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">copy_str_to_ptr</span><span class="token-operator">(</span>text<span class="token-operator">.</span>storage<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> old_len<span class="token-operator">,</span> value<span class="token-operator">)</span>
-    text<span class="token-operator">.</span>len <span class="token-operator">=</span> old_len <span class="token-operator">+</span> value_len
+    text<span class="token-operator">.</span>len <span class="token-operator">=</span> next_len
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -199,14 +199,14 @@
 <span class="token-keyword">func</span> <span class="token-function">try_push_utf8</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-function">validate_utf8</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> old_len <span class="token-operator">=</span> text<span class="token-operator">.</span>len
-    <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> next_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">,</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> destination <span class="token-operator">=</span> text<span class="token-operator">.</span>storage<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-function">store_u8_to_ptr</span><span class="token-operator">(</span>destination<span class="token-operator">,</span> old_len <span class="token-operator">+</span> index<span class="token-operator">,</span> value<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span>
         index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
-    text<span class="token-operator">.</span>len <span class="token-operator">=</span> old_len <span class="token-operator">+</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    text<span class="token-operator">.</span>len <span class="token-operator">=</span> next_len
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -221,7 +221,7 @@
     <span class="token-operator">}</span>
 
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">try_reserve</span><span class="token-operator">(</span>self<span class="token-operator">,</span> additional<span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>self<span class="token-operator">,</span> additional<span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 

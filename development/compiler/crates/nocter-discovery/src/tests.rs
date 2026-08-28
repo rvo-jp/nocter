@@ -890,6 +890,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     standard_contract::assert_package_visible_functions_have_cross_module_references(
         &unit, &checked,
     );
+    standard_contract::assert_private_implementation_functions_are_referenced(&unit, &checked);
 }
 
 fn standard_toolchain(package: &PackageIdentity) -> ToolchainInput {

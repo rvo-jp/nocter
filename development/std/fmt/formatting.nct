@@ -271,7 +271,3 @@ func try_append_i64_digit(out: &+String, value: i64): void! {
     try_append_str(out, "9")?
     return
 }
-
-func unsupported(): error {
-    return error.new("std.fmt.unsupported", "value cannot be formatted")
-}

@@ -180,12 +180,6 @@ func write(file: &+File, bytes: &[u8]): void! {
     return
 }
 
-func write_text(file: &+File, text: &str): void! {
-    require_open(file)?
-    write_text_fd(file.fd, text)?
-    return
-}
-
 func close(file: &+File): void {
     if file.state is FileState.owned_open {
         close_fd(file.fd)

@@ -34,14 +34,16 @@ generic `impl.nct` when the module has more than one implementation responsibili
 Restricted visibility must be no wider than its actual consumers. A `pub(/)` function in a
 standard-library contract source must have a semantic reference from another module in the `std`
 package. Helpers used only by implementation sources in their declaring module stay private and
-those sources use direct `see` edges. Compiler-owned primitives are exempt because their
-declaration itself defines a target or runtime boundary even when current Nocter source has no
-caller. The authored-standard-library test enforces this rule from the checked source index rather
-than name matching.
+those sources use direct `see` edges. Every private free function in an implementation source must
+also have a semantic reference unless it completes a callable declared by the module root.
+Compiler-owned primitives are exempt because their declaration itself defines a target or runtime
+boundary even when current Nocter source has no caller. The authored-standard-library test enforces
+these rules from declaration identity and the checked source index rather than name matching.
 
-The same test freezes the reviewed module-dependency relation from discovery's resolved `use`
-edges. Adding an edge requires an ownership review and an explicit update to that relation; source
-spelling is never reparsed to infer dependencies.
+The same test requires the reviewed module-dependency relation to exactly equal discovery's
+resolved `use` edges. Adding an edge requires an ownership review and an explicit update; removing
+an edge requires deleting its stale review entry. Source spelling is never reparsed to infer
+dependencies.
 
 Every import from one standard-library module to another uses the package-absolute `/module` form.
 The dependency spelling `std/module` means “the package bound to the `std` dependency name”; inside

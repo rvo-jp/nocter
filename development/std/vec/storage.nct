@@ -21,10 +21,6 @@ struct Vec<T> {
     capacity: usize
 }
 
-func capacity<T>(values: &Vec<T>): usize {
-    return values.capacity
-}
-
 func view<T>(values: &Vec<T>): &[T] {
     return slice_from_raw_parts_value(values.ptr, values.len)
 }
@@ -76,6 +72,6 @@ instance Vec<T> {
     }
 
     method &self.capacity(): usize {
-        return capacity(self)
+        return self.capacity
     }
 }

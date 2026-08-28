@@ -10,9 +10,9 @@ use /internal/ptr.{slice_from_raw_parts_value, store_value_to_ptr, take_value_at
 use /mem.try_grow_owned
 use /ptr.addr
 
-func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
+func try_reserve<T>(values: &+Vec<T>, additional: usize): usize! {
     if additional == 0 {
-        return
+        return values.len
     }
 
     let values_len: usize = values.len
@@ -23,14 +23,14 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if values_capacity >= values_len {
         let spare_capacity: usize = values_capacity - values_len
         if additional <= spare_capacity {
-            return
+            return required_capacity
         }
     }
 
     let element_size: usize = pointee_size(values.ptr)
     if element_size == 0 {
         values.capacity = growth_capacity(values_capacity, required_capacity)
-        return
+        return required_capacity
     }
     let next_capacity = growth_capacity(values_capacity, required_capacity)
     let byte_capacity: usize = checked_multiply(next_capacity, element_size) otherwise {
@@ -40,16 +40,16 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
         try_grow_owned(&+values.storage, required_bytes)?
         values.ptr = from_addr(addr(values.storage.bytes().ptr()))
         values.capacity = required_capacity
-        return
+        return required_capacity
     }
     try_grow_owned(&+values.storage, byte_capacity)?
     values.ptr = from_addr(addr(values.storage.bytes().ptr()))
     values.capacity = next_capacity
-    return
+    return required_capacity
 }
 
 func reserve<T>(values: &+Vec<T>, additional: usize): void {
-    try_reserve(values, additional) catch allocation_error {
+    let _ = try_reserve(values, additional) catch allocation_error {
         return allocation_abort()
     }
     return
@@ -84,11 +84,11 @@ func pop<T>(values: &+Vec<T>): T? {
 
 func try_push<T>(values: &+Vec<T>, value: T): void! {
     let old_len: usize = values.len
-    try_reserve(values, 1)?
+    let next_len: usize = try_reserve(values, 1)?
     let element_size: usize = pointee_size(values.ptr)
     let byte_offset: usize = old_len * element_size
     store_value_to_ptr(values.ptr, byte_offset, move value)
-    values.len = old_len + 1
+    values.len = next_len
     return
 }
 
@@ -107,7 +107,7 @@ func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
 
     // No fallible operation is permitted after this point. The initialized
     // prefix remains unchanged if capacity growth fails.
-    try_reserve(values, 1)?
+    let next_len: usize = try_reserve(values, 1)?
     let element_size: usize = pointee_size(values.ptr)
     var hole: usize = old_len
     while hole > index {
@@ -117,7 +117,7 @@ func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
         hole = source_index
     }
     store_value_to_ptr(values.ptr, index * element_size, move value)
-    values.len = old_len + 1
+    values.len = next_len
     return
 }
 
@@ -154,7 +154,7 @@ instance Vec<T> {
     }
 
     method &+self.try_reserve(additional: usize): void! {
-        try_reserve(self, additional)?
+        let _ = try_reserve(self, additional)?
         return
     }
 

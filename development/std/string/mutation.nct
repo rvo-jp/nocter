@@ -8,23 +8,23 @@ use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 use /internal/utf8.validate_utf8
 use /mem.try_grow_owned
 
-func try_reserve(text: &+String, additional: usize): void! {
+func try_reserve(text: &+String, additional: usize): usize! {
     let text_len: usize = text.len
     let required_capacity: usize = checked_add(text_len, additional) otherwise {
         return capacity_overflow()
     }
     let current_capacity: usize = text.storage.bytes().len()
     if required_capacity <= current_capacity {
-        return
+        return required_capacity
     }
 
     let next_capacity = growth_capacity(current_capacity, required_capacity)
     try_grow_owned(&+text.storage, next_capacity)?
-    return
+    return required_capacity
 }
 
 func reserve(text: &+String, additional: usize): void {
-    try_reserve(text, additional) catch allocation_error {
+    let _ = try_reserve(text, additional) catch allocation_error {
         return allocation_abort()
     }
     return
@@ -38,9 +38,9 @@ func clear(text: &+String): void {
 func try_push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
-    try_reserve(text, value_len)?
+    let next_len: usize = try_reserve(text, value_len)?
     copy_str_to_ptr(text.storage.bytes().ptr(), old_len, value)
-    text.len = old_len + value_len
+    text.len = next_len
     return
 }
 
@@ -54,14 +54,14 @@ func push_str(text: &+String, value: &str): void {
 func try_push_utf8(text: &+String, value: &[u8]): void! {
     validate_utf8(value)?
     let old_len = text.len
-    try_reserve(text, value.len())?
+    let next_len: usize = try_reserve(text, value.len())?
     let destination = text.storage.bytes().ptr()
     var index: usize = 0
     while index < value.len() {
         store_u8_to_ptr(destination, old_len + index, value[index])
         index += 1
     }
-    text.len = old_len + value.len()
+    text.len = next_len
     return
 }
 
@@ -76,7 +76,7 @@ instance String {
     }
 
     method &+self.try_reserve(additional: usize): void! {
-        try_reserve(self, additional)?
+        let _ = try_reserve(self, additional)?
         return
     }
 

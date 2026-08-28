@@ -325,12 +325,6 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">write_text</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-function">require_open</span><span class="token-operator">(</span>file<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-function">write_text_fd</span><span class="token-operator">(</span>file<span class="token-operator">.</span>fd<span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
 <span class="token-keyword">func</span> <span class="token-function">close</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> file<span class="token-operator">.</span>state <span class="token-keyword">is</span> <span class="token-type">FileState</span><span class="token-operator">.</span>owned_open <span class="token-operator">{</span>
         <span class="token-function">close_fd</span><span class="token-operator">(</span>file<span class="token-operator">.</span>fd<span class="token-operator">)</span>

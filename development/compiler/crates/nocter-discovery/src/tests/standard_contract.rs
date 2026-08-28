@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_compile_input::ModuleSourceKind;
 use nocter_source_index::{SemanticEntity, SourceRole};
-use nocter_syntax::{NodeKind, SyntaxElement, declaration_name_token};
+use nocter_syntax::{Keyword, NodeKind, SyntaxElement, TokenKind, declaration_name_token};
 
 pub(super) fn assert_standard_root_visibility_boundaries(unit: &crate::DiscoveredUnit) {
     let mut restricted_public_roots = Vec::new();
@@ -145,7 +145,7 @@ pub(super) fn assert_reviewed_standard_dependencies(
                 .map(move |source| (source.syntax().source(), module.identity()))
         })
         .collect::<BTreeMap<_, _>>();
-    let mut unexpected = Vec::new();
+    let mut actual = BTreeSet::new();
     for resolution in input.use_resolutions() {
         let Some(source) = source_modules.get(&resolution.declaration().source()) else {
             continue;
@@ -158,16 +158,101 @@ pub(super) fn assert_reviewed_standard_dependencies(
         if source_path == target_path {
             continue;
         }
-        if !REVIEWED_STANDARD_DEPENDENCIES.contains(&(source_path.as_str(), target_path.as_str())) {
-            unexpected.push(format!("{source_path} -> {target_path}"));
+        actual.insert((source_path, target_path));
+    }
+    let expected = REVIEWED_STANDARD_DEPENDENCIES
+        .iter()
+        .map(|(source, target)| ((*source).to_owned(), (*target).to_owned()))
+        .collect::<BTreeSet<_>>();
+    let unexpected = actual.difference(&expected).collect::<Vec<_>>();
+    let stale = expected.difference(&actual).collect::<Vec<_>>();
+    assert!(
+        unexpected.is_empty() && stale.is_empty(),
+        "standard module dependency review must exactly match the authored graph; unexpected: {unexpected:#?}; stale: {stale:#?}"
+    );
+}
+
+pub(super) fn assert_private_implementation_functions_are_referenced(
+    unit: &crate::DiscoveredUnit,
+    checked: &nocter_checking::CheckedProgramOutput,
+) {
+    let root_callables = unit
+        .modules()
+        .iter()
+        .flat_map(crate::DiscoveredModule::sources)
+        .filter(|source| source.kind() == ModuleSourceKind::Root)
+        .flat_map(|source| {
+            let tree = &unit.syntax_trees()[source.syntax_index()];
+            tree.nodes()
+                .filter(|(_, node)| node.kind() == NodeKind::FunctionDeclaration)
+                .filter_map(|(node, _)| declaration_callable(tree, node, checked))
+                .collect::<Vec<_>>()
+        })
+        .collect::<BTreeSet<_>>();
+    let mut unused = Vec::new();
+    for module in unit.modules() {
+        for source in module
+            .sources()
+            .iter()
+            .filter(|source| source.kind() != ModuleSourceKind::Root)
+        {
+            let tree = &unit.syntax_trees()[source.syntax_index()];
+            let source_file = unit.sources().get(tree.source()).unwrap();
+            for (node, _) in tree
+                .nodes()
+                .filter(|(_, node)| node.kind() == NodeKind::FunctionDeclaration)
+            {
+                if contains_direct_keyword(tree, node, Keyword::Primitive) {
+                    continue;
+                }
+                let Some(entity) = declaration_callable(tree, node, checked) else {
+                    continue;
+                };
+                if root_callables.contains(&entity)
+                    || checked
+                        .source_index()
+                        .bindings_for(entity)
+                        .iter()
+                        .any(|binding| binding.role() == SourceRole::Reference)
+                {
+                    continue;
+                }
+                let name = declaration_name_token(tree, node)
+                    .and_then(|token| source_file.text_at(token.range()))
+                    .unwrap_or("<anonymous>");
+                unused.push(format!("{}:{name}", source.canonical_path()));
+            }
         }
     }
-    unexpected.sort();
-    unexpected.dedup();
     assert!(
-        unexpected.is_empty(),
-        "standard module dependencies require an ownership review before expansion: {unexpected:#?}"
+        unused.is_empty(),
+        "private standard implementation functions must have a semantic reference: {unused:#?}"
     );
+}
+
+fn contains_direct_keyword(
+    tree: &nocter_syntax::SyntaxTree,
+    node: nocter_syntax::NodeId,
+    keyword: Keyword,
+) -> bool {
+    tree.children(node).iter().any(|child| {
+        matches!(child, SyntaxElement::Token(token) if token.kind() == TokenKind::Keyword(keyword))
+    })
+}
+
+fn declaration_callable(
+    tree: &nocter_syntax::SyntaxTree,
+    declaration: nocter_syntax::NodeId,
+    checked: &nocter_checking::CheckedProgramOutput,
+) -> Option<SemanticEntity> {
+    let name = declaration_name_token(tree, declaration)?;
+    checked
+        .source_index()
+        .bindings_at(tree.source(), name.range().start())
+        .find_map(|binding| match (binding.role(), binding.entity()) {
+            (SourceRole::Declaration, entity @ SemanticEntity::Callable(_)) => Some(entity),
+            _ => None,
+        })
 }
 
 pub(super) fn assert_standard_self_uses_are_package_absolute(
