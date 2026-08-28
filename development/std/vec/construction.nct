@@ -30,7 +30,7 @@ construct Vec<T> {
     func with_capacity(requested_capacity: usize): Self {
         let pointer: *T = from_addr(1)
         let element_size: usize = pointee_size(pointer)
-        if requested_capacity == 0 || element_size == 0 {
+        if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
         let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
@@ -53,7 +53,7 @@ construct Vec<T> {
     ): Self! {
         let pointer: *T = from_addr(1)
         let element_size: usize = pointee_size(pointer)
-        if requested_capacity == 0 || element_size == 0 {
+        if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
         let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {

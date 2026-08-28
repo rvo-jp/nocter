@@ -39,6 +39,10 @@ elements move at most once, and the initialized prefix is updated only after com
 reserving, inserting, removing, iterating, and dropping such elements do not allocate backing
 bytes and still perform the ordinary ownership operations once per logical element.
 
+`String.empty()` and `Vec<T>.empty()` defer allocator selection until their first growth.
+`with_capacity`, including a request for zero capacity, records the allocator selected by that
+construction call so later growth cannot silently move to another allocation context.
+
 `str` defines equality once, and `String` reaches it through readonly coercion. `[T]` defines
 element-wise equality, `contains`, and `position` under `where (&T == &T): bool`; `Vec<T>` reaches the same
 implementation through its readonly slice coercion.

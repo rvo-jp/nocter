@@ -166,9 +166,6 @@
     <span class="token-operator">}</span>
 
     <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> requested_capacity <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
         <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span> <span class="token-operator">{</span>
             storage<span class="token-operator">:</span> allocator<span class="token-operator">.</span><span class="token-function">alloc</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
@@ -180,9 +177,6 @@
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> requested_capacity <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span> <span class="token-operator">{</span>
             storage<span class="token-operator">:</span> allocator<span class="token-operator">.</span><span class="token-function">try_alloc</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
