@@ -9,6 +9,7 @@ internally without forcing consumers that use only its contract to change.
 
 ## Current Candidate Reviews
 
+- [v0.19.0 Phase 4 stabilization review](v0.19.0-phase-4.md) — complete
 - [v0.19.0 Phase 0 filesystem traversal review](v0.19.0-phase-0.md) — complete
 - [v0.19.0 Phase 1 streaming text input review](v0.19.0-phase-1.md) — complete
 - [v0.19.0 Phase 2 collection ordering review](v0.19.0-phase-2.md) — complete
