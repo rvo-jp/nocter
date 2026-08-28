@@ -6,7 +6,7 @@ see ./core.nct
 use /internal/os/darwin.{SyscallResult, create_mode, errno_interrupted}
 use /internal/os/darwin.{open_create_append, open_create_truncate, open_read_only}
 use /internal/os/darwin.{sys_close, sys_open, sys_read, sys_write}
-use /internal/io.io_error_from_os
+use /internal/io.{closed_stream_error, io_error_from_os}
 use /internal/os/darwin.{errno, error_from_errno, syscall1, syscall3}
 use /internal/path.{target_path_address, target_path_argument}
 use /ptr.addr
@@ -126,55 +126,71 @@ func close_fd(fd: usize): void {
     return
 }
 
+enum FileState {
+    owned_open
+    borrowed_open
+    closed
+}
+
 struct File {
     fd: usize
-    close_on_drop: bool
+    state: FileState
 }
 
 func stdout(): File {
-    return File { fd: stdout_fd, close_on_drop: false }
+    return File { fd: stdout_fd, state: FileState.borrowed_open }
 }
 
 func stderr(): File {
-    return File { fd: stderr_fd, close_on_drop: false }
+    return File { fd: stderr_fd, state: FileState.borrowed_open }
 }
 
 construct File {
     func open(path: &str): Self! {
         let fd = open_read_fd(path)?
-        return File { fd: fd, close_on_drop: true }
+        return File { fd: fd, state: FileState.owned_open }
     }
 
     func create(path: &str): Self! {
         let fd = create_fd(path)?
-        return File { fd: fd, close_on_drop: true }
+        return File { fd: fd, state: FileState.owned_open }
     }
 
     func append(path: &str): Self! {
         let fd = append_fd(path)?
-        return File { fd: fd, close_on_drop: true }
+        return File { fd: fd, state: FileState.owned_open }
     }
 }
 
+func require_open(file: &File): void! {
+    if file.state is FileState.closed {
+        return closed_stream_error()
+    }
+    return
+}
+
 func read(file: &+File, buffer: &+[u8]): usize! {
+    require_open(file)?
     return read_fd(file.fd, buffer)?
 }
 
 func write(file: &+File, bytes: &[u8]): void! {
+    require_open(file)?
     write_fd(file.fd, bytes)?
     return
 }
 
 func write_text(file: &+File, text: &str): void! {
+    require_open(file)?
     write_text_fd(file.fd, text)?
     return
 }
 
 func close(file: &+File): void {
-    if file.close_on_drop {
+    if file.state is FileState.owned_open {
         close_fd(file.fd)
-        file.close_on_drop = false
     }
+    file.state = FileState.closed
     return
 }
 
@@ -194,6 +210,7 @@ instance File {
     }
 
     method &+self.flush(): void! {
+        require_open(self)?
         return
     }
 }
@@ -206,10 +223,6 @@ drop File(&+self) {
 func print(text: &str): void! {
     write_text_fd(1, text)?
     return
-}
-
-func unsupported(): error {
-    return error.new("std.io.unsupported", "unsupported I/O operation")
 }
 
 func write_zero(): error {

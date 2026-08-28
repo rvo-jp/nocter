@@ -37,3 +37,7 @@ func io_error_from_os(os_error: OSError): error {
     }
     return error.new("std.io.os_error", "OS operation failed")
 }
+
+func closed_stream_error(): error {
+    return error.new("std.io.closed", "I/O stream is closed")
+}

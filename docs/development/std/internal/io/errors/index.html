@@ -182,6 +182,10 @@
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.os_error"</span><span class="token-operator">,</span> <span class="token-string">"OS operation failed"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.closed"</span><span class="token-operator">,</span> <span class="token-string">"I/O stream is closed"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>

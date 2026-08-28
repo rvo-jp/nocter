@@ -405,8 +405,8 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r#"use std/io.File
-use std/io/buffer.BufReader
+        r#"use std/io.{File, Writer}
+use std/io/buffer.{BufReader, BufWriter}
 use std/string.String
 
 func check_lines(): i32! {
@@ -453,6 +453,23 @@ func check_zero_capacity_and_close(): i32! {
     return 4
 }
 
+func check_closed_output(): i32! {
+    var file = File.create("closed-file.txt")?
+    file.close()
+    file.write_text("not written") catch failure {
+        if !failure.has_code("std.io.closed") { return 1 }
+        var writer = BufWriter.with_capacity(File.create("writer.txt")?, 0)
+        writer.write_text("abc")?
+        writer.close()?
+        writer.write_text("not written") catch writer_failure {
+            if !writer_failure.has_code("std.io.closed") { return 2 }
+            return 0
+        }
+        return 3
+    }
+    return 4
+}
+
 func main(): i32 {
     let lines = check_lines() catch _ { return 20 }
     if lines != 0 { return lines }
@@ -460,6 +477,8 @@ func main(): i32 {
     if invalid != 0 { return 10 + invalid }
     let terminal = check_zero_capacity_and_close() catch _ { return 22 }
     if terminal != 0 { return 30 + terminal }
+    let output = check_closed_output() catch _ { return 23 }
+    if output != 0 { return 40 + output }
     return 42
 }
 "#,
@@ -1179,6 +1198,8 @@ fn execute_streaming_lines(image: &NativeImage, root: &Path, expected: i32) {
         Some(expected),
         "streaming line reader exited with {status:?}"
     );
+    assert_eq!(fs::read(root.join("closed-file.txt")).unwrap(), b"");
+    assert_eq!(fs::read(root.join("writer.txt")).unwrap(), b"abc");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

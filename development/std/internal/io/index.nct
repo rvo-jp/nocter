@@ -6,3 +6,6 @@ use /internal/os.OSError
 
 /// Maps one target-independent OS classification to the stable public I/O error family.
 pub(/) func io_error_from_os(os_error: OSError): error
+
+/// Reports an operation attempted through a terminal stream wrapper.
+pub(/) func closed_stream_error(): error

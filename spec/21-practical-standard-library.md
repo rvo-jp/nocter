@@ -102,7 +102,11 @@ does not perform filesystem normalization or canonicalization.
 `std/io.File.open`, `File.create`, and `File.append` respectively open an existing file for
 reading, create or truncate a file for writing, and open a file for append. `Utf8Path` coerces to
 `&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
-handles close once when explicitly closed or dropped.
+handles close once when explicitly closed or dropped. Explicit close makes that `File` value
+terminal: later read, write, and flush operations fail with `std.io.closed` instead of retaining a
+descriptor word that the operating system may reuse. The `stdout` and `stderr` constructors return
+non-owning wrappers. Closing one makes that wrapper terminal without closing the process-global
+descriptor used by other wrappers.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -215,7 +219,11 @@ collector and validates the complete result as UTF-8 before returning an indepen
 `BufReader` and `BufWriter` in `std/io/buffer` own their buffering storage and receive these common
 operations through static interface dispatch. A buffered writer reports I/O failure only through
 an explicit `flush` or `close`; dropping it discards unflushed bytes because destruction cannot
-return an error. Successful flush clears the buffer only after the underlying write succeeds.
+return an error. Successful flush clears the buffer only after the underlying write succeeds. A
+failed flush makes the writer terminal because the destination may already have accepted an
+unreported prefix; retrying the complete retained buffer could duplicate output. Explicit close
+also makes the wrapper terminal, and later write or flush operations fail with `std.io.closed`.
+A requested writer capacity of zero is normalized to one byte.
 
 `BufReader` additionally exposes line-oriented text input:
 

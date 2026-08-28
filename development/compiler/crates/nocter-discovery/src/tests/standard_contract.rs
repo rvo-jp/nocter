@@ -88,6 +88,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("io", "string"),
     ("io", "vec"),
     ("io/buffer", "io"),
+    ("io/buffer", "internal/io"),
     ("io/buffer", "string"),
     ("io/buffer", "vec"),
     ("iter", "internal/ptr"),

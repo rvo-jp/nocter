@@ -148,6 +148,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io<span class="token-operator">.</span>closed_stream_error
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
@@ -322,6 +323,7 @@
     destination<span class="token-operator">:</span> <span class="token-type">File</span>
     buffer<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
     limit<span class="token-operator">:</span> <span class="token-type">usize</span>
+    is_open<span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
@@ -330,16 +332,24 @@
     <span class="token-operator">}</span>
 
     <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> storage<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">)</span>
+        <span class="token-keyword">var</span> capacity <span class="token-operator">=</span> requested_capacity
+        <span class="token-keyword">if</span> capacity <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+            capacity <span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> storage<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>capacity<span class="token-operator">)</span>
         <span class="token-keyword">return</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
             destination<span class="token-operator">:</span> <span class="token-keyword">move</span> destination<span class="token-operator">,</span>
             buffer<span class="token-operator">:</span> <span class="token-keyword">move</span> storage<span class="token-operator">,</span>
-            limit<span class="token-operator">:</span> requested_capacity<span class="token-operator">,</span>
+            limit<span class="token-operator">:</span> capacity<span class="token-operator">,</span>
+            is_open<span class="token-operator">:</span> <span class="token-keyword">true</span><span class="token-operator">,</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">write</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span> bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>writer<span class="token-operator">.</span>is_open <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> writer<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> writer<span class="token-operator">.</span>limit <span class="token-operator">{</span>
@@ -352,18 +362,37 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">flush</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>writer<span class="token-operator">.</span>is_open <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">if</span> writer<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    writer<span class="token-operator">.</span>destination<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>writer<span class="token-operator">.</span>buffer<span class="token-operator">)</span><span class="token-operator">?</span>
+    writer<span class="token-operator">.</span>destination<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>writer<span class="token-operator">.</span>buffer<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-function">terminate_writer</span><span class="token-operator">(</span>writer<span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
+    <span class="token-operator">}</span>
     writer<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    writer<span class="token-operator">.</span>destination<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    writer<span class="token-operator">.</span>destination<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-function">terminate_writer</span><span class="token-operator">(</span>writer<span class="token-operator">)</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">close</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>writer<span class="token-operator">.</span>is_open <span class="token-operator">{</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
     <span class="token-function">flush</span><span class="token-operator">(</span>writer<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">terminate_writer</span><span class="token-operator">(</span>writer<span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">terminate_writer</span><span class="token-operator">(</span>writer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     writer<span class="token-operator">.</span>destination<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    writer<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    writer<span class="token-operator">.</span>is_open <span class="token-operator">=</span> <span class="token-keyword">false</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 

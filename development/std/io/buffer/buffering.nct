@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /io.{File, Reader, Writer}
+use /internal/io.closed_stream_error
 use /string.String
 use /vec.Vec
 
@@ -177,6 +178,7 @@ struct BufWriter {
     destination: File
     buffer: Vec<u8>
     limit: usize
+    is_open: bool
 }
 
 construct BufWriter {
@@ -185,16 +187,24 @@ construct BufWriter {
     }
 
     func with_capacity(destination: File, requested_capacity: usize): Self {
-        let storage: Vec<u8> = Vec.with_capacity(requested_capacity)
+        var capacity = requested_capacity
+        if capacity == 0 {
+            capacity = 1
+        }
+        let storage: Vec<u8> = Vec.with_capacity(capacity)
         return BufWriter {
             destination: move destination,
             buffer: move storage,
-            limit: requested_capacity,
+            limit: capacity,
+            is_open: true,
         }
     }
 }
 
 func write(writer: &+BufWriter, bytes: &[u8]): void! {
+    if !writer.is_open {
+        return closed_stream_error()
+    }
     var offset: usize = 0
     while offset < bytes.len() {
         if writer.buffer.len() == writer.limit {
@@ -207,18 +217,37 @@ func write(writer: &+BufWriter, bytes: &[u8]): void! {
 }
 
 func flush(writer: &+BufWriter): void! {
+    if !writer.is_open {
+        return closed_stream_error()
+    }
     if writer.buffer.len() == 0 {
         return
     }
-    writer.destination.write(&writer.buffer)?
+    writer.destination.write(&writer.buffer) catch failure {
+        terminate_writer(writer)
+        return move failure
+    }
     writer.buffer.clear()
-    writer.destination.flush()?
+    writer.destination.flush() catch failure {
+        terminate_writer(writer)
+        return move failure
+    }
     return
 }
 
 func close(writer: &+BufWriter): void! {
+    if !writer.is_open {
+        return
+    }
     flush(writer)?
+    terminate_writer(writer)
+    return
+}
+
+func terminate_writer(writer: &+BufWriter): void {
     writer.destination.close()
+    writer.buffer.clear()
+    writer.is_open = false
     return
 }
 
