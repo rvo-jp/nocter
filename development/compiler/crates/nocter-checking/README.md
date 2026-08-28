@@ -27,11 +27,16 @@ beside, never inside, semantic output.
 ## Invariants
 
 - One `ProgramEnvironment` carries stable facts through the complete checking lifetime.
+- Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
+  one evidence identity; no optional-evidence state exists.
+- One independent capability-evidence table owns each authored root, exact prerequisite origin,
+  and specialized predicate consumed by checking descendants.
 - Type and copyability authority cannot be paired across generations.
 - A body transaction commits all semantic mutations together or is discarded/frozen as one branch.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
-- Generic lookup and concrete dispatch consume the same frozen capability-evidence identity; a
-  later stage cannot reinterpret the authored root requirement as a different predicate.
+- Generic lookup, provenance, loans, concrete dispatch, and editor signature queries consume the
+  same frozen capability-evidence identity; a later stage cannot reinterpret the authored root
+  requirement as a different predicate.
 - A checked query derives type and visibility from its own body generation.
 - `SourceIndex` cannot affect a semantic decision.
 

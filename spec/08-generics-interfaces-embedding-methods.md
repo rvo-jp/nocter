@@ -133,9 +133,11 @@ Here `.Item` retains the sole declaration identity `Iterator.Item`; `ExactSizeIt
 create an alias or a second associated declaration. Requirement order cannot resolve a cycle or a
 name collision.
 
-The compiler normalizes each interface's prerequisite closure once. Generic checking, method
-lookup, associated projection, implementation validation, concrete dispatch, and editor queries
-consume that checked closure rather than traversing interface declarations independently.
+The compiler freezes the prerequisite dependency paths and the narrower `Self`-inheritance closure
+once in the declaration graph. Checking specializes those paths for each lexical application and
+freezes exact body evidence. Method lookup, associated projection, implementation validation,
+concrete dispatch, and editor queries consume these authorities rather than traversing interface
+declarations independently.
 
 `instance` does not have a prefix generic parameter list. Its target header is a declaration type
 pattern. Each generic argument slot contains a bare binder name; its first occurrence declares the

@@ -42,6 +42,12 @@ Target and MIR receive these decisions through checked identities and closed pla
 receive a syntax tree, resolver, candidate list, method spelling, or requirement set from which the
 same decision could be repeated.
 
+Structural dispatch carries only a `CapabilityEvidenceId`. The program-wide evidence authority
+maps that ID to the authored root, the exact prerequisite declaration reached through closure, and
+the specialized predicate. Provenance, loans, concrete specialization, and editor signature
+queries consume that record directly; none may recover a predicate by reopening the root
+declaration.
+
 ## Recovery Contract
 
 Production success returns one complete `CheckedProgram`; there is no public partial checked
@@ -64,6 +70,7 @@ lookup, visibility, dispatch, ownership, or provenance evidence.
 - Stable program facts and semantic authority cannot be paired across compile units.
 - Every body-local ID belongs to exactly one body.
 - Every selected operation has one frozen semantic identity or plan.
+- Proof-only declaration requirements cannot be used as body dispatch evidence.
 - A successful body commits all type/copyability/closure changes together.
 - A rejected body exposes only explicit recovery evidence from its own branch.
 - Later stages cannot reopen checking selectors.

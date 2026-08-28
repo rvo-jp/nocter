@@ -190,25 +190,22 @@ function validateCrateDocumentation() {
 console.log(`Generated ${sourceFiles.length} HTML pages in ${path.relative(PROJECT_ROOT, OUTPUT_ROOT)}/`);
 
 function cleanGeneratedHtml() {
-    for (const entry of fs.readdirSync(OUTPUT_ROOT, { withFileTypes: true })) {
-        if (entry.name.startsWith(".")) {
+    cleanGeneratedDirectory(OUTPUT_ROOT, true);
+}
+
+function cleanGeneratedDirectory(directory, outputRoot = false) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (outputRoot && entry.name === "assets") {
             continue;
         }
-
-        const fullPath = path.join(OUTPUT_ROOT, entry.name);
-
-        if (entry.isFile() && entry.name === "index.html") {
+        const fullPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            cleanGeneratedDirectory(fullPath);
+            if (fs.readdirSync(fullPath).length === 0) {
+                fs.rmdirSync(fullPath);
+            }
+        } else if (entry.isFile() && entry.name.endsWith(".html")) {
             fs.rmSync(fullPath);
-            continue;
-        }
-
-        if (entry.isDirectory() && entry.name !== "assets") {
-            fs.rmSync(fullPath, {
-                recursive: true,
-                force: true,
-                maxRetries: 5,
-                retryDelay: 50
-            });
         }
     }
 }
