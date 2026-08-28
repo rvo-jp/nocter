@@ -3,10 +3,10 @@
 ## Current State
 
 Nocter v0.17.0 is published and externally audited. The v0.18.0 Phase 0 through Phase 3 changes are
-implemented and reviewed, and the
-[release candidate](milestones/v0.18.0-release-preparation.md) is qualified. The working tree uses
-the v0.18.0 release-candidate language contract without a compatibility mode. v0.17.0 remains the
-latest published release.
+implemented and reviewed, the [release candidate](milestones/v0.18.0-release-preparation.md) is
+qualified, and publication is authorized. The qualified archive must remain unchanged while the
+publication commit, annotated tag, GitHub release, asset upload, and public re-download audit are
+completed.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -18,9 +18,9 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Publish the qualified v0.18.0 candidate only after explicit user authorization. Publication must
-use the archive and release-content commit recorded by the release-preparation authority, then
-update the public latest-release surfaces and write the immutable publication audit.
+Publish the qualified v0.18.0 archive from the publication commit, then verify the public asset,
+latest-release endpoint, annotated tag target, and remote `main`. Freeze the exact evidence in the
+immutable publication audit.
 
 ## Blockers
 
