@@ -2,20 +2,20 @@
 
 ## Current State
 
-Nocter v0.18.0 is [published and externally audited](releases/v0.18.0.md). Its Phase 0 through Phase
-3 changes are implemented and reviewed, and the exact source, artifact, publication, and public
-re-download evidence is frozen. The `v0.18.0` tag and release asset must not be replaced.
-
-The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal, Phase 1
-streaming text input, Phase 2 collection ordering, Phase 3 recursive text search, and Phase 4
+Nocter v0.19.0 is [published and externally audited](releases/v0.19.0.md). Phase 0 filesystem
+traversal, Phase 1 streaming text input, Phase 2 collection ordering, Phase 3 recursive text search,
+and Phase 4
 implementation stabilization are complete and reviewed. Release-content commit
 `3b510875b086513c5fdcde970628267630d7f5d0` passed duplicate source and artifact qualification.
 Its public stream, UTF-8 and error policy, close-once ownership, bounded storage, move-only
-ordering, native application behavior, and editor coverage define the frozen v0.19.0 candidate.
+ordering, native application behavior, and editor coverage define the frozen release. The exact
+source, artifact, publication, and public re-download evidence is frozen. The `v0.19.0` tag and
+release asset must not be replaced.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
-`development/milestones/v0.18.0.md` and `development/reviews/` rather than this handoff.
+`development/milestones/v0.19.0.md`, `development/releases/v0.19.0.md`, and
+`development/reviews/` rather than this handoff.
 
 The documentation-authority migration is complete: all workspace crates own local contracts,
 central design documents own cross-crate boundaries only, and generated documentation validates
@@ -23,10 +23,8 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Wait for explicit publication authorization. When authorized, update the root README and public
-release index from v0.18.0 to v0.19.0, rebuild generated documentation, commit that public state,
-create the annotated `v0.19.0` tag, push, publish the frozen qualified archive, and perform the
-public re-download audit. Do not rebuild or replace the qualified candidate during publication.
+Define the next milestone and its acceptance criteria before making further product changes. Do
+not infer v0.20.0 scope from unfinished ideas or historical milestone plans.
 
 ## Blockers
 

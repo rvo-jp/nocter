@@ -1,19 +1,14 @@
 # Development Milestones
 
-This directory contains one active development milestone and historical milestone records.
+This directory contains historical milestone records. A new active milestone must be defined
+before further product work begins.
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
 
-## Active Milestone
-
-The [v0.19.0 milestone](v0.19.0.md) has completed Phase 0 filesystem traversal, Phase 1 streaming
-text input, Phase 2 collection ordering, the Phase 3 recursive text-search reference application,
-and Phase 4 stabilization. Its release candidate is qualified and awaits explicit publication
-authorization. The milestone owns scope and completion criteria; the handoff owns only the next
-concrete action.
-
 ## Historical Milestones
 
+The [v0.19.0 milestone](v0.19.0.md) and its
+[release preparation](v0.19.0-release-preparation.md) are complete, and v0.19.0 is published.
 The [v0.18.0 milestone](v0.18.0.md) and its
 [release preparation](v0.18.0-release-preparation.md) are complete, and v0.18.0 is published.
 The [v0.17.0 milestone](v0.17.0.md) and its
@@ -28,6 +23,5 @@ The [v0.17.0 milestone](v0.17.0.md) and its
 refactoring was superseded before publication by a specification-first compiler rewrite. The
 [release preparation](v0.14.0-release-preparation.md) is complete.
 
-Every milestone other than v0.19.0 records past work only. Historical records are not normative
-language sources and must not be used to reconstruct behavior missing from the current
-specification.
+Every listed milestone records past work only. Historical records are not normative language
+sources and must not be used to reconstruct behavior missing from the current specification.

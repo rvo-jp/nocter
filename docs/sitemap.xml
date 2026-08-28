@@ -529,6 +529,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/releases/v0.19.0/</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/releases/v0.2.0-language-contract/</loc>
     <lastmod>2026-08-06</lastmod>
     <changefreq>weekly</changefreq>
