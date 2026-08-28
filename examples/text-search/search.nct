@@ -1,0 +1,179 @@
+use std/fs.{FileType, read_dir}
+
+use std/io.{File, Writer, stderr, stdout}
+
+use std/io/buffer.BufReader
+
+use std/num.usize_to_string
+
+use std/process.{arg, arg_count}
+
+use std/string.String
+
+use std/vec.Vec
+
+struct SearchPath {
+    full: String
+    display: String
+}
+
+instance SearchPath {
+    operator (&self < other: &Self): bool {
+        return &self.display < &other.display
+    }
+}
+
+func run(): i32 {
+    if arg_count() != 3 {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let needle = arg(1) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    } otherwise {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let root = arg(2) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    } otherwise {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let matched = search_tree(needle, root) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    if matched {
+        return 0
+    }
+    return 1
+}
+
+func search_tree(needle: &str, root: &str): bool! {
+    var paths: Vec<SearchPath> = Vec.empty()
+    collect_directory(root, "", &+paths)?
+    paths.sort()
+
+    var output = stdout()
+    var matched = false
+    for path in &paths {
+        if search_file(&+output, needle, path)? {
+            matched = true
+        }
+    }
+    return matched
+}
+
+func collect_directory(
+    full_directory: &str,
+    display_directory: &str,
+    files: &+Vec<SearchPath>,
+): void! {
+    var stream = read_dir(full_directory) catch failure {
+        let context = String.concat("cannot read directory ", full_directory)
+        return failure.context(&context)
+    }
+    var directories: Vec<SearchPath> = Vec.empty()
+    while true {
+        let entry = stream.next() catch failure {
+            let context = String.concat("cannot continue directory ", full_directory)
+            return failure.context(&context)
+        } otherwise {
+            break
+        }
+        let name = entry.file_name()
+        let full: &str = entry.path()
+        let display = display_child(display_directory, name)
+        if entry.file_type() is FileType.regular {
+            files.push(
+                SearchPath {
+                    full: String.copy(full),
+                    display: move display,
+                },
+            )
+        } else if entry.file_type() is FileType.directory {
+            directories.push(
+                SearchPath {
+                    full: String.copy(full),
+                    display: move display,
+                },
+            )
+        }
+    }
+    stream.close()
+
+    directories.sort()
+    for directory in move directories {
+        collect_directory(&directory.full, &directory.display, files)?
+    }
+    return
+}
+
+func display_child(parent: &str, name: &str): String {
+    if parent.is_empty() {
+        return String.copy(name)
+    }
+    return String.concat(parent, "/", name)
+}
+
+func search_file(output: &+File, needle: &str, path: &SearchPath): bool! {
+    let source = File.open(&path.full) catch failure {
+        let context = String.concat("cannot open ", &path.display)
+        return failure.context(&context)
+    }
+    var reader = BufReader.new(move source)
+    var line = String.empty()
+    var line_number: usize = 1
+    var matched = false
+    while true {
+        let present = reader.read_line_into(&+line) catch failure {
+            let context = String.concat("cannot read ", &path.display)
+            return failure.context(&context)
+        }
+        if !present {
+            break
+        }
+        if line.contains(needle) {
+            write_match(output, &path.display, line_number, &line)?
+            matched = true
+        }
+        line_number += 1
+    }
+    reader.close()
+    return matched
+}
+
+func write_match(
+    output: &+File,
+    path: &str,
+    line_number: usize,
+    line: &str,
+): void! {
+    let number = usize_to_string(line_number)
+    output.write_text(path)?
+    output.write_text(":")?
+    output.write_text(&number)?
+    output.write_text(":")?
+    output.write_text(line)?
+    output.write_text("\n")?
+    return
+}
+
+func report_usage(): void! {
+    var output = stderr()
+    output.write_text("usage: text-search NEEDLE ROOT\n")?
+    return
+}
+
+func report_failure(failure: &error): void! {
+    var output = stderr()
+    output.write_text("text-search: ")?
+    output.write_text(failure.code())?
+    output.write_text(": ")?
+    output.write_text(failure.message())?
+    output.write_text("\n")?
+    return
+}

@@ -7,9 +7,9 @@ in [`development/releases/`](../releases/README.md).
 ## Active Milestone
 
 The [v0.19.0 milestone](v0.19.0.md) has completed Phase 0 filesystem traversal, Phase 1 streaming
-text input, and Phase 2 collection ordering, and proceeds next to the Phase 3 reference
-application. The milestone owns scope and completion criteria; the handoff owns only the next
-concrete action.
+text input, Phase 2 collection ordering, and the Phase 3 recursive text-search reference
+application. It proceeds next to Phase 4 stabilization and release qualification. The milestone
+owns scope and completion criteria; the handoff owns only the next concrete action.
 
 ## Historical Milestones
 

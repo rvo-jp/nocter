@@ -16,7 +16,9 @@ use nocter_package_state::{
     LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
 };
 use nocter_session::{ExecutableCompileRequest, ExecutableSelector, bundled_standard_toolchain};
-use nocter_test_support::{PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicPackageExample};
+use nocter_test_support::{
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicPackageExample,
+};
 
 use super::artifact::persist_bytes;
 
@@ -856,11 +858,7 @@ fn run_public_package_example(compiler: &Path, contract: PublicPackageExample) {
         vec![module(contract.package_identity(), &[])],
     );
     let output_directory = unique_test_directory("public-package-example");
-    let input = contract.input().map(|input| {
-        let path = output_directory.join(input.name());
-        fs::write(&path, input.contents()).unwrap();
-        path
-    });
+    materialize_public_example_fixtures(&output_directory, contract.fixtures());
     let executable = output_directory.join(contract.executable());
     super::build_executable(
         ExecutableCompileRequest::named(&unit, contract.executable()),
@@ -870,11 +868,12 @@ fn run_public_package_example(compiler: &Path, contract: PublicPackageExample) {
 
     for run in contract.runs() {
         let mut command = Command::new(&executable);
-        command.current_dir(&package_root);
+        command.current_dir(&output_directory);
         for argument in run.arguments() {
             match argument {
-                PublicExampleArgument::InputPath => {
-                    command.arg(input.as_ref().expect("input-path argument needs a fixture"));
+                PublicExampleArgument::FixturePath(path) => {
+                    assert_fixture_relative_path(path);
+                    command.arg(path);
                 }
                 PublicExampleArgument::Text(value) => {
                     command.arg(value);
@@ -912,6 +911,50 @@ fn run_public_package_example(compiler: &Path, contract: PublicPackageExample) {
         );
     }
     fs::remove_dir_all(output_directory).unwrap();
+}
+
+fn materialize_public_example_fixtures(root: &Path, fixtures: &[PublicExampleFixture]) {
+    for fixture in fixtures {
+        match fixture {
+            PublicExampleFixture::File { path, contents } => {
+                let destination = fixture_destination(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                fs::write(destination, contents).unwrap();
+            }
+            PublicExampleFixture::Directory { path } => {
+                fs::create_dir_all(fixture_destination(root, path)).unwrap();
+            }
+            PublicExampleFixture::Symlink { path, target } => {
+                let destination = fixture_destination(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(target, destination).unwrap();
+                #[cfg(not(unix))]
+                panic!("public example symlink fixtures require a Unix host");
+            }
+        }
+    }
+}
+
+fn fixture_destination(root: &Path, relative: &str) -> PathBuf {
+    assert_fixture_relative_path(relative);
+    root.join(relative)
+}
+
+fn assert_fixture_relative_path(relative: &str) {
+    use std::path::Component;
+
+    let path = Path::new(relative);
+    assert!(!relative.is_empty(), "fixture path must not be empty");
+    assert!(
+        path.components()
+            .all(|component| matches!(component, Component::Normal(_))),
+        "fixture path must remain below its temporary root: {relative}"
+    );
 }
 
 #[test]

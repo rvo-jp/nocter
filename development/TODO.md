@@ -7,9 +7,10 @@ Nocter v0.18.0 is [published and externally audited](releases/v0.18.0.md). Its P
 re-download evidence is frozen. The `v0.18.0` tag and release asset must not be replaced.
 
 The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal, Phase 1
-streaming text input, and Phase 2 collection ordering are complete and reviewed. Their public
-stream, UTF-8 and error policy, close-once ownership, bounded storage, move-only ordering, native
-behavior, and editor coverage are now the accepted basis for Phase 3.
+streaming text input, Phase 2 collection ordering, and the Phase 3 recursive text-search reference
+application are complete and reviewed. Their public stream, UTF-8 and error policy, close-once
+ownership, bounded storage, move-only ordering, native application behavior, and editor coverage
+are now the accepted basis for Phase 4.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -21,10 +22,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Design the v0.19.0 Phase 3 recursive text-search reference package under `examples/`. Fix its
-command-line contract, traversal and symlink policy, match and output format, deterministic ordering,
-error reporting, exit statuses, and bounded-memory acceptance before implementation begins. The
-package must use only public standard-library APIs.
+Begin v0.19.0 Phase 4 stabilization. Audit the complete Phase 0 through Phase 3 application path for
+contract/body separation, close-once resource lifetime, bounded allocation, deterministic output,
+recoverable failures, LSP behavior, and performance before release qualification. Do not add a new
+feature merely to broaden the stabilization phase.
 
 ## Blockers
 

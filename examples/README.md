@@ -97,6 +97,19 @@ nocter build
 ./text-report ../../README.md Nocter
 ```
 
+[text-search/index.nct](text-search/index.nct) is a recursive streaming command-line application.
+It classifies directory entries without following symbolic links, orders relative paths
+deterministically, reuses one line destination, reports recoverable failures on standard error,
+and gives match, no-match, and error distinct exit statuses. Its exact CLI contract and bounded
+storage behavior are recorded in the package [README](text-search/README.md).
+
+```sh
+cd examples/text-search
+nocter check
+nocter build
+./text-search Nocter ../../spec
+```
+
 ## Contract
 
 - Examples are complete user programs, not compiler fixtures.

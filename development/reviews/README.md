@@ -12,6 +12,7 @@ internally without forcing consumers that use only its contract to change.
 - [v0.19.0 Phase 0 filesystem traversal review](v0.19.0-phase-0.md) — complete
 - [v0.19.0 Phase 1 streaming text input review](v0.19.0-phase-1.md) — complete
 - [v0.19.0 Phase 2 collection ordering review](v0.19.0-phase-2.md) — complete
+- [v0.19.0 Phase 3 recursive text-search review](v0.19.0-phase-3.md) — complete
 - [v0.18.0 Phase 0 construction review](v0.18.0-phase-0.md) — complete
 - [v0.18.0 Phase 1 builtin declaration review](v0.18.0-phase-1.md) — complete
 - [v0.18.0 Phase 2 interface implementation review](v0.18.0-phase-2.md) — complete

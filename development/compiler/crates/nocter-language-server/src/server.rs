@@ -18,6 +18,8 @@ use crate::{WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};
 
 mod issues;
 #[cfg(test)]
+mod reference_application_tests;
+#[cfg(test)]
 mod semantic_matrix_tests;
 mod semantic_requests;
 

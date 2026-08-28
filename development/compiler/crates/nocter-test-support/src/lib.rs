@@ -3,7 +3,7 @@
 mod public_examples;
 
 pub use public_examples::{
-    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleInput, PublicExampleRun,
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicExampleRun,
     PublicPackageExample,
 };
 

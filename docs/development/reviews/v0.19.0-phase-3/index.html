@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>examples/file-summary/summary.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for examples/file-summary/summary.nct.">
+    <title>v0.19.0 Phase 3 Recursive Text Search Review - Nocter</title>
+    <meta name="description" content="Result: passed (2026-08-28). This review covers the complete examples/text-search package, its exclusive use of public standard-library contracts, recursiv">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/examples/file-summary/summary/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.19.0-phase-3/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="examples/file-summary/summary.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for examples/file-summary/summary.nct.">
-    <meta property="og:url" content="https://nocter.dev/examples/file-summary/summary/">
+    <meta property="og:title" content="v0.19.0 Phase 3 Recursive Text Search Review - Nocter">
+    <meta property="og:description" content="Result: passed (2026-08-28). This review covers the complete examples/text-search package, its exclusive use of public standard-library contracts, recursiv">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.19.0-phase-3/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="examples/file-summary/summary.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for examples/file-summary/summary.nct.">
+    <meta name="twitter:title" content="v0.19.0 Phase 3 Recursive Text Search Review - Nocter">
+    <meta name="twitter:description" content="Result: passed (2026-08-28). This review covers the complete examples/text-search package, its exclusive use of public standard-library contracts, recursiv">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/file-summary/summary.nct - Nocter","description":"Nocter source code for examples/file-summary/summary.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/file-summary/summary/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"File Summary","item":"https://nocter.dev/examples/file-summary/"},{"@type":"ListItem","position":4,"name":"Summary","item":"https://nocter.dev/examples/file-summary/summary/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.19.0 Phase 3 Recursive Text Search Review - Nocter","description":"Result: passed (2026-08-28). This review covers the complete examples/text-search package, its exclusive use of public standard-library contracts, recursiv","url":"https://nocter.dev/development/reviews/v0.19.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.19.0-phase-3/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.19.0 Phase 3","item":"https://nocter.dev/development/reviews/v0.19.0-phase-3/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -120,43 +120,53 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">examples/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../hello/index.html#content">hello.nct</a></li>
-                <li><a href="../../custom-format/index.html#content">custom-format.nct</a></li>
-                <li><a href="../../equality/index.html#content">equality.nct</a></li>
-                <li><a href="../../indexing/index.html#content">indexing.nct</a></li>
-                <li><a href="../../recovery/index.html#content">recovery.nct</a></li>
-                <li><a href="../../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
-                <li><a href="../../ordering/index.html#content">ordering.nct</a></li>
-                <li><a href="../index/index.html#content">file-summary/index.nct</a></li>
-                <li><a href="./index.html#content" aria-current="page">summary.nct</a></li>
-                <li><a href="../../text-report/index/index.html#content">text-report/index.nct</a></li>
-                <li><a href="../../text-report/report/index/index.html#content">report/index.nct</a></li>
-                <li><a href="../../text-report/report/analysis/index.html#content">analysis.nct</a></li>
-                <li><a href="../../text-search/index/index.html#content">text-search/index.nct</a></li>
-                <li><a href="../../text-search/index.html#content">README</a></li>
-                <li><a href="../../../spec/index.html#content">language specification</a></li>
-                <li><a href="../../text-search/search/index.html#content">text-search/search.nct</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/examples/file-summary/summary.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.19.0-phase-3.md</span>
             </div>
             <div class="markdown-body">
-                <h1>summary.nct</h1><pre><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">count_lines</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> bytes <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> lines<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> bytes<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
-            lines <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> lines
-<span class="token-operator">}</span>
+                <h1 id="v0-19-0-phase-3-recursive-text-search-review">v0.19.0 Phase 3 Recursive Text Search Review</h1><p><strong>Result: passed (2026-08-28).</strong> This review covers the complete <code>examples/text-search</code> package, its exclusive use of public standard-library contracts, recursive resource lifetime, deterministic output, streaming storage bound, recoverable error path, native process behavior, test-fixture authority, and editor behavior introduced by v0.19.0 Phase 3.</p><h2 id="review-criteria">Review Criteria</h2><p>The review traced:</p><ul><li>every directory descriptor from open through iteration, explicit close, recursion, failure, and
+  destruction;</li><li>every discovered entry through classification, owned full and display paths, ordering, file
+  opening, line buffering, matching, and output;</li><li>argument absence, process encoding failure, traversal failure, file failure, invalid UTF-8,
+  output failure, no match, and match exit paths;</li><li>retained storage while discovery and file scanning proceed;</li><li>imports and operation selection for every application dependency;</li><li>package discovery plus hover and navigation through the ordinary language-server workspace;</li><li>private standard-library escape hatches, compiler primitives, whole-file input, duplicated path
+  or UTF-8 policy, compatibility wrappers, and application-specific compiler behavior.</li></ul><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="the-public-example-fixture-assumed-one-flat-input-file">The public-example fixture assumed one flat input file</h3><p>The existing execution contract could supply only one temporary file and identify it through a special argument variant. That model could compile the recursive package but could not prove its actual behavior. The fixture authority now represents a list of files, directories, and symbolic links, while arguments name paths relative to one temporary fixture root. Existing examples use the same generalized model. Materialization rejects empty, absolute, parent, and prefix-bearing entry paths before touching the filesystem; <code>text-search</code> receives no dedicated test runner or hidden setup path.</p><h3 id="a-body-only-main-was-not-an-executable-module-declaration">A body-only main was not an executable-module declaration</h3><p>The first package placed <code>main</code> only in the seen implementation source. Executable selection correctly requires the root module to declare its entry. Making an omitted-body <code>main</code> public would have exposed implementation structure solely to satisfy contract/body matching. The completed root instead contains the trivial private <code>main</code> body and delegates to the directly visible private <code>run</code> implementation. This follows the index style rule: a trivial body may remain at the surface, while nontrivial implementation stays in its source file.</p><h3 id="parent-directory-streams-must-not-remain-open-during-recursion">Parent directory streams must not remain open during recursion</h3><p>Recursing directly from <code>ReadDir.next</code> would retain one open descriptor per tree depth. Discovery now collects child directories, reaches clean end, closes the stream explicitly, sorts those owned paths, and only then recurses. A step failure returns through ordinary destruction, which closes the same stream once. At most one directory descriptor is open during traversal.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>examples/text-search/README.md</code> exclusively owns the application's observable CLI contract.
+  Language and standard-library behavior remain in <code>spec/21-practical-standard-library.md</code>.</li><li><code>std/fs</code> owns classification, symlink facts, path joining, entry encoding, and directory
+  lifetime. The application switches on <code>FileType</code> and never reinterprets a target record.</li><li><code>std/io/buffer</code> owns partial reads, line delimiters, UTF-8 validation, and terminal input state.
+  The application retains one reusable destination and never sees raw refill state.</li><li><code>[T].sort</code> owns ordering mechanics. <code>Vec&lt;SearchPath&gt;</code> reaches it through the existing readwrite
+  coercion and one <code>SearchPath</code> strict-order declaration; the application has no second sort.</li><li>discovery retains exactly one full and one relative owned path per regular file plus pending
+  directory paths. File scanning retains one fixed reader buffer and storage proportional to the
+  largest line, not total file contents.</li><li>successful match output is deterministic because complete relative file paths are sorted before
+  scanning. Lines remain in source order. Symlinks and non-regular entries cannot enter either the
+  file list or recursive directory list.</li><li>failure context adds the relevant directory or relative file while preserving the standard root
+  code. Usage and failure reporting share public <code>stderr</code> plus <code>Writer</code>; matches share one public
+  <code>stdout</code> handle.</li><li>exact process acceptance covers all three status classes, nested path ordering, multiple matches,
+  no match, missing root, invalid UTF-8, and a recursive symlink loop.</li><li>the real package source is opened under ordinary package workspace analysis. Hover reaches the
+  authored <code>read_dir</code> and <code>read_line_into</code> contracts, while navigation for Vec <code>sort</code> reaches the
+  slice contract. No editor-only declaration is constructed.</li><li>no compiler primitive, standard-library source, private import, compatibility behavior, or
+  application-specific semantic branch was added.</li></ul><p>No unresolved correctness or responsibility-boundary finding remains in Phase 3 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed with <code>/private/tmp/nocter-v019-phase3</code> as the external Cargo target:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
+<span class="token-function">cargo</span> clippy <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml \
+  <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
+<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> -- <span class="token-option">--check</span>
+<span class="token-function">node</span> docs/build-docs.js
+<span class="token-function">git</span> diff <span class="token-option">--check</span>
 </code></pre>
             </div>
         </main>

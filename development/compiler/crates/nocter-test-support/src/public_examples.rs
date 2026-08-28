@@ -1,29 +1,26 @@
 /// One argument supplied to a public package example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PublicExampleArgument {
-    /// The absolute path of the temporary input file owned by the test.
-    InputPath,
+    /// One path relative to the temporary fixture root.
+    FixturePath(&'static str),
     /// One authored command-line argument.
     Text(&'static str),
 }
 
-/// One file made available to every execution scenario for an example.
+/// One filesystem entry made available to every execution scenario for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PublicExampleInput {
-    name: &'static str,
-    contents: &'static [u8],
-}
-
-impl PublicExampleInput {
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        self.name
-    }
-
-    #[must_use]
-    pub const fn contents(self) -> &'static [u8] {
-        self.contents
-    }
+pub enum PublicExampleFixture {
+    File {
+        path: &'static str,
+        contents: &'static [u8],
+    },
+    Directory {
+        path: &'static str,
+    },
+    Symlink {
+        path: &'static str,
+        target: &'static str,
+    },
 }
 
 /// One exact process invocation required of a public package example.
@@ -69,7 +66,7 @@ pub struct PublicPackageExample {
     directory: &'static str,
     package_identity: &'static str,
     executable: &'static str,
-    input: Option<PublicExampleInput>,
+    fixtures: &'static [PublicExampleFixture],
     runs: &'static [PublicExampleRun],
 }
 
@@ -90,8 +87,8 @@ impl PublicPackageExample {
     }
 
     #[must_use]
-    pub const fn input(self) -> Option<PublicExampleInput> {
-        self.input
+    pub const fn fixtures(self) -> &'static [PublicExampleFixture] {
+        self.fixtures
     }
 
     #[must_use]
@@ -106,10 +103,10 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         directory: "file-summary",
         package_identity: "workspace:file-summary",
         executable: "file-summary",
-        input: Some(PublicExampleInput {
-            name: "input.txt",
+        fixtures: &[PublicExampleFixture::File {
+            path: "input.txt",
             contents: b"first\nsecond\n",
-        }),
+        }],
         runs: &[
             PublicExampleRun {
                 name: "usage",
@@ -120,7 +117,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             },
             PublicExampleRun {
                 name: "success",
-                arguments: &[PublicExampleArgument::InputPath],
+                arguments: &[PublicExampleArgument::FixturePath("input.txt")],
                 status: 0,
                 stdout: b"2\n",
                 stderr: b"",
@@ -131,10 +128,10 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         directory: "text-report",
         package_identity: "workspace:text-report",
         executable: "text-report",
-        input: Some(PublicExampleInput {
-            name: "input.txt",
+        fixtures: &[PublicExampleFixture::File {
+            path: "input.txt",
             contents: b"alpha\nbeta alpha\ngamma\n",
-        }),
+        }],
         runs: &[
             PublicExampleRun {
                 name: "usage",
@@ -145,7 +142,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             },
             PublicExampleRun {
                 name: "missing-needle",
-                arguments: &[PublicExampleArgument::InputPath],
+                arguments: &[PublicExampleArgument::FixturePath("input.txt")],
                 status: 2,
                 stdout: b"usage: text-report PATH NEEDLE\n",
                 stderr: b"",
@@ -153,12 +150,95 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[
-                    PublicExampleArgument::InputPath,
+                    PublicExampleArgument::FixturePath("input.txt"),
                     PublicExampleArgument::Text("alpha"),
                 ],
                 status: 0,
                 stdout: b"lines: 3\nmatching: 2\n",
                 stderr: b"",
+            },
+        ],
+    },
+    PublicPackageExample {
+        directory: "text-search",
+        package_identity: "workspace:text-search",
+        executable: "text-search",
+        fixtures: &[
+            PublicExampleFixture::File {
+                path: "tree/zeta.txt",
+                contents: b"needle zeta\nquiet\n",
+            },
+            PublicExampleFixture::File {
+                path: "tree/alpha.txt",
+                contents: b"first\nneedle alpha\n",
+            },
+            PublicExampleFixture::File {
+                path: "tree/nested/middle.txt",
+                contents: b"needle middle\nlast needle\n",
+            },
+            PublicExampleFixture::Symlink {
+                path: "tree/nested/loop",
+                target: "..",
+            },
+            PublicExampleFixture::Directory { path: "tree/empty" },
+            PublicExampleFixture::File {
+                path: "invalid/bad.txt",
+                contents: b"ok\nbad\xff\n",
+            },
+        ],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: text-search NEEDLE ROOT\n",
+            },
+            PublicExampleRun {
+                name: "matches",
+                arguments: &[
+                    PublicExampleArgument::Text("needle"),
+                    PublicExampleArgument::FixturePath("tree"),
+                ],
+                status: 0,
+                stdout: concat!(
+                    "alpha.txt:2:needle alpha\n",
+                    "nested/middle.txt:1:needle middle\n",
+                    "nested/middle.txt:2:last needle\n",
+                    "zeta.txt:1:needle zeta\n",
+                )
+                .as_bytes(),
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "no-match",
+                arguments: &[
+                    PublicExampleArgument::Text("absent"),
+                    PublicExampleArgument::FixturePath("tree"),
+                ],
+                status: 1,
+                stdout: b"",
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "missing-root",
+                arguments: &[
+                    PublicExampleArgument::Text("needle"),
+                    PublicExampleArgument::FixturePath("missing"),
+                ],
+                status: 2,
+                stdout: b"",
+                stderr: b"text-search: std.io.not_found: cannot read directory missing\n",
+            },
+            PublicExampleRun {
+                name: "invalid-utf8",
+                arguments: &[
+                    PublicExampleArgument::Text("bad"),
+                    PublicExampleArgument::FixturePath("invalid"),
+                ],
+                status: 2,
+                stdout: b"",
+                stderr: b"text-search: std.string.invalid_utf8: cannot read bad.txt\n",
             },
         ],
     },

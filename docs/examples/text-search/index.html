@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>examples/file-summary/summary.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for examples/file-summary/summary.nct.">
+    <title>Recursive Text Search - Nocter</title>
+    <meta name="description" content="This package is the v0.19.0 reference application. It recursively searches regular UTF-8 files using only public standard-library APIs:">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/examples/file-summary/summary/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/examples/text-search/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="examples/file-summary/summary.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for examples/file-summary/summary.nct.">
-    <meta property="og:url" content="https://nocter.dev/examples/file-summary/summary/">
+    <meta property="og:title" content="Recursive Text Search - Nocter">
+    <meta property="og:description" content="This package is the v0.19.0 reference application. It recursively searches regular UTF-8 files using only public standard-library APIs:">
+    <meta property="og:url" content="https://nocter.dev/examples/text-search/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="examples/file-summary/summary.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for examples/file-summary/summary.nct.">
+    <meta name="twitter:title" content="Recursive Text Search - Nocter">
+    <meta name="twitter:description" content="This package is the v0.19.0 reference application. It recursively searches regular UTF-8 files using only public standard-library APIs:">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/file-summary/summary.nct - Nocter","description":"Nocter source code for examples/file-summary/summary.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/file-summary/summary/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"File Summary","item":"https://nocter.dev/examples/file-summary/"},{"@type":"ListItem","position":4,"name":"Summary","item":"https://nocter.dev/examples/file-summary/summary/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Recursive Text Search - Nocter","description":"This package is the v0.19.0 reference application. It recursively searches regular UTF-8 files using only public standard-library APIs:","url":"https://nocter.dev/examples/text-search/","mainEntityOfPage":"https://nocter.dev/examples/text-search/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Text Search","item":"https://nocter.dev/examples/text-search/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -119,45 +119,15 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">examples/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../hello/index.html#content">hello.nct</a></li>
-                <li><a href="../../custom-format/index.html#content">custom-format.nct</a></li>
-                <li><a href="../../equality/index.html#content">equality.nct</a></li>
-                <li><a href="../../indexing/index.html#content">indexing.nct</a></li>
-                <li><a href="../../recovery/index.html#content">recovery.nct</a></li>
-                <li><a href="../../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
-                <li><a href="../../ordering/index.html#content">ordering.nct</a></li>
-                <li><a href="../index/index.html#content">file-summary/index.nct</a></li>
-                <li><a href="./index.html#content" aria-current="page">summary.nct</a></li>
-                <li><a href="../../text-report/index/index.html#content">text-report/index.nct</a></li>
-                <li><a href="../../text-report/report/index/index.html#content">report/index.nct</a></li>
-                <li><a href="../../text-report/report/analysis/index.html#content">analysis.nct</a></li>
-                <li><a href="../../text-search/index/index.html#content">text-search/index.nct</a></li>
-                <li><a href="../../text-search/index.html#content">README</a></li>
-                <li><a href="../../../spec/index.html#content">language specification</a></li>
-                <li><a href="../../text-search/search/index.html#content">text-search/search.nct</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/examples/file-summary/summary.nct</span>
+                <span class="markdown-path-text">/examples/text-search/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1>summary.nct</h1><pre><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">count_lines</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> bytes <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> lines<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> bytes<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
-            lines <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> lines
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="recursive-text-search">Recursive Text Search</h1><p>This package is the v0.19.0 reference application. It recursively searches regular UTF-8 files using only public standard-library APIs:</p><pre><code class="language-sh"><span class="token-function">nocter</span> build
+./text-search NEEDLE ROOT
+</code></pre><p><code>ROOT</code> must name a readable directory. Symbolic links and non-regular entries are skipped; links are never followed. A matching line is written as <code>relative/path:line:text</code>, with one-based line numbers. Successful output is ordered by the UTF-8 byte order of each path relative to <code>ROOT</code>, independently of filesystem enumeration order. Lines retain their text but omit the LF or CRLF terminator recognized by <code>BufReader</code>.</p><p>The process returns 0 when at least one line matches, 1 when no line matches, and 2 for invalid arguments or a recoverable traversal, input, or output failure. Usage and failures go to standard error. An input failure may occur after earlier matching output has already been written.</p><p>The application retains owned paths for regular files and pending directories so it can produce deterministic output. It closes each directory stream before descending into a child, then reads one file at a time with a reusable line destination. It never retains a complete file. Memory is therefore bounded by the discovered UTF-8 path data, directory traversal state, and the largest line encountered rather than by total file contents.</p>
             </div>
         </main>
     </div>
@@ -173,6 +143,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>
