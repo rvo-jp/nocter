@@ -128,10 +128,6 @@ instance ChainIter<L, R> where L impl Iterator, R impl Iterator { .Item = L.Item
     impl Iterator { .Item = L.Item }
 }
 
-instance ChainIter<L, R> where L impl Iterator, L impl ExactSizeIterator, R impl Iterator { .Item = L.Item }, R impl ExactSizeIterator {
-    impl ExactSizeIterator
-}
-
 instance EnumerateIter<I> where I impl Iterator {
     impl Iterator { .Item = Indexed<I.Item> }
 }

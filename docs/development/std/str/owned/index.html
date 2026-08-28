@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/str/owned.nct - Nocter">
@@ -146,31 +146,16 @@
                 <h1>owned.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Text operations that materialize independently owned results.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>search<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>views<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 <span class="token-keyword">func</span> <span class="token-function">split</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> separator<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">empty_separator_error</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> parts <span class="token-operator">=</span> <span class="token-function">split_views</span><span class="token-operator">(</span>text<span class="token-operator">,</span> separator<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> part_start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">while</span> part_start <span class="token-operator">&lt;</span><span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> separator_start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">find_from</span><span class="token-operator">(</span>text<span class="token-operator">,</span> separator<span class="token-operator">,</span> part_start<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
-            result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
-                text<span class="token-operator">,</span>
-                part_start<span class="token-operator">,</span>
-                text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - part_start<span class="token-operator">,</span>
-            <span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
-            <span class="token-keyword">break</span>
-        <span class="token-operator">}</span>
-        result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
-            text<span class="token-operator">,</span>
-            part_start<span class="token-operator">,</span>
-            separator_start - part_start<span class="token-operator">,</span>
-        <span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
-        part_start <span class="token-operator">=</span> separator_start <span class="token-operator">+</span> separator<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">for</span> part <span class="token-keyword">in</span> <span class="token-keyword">move</span> parts <span class="token-operator">{</span>
+        result<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span>part<span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>

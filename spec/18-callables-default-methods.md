@@ -46,6 +46,10 @@ yield from the current iterator state. Advancing the iterator decreases that num
 not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
 pack's length is fixed before its constructor body starts.
 
+An adapter retains `ExactSizeIterator` only when that exact remaining count is representable for
+every valid input state. In particular, chaining two exact-size iterators does not itself establish
+the contract because the sum of their remaining lengths can exceed `usize`.
+
 Only methods without the `default` modifier are interface implementation requirements. A default body is checked once in the
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
 the interface's required methods, other unambiguous default methods, and ordinary visible APIs.

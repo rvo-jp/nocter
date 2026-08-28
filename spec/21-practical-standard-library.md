@@ -35,6 +35,10 @@ example `(&text) as &str` and `(&values) as &[T]`.
 elements move at most once, and the initialized prefix is updated only after compaction.
 `Vec<T>.truncate` drops the removed suffix.
 
+`Vec<T>` supports zero-sized element types. Its length and capacity remain logical element counts;
+reserving, inserting, removing, iterating, and dropping such elements do not allocate backing
+bytes and still perform the ordinary ownership operations once per logical element.
+
 `str` defines equality once, and `String` reaches it through readonly coercion. `[T]` defines
 element-wise equality, `contains`, and `position` under `where (&T == &T): bool`; `Vec<T>` reaches the same
 implementation through its readonly slice coercion.

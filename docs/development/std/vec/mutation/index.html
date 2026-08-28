@@ -174,7 +174,8 @@
 
     <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
     <span class="token-keyword">if</span> element_size <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">unsupported</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        values<span class="token-operator">.</span>capacity <span class="token-operator">=</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>values_capacity<span class="token-operator">,</span> required_capacity<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> next_capacity <span class="token-operator">=</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>values_capacity<span class="token-operator">,</span> required_capacity<span class="token-operator">)</span>
     <span class="token-keyword">let</span> byte_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_multiply</span><span class="token-operator">(</span>next_capacity<span class="token-operator">,</span> element_size<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>

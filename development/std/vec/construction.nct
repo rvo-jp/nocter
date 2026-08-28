@@ -24,28 +24,20 @@ construct Vec<T> {
     }
 
     func empty(): Self {
-        let pointer: *T = from_addr(1)
-        let element_align: usize = pointee_align(pointer)
-        let storage = empty_unbound_buffer(element_align)
-        return Vec<T> {
-            ptr: from_addr(1),
-            storage: move storage,
-            len: 0,
-            capacity: 0,
-        }
+        return empty_with_capacity(0)
     }
 
     func with_capacity(requested_capacity: usize): Self {
-        let empty_pointer: *T = from_addr(1)
-        let element_size: usize = pointee_size(empty_pointer)
-        if element_size == 0 {
-            allocation_abort()
+        let pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(pointer)
+        if requested_capacity == 0 || element_size == 0 {
+            return empty_with_capacity(requested_capacity)
         }
         let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
             return allocation_abort()
         }
         var allocator = current_allocator()
-        let storage = allocator.alloc(byte_capacity, pointee_align(empty_pointer))
+        let storage = allocator.alloc(byte_capacity, pointee_align(pointer))
         let address: usize = addr(storage.bytes().ptr())
         return Vec<T> {
             ptr: from_addr(address),
@@ -59,15 +51,15 @@ construct Vec<T> {
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self! {
-        let empty_pointer: *T = from_addr(1)
-        let element_size: usize = pointee_size(empty_pointer)
-        if element_size == 0 {
-            return unsupported()
+        let pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(pointer)
+        if requested_capacity == 0 || element_size == 0 {
+            return empty_with_capacity(requested_capacity)
         }
         let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
             return capacity_overflow()
         }
-        let storage = allocator.try_alloc(byte_capacity, pointee_align(empty_pointer))?
+        let storage = allocator.try_alloc(byte_capacity, pointee_align(pointer))?
         let address: usize = addr(storage.bytes().ptr())
         return Vec<T> {
             ptr: from_addr(address),
@@ -119,5 +111,17 @@ construct Vec<T> {
             index += 1
         }
         return move result
+    }
+}
+
+func empty_with_capacity<T>(logical_capacity: usize): Vec<T> {
+    let pointer: *T = from_addr(1)
+    let element_align: usize = pointee_align(pointer)
+    let storage = empty_unbound_buffer(element_align)
+    return Vec<T> {
+        ptr: from_addr(1),
+        storage: move storage,
+        len: 0,
+        capacity: logical_capacity,
     }
 }

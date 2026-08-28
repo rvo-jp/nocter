@@ -1,9 +1,5 @@
 //! Stable Vec failure construction shared by construction and mutation.
 
-func unsupported(): error {
-    return error.new("std.vec.unsupported", "Vec element storage is not supported")
-}
-
 func capacity_overflow(): error {
     return error.new("std.vec.capacity_overflow", "Vec capacity overflow")
 }

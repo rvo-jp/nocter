@@ -21,6 +21,9 @@ construct String {
     }
 
     func with_capacity(requested_capacity: usize): Self {
+        if requested_capacity == 0 {
+            return String.empty()
+        }
         var allocator = current_allocator()
         return String {
             storage: allocator.alloc(requested_capacity, 1),
@@ -32,6 +35,9 @@ construct String {
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self! {
+        if requested_capacity == 0 {
+            return String.empty()
+        }
         return String {
             storage: allocator.try_alloc(requested_capacity, 1)?,
             len: 0,

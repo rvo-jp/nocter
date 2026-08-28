@@ -29,7 +29,8 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
 
     let element_size: usize = pointee_size(values.ptr)
     if element_size == 0 {
-        return unsupported()
+        values.capacity = growth_capacity(values_capacity, required_capacity)
+        return
     }
     let next_capacity = growth_capacity(values_capacity, required_capacity)
     let byte_capacity: usize = checked_multiply(next_capacity, element_size) otherwise {

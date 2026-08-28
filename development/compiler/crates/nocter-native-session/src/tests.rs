@@ -107,6 +107,8 @@ struct Counters {
     d: Counter
 }
 
+struct Unit {}
+
 struct Tracked {
     key: i32
     serial: i32
@@ -200,6 +202,20 @@ func check_move_only_destruction(): i32 {
     return 0
 }
 
+func check_zero_sized_vec(): i32 {
+    var values: Vec<Unit> = Vec.with_capacity(2)
+    values.push(Unit {})
+    values.push(Unit {})
+    values.insert(1, Unit {})
+    if values.len() != 3 { return 1 }
+    let removed = values.remove(1) otherwise { return 2 }
+    let popped = values.pop() otherwise { return 3 }
+    if values.len() != 1 { return 4 }
+    values.clear()
+    if values.len() != 0 { return 5 }
+    return 0
+}
+
 func main(): i32 {
     let slice = check_slice_view()
     if slice != 0 { return 10 + slice }
@@ -209,6 +225,8 @@ func main(): i32 {
     if strings != 0 { return 30 + strings }
     let tracked = check_move_only_destruction()
     if tracked != 0 { return 40 + tracked }
+    let zero_sized = check_zero_sized_vec()
+    if zero_sized != 0 { return 50 + zero_sized }
     return 0
 }
 "#;
