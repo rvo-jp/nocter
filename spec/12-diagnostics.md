@@ -213,6 +213,9 @@ Source-backed declaration-definition diagnostics:
   performs an integer conversion whose result is not representable.
 - `E0326`: an argument pack is not the one final parameter of a supported callable, or a sequence
   literal does not declare exactly its one required pack.
+- `E0327`: the complete interface-prerequisite graph contains a cycle.
+- `E0328`: an interface and its transitive prerequisites expose two different methods or associated
+  types with the same effective member name.
 
 `E0321` and `E0326` are selected while normalized header information is converted into declaration
 definitions. `E0322` through `E0325` are the shared constant-expression family and may also be
@@ -254,8 +257,13 @@ Source-backed interface-implementation diagnostics:
   declaration-order or more-specific rule selects one.
 - `E0356`: one instance repeats a borrow-coercion identity with the same receiver capability and
   canonical target type.
+- `E0357`: an instance-owned operator, coercion, index, or expansion declaration has a normalized
+  signature outside the closed operation grammar.
+- `E0358`: an explicit interface implementation does not prove one prerequisite declared by that
+  interface for every specialization admitted by the implementation pattern.
 
-These rules consume the program-wide normalized interface-implementation and instance-operation tables.
+These rules consume the program-wide normalized interface-capability, interface-implementation,
+and instance-operation tables.
 Signature checking substitutes
 interface arguments, `Self`, associated bindings, method generics, and binder refinements before
 comparison. Instance validation normalizes binder refinements before comparing coercion identities.

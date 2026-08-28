@@ -22,9 +22,9 @@ contracts, or milestone status.
 - Each workspace crate's `README.md` owns that crate's responsibility, input/output contract,
   internal responsibility split, and local invariants. It may name another crate only through that
   crate's exported contract.
-- [The active milestone](../milestones/v0.18.0.md) owns v0.18.0 scope and completion gates;
-  [v0.18.0 release preparation](../milestones/v0.18.0-release-preparation.md) owns candidate
-  qualification; [the handoff](../TODO.md) owns only the next concrete work and current blockers.
+- [The active milestone](../milestones/v0.20.0.md) owns current scope and completion gates;
+  [the latest publication record](../releases/v0.19.0.md) owns frozen release evidence; [the
+  handoff](../TODO.md) owns only the next concrete work and current blockers.
 
 The compiler derives behavior from the current specification. The implementation removed before
 v0.14.0 remains available through Git history only and is not a behavioral or architectural input.

@@ -21,10 +21,15 @@ The documentation-authority migration is complete: all workspace crates own loca
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
 
+The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 adopts interface-header
+prerequisites through the existing `where` grammar and requires one normalized capability closure
+without implicit implementation inheritance.
+
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer v0.20.0 scope from unfinished ideas or historical milestone plans.
+Implement and review the v0.20.0 Phase 0 interface-prerequisite closure. Update `ExactSizeIterator`
+only after generic checking, implementation validation, associated binding, concrete dispatch, and
+editor queries consume the same authority.
 
 ## Blockers
 

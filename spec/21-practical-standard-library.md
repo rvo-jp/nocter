@@ -78,6 +78,11 @@ dispatch and do not require runtime interface objects. `contains` and `position`
 iterator, borrow each yielded owner for equality, and destroy every yielded owner exactly once,
 including the item that causes early return.
 
+`ExactSizeIterator` declares `Self impl Iterator` as an interface prerequisite.
+`I impl ExactSizeIterator` therefore exposes `next`, `I.Item`, and iterator default methods without
+repeating an `I impl Iterator` predicate. Concrete iterator types still declare separate explicit
+`Iterator` and `ExactSizeIterator` implementation facts.
+
 Collection-owning terminals live in modules that depend on both the iterator contract and the
 destination collection. `std/iter/collect.to_vec` consumes any `Iterator` into a `Vec`. It is not an
 `Iterator` default method because making the core iterator module depend on `std/vec` would create

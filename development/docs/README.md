@@ -11,7 +11,8 @@ colocated `README.md`, not in this directory.
 2. The relevant [workspace crate README](../compiler/README.md#crate-documentation) — one crate's
    inputs, outputs, internal responsibilities, and invariants.
 3. A cross-crate contract below when a decision spans more than one crate.
-4. A completed [milestone](../milestones/v0.19.0.md) or [review](../reviews/README.md) only when
+4. The active [milestone](../milestones/v0.20.0.md) or a completed
+   [review](../reviews/README.md) only when
    implementation history or qualification evidence is needed.
 
 ## Cross-Crate Contracts
@@ -39,7 +40,7 @@ generated website. It must not be consulted to determine current compiler behavi
 | One crate's responsibility, internal modules, and invariants | that crate's `README.md` |
 | Exact Rust workspace membership and dependency edges | `development/compiler/Cargo.toml` and crate manifests |
 | Exact Rust API | Rust source and rustdoc |
-| Latest completed scope and completion gates | `development/milestones/v0.19.0.md` |
+| Active scope and completion gates | `development/milestones/v0.20.0.md` |
 | Review findings and remediation evidence | `development/reviews/` |
 | Next concrete work and blockers | `development/TODO.md` |
 | Published-candidate qualification evidence | `development/releases/` |

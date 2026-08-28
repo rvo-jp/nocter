@@ -202,6 +202,13 @@ An associated type declaration owns the identity shared by its implementation bi
 uses. Definition, references, and rename cross imports through that identity rather than treating
 each `Item` spelling as a separate symbol.
 
+An interface prerequisite retains its authored predicate identity and the normalized capability
+edges it entails. Hover and signature presentation show only the authored interface header.
+Completion, navigation, references, and rename may expose methods and associated types from the
+checked transitive prerequisite closure, but must preserve the declaration identity owned by the
+prerequisite interface. Editor code does not traverse interface source or reconstruct inheritance
+from rendered names.
+
 In `some Interface { .Item = T }`, semantic tokens classify `some` as a contextual keyword and
 `type` as a keyword. The
 interface and associated binding names use their declaration identities. Hover, signature help,

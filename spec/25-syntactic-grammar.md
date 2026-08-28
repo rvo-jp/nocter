@@ -566,7 +566,7 @@ Predicate = InterfacePredicate
           | ExpansionPredicate
 
 InterfacePredicate = RequirementSubject "impl" InterfaceApplication
-RequirementSubject = Name ("." Name)*
+RequirementSubject = Name ("." Name)* | "Self"
 CallablePredicate = Name ":" Type
 CopyPredicate = "copy" Name
 TypeEqualityPredicate = Type "=" Type
@@ -579,6 +579,7 @@ CoercionPredicate = ("&" | "&+") Type "as" Type
 
 ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
 ExpansionRequirementSource = Name | "&" Name | "&+" Name
+                           | "Self" | "&" "Self" | "&+" "Self"
 ```
 
 The same comma-separated predicate grammar applies after functions, methods, aliases, nominal type
@@ -591,14 +592,21 @@ operands, and rejects duplicate or unsatisfied requirements. A type equality is 
 directed binder refinement belonging to a declaration type pattern; associated projection equality
 is expressed by `AssociatedBindings` on the relevant interface application.
 
+`Self` is accepted as a requirement subject only in an interface header. It may be the subject of
+an interface predicate or the operand/source of equality, strict ordering, indexing, borrow
+coercion, or expansion. Callable, `copy`, and type-equality predicates do not accept `Self`.
+Semantic validation substitutes the complete interface application before checking these
+prerequisites; the grammar does not infer a dependency from member names.
+
 `impl` introduces only a nominal interface requirement. The colon in `CallablePredicate` is the
 ordinary type-annotation separator and its right operand must normalize to a structural callable
 type; this permits a callable type alias but not a nominal interface. Conversely, `func(...)` is
 not an interface application and cannot follow `impl`.
 
-An expansion requirement's source is syntactically one binder name with optional readonly or
-readwrite capability. Semantic validation requires that name to be a visible generic parameter;
-arbitrary constructed source types do not create a second expansion-requirement spelling.
+An expansion requirement's source is syntactically one binder name or contextual `Self` with
+optional readonly or readwrite capability. Semantic validation requires a visible generic
+parameter outside an interface header; arbitrary constructed source types do not create a second
+expansion-requirement spelling.
 
 ## Blocks and Body Results
 

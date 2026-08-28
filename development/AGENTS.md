@@ -12,7 +12,7 @@ Before compiler work, read:
 - `TODO.md`
 - `compiler/README.md`
 - `milestones/README.md`
-- `milestones/v0.18.0.md`
+- `milestones/v0.20.0.md`
 - `docs/README.md`
 - `docs/architecture.md`
 - `docs/maintenance.md`
@@ -78,8 +78,8 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
-- `development/milestones/v0.18.0.md`: active design scope and completed phase records
-- `development/releases/v0.17.0.md`: latest published release evidence
+- `development/milestones/v0.20.0.md`: active design scope and completed phase records
+- `development/releases/v0.19.0.md`: latest published release evidence
 - `development/docs/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
   authority boundaries only
 - `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output

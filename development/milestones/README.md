@@ -1,9 +1,14 @@
 # Development Milestones
 
-This directory contains historical milestone records. A new active milestone must be defined
-before further product work begins.
+This directory contains one active development milestone and historical milestone records.
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
+
+## Active Milestone
+
+The [v0.20.0 milestone](v0.20.0.md) is implementing Phase 0 interface prerequisites as one checked
+capability closure. Later associative-collection phases remain outside the active scope until
+their public contracts are accepted.
 
 ## Historical Milestones
 

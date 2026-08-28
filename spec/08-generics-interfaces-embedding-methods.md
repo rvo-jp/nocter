@@ -93,6 +93,50 @@ through a built-in projection, an accessible instance-owned index declaration, o
 receiver coercion to either operation. Generic specialization uses the same selector as an ordinary
 index expression. Operator requirements produce no runtime witness.
 
+An interface header may state prerequisites on its contextual `Self` type with the same `where`
+predicate forms used by generic declarations:
+
+```nct
+pub interface ExactSizeIterator where Self impl Iterator {
+    pub method &self.remaining_len(): usize
+}
+
+pub interface Hash where (&Self == &Self): bool {
+    pub method &self.hash_into(state: &+Hasher): void
+}
+```
+
+An interface prerequisite is a static implication, not an implicit implementation declaration.
+`T impl ExactSizeIterator` therefore proves `T impl Iterator`, exposes `Iterator` methods and
+associated types, and makes `Iterator` default methods available. A concrete type must still
+declare both implementation facts explicitly. Declaring `impl ExactSizeIterator` never creates an
+`impl Iterator` fact, selects an `Iterator` associated type, or synthesizes a missing method.
+
+Interface prerequisites may require another nominal interface, equality, strict ordering,
+indexing, a borrow coercion, or expansion of `Self`. A prerequisite may also constrain an interface
+generic parameter using the ordinary predicate forms. Callable predicates, `copy`, and binder
+refinement do not accept `Self` in an interface header. Every prerequisite is substituted through
+the interface application before it is used by a generic body or validated against an explicit
+implementation.
+
+The transitive prerequisite graph is acyclic. An interface's effective method and associated-type
+names consist of its own declarations plus every transitively prerequisite interface declaration.
+Each effective name must identify exactly one declaration; an interface that would inherit two
+different methods or associated types with the same name is invalid. An associated binding on a
+derived application may name one uniquely inherited associated type:
+
+```nct
+where I impl ExactSizeIterator { .Item = T }
+```
+
+Here `.Item` retains the sole declaration identity `Iterator.Item`; `ExactSizeIterator` does not
+create an alias or a second associated declaration. Requirement order cannot resolve a cycle or a
+name collision.
+
+The compiler normalizes each interface's prerequisite closure once. Generic checking, method
+lookup, associated projection, implementation validation, concrete dispatch, and editor queries
+consume that checked closure rather than traversing interface declarations independently.
+
 `instance` does not have a prefix generic parameter list. Its target header is a declaration type
 pattern. Each generic argument slot contains a bare binder name; its first occurrence declares the
 binder and later occurrences reuse the same identity:
@@ -275,7 +319,7 @@ An interface cannot declare fields, stored state, associated data, construction 
 `drop`. A method without `default` is an interface implementation requirement. A method marked `default` supplies
 reusable behavior and may carry its body inline or in a reciprocally seen private source. A
 default method does not establish an implementation and cannot access members absent from its
-declaring interface contract.
+declaring interface contract or its normalized prerequisite closure.
 
 ## Associated Types
 
@@ -303,10 +347,13 @@ The associated declaration, binding, and projected-type source forms are defined
 [Types](25-syntactic-grammar.md#types).
 
 Every associated type is required and public. A declaration may require nominal interfaces from
-its selected type. One `impl Interface` member binds each declaration
-exactly once, cannot bind an undeclared name, and must satisfy every declared requirement. Bindings
-omit `pub` because their visibility and identity come from the interface declaration. Associated
-type names use a namespace separate from interface method names.
+its selected type. One `impl Interface` member binds each declaration owned directly by that
+interface exactly once, cannot bind an undeclared name, and must satisfy every declared
+requirement. A requirement on a derived interface application may additionally constrain one
+uniquely inherited declaration, but the explicit implementation continues to bind that declaration
+only on its owning base-interface implementation. Bindings omit `pub` because their visibility and
+identity come from the interface declaration. Associated type names use a namespace separate from
+interface method names.
 
 `Self.Name` selects a declaration on the current interface. `T.Name` requires one unambiguous
 interface requirement on `T` that declares `Name`. A concrete projection follows one applicable
@@ -434,6 +481,8 @@ Interface implementation rules are:
   external result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
 - associated projections are compared after substituting the implementation's bindings
+- every normalized interface prerequisite is proven for every specialization admitted by the
+  implementation; a prerequisite interface requires a separate explicit implementation fact
 - coercion and overload ranking never make a near match satisfy an interface
 - a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
   storage-independent result may omit an interface origin that cannot apply to that result, while

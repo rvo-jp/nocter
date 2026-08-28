@@ -33,10 +33,10 @@ pub interface Iterator {
 }
 ```
 
-The standard exact-size refinement is a separate contract:
+The standard exact-size refinement requires the ordinary iterator contract:
 
 ```nct
-pub interface ExactSizeIterator {
+pub interface ExactSizeIterator where Self impl Iterator {
     pub method &self.remaining_len(): usize
 }
 ```
@@ -45,6 +45,12 @@ pub interface ExactSizeIterator {
 yield from the current iterator state. Advancing the iterator decreases that number by one. It is
 not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
 pack's length is fixed before its constructor body starts.
+
+A bound `I impl ExactSizeIterator` therefore permits `next`, `remaining_len`, `I.Item`, and the
+default methods of `Iterator` without repeating `I impl Iterator`. An implementation remains
+explicit: a concrete iterator declares both `impl Iterator { .Item = T }` and
+`impl ExactSizeIterator`, and the latter is rejected unless the former applies to every admitted
+specialization.
 
 An adapter retains `ExactSizeIterator` only when that exact remaining count is representable for
 every valid input state. In particular, chaining two exact-size iterators does not itself establish
