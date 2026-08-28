@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/allocation.nct - Nocter">
@@ -149,7 +149,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>layout<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> checked_add<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>mmap_no_file<span class="token-operator">,</span> mmap_private_anonymous<span class="token-operator">,</span> mmap_read_write<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>sys_mmap<span class="token-operator">,</span> sys_munmap<span class="token-operator">,</span> syscall2<span class="token-operator">,</span> syscall6<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_ptr_to_ptr<span class="token-operator">,</span> from_addr<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">,</span> store_value_to_ptr<span class="token-operator">}</span>
@@ -186,10 +186,12 @@
     <span class="token-comment">// within the mapping, so region release can walk mappings without storing</span>
     <span class="token-comment">// metadata beside or inside user-visible bytes.</span>
     <span class="token-keyword">let</span> header_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">16</span>
-    <span class="token-keyword">if</span> size <span class="token-operator">&gt;</span> <span class="token-number">18446744073709551615</span> - header_size - align <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> header_and_payload<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>header_size<span class="token-operator">,</span> size<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> mapping_size <span class="token-operator">=</span> size <span class="token-operator">+</span> header_size <span class="token-operator">+</span> align
+    <span class="token-keyword">let</span> mapping_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>header_and_payload<span class="token-operator">,</span> align<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">let</span> mapping <span class="token-operator">=</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>mapping_size<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> payload_start <span class="token-operator">=</span> mapping <span class="token-operator">+</span> header_size
     <span class="token-keyword">let</span> remainder <span class="token-operator">=</span> payload_start % align

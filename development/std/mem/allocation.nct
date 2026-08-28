@@ -4,7 +4,7 @@ see ./index.nct
 see ./layout.nct
 see ./storage.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem.{allocation_abort, checked_add}
 use /internal/os/darwin.{mmap_no_file, mmap_private_anonymous, mmap_read_write}
 use /internal/os/darwin.{sys_mmap, sys_munmap, syscall2, syscall6}
 use /internal/ptr.{copy_ptr_to_ptr, from_addr, slice_from_raw_parts_value, store_value_to_ptr}
@@ -41,10 +41,12 @@ func region_alloc_pages(
     // within the mapping, so region release can walk mappings without storing
     // metadata beside or inside user-visible bytes.
     let header_size: usize = 16
-    if size > 18446744073709551615 - header_size - align {
+    let header_and_payload: usize = checked_add(header_size, size) otherwise {
         return invalid_argument()
     }
-    let mapping_size = size + header_size + align
+    let mapping_size: usize = checked_add(header_and_payload, align) otherwise {
+        return invalid_argument()
+    }
     let mapping = alloc_pages(mapping_size)?
     let payload_start = mapping + header_size
     let remainder = payload_start % align

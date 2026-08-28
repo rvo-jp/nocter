@@ -1,0 +1,35 @@
+//! Shared checked arithmetic and geometric storage growth.
+
+see ./index.nct
+
+const maximum_usize: usize = 18446744073709551615
+
+func checked_add(left: usize, right: usize): usize? {
+    if right > maximum_usize - left {
+        return none
+    }
+    return left + right
+}
+
+func checked_multiply(left: usize, right: usize): usize? {
+    if left == 0 || right == 0 {
+        return 0
+    }
+    if left > maximum_usize / right {
+        return none
+    }
+    return left * right
+}
+
+func growth_capacity(current: usize, required: usize): usize {
+    if required <= current {
+        return current
+    }
+    let doubled: usize = checked_add(current, current) otherwise {
+        return maximum_usize
+    }
+    if doubled < required {
+        return required
+    }
+    return doubled
+}

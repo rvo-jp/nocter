@@ -4,7 +4,7 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem.{allocation_abort, checked_multiply}
 use /internal/ptr.{from_addr, pointee_align, pointee_size}
 use /iter.{ExactSizeIterator, Iterator}
 use /mem.{TryAllocator, current_allocator, empty_page_buffer}
@@ -41,11 +41,9 @@ construct Vec<T> {
         if element_size == 0 {
             allocation_abort()
         }
-        if requested_capacity > 18446744073709551615 / element_size {
-            allocation_abort()
+        let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
+            return allocation_abort()
         }
-
-        let byte_capacity: usize = requested_capacity * element_size
         var allocator = current_allocator()
         let storage = allocator.alloc(byte_capacity, pointee_align(empty_pointer))
         let address: usize = addr(storage.bytes().ptr())
@@ -66,11 +64,9 @@ construct Vec<T> {
         if element_size == 0 {
             return unsupported()
         }
-        if requested_capacity > 18446744073709551615 / element_size {
+        let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
             return capacity_overflow()
         }
-
-        let byte_capacity: usize = requested_capacity * element_size
         let storage = allocator.try_alloc(byte_capacity, pointee_align(empty_pointer))?
         let address: usize = addr(storage.bytes().ptr())
         return Vec<T> {

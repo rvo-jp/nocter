@@ -1,3 +1,14 @@
-//! Package-internal allocation failure policy boundary.
+//! Package-internal allocation arithmetic and failure-policy boundary.
+
+see ./capacity.nct
 
 pub(/) primitive func allocation_abort(): never
+
+/// Adds two pointer-sized counts without wrapping.
+pub(/) func checked_add(left: usize, right: usize): usize?
+
+/// Multiplies two pointer-sized counts without wrapping.
+pub(/) func checked_multiply(left: usize, right: usize): usize?
+
+/// Selects geometric capacity no smaller than `required`.
+pub(/) func growth_capacity(current: usize, required: usize): usize

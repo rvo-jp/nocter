@@ -4,7 +4,7 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem.{allocation_abort, checked_add, checked_multiply, growth_capacity}
 use /internal/ptr.{drop_value_at_ptr, from_addr, pointee_size}
 use /internal/ptr.{slice_from_raw_parts_value, store_value_to_ptr, take_value_at_ptr}
 use /mem.try_grow_owned
@@ -16,11 +16,9 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     }
 
     let values_len: usize = values.len
-    if additional > 18446744073709551615 - values_len {
+    let required_capacity: usize = checked_add(values_len, additional) otherwise {
         return capacity_overflow()
     }
-
-    let required_capacity: usize = values_len + additional
     let values_capacity: usize = values.capacity
     if values_capacity >= values_len {
         let spare_capacity: usize = values_capacity - values_len
@@ -33,17 +31,19 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if element_size == 0 {
         return unsupported()
     }
-    if required_capacity > 18446744073709551615 / element_size {
-        return capacity_overflow()
+    let next_capacity = growth_capacity(values_capacity, required_capacity)
+    let byte_capacity: usize = checked_multiply(next_capacity, element_size) otherwise {
+        let required_bytes: usize = checked_multiply(required_capacity, element_size) otherwise {
+            return capacity_overflow()
+        }
+        try_grow_owned(&+values.storage, required_bytes)?
+        values.ptr = from_addr(addr(values.storage.bytes().ptr()))
+        values.capacity = required_capacity
+        return
     }
-    if values_len > 18446744073709551615 / element_size {
-        return capacity_overflow()
-    }
-
-    let byte_capacity: usize = required_capacity * element_size
     try_grow_owned(&+values.storage, byte_capacity)?
     values.ptr = from_addr(addr(values.storage.bytes().ptr()))
-    values.capacity = required_capacity
+    values.capacity = next_capacity
     return
 }
 

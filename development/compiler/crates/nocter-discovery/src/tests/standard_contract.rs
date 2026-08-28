@@ -77,6 +77,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("internal/io", "internal/os"),
     ("internal/os/darwin", "internal/os"),
     ("internal/os/darwin", "ptr"),
+    ("internal/path", "internal/mem"),
     ("internal/path", "internal/ptr"),
     ("internal/path", "mem"),
     ("internal/path", "path"),

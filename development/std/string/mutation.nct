@@ -3,23 +3,23 @@
 see ./index.nct
 see ./storage.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem.{allocation_abort, checked_add, growth_capacity}
 use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 use /internal/utf8.validate_utf8
 use /mem.try_grow_owned
 
 func try_reserve(text: &+String, additional: usize): void! {
     let text_len: usize = text.len
-    if additional > 18446744073709551615 - text_len {
+    let required_capacity: usize = checked_add(text_len, additional) otherwise {
         return capacity_overflow()
     }
-
-    let required_capacity: usize = text_len + additional
-    if required_capacity <= text.storage.bytes().len() {
+    let current_capacity: usize = text.storage.bytes().len()
+    if required_capacity <= current_capacity {
         return
     }
 
-    try_grow_owned(&+text.storage, required_capacity)?
+    let next_capacity = growth_capacity(current_capacity, required_capacity)
+    try_grow_owned(&+text.storage, next_capacity)?
     return
 }
 

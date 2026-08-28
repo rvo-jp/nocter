@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /mem.{RawBuffer, page_try_allocator}
+use /internal/mem.checked_add
 use /path.validate
 use /ptr.addr
 use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
@@ -15,11 +16,9 @@ struct TargetPathArgument {
 #target: "arm64-darwin"
 func target_path_argument(value: &str): TargetPathArgument! {
     validate(value)?
-    if value.len() == 18446744073709551615 {
+    let allocation_size: usize = checked_add(value.len(), 1) otherwise {
         return error.new("std.io.invalid_input", "path length cannot be represented")
     }
-
-    let allocation_size: usize = value.len() + 1
     var allocator = page_try_allocator()
     let storage = allocator.try_alloc(allocation_size, 1)?
     copy_str_to_ptr(storage.bytes().ptr(), 0, value)

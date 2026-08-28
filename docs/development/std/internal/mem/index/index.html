@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-25">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/mem/index.nct - Nocter">
@@ -143,9 +143,20 @@
                 <span class="markdown-path-text">/development/std/internal/mem/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal allocation failure policy boundary.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal allocation arithmetic and failure-policy boundary.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capacity<span class="token-operator">.</span>nct
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
+
+<span class="token-comment">/// Adds two pointer-sized counts without wrapping.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
+
+<span class="token-comment">/// Multiplies two pointer-sized counts without wrapping.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">checked_multiply</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
+
+<span class="token-comment">/// Selects geometric capacity no smaller than `required`.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>current<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> required<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 </code></pre>
             </div>
         </main>

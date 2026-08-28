@@ -10,8 +10,10 @@ func find_from_bytes(
 ): usize? {
     if start > text.len() { return none }
     if needle.len() == 0 { return start }
+    if needle.len() > text.len() - start { return none }
+    let last_candidate: usize = text.len() - needle.len()
     var candidate: usize = start
-    while candidate + needle.len() <= text.len() {
+    while candidate <= last_candidate {
         var matched: usize = 0
         var equal: bool = true
         while matched < needle.len() {
