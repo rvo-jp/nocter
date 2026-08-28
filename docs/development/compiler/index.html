@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-27">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Compiler Workspace - Nocter">
     <meta name="twitter:description" content="This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Compiler Workspace - Nocter","description":"This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-27","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Compiler Workspace - Nocter","description":"This directory contains the active Rust workspace for the Nocter compiler, language server, native backend, package tooling, and conformance suite.","url":"https://nocter.dev/development/compiler/","mainEntityOfPage":"https://nocter.dev/development/compiler/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -129,6 +129,7 @@
                 <li><a href="../docs/machine-program-design/index.html#content">machine program design</a></li>
                 <li><a href="../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
                 <li><a href="../milestones/v0.18.0/index.html#content">The active milestone</a></li>
+                <li><a href="../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a></li>
                 <li><a href="./crates/nocter-session/index.html#content">`crates/nocter-session/README.md`</a></li>
                 <li><a href="./crates/nocter-checking/index.html#content">`crates/nocter-checking/README.md`</a></li>
                 <li><a href="./crates/nocter-analysis/index.html#content">`crates/nocter-analysis/README.md`</a></li>
@@ -149,7 +150,8 @@
   APIs are the canonical dependency and implementation surface.</li><li>Each workspace crate's <code>README.md</code> owns that crate's responsibility, input/output contract,
   internal responsibility split, and local invariants. It may name another crate only through that
   crate's exported contract.</li><li><a href="../milestones/v0.18.0/index.html#content">The active milestone</a> owns v0.18.0 scope and completion gates;
-  <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the handoff</a> owns only the next concrete work and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
+  <a href="../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a> owns candidate
+  qualification; <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the handoff</a> owns only the next concrete work and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
   -&gt; syntax and declarations
   -&gt; checking
   -&gt; target validation and executable specialization

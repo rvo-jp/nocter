@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/process/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/process/index.nct.">
+    <title>Nocter v0.18.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.18.0 makes type construction, builtin declarations, generic requirements, and interface implementation more direct. It also replaces rollback-ori">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/process/index/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.18.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/process/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/process/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/process/index/">
+    <meta property="og:title" content="Nocter v0.18.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.18.0 makes type construction, builtin declarations, generic requirements, and interface implementation more direct. It also replaces rollback-ori">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.18.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-28">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/process/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/process/index.nct.">
+    <meta name="twitter:title" content="Nocter v0.18.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.18.0 makes type construction, builtin declarations, generic requirements, and interface implementation more direct. It also replaces rollback-ori">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/index.nct - Nocter","description":"Nocter source code for development/std/process/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/process/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.18.0 Release Notes - Nocter","description":"Nocter v0.18.0 makes type construction, builtin declarations, generic requirements, and interface implementation more direct. It also replaces rollback-ori","url":"https://nocter.dev/releases/v0.18.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.18.0/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.18.0","item":"https://nocter.dev/releases/v0.18.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,63 +120,49 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.18.0/index.html#content">Active v0.18.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.18.0-release-preparation/index.html#content">Active v0.18.0 release preparation</a></li>
-                <li><a href="../../../reviews/index.html#content">v0.18.0 design reviews</a></li>
-                <li><a href="../../../releases/v0.17.0/index.html#content">Latest published release qualification</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.17.0/index.html#content">Read the v0.17.0 release notes</a></li>
+                <li><a href="../v0.16.0/index.html#content">Nocter v0.16.0</a></li>
+                <li><a href="../v0.15.0/index.html#content">Nocter v0.15.0</a></li>
+                <li><a href="../v0.14.0/index.html#content">Nocter v0.14.0</a></li>
+                <li><a href="../v0.13.0/index.html#content">Nocter v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">Nocter v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">Nocter v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">Nocter v0.10.0</a></li>
+                <li><a href="../v0.9.0/index.html#content">Nocter v0.9.0</a></li>
+                <li><a href="../v0.8.0/index.html#content">Nocter v0.8.0</a></li>
+                <li><a href="../v0.7.0/index.html#content">Nocter v0.7.0</a></li>
+                <li><a href="../v0.6.0/index.html#content">Nocter v0.6.0</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/process/index.nct</span>
+                <span class="markdown-path-text">/releases/v0.18.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! User-facing `std/process` API.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! exit is a standard-library API, not a compiler primitive. The target-specific</span>
-<span class="token-comment">//! implementation calls the active target boundary.</span>
-
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
-
-<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">EnvironmentEntry</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+                <h1 id="nocter-v0-18-0-release-notes">Nocter v0.18.0 Release Notes</h1><p>Nocter v0.18.0 makes type construction, builtin declarations, generic requirements, and interface implementation more direct. It also replaces rollback-oriented compiler mutation with immutable semantic generations, improving editor recovery without changing runtime representation or ABI.</p><p>The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="construction-surfaces">Construction Surfaces</h2><p><code>construct</code> no longer has a <code>default</code> member. Structural <code>Type { ... }</code> construction is governed only by representation and field visibility. Named factories and typed literals remain explicit members:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 <span class="token-operator">}</span>
+</code></pre><p>An empty <code>construct</code> declaration is invalid. Hover on a nominal type presents that type rather than appending a synthesized list of construction members; each factory or literal has its own ordinary source-backed hover and navigation identity.</p><h2 id="source-declared-builtins-and-primitives">Source-Declared Builtins and Primitives</h2><p>Named compiler-represented types now have ordinary declarations in the standard library:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">str</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">str_len_raw</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+</code></pre><p>The compiler resolves each builtin declaration once from the selected toolchain package. Type checking, inherent methods, completion, hover, and navigation consume that same identity instead of recovering builtin ownership from a spelling or module path. Primitive functions use the same modifier order as ordinary functions.</p><h2 id="interface-implementation-and-generic-requirements">Interface Implementation and Generic Requirements</h2><p><code>instance</code> is now the sole owner of behavior attached to an existing type. The standalone <code>conform</code> declaration has been removed. A bodyless <code>impl</code> member records interface implementation and its associated-type bindings:</p><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">ValuesIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span> <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">args</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">arg</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">environment_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">environment</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EnvironmentEntry</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">exit</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
-</code></pre>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-comment">// ...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p>Generic angle brackets contain generic arguments only. Associated bindings use braces and a leading dot. Interface requirements use <code>impl</code>, while callable values remain ordinary callable types:</p><pre><code class="language-nct"><span class="token-keyword">func</span> consume<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">}</span>
+<span class="token-keyword">let</span> callback<span class="token-operator">:</span> <span class="token-keyword">func</span><span class="token-operator">(</span><span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+</code></pre><p>Each checked interface implementation freezes its required methods to exact inherent callables. Selection does not depend on source order, instance-fragment order, or declaration order.</p><h2 id="compiler-and-editor-reliability">Compiler and Editor Reliability</h2><p>Compiler semantic state is now immutable between accepted generations. Type interning, copyability, and closure construction use explicit branch-local transactions: success commits a new authority, while failure discards the branch or retains an isolated recovery authority. Editor queries cannot mutate accepted compilation output or exchange type identities between unrelated branches.</p><p>Workspace analysis freezes one topology decision per source revision. Source projection remains an editor and diagnostic product and cannot influence checked semantics. Package-root facts, frontend bindings, CLI installation routing, and semantic query capability are each owned by one explicit contract rather than reconstructed by downstream consumers.</p><h2 id="compatibility">Compatibility</h2><p>This release intentionally has no compatibility parser or fallback for the removed forms:</p><ul><li>remove <code>default</code> from <code>construct</code> members;</li><li>replace <code>primitive Name</code> with <code>primitive type Name</code> and primitive callable declarations with
+  <code>primitive func</code>;</li><li>move standalone <code>conform</code> declarations into <code>instance</code> as bodyless <code>impl</code> members;</li><li>replace colon-based interface constraints with <code>impl</code> constraints;</li><li>replace associated bindings in angle brackets with <code>{ .Name = Type }</code>;</li><li>use callable types directly instead of treating <code>func(...)</code> as an interface requirement.</li></ul><p>The release does not add dynamic interface values, erased callable objects, interface inheritance, runtime generic dictionaries, another native target, or new practical standard-library APIs.</p>
             </div>
         </main>
     </div>
@@ -192,6 +178,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

@@ -6,7 +6,8 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-The [v0.18.0 milestone](v0.18.0.md) has completed Phases 0 through 3. Release qualification is its
+The [v0.18.0 milestone](v0.18.0.md) has completed Phases 0 through 3, and its
+[release preparation](v0.18.0-release-preparation.md) is active. Release qualification is its
 remaining gate. The milestone owns scope and completion criteria; the handoff owns only the next
 concrete action.
 
