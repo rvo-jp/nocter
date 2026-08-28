@@ -140,13 +140,13 @@ func cwd(): String! {
     var allocator = page_allocator()
     var buffer = allocator.alloc(max_path_len, 1)
     let len = fill_cwd_path(fd, &+buffer) catch failure {
-        allocator.free(move buffer)
+        drop buffer
         close_fd_word(fd)
         return move failure
     }
     let view = str_from_raw_parts(buffer.bytes().ptr(), len)
     let value = String.copy(view)
-    allocator.free(move buffer)
+    drop buffer
     close_fd_word(fd)
     return move value
 }
@@ -160,17 +160,17 @@ func try_cwd(allocator: &+TryAllocator): String! {
         return move failure
     }
     let len = fill_cwd_path(fd, &+buffer) catch failure {
-        allocator.free(move buffer)
+        drop buffer
         close_fd_word(fd)
         return move failure
     }
     let view = str_from_raw_parts(buffer.bytes().ptr(), len)
     let value = String.try_copy(allocator, view) catch failure {
-        allocator.free(move buffer)
+        drop buffer
         close_fd_word(fd)
         return move failure
     }
-    allocator.free(move buffer)
+    drop buffer
     close_fd_word(fd)
     return move value
 }

@@ -6,7 +6,7 @@ see ./utf8.nct
 
 use /internal/ptr.{copy_ptr_to_ptr, copy_str_to_ptr}
 use /internal/utf8.validate_utf8
-use /mem.{TryAllocator, current_allocator, empty_page_buffer}
+use /mem.{TryAllocator, current_allocator, empty_unbound_buffer}
 
 construct String {
     literal ""(text: &str): Self {
@@ -15,7 +15,7 @@ construct String {
 
     func empty(): Self {
         return String {
-            storage: empty_page_buffer(1),
+            storage: empty_unbound_buffer(1),
             len: 0,
         }
     }

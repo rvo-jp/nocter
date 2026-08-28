@@ -77,6 +77,10 @@ from borrowed text algorithms to `String` and `Vec`; the allocation-free search 
 not import owned collection modules. `std/process` reuses `std/string.is_valid_utf8` rather than
 owning another validator.
 
+`RawBuffer` destruction is the sole individual-buffer release authority. Allocator values select
+allocation and growth policy; they do not expose a second consuming `free` operation that merely
+relies on the consumed buffer's destructor.
+
 ## Source Visibility Graph
 
 The root directly sees every source that completes one of its contracts. Each completing

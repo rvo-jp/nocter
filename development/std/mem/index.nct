@@ -32,7 +32,7 @@ pub func page_allocator(): Allocator
 
 pub func page_try_allocator(): TryAllocator
 
-pub(/) func empty_page_buffer(align: usize): RawBuffer
+pub(/) func empty_unbound_buffer(align: usize): RawBuffer
 
 pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
@@ -55,8 +55,6 @@ pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void!
 instance Allocator {
     pub method &+self.alloc(size: usize, align: usize): RawBuffer
 
-    pub method &+self.free(buffer: RawBuffer): void
-
     pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void
 }
 
@@ -65,7 +63,6 @@ instance TryAllocator {
 
     pub method &+self.try_grow(buffer: &+RawBuffer, new_size: usize): void!
 
-    pub method &+self.free(buffer: RawBuffer): void
 }
 
 instance RawBuffer {

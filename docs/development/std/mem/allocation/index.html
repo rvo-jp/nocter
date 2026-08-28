@@ -234,9 +234,9 @@
     <span class="token-operator">}</span>
 
     <span class="token-keyword">var</span> address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">if</span> allocator<span class="token-operator">.</span>kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-function">allocator_kind_is_page</span><span class="token-operator">(</span>allocator<span class="token-operator">.</span>kind<span class="token-operator">)</span> <span class="token-operator">{</span>
         address <span class="token-operator">=</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>requested<span class="token-operator">.</span>size<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> allocator<span class="token-operator">.</span>kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">{</span>
+    <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> <span class="token-function">allocator_kind_is_region</span><span class="token-operator">(</span>allocator<span class="token-operator">.</span>kind<span class="token-operator">)</span> <span class="token-operator">{</span>
         address <span class="token-operator">=</span> <span class="token-function">region_alloc_pages</span><span class="token-operator">(</span>allocator<span class="token-operator">.</span>state<span class="token-operator">,</span> requested<span class="token-operator">.</span>size<span class="token-operator">,</span> requested<span class="token-operator">.</span>align<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -271,18 +271,6 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">free</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-comment">// Consuming `buffer` transfers its one deallocation obligation into this</span>
-    <span class="token-comment">// call. RawBuffer.drop performs the provenance-aware release on return.</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">try_free</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-comment">// `RawBuffer.drop` owns the backend-aware release. The capability argument</span>
-    <span class="token-comment">// documents and validates the caller's selected recoverable backend.</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
 <span class="token-keyword">func</span> <span class="token-function">try_grow</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
@@ -294,7 +282,7 @@
     <span class="token-keyword">if</span> new_size <span class="token-operator">=</span><span class="token-operator">=</span> buffer<span class="token-operator">.</span>len <span class="token-operator">{</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> buffer<span class="token-operator">.</span>allocator_kind <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">2</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">allocator_kind_is_unbound</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>allocator_kind<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> allocator<span class="token-operator">.</span>state <span class="token-operator">!</span><span class="token-operator">=</span> buffer<span class="token-operator">.</span>allocator_state <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
@@ -332,7 +320,7 @@
         state<span class="token-operator">:</span> buffer<span class="token-operator">.</span>allocator_state<span class="token-operator">,</span>
         kind<span class="token-operator">:</span> buffer<span class="token-operator">.</span>allocator_kind<span class="token-operator">,</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> buffer<span class="token-operator">.</span>allocator_kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">2</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-function">allocator_kind_is_unbound</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>allocator_kind<span class="token-operator">)</span> <span class="token-operator">{</span>
         allocator<span class="token-operator">.</span>state <span class="token-operator">=</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span>
         allocator<span class="token-operator">.</span>kind <span class="token-operator">=</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -353,11 +341,6 @@
         <span class="token-keyword">return</span> <span class="token-function">alloc</span><span class="token-operator">(</span>self<span class="token-operator">,</span> size<span class="token-operator">,</span> align<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">free</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">free</span><span class="token-operator">(</span>self<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
-
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">grow</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> new_size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">grow</span><span class="token-operator">(</span>self<span class="token-operator">,</span> buffer<span class="token-operator">,</span> new_size<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
@@ -374,10 +357,6 @@
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">free</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">try_free</span><span class="token-operator">(</span>self<span class="token-operator">,</span> <span class="token-keyword">move</span> buffer<span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

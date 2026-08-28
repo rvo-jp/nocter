@@ -7,7 +7,7 @@ see ./storage.nct
 use /internal/mem.{allocation_abort, checked_multiply}
 use /internal/ptr.{from_addr, pointee_align, pointee_size}
 use /iter.{ExactSizeIterator, Iterator}
-use /mem.{TryAllocator, current_allocator, empty_page_buffer}
+use /mem.{TryAllocator, current_allocator, empty_unbound_buffer}
 use /ptr.addr
 
 construct Vec<T> {
@@ -26,7 +26,7 @@ construct Vec<T> {
     func empty(): Self {
         let pointer: *T = from_addr(1)
         let element_align: usize = pointee_align(pointer)
-        let storage = empty_page_buffer(element_align)
+        let storage = empty_unbound_buffer(element_align)
         return Vec<T> {
             ptr: from_addr(1),
             storage: move storage,

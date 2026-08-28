@@ -89,9 +89,9 @@ func try_alloc_layout(
     }
 
     var address: usize = 0
-    if allocator.kind == 0 {
+    if allocator_kind_is_page(allocator.kind) {
         address = alloc_pages(requested.size)?
-    } else if allocator.kind == 1 {
+    } else if allocator_kind_is_region(allocator.kind) {
         address = region_alloc_pages(allocator.state, requested.size, requested.align)?
     } else {
         return invalid_argument()
@@ -126,18 +126,6 @@ func alloc_layout(
     }
 }
 
-func free(allocator: &+Allocator, buffer: RawBuffer): void {
-    // Consuming `buffer` transfers its one deallocation obligation into this
-    // call. RawBuffer.drop performs the provenance-aware release on return.
-    return
-}
-
-func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void {
-    // `RawBuffer.drop` owns the backend-aware release. The capability argument
-    // documents and validates the caller's selected recoverable backend.
-    return
-}
-
 func try_grow(
     allocator: &+TryAllocator,
     buffer: &+RawBuffer,
@@ -149,7 +137,7 @@ func try_grow(
     if new_size == buffer.len {
         return
     }
-    if buffer.allocator_kind != 2 {
+    if !allocator_kind_is_unbound(buffer.allocator_kind) {
         if allocator.state != buffer.allocator_state {
             return invalid_argument()
         }
@@ -187,7 +175,7 @@ func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
     }
-    if buffer.allocator_kind == 2 {
+    if allocator_kind_is_unbound(buffer.allocator_kind) {
         allocator.state = current_allocator_state()
         allocator.kind = current_allocator_kind()
     }
@@ -208,11 +196,6 @@ instance Allocator {
         return alloc(self, size, align)
     }
 
-    method &+self.free(buffer: RawBuffer): void {
-        free(self, move buffer)
-        return
-    }
-
     method &+self.grow(buffer: &+RawBuffer, new_size: usize): void {
         grow(self, buffer, new_size)
         return
@@ -229,8 +212,4 @@ instance TryAllocator {
         return
     }
 
-    method &+self.free(buffer: RawBuffer): void {
-        try_free(self, move buffer)
-        return
-    }
 }

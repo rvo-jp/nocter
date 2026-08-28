@@ -151,7 +151,7 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_ptr_to_ptr<span class="token-operator">,</span> copy_str_to_ptr<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8<span class="token-operator">.</span>validate_utf8
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> current_allocator<span class="token-operator">,</span> empty_page_buffer<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> current_allocator<span class="token-operator">,</span> empty_unbound_buffer<span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
@@ -160,7 +160,7 @@
 
     <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-            storage<span class="token-operator">:</span> <span class="token-function">empty_page_buffer</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            storage<span class="token-operator">:</span> <span class="token-function">empty_unbound_buffer</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>

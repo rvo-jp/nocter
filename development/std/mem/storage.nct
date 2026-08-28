@@ -10,6 +10,12 @@ primitive func current_allocator_kind(): usize
 
 primitive func allocation_failure_error(): error
 
+const page_allocator_kind: usize = 0
+
+const region_allocator_kind: usize = 1
+
+const unbound_allocator_kind: usize = 2
+
 copy struct Layout {
     size: usize
     align: usize
@@ -46,15 +52,15 @@ func current_allocator(): Allocator {
 }
 
 func page_allocator(): Allocator {
-    return Allocator { state: 0, kind: 0 }
+    return Allocator { state: 0, kind: page_allocator_kind }
 }
 
 func page_try_allocator(): TryAllocator {
-    return TryAllocator { state: 0, kind: 0 }
+    return TryAllocator { state: 0, kind: page_allocator_kind }
 }
 
-func empty_page_buffer(align: usize): RawBuffer {
-    // Kind 2 is an unbound empty sentinel. It owns no storage and therefore
+func empty_unbound_buffer(align: usize): RawBuffer {
+    // An unbound empty sentinel owns no storage and therefore
     // carries no allocator origin. The first growth operation binds it to the
     // allocator selected at that operation.
     return RawBuffer {
@@ -62,7 +68,7 @@ func empty_page_buffer(align: usize): RawBuffer {
         len: 0,
         align: align,
         allocator_state: 0,
-        allocator_kind: 2,
+        allocator_kind: unbound_allocator_kind,
     }
 }
 
@@ -78,6 +84,18 @@ func take_raw_buffer(buffer: &+RawBuffer): RawBuffer {
     buffer.len = 0
     buffer.align = 1
     buffer.allocator_state = 0
-    buffer.allocator_kind = 2
+    buffer.allocator_kind = unbound_allocator_kind
     return move result
+}
+
+func allocator_kind_is_page(kind: usize): bool {
+    return kind == page_allocator_kind
+}
+
+func allocator_kind_is_region(kind: usize): bool {
+    return kind == region_allocator_kind
+}
+
+func allocator_kind_is_unbound(kind: usize): bool {
+    return kind == unbound_allocator_kind
 }

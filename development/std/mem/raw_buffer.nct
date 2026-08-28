@@ -51,9 +51,9 @@ instance RawBuffer {
 
 drop RawBuffer(&+self) {
     if self.len != 0 {
-        if self.allocator_kind == 0 {
+        if allocator_kind_is_page(self.allocator_kind) {
             free_pages(addr(self.ptr), self.len)
-        } else if self.allocator_kind != 1 {
+        } else if !allocator_kind_is_region(self.allocator_kind) {
             return allocation_abort()
         }
         self.ptr = from_addr(1)
