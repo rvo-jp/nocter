@@ -8,8 +8,9 @@ in [`development/releases/`](../releases/README.md).
 
 The [v0.19.0 milestone](v0.19.0.md) has completed Phase 0 filesystem traversal, Phase 1 streaming
 text input, Phase 2 collection ordering, the Phase 3 recursive text-search reference application,
-and Phase 4 implementation stabilization. It proceeds next to release-candidate qualification.
-The milestone owns scope and completion criteria; the handoff owns only the next concrete action.
+and Phase 4 stabilization. Its release candidate is qualified and awaits explicit publication
+authorization. The milestone owns scope and completion criteria; the handoff owns only the next
+concrete action.
 
 ## Historical Milestones
 

@@ -8,9 +8,10 @@ re-download evidence is frozen. The `v0.18.0` tag and release asset must not be 
 
 The [v0.19.0 milestone](milestones/v0.19.0.md) is active. Phase 0 filesystem traversal, Phase 1
 streaming text input, Phase 2 collection ordering, Phase 3 recursive text search, and Phase 4
-implementation stabilization are complete and reviewed. Their public stream, UTF-8 and error
-policy, close-once ownership, bounded storage, move-only ordering, native application behavior,
-and editor coverage define the v0.19.0 release candidate.
+implementation stabilization are complete and reviewed. Release-content commit
+`3b510875b086513c5fdcde970628267630d7f5d0` passed duplicate source and artifact qualification.
+Its public stream, UTF-8 and error policy, close-once ownership, bounded storage, move-only
+ordering, native application behavior, and editor coverage define the frozen v0.19.0 candidate.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -22,10 +23,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Qualify the clean v0.19.0 release-content commit through two independent external Cargo targets,
-warnings-denied Clippy, deterministic package generation, fresh extraction, installed CLI and LSP
-smoke tests, and the explicit public-HTTPS acquisition test. Qualification must leave no
-repository-local Cargo target and must not publish the candidate.
+Wait for explicit publication authorization. When authorized, update the root README and public
+release index from v0.18.0 to v0.19.0, rebuild generated documentation, commit that public state,
+create the annotated `v0.19.0` tag, push, publish the frozen qualified archive, and perform the
+public re-download audit. Do not rebuild or replace the qualified candidate during publication.
 
 ## Blockers
 
