@@ -129,7 +129,7 @@
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">,</span> stderr<span class="token-operator">,</span> stdout<span class="token-operator">}</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>buffer<span class="token-operator">.</span><span class="token-type">BufReader</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>buffer<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">BufReader</span><span class="token-operator">,</span> <span class="token-type">BufWriter</span><span class="token-operator">}</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>num<span class="token-operator">.</span>usize_to_string
 
@@ -184,13 +184,14 @@
     <span class="token-function">collect_directory</span><span class="token-operator">(</span>root<span class="token-operator">,</span> <span class="token-string">""</span><span class="token-operator">,</span> <span class="token-operator">&amp;+</span>paths<span class="token-operator">)</span><span class="token-operator">?</span>
     paths<span class="token-operator">.</span><span class="token-function">sort</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-type">BufWriter</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> matched <span class="token-operator">=</span> <span class="token-keyword">false</span>
     <span class="token-keyword">for</span> path <span class="token-keyword">in</span> <span class="token-operator">&amp;</span>paths <span class="token-operator">{</span>
         <span class="token-keyword">if</span> <span class="token-function">search_file</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>output<span class="token-operator">,</span> needle<span class="token-operator">,</span> path<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
             matched <span class="token-operator">=</span> <span class="token-keyword">true</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
+    output<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> matched
 <span class="token-operator">}</span>
 
@@ -246,7 +247,7 @@
     <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span>parent<span class="token-operator">,</span> <span class="token-string">"/"</span><span class="token-operator">,</span> name<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">search_file</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SearchPath</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">search_file</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SearchPath</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> source <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">.</span>full<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">let</span> context <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span><span class="token-string">"cannot open "</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>path<span class="token-operator">.</span>display<span class="token-operator">)</span>
         <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>context<span class="token-operator">)</span>
@@ -274,7 +275,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">write_match</span><span class="token-operator">(</span>
-    output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span>
+    output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span>
     path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     line_number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     line<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>

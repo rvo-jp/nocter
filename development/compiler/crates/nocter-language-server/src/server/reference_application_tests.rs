@@ -50,10 +50,23 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     assert!(response.contains("/std/fs/index.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
+    let (buffered_output_line, buffered_output_source) = source_line(&text, "BufWriter.new");
+    let buffered_output_character = buffered_output_source.find("BufWriter").unwrap();
+    let hover = server.receive(&position_request(
+        4,
+        "textDocument/hover",
+        &source,
+        buffered_output_line,
+        buffered_output_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(response.contains("pub struct BufWriter"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
     let (line_read_line, line_read_source) = source_line(&text, "reader.read_line_into");
     let line_read_character = line_read_source.find("read_line_into").unwrap();
     let hover = server.receive(&position_request(
-        4,
+        5,
         "textDocument/hover",
         &source,
         line_read_line,
@@ -69,7 +82,7 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let (sort_line, sort_source) = source_line(&text, "paths.sort()");
     let sort_character = sort_source.find("sort").unwrap();
     let definition = server.receive(&position_request(
-        5,
+        6,
         "textDocument/definition",
         &source,
         sort_line,

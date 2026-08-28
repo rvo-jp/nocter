@@ -2,7 +2,7 @@ use std/fs.{FileType, read_dir}
 
 use std/io.{File, Writer, stderr, stdout}
 
-use std/io/buffer.BufReader
+use std/io/buffer.{BufReader, BufWriter}
 
 use std/num.usize_to_string
 
@@ -57,13 +57,14 @@ func search_tree(needle: &str, root: &str): bool! {
     collect_directory(root, "", &+paths)?
     paths.sort()
 
-    var output = stdout()
+    var output = BufWriter.new(stdout())
     var matched = false
     for path in &paths {
         if search_file(&+output, needle, path)? {
             matched = true
         }
     }
+    output.close()?
     return matched
 }
 
@@ -119,7 +120,7 @@ func display_child(parent: &str, name: &str): String {
     return String.concat(parent, "/", name)
 }
 
-func search_file(output: &+File, needle: &str, path: &SearchPath): bool! {
+func search_file(output: &+BufWriter, needle: &str, path: &SearchPath): bool! {
     let source = File.open(&path.full) catch failure {
         let context = String.concat("cannot open ", &path.display)
         return failure.context(&context)
@@ -147,7 +148,7 @@ func search_file(output: &+File, needle: &str, path: &SearchPath): bool! {
 }
 
 func write_match(
-    output: &+File,
+    output: &+BufWriter,
     path: &str,
     line_number: usize,
     line: &str,

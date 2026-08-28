@@ -22,4 +22,6 @@ The application retains owned paths for regular files and pending directories so
 deterministic output. It closes each directory stream before descending into a child, then reads
 one file at a time with a reusable line destination. It never retains a complete file. Memory is
 therefore bounded by the discovered UTF-8 path data, directory traversal state, and the largest
-line encountered rather than by total file contents.
+line encountered rather than by total file contents. Successful match output passes through one
+bounded `BufWriter`; normal completion explicitly flushes it, while an output failure remains a
+recoverable command failure.
