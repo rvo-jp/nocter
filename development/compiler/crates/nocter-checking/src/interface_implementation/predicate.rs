@@ -101,6 +101,7 @@ pub(crate) fn normalize_requirements(
     requirements: &[RequirementId],
 ) -> Result<Vec<CheckedRequirement>, SubstitutionError> {
     let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
     for id in requirements {
         let requirement = graph
             .declarations()
@@ -108,78 +109,74 @@ pub(crate) fn normalize_requirements(
             .get(*id)
             .ok_or(SubstitutionError::InvalidStore)?;
         let predicate = normalize_predicate(graph, types, substitution, requirement.kind())?;
-        normalized.push(CheckedRequirement::new(*id, *id, predicate.clone()));
-        let CheckedPredicate::Interface { application, .. } = &predicate else {
-            continue;
-        };
-        let capability = graph
-            .interface_capabilities()
-            .get(application.interface())
-            .ok_or(SubstitutionError::InvalidStore)?;
-        for path in capability.prerequisite_paths() {
-            let (origin, predicate) =
-                specialize_prerequisite_path(graph, types, predicate.clone(), path)?;
-            normalized.push(CheckedRequirement::new(*id, origin, predicate));
+        let mut pending = VecDeque::from([CheckedRequirement::new(*id, *id, predicate)]);
+        while let Some(requirement) = pending.pop_front() {
+            if !seen.insert(requirement.predicate().clone()) {
+                continue;
+            }
+            if let CheckedPredicate::Interface { application, .. } = requirement.predicate() {
+                let capability = graph
+                    .interface_capabilities()
+                    .get(application.interface())
+                    .ok_or(SubstitutionError::InvalidStore)?;
+                for prerequisite in capability.direct_prerequisites() {
+                    let predicate = specialize_prerequisite(
+                        graph,
+                        types,
+                        requirement.predicate(),
+                        *prerequisite,
+                    )?;
+                    pending.push_back(CheckedRequirement::new(*id, *prerequisite, predicate));
+                }
+            }
+            normalized.push(requirement);
         }
     }
-    let mut unique = Vec::new();
-    for requirement in normalized {
-        if !unique
-            .iter()
-            .any(|existing: &CheckedRequirement| existing.predicate() == requirement.predicate())
-        {
-            unique.push(requirement);
-        }
-    }
-    Ok(unique)
+    Ok(normalized)
 }
 
-fn specialize_prerequisite_path(
+fn specialize_prerequisite(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
-    mut context: CheckedPredicate,
-    path: &[RequirementId],
-) -> Result<(RequirementId, CheckedPredicate), SubstitutionError> {
-    for prerequisite in path {
-        let CheckedPredicate::Interface {
-            subject,
-            application,
-            associated_types,
-        } = context
-        else {
-            return Err(SubstitutionError::InvalidStore);
-        };
-        let interface_id = application.interface();
-        let interface = graph
-            .declarations()
-            .interfaces()
-            .get(interface_id)
-            .ok_or(SubstitutionError::InvalidStore)?;
-        let mut substitution = TypeSubstitution::default();
-        substitution.set_interface_self(interface_id, subject);
-        for (parameter, argument) in interface
-            .generic_parameters()
-            .iter()
-            .zip(application.arguments())
-        {
-            substitution.bind_generic(*parameter, *argument);
-        }
-        for binding in &associated_types {
-            substitution.bind_associated(binding.declaration(), binding.ty());
-        }
-        let requirement = graph
-            .declarations()
-            .requirements()
-            .get(*prerequisite)
-            .ok_or(SubstitutionError::InvalidStore)?;
-        context = inherit_associated_bindings(
-            graph,
-            normalize_predicate(graph, types, &substitution, requirement.kind())?,
-            &associated_types,
-        );
+    context: &CheckedPredicate,
+    prerequisite: RequirementId,
+) -> Result<CheckedPredicate, SubstitutionError> {
+    let CheckedPredicate::Interface {
+        subject,
+        application,
+        associated_types,
+    } = context
+    else {
+        return Err(SubstitutionError::InvalidStore);
+    };
+    let interface_id = application.interface();
+    let interface = graph
+        .declarations()
+        .interfaces()
+        .get(interface_id)
+        .ok_or(SubstitutionError::InvalidStore)?;
+    let mut substitution = TypeSubstitution::default();
+    substitution.set_interface_self(interface_id, *subject);
+    for (parameter, argument) in interface
+        .generic_parameters()
+        .iter()
+        .zip(application.arguments())
+    {
+        substitution.bind_generic(*parameter, *argument);
     }
-    let origin = *path.last().ok_or(SubstitutionError::InvalidStore)?;
-    Ok((origin, context))
+    for binding in associated_types {
+        substitution.bind_associated(binding.declaration(), binding.ty());
+    }
+    let requirement = graph
+        .declarations()
+        .requirements()
+        .get(prerequisite)
+        .ok_or(SubstitutionError::InvalidStore)?;
+    Ok(inherit_associated_bindings(
+        graph,
+        normalize_predicate(graph, types, &substitution, requirement.kind())?,
+        associated_types,
+    ))
 }
 
 fn inherit_associated_bindings(
@@ -439,3 +436,4 @@ fn substitute_callable(
     )
     .map_err(|_| SubstitutionError::InvalidStore)
 }
+use std::collections::{HashSet, VecDeque};

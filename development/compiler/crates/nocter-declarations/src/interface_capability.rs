@@ -30,7 +30,6 @@ enum DependencyVisit {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct InterfaceCapability {
     direct_prerequisites: Box<[RequirementId]>,
-    prerequisite_paths: Box<[Box<[RequirementId]>]>,
     inherited_interfaces: Box<[InterfaceId]>,
     methods: Box<[CallableId]>,
     associated_types: Box<[AssociatedTypeId]>,
@@ -40,16 +39,6 @@ impl InterfaceCapability {
     #[must_use]
     pub const fn direct_prerequisites(&self) -> &[RequirementId] {
         &self.direct_prerequisites
-    }
-
-    /// Canonical declaration paths for every direct and transitive prerequisite.
-    ///
-    /// Each path starts at a requirement declared by this interface and ends at the exact
-    /// requirement that contributes a predicate. Checking specializes these frozen paths instead
-    /// of traversing interface declarations again.
-    #[must_use]
-    pub const fn prerequisite_paths(&self) -> &[Box<[RequirementId]>] {
-        &self.prerequisite_paths
     }
 
     #[must_use]
@@ -104,36 +93,26 @@ impl InterfaceCapabilityGraph {
         }
         let mut entries = ArenaBuilder::new();
         for (interface_id, _) in declarations.interfaces().iter() {
-            let mut path = Vec::new();
+            let mut active = BTreeSet::new();
+            let mut complete = BTreeSet::new();
             let mut ordered = Vec::new();
             collect_interfaces(
                 declarations,
                 &direct,
                 interface_id,
                 interface_id,
-                &mut path,
+                &mut active,
+                &mut complete,
                 &mut ordered,
             );
-            let mut seen = BTreeSet::new();
-            ordered.retain(|candidate| seen.insert(*candidate));
             let (methods, associated_types) =
                 collect_members(declarations, interface_id, &ordered, &mut issues);
-            let mut prerequisite_paths = Vec::new();
-            collect_prerequisite_paths(
-                declarations,
-                &direct,
-                interface_id,
-                &mut vec![interface_id],
-                &mut Vec::new(),
-                &mut prerequisite_paths,
-            );
             let actual = entries.insert(InterfaceCapability {
                 direct_prerequisites: direct
                     .get(&interface_id)
                     .cloned()
                     .unwrap_or_default()
                     .into_boxed_slice(),
-                prerequisite_paths: prerequisite_paths.into_boxed_slice(),
                 inherited_interfaces: ordered.into_boxed_slice(),
                 methods: methods.into_boxed_slice(),
                 associated_types: associated_types.into_boxed_slice(),
@@ -161,40 +140,6 @@ impl InterfaceCapabilityGraph {
             || self
                 .get(interface)
                 .is_some_and(|entry| entry.inherited_interfaces().contains(&candidate))
-    }
-}
-
-fn collect_prerequisite_paths(
-    declarations: &DeclarationArenas,
-    direct: &BTreeMap<InterfaceId, Vec<RequirementId>>,
-    current: InterfaceId,
-    active: &mut Vec<InterfaceId>,
-    prefix: &mut Vec<RequirementId>,
-    output: &mut Vec<Box<[RequirementId]>>,
-) {
-    for requirement in direct.get(&current).into_iter().flatten() {
-        prefix.push(*requirement);
-        output.push(prefix.clone().into_boxed_slice());
-        if let Some(RequirementKind::Interface { application, .. }) = declarations
-            .requirements()
-            .get(*requirement)
-            .map(crate::Requirement::kind)
-        {
-            let prerequisite = application.interface();
-            if !active.contains(&prerequisite) {
-                active.push(prerequisite);
-                collect_prerequisite_paths(
-                    declarations,
-                    direct,
-                    prerequisite,
-                    active,
-                    prefix,
-                    output,
-                );
-                active.pop();
-            }
-        }
-        prefix.pop();
     }
 }
 
@@ -255,19 +200,18 @@ fn collect_dependency_cycles(
     visits.insert(current, DependencyVisit::Complete);
 }
 
-#[allow(clippy::too_many_arguments)]
 fn collect_interfaces(
     declarations: &DeclarationArenas,
     direct: &BTreeMap<InterfaceId, Vec<RequirementId>>,
     root: InterfaceId,
     current: InterfaceId,
-    path: &mut Vec<InterfaceId>,
+    active: &mut BTreeSet<InterfaceId>,
+    complete: &mut BTreeSet<InterfaceId>,
     ordered: &mut Vec<InterfaceId>,
 ) {
-    if path.contains(&current) {
+    if complete.contains(&current) || !active.insert(current) {
         return;
     }
-    path.push(current);
     for requirement_id in direct.get(&current).into_iter().flatten() {
         let Some(RequirementKind::Interface {
             subject: RequirementSubject::InterfaceSelf(owner),
@@ -284,12 +228,21 @@ fn collect_interfaces(
             continue;
         }
         let prerequisite = application.interface();
-        collect_interfaces(declarations, direct, root, prerequisite, path, ordered);
-        if prerequisite != root {
-            ordered.push(prerequisite);
-        }
+        collect_interfaces(
+            declarations,
+            direct,
+            root,
+            prerequisite,
+            active,
+            complete,
+            ordered,
+        );
     }
-    path.pop();
+    active.remove(&current);
+    complete.insert(current);
+    if current != root {
+        ordered.push(current);
+    }
 }
 
 fn collect_members(

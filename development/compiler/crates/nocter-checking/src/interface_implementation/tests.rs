@@ -295,6 +295,47 @@ fn generic_subject_prerequisite_cycles_are_rejected() {
     );
 }
 
+#[test]
+fn layered_diamond_prerequisites_have_bounded_canonical_closure() {
+    let mut source = String::from("pub interface BaseLeft {}\npub interface BaseRight {}\n");
+    let mut previous = (String::from("BaseLeft"), String::from("BaseRight"));
+    for depth in 0..16 {
+        let left = format!("Left{depth}");
+        let right = format!("Right{depth}");
+        writeln!(
+            source,
+            "pub interface {left} where Self impl {}, Self impl {} {{}}",
+            previous.0, previous.1
+        )
+        .unwrap();
+        writeln!(
+            source,
+            "pub interface {right} where Self impl {}, Self impl {} {{}}",
+            previous.0, previous.1
+        )
+        .unwrap();
+        previous = (left, right);
+    }
+    let fixture = Fixture::new(&source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, _bindings, _source_index) = lowered.into_checking_parts();
+    let (graph, _types, _admission) = program.into_parts();
+    let interface_count = graph.declarations().interfaces().len();
+
+    assert!(
+        graph
+            .declarations()
+            .interfaces()
+            .iter()
+            .all(
+                |(interface, _)| graph.interface_capabilities().get(interface).is_some_and(
+                    |capability| capability.inherited_interfaces().len() < interface_count
+                )
+            )
+    );
+}
+
 struct Fixture {
     sources: SourceMap,
     app_manifest: SyntaxTree,
@@ -392,3 +433,4 @@ fn module<'syntax>(
         )],
     )
 }
+use std::fmt::Write as _;
