@@ -5,7 +5,7 @@ use crate::copyability::CopyProofs;
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::interface_implementation::normalize_requirements;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
-use crate::{CheckedPredicate, CheckedRequirement};
+use crate::{CheckedPredicate, CheckedRequirement, RequirementDerivation};
 
 /// The complete lexical proof environment for one body.
 ///
@@ -37,20 +37,14 @@ pub(crate) struct CapabilityEvidenceTable {
 
 #[derive(Clone, Debug)]
 pub struct CapabilityEvidence {
-    root: nocter_model::RequirementId,
-    origin: nocter_model::RequirementId,
+    derivations: Box<[RequirementDerivation]>,
     predicate: CheckedPredicate,
 }
 
 impl CapabilityEvidence {
     #[must_use]
-    pub const fn root(&self) -> nocter_model::RequirementId {
-        self.root
-    }
-
-    #[must_use]
-    pub const fn origin(&self) -> nocter_model::RequirementId {
-        self.origin
+    pub const fn derivations(&self) -> &[RequirementDerivation] {
+        &self.derivations
     }
 
     #[must_use]
@@ -67,8 +61,8 @@ pub(crate) struct BodyRequirement {
 }
 
 impl BodyRequirement {
-    pub(crate) const fn root(&self) -> nocter_model::RequirementId {
-        self.requirement.root()
+    pub(crate) fn root(&self) -> nocter_model::RequirementId {
+        self.requirement.derivations()[0].root()
     }
 
     pub(crate) const fn predicate(&self) -> &CheckedPredicate {
@@ -125,6 +119,10 @@ impl BodyAssumptionTable {
 impl CapabilityEvidenceTable {
     pub(crate) fn get(&self, id: CapabilityEvidenceId) -> Option<&CapabilityEvidence> {
         self.entries.get(id)
+    }
+
+    pub(crate) const fn entries(&self) -> &Arena<CapabilityEvidenceId, CapabilityEvidence> {
+        &self.entries
     }
 }
 
@@ -235,15 +233,8 @@ fn freeze_declared_evidence(
     let mut result = Vec::with_capacity(declared.len());
     for requirement in declared {
         let predicate = requirement.predicate().clone();
-        if result
-            .iter()
-            .any(|existing: &BodyRequirement| existing.predicate() == &predicate)
-        {
-            continue;
-        }
         let id = evidence.insert(CapabilityEvidence {
-            root: requirement.root(),
-            origin: requirement.origin(),
+            derivations: requirement.derivations().into(),
             predicate: predicate.clone(),
         });
         result.push(BodyRequirement {

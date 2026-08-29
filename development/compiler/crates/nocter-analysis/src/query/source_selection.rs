@@ -98,6 +98,7 @@ const fn entity_family_rank(entity: SemanticEntity) -> u8 {
         | SemanticEntity::Drop(_)
         | SemanticEntity::Test(_)
         | SemanticEntity::Requirement(_)
+        | SemanticEntity::CapabilityEvidence(_)
         | SemanticEntity::Body(_)
         | SemanticEntity::BodyScope(..)
         | SemanticEntity::BodyNode(..)

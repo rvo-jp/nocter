@@ -125,7 +125,7 @@ pub use interface_implementation::{
     InterfaceImplementationBuildError, InterfaceImplementationInternalError,
     InterfaceImplementationMethod, InterfaceImplementationRule, InterfaceImplementationTable,
     MethodSelection, MissingInterfaceImplementationMethods, RequiredInterfaceImplementationMethod,
-    RequiredInterfaceImplementationParameter, SubstitutionError,
+    RequiredInterfaceImplementationParameter, RequirementDerivation, SubstitutionError,
 };
 pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionError, MemberCompletionQuerySession,

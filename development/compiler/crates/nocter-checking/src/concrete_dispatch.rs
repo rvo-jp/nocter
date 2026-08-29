@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, ParameterRole};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
-    InterfaceId, OpaqueTypeId, RequirementId, TypeId, TypeKind, TypeStore,
+    InterfaceId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
 };
 
 use crate::instance_operations::{ComparisonCandidateImplementation, ConcreteEvidenceAuthority};
@@ -271,7 +271,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         specialized_arguments: &GenericArguments,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let requirement = self.evidence_root(evidence)?;
         let predicate = self.normalized_evidence(evidence, enclosing)?;
         let CheckedPredicate::Interface {
             subject,
@@ -279,8 +278,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
             ..
         } = predicate
         else {
-            return Err(ConcreteDispatchError::InvalidInterfaceRequirement(
-                requirement,
+            return Err(ConcreteDispatchError::InvalidInterfaceCapabilityEvidence(
+                evidence,
             ));
         };
         if self
@@ -290,8 +289,8 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .get(application.interface())
             .is_none_or(|capability| !capability.methods().contains(&surface))
         {
-            return Err(ConcreteDispatchError::InvalidInterfaceMethod {
-                requirement,
+            return Err(ConcreteDispatchError::InvalidCapabilityInterfaceMethod {
+                evidence,
                 method: surface,
             });
         }
@@ -300,7 +299,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
             &application,
             surface,
             specialized_arguments,
-            Some(requirement),
+            Some(evidence),
         )
     }
 
@@ -366,13 +365,13 @@ impl<'program> ConcreteDispatchResolver<'program> {
         application: &nocter_declarations::InterfaceApplication,
         surface: CallableId,
         specialized_arguments: &GenericArguments,
-        requirement: Option<RequirementId>,
+        evidence: Option<nocter_model::CapabilityEvidenceId>,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = self
             .evidence()
             .interface_method(subject, application, surface)?;
-        let candidate = if let Some(requirement) = requirement {
-            exactly_one(candidates, requirement)?
+        let candidate = if let Some(evidence) = evidence {
+            exactly_one_capability(candidates, evidence)?
         } else {
             let mut candidates = candidates.into_iter();
             let Some(candidate) = candidates.next() else {
@@ -599,7 +598,6 @@ impl<'program> ConcreteDispatchResolver<'program> {
         evidence: nocter_model::CapabilityEvidenceId,
         enclosing: &TypeSubstitution,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
-        let requirement = self.evidence_root(evidence)?;
         let predicate = self.normalized_evidence(evidence, enclosing)?;
         match predicate {
             CheckedPredicate::Callable { subject, contract } => {
@@ -608,30 +606,30 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 ))
             }
             CheckedPredicate::Equality(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Equal)
+                self.resolve_comparison(evidence, ty, ComparisonOperation::Equal)
             }
             CheckedPredicate::Ordering(ty) => {
-                self.resolve_comparison(requirement, ty, ComparisonOperation::Less)
+                self.resolve_comparison(evidence, ty, ComparisonOperation::Less)
             }
             CheckedPredicate::Index {
                 capability,
                 container,
                 index,
                 result,
-            } => self.resolve_index(requirement, capability, container, index, result),
+            } => self.resolve_index(evidence, capability, container, index, result),
             CheckedPredicate::Coercion { source, target } => {
-                self.resolve_coercion(requirement, source, target)
+                self.resolve_coercion(evidence, source, target)
             }
             CheckedPredicate::Expansion {
                 capability,
                 source,
                 result,
-            } => self.resolve_expansion(requirement, capability, source, result),
+            } => self.resolve_expansion(evidence, capability, source, result),
             CheckedPredicate::Interface { .. }
             | CheckedPredicate::Copy(_)
-            | CheckedPredicate::BinderRefinement { .. } => {
-                Err(ConcreteDispatchError::NonRuntimeRequirement(requirement))
-            }
+            | CheckedPredicate::BinderRefinement { .. } => Err(
+                ConcreteDispatchError::NonRuntimeCapabilityEvidence(evidence),
+            ),
         }
     }
 
@@ -655,26 +653,14 @@ impl<'program> ConcreteDispatchResolver<'program> {
         )?)
     }
 
-    fn evidence_root(
-        &self,
-        evidence: nocter_model::CapabilityEvidenceId,
-    ) -> Result<RequirementId, ConcreteDispatchError> {
-        self.program
-            .environment()
-            .capability_evidence()
-            .get(evidence)
-            .map(crate::body_check::CapabilityEvidence::root)
-            .ok_or(ConcreteDispatchError::InvalidCapabilityEvidence(evidence))
-    }
-
     fn resolve_comparison(
         &mut self,
-        requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         ty: TypeId,
         operation: ComparisonOperation,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = self.evidence().comparison(ty, ty, operation)?;
-        let candidate = exactly_one(candidates, requirement)?;
+        let candidate = exactly_one_capability(candidates, evidence)?;
         let left_coercion = candidate
             .receiver_coercion()
             .map(Self::direct_step)
@@ -715,7 +701,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn resolve_index(
         &mut self,
-        requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         capability: BorrowCapability,
         container: TypeId,
         index: TypeId,
@@ -723,10 +709,14 @@ impl<'program> ConcreteDispatchResolver<'program> {
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((result_capability, referent)) = borrow_result(self.semantics.types(), result)
         else {
-            return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
+            return Err(ConcreteDispatchError::InvalidStructuralIndexResult(
+                evidence,
+            ));
         };
         if result_capability != capability {
-            return Err(ConcreteDispatchError::InvalidIndexResult(requirement));
+            return Err(ConcreteDispatchError::InvalidStructuralIndexResult(
+                evidence,
+            ));
         }
         if let Some(builtin) = builtin_index_result(self.semantics.types(), container, capability)
             && index
@@ -758,7 +748,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
         let candidates = self
             .evidence()
             .index(container, capability, index, referent)?;
-        let candidate = exactly_one(candidates, requirement)?;
+        let candidate = exactly_one_capability(candidates, evidence)?;
         let receiver_coercion = candidate
             .receiver_coercion()
             .map(Self::direct_step)
@@ -790,17 +780,17 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn resolve_coercion(
         &mut self,
-        requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         source: TypeId,
         target: TypeId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let Some((source_capability, source_owner)) = borrow_result(self.semantics.types(), source)
         else {
-            return Err(ConcreteDispatchError::InvalidCoercion(requirement));
+            return Err(ConcreteDispatchError::InvalidStructuralCoercion(evidence));
         };
         let Some((target_capability, target_owner)) = borrow_result(self.semantics.types(), target)
         else {
-            return Err(ConcreteDispatchError::InvalidCoercion(requirement));
+            return Err(ConcreteDispatchError::InvalidStructuralCoercion(evidence));
         };
         if source_owner == target_owner
             && source_capability == BorrowCapability::ReadWrite
@@ -819,7 +809,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
             target_capability,
             target_owner,
         )?;
-        let candidate = exactly_one(candidates, requirement)?;
+        let candidate = exactly_one_capability(candidates, evidence)?;
         Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
             candidate.selection(),
         )?))
@@ -827,13 +817,13 @@ impl<'program> ConcreteDispatchResolver<'program> {
 
     fn resolve_expansion(
         &mut self,
-        requirement: RequirementId,
+        evidence: nocter_model::CapabilityEvidenceId,
         capability: ExpansionCapability,
         source: TypeId,
         result: TypeId,
     ) -> Result<ResolvedDispatchPlan, ConcreteDispatchError> {
         let candidates = self.evidence().expansion(source, capability, result)?;
-        let candidate = exactly_one(candidates, requirement)?;
+        let candidate = exactly_one_capability(candidates, evidence)?;
         Ok(ResolvedDispatchPlan::Invocation(Self::direct_step(
             candidate.selection(),
         )?))
@@ -858,16 +848,20 @@ impl<'program> ConcreteDispatchResolver<'program> {
     }
 }
 
-fn exactly_one<T>(
+fn exactly_one_capability<T>(
     candidates: Vec<T>,
-    requirement: RequirementId,
+    evidence: nocter_model::CapabilityEvidenceId,
 ) -> Result<T, ConcreteDispatchError> {
     let mut candidates = candidates.into_iter();
     let Some(candidate) = candidates.next() else {
-        return Err(ConcreteDispatchError::MissingEvidence(requirement));
+        return Err(ConcreteDispatchError::MissingCapabilityImplementation(
+            evidence,
+        ));
     };
     if candidates.next().is_some() {
-        return Err(ConcreteDispatchError::AmbiguousEvidence(requirement));
+        return Err(ConcreteDispatchError::AmbiguousCapabilityImplementation(
+            evidence,
+        ));
     }
     Ok(candidate)
 }
@@ -921,12 +915,11 @@ fn builtin_index_result(
 /// Failure to convert checked generic dispatch into one exact executable plan.
 #[derive(Debug)]
 pub enum ConcreteDispatchError {
-    UnknownRequirement(RequirementId),
     InvalidCapabilityEvidence(nocter_model::CapabilityEvidenceId),
     UnknownCallable(CallableId),
-    InvalidInterfaceRequirement(RequirementId),
-    InvalidInterfaceMethod {
-        requirement: RequirementId,
+    InvalidInterfaceCapabilityEvidence(nocter_model::CapabilityEvidenceId),
+    InvalidCapabilityInterfaceMethod {
+        evidence: nocter_model::CapabilityEvidenceId,
         method: CallableId,
     },
     InvalidInterfaceSelfMethod {
@@ -949,11 +942,11 @@ pub enum ConcreteDispatchError {
     MissingOpaqueWitness(nocter_model::OpaqueTypeId),
     MissingOpaqueEvidence(nocter_model::OpaqueTypeId),
     AmbiguousOpaqueEvidence(nocter_model::OpaqueTypeId),
-    InvalidIndexResult(RequirementId),
-    InvalidCoercion(RequirementId),
-    NonRuntimeRequirement(RequirementId),
-    MissingEvidence(RequirementId),
-    AmbiguousEvidence(RequirementId),
+    InvalidStructuralIndexResult(nocter_model::CapabilityEvidenceId),
+    InvalidStructuralCoercion(nocter_model::CapabilityEvidenceId),
+    NonRuntimeCapabilityEvidence(nocter_model::CapabilityEvidenceId),
+    MissingCapabilityImplementation(nocter_model::CapabilityEvidenceId),
+    AmbiguousCapabilityImplementation(nocter_model::CapabilityEvidenceId),
     NonConcreteCandidate,
     SymbolicArgument {
         parameter: GenericParameterId,
@@ -967,19 +960,16 @@ pub enum ConcreteDispatchError {
 impl fmt::Display for ConcreteDispatchError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnknownRequirement(_) => {
-                formatter.write_str("concrete dispatch names an unknown requirement")
-            }
             Self::InvalidCapabilityEvidence(_) => {
                 formatter.write_str("concrete dispatch names unknown capability evidence")
             }
             Self::UnknownCallable(_) => {
                 formatter.write_str("concrete dispatch names an unknown callable")
             }
-            Self::InvalidInterfaceRequirement(_) => {
-                formatter.write_str("interface dispatch does not name an interface requirement")
+            Self::InvalidInterfaceCapabilityEvidence(_) => {
+                formatter.write_str("interface dispatch evidence is not an interface capability")
             }
-            Self::InvalidInterfaceMethod { .. } => {
+            Self::InvalidCapabilityInterfaceMethod { .. } => {
                 formatter.write_str("interface dispatch names a method outside its interface")
             }
             Self::InvalidInterfaceSelfMethod { .. } => formatter
@@ -1004,20 +994,20 @@ impl fmt::Display for ConcreteDispatchError {
             Self::AmbiguousOpaqueEvidence(_) => {
                 formatter.write_str("opaque witness has ambiguous interface evidence")
             }
-            Self::InvalidIndexResult(_) => {
-                formatter.write_str("structural index dispatch has an invalid result contract")
+            Self::InvalidStructuralIndexResult(_) => {
+                formatter.write_str("structural index evidence has an invalid result contract")
             }
-            Self::InvalidCoercion(_) => {
-                formatter.write_str("structural coercion dispatch has an invalid borrow contract")
+            Self::InvalidStructuralCoercion(_) => {
+                formatter.write_str("structural coercion evidence has an invalid borrow contract")
             }
-            Self::NonRuntimeRequirement(_) => {
-                formatter.write_str("static dispatch names a non-runtime requirement")
+            Self::NonRuntimeCapabilityEvidence(_) => {
+                formatter.write_str("static dispatch names non-runtime capability evidence")
             }
-            Self::MissingEvidence(_) => {
-                formatter.write_str("concrete dispatch has no applicable evidence")
+            Self::MissingCapabilityImplementation(_) => {
+                formatter.write_str("capability evidence has no applicable implementation")
             }
-            Self::AmbiguousEvidence(_) => {
-                formatter.write_str("concrete dispatch has ambiguous applicable evidence")
+            Self::AmbiguousCapabilityImplementation(_) => {
+                formatter.write_str("capability evidence has ambiguous implementations")
             }
             Self::NonConcreteCandidate => {
                 formatter.write_str("concrete selection produced another symbolic dispatch")

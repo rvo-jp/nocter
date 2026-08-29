@@ -6,7 +6,7 @@ use super::selection::{
 };
 use crate::copyability::CopyProofs;
 use crate::interface_implementation::{proves_predicate, substitute_predicate};
-use crate::type_relations::TypeSubstitution;
+use crate::type_relations::{SubstitutionError, TypeSubstitution};
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
 impl InstanceOperationSelector<'_> {
@@ -18,7 +18,12 @@ impl InstanceOperationSelector<'_> {
         for requirement in requirements {
             let predicate =
                 substitute_predicate(self.types, substitution, requirement.predicate())?;
-            if !self.proves_requirement(&predicate, requirement.origin())? {
+            let declaration = requirement
+                .derivations()
+                .first()
+                .ok_or(SubstitutionError::InvalidStore)?
+                .origin();
+            if !self.proves_requirement(&predicate, declaration)? {
                 return Ok(false);
             }
         }

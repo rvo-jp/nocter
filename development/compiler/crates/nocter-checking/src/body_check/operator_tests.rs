@@ -19,6 +19,27 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
     check_prepared_program(&input, prepared)
 }
 
+fn structural_comparison_evidence(
+    output: &crate::CheckedProgramOutput,
+) -> nocter_model::CapabilityEvidenceId {
+    output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison) => match comparison.implementation() {
+                ComparisonImplementation::Selected(selection) => match selection.dispatch() {
+                    StaticDispatch::StructuralRequirement { evidence } => Some(evidence),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        })
+        .unwrap()
+}
+
 #[test]
 fn logical_not_and_runtime_negation_have_closed_unary_operations() {
     let output = check(
@@ -436,6 +457,65 @@ fn interface_structural_prerequisite_exposes_equality_to_generic_bodies() {
                             )
                     )
             ))
+    );
+}
+
+#[test]
+fn duplicate_prerequisite_facts_retain_every_authored_derivation() {
+    let output = check(
+        "pub interface Left where (&Self == &Self): bool {}\n\
+         pub interface Right where (&Self == &Self): bool {}\n\
+         func equal<T>(left: &T, right: &T): bool where T impl Left, T impl Right { left == right }\n",
+    )
+    .unwrap();
+
+    let evidence = structural_comparison_evidence(&output);
+    let capability = output.program().capability_evidence(evidence).unwrap();
+
+    assert_eq!(capability.derivations().len(), 2);
+    assert_eq!(
+        output
+            .source_index()
+            .bindings_for(nocter_source_index::SemanticEntity::CapabilityEvidence(
+                evidence,
+            ))
+            .iter()
+            .filter(|binding| { binding.role() == nocter_source_index::SourceRole::Declaration })
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn converging_prerequisite_routes_do_not_duplicate_one_source_origin() {
+    let output = check(
+        "pub interface Base where (&Self == &Self): bool {}\n\
+         pub interface Left where Self impl Base {}\n\
+         pub interface Right where Self impl Base {}\n\
+         func equal<T>(left: &T, right: &T): bool where T impl Left, T impl Right { left == right }\n",
+    )
+    .unwrap();
+    let evidence = structural_comparison_evidence(&output);
+
+    assert_eq!(
+        output
+            .program()
+            .capability_evidence(evidence)
+            .unwrap()
+            .derivations()
+            .len(),
+        2
+    );
+    assert_eq!(
+        output
+            .source_index()
+            .bindings_for(nocter_source_index::SemanticEntity::CapabilityEvidence(
+                evidence,
+            ))
+            .iter()
+            .filter(|binding| { binding.role() == nocter_source_index::SourceRole::Declaration })
+            .count(),
+        1
     );
 }
 

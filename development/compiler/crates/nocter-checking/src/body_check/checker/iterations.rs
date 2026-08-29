@@ -462,12 +462,12 @@ impl BodyChecker<'_, '_> {
             | StaticDispatch::InterfaceDefault {
                 method: callable, ..
             } => SemanticEntity::Callable(callable),
-            StaticDispatch::StructuralRequirement { evidence } => SemanticEntity::Requirement(
-                self.capability_evidence
-                    .get(evidence)
-                    .ok_or(BodyCheckInternalError::CallContractSelection)?
-                    .origin(),
-            ),
+            StaticDispatch::StructuralRequirement { evidence } => {
+                if self.capability_evidence.get(evidence).is_none() {
+                    return Err(BodyCheckInternalError::CallContractSelection);
+                }
+                SemanticEntity::CapabilityEvidence(evidence)
+            }
             StaticDispatch::InterfaceMethod { .. }
             | StaticDispatch::InterfaceSelfMethod { .. }
             | StaticDispatch::OpaqueMethod { .. } => {

@@ -87,32 +87,36 @@ pub(super) fn overlapping(primary: SourceOrigin, previous: SourceOrigin) -> Sour
 
 pub(super) fn unsatisfied_associated_bound(
     primary: SourceOrigin,
-    bound: SourceOrigin,
+    bounds: impl IntoIterator<Item = SourceOrigin>,
 ) -> SourceDiagnostic {
     SourceDiagnostic::new(
         InterfaceImplementationRule::UnsatisfiedAssociatedBound.code(),
         "interface implementation associated type does not satisfy its declared capability",
         primary,
-        [DiagnosticNote::new(
-            "the associated type capability is required here",
-            bound,
-        )],
+        bounds
+            .into_iter()
+            .map(|bound| {
+                DiagnosticNote::new("the associated type capability is required here", bound)
+            })
+            .collect::<Vec<_>>(),
         Some("select a type with this capability or add the required conditional bound"),
     )
 }
 
 pub(super) fn unsatisfied_prerequisite(
     primary: SourceOrigin,
-    prerequisite: SourceOrigin,
+    prerequisites: impl IntoIterator<Item = SourceOrigin>,
 ) -> SourceDiagnostic {
     SourceDiagnostic::new(
         InterfaceImplementationRule::UnsatisfiedPrerequisite.code(),
         "interface implementation does not satisfy an interface prerequisite",
         primary,
-        [DiagnosticNote::new(
-            "the prerequisite is declared here",
-            prerequisite,
-        )],
+        prerequisites
+            .into_iter()
+            .map(|prerequisite| {
+                DiagnosticNote::new("the prerequisite is declared here", prerequisite)
+            })
+            .collect::<Vec<_>>(),
         Some("add the required implementation or structural operation for the same target"),
     )
 }

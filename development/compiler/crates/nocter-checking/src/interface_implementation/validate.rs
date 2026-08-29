@@ -103,7 +103,7 @@ pub(crate) fn validate_interface_prerequisites(
                         source_index,
                         SemanticEntity::DeclarationSite(declaration.site()),
                     )?,
-                    requirement_origin(source_index, requirement.origin())?,
+                    requirement_origins(source_index, requirement)?,
                 )
                 .into());
             }
@@ -154,13 +154,24 @@ impl AssociatedValidationContext<'_> {
                         self.source_index,
                         SemanticEntity::DeclarationSite(self.interface_implementation_site),
                     )?,
-                    requirement_origin(self.source_index, requirement.origin())?,
+                    requirement_origins(self.source_index, &requirement)?,
                 )
                 .into());
             }
         }
         Ok(())
     }
+}
+
+fn requirement_origins(
+    source_index: DiagnosticOrigins<'_>,
+    requirement: &crate::CheckedRequirement,
+) -> Result<Vec<nocter_source_index::SourceOrigin>, InterfaceImplementationInternalError> {
+    requirement
+        .derivations()
+        .iter()
+        .map(|derivation| requirement_origin(source_index, derivation.origin()))
+        .collect()
 }
 
 fn interface_implementation_substitution(

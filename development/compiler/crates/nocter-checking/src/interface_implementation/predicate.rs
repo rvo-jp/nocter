@@ -42,40 +42,65 @@ pub enum CheckedPredicate {
     },
 }
 
-/// One normalized declaration predicate used while proving declarations.
+/// One authored derivation of a normalized declaration predicate.
 ///
 /// `root` is the requirement written on the declaration being checked. `origin` is the exact
-/// requirement declaration that contributed `predicate`; the two differ for a transitive
-/// interface prerequisite. Runtime/body evidence is deliberately represented by
-/// `BodyRequirement` instead of being optional here.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedRequirement {
+/// requirement declaration that contributed the predicate; the two differ for a transitive
+/// interface prerequisite.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct RequirementDerivation {
     root: RequirementId,
     origin: RequirementId,
+}
+
+impl RequirementDerivation {
+    const fn new(root: RequirementId, origin: RequirementId) -> Self {
+        Self { root, origin }
+    }
+
+    #[must_use]
+    pub const fn root(self) -> RequirementId {
+        self.root
+    }
+
+    #[must_use]
+    pub const fn origin(self) -> RequirementId {
+        self.origin
+    }
+}
+
+/// One normalized declaration predicate used while proving declarations.
+///
+/// Predicate identity is the semantic fact. `derivations` preserves every authored route that
+/// establishes that fact without making the first route authoritative. Runtime/body evidence is
+/// deliberately represented by `BodyRequirement` instead of being optional here.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedRequirement {
+    derivations: Vec<RequirementDerivation>,
     predicate: CheckedPredicate,
 }
 
 impl CheckedRequirement {
-    pub(super) const fn new(
+    pub(super) fn new(
         root: RequirementId,
         origin: RequirementId,
         predicate: CheckedPredicate,
     ) -> Self {
         Self {
-            root,
-            origin,
+            derivations: vec![RequirementDerivation::new(root, origin)],
             predicate,
         }
     }
 
     #[must_use]
-    pub const fn root(&self) -> RequirementId {
-        self.root
+    pub fn derivations(&self) -> &[RequirementDerivation] {
+        &self.derivations
     }
 
-    #[must_use]
-    pub const fn origin(&self) -> RequirementId {
-        self.origin
+    fn add_derivation(&mut self, derivation: RequirementDerivation) {
+        if !self.derivations.contains(&derivation) {
+            self.derivations.push(derivation);
+        }
     }
 
     #[must_use]
@@ -100,8 +125,8 @@ pub(crate) fn normalize_requirements(
     substitution: &TypeSubstitution,
     requirements: &[RequirementId],
 ) -> Result<Vec<CheckedRequirement>, SubstitutionError> {
-    let mut normalized = Vec::new();
-    let mut seen = HashSet::new();
+    let mut normalized: Vec<CheckedRequirement> = Vec::new();
+    let mut indexes: HashMap<CheckedPredicate, usize> = HashMap::new();
     for id in requirements {
         let requirement = graph
             .declarations()
@@ -110,26 +135,30 @@ pub(crate) fn normalize_requirements(
             .ok_or(SubstitutionError::InvalidStore)?;
         let predicate = normalize_predicate(graph, types, substitution, requirement.kind())?;
         let mut pending = VecDeque::from([CheckedRequirement::new(*id, *id, predicate)]);
+        let mut expanded = HashSet::new();
         while let Some(requirement) = pending.pop_front() {
-            if !seen.insert(requirement.predicate().clone()) {
+            let predicate = requirement.predicate().clone();
+            let derivation = requirement.derivations()[0];
+            if let Some(index) = indexes.get(&predicate).copied() {
+                normalized[index].add_derivation(derivation);
+            } else {
+                indexes.insert(predicate.clone(), normalized.len());
+                normalized.push(requirement);
+            }
+            if !expanded.insert(predicate.clone()) {
                 continue;
             }
-            if let CheckedPredicate::Interface { application, .. } = requirement.predicate() {
+            if let CheckedPredicate::Interface { application, .. } = &predicate {
                 let capability = graph
                     .interface_capabilities()
                     .get(application.interface())
                     .ok_or(SubstitutionError::InvalidStore)?;
                 for prerequisite in capability.direct_prerequisites() {
-                    let predicate = specialize_prerequisite(
-                        graph,
-                        types,
-                        requirement.predicate(),
-                        *prerequisite,
-                    )?;
+                    let predicate =
+                        specialize_prerequisite(graph, types, &predicate, *prerequisite)?;
                     pending.push_back(CheckedRequirement::new(*id, *prerequisite, predicate));
                 }
             }
-            normalized.push(requirement);
         }
     }
     Ok(normalized)
@@ -436,4 +465,4 @@ fn substitute_callable(
     )
     .map_err(|_| SubstitutionError::InvalidStore)
 }
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};

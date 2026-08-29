@@ -689,6 +689,7 @@ impl<'a> SemanticQueryContext<'a> {
             }
             SemanticEntity::Parameter(id) => declarations.parameters().get(id).is_some(),
             SemanticEntity::Requirement(id) => declarations.requirements().get(id).is_some(),
+            SemanticEntity::CapabilityEvidence(id) => self.capability_evidence(id).is_some(),
             SemanticEntity::Body(id) => declarations.bodies().get(id).is_some(),
             SemanticEntity::BodyScope(body, scope) => self.scope_exists(body, scope),
             SemanticEntity::BodyNode(body, node) => self.node_exists(body, node),

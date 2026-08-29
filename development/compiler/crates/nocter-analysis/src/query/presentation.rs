@@ -243,6 +243,7 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::InterfaceImplementation(_)
             | SemanticEntity::Drop(_)
             | SemanticEntity::Requirement(_)
+            | SemanticEntity::CapabilityEvidence(_)
             | SemanticEntity::Body(_)
             | SemanticEntity::BodyScope(..)
             | SemanticEntity::BodyNode(..)

@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_model::{Arena, ArenaBuilder, BodyId, TypeId, TypeStore};
-use nocter_source_index::{SourceIndex, SourceRole};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
 
 use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyOutput, NodeProjection};
@@ -272,7 +272,11 @@ fn build_body_analysis_recovery(
     checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
     projections: Vec<NodeProjection>,
 ) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
-    prepared.source_index = extend_source_index(prepared.source_index, projections);
+    prepared.source_index = extend_source_index(
+        prepared.source_index,
+        projections,
+        prepared.environment.capability_evidence(),
+    );
     let mut checked_bodies = checked_bodies.into_iter().peekable();
     let mut rejections = rejections.into_iter().peekable();
     let mut recovered = ArenaBuilder::<BodyId, crate::BodyEvidence>::new();
@@ -352,7 +356,8 @@ fn finish_checked_program(
         source_index,
     } = prepared;
     let graph = environment.graph();
-    let source_index = extend_source_index(source_index, projections);
+    let source_index =
+        extend_source_index(source_index, projections, environment.capability_evidence());
     let mut semantic_completion = semantics.transaction();
     let (completion_types, completion_copyabilities) =
         semantic_completion.access().into_reasoning_parts();
@@ -377,8 +382,35 @@ fn finish_checked_program(
     ))
 }
 
-fn extend_source_index(source_index: SourceIndex, projections: Vec<NodeProjection>) -> SourceIndex {
+fn extend_source_index(
+    source_index: SourceIndex,
+    projections: Vec<NodeProjection>,
+    evidence: &super::CapabilityEvidenceTable,
+) -> SourceIndex {
+    let mut evidence_declarations = Vec::new();
+    let mut seen_evidence_declarations = HashSet::new();
+    for (evidence, entry) in evidence.entries().iter() {
+        for derivation in entry.derivations() {
+            for binding in source_index
+                .bindings_for(SemanticEntity::Requirement(derivation.origin()))
+                .iter()
+                .filter(|binding| binding.role() == SourceRole::Declaration)
+            {
+                let declaration = (evidence, binding.origin());
+                if seen_evidence_declarations.insert(declaration) {
+                    evidence_declarations.push(declaration);
+                }
+            }
+        }
+    }
     let mut source_index = source_index.into_builder();
+    for (evidence, origin) in evidence_declarations {
+        source_index.insert(
+            SemanticEntity::CapabilityEvidence(evidence),
+            SourceRole::Declaration,
+            origin,
+        );
+    }
     for projection in projections {
         match projection.access {
             Some(access) => {

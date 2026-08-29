@@ -22,6 +22,8 @@ resolve names, choose visible declarations, type expressions, or implement edito
 ## Invariants
 
 - Conflicting projections are retained as issues, never resolved by insertion order.
+- One semantic identity may deliberately have multiple declaration origins, as with a capability
+  fact derived from multiple authored prerequisites.
 - A source range is not a semantic identity.
 - Projection failure cannot change semantic program success.
 - Raw projections cannot cross directly into protocol code.
