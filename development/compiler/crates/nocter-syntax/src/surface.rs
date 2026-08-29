@@ -42,6 +42,7 @@ pub enum DeclarationSyntaxLocator {
 #[derive(Clone, Debug)]
 pub struct DeclarationSyntaxProjection {
     surface: DeclarationSyntaxSurface,
+    bodies: Box<[crate::BodySyntaxSurface]>,
     nodes: Box<[NodeId]>,
     tokens: Box<[SyntaxToken]>,
     node_locators: HashMap<NodeId, u32>,
@@ -59,6 +60,12 @@ impl DeclarationSyntaxProjection {
     #[must_use]
     pub fn into_surface(self) -> DeclarationSyntaxSurface {
         self.surface
+    }
+
+    /// Returns executable bodies keyed by their stable declaration-surface block locator.
+    #[must_use]
+    pub const fn body_surfaces(&self) -> &[crate::BodySyntaxSurface] {
+        &self.bodies
     }
 
     /// Converts a current-generation syntax identity into a stable surface locator.
@@ -120,6 +127,7 @@ pub(crate) fn declaration_projection(
     let mut canonical = Vec::new();
     let mut nodes = Vec::new();
     let mut tokens = Vec::new();
+    let mut bodies = Vec::new();
     let mut node_locators = HashMap::new();
     let mut token_locators = HashMap::new();
     let mut pending = vec![Visit::Element(SyntaxElement::Node(tree.root_id()))];
@@ -135,7 +143,14 @@ pub(crate) fn declaration_projection(
                     .expect("surface traversal retains one syntax-tree owner");
                 encode(0, syntax.kind().as_str().as_bytes(), &mut canonical);
                 pending.push(Visit::CloseNode);
-                if syntax.kind() != NodeKind::Block {
+                if syntax.kind() == NodeKind::Block {
+                    bodies.push(crate::body_surface::body_surface(
+                        DeclarationSyntaxLocator::Node(index),
+                        tree,
+                        node,
+                        normalized_text,
+                    ));
+                } else {
                     pending.extend(
                         tree.children(node)
                             .iter()
@@ -163,6 +178,20 @@ pub(crate) fn declaration_projection(
             Visit::CloseNode => canonical.push(4),
         }
     }
+    encode_declaration_diagnostics(tree, &mut canonical);
+    DeclarationSyntaxProjection {
+        surface: DeclarationSyntaxSurface {
+            canonical: canonical.into_boxed_slice(),
+        },
+        bodies: bodies.into_boxed_slice(),
+        nodes: nodes.into_boxed_slice(),
+        tokens: tokens.into_boxed_slice(),
+        node_locators,
+        token_locators,
+    }
+}
+
+fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
     let body_ranges = tree
         .nodes()
         .filter(|(_, node)| node.kind() == NodeKind::Block)
@@ -178,7 +207,7 @@ pub(crate) fn declaration_projection(
         encode(
             6,
             lex_diagnostic_name(diagnostic.kind()).as_bytes(),
-            &mut canonical,
+            canonical,
         );
     }
     for diagnostic in tree.diagnostics() {
@@ -190,25 +219,16 @@ pub(crate) fn declaration_projection(
         }
         match diagnostic.kind() {
             ParseDiagnosticKind::Expected(expected) => {
-                encode(7, b"expected", &mut canonical);
-                encode_expected(expected, &mut canonical);
+                encode(7, b"expected", canonical);
+                encode_expected(expected, canonical);
             }
             ParseDiagnosticKind::LateDependencyDeclaration => {
-                encode(7, b"late_dependency_declaration", &mut canonical);
+                encode(7, b"late_dependency_declaration", canonical);
             }
             ParseDiagnosticKind::NestingLimit => {
-                encode(7, b"nesting_limit", &mut canonical);
+                encode(7, b"nesting_limit", canonical);
             }
         }
-    }
-    DeclarationSyntaxProjection {
-        surface: DeclarationSyntaxSurface {
-            canonical: canonical.into_boxed_slice(),
-        },
-        nodes: nodes.into_boxed_slice(),
-        tokens: tokens.into_boxed_slice(),
-        node_locators,
-        token_locators,
     }
 }
 
@@ -302,6 +322,30 @@ mod tests {
             surface("func answer(): i32 { return 1 }\n"),
             surface("func answer(): i32 { let value = 40\n return value + 2 }\n")
         );
+    }
+
+    #[test]
+    fn body_surfaces_change_independently_under_stable_declaration_locators() {
+        let (first_tree, first_source) = tree(concat!(
+            "func first(): i32 { return 1 }\n",
+            "func second(): i32 { return 2 }\n",
+        ));
+        let (second_tree, second_source) = tree(concat!(
+            "func first(): i32 { return 10 }\n",
+            "func second(): i32 { return 2 }\n",
+        ));
+        let first = project_declaration_syntax(&first_tree, &first_source).unwrap();
+        let second = project_declaration_syntax(&second_tree, &second_source).unwrap();
+
+        assert_eq!(first.surface(), second.surface());
+        assert_eq!(first.body_surfaces().len(), 2);
+        assert_eq!(second.body_surfaces().len(), 2);
+        assert_eq!(
+            first.body_surfaces()[0].locator(),
+            second.body_surfaces()[0].locator()
+        );
+        assert_ne!(first.body_surfaces()[0], second.body_surfaces()[0]);
+        assert_eq!(first.body_surfaces()[1], second.body_surfaces()[1]);
     }
 
     #[test]

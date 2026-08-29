@@ -162,6 +162,14 @@ branch. Existing symbol IDs therefore remain valid across a body edit, while a n
 local, member name, body type name, block import alias, or string value is available to the current
 checker without widening declaration invalidation.
 
+The body-query input boundary now exists independently of checking. Syntax pairs every executable
+block pruned from a declaration surface with that block's stable declaration locator and exact
+normalized bytes. Workspace orchestration reads those body surfaces from the same source-surface
+product already demanded for module composition, then atomically publishes inputs keyed by
+canonical physical path plus locator. A sibling-body edit therefore leaves an unchanged body's key
+and fingerprint equal. Name resolution and body checking still need to consume these inputs through
+their own queries; publication alone is not counted as incremental checking.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

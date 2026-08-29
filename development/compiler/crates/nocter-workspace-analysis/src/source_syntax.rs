@@ -257,6 +257,7 @@ impl Query for SourceSyntaxQuery {
 
 pub(super) struct SourceDeclarationSurfaceProduct {
     surface: Result<Arc<nocter_syntax::DeclarationSyntaxSurface>, Arc<str>>,
+    bodies: Box<[nocter_syntax::BodySyntaxSurface]>,
     fingerprint: Fingerprint,
 }
 
@@ -267,6 +268,11 @@ impl SourceDeclarationSurfaceProduct {
             Ok(surface) => (0, surface.canonical_bytes()),
             Err(message) => (1, message.as_bytes()),
         }
+    }
+
+    /// Returns exact per-body inputs keyed by stable declaration-surface locators.
+    pub(super) fn body_surfaces(&self) -> &[nocter_syntax::BodySyntaxSurface] {
+        &self.bodies
     }
 }
 
@@ -284,19 +290,23 @@ impl Query for SourceDeclarationSurfaceQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let syntax = database.query::<SourceSyntaxQuery>(key.clone())?;
-        let (surface, fingerprint) = match &syntax.result {
+        let (surface, bodies, fingerprint) = match &syntax.result {
             Ok(syntax) => {
-                let surface = Arc::new(syntax.declaration_surface());
+                let projection = syntax.declaration_projection();
+                let bodies = projection.body_surfaces().to_vec().into_boxed_slice();
+                let surface = Arc::new(projection.into_surface());
                 let fingerprint = tagged_fingerprint(0, surface.canonical_bytes());
-                (Ok(surface), fingerprint)
+                (Ok(surface), bodies, fingerprint)
             }
             Err(message) => (
                 Err(Arc::clone(message)),
+                Vec::new().into_boxed_slice(),
                 tagged_fingerprint(1, message.as_bytes()),
             ),
         };
         Ok(SourceDeclarationSurfaceProduct {
             surface,
+            bodies,
             fingerprint,
         })
     }

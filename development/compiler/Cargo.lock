@@ -2035,6 +2035,7 @@ dependencies = [
  "nocter-computation",
  "nocter-declaration-lowering",
  "nocter-discovery",
+ "nocter-syntax",
 ]
 
 [[package]]

@@ -52,26 +52,11 @@ pub(crate) fn compile_scope(
     };
     match discovered {
         Ok(unit) => {
-            let module_surface = match crate::module_surface::fingerprint(computation, &unit) {
-                Ok(fingerprint) => fingerprint,
-                Err(error) => {
-                    let error = WorkspaceAnalysisError::computation(error);
-                    return WorkspaceAnalysisState::PreparationFailed {
-                        source_overlay,
-                        diagnostics: preparation_diagnostics(&error),
-                        error,
-                    };
-                }
-            };
             let unit = Arc::new(unit);
-            let (scope, publication) =
-                match nocter_semantic_computation::ScopeInputPublication::for_unit(
-                    Arc::clone(&unit),
-                    module_surface,
-                ) {
-                    Ok(publication) => publication,
+            let (scope, publication, body_inputs) =
+                match prepare_semantic_inputs(computation, Arc::clone(&unit)) {
+                    Ok(inputs) => inputs,
                     Err(error) => {
-                        let error = WorkspaceAnalysisError::semantic_computation(error);
                         return WorkspaceAnalysisState::PreparationFailed {
                             source_overlay,
                             diagnostics: preparation_diagnostics(&error),
@@ -91,6 +76,9 @@ pub(crate) fn compile_scope(
                 }
             };
             publication.publish(&mut revision, &scope);
+            for body in body_inputs {
+                body.publish(&mut revision);
+            }
             let _ = revision.commit();
             let declarations = match nocter_semantic_computation::declarations(computation, scope) {
                 Ok(declarations) => declarations,
@@ -130,6 +118,27 @@ pub(crate) fn compile_scope(
             }
         }
     }
+}
+
+fn prepare_semantic_inputs(
+    computation: &Database,
+    unit: Arc<nocter_discovery::DiscoveredUnit>,
+) -> Result<
+    (
+        nocter_semantic_computation::SemanticScopeKey,
+        nocter_semantic_computation::ScopeInputPublication,
+        Vec<nocter_semantic_computation::BodySourcePublication>,
+    ),
+    WorkspaceAnalysisError,
+> {
+    let module_surface = crate::module_surface::fingerprint(computation, &unit)
+        .map_err(WorkspaceAnalysisError::computation)?;
+    let body_inputs = crate::body_inputs::collect(computation, &unit)
+        .map_err(WorkspaceAnalysisError::computation)?;
+    let (scope, publication) =
+        nocter_semantic_computation::ScopeInputPublication::for_unit(unit, module_surface)
+            .map_err(WorkspaceAnalysisError::semantic_computation)?;
+    Ok((scope, publication, body_inputs))
 }
 
 fn analyze_declaration_outcome(

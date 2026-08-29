@@ -22,6 +22,7 @@ language server.
 - path-keyed source-text and parse queries, input publication, and computation instrumentation
 - source declaration-surface and module-surface query composition
 - atomic semantic-scope input publication and declaration-query demand
+- exact per-body input collection from the already demanded source-surface product
 
 ## Invariants
 

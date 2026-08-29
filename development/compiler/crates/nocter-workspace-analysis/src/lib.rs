@@ -18,6 +18,7 @@ use nocter_workspace_revision::{
     GenerationId, WorkspaceRevisionSequence, WorkspaceSourceChangeKind, WorkspaceSourceRevision,
 };
 
+mod body_inputs;
 mod compilation;
 mod compilation_input;
 mod configuration;

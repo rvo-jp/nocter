@@ -283,6 +283,7 @@ fn semantic_computation_owns_queries_without_workspace_or_session_policy() {
             "nocter-computation".to_owned(),
             "nocter-declaration-lowering".to_owned(),
             "nocter-discovery".to_owned(),
+            "nocter-syntax".to_owned(),
         ])
     );
 }

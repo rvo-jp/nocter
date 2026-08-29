@@ -10,6 +10,7 @@ publish = false
 nocter-computation = { path = "../nocter-computation" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-discovery = { path = "../nocter-discovery" }
+nocter-syntax = { path = "../nocter-syntax" }
 
 [lints]
 workspace = true

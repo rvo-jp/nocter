@@ -134,6 +134,7 @@ impl From<nocter_discovery::CurrentSourceSurfaceError> for ScopeInputError {
 
 struct DeclarationScopeInput;
 struct CurrentSourceScopeInput;
+struct BodySourceInput;
 
 impl Input for DeclarationScopeInput {
     type Key = SemanticScopeKey;
@@ -143,6 +144,75 @@ impl Input for DeclarationScopeInput {
 impl Input for CurrentSourceScopeInput {
     type Key = SemanticScopeKey;
     type Value = ScopeInputValue;
+}
+
+impl Input for BodySourceInput {
+    type Key = BodySourceKey;
+    type Value = BodySourceValue;
+}
+
+/// Stable physical identity of one executable body beneath a declaration surface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BodySourceKey {
+    stable: Box<[u8]>,
+}
+
+impl BodySourceKey {
+    fn new(path: &str, locator: nocter_syntax::DeclarationSyntaxLocator) -> Self {
+        let mut stable = Vec::new();
+        encode(path.as_bytes(), &mut stable);
+        match locator {
+            nocter_syntax::DeclarationSyntaxLocator::Node(index) => {
+                stable.push(0);
+                stable.extend_from_slice(&index.to_be_bytes());
+            }
+            nocter_syntax::DeclarationSyntaxLocator::Token(index) => {
+                stable.push(1);
+                stable.extend_from_slice(&index.to_be_bytes());
+            }
+        }
+        Self {
+            stable: stable.into_boxed_slice(),
+        }
+    }
+}
+
+impl ComputationKey for BodySourceKey {
+    fn stable_bytes(&self) -> Box<[u8]> {
+        self.stable.clone()
+    }
+}
+
+struct BodySourceValue {
+    fingerprint: Fingerprint,
+}
+
+impl QueryValue for BodySourceValue {
+    fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+}
+
+/// One exact per-body input staged with its containing semantic scope revision.
+pub struct BodySourcePublication {
+    key: BodySourceKey,
+    value: BodySourceValue,
+}
+
+impl BodySourcePublication {
+    #[must_use]
+    pub fn new(path: &str, body: &nocter_syntax::BodySyntaxSurface) -> Self {
+        Self {
+            key: BodySourceKey::new(path, body.locator()),
+            value: BodySourceValue {
+                fingerprint: Fingerprint::from_bytes(body.canonical_bytes()),
+            },
+        }
+    }
+
+    pub fn publish(self, revision: &mut InputRevision<'_>) {
+        revision.set::<BodySourceInput>(&self.key, self.value);
+    }
 }
 
 struct ScopeInputValue {

@@ -1,5 +1,6 @@
 //! Lossless lexical and syntactic projection of normalized Nocter source.
 
+mod body_surface;
 mod completeness;
 mod diagnostic;
 mod documentation;
@@ -14,6 +15,7 @@ mod surface;
 mod token;
 mod tree;
 
+pub use body_surface::BodySyntaxSurface;
 pub use completeness::node_is_complete;
 pub use diagnostic::{ExpectedSyntax, ParseDiagnostic, ParseDiagnosticKind};
 pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFile, lex};

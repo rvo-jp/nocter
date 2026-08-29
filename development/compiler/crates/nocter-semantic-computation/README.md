@@ -16,6 +16,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 
 - stable scope-key construction
 - atomic publication of semantic and current-source views of one discovery snapshot
+- stable path-and-declaration-locator body input publication
 - declaration-query evaluation and dependency selection
 - computation instrumentation for semantic query tests
 
@@ -31,6 +32,8 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   one snapshot with source bytes from another.
 - Compiler-domain rejection is a query value, not a computation-kernel failure.
 - Query keys contain no `SourceId`, `NodeId`, semantic arena ID, or workspace generation number.
+- Body source inputs use a canonical physical path plus a declaration-surface block locator; their
+  fingerprints contain only that body's exact normalized bytes.
 - Reusable declaration symbols form a stable prefix. Current body spellings are appended only to
   an owned checking branch, so body edits cannot renumber declaration symbols or enter the
   declaration query result.
