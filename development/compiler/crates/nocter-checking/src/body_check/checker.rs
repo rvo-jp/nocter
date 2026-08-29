@@ -17,7 +17,7 @@ use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, bo
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::literal::{fits_integer, integer_type, parse_integer};
-use crate::checked::{CheckedBodyBuilder, ClosureTransaction};
+use crate::checked::{CheckedBodyBuilder, CheckedBodyRecipe, ClosureTransaction};
 use crate::copyability::{CopyProofs, Copyability};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
 use crate::syntax::{
@@ -25,9 +25,8 @@ use crate::syntax::{
     is_transparent_expression, token_text,
 };
 use crate::{
-    BodySource, CheckedBody, CheckedControl, CheckedOperation, ConstantValue, DropTable,
-    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames,
-    plan_expected_type,
+    BodySource, CheckedControl, CheckedOperation, ConstantValue, DropTable, ExpectedEvidence,
+    NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames, plan_expected_type,
 };
 
 mod aggregates;
@@ -108,8 +107,8 @@ enum BlockExpectation {
     Value(Option<TypeId>),
 }
 
-pub(super) struct CheckedBodyOutput {
-    pub(super) body: CheckedBody,
+pub(super) struct CheckedBodyDraft {
+    pub(super) body: CheckedBodyRecipe,
     pub(super) projections: Vec<NodeProjection>,
     pub(super) node_origins: HashMap<BodyNodeId, SourceOrigin>,
     pub(super) opaque_witness: Option<(nocter_model::OpaqueTypeId, TypeId)>,
@@ -287,7 +286,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             diagnostic_origins,
             source,
             names,
-            builder: CheckedBodyBuilder::new(names, source.syntax().source()),
+            builder: CheckedBodyBuilder::new(names),
             uses,
             consumed_uses: HashSet::new(),
             argument_pack_uses: HashMap::new(),
@@ -326,7 +325,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         Ok(target)
     }
 
-    pub(super) fn check(mut self) -> Result<CheckedBodyOutput, BodyConstructionFailure> {
+    pub(super) fn check(mut self) -> Result<CheckedBodyDraft, BodyConstructionFailure> {
         let checked = (|| {
             let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
             if self.consumed_uses.len() != self.names.uses().len() {
@@ -340,7 +339,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let body = self.builder.finish(root).map_err(|error| {
             BodyConstructionFailure::new(error.into(), self.interruption.take())
         })?;
-        Ok(CheckedBodyOutput {
+        Ok(CheckedBodyDraft {
             body,
             projections: self.projections,
             node_origins: self.node_origins,

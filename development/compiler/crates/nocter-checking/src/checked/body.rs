@@ -65,8 +65,22 @@ pub struct CheckedBody {
     root: BodyNodeId,
 }
 
+/// Source-neutral checked-body graph retained between body checking and current-source projection.
+///
+/// Semantic identities in this graph belong to the body transaction that produced it. The matching
+/// body type and closure recipes must therefore rebind it before it becomes a [`CheckedBody`].
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedBodyRecipe {
+    local_types: Arena<LocalBindingId, TypeId>,
+    capture_types: Arena<CaptureId, TypeId>,
+    places: Arena<PlaceId, CheckedPlace>,
+    loops: Arena<LoopId, CheckedLoop>,
+    nodes: Arena<BodyNodeId, CheckedNode>,
+    cleanups: CleanupTable,
+    root: BodyNodeId,
+}
+
 pub(super) struct CheckedBodyDomains {
-    pub(super) scopes: Arena<BodyScopeId, BodyScope>,
     pub(super) locals: Arena<LocalBindingId, CheckedLocal>,
     pub(super) captures: Arena<CaptureId, CheckedCapture>,
     pub(super) places: Arena<PlaceId, CheckedPlace>,
@@ -76,55 +90,65 @@ pub(super) struct CheckedBodyDomains {
 
 impl CheckedBody {
     pub(crate) fn rebind(
-        mut self,
+        recipe: CheckedBodyRecipe,
+        names: &crate::ResolvedBodyNames,
         source: SourceId,
         semantics: &super::CheckedSemanticRebinder<'_>,
     ) -> Result<Self, super::CheckedSemanticRebindError> {
-        self.source = source;
-        self.locals = self.locals.try_map(|_, local| {
-            let mut local = *local;
-            local.ty = semantics.ty(local.ty)?;
-            Ok::<_, super::CheckedSemanticRebindError>(local)
+        let locals = names.locals().try_map(|local, declaration| {
+            let ty = recipe
+                .local_types
+                .get(local)
+                .copied()
+                .ok_or(super::CheckedSemanticRebindError::MissingLocal(local))?;
+            Ok::<_, super::CheckedSemanticRebindError>(CheckedLocal::new(
+                *declaration,
+                semantics.ty(ty)?,
+            ))
         })?;
-        self.captures = self.captures.try_map(|_, capture| {
-            let mut capture = *capture;
-            capture.ty = semantics.ty(capture.ty)?;
-            Ok::<_, super::CheckedSemanticRebindError>(capture)
+        if recipe.local_types.len() != locals.len() {
+            return Err(super::CheckedSemanticRebindError::LocalDomainMismatch);
+        }
+        let captures = names.captures().try_map(|capture, declaration| {
+            let ty = recipe
+                .capture_types
+                .get(capture)
+                .copied()
+                .ok_or(super::CheckedSemanticRebindError::MissingCapture(capture))?;
+            Ok::<_, super::CheckedSemanticRebindError>(CheckedCapture::new(
+                *declaration,
+                semantics.ty(ty)?,
+            ))
         })?;
-        self.places = self.places.try_map(|_, place| {
+        if recipe.capture_types.len() != captures.len() {
+            return Err(super::CheckedSemanticRebindError::CaptureDomainMismatch);
+        }
+        let places = recipe.places.try_map(|_, place| {
             let mut place = place.clone();
             place.rebind(semantics)?;
             Ok::<_, super::CheckedSemanticRebindError>(place)
         })?;
-        self.loops = self.loops.try_map(|_, loop_| {
+        let loops = recipe.loops.try_map(|_, loop_| {
             let mut loop_ = loop_.clone();
             loop_.rebind(semantics)?;
             Ok::<_, super::CheckedSemanticRebindError>(loop_)
         })?;
-        self.nodes = self.nodes.try_map(|_, node| {
+        let nodes = recipe.nodes.try_map(|_, node| {
             let mut node = node.clone();
             node.rebind(semantics)?;
             Ok::<_, super::CheckedSemanticRebindError>(node)
         })?;
-        Ok(self)
-    }
-    pub(super) fn new(
-        source: SourceId,
-        domains: CheckedBodyDomains,
-        cleanups: CleanupTable,
-        root: BodyNodeId,
-    ) -> Self {
-        Self {
+        Ok(Self {
             source,
-            scopes: domains.scopes,
-            locals: domains.locals,
-            captures: domains.captures,
-            places: domains.places,
-            loops: domains.loops,
-            nodes: domains.nodes,
-            cleanups,
-            root,
-        }
+            scopes: names.scopes().clone(),
+            locals,
+            captures,
+            places,
+            loops,
+            nodes,
+            cleanups: recipe.cleanups,
+            root: recipe.root,
+        })
     }
 
     /// Returns the physical source under whose direct `see` visibility this body was checked.
@@ -185,5 +209,25 @@ impl CheckedBody {
     #[must_use]
     pub const fn root(&self) -> BodyNodeId {
         self.root
+    }
+}
+
+impl CheckedBodyRecipe {
+    pub(super) fn new(
+        domains: CheckedBodyDomains,
+        cleanups: CleanupTable,
+        root: BodyNodeId,
+    ) -> Self {
+        let local_types = domains.locals.map(|_, local| local.ty());
+        let capture_types = domains.captures.map(|_, capture| capture.ty());
+        Self {
+            local_types,
+            capture_types,
+            places: domains.places,
+            loops: domains.loops,
+            nodes: domains.nodes,
+            cleanups,
+            root,
+        }
     }
 }

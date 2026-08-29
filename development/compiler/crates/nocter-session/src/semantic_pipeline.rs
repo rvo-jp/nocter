@@ -1,7 +1,8 @@
 #![allow(clippy::disallowed_methods)]
 
 use nocter_checking::{
-    CheckedProgramOutput, analyze_prepared_program_bodies, check_prepared_program_recovering,
+    CheckedProgramOutput, analyze_prepared_program_bodies,
+    check_prepared_program_from_reusable_bodies, check_prepared_program_recovering,
     prepare_analysis_program_checking_recovering, prepare_program_checking_from_reusable_names,
     prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
 };
@@ -222,6 +223,69 @@ pub(crate) fn run_semantic_pipeline_from_prepared_body_names(
         }
     })?;
     check_prepared_bodies(primitive_bindings, &input, prepared)
+}
+
+/// Continues checking from query-owned program, lexical, and typed-body authorities.
+pub(crate) fn run_semantic_pipeline_from_checked_bodies(
+    unit: &DiscoveredUnit,
+    declarations: &ReusableDeclarations,
+    prepared: &nocter_checking::ReusablePreparedProgram,
+    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    checked_bodies: &nocter_semantic_computation::CheckedBodySet,
+) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
+    let input = unit
+        .compile_input()
+        .map_err(CompileSessionError::from)
+        .map_err(|error| SemanticPipelineFailure {
+            error: Box::new(error),
+            evidence: None,
+        })?;
+    let projection = declarations
+        .materialize_projection(&input)
+        .map_err(CompileSessionError::from)
+        .map_err(|error| SemanticPipelineFailure {
+            error: Box::new(error),
+            evidence: None,
+        })?;
+    let primitive_bindings = declarations.primitive_bindings().to_vec();
+    let (frontend_bindings, source_index, checking_symbols) = projection.into_parts();
+    let names = body_names
+        .entries()
+        .iter()
+        .map(|names| (names.body(), names.as_ref()))
+        .collect::<Vec<_>>();
+    let prepared = prepare_program_checking_from_reusable_names(
+        &input,
+        prepared,
+        checking_symbols.spellings(),
+        &frontend_bindings,
+        source_index,
+        &names,
+    )
+    .map_err(|failure| {
+        let (error, evidence) = failure.into_parts();
+        SemanticPipelineFailure {
+            error: Box::new(error.into()),
+            evidence: evidence.map(SemanticEvidenceBundle::from_preparation_failure),
+        }
+    })?;
+    let bodies = checked_bodies
+        .entries()
+        .iter()
+        .map(|checked| (checked.body(), checked.as_ref()))
+        .collect::<Vec<_>>();
+    let checked =
+        check_prepared_program_from_reusable_bodies(prepared, &bodies).map_err(|failure| {
+            let (error, recovery) = failure.into_parts();
+            SemanticPipelineFailure {
+                error: Box::new(error.into()),
+                evidence: recovery.map(SemanticEvidenceBundle::from_bodies),
+            }
+        })?;
+    Ok(SemanticPipelineOutput {
+        primitive_bindings,
+        checked,
+    })
 }
 
 fn check_declaration_bodies(

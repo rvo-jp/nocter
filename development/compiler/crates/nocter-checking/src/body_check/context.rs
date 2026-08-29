@@ -68,10 +68,12 @@ pub(super) fn body_source_access<'program>(
 }
 
 impl<'program> BodyProgramFacts<'program> {
-    pub(super) fn from_prepared(
-        prepared: &'program crate::preparation::BodyCheckingParts<'_>,
+    pub(super) fn new(
+        environment: &'program crate::program_environment::ProgramEnvironment,
+        source_namespaces: &'program SourceNamespaceTable,
+        source_access: &'program SourceAccessTable,
+        diagnostic_origins: DiagnosticOrigins<'program>,
     ) -> Self {
-        let environment = &prepared.environment;
         Self {
             graph: environment.graph(),
             drops: environment.drops(),
@@ -81,10 +83,21 @@ impl<'program> BodyProgramFacts<'program> {
             body_assumptions: environment.body_assumptions(),
             capability_evidence: environment.capability_evidence(),
             standard_semantics: environment.standard_semantics(),
-            source_namespaces: &prepared.source_namespaces,
-            source_access: &prepared.source_access,
-            diagnostic_origins: prepared.source_index.diagnostic_origins(),
+            source_namespaces,
+            source_access,
+            diagnostic_origins,
         }
+    }
+
+    pub(super) fn from_prepared(
+        prepared: &'program crate::preparation::BodyCheckingParts<'_>,
+    ) -> Self {
+        Self::new(
+            &prepared.environment,
+            &prepared.source_namespaces,
+            &prepared.source_access,
+            prepared.source_index.diagnostic_origins(),
+        )
     }
 
     pub(super) const fn graph(self) -> &'program DeclarationGraph {

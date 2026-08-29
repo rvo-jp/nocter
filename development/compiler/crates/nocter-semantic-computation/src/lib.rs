@@ -1,7 +1,9 @@
 //! Demand-owned semantic queries above physical source discovery.
 
+mod body_context;
 mod body_names;
 mod program_preparation;
+mod typed_bodies;
 
 pub use body_names::{
     BodyNameQueryOutcome, BodyNameQueryProduct, ResolvedBodyNameSet, SemanticBodyKey,
@@ -10,6 +12,10 @@ pub use body_names::{
 pub use program_preparation::{
     ProgramPreparationOutcome, ProgramPreparationProduct, preparation_execution_count,
     preparation_reuse_count, prepared_program,
+};
+pub use typed_bodies::{
+    CheckedBodySet, TypedBodyQueryOutcome, TypedBodyQueryProduct, checked_bodies, typed_body,
+    typed_body_execution_count, typed_body_reuse_count,
 };
 
 use std::sync::Arc;

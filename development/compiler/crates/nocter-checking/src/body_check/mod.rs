@@ -7,7 +7,10 @@ mod interruption;
 mod literal;
 mod ownership;
 mod pipeline;
+mod query;
+mod reusable_body;
 mod semantic_transaction;
+mod source_recipe;
 
 #[cfg(test)]
 mod aggregate_tests;
@@ -72,8 +75,11 @@ pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
 pub use pipeline::{
-    analyze_prepared_program_bodies, check_prepared_program, check_prepared_program_recovering,
+    analyze_prepared_program_bodies, check_prepared_program,
+    check_prepared_program_from_reusable_bodies, check_prepared_program_recovering,
 };
+pub use query::{ProgramBodyCheckingContext, ReusableProgramBodyCheckError};
+pub use reusable_body::ReusableCheckedBody;
 mod assumptions;
 pub use assumptions::CapabilityEvidence;
 pub(crate) use assumptions::{BodyAssumptionTable, BodyRequirement, CapabilityEvidenceTable};

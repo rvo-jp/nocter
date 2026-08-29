@@ -5,10 +5,13 @@ use nocter_model::{Arena, ArenaBuilder, BodyId, TypeId, TypeStore};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement};
 
-use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyOutput, NodeProjection};
+use super::checker::{BodyChecker, BodyUnitInput, CheckedBodyDraft, NodeProjection};
 use super::context::BodyProgramFacts;
 use super::error::{BodyCheckError, BodyCheckInternalError};
 use super::ownership::{OwnershipBodyInput, analyze_body_ownership};
+use super::reusable_body::{
+    MaterializedCheckedBody, capture_checked_body, materialize_checked_body,
+};
 use super::semantic_transaction::{BodySemanticAccess, BodySemanticAuthority};
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureAuthority,
@@ -18,6 +21,12 @@ use crate::loans::{LoanBodyInput, analyze_program_loans};
 use crate::preparation::BodyCheckingParts;
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
 use crate::{BodySource, BodySourceCatalog, CheckedBody, PreparedChecking, ResolvedBodyNames};
+
+struct CheckedBodyState {
+    body: CheckedBody,
+    node_origins: HashMap<nocter_model::BodyNodeId, nocter_source_index::SourceOrigin>,
+    copy_proofs: crate::copyability::CopyProofs,
+}
 
 /// Checks one prepared program without retaining a tooling recovery value.
 ///
@@ -45,6 +54,93 @@ pub fn check_prepared_program_recovering<'syntax>(
     prepared: PreparedChecking<'syntax>,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     check_prepared_program_internal(input, prepared, true)
+}
+
+/// Finalizes one current program from independently cached source-neutral typed bodies.
+///
+/// The body set must cover the declaration graph exactly once. Bodies are replayed in canonical
+/// `BodyId` order, so cached query execution order cannot affect program semantic identities.
+///
+/// # Errors
+///
+/// Returns an integrity failure for an incomplete/mismatched set, or a program-level ownership,
+/// provenance, loan, or semantic-completion failure after replay.
+pub fn check_prepared_program_from_reusable_bodies(
+    prepared: PreparedChecking<'_>,
+    reusable: &[(BodyId, &super::ReusableCheckedBody)],
+) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+    let (accepted_semantics, prepared) = prepared.into_parts().into_body_parts();
+    let graph = prepared.environment.graph();
+    let program_semantics = accepted_semantics.clone();
+    let mut semantics = BodySemanticAuthority::new(accepted_semantics, ClosureAuthority::new());
+    let mut by_body = HashMap::new();
+    for (body, checked) in reusable {
+        if by_body.insert(*body, *checked).is_some() {
+            return Err(crate::BodyCheckFailure::new(
+                BodyCheckInternalError::DuplicateReusableBody(*body).into(),
+                None,
+            ));
+        }
+    }
+    let mut bodies = Vec::new();
+    let mut projections = Vec::new();
+    let mut opaque_witnesses = Vec::new();
+    let mut associated_type_completion_contexts = Vec::new();
+    for (body, _) in graph.declarations().bodies().iter() {
+        let source = prepared
+            .body_sources
+            .get(body)
+            .ok_or(BodyCheckInternalError::MissingBodySource(body))
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        let names = prepared
+            .body_names
+            .get(body)
+            .ok_or(BodyCheckInternalError::MissingBodyNames(body))
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        let reusable = by_body
+            .remove(&body)
+            .ok_or(BodyCheckInternalError::MissingReusableBody(body))
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        let mut output = materialize_checked_body(
+            graph,
+            &program_semantics,
+            source,
+            names,
+            reusable,
+            &mut semantics,
+        )
+        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        projections.append(&mut output.projections);
+        associated_type_completion_contexts.append(&mut output.associated_type_completion_contexts);
+        if let Some(witness) = output.opaque_witness {
+            opaque_witnesses.push(witness);
+        }
+        bodies.push((
+            body,
+            CheckedBodyState {
+                body: output.body,
+                node_origins: output.node_origins,
+                copy_proofs: output.copy_proofs,
+            },
+        ));
+    }
+    if let Some((body, _)) = by_body.into_iter().next() {
+        return Err(crate::BodyCheckFailure::new(
+            BodyCheckInternalError::UnknownReusableBody(body).into(),
+            None,
+        ));
+    }
+    complete_checked_program(
+        prepared,
+        semantics,
+        CheckedBodiesOutput {
+            bodies,
+            projections,
+            opaque_witnesses,
+            associated_type_completion_contexts,
+        },
+        true,
+    )
 }
 
 /// Types bodies from a rejected declaration graph without opening a checked-program transition.
@@ -269,7 +365,7 @@ fn build_body_analysis_recovery(
     mut prepared: BodyCheckingParts<'_>,
     checked_semantics: crate::semantic_authority::SemanticAuthority,
     rejections: Vec<(BodyId, crate::BodyRejection)>,
-    checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    checked_bodies: Vec<(BodyId, CheckedBodyState)>,
     projections: Vec<NodeProjection>,
 ) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
     prepared.source_index = extend_source_index(
@@ -316,7 +412,7 @@ fn build_body_analysis_recovery(
 
 struct CheckedProgramCompletion {
     semantics: super::CheckedSemanticAuthority,
-    bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    bodies: Vec<(BodyId, CheckedBodyState)>,
     projections: Vec<NodeProjection>,
     opaque_witnesses: crate::OpaqueWitnessTable,
     associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
@@ -437,7 +533,7 @@ fn attach_body_cleanups(
     copyabilities: &mut crate::copyability::CopyabilityTransaction,
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
-    checked_bodies: &mut [(BodyId, CheckedBodyOutput)],
+    checked_bodies: &mut [(BodyId, CheckedBodyState)],
 ) -> Result<(), BodyCheckError> {
     for (body, checked) in checked_bodies {
         let source = body_sources
@@ -491,7 +587,7 @@ fn check_declared_bodies<'input, 'syntax>(
             retain_recovery,
             &mut body_semantics,
         );
-        let mut body_output = match attempt {
+        let body_output = match attempt {
             Ok(output) => output,
             Err(BodyAttemptFailure::Direct(failure)) => {
                 return Err(RecoveringBodyConstructionFailure {
@@ -526,9 +622,10 @@ fn check_declared_bodies<'input, 'syntax>(
                 continue;
             }
         };
-        body_output = merge_checked_body(
+        let mut body_output = merge_checked_body(
             facts.graph(),
             source,
+            names,
             &program_semantics,
             &body_semantics,
             semantics,
@@ -540,7 +637,14 @@ fn check_declared_bodies<'input, 'syntax>(
         if let Some(witness) = body_output.opaque_witness {
             opaque_witnesses.push(witness);
         }
-        checked_bodies.push((body, body_output));
+        checked_bodies.push((
+            body,
+            CheckedBodyState {
+                body: body_output.body,
+                node_origins: body_output.node_origins,
+                copy_proofs: body_output.copy_proofs,
+            },
+        ));
     }
     if let Some(error) = first_error {
         return Err(RecoveringBodyConstructionFailure {
@@ -583,71 +687,17 @@ fn body_construction_unit<'input, 'syntax>(
 fn merge_checked_body(
     graph: &nocter_declarations::DeclarationGraph,
     source: BodySource<'_>,
+    names: &ResolvedBodyNames,
     program_semantics: &crate::semantic_authority::SemanticAuthority,
     body_semantics: &BodySemanticAuthority,
     accepted: &mut BodySemanticAuthority,
-    mut output: CheckedBodyOutput,
-) -> Result<CheckedBodyOutput, RecoveringBodyConstructionFailure> {
-    let body = source.body();
-    let closure_identities = body_semantics
-        .closures()
-        .body_identities(body)
-        .map_err(BodyCheckInternalError::from)
+    output: CheckedBodyDraft,
+) -> Result<MaterializedCheckedBody, RecoveringBodyConstructionFailure> {
+    let reusable = capture_checked_body(program_semantics, body_semantics, source, output)
         .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    let type_capture = crate::BodyTypeRecipe::capture_authority(
-        program_semantics.types(),
-        body_semantics.semantics().types(),
-        &closure_identities,
-    )
-    .map_err(BodyCheckInternalError::from)
-    .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    let closure_recipe = body_semantics
-        .closures()
-        .capture_body_recipe(body, &closure_identities, &type_capture)
-        .map_err(BodyCheckInternalError::from)
-        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-
-    let mut transaction = accepted.transaction();
-    let replayed_closures = closure_recipe.reserve(transaction.closures_mut());
-    let replayed_types = type_capture
-        .recipe()
-        .replay(
-            program_semantics.types(),
-            transaction.types_mut(),
-            replayed_closures.ids(),
-        )
-        .map_err(BodyCheckInternalError::from)
-        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    {
-        let (types, copyabilities, closures) = transaction.replay_parts();
-        closure_recipe
-            .define(closures, &replayed_closures, &replayed_types)
-            .and_then(|()| {
-                closure_recipe.register_copyability(graph, types, copyabilities, &replayed_types)
-            })
-            .map_err(BodyCheckInternalError::from)
+    let output =
+        materialize_checked_body(graph, program_semantics, source, names, &reusable, accepted)
             .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    }
-    let semantics = crate::checked::CheckedSemanticRebinder::new(
-        type_capture.recipe(),
-        &replayed_types,
-        &closure_recipe,
-        &replayed_closures,
-    );
-    output.body = output
-        .body
-        .rebind(source.syntax().source(), &semantics)
-        .map_err(BodyCheckInternalError::from)
-        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    if let Some((_, witness)) = &mut output.opaque_witness {
-        *witness = semantics
-            .ty(*witness)
-            .map_err(BodyCheckInternalError::from)
-            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    }
-    *accepted = transaction
-        .commit(accepted)
-        .expect("canonical body replay must commit to its exact accepted authorities");
     Ok(output)
 }
 
@@ -687,7 +737,7 @@ fn attempt_body<'input, 'syntax>(
     names: &'input ResolvedBodyNames,
     retain_recovery: bool,
     state: &'input mut BodySemanticAuthority,
-) -> Result<CheckedBodyOutput, BodyAttemptFailure> {
+) -> Result<CheckedBodyDraft, BodyAttemptFailure> {
     let mut transaction = state.transaction();
     if !retain_recovery {
         let output = construct_body(input, facts, source, names, transaction.access())
@@ -768,7 +818,7 @@ fn construct_body<'input, 'syntax>(
     source: BodySource<'syntax>,
     names: &'input ResolvedBodyNames,
     mut state: BodySemanticAccess<'input>,
-) -> Result<CheckedBodyOutput, super::error::BodyConstructionFailure> {
+) -> Result<CheckedBodyDraft, super::error::BodyConstructionFailure> {
     let closures = state.closures();
     let unit = BodyUnitInput {
         source,
@@ -790,7 +840,7 @@ struct BodyConstructionInput<'input, 'syntax> {
 struct RecoveringBodyConstructionFailure {
     error: Box<BodyCheckError>,
     rejections: Vec<(BodyId, crate::BodyRejection)>,
-    checked_bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    checked_bodies: Vec<(BodyId, CheckedBodyState)>,
     projections: Vec<NodeProjection>,
     recoverable: bool,
 }
@@ -808,13 +858,13 @@ impl RecoveringBodyConstructionFailure {
 }
 
 struct CheckedBodiesOutput {
-    bodies: Vec<(BodyId, CheckedBodyOutput)>,
+    bodies: Vec<(BodyId, CheckedBodyState)>,
     projections: Vec<NodeProjection>,
     opaque_witnesses: Vec<(nocter_model::OpaqueTypeId, TypeId)>,
     associated_type_completion_contexts: Vec<crate::AssociatedTypeCompletionContext>,
 }
 
-fn reserve_body_closures(
+pub(super) fn reserve_body_closures(
     closures: &mut ClosureTransaction,
     source: BodySource<'_>,
 ) -> HashMap<NodeId, nocter_model::ClosureId> {
@@ -848,7 +898,7 @@ fn analyze_checked_body_relations(
     types: &TypeStore,
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
-    checked_bodies: &[(BodyId, CheckedBodyOutput)],
+    checked_bodies: &[(BodyId, CheckedBodyState)],
 ) -> Result<(crate::ProvenanceTable, crate::LoanTable), BodyCheckError> {
     let provenance_inputs = checked_bodies
         .iter()

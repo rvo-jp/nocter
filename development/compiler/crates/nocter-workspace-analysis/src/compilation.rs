@@ -96,6 +96,7 @@ pub(crate) fn compile_scope(
                 products.declarations.outcome(),
                 products.preparation.outcome(),
                 products.body_names.as_ref(),
+                products.checked_bodies.as_ref(),
             ) {
                 Ok(analyzed) => analyzed,
                 Err(error) => {
@@ -151,17 +152,27 @@ fn analyze_declaration_outcome(
     outcome: &DeclarationQueryOutcome,
     preparation: &ProgramPreparationOutcome,
     body_names: Option<&nocter_semantic_computation::ResolvedBodyNameSet>,
+    checked_bodies: Option<&nocter_semantic_computation::CheckedBodySet>,
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {
         DeclarationQueryOutcome::Accepted(declarations) => match preparation {
-            ProgramPreparationOutcome::Prepared(prepared) => match body_names {
-                Some(body_names) => Ok(analyze_unit_from_prepared_body_names(
+            ProgramPreparationOutcome::Prepared(prepared) => match (body_names, checked_bodies) {
+                (Some(body_names), Some(checked_bodies)) => {
+                    Ok(nocter_session::analyze_unit_from_checked_bodies(
+                        unit,
+                        declarations,
+                        prepared,
+                        body_names,
+                        checked_bodies,
+                    ))
+                }
+                (Some(body_names), None) => Ok(analyze_unit_from_prepared_body_names(
                     unit,
                     declarations,
                     prepared,
                     body_names,
                 )),
-                None => Ok(analyze_unit_from_prepared_declarations(
+                (None, _) => Ok(analyze_unit_from_prepared_declarations(
                     unit,
                     declarations,
                     prepared,

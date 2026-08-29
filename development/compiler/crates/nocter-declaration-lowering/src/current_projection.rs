@@ -30,6 +30,11 @@ impl CurrentDeclarationProjection {
     }
 
     #[must_use]
+    pub const fn source_index(&self) -> &SourceIndex {
+        &self.source_index
+    }
+
+    #[must_use]
     pub fn into_parts(
         self,
     ) -> (

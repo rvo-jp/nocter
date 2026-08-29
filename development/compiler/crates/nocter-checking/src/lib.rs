@@ -62,8 +62,10 @@ pub use associated_type_completion::{
 pub use associated_type_resolution::AssociatedTypeResolutionError;
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, CapabilityEvidence,
+    ProgramBodyCheckingContext, ReusableCheckedBody, ReusableProgramBodyCheckError,
     TypedBodyInterruption, TypedBodyInterruptionKind, analyze_prepared_program_bodies,
-    check_prepared_program, check_prepared_program_recovering,
+    check_prepared_program, check_prepared_program_from_reusable_bodies,
+    check_prepared_program_recovering,
 };
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
 pub use body_name_query::{

@@ -1,4 +1,4 @@
-use nocter_model::{ClosureId, TypeId};
+use nocter_model::{CaptureId, ClosureId, LocalBindingId, TypeId};
 
 use crate::{
     BodyClosureRecipe, BodyClosureRecipeError, BodyTypeRecipe, BodyTypeRecipeError,
@@ -48,6 +48,10 @@ impl<'a> CheckedSemanticRebinder<'a> {
 pub enum CheckedSemanticRebindError {
     Type(BodyTypeRecipeError),
     Closure(BodyClosureRecipeError),
+    MissingLocal(LocalBindingId),
+    MissingCapture(CaptureId),
+    LocalDomainMismatch,
+    CaptureDomainMismatch,
 }
 
 impl From<BodyTypeRecipeError> for CheckedSemanticRebindError {

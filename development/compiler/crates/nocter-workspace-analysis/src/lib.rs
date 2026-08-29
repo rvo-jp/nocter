@@ -193,6 +193,14 @@ impl WorkspaceAnalyses {
         )
     }
 
+    #[cfg(test)]
+    fn typed_body_query_counts(&self) -> (u64, u64) {
+        (
+            nocter_semantic_computation::typed_body_execution_count(&self.computation),
+            nocter_semantic_computation::typed_body_reuse_count(&self.computation),
+        )
+    }
+
     ///
     /// # Errors
     ///
@@ -972,6 +980,7 @@ mod tests {
             .analyze(documents.open(&root, 1, original).unwrap())
             .unwrap();
         let before = analyses.body_name_query_counts();
+        let typed_before = analyses.typed_body_query_counts();
         let DocumentWorkspaceChange::Accepted(revision) =
             documents.change(&root, 2, changed).unwrap()
         else {
@@ -981,6 +990,9 @@ mod tests {
         let after = analyses.body_name_query_counts();
         assert_eq!(after.0, before.0 + 1);
         assert!(after.1 > before.1);
+        let typed_after = analyses.typed_body_query_counts();
+        assert_eq!(typed_after.0, typed_before.0 + 1);
+        assert!(typed_after.1 > typed_before.1);
 
         let mut fresh_documents = DocumentWorkspace::new();
         let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));

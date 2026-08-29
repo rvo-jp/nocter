@@ -1,23 +1,18 @@
 use std::fmt;
 
+use crate::{Capture, LocalBinding, ResolvedBodyNames};
 use nocter_model::{
-    Arena, ArenaBuilder, BodyNodeId, BodyScopeId, CaptureId, LocalBindingId, LoopId, PlaceId,
-    TypeId,
+    Arena, ArenaBuilder, BodyNodeId, CaptureId, LocalBindingId, LoopId, PlaceId, TypeId,
 };
-use nocter_source::SourceId;
 
-use crate::{BodyScope, Capture, LocalBinding, ResolvedBodyNames};
-
-use super::body::CheckedBodyDomains;
+use super::body::{CheckedBodyDomains, CheckedBodyRecipe};
 use super::{
-    CheckedBody, CheckedCapture, CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation,
-    CheckedPlace, CleanupTable, PlaceAccess, PlaceProjection, PlaceRoot,
+    CheckedCapture, CheckedLocal, CheckedLoop, CheckedNode, CheckedOperation, CheckedPlace,
+    CleanupTable, PlaceAccess, PlaceProjection, PlaceRoot,
 };
 
 /// Sole mutable construction path for one checked body.
 pub(crate) struct CheckedBodyBuilder {
-    source: SourceId,
-    scopes: Arena<BodyScopeId, BodyScope>,
     local_declarations: Arena<LocalBindingId, LocalBinding>,
     capture_declarations: Arena<CaptureId, Capture>,
     locals: ArenaBuilder<LocalBindingId, Option<CheckedLocal>>,
@@ -29,7 +24,7 @@ pub(crate) struct CheckedBodyBuilder {
 
 impl CheckedBodyBuilder {
     #[must_use]
-    pub(crate) fn new(names: &ResolvedBodyNames, source: SourceId) -> Self {
+    pub(crate) fn new(names: &ResolvedBodyNames) -> Self {
         let mut locals = ArenaBuilder::new();
         for _ in 0..names.locals().len() {
             locals.insert(None);
@@ -39,8 +34,6 @@ impl CheckedBodyBuilder {
             captures.insert(None);
         }
         Self {
-            source,
-            scopes: names.scopes().clone(),
             local_declarations: names.locals().clone(),
             capture_declarations: names.captures().clone(),
             locals,
@@ -180,7 +173,10 @@ impl CheckedBodyBuilder {
         }
     }
 
-    pub(crate) fn finish(self, root: BodyNodeId) -> Result<CheckedBody, BuildCheckedBodyError> {
+    pub(crate) fn finish(
+        self,
+        root: BodyNodeId,
+    ) -> Result<CheckedBodyRecipe, BuildCheckedBodyError> {
         let locals = self.locals.try_finish_with(|local, slot| {
             slot.ok_or(BuildCheckedBodyError::IncompleteLocal(local))
         })?;
@@ -198,10 +194,8 @@ impl CheckedBodyBuilder {
         for _ in 0..nodes.len() {
             cleanup_schedules.insert(Box::new([]));
         }
-        Ok(CheckedBody::new(
-            self.source,
+        Ok(CheckedBodyRecipe::new(
             CheckedBodyDomains {
-                scopes: self.scopes,
                 locals,
                 captures,
                 places,

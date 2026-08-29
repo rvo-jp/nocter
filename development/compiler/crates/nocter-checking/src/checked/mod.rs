@@ -13,6 +13,7 @@ mod rebind;
 mod selection;
 
 pub use argument_pack::{ArgumentPackSegment, CheckedArgumentPack, SpreadMode};
+pub(crate) use body::CheckedBodyRecipe;
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;

@@ -49,6 +49,19 @@ impl<I: SemanticId, T> Arena<I, T> {
     }
 
     /// Transforms every immutable slot while preserving its typed identity domain.
+    #[must_use]
+    pub fn map<U>(&self, mut transform: impl FnMut(I, &T) -> U) -> Arena<I, U> {
+        let values = self
+            .iter()
+            .map(|(id, value)| transform(id, value))
+            .collect::<Vec<_>>();
+        Arena {
+            values: values.into_boxed_slice(),
+            identity: PhantomData,
+        }
+    }
+
+    /// Transforms every immutable slot while preserving its typed identity domain.
     ///
     /// # Errors
     ///

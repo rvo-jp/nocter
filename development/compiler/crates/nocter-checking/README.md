@@ -21,6 +21,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - lexical name evidence and body scopes
 - source-neutral lexical recipes with current body-local locator and spelling rebinding
 - body-local structural type-extension recipes independent of sibling allocation order
+- source-neutral checked-body and source-evidence recipes with canonical current replay
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
@@ -47,6 +48,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A checked query derives type and visibility from its own body generation.
 - Reusable body-name evidence contains body-local locators and spellings, never `NodeId`,
   `SyntaxToken`, `SourceId`, source spans, or current symbol IDs.
+- A reusable checked body contains no current source identity, span, syntax identity, or symbol ID.
+  Node origins, references, and associated-type completion sites use one body-local locator recipe.
+  Local and capture declarations are restored from the lexical recipe instead of being duplicated
+  in the typed result.
 - A body type extension distinguishes the immutable prepared-program prefix from dense body-local
   additions. Closure references are body-local as well. Canonical program finalization re-interns
   both domains, so one sibling cannot change another body's reusable type identities.
@@ -54,6 +59,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   cannot observe inferred types, copyability memoization, or closure allocation from a preceding
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one
   closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.
+- Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
+  and loans run once over the complete program. Session never invokes body checking again for a
+  complete query-owned body set.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

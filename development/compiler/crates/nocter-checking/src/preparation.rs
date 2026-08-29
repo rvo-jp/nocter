@@ -107,6 +107,10 @@ impl PreparedSemanticProgram {
         &self.environment
     }
 
+    pub(crate) const fn semantics(&self) -> &crate::semantic_authority::SemanticAuthority {
+        &self.semantics
+    }
+
     #[must_use]
     pub fn graph(&self) -> &DeclarationGraph {
         self.environment.graph()

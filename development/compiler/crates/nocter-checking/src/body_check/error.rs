@@ -243,6 +243,11 @@ pub enum BodyCheckInternalError {
     BodyClosureRecipe(crate::BodyClosureRecipeError),
     BodyTypeRecipe(crate::BodyTypeRecipeError),
     CheckedSemanticRebind(crate::CheckedSemanticRebindError),
+    BodySourceRecipe(super::source_recipe::BodySourceRecipeError),
+    MissingReusableBody(BodyId),
+    DuplicateReusableBody(BodyId),
+    UnknownReusableBody(BodyId),
+    BodySemanticCommit,
 }
 
 impl fmt::Display for BodyCheckInternalError {
@@ -328,5 +333,11 @@ impl From<crate::BodyTypeRecipeError> for BodyCheckInternalError {
 impl From<crate::CheckedSemanticRebindError> for BodyCheckInternalError {
     fn from(error: crate::CheckedSemanticRebindError) -> Self {
         Self::CheckedSemanticRebind(error)
+    }
+}
+
+impl From<super::source_recipe::BodySourceRecipeError> for BodyCheckInternalError {
+    fn from(error: super::source_recipe::BodySourceRecipeError) -> Self {
+        Self::BodySourceRecipe(error)
     }
 }

@@ -32,15 +32,14 @@ evidence.
 
 ## Next Work
 
-Continue v0.20.0 Phase 1 with per-body typed checking. Declaration lowering, program preparation,
-and lexical body resolution are query-owned; instrumentation proves sibling lexical reuse after a
-body edit shifts current syntax IDs. Structural type additions and closure references now have a
-body-local replay recipe. Every body now checks from the same immutable semantic prefix and its
-successful checked graph is canonically rebound, so the next step is to replace its current source
-origins with body-local projection recipes and publish the complete typed body query outcome. Then
-move ownership/provenance/loan finalization behind the complete body-product set. Migrate
-preparation and lexical rejection into the same query graph before removing their current recovery
-fallback.
+Continue v0.20.0 Phase 1 with query-owned rejection and finalization. Declaration lowering,
+program preparation, lexical resolution, and successful typed bodies are query-owned. Typed
+products retain body-local type, closure, and source recipes without current syntax/source/symbol
+identities; session replays the canonical complete set without rechecking. Instrumentation proves
+that one body edit executes one lexical and one typed query while reusing a syntax-shifted sibling.
+Next publish preparation, lexical, and typed rejection/recovery through the same graph, then move
+ownership/provenance/loan finalization behind a complete body-product query before removing the
+current recovery fallback.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

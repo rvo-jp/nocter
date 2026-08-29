@@ -6,91 +6,8 @@ use nocter_computation::{
 
 use crate::{
     BodySourceInput, BodySourceKey, CurrentSourceScopeInput, DeclarationQuery,
-    DeclarationQueryOutcome, ProgramPreparationOutcome, SemanticScopeKey,
+    DeclarationQueryOutcome, SemanticScopeKey,
 };
-
-struct BodyResolutionContextQuery;
-
-struct BodyResolutionContext {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
-    projection: nocter_declaration_lowering::CurrentDeclarationProjection,
-    checking: nocter_checking::ProgramBodyNameContext,
-}
-
-struct BodyResolutionContextProduct {
-    context: Option<BodyResolutionContext>,
-    fingerprint: Fingerprint,
-}
-
-impl BodyResolutionContextProduct {
-    /// Resolves only after the caller has demanded the exact body input for this query key.
-    ///
-    /// The proof parameter prevents the private current projection from becoming a standalone
-    /// semantic dependency: its stable fingerprint is valid only for a source-neutral result that
-    /// also depends on the exact body source.
-    fn resolve(
-        &self,
-        _exact_body: &crate::BodySourceValue,
-        identity: &nocter_declaration_lowering::ReusableBodyIdentity,
-    ) -> Option<nocter_checking::ReusableBodyNames> {
-        let context = self.context.as_ref()?;
-        let input = context.unit.compile_input().ok()?;
-        context
-            .checking
-            .resolve(
-                &input,
-                context.projection.frontend_bindings(),
-                identity.body(),
-            )
-            .ok()
-    }
-}
-
-impl QueryValue for BodyResolutionContextProduct {
-    fn fingerprint(&self) -> Fingerprint {
-        self.fingerprint
-    }
-}
-
-impl Query for BodyResolutionContextQuery {
-    type Key = SemanticScopeKey;
-    type Value = BodyResolutionContextProduct;
-
-    fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
-        let declarations = database.query::<DeclarationQuery>(key.clone())?;
-        let declaration_fingerprint = declarations.fingerprint();
-        let preparation = crate::prepared_program(database, key.clone())?;
-        let current = database.input::<CurrentSourceScopeInput>(key)?;
-        let context = match (declarations.outcome(), preparation.outcome()) {
-            (
-                DeclarationQueryOutcome::Accepted(declarations),
-                ProgramPreparationOutcome::Prepared(prepared),
-            ) => current.unit.compile_input().ok().and_then(|input| {
-                let projection = declarations.materialize_projection(&input).ok()?;
-                let checking = nocter_checking::ProgramBodyNameContext::new(
-                    prepared,
-                    projection.checking_symbols().spellings(),
-                    projection.frontend_bindings(),
-                );
-                Some(BodyResolutionContext {
-                    unit: Arc::clone(&current.unit),
-                    projection,
-                    checking,
-                })
-            }),
-            _ => None,
-        };
-        let fingerprint = if context.is_some() {
-            declaration_fingerprint
-        } else {
-            current.fingerprint
-        };
-        Ok(BodyResolutionContextProduct {
-            context,
-            fingerprint,
-        })
-    }
-}
 
 /// Stable identity of one body query beneath a semantic scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -114,6 +31,14 @@ impl SemanticBodyKey {
             source,
             stable: stable.into_boxed_slice(),
         }
+    }
+
+    pub(crate) const fn scope(&self) -> &SemanticScopeKey {
+        &self.scope
+    }
+
+    pub(crate) const fn source(&self) -> &BodySourceKey {
+        &self.source
     }
 }
 
@@ -181,8 +106,9 @@ impl Query for BodyNameQuery {
             return unavailable(database, key);
         };
         let body = database.input::<BodySourceInput>(&key.source)?;
-        let context = database.query::<BodyResolutionContextQuery>(key.scope.clone())?;
-        let resolved = context.resolve(&body, identity);
+        let context =
+            database.query::<crate::body_context::BodySemanticContextQuery>(key.scope.clone())?;
+        let resolved = context.resolve_names(&body, identity);
         let Some(resolved) = resolved else {
             return unavailable(database, key);
         };

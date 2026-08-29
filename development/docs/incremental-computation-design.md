@@ -167,8 +167,8 @@ block pruned from a declaration surface with that block's stable declaration loc
 normalized bytes. Workspace orchestration reads those body surfaces from the same source-surface
 product already demanded for module composition, then atomically publishes inputs keyed by
 canonical physical path plus locator. A sibling-body edit therefore leaves an unchanged body's key
-and fingerprint equal. Name resolution and body checking still need to consume these inputs through
-their own queries; publication alone is not counted as incremental checking.
+and fingerprint equal. Lexical and typed-body queries now consume that same input; publication
+alone is never counted as incremental checking.
 
 Program-wide checking preparation now consumes the accepted declaration query before body work.
 Its successful product contains only the stable declaration graph and immutable checking
@@ -188,8 +188,8 @@ those locators against current syntax and extends `SourceIndex` once for the com
 body arena. A private exact-current context query materializes frontend bindings and the current
 symbol branch once per revision. Although its value refreshes with current source, its successful
 fingerprint is the source-neutral declaration authority; only body queries whose exact body input
-changed execute against the refreshed context. This contract is private to source-neutral lexical
-queries so a current `NodeId` product cannot accidentally claim the same fingerprint.
+changed execute against the refreshed context. Lexical and typed queries share that context without
+sharing either result; a current `NodeId` product cannot claim its source-neutral fingerprint.
 
 Typed-body reuse cannot retain the existing program-wide `TypeId` and `ClosureId` allocation order.
 A preceding body may add an inferred structural type or closure and shift every later identity.
@@ -200,9 +200,13 @@ local-to-current map. Body construction now opens every body from that same prep
 prefix and an empty closure domain; it no longer observes semantic additions from earlier siblings.
 Successful closure definitions and structural types replay in canonical body order, and one closed
 rebinder rewrites the checked body, nested selections, places, generic arguments, iteration plans,
-and opaque witnesses. Ownership, provenance, and loans still run once after the complete canonical
-body set. Current source origins must become body-local projection recipes before these independent
-body products can cross revisions as typed queries.
+and opaque witnesses. The checked graph is captured before publication with no current source or
+symbol identity. References, `BodyNodeId` origins, and associated-type completion sites share one
+ordinal body-syntax recipe. Local and capture declarations are not copied into that product:
+canonical replay joins their types with the already materialized lexical recipe. Session consumes
+the complete query-owned body set and does not run body checking again. Canonical `BodyId` replay
+remains the sole allocator of final program type and closure identities; ownership, provenance,
+and loans still run once after the complete canonical body set.
 
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
