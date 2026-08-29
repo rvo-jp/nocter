@@ -4,6 +4,7 @@ use nocter_discovery::DiscoveredUnit;
 
 use crate::analysis::{
     analyze_target_from_declaration_failure, analyze_target_from_declarations,
+    analyze_target_from_finalization_failure, analyze_target_from_finalized_program,
     analyze_target_from_preparation_rejection, analyze_target_from_prepared_body_names,
     analyze_target_from_prepared_declarations,
 };
@@ -18,6 +19,60 @@ enum AnalyzedUnitState {
     SyntaxFailed(Option<Box<SemanticEvidenceBundle>>),
     CompilationFailed(Option<Box<SemanticEvidenceBundle>>),
     Complete(Box<CompiledTarget>),
+}
+
+/// Consumes a complete query-owned checked program without invoking semantic compiler stages.
+///
+/// # Errors
+///
+/// Returns an integrity error when the product belongs to a different exact source domain.
+pub fn analyze_unit_from_finalized_program(
+    unit: Arc<DiscoveredUnit>,
+    finalized: &nocter_semantic_computation::FinalizedProgram,
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
+    validate_rejection_domain(&unit, finalized.unit())?;
+    if unit.has_syntax_errors() {
+        return Ok(analyze_unit(unit));
+    }
+    Ok(
+        match analyze_target_from_finalized_program(&unit, finalized) {
+            Ok(target) => AnalyzedUnit {
+                unit,
+                diagnostics: Box::new([]),
+                state: AnalyzedUnitState::Complete(Box::new(target)),
+            },
+            Err(failure) => {
+                let (semantic, diagnostics) = (*failure).into_analysis_parts();
+                AnalyzedUnit {
+                    unit,
+                    diagnostics,
+                    state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+                }
+            }
+        },
+    )
+}
+
+/// Consumes a query-owned whole-program checking failure without replaying or finalizing bodies.
+///
+/// # Errors
+///
+/// Returns an integrity error when the failure belongs to a different exact source domain.
+pub fn analyze_unit_from_finalization_failure(
+    unit: Arc<DiscoveredUnit>,
+    failed: &nocter_semantic_computation::FailedProgramFinalization,
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
+    validate_rejection_domain(&unit, failed.unit())?;
+    if unit.has_syntax_errors() {
+        return Ok(analyze_unit(unit));
+    }
+    let failure = analyze_target_from_finalization_failure(failed.failure());
+    let (semantic, diagnostics) = (*failure).into_analysis_parts();
+    Ok(AnalyzedUnit {
+        unit,
+        diagnostics,
+        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+    })
 }
 
 /// The semantic completion state of one analyzed discovery snapshot.
@@ -177,41 +232,6 @@ pub fn analyze_unit_from_prepared_body_names(
         return analyze_unit(unit);
     }
     match analyze_target_from_prepared_body_names(&unit, declarations, prepared, body_names) {
-        Ok(target) => AnalyzedUnit {
-            unit,
-            diagnostics: Box::new([]),
-            state: AnalyzedUnitState::Complete(Box::new(target)),
-        },
-        Err(failure) => {
-            let (semantic, diagnostics) = (*failure).into_analysis_parts();
-            AnalyzedUnit {
-                unit,
-                diagnostics,
-                state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-            }
-        }
-    }
-}
-
-/// Consumes one current discovery snapshot using the complete query-owned typed-body set.
-#[must_use]
-pub fn analyze_unit_from_typed_bodies(
-    unit: Arc<DiscoveredUnit>,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::BodyNameSet,
-    typed_bodies: &nocter_semantic_computation::TypedBodySet,
-) -> AnalyzedUnit {
-    if unit.has_syntax_errors() {
-        return analyze_unit(unit);
-    }
-    match crate::analysis::analyze_target_from_typed_bodies(
-        &unit,
-        declarations,
-        prepared,
-        body_names,
-        typed_bodies,
-    ) {
         Ok(target) => AnalyzedUnit {
             unit,
             diagnostics: Box::new([]),

@@ -7,7 +7,7 @@ use crate::{CheckedBody, TypedBodyInterruption};
 ///
 /// There is no absent state. An authored body either completed typed construction or owns the
 /// rejection that explains why typed facts are unavailable.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BodyEvidence {
     Typed(CheckedBody),
     Rejected(BodyRejection),

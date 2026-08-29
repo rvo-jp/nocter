@@ -145,7 +145,7 @@ impl CheckedLoan {
 }
 
 /// Complete loan authority for one checked body.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckedBodyLoans {
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: Arena<BodyNodeId, Box<[LoanId]>>,
@@ -171,7 +171,7 @@ impl CheckedBodyLoans {
 }
 
 /// Dense program-wide source-loan authority.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LoanTable {
     bodies: Arena<BodyId, CheckedBodyLoans>,
 }

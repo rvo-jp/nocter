@@ -178,7 +178,7 @@ impl ClosureDefinition {
 }
 
 /// Sole checked-program authority for anonymous closure identity and generated body metadata.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ClosureTable {
     definitions: Arena<ClosureId, ClosureDefinition>,
 }

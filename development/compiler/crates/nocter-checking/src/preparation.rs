@@ -57,7 +57,7 @@ impl<'syntax> PreparedBodyAnalysis<'syntax> {
 /// A tooling snapshot may retain this value when body checking rejects authored source. It is not
 /// a partial [`crate::CheckedProgram`]: checked nodes, local types, dispatch, ownership, and
 /// provenance are deliberately absent.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PreparedSemanticProgram {
     environment: crate::program_environment::ProgramEnvironment,
     semantics: crate::semantic_authority::SemanticAuthority,
@@ -865,6 +865,24 @@ where
 {
     validate_preparation_target(input, reusable.graph())?;
     let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
+    prepare_program_checking_from_current_queried_names(
+        input,
+        semantic,
+        bindings,
+        source_index,
+        names,
+        rejections,
+    )
+}
+
+pub(crate) fn prepare_program_checking_from_current_queried_names<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    semantic: PreparedSemanticProgram,
+    bindings: &FrontendBindings,
+    source_index: SourceIndex,
+    names: &[&crate::ReusableBodyNames],
+    rejections: &[&crate::QueriedBodyNameRejection],
+) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
     let body_sources =
         prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
     let catalog = crate::names::materialize_queried_body_name_catalog(

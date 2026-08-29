@@ -113,7 +113,7 @@ impl std::error::Error for InterruptionEvidenceError {}
 /// whole-program ownership, provenance, or target closure and cannot become a checked program.
 /// Every declared body owns exactly one [`BodyEvidence`] entry, so authored rejection is never
 /// represented by absence.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyAnalysisRecovery {
     prepared: PreparedSemanticProgram,
     body_names: Arena<nocter_model::BodyId, crate::ResolvedBodyNames>,

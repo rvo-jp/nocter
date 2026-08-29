@@ -77,7 +77,7 @@ impl CoercionCandidate {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InstanceSelectionError {
     MissingInstance(nocter_model::InstanceId),
     MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),

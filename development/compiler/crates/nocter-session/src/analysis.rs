@@ -6,7 +6,7 @@ use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
     run_semantic_pipeline_from_declaration_failure, run_semantic_pipeline_from_declarations,
     run_semantic_pipeline_from_prepared_body_names,
-    run_semantic_pipeline_from_prepared_declarations, run_semantic_pipeline_from_typed_bodies,
+    run_semantic_pipeline_from_prepared_declarations,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -179,24 +179,30 @@ pub(crate) fn analyze_target_from_prepared_body_names(
     finish_semantic_pipeline(unit, output, true)
 }
 
-pub(crate) fn analyze_target_from_typed_bodies(
+pub(crate) fn analyze_target_from_finalized_program(
     unit: &DiscoveredUnit,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::BodyNameSet,
-    typed_bodies: &nocter_semantic_computation::TypedBodySet,
+    finalized: &nocter_semantic_computation::FinalizedProgram,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output = run_semantic_pipeline_from_typed_bodies(
+    let primitive_bindings = finalized.declarations().primitive_bindings().to_vec();
+    let checked = finalized.current_branch();
+    finish_semantic_pipeline(
         unit,
-        declarations,
-        prepared,
-        body_names,
-        typed_bodies,
+        SemanticPipelineOutput {
+            primitive_bindings,
+            checked,
+        },
+        true,
     )
-    .map_err(|SemanticPipelineFailure { error, evidence }| {
-        Box::new(CompileTargetFailure::new(*error, evidence))
-    })?;
-    finish_semantic_pipeline(unit, output, true)
+}
+
+pub(crate) fn analyze_target_from_finalization_failure(
+    failure: &nocter_checking::BodyCheckFailure,
+) -> Box<CompileTargetFailure> {
+    let (error, recovery) = failure.current_branch().into_parts();
+    Box::new(CompileTargetFailure::new(
+        error.into(),
+        recovery.map(SemanticEvidenceBundle::from_bodies),
+    ))
 }
 
 pub(crate) fn analyze_target_from_declaration_failure(

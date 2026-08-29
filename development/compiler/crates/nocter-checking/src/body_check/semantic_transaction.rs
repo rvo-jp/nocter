@@ -11,7 +11,7 @@ use crate::semantic_authority::{
 /// This owner is constructed only by finishing [`BodySemanticAuthority`]. Closure types contain
 /// `ClosureId`, so no other responsibility can pair a closure table with an unrelated semantic
 /// generation.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct CheckedSemanticAuthority {
     semantics: SemanticAuthority,
     closures: ClosureTable,

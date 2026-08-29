@@ -113,6 +113,7 @@ enum WorkspaceAnalysisErrorKind {
     Computation(nocter_computation::ComputationError),
     SemanticComputation(nocter_semantic_computation::ScopeInputError),
     SemanticRejection(nocter_session::SemanticRejectionDomainError),
+    FinalizationUnavailable,
 }
 
 impl WorkspaceAnalysisError {
@@ -148,6 +149,12 @@ impl WorkspaceAnalysisError {
         }
     }
 
+    pub(crate) fn finalization_unavailable() -> Self {
+        Self {
+            kind: WorkspaceAnalysisErrorKind::FinalizationUnavailable,
+        }
+    }
+
     pub(crate) fn outside_workspace(path: PathBuf) -> Self {
         Self {
             kind: WorkspaceAnalysisErrorKind::OutsideWorkspace(path),
@@ -177,7 +184,8 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::ModuleOwner(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::SemanticRejection(_) => None,
+            | WorkspaceAnalysisErrorKind::SemanticRejection(_)
+            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => None,
         }
     }
 
@@ -193,7 +201,8 @@ impl WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::MissingRootPackage(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::SemanticRejection(_) => "E0900",
+            | WorkspaceAnalysisErrorKind::SemanticRejection(_)
+            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => "E0900",
         }
     }
 }
@@ -249,8 +258,11 @@ impl fmt::Display for WorkspaceAnalysisError {
                 write!(formatter, "semantic computation input is invalid: {error}")
             }
             WorkspaceAnalysisErrorKind::SemanticRejection(error) => {
-                write!(formatter, "declaration rejection input is invalid: {error}")
+                write!(formatter, "semantic rejection input is invalid: {error}")
             }
+            WorkspaceAnalysisErrorKind::FinalizationUnavailable => formatter.write_str(
+                "whole-program finalization is unavailable after complete typed-body queries",
+            ),
         }
     }
 }
@@ -267,7 +279,8 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::SemanticRejection(error) => Some(error),
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
-            | WorkspaceAnalysisErrorKind::MissingRootPackage(_) => None,
+            | WorkspaceAnalysisErrorKind::MissingRootPackage(_)
+            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => None,
         }
     }
 }

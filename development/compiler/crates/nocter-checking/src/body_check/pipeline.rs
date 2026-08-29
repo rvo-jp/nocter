@@ -65,10 +65,10 @@ pub fn check_prepared_program_recovering<'syntax>(
 ///
 /// Returns an integrity failure for an incomplete/mismatched set, or a program-level ownership,
 /// provenance, loan, or semantic-completion failure after replay.
-pub fn check_prepared_program_from_queried_bodies(
+fn check_prepared_program_from_queried_bodies(
     prepared: PreparedChecking<'_>,
-    reusable: &[(BodyId, &super::ReusableCheckedBody)],
-    rejected: &[(BodyId, &super::QueriedBodyRejection)],
+    reusable: &[&super::ReusableCheckedBody],
+    rejected: &[&super::QueriedBodyRejection],
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let (accepted_semantics, prepared) = prepared.into_parts().into_body_parts();
     let program_semantics = accepted_semantics.clone();
@@ -97,6 +97,27 @@ pub fn check_prepared_program_from_queried_bodies(
     complete_checked_program(prepared, semantics, materialized.output, true)
 }
 
+/// Immutable exact-current result of canonical body replay and program finalization.
+#[derive(Debug)]
+pub enum QueriedProgramFinalizationOutcome {
+    Checked(Box<CheckedProgramOutput>),
+    Failed(Box<crate::BodyCheckFailure>),
+}
+
+/// Replays every independently queried body and finalizes whole-program authorities once.
+///
+#[must_use]
+pub fn finalize_prepared_program_from_queried_bodies(
+    prepared: PreparedChecking<'_>,
+    reusable: &[&super::ReusableCheckedBody],
+    rejected: &[&super::QueriedBodyRejection],
+) -> QueriedProgramFinalizationOutcome {
+    match check_prepared_program_from_queried_bodies(prepared, reusable, rejected) {
+        Ok(checked) => QueriedProgramFinalizationOutcome::Checked(Box::new(checked)),
+        Err(failure) => QueriedProgramFinalizationOutcome::Failed(Box::new(failure)),
+    }
+}
+
 struct ReusableBodyMaterialization {
     output: CheckedBodiesOutput,
     rejections: Vec<(BodyId, crate::BodyRejection)>,
@@ -107,28 +128,11 @@ fn materialize_reusable_bodies(
     prepared: &BodyCheckingParts<'_>,
     program_semantics: &crate::semantic_authority::SemanticAuthority,
     semantics: &mut BodySemanticAuthority,
-    reusable: &[(BodyId, &super::ReusableCheckedBody)],
-    rejected: &[(BodyId, &super::QueriedBodyRejection)],
+    reusable: &[&super::ReusableCheckedBody],
+    rejected: &[&super::QueriedBodyRejection],
 ) -> Result<ReusableBodyMaterialization, crate::BodyCheckFailure> {
     let graph = prepared.environment.graph();
-    let mut by_body = HashMap::new();
-    for (body, checked) in reusable {
-        if by_body.insert(*body, *checked).is_some() {
-            return Err(crate::BodyCheckFailure::new(
-                BodyCheckInternalError::DuplicateReusableBody(*body).into(),
-                None,
-            ));
-        }
-    }
-    let mut rejected_by_body = HashMap::new();
-    for (body, rejection) in rejected {
-        if rejected_by_body.insert(*body, *rejection).is_some() {
-            return Err(crate::BodyCheckFailure::new(
-                BodyCheckInternalError::DuplicateReusableBody(*body).into(),
-                None,
-            ));
-        }
-    }
+    let (mut by_body, mut rejected_by_body) = index_queried_bodies(reusable, rejected)?;
     let mut bodies = Vec::new();
     let mut rejections = Vec::new();
     let mut first_error = None;
@@ -153,12 +157,10 @@ fn materialize_reusable_bodies(
                     None,
                 ));
             }
-            let (error, rejection) = rejection.clone_parts().ok_or_else(|| {
-                crate::BodyCheckFailure::new(
-                    BodyCheckInternalError::InvalidQueriedBodyRejection(body).into(),
-                    None,
-                )
-            })?;
+            let (error, rejection) = rejection
+                .clone_parts()
+                .ok_or(BodyCheckInternalError::InvalidQueriedBodyRejection(body))
+                .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
             if first_error.is_none() {
                 first_error = Some(error);
             }
@@ -210,6 +212,38 @@ fn materialize_reusable_bodies(
         rejections,
         first_error,
     })
+}
+
+type QueriedBodyIndexes<'a> = (
+    HashMap<BodyId, &'a super::ReusableCheckedBody>,
+    HashMap<BodyId, &'a super::QueriedBodyRejection>,
+);
+
+fn index_queried_bodies<'a>(
+    reusable: &[&'a super::ReusableCheckedBody],
+    rejected: &[&'a super::QueriedBodyRejection],
+) -> Result<QueriedBodyIndexes<'a>, crate::BodyCheckFailure> {
+    let mut by_body = HashMap::new();
+    for checked in reusable {
+        let body = checked.body();
+        if by_body.insert(body, *checked).is_some() {
+            return Err(crate::BodyCheckFailure::new(
+                BodyCheckInternalError::DuplicateReusableBody(body).into(),
+                None,
+            ));
+        }
+    }
+    let mut rejected_by_body = HashMap::new();
+    for rejection in rejected {
+        let body = rejection.body();
+        if rejected_by_body.insert(body, *rejection).is_some() {
+            return Err(crate::BodyCheckFailure::new(
+                BodyCheckInternalError::DuplicateReusableBody(body).into(),
+                None,
+            ));
+        }
+    }
+    Ok((by_body, rejected_by_body))
 }
 
 /// Types bodies from a rejected declaration graph without opening a checked-program transition.

@@ -2,12 +2,18 @@
 
 mod body_context;
 mod body_names;
+mod program_finalization;
 mod program_preparation;
 mod typed_bodies;
 
 pub use body_names::{
     BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey,
     body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
+};
+pub use program_finalization::{
+    FailedProgramFinalization, FinalizedProgram, ProgramFinalizationOutcome,
+    ProgramFinalizationProduct, finalization_execution_count, finalization_reuse_count,
+    finalized_program,
 };
 pub use program_preparation::{
     ProgramPreparationOutcome, ProgramPreparationProduct, RejectedProgramPreparation,

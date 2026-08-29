@@ -223,6 +223,14 @@ source-neutral recipes. Session replays those successes and assembles the canoni
 arena once; it does not rerun checking to reconstruct recovery. An internal checker or projection
 failure is unavailable rather than being mislabeled as authored rejection.
 
+Whole-program finalization is an exact-current query above the complete body-name and typed-body
+sets. It replays body-local type and closure recipes in canonical order, then computes ownership,
+provenance, loans, opaque witnesses, and checked semantic completion once. The query reuses the
+private body semantic context, so current declaration projection is not materialized again. Its
+success and `BodyCheckFailure` values both open owned consumer branches; session cannot invoke body
+replay or finalization. If complete typed coverage exists but finalization is unavailable,
+workspace analysis reports an integrity error instead of repeating the compiler stage.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

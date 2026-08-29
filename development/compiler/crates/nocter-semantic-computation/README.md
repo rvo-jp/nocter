@@ -20,6 +20,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - declaration-query evaluation and dependency selection
 - reusable program-wide checking preparation above accepted declarations
 - per-body lexical and typed queries sharing one exact-current semantic context
+- exact-current canonical body replay and whole-program finalization
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -57,3 +58,6 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - Authored lexical rejection follows the same exact-current rule. Its optional resolved prefix is
   source-neutral, and the complete body-name product carries accepted and rejected body coverage
   together. Session cannot mistake rejection for missing computation or rerun name resolution.
+- Finalization depends on complete canonical body products and the same private current context.
+  It publishes branchable checked output or `BodyCheckFailure` after ownership, provenance, loans,
+  opaque witnesses, and semantic completion; workspace code cannot select a second finalizer.

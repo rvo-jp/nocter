@@ -195,7 +195,7 @@ impl ResolvedNameUse {
 ///
 /// Syntax origins are consumed when typed body nodes are built. They never enter
 /// `CheckedProgram`.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ResolvedBodyNames {
     body: BodyId,
     scopes: Arena<BodyScopeId, BodyScope>,
@@ -207,6 +207,7 @@ pub struct ResolvedBodyNames {
     uses: Box<[ResolvedNameUse]>,
 }
 
+#[derive(Clone)]
 pub(super) struct ResolvedBindingOrigins {
     pub(super) locals: Arena<LocalBindingId, SyntaxOrigin>,
     pub(super) captures: Arena<CaptureId, SyntaxOrigin>,

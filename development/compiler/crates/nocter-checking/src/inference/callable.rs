@@ -605,7 +605,7 @@ impl DeferredCompatibility {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InferenceFailure {
     UnknownType(TypeId),
     Conflict {

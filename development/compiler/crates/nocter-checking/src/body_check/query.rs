@@ -156,6 +156,36 @@ impl ProgramBodyCheckingContext {
             }
         }
     }
+
+    /// Replays one complete queried body set and finalizes program-wide semantic authorities.
+    ///
+    /// # Errors
+    ///
+    /// Returns current body-catalog or lexical recipe integrity failures. Body checking and
+    /// whole-program finalization failures are retained in the returned query outcome.
+    pub fn finalize(
+        &self,
+        input: &CompileUnitInput<'_>,
+        bindings: &FrontendBindings,
+        names: &[&ReusableBodyNames],
+        name_rejections: &[&crate::QueriedBodyNameRejection],
+        bodies: &[&ReusableCheckedBody],
+        body_rejections: &[&QueriedBodyRejection],
+    ) -> Result<super::QueriedProgramFinalizationOutcome, crate::PreparationFailure> {
+        let prepared = crate::preparation::prepare_program_checking_from_current_queried_names(
+            input,
+            self.current.clone(),
+            bindings,
+            self.source_index.clone(),
+            names,
+            name_rejections,
+        )?;
+        Ok(super::finalize_prepared_program_from_queried_bodies(
+            prepared,
+            bodies,
+            body_rejections,
+        ))
+    }
 }
 
 #[derive(Debug)]

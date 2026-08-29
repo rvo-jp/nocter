@@ -45,7 +45,7 @@ impl CheckedOpaqueWitness {
 }
 
 /// The sole concrete witness pattern selected for every declaration-scoped opaque result.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct OpaqueWitnessTable {
     witnesses: Arena<OpaqueTypeId, TypeId>,
 }

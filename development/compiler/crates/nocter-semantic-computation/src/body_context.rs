@@ -52,6 +52,46 @@ impl BodySemanticContextProduct {
             .check(&input, context.projection.frontend_bindings(), names)
             .ok()
     }
+
+    pub(crate) fn finalize(
+        &self,
+        body_names: &crate::BodyNameSet,
+        typed_bodies: &crate::TypedBodySet,
+    ) -> Option<nocter_checking::QueriedProgramFinalizationOutcome> {
+        let context = self.context.as_ref()?;
+        let input = context.unit.compile_input().ok()?;
+        let names = body_names
+            .entries()
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<_>>();
+        let name_rejections = body_names
+            .rejections()
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<_>>();
+        let bodies = typed_bodies
+            .entries()
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<_>>();
+        let body_rejections = typed_bodies
+            .rejections()
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<_>>();
+        context
+            .checking
+            .finalize(
+                &input,
+                context.projection.frontend_bindings(),
+                &names,
+                &name_rejections,
+                &bodies,
+                &body_rejections,
+            )
+            .ok()
+    }
 }
 
 impl QueryValue for BodySemanticContextProduct {

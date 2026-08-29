@@ -13,7 +13,7 @@ use crate::{
 use super::{CheckedBody, OpaqueWitnessTable};
 
 /// Complete syntax-independent Phase 3 program.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckedProgram {
     environment: crate::program_environment::ProgramEnvironment,
     source_access: SourceAccessTable,
@@ -163,7 +163,7 @@ impl CheckedProgram {
 }
 
 /// Checked semantics and its independent source projection.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckedProgramOutput {
     program: CheckedProgram,
     source_index: SourceIndex,
@@ -191,5 +191,11 @@ impl CheckedProgramOutput {
     #[must_use]
     pub fn into_parts(self) -> (CheckedProgram, SourceIndex) {
         (self.program, self.source_index)
+    }
+
+    /// Opens an owned consumer branch from one immutable exact-current query result.
+    #[must_use]
+    pub fn current_branch(&self) -> Self {
+        self.clone()
     }
 }

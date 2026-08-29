@@ -41,7 +41,7 @@ impl BodyConstructionFailure {
 }
 
 /// A typed-body failure with the deepest current-generation semantic state that remains valid.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyCheckFailure {
     error: BodyCheckError,
     recovery: Option<Box<crate::BodyAnalysisRecovery>>,
@@ -87,9 +87,15 @@ impl BodyCheckFailure {
     pub fn into_parts(self) -> (BodyCheckError, Option<crate::BodyAnalysisRecovery>) {
         (self.error, self.recovery.map(|recovery| *recovery))
     }
+
+    /// Opens an owned consumer branch from one immutable exact-current query failure.
+    #[must_use]
+    pub fn current_branch(&self) -> Self {
+        self.clone()
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BodyCheckError {
     Rule {
         rule: BodyRule,
@@ -199,7 +205,7 @@ impl From<BodyCheckInternalError> for BodyCheckError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BodyCheckInternalError {
     MissingBodySource(BodyId),
     MissingBodyNames(BodyId),

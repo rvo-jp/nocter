@@ -75,8 +75,8 @@ pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
 pub use pipeline::{
-    analyze_prepared_program_bodies, check_prepared_program,
-    check_prepared_program_from_queried_bodies, check_prepared_program_recovering,
+    QueriedProgramFinalizationOutcome, analyze_prepared_program_bodies, check_prepared_program,
+    check_prepared_program_recovering, finalize_prepared_program_from_queried_bodies,
 };
 pub use query::{
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,

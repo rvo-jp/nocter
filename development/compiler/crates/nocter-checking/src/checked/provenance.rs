@@ -222,7 +222,7 @@ impl CheckedCallableProvenance {
 }
 
 /// Program-wide callable result-provenance authority.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CallableProvenanceTable {
     entries: Arena<CallableId, CheckedCallableProvenance>,
 }
@@ -273,7 +273,7 @@ impl CheckedClosureProvenance {
 }
 
 /// Program-wide generated-closure result-provenance authority.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ClosureProvenanceTable {
     entries: Arena<ClosureId, CheckedClosureProvenance>,
 }
@@ -311,7 +311,7 @@ impl CallableProvenanceTable {
 }
 
 /// Provenance retained for every node and every normally returned value of one body.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckedBodyProvenance {
     nodes: Arena<BodyNodeId, ValueProvenance>,
     returned: ValueProvenance,
@@ -337,7 +337,7 @@ impl CheckedBodyProvenance {
 }
 
 /// Dense body-provenance authority paired with the callable contract table.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProvenanceTable {
     callables: CallableProvenanceTable,
     closures: ClosureProvenanceTable,

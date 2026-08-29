@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use nocter_computation::Database;
 use nocter_semantic_computation::{
-    BodyNameSet, DeclarationQueryOutcome, DeclarationQueryProduct, ProgramPreparationOutcome,
-    ProgramPreparationProduct, SemanticScopeKey, TypedBodySet,
+    BodyNameSet, DeclarationQueryOutcome, DeclarationQueryProduct, ProgramFinalizationProduct,
+    ProgramPreparationOutcome, ProgramPreparationProduct, SemanticScopeKey, TypedBodySet,
 };
 
 use crate::WorkspaceAnalysisError;
@@ -13,6 +13,7 @@ pub(super) struct DemandedSemanticProducts {
     pub(super) preparation: Arc<ProgramPreparationProduct>,
     pub(super) body_names: Option<BodyNameSet>,
     pub(super) typed_bodies: Option<TypedBodySet>,
+    pub(super) finalization: Option<Arc<ProgramFinalizationProduct>>,
 }
 
 /// Demands the paired declaration and program-preparation products for one published scope.
@@ -37,10 +38,19 @@ pub(super) fn demand(
     } else {
         None
     };
+    let finalization = if typed_bodies.is_some() {
+        Some(
+            nocter_semantic_computation::finalized_program(computation, scope.clone())
+                .map_err(WorkspaceAnalysisError::computation)?,
+        )
+    } else {
+        None
+    };
     Ok(DemandedSemanticProducts {
         declarations,
         preparation,
         body_names,
         typed_bodies,
+        finalization,
     })
 }
