@@ -44,8 +44,10 @@ may demand only the semantic capability it needs. Both paths invoke the same sta
   implements this mechanism without depending on a compiler-domain crate.
 - declaration lowering, checking, target construction, and later backend stages own semantic rules
   and return immutable products.
-- session composition owns the only production and recovery stage order. One analyzed unit owns its
-  discovery snapshot and exact session result inseparably.
+- semantic computation owns the only workspace-query stage order and recovery continuation. Direct
+  session compilation uses the same recovery composer, then owns target construction and the
+  translation from a closed query outcome. One analyzed unit owns its discovery snapshot and exact
+  session result inseparably.
 - analysis owns the validated join between semantic evidence and source projection. It does not
   invoke compiler stages or inspect computation storage.
 - protocol layers consume typed analysis results only.
@@ -241,6 +243,12 @@ For source-complete input, `Unavailable` always means the query graph failed to 
 authority. Workspace analysis reports that state as an integrity error. It never restarts from
 declarations or a prepared program in session, because such a restart would duplicate dependency
 selection and conceal the missing query edge.
+
+A top-level exact-current program-analysis query closes this graph. It maps declaration,
+preparation, lexical, typed-body, and finalization products to one checked or rejected outcome.
+Workspace demands only this value, and session has one consumer that validates the paired discovery
+snapshot before opening its branch. Intermediate products remain memoized dependencies; they are
+not transport objects from which orchestration can reconstruct stage order.
 
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor

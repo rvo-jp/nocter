@@ -3,9 +3,9 @@ use std::sync::Arc;
 use nocter_discovery::DiscoveredUnit;
 
 use crate::analysis::{
-    analyze_target_from_declaration_failure, analyze_target_from_finalization_failure,
-    analyze_target_from_finalized_program, analyze_target_from_name_resolution_failure,
-    analyze_target_from_preparation_rejection,
+    analyze_target_from_finalization_failure, analyze_target_from_finalized_program,
+    analyze_target_from_name_resolution_failure, analyze_target_from_preparation_rejection,
+    analyze_target_from_semantic_failure,
 };
 use crate::{
     CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
@@ -20,82 +20,6 @@ enum AnalyzedUnitState {
     Complete(Box<CompiledTarget>),
 }
 
-/// Consumes a complete query-owned checked program without invoking semantic compiler stages.
-///
-/// # Errors
-///
-/// Returns an integrity error when the product belongs to a different exact source domain.
-pub fn analyze_unit_from_finalized_program(
-    unit: Arc<DiscoveredUnit>,
-    finalized: &nocter_semantic_computation::FinalizedProgram,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, finalized.unit())?;
-    if unit.has_syntax_errors() {
-        return Ok(analyze_unit(unit));
-    }
-    Ok(
-        match analyze_target_from_finalized_program(&unit, finalized) {
-            Ok(target) => AnalyzedUnit {
-                unit,
-                diagnostics: Box::new([]),
-                state: AnalyzedUnitState::Complete(Box::new(target)),
-            },
-            Err(failure) => {
-                let (semantic, diagnostics) = (*failure).into_analysis_parts();
-                AnalyzedUnit {
-                    unit,
-                    diagnostics,
-                    state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-                }
-            }
-        },
-    )
-}
-
-/// Consumes a query-owned whole-program checking failure without replaying or finalizing bodies.
-///
-/// # Errors
-///
-/// Returns an integrity error when the failure belongs to a different exact source domain.
-pub fn analyze_unit_from_finalization_failure(
-    unit: Arc<DiscoveredUnit>,
-    failed: &nocter_semantic_computation::FailedProgramFinalization,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, failed.unit())?;
-    if unit.has_syntax_errors() {
-        return Ok(analyze_unit(unit));
-    }
-    let failure = analyze_target_from_finalization_failure(failed.failure());
-    let (semantic, diagnostics) = (*failure).into_analysis_parts();
-    Ok(AnalyzedUnit {
-        unit,
-        diagnostics,
-        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-    })
-}
-
-/// Consumes a query-owned lexical rejection without invoking name resolution or body checking.
-///
-/// # Errors
-///
-/// Returns an integrity error when the failure belongs to a different exact source domain.
-pub fn analyze_unit_from_name_resolution_failure(
-    unit: Arc<DiscoveredUnit>,
-    failed: &nocter_semantic_computation::FailedProgramNameResolution,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, failed.unit())?;
-    if unit.has_syntax_errors() {
-        return Ok(analyze_unit(unit));
-    }
-    let failure = analyze_target_from_name_resolution_failure(failed.failure());
-    let (semantic, diagnostics) = (*failure).into_analysis_parts();
-    Ok(AnalyzedUnit {
-        unit,
-        diagnostics,
-        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-    })
-}
-
 /// The semantic completion state of one analyzed discovery snapshot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AnalyzedUnitStatus {
@@ -107,7 +31,8 @@ pub enum AnalyzedUnitStatus {
 /// One discovery snapshot paired inseparably with the exact session outcome derived from it.
 ///
 /// Consumers cannot combine semantic evidence from one source graph with another graph. The
-/// session remains the sole owner of compiler stage order and recovery selection.
+/// semantic query product has already selected stage order and recovery; session validates that
+/// source domain once and translates the closed branch without reopening the compiler pipeline.
 #[derive(Debug)]
 pub struct AnalyzedUnit {
     unit: Arc<DiscoveredUnit>,
@@ -187,15 +112,85 @@ pub fn analyze_unit_from_incomplete_analysis(
     unit: Arc<DiscoveredUnit>,
     analysis_unit: &DiscoveredUnit,
     analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, analysis_unit)?;
+) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
+    validate_analysis_domain(&unit, analysis_unit)?;
     if !unit.has_syntax_errors() {
-        return Err(SemanticRejectionDomainError::ExpectedSyntaxErrors);
+        return Err(SemanticAnalysisDomainError::ExpectedSyntaxErrors);
     }
     Ok(analyzed_incomplete_unit(
         unit,
         crate::analysis::incomplete_syntax_analysis(analysis),
     ))
+}
+
+/// Consumes the sole query-owned source-complete semantic outcome without invoking compiler stages.
+///
+/// # Errors
+///
+/// Returns an integrity error when the product belongs to a different source domain or is supplied
+/// for syntax-invalid input.
+pub fn analyze_unit_from_program_analysis(
+    unit: Arc<DiscoveredUnit>,
+    product: &nocter_semantic_computation::ProgramAnalysisProduct,
+) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
+    validate_analysis_domain(&unit, product.unit())?;
+    if unit.has_syntax_errors() {
+        return Err(SemanticAnalysisDomainError::ExpectedCompleteSyntax);
+    }
+    let analyzed = match product.outcome() {
+        nocter_semantic_computation::ProgramAnalysisOutcome::Checked(finalized) => {
+            match analyze_target_from_finalized_program(&unit, finalized) {
+                Ok(target) => AnalyzedUnit {
+                    unit,
+                    diagnostics: Box::new([]),
+                    state: AnalyzedUnitState::Complete(Box::new(target)),
+                },
+                Err(failure) => analyzed_compilation_failure(unit, *failure),
+            }
+        }
+        nocter_semantic_computation::ProgramAnalysisOutcome::NamesRejected(failed) => {
+            analyzed_compilation_failure(
+                unit,
+                *analyze_target_from_name_resolution_failure(failed.failure()),
+            )
+        }
+        nocter_semantic_computation::ProgramAnalysisOutcome::BodiesRejected(failed) => {
+            analyzed_compilation_failure(
+                unit,
+                *analyze_target_from_finalization_failure(failed.failure()),
+            )
+        }
+        nocter_semantic_computation::ProgramAnalysisOutcome::PreparationRejected(rejected) => {
+            analyzed_compilation_failure(
+                unit,
+                *analyze_target_from_preparation_rejection(rejected.rejection()),
+            )
+        }
+        nocter_semantic_computation::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
+            analyzed_compilation_failure(
+                unit,
+                *analyze_target_from_semantic_failure(failed.failure()),
+            )
+        }
+        nocter_semantic_computation::ProgramAnalysisOutcome::Unavailable(authority) => {
+            return Err(SemanticAnalysisDomainError::UnavailableProgramAnalysis(
+                *authority,
+            ));
+        }
+    };
+    Ok(analyzed)
+}
+
+fn analyzed_compilation_failure(
+    unit: Arc<DiscoveredUnit>,
+    failure: crate::CompileTargetFailure,
+) -> AnalyzedUnit {
+    let (semantic, diagnostics) = failure.into_analysis_parts();
+    AnalyzedUnit {
+        unit,
+        diagnostics,
+        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+    }
 }
 
 fn analyzed_incomplete_unit(
@@ -212,57 +207,10 @@ fn analyzed_incomplete_unit(
     }
 }
 
-/// Consumes one current discovery snapshot and its query-owned declaration rejection.
-///
-/// # Errors
-///
-/// Returns an integrity error when the rejection was produced from a different semantic topology
-/// or exact current-source identity layout.
-pub fn analyze_unit_from_declaration_failure(
-    unit: Arc<DiscoveredUnit>,
-    rejection_unit: &DiscoveredUnit,
-    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, rejection_unit)?;
-    if unit.has_syntax_errors() {
-        return Ok(analyze_unit(unit));
-    }
-    let failure = analyze_target_from_declaration_failure(&unit, failure);
-    let (semantic, diagnostics) = (*failure).into_analysis_parts();
-    Ok(AnalyzedUnit {
-        unit,
-        diagnostics,
-        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-    })
-}
-
-/// Consumes one current discovery snapshot and its query-owned preparation rejection.
-///
-/// # Errors
-///
-/// Returns an integrity error when the rejection belongs to a different exact source domain.
-pub fn analyze_unit_from_preparation_rejection(
-    unit: Arc<DiscoveredUnit>,
-    rejection_unit: &DiscoveredUnit,
-    rejection: &nocter_checking::QueriedProgramPreparationRejection,
-) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
-    validate_rejection_domain(&unit, rejection_unit)?;
-    if unit.has_syntax_errors() {
-        return Ok(analyze_unit(unit));
-    }
-    let failure = analyze_target_from_preparation_rejection(rejection);
-    let (semantic, diagnostics) = (*failure).into_analysis_parts();
-    Ok(AnalyzedUnit {
-        unit,
-        diagnostics,
-        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-    })
-}
-
-fn validate_rejection_domain(
+fn validate_analysis_domain(
     current: &DiscoveredUnit,
     rejection: &DiscoveredUnit,
-) -> Result<(), SemanticRejectionDomainError> {
+) -> Result<(), SemanticAnalysisDomainError> {
     if std::ptr::eq(current, rejection) {
         return Ok(());
     }
@@ -271,41 +219,49 @@ fn validate_rejection_domain(
     let current_sources = current.current_source_surface()?;
     let rejection_sources = rejection.current_source_surface()?;
     if current_topology != rejection_topology || current_sources != rejection_sources {
-        return Err(SemanticRejectionDomainError::Mismatch);
+        return Err(SemanticAnalysisDomainError::Mismatch);
     }
     Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SemanticRejectionDomainError {
+pub enum SemanticAnalysisDomainError {
     SemanticTopology(nocter_discovery::SemanticTopologyError),
     CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
     Mismatch,
     ExpectedSyntaxErrors,
+    ExpectedCompleteSyntax,
+    UnavailableProgramAnalysis(nocter_semantic_computation::ProgramAnalysisUnavailable),
 }
 
-impl std::fmt::Display for SemanticRejectionDomainError {
+impl std::fmt::Display for SemanticAnalysisDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SemanticTopology(error) => error.fmt(formatter),
             Self::CurrentSource(error) => error.fmt(formatter),
             Self::Mismatch => formatter
-                .write_str("semantic rejection and current analysis use different source domains"),
+                .write_str("semantic product and current analysis use different source domains"),
             Self::ExpectedSyntaxErrors => formatter
                 .write_str("incomplete semantic analysis requires a syntax-invalid source domain"),
+            Self::ExpectedCompleteSyntax => formatter
+                .write_str("complete semantic analysis requires a syntax-clean source domain"),
+            Self::UnavailableProgramAnalysis(authority) => write!(
+                formatter,
+                "source-complete semantic analysis is missing {authority} authority"
+            ),
         }
     }
 }
 
-impl std::error::Error for SemanticRejectionDomainError {}
+impl std::error::Error for SemanticAnalysisDomainError {}
 
-impl From<nocter_discovery::SemanticTopologyError> for SemanticRejectionDomainError {
+impl From<nocter_discovery::SemanticTopologyError> for SemanticAnalysisDomainError {
     fn from(error: nocter_discovery::SemanticTopologyError) -> Self {
         Self::SemanticTopology(error)
     }
 }
 
-impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticRejectionDomainError {
+impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticAnalysisDomainError {
     fn from(error: nocter_discovery::CurrentSourceSurfaceError) -> Self {
         Self::CurrentSource(error)
     }

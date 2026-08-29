@@ -35,14 +35,14 @@ impl FinalizedProgram {
 }
 
 /// Exact-current whole-program checking failure after canonical body replay.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FailedProgramFinalization {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     failure: Arc<nocter_checking::BodyCheckFailure>,
 }
 
 /// Exact-current lexical rejection materialized from the complete body-name query set.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FailedProgramNameResolution {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     failure: Arc<nocter_checking::QueriedNameResolutionFailure>,

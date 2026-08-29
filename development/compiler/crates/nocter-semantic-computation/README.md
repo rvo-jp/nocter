@@ -22,6 +22,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - per-body lexical and typed queries sharing one exact-current semantic context
 - exact-current canonical body replay and whole-program finalization
 - exact-current incomplete-syntax analysis and recovery continuation
+- closed source-complete analysis outcome above every semantic query branch
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -68,3 +69,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   compiler-domain failure and deepest valid recovery authority, never a target-program success.
   Direct session analysis delegates to the same pure traversal rather than implementing another
   declaration/preparation/body recovery order.
+- One top-level exact-current analysis query selects the declaration, preparation, lexical, body,
+  or checked branch. It is the only source-complete product transported across the workspace/session
+  boundary. Intermediate queries remain independently memoized but cannot become orchestration
+  policy in a consumer.

@@ -18,7 +18,7 @@ pub enum ProgramPreparationOutcome {
 }
 
 /// One program-preparation rejection paired with the exact source domain that produced it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RejectedProgramPreparation {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     rejection: Arc<nocter_checking::QueriedProgramPreparationRejection>,

@@ -187,6 +187,15 @@ fn continue_declaration_failure(
     }
 }
 
+/// Materializes the deepest valid editor recovery beneath one exact-current declaration failure.
+#[must_use]
+pub fn analyze_declaration_failure(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
+) -> IncompleteSemanticFailure {
+    continue_declaration_failure(input, failure.current_branch())
+}
+
 /// Continues one declaration recovery through its sole editor-analysis transition.
 #[must_use]
 pub fn continue_declaration_recovery(

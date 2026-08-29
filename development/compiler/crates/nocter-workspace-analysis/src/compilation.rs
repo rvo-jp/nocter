@@ -10,13 +10,7 @@ use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_semantic_computation::{
-    DeclarationQueryOutcome, ProgramFinalizationOutcome, ProgramPreparationOutcome,
-};
-use nocter_session::{
-    analyze_unit_from_declaration_failure, analyze_unit_from_name_resolution_failure,
-    bundled_standard_toolchain,
-};
+use nocter_session::bundled_standard_toolchain;
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
 
@@ -81,18 +75,19 @@ pub(crate) fn compile_scope(
                     scope,
                 );
             }
-            let products = match crate::semantic_products::demand(computation, &scope) {
-                Ok(products) => products,
+            let product = match crate::semantic_products::demand_complete(computation, scope) {
+                Ok(product) => product,
                 Err(error) => return preparation_failed(source_overlay, error),
             };
-            let analyzed = match analyze_declaration_outcome(
-                unit,
-                products.declarations.outcome(),
-                products.preparation.outcome(),
-                products.finalization.as_deref(),
-            ) {
+            let analyzed = match nocter_session::analyze_unit_from_program_analysis(unit, &product)
+            {
                 Ok(analyzed) => analyzed,
-                Err(error) => return preparation_failed(source_overlay, error),
+                Err(error) => {
+                    return preparation_failed(
+                        source_overlay,
+                        WorkspaceAnalysisError::semantic_analysis(error),
+                    );
+                }
             };
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
                 generation, analyzed,
@@ -146,7 +141,7 @@ fn analyze_incomplete_scope(
         {
             Ok(analyzed) => analyzed,
             Err(error) => {
-                let error = WorkspaceAnalysisError::semantic_rejection(error);
+                let error = WorkspaceAnalysisError::semantic_analysis(error);
                 return preparation_failed(source_overlay, error);
             }
         };
@@ -174,66 +169,6 @@ fn prepare_semantic_inputs(
         nocter_semantic_computation::ScopeInputPublication::for_unit(unit, module_surface)
             .map_err(WorkspaceAnalysisError::semantic_computation)?;
     Ok((scope, publication, body_inputs))
-}
-
-fn analyze_declaration_outcome(
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
-    outcome: &DeclarationQueryOutcome,
-    preparation: &ProgramPreparationOutcome,
-    finalization: Option<&nocter_semantic_computation::ProgramFinalizationProduct>,
-) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
-    match outcome {
-        DeclarationQueryOutcome::Accepted(_) => match preparation {
-            ProgramPreparationOutcome::Prepared(_) => {
-                let finalization = finalization.ok_or_else(|| {
-                    WorkspaceAnalysisError::semantic_product_unavailable(
-                        crate::SemanticProduct::Finalization,
-                    )
-                })?;
-                match finalization.outcome() {
-                    ProgramFinalizationOutcome::Checked(finalized) => {
-                        nocter_session::analyze_unit_from_finalized_program(unit, finalized)
-                            .map_err(WorkspaceAnalysisError::semantic_rejection)
-                    }
-                    ProgramFinalizationOutcome::NamesRejected(failed) => {
-                        analyze_unit_from_name_resolution_failure(unit, failed)
-                            .map_err(WorkspaceAnalysisError::semantic_rejection)
-                    }
-                    ProgramFinalizationOutcome::Failed(failed) => {
-                        nocter_session::analyze_unit_from_finalization_failure(unit, failed)
-                            .map_err(WorkspaceAnalysisError::semantic_rejection)
-                    }
-                    ProgramFinalizationOutcome::Unavailable => {
-                        Err(WorkspaceAnalysisError::semantic_product_unavailable(
-                            crate::SemanticProduct::Finalization,
-                        ))
-                    }
-                }
-            }
-            ProgramPreparationOutcome::Unavailable => {
-                Err(WorkspaceAnalysisError::semantic_product_unavailable(
-                    crate::SemanticProduct::Preparation,
-                ))
-            }
-            ProgramPreparationOutcome::Rejected(rejection) => {
-                nocter_session::analyze_unit_from_preparation_rejection(
-                    unit,
-                    rejection.unit(),
-                    rejection.rejection(),
-                )
-                .map_err(WorkspaceAnalysisError::semantic_rejection)
-            }
-        },
-        DeclarationQueryOutcome::Rejected(rejection) => {
-            analyze_unit_from_declaration_failure(unit, rejection.unit(), rejection.failure())
-                .map_err(WorkspaceAnalysisError::semantic_rejection)
-        }
-        DeclarationQueryOutcome::Unavailable => {
-            Err(WorkspaceAnalysisError::semantic_product_unavailable(
-                crate::SemanticProduct::Declarations,
-            ))
-        }
-    }
 }
 
 fn discover_toolchain_standard(

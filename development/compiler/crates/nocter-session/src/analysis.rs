@@ -4,7 +4,6 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, run_semantic_pipeline,
-    run_semantic_pipeline_from_declaration_failure,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -179,15 +178,6 @@ pub(crate) fn analyze_target_from_name_resolution_failure(
     ))
 }
 
-pub(crate) fn analyze_target_from_declaration_failure(
-    unit: &DiscoveredUnit,
-    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
-) -> Box<CompileTargetFailure> {
-    let SemanticPipelineFailure { error, evidence } =
-        run_semantic_pipeline_from_declaration_failure(unit, failure);
-    Box::new(CompileTargetFailure::new(*error, evidence))
-}
-
 pub(crate) fn analyze_target_from_preparation_rejection(
     rejection: &nocter_checking::QueriedProgramPreparationRejection,
 ) -> Box<CompileTargetFailure> {
@@ -215,8 +205,22 @@ pub(crate) fn incomplete_syntax_analysis(
     let Some(failure) = analysis.failure() else {
         return IncompleteSyntaxAnalysis::empty();
     };
+    let (error, evidence) = semantic_failure_parts(failure);
+    IncompleteSyntaxAnalysis::failed(error, evidence)
+}
+
+pub(crate) fn analyze_target_from_semantic_failure(
+    failure: &nocter_semantic_computation::IncompleteSemanticFailure,
+) -> Box<CompileTargetFailure> {
+    let (error, evidence) = semantic_failure_parts(failure);
+    Box::new(CompileTargetFailure::new(error, evidence))
+}
+
+fn semantic_failure_parts(
+    failure: &nocter_semantic_computation::IncompleteSemanticFailure,
+) -> (CompileSessionError, Option<SemanticEvidenceBundle>) {
     let (error, evidence) = failure.current_branch().into_parts();
-    IncompleteSyntaxAnalysis::failed(
+    (
         error.into(),
         evidence.map(SemanticEvidenceBundle::from_incomplete),
     )

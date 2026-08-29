@@ -19,10 +19,8 @@ pub use analysis::{
     CompileTargetFailure, IncompleteSyntaxAnalysis, analyze_incomplete_syntax, analyze_target,
 };
 pub use analyzed_unit::{
-    AnalyzedUnit, AnalyzedUnitStatus, SemanticRejectionDomainError, analyze_unit,
-    analyze_unit_from_declaration_failure, analyze_unit_from_finalization_failure,
-    analyze_unit_from_finalized_program, analyze_unit_from_incomplete_analysis,
-    analyze_unit_from_name_resolution_failure, analyze_unit_from_preparation_rejection,
+    AnalyzedUnit, AnalyzedUnitStatus, SemanticAnalysisDomainError, analyze_unit,
+    analyze_unit_from_incomplete_analysis, analyze_unit_from_program_analysis,
 };
 pub use error::CompileSessionError;
 pub use executable::{

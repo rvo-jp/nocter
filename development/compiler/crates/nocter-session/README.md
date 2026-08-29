@@ -52,3 +52,6 @@ editor queries, native code generation, or protocol projection.
 - Query-backed incomplete syntax opens one exact-current analysis product and only translates its
   compiler-domain failure/evidence branch. The recovery traversal itself belongs to semantic
   computation; the direct session API delegates to the same traversal.
+- Source-complete query analysis has one public consumer accepting the closed top-level product.
+  Branch-specific consumers are private translation helpers, so callers cannot choose declaration,
+  preparation, lexical, body, or finalization order.

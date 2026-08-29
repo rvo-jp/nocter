@@ -54,7 +54,10 @@ incomplete-syntax recovery a query-owned outcome, review the complete query grap
 1. Incomplete-syntax recovery is now one exact-current query as well: semantic computation owns the
 sole declaration/preparation/body recovery traversal, direct session analysis delegates to that
 same compiler-domain contract, and workspace session code only opens the retained branch. Complete
-the final graph/boundary review and Phase 1 qualification.
+source analysis now has one top-level exact-current query that selects declaration rejection,
+preparation rejection, lexical rejection, body rejection, or checked completion. Workspace demands
+that single product and session exposes only one corresponding consumer entry point; neither layer
+can reconstruct stage order. Complete the final graph/boundary review and Phase 1 qualification.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

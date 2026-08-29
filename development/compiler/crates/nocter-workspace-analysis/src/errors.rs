@@ -103,18 +103,12 @@ pub struct WorkspaceAnalysisError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SemanticProduct {
-    Declarations,
-    Preparation,
-    Finalization,
     IncompleteAnalysis,
 }
 
 impl SemanticProduct {
     const fn description(self) -> &'static str {
         match self {
-            Self::Declarations => "declaration query",
-            Self::Preparation => "program-preparation query",
-            Self::Finalization => "whole-program finalization query",
             Self::IncompleteAnalysis => "incomplete-syntax analysis query",
         }
     }
@@ -131,7 +125,7 @@ enum WorkspaceAnalysisErrorKind {
     ModuleOwner(nocter_discovery::DiscoveryError),
     Computation(nocter_computation::ComputationError),
     SemanticComputation(nocter_semantic_computation::ScopeInputError),
-    SemanticRejection(nocter_session::SemanticRejectionDomainError),
+    SemanticAnalysis(nocter_session::SemanticAnalysisDomainError),
     SemanticProductUnavailable(SemanticProduct),
 }
 
@@ -162,9 +156,9 @@ impl WorkspaceAnalysisError {
         }
     }
 
-    pub(crate) fn semantic_rejection(error: nocter_session::SemanticRejectionDomainError) -> Self {
+    pub(crate) fn semantic_analysis(error: nocter_session::SemanticAnalysisDomainError) -> Self {
         Self {
-            kind: WorkspaceAnalysisErrorKind::SemanticRejection(error),
+            kind: WorkspaceAnalysisErrorKind::SemanticAnalysis(error),
         }
     }
 
@@ -203,7 +197,7 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::ModuleOwner(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::SemanticRejection(_)
+            | WorkspaceAnalysisErrorKind::SemanticAnalysis(_)
             | WorkspaceAnalysisErrorKind::SemanticProductUnavailable(_) => None,
         }
     }
@@ -220,7 +214,7 @@ impl WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::MissingRootPackage(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::SemanticRejection(_)
+            | WorkspaceAnalysisErrorKind::SemanticAnalysis(_)
             | WorkspaceAnalysisErrorKind::SemanticProductUnavailable(_) => "E0900",
         }
     }
@@ -276,8 +270,8 @@ impl fmt::Display for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::SemanticComputation(error) => {
                 write!(formatter, "semantic computation input is invalid: {error}")
             }
-            WorkspaceAnalysisErrorKind::SemanticRejection(error) => {
-                write!(formatter, "semantic rejection input is invalid: {error}")
+            WorkspaceAnalysisErrorKind::SemanticAnalysis(error) => {
+                write!(formatter, "semantic analysis input is invalid: {error}")
             }
             WorkspaceAnalysisErrorKind::SemanticProductUnavailable(product) => write!(
                 formatter,
@@ -297,7 +291,7 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::ModuleOwner(error) => Some(error),
             WorkspaceAnalysisErrorKind::Computation(error) => Some(error),
             WorkspaceAnalysisErrorKind::SemanticComputation(error) => Some(error),
-            WorkspaceAnalysisErrorKind::SemanticRejection(error) => Some(error),
+            WorkspaceAnalysisErrorKind::SemanticAnalysis(error) => Some(error),
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_)
