@@ -69,6 +69,7 @@ Their owners are:
 |---|---|
 | immutable disk/open-document view | [`nocter-filesystem`](../compiler/crates/nocter-filesystem/README.md) |
 | accepted editor source revisions | [`nocter-workspace-revision`](../compiler/crates/nocter-workspace-revision/README.md) |
+| revisioned dependency evaluation and reuse | [`nocter-computation`](../compiler/crates/nocter-computation/README.md) |
 | semantic identity to source projection | [`nocter-source-index`](../compiler/crates/nocter-source-index/README.md) |
 | phase-neutral diagnostics | [`nocter-diagnostics`](../compiler/crates/nocter-diagnostics/README.md) |
 | compiler session composition | [`nocter-session`](../compiler/crates/nocter-session/README.md) |

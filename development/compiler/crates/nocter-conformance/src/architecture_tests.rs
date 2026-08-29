@@ -263,6 +263,14 @@ fn workspace_revision_owns_source_transitions_without_semantic_dependencies() {
 }
 
 #[test]
+fn computation_kernel_has_no_compiler_domain_dependency() {
+    assert_eq!(
+        production_dependencies("nocter-computation"),
+        BTreeSet::from(["nocter-hash".to_owned()])
+    );
+}
+
+#[test]
 fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
     let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
     for crate_name in crate_names() {

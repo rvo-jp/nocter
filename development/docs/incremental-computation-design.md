@@ -40,7 +40,8 @@ may demand only the semantic capability it needs. Both paths invoke the same sta
 - workspace analysis owns physical path interpretation, package/module/single-file scope selection,
   and the frozen plan for one revision.
 - the computation owner owns query keys, dependency recording, memoization, invalidation, cycle
-  reporting, and reuse accounting.
+  reporting, and reuse accounting. [`nocter-computation`](../compiler/crates/nocter-computation/README.md)
+  implements this mechanism without depending on a compiler-domain crate.
 - declaration lowering, checking, target construction, and later backend stages own semantic rules
   and return immutable products.
 - session composition owns the only production and recovery stage order. One analyzed unit owns its

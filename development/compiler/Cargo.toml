@@ -6,6 +6,7 @@ members = [
     "crates/nocter-checking",
     "crates/nocter-compile-input",
     "crates/nocter-command",
+    "crates/nocter-computation",
     "crates/nocter-constant-evaluation",
     "crates/nocter-conformance",
     "crates/nocter-declarations",
