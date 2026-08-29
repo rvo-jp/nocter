@@ -2,7 +2,7 @@
 
 use nocter_checking::{
     CheckedProgramOutput, analyze_prepared_program_bodies,
-    check_prepared_program_from_reusable_bodies, check_prepared_program_recovering,
+    check_prepared_program_from_queried_bodies, check_prepared_program_recovering,
     prepare_analysis_program_checking_recovering, prepare_program_checking_from_reusable_names,
     prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
 };
@@ -226,12 +226,12 @@ pub(crate) fn run_semantic_pipeline_from_prepared_body_names(
 }
 
 /// Continues checking from query-owned program, lexical, and typed-body authorities.
-pub(crate) fn run_semantic_pipeline_from_checked_bodies(
+pub(crate) fn run_semantic_pipeline_from_typed_bodies(
     unit: &DiscoveredUnit,
     declarations: &ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
     body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
-    checked_bodies: &nocter_semantic_computation::CheckedBodySet,
+    typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
     let input = unit
         .compile_input()
@@ -269,13 +269,18 @@ pub(crate) fn run_semantic_pipeline_from_checked_bodies(
             evidence: evidence.map(SemanticEvidenceBundle::from_preparation_failure),
         }
     })?;
-    let bodies = checked_bodies
+    let bodies = typed_bodies
         .entries()
         .iter()
         .map(|checked| (checked.body(), checked.as_ref()))
         .collect::<Vec<_>>();
-    let checked =
-        check_prepared_program_from_reusable_bodies(prepared, &bodies).map_err(|failure| {
+    let rejections = typed_bodies
+        .rejections()
+        .iter()
+        .map(|rejection| (rejection.body(), rejection.as_ref()))
+        .collect::<Vec<_>>();
+    let checked = check_prepared_program_from_queried_bodies(prepared, &bodies, &rejections)
+        .map_err(|failure| {
             let (error, recovery) = failure.into_parts();
             SemanticPipelineFailure {
                 error: Box::new(error.into()),

@@ -76,9 +76,12 @@ pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
 pub use pipeline::{
     analyze_prepared_program_bodies, check_prepared_program,
-    check_prepared_program_from_reusable_bodies, check_prepared_program_recovering,
+    check_prepared_program_from_queried_bodies, check_prepared_program_recovering,
 };
-pub use query::{ProgramBodyCheckingContext, ReusableProgramBodyCheckError};
+pub use query::{
+    ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,
+    ReusableProgramBodyCheckError,
+};
 pub use reusable_body::ReusableCheckedBody;
 mod assumptions;
 pub use assumptions::CapabilityEvidence;

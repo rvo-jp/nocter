@@ -24,6 +24,30 @@ pub struct ProgramBodyCheckingContext {
     source_index: SourceIndex,
 }
 
+#[derive(Debug)]
+pub enum ReusableBodyQueryOutcome {
+    Checked(ReusableCheckedBody),
+    Rejected(QueriedBodyRejection),
+}
+
+#[derive(Debug)]
+pub struct QueriedBodyRejection {
+    body: nocter_model::BodyId,
+    error: crate::BodyCheckError,
+    rejection: crate::BodyRejection,
+}
+
+impl QueriedBodyRejection {
+    #[must_use]
+    pub const fn body(&self) -> nocter_model::BodyId {
+        self.body
+    }
+
+    pub(crate) fn clone_parts(&self) -> Option<(crate::BodyCheckError, crate::BodyRejection)> {
+        Some((self.error.clone_authored()?, self.rejection.clone()))
+    }
+}
+
 impl ProgramBodyCheckingContext {
     #[must_use]
     pub fn new<S>(
@@ -69,7 +93,7 @@ impl ProgramBodyCheckingContext {
         input: &CompileUnitInput<'_>,
         bindings: &FrontendBindings,
         names: &ReusableBodyNames,
-    ) -> Result<ReusableCheckedBody, ReusableProgramBodyCheckError> {
+    ) -> Result<ReusableBodyQueryOutcome, ReusableProgramBodyCheckError> {
         let body = names.body();
         let source = catalog_body_source(input, self.current.graph(), bindings, body)
             .map_err(ReusableProgramBodyCheckError::BodySource)?;
@@ -95,17 +119,37 @@ impl ProgramBodyCheckingContext {
             names: &names,
             closure_ids,
         };
-        let output = BodyChecker::new(input, facts, transaction.access(), unit)
-            .and_then(|checker| checker.check().map_err(|failure| failure.into_parts().0))
-            .map_err(ReusableProgramBodyCheckError::Checking)?;
-        body_semantics = transaction
-            .commit(&body_semantics)
-            .map_err(|_| crate::BodyCheckInternalError::BodySemanticCommit)
-            .map_err(crate::BodyCheckError::from)
-            .map_err(ReusableProgramBodyCheckError::Checking)?;
-        capture_checked_body(&program_semantics, &body_semantics, source, output)
-            .map_err(crate::BodyCheckError::from)
-            .map_err(ReusableProgramBodyCheckError::Checking)
+        let attempt = BodyChecker::new(input, facts, transaction.access(), unit)
+            .map_err(ReusableProgramBodyCheckError::Checking)?
+            .check();
+        match attempt {
+            Ok(output) => {
+                body_semantics = transaction
+                    .commit(&body_semantics)
+                    .map_err(|_| crate::BodyCheckInternalError::BodySemanticCommit)
+                    .map_err(crate::BodyCheckError::from)
+                    .map_err(ReusableProgramBodyCheckError::Checking)?;
+                capture_checked_body(&program_semantics, &body_semantics, source, output)
+                    .map(ReusableBodyQueryOutcome::Checked)
+                    .map_err(crate::BodyCheckError::from)
+                    .map_err(ReusableProgramBodyCheckError::Checking)
+            }
+            Err(failure) => {
+                let recovery_semantics = transaction.freeze_recovery();
+                let interruption =
+                    super::pipeline::retain_interruption_evidence(&failure, recovery_semantics)
+                        .map_err(crate::BodyCheckError::from)
+                        .map_err(ReusableProgramBodyCheckError::Checking)?;
+                let (rejection, error) =
+                    super::pipeline::classify_body_rejection(body, failure, interruption)
+                        .map_err(ReusableProgramBodyCheckError::Checking)?;
+                Ok(ReusableBodyQueryOutcome::Rejected(QueriedBodyRejection {
+                    body,
+                    error,
+                    rejection,
+                }))
+            }
+        }
     }
 }
 

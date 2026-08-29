@@ -194,22 +194,22 @@ pub fn analyze_unit_from_prepared_body_names(
 
 /// Consumes one current discovery snapshot using the complete query-owned typed-body set.
 #[must_use]
-pub fn analyze_unit_from_checked_bodies(
+pub fn analyze_unit_from_typed_bodies(
     unit: Arc<DiscoveredUnit>,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
     body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
-    checked_bodies: &nocter_semantic_computation::CheckedBodySet,
+    typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> AnalyzedUnit {
     if unit.has_syntax_errors() {
         return analyze_unit(unit);
     }
-    match crate::analysis::analyze_target_from_checked_bodies(
+    match crate::analysis::analyze_target_from_typed_bodies(
         &unit,
         declarations,
         prepared,
         body_names,
-        checked_bodies,
+        typed_bodies,
     ) {
         Ok(target) => AnalyzedUnit {
             unit,

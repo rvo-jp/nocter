@@ -39,7 +39,7 @@ pub enum BodyRejectionReason {
 }
 
 /// One rejected body and the exact recovery capability fixed before rejection.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyRejection {
     reason: BodyRejectionReason,
     recovery: BodyRejectionRecovery,
@@ -79,7 +79,7 @@ impl BodyRejection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum BodyRejectionRecovery {
     None,
     Typed(TypedInterruptionSnapshot),
@@ -97,21 +97,21 @@ impl BodyRejectionRecovery {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct TypedInterruptionSnapshot {
     pub(crate) interruption: TypedBodyInterruption,
     pub(crate) evidence: TypedInterruptionEvidence,
 }
 
 /// Exact semantic capability retained for one typed interruption.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum TypedInterruptionEvidence {
     None,
     MemberSelection(Box<MemberInterruptionEvidence>),
     Outcome(Box<TypeProjection>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct MemberInterruptionEvidence {
     pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
 }

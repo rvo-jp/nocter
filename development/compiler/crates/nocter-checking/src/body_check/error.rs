@@ -125,6 +125,24 @@ impl BodyCheckError {
         }
     }
 
+    pub(crate) fn clone_authored(&self) -> Option<Self> {
+        match self {
+            Self::Rule { rule, diagnostic } => Some(Self::Rule {
+                rule: *rule,
+                diagnostic: diagnostic.clone(),
+            }),
+            Self::TypeValidity { rule, diagnostic } => Some(Self::TypeValidity {
+                rule: *rule,
+                diagnostic: diagnostic.clone(),
+            }),
+            Self::ConstantExpression { rule, diagnostic } => Some(Self::ConstantExpression {
+                rule: *rule,
+                diagnostic: diagnostic.clone(),
+            }),
+            Self::Internal(_) => None,
+        }
+    }
+
     #[must_use]
     pub const fn type_validity_rule(&self) -> Option<TypeValidityRule> {
         match self {
@@ -248,6 +266,7 @@ pub enum BodyCheckInternalError {
     DuplicateReusableBody(BodyId),
     UnknownReusableBody(BodyId),
     BodySemanticCommit,
+    InvalidQueriedBodyRejection(BodyId),
 }
 
 impl fmt::Display for BodyCheckInternalError {

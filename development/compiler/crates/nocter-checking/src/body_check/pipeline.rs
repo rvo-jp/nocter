@@ -65,14 +65,52 @@ pub fn check_prepared_program_recovering<'syntax>(
 ///
 /// Returns an integrity failure for an incomplete/mismatched set, or a program-level ownership,
 /// provenance, loan, or semantic-completion failure after replay.
-pub fn check_prepared_program_from_reusable_bodies(
+pub fn check_prepared_program_from_queried_bodies(
     prepared: PreparedChecking<'_>,
     reusable: &[(BodyId, &super::ReusableCheckedBody)],
+    rejected: &[(BodyId, &super::QueriedBodyRejection)],
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
     let (accepted_semantics, prepared) = prepared.into_parts().into_body_parts();
-    let graph = prepared.environment.graph();
     let program_semantics = accepted_semantics.clone();
     let mut semantics = BodySemanticAuthority::new(accepted_semantics, ClosureAuthority::new());
+    let materialized = materialize_reusable_bodies(
+        &prepared,
+        &program_semantics,
+        &mut semantics,
+        reusable,
+        rejected,
+    )?;
+    if let Some(error) = materialized.first_error {
+        let checked_semantics = semantics.finish_recovery();
+        let recovery = build_body_analysis_recovery(
+            prepared,
+            checked_semantics,
+            materialized.rejections,
+            materialized.output.bodies,
+            materialized.output.projections,
+        )
+        .map(Some);
+        return Err(crate::BodyCheckFailure::from_recovery_result(
+            error, recovery,
+        ));
+    }
+    complete_checked_program(prepared, semantics, materialized.output, true)
+}
+
+struct ReusableBodyMaterialization {
+    output: CheckedBodiesOutput,
+    rejections: Vec<(BodyId, crate::BodyRejection)>,
+    first_error: Option<BodyCheckError>,
+}
+
+fn materialize_reusable_bodies(
+    prepared: &BodyCheckingParts<'_>,
+    program_semantics: &crate::semantic_authority::SemanticAuthority,
+    semantics: &mut BodySemanticAuthority,
+    reusable: &[(BodyId, &super::ReusableCheckedBody)],
+    rejected: &[(BodyId, &super::QueriedBodyRejection)],
+) -> Result<ReusableBodyMaterialization, crate::BodyCheckFailure> {
+    let graph = prepared.environment.graph();
     let mut by_body = HashMap::new();
     for (body, checked) in reusable {
         if by_body.insert(*body, *checked).is_some() {
@@ -82,7 +120,18 @@ pub fn check_prepared_program_from_reusable_bodies(
             ));
         }
     }
+    let mut rejected_by_body = HashMap::new();
+    for (body, rejection) in rejected {
+        if rejected_by_body.insert(*body, *rejection).is_some() {
+            return Err(crate::BodyCheckFailure::new(
+                BodyCheckInternalError::DuplicateReusableBody(*body).into(),
+                None,
+            ));
+        }
+    }
     let mut bodies = Vec::new();
+    let mut rejections = Vec::new();
+    let mut first_error = None;
     let mut projections = Vec::new();
     let mut opaque_witnesses = Vec::new();
     let mut associated_type_completion_contexts = Vec::new();
@@ -97,19 +146,34 @@ pub fn check_prepared_program_from_reusable_bodies(
             .get(body)
             .ok_or(BodyCheckInternalError::MissingBodyNames(body))
             .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
-        let reusable = by_body
-            .remove(&body)
-            .ok_or(BodyCheckInternalError::MissingReusableBody(body))
-            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
-        let mut output = materialize_checked_body(
-            graph,
-            &program_semantics,
-            source,
-            names,
-            reusable,
-            &mut semantics,
-        )
-        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        if let Some(rejection) = rejected_by_body.remove(&body) {
+            if by_body.contains_key(&body) {
+                return Err(crate::BodyCheckFailure::new(
+                    BodyCheckInternalError::DuplicateReusableBody(body).into(),
+                    None,
+                ));
+            }
+            let (error, rejection) = rejection.clone_parts().ok_or_else(|| {
+                crate::BodyCheckFailure::new(
+                    BodyCheckInternalError::InvalidQueriedBodyRejection(body).into(),
+                    None,
+                )
+            })?;
+            if first_error.is_none() {
+                first_error = Some(error);
+            }
+            rejections.push((body, rejection));
+            continue;
+        }
+        let reusable = by_body.remove(&body).ok_or_else(|| {
+            crate::BodyCheckFailure::new(
+                BodyCheckInternalError::MissingReusableBody(body).into(),
+                None,
+            )
+        })?;
+        let mut output =
+            materialize_checked_body(graph, program_semantics, source, names, reusable, semantics)
+                .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
         projections.append(&mut output.projections);
         associated_type_completion_contexts.append(&mut output.associated_type_completion_contexts);
         if let Some(witness) = output.opaque_witness {
@@ -130,17 +194,22 @@ pub fn check_prepared_program_from_reusable_bodies(
             None,
         ));
     }
-    complete_checked_program(
-        prepared,
-        semantics,
-        CheckedBodiesOutput {
+    if let Some((body, _)) = rejected_by_body.into_iter().next() {
+        return Err(crate::BodyCheckFailure::new(
+            BodyCheckInternalError::UnknownReusableBody(body).into(),
+            None,
+        ));
+    }
+    Ok(ReusableBodyMaterialization {
+        output: CheckedBodiesOutput {
             bodies,
             projections,
             opaque_witnesses,
             associated_type_completion_contexts,
         },
-        true,
-    )
+        rejections,
+        first_error,
+    })
 }
 
 /// Types bodies from a rejected declaration graph without opening a checked-program transition.
@@ -701,7 +770,7 @@ fn merge_checked_body(
     Ok(output)
 }
 
-fn classify_body_rejection(
+pub(super) fn classify_body_rejection(
     body: BodyId,
     failure: super::error::BodyConstructionFailure,
     interruption_state: Option<crate::body_evidence::TypedInterruptionEvidence>,
@@ -784,7 +853,7 @@ enum BodyAttemptFailure {
     },
 }
 
-fn retain_interruption_evidence(
+pub(super) fn retain_interruption_evidence(
     failure: &super::error::BodyConstructionFailure,
     semantics: crate::semantic_authority::SemanticAuthority,
 ) -> Result<Option<crate::body_evidence::TypedInterruptionEvidence>, BodyCheckInternalError> {

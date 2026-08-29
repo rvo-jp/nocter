@@ -49,3 +49,5 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - A typed-body query depends on its lexical query and exact body input. It publishes one checked
   graph, body-local type/closure extensions, and body-local source projection recipe. The complete
   set is ordered by `BodyId`; workspace policy cannot observe or select query execution order.
+- Authored typed rejection is retained under the exact-current fingerprint rather than collapsed
+  into absence. Internal checking failure remains unavailable and cannot masquerade as source.

@@ -208,6 +208,12 @@ the complete query-owned body set and does not run body checking again. Canonica
 remains the sole allocator of final program type and closure identities; ownership, provenance,
 and loans still run once after the complete canonical body set.
 
+Authored typed-body rejection is also a query value. Its diagnostic and interruption capability
+remain in the exact current source domain, while independently successful siblings retain their
+source-neutral recipes. Session replays those successes and assembles the canonical rejected-body
+arena once; it does not rerun checking to reconstruct recovery. An internal checker or projection
+failure is unavailable rather than being mislabeled as authored rejection.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

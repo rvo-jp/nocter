@@ -37,9 +37,9 @@ program preparation, lexical resolution, and successful typed bodies are query-o
 products retain body-local type, closure, and source recipes without current syntax/source/symbol
 identities; session replays the canonical complete set without rechecking. Instrumentation proves
 that one body edit executes one lexical and one typed query while reusing a syntax-shifted sibling.
-Next publish preparation, lexical, and typed rejection/recovery through the same graph, then move
-ownership/provenance/loan finalization behind a complete body-product query before removing the
-current recovery fallback.
+Typed authored rejection and interruption recovery now travel through the same body query graph.
+Next publish preparation and lexical rejection/recovery, then move ownership/provenance/loan
+finalization behind a complete body-product query before removing the remaining recovery fallback.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

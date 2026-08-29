@@ -44,7 +44,7 @@ impl BodySemanticContextProduct {
         &self,
         _exact_body: &crate::BodySourceValue,
         names: &nocter_checking::ReusableBodyNames,
-    ) -> Option<nocter_checking::ReusableCheckedBody> {
+    ) -> Option<nocter_checking::ReusableBodyQueryOutcome> {
         let context = self.context.as_ref()?;
         let input = context.unit.compile_input().ok()?;
         context

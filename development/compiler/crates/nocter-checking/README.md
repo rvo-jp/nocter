@@ -62,6 +62,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
   and loans run once over the complete program. Session never invokes body checking again for a
   complete query-owned body set.
+- Authored typed-body rejection is an exact-current query value. Successful siblings replay into
+  editor evidence while the rejecting body contributes its diagnostic and typed-interruption
+  capability; session assembles `BodyAnalysisRecovery` without checking either body again.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

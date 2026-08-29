@@ -4,9 +4,9 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
-    run_semantic_pipeline_from_checked_bodies, run_semantic_pipeline_from_declaration_failure,
-    run_semantic_pipeline_from_declarations, run_semantic_pipeline_from_prepared_body_names,
-    run_semantic_pipeline_from_prepared_declarations,
+    run_semantic_pipeline_from_declaration_failure, run_semantic_pipeline_from_declarations,
+    run_semantic_pipeline_from_prepared_body_names,
+    run_semantic_pipeline_from_prepared_declarations, run_semantic_pipeline_from_typed_bodies,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -179,19 +179,19 @@ pub(crate) fn analyze_target_from_prepared_body_names(
     finish_semantic_pipeline(unit, output, true)
 }
 
-pub(crate) fn analyze_target_from_checked_bodies(
+pub(crate) fn analyze_target_from_typed_bodies(
     unit: &DiscoveredUnit,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
     body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
-    checked_bodies: &nocter_semantic_computation::CheckedBodySet,
+    typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output = run_semantic_pipeline_from_checked_bodies(
+    let output = run_semantic_pipeline_from_typed_bodies(
         unit,
         declarations,
         prepared,
         body_names,
-        checked_bodies,
+        typed_bodies,
     )
     .map_err(|SemanticPipelineFailure { error, evidence }| {
         Box::new(CompileTargetFailure::new(*error, evidence))

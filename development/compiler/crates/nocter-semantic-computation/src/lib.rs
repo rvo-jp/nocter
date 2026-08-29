@@ -14,7 +14,7 @@ pub use program_preparation::{
     preparation_reuse_count, prepared_program,
 };
 pub use typed_bodies::{
-    CheckedBodySet, TypedBodyQueryOutcome, TypedBodyQueryProduct, checked_bodies, typed_body,
+    TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet, typed_bodies, typed_body,
     typed_body_execution_count, typed_body_reuse_count,
 };
 
