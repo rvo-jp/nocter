@@ -256,12 +256,17 @@ impl Query for SourceSyntaxQuery {
 }
 
 pub(super) struct SourceDeclarationSurfaceProduct {
+    surface: Result<Arc<nocter_syntax::DeclarationSyntaxSurface>, Arc<str>>,
     fingerprint: Fingerprint,
 }
 
 impl SourceDeclarationSurfaceProduct {
-    pub(super) const fn semantic_fingerprint(&self) -> Fingerprint {
-        self.fingerprint
+    /// Returns the exact source-neutral input used by a containing module surface.
+    pub(super) fn semantic_bytes(&self) -> (u8, &[u8]) {
+        match &self.surface {
+            Ok(surface) => (0, surface.canonical_bytes()),
+            Err(message) => (1, message.as_bytes()),
+        }
     }
 }
 
@@ -279,11 +284,21 @@ impl Query for SourceDeclarationSurfaceQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let syntax = database.query::<SourceSyntaxQuery>(key.clone())?;
-        let fingerprint = match &syntax.result {
-            Ok(syntax) => tagged_fingerprint(0, syntax.declaration_surface().canonical_bytes()),
-            Err(message) => tagged_fingerprint(1, message.as_bytes()),
+        let (surface, fingerprint) = match &syntax.result {
+            Ok(syntax) => {
+                let surface = Arc::new(syntax.declaration_surface());
+                let fingerprint = tagged_fingerprint(0, surface.canonical_bytes());
+                (Ok(surface), fingerprint)
+            }
+            Err(message) => (
+                Err(Arc::clone(message)),
+                tagged_fingerprint(1, message.as_bytes()),
+            ),
         };
-        Ok(SourceDeclarationSurfaceProduct { fingerprint })
+        Ok(SourceDeclarationSurfaceProduct {
+            surface,
+            fingerprint,
+        })
     }
 }
 

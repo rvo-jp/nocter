@@ -82,7 +82,9 @@ impl Query for ModuleSurfaceQuery {
         let mut semantic = key.stable_bytes().into_vec();
         for source in &key.sources {
             let surface = source_syntax::declaration_surface(database, Path::new(&*source.path))?;
-            semantic.extend_from_slice(&surface.semantic_fingerprint().digest());
+            let (tag, bytes) = surface.semantic_bytes();
+            semantic.push(tag);
+            encode(bytes, &mut semantic);
         }
         Ok(ModuleSurfaceProduct {
             fingerprint: Fingerprint::from_bytes(&semantic),

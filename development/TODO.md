@@ -34,9 +34,11 @@ evidence.
 
 Continue v0.20.0 Phase 1 by separating declaration semantics from generation-local frontend
 bindings and source projection. The source-neutral module-surface query now stops body-only
-invalidation, but the eager session pipeline still repeats declaration lowering. Do not cache
-`NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable semantic
-programs. Hashing and associative collections remain later v0.20.0 phases.
+invalidation, and declaration syntax can now rebind stable non-body locators into a current tree,
+but the eager session pipeline still repeats declaration lowering. Replace direct projection
+emission with a reusable locator recipe plus current-generation materialization; do not cache
+`NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable semantic programs.
+Hashing and associative collections remain later v0.20.0 phases.
 
 ## Blockers
 

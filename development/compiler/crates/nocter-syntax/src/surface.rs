@@ -1,6 +1,10 @@
+use std::collections::HashMap;
+
+use nocter_source::SourceFile;
+
 use crate::{
-    ExpectedSyntax, LexDiagnosticKind, NodeKind, ParseDiagnosticKind, SyntaxElement, SyntaxTree,
-    TokenKind,
+    ExpectedSyntax, LexDiagnosticKind, NodeId, NodeKind, ParseDiagnosticKind, SyntaxElement,
+    SyntaxOrigin, SyntaxToken, SyntaxTree, TokenKind,
 };
 
 /// Canonical, source-identity-independent syntax that can affect declaration semantics.
@@ -21,20 +25,111 @@ impl DeclarationSyntaxSurface {
     }
 }
 
-pub(crate) fn declaration_surface(
+/// Source-identity-independent address of one node or token on a declaration syntax surface.
+///
+/// Locators are valid only with a projection whose semantic surface is equal to the projection
+/// that produced them. Body descendants deliberately have no locator.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DeclarationSyntaxLocator {
+    Node(u32),
+    Token(u32),
+}
+
+/// One current syntax tree's binding to its source-neutral declaration surface.
+///
+/// This is the sole syntax-owned bridge used to turn a reusable semantic projection recipe back
+/// into generation-local syntax identities. It does not contain semantic entities.
+#[derive(Clone, Debug)]
+pub struct DeclarationSyntaxProjection {
+    surface: DeclarationSyntaxSurface,
+    nodes: Box<[NodeId]>,
+    tokens: Box<[SyntaxToken]>,
+    node_locators: HashMap<NodeId, u32>,
+    token_locators: HashMap<SyntaxToken, u32>,
+}
+
+impl DeclarationSyntaxProjection {
+    /// Returns the source-neutral semantic surface owned by this projection.
+    #[must_use]
+    pub const fn surface(&self) -> &DeclarationSyntaxSurface {
+        &self.surface
+    }
+
+    /// Consumes the binding and returns its source-neutral semantic surface.
+    #[must_use]
+    pub fn into_surface(self) -> DeclarationSyntaxSurface {
+        self.surface
+    }
+
+    /// Converts a current-generation syntax identity into a stable surface locator.
+    #[must_use]
+    pub fn locate(&self, origin: SyntaxOrigin) -> Option<DeclarationSyntaxLocator> {
+        match origin {
+            SyntaxOrigin::Node(node) => self
+                .node_locators
+                .get(&node)
+                .copied()
+                .map(DeclarationSyntaxLocator::Node),
+            SyntaxOrigin::Token(token) => self
+                .token_locators
+                .get(&token)
+                .copied()
+                .map(DeclarationSyntaxLocator::Token),
+        }
+    }
+
+    /// Resolves a stable locator into this projection's current-generation syntax identity.
+    #[must_use]
+    pub fn resolve(&self, locator: DeclarationSyntaxLocator) -> Option<SyntaxOrigin> {
+        match locator {
+            DeclarationSyntaxLocator::Node(index) => self
+                .nodes
+                .get(usize::try_from(index).ok()?)
+                .copied()
+                .map(SyntaxOrigin::Node),
+            DeclarationSyntaxLocator::Token(index) => self
+                .tokens
+                .get(usize::try_from(index).ok()?)
+                .copied()
+                .map(SyntaxOrigin::Token),
+        }
+    }
+}
+
+/// Binds one current syntax tree to its source-neutral declaration surface.
+///
+/// Returns `None` when the source does not own the tree. The caller therefore cannot accidentally
+/// create locators from text in a different source-identity domain.
+#[must_use]
+pub fn project_declaration_syntax(
+    tree: &SyntaxTree,
+    source: &SourceFile,
+) -> Option<DeclarationSyntaxProjection> {
+    (tree.source() == source.id()).then(|| declaration_projection(tree, source.text()))
+}
+
+pub(crate) fn declaration_projection(
     tree: &SyntaxTree,
     normalized_text: &str,
-) -> DeclarationSyntaxSurface {
+) -> DeclarationSyntaxProjection {
     enum Visit {
         Element(SyntaxElement),
         CloseNode,
     }
 
     let mut canonical = Vec::new();
+    let mut nodes = Vec::new();
+    let mut tokens = Vec::new();
+    let mut node_locators = HashMap::new();
+    let mut token_locators = HashMap::new();
     let mut pending = vec![Visit::Element(SyntaxElement::Node(tree.root_id()))];
     while let Some(visit) = pending.pop() {
         match visit {
             Visit::Element(SyntaxElement::Node(node)) => {
+                let index = u32::try_from(nodes.len())
+                    .expect("declaration surface node count fits stable locator domain");
+                nodes.push(node);
+                node_locators.insert(node, index);
                 let syntax = tree
                     .node(node)
                     .expect("surface traversal retains one syntax-tree owner");
@@ -54,6 +149,10 @@ pub(crate) fn declaration_surface(
                 if matches!(token.kind(), TokenKind::Newline | TokenKind::Eof) {
                     continue;
                 }
+                let index = u32::try_from(tokens.len())
+                    .expect("declaration surface token count fits stable locator domain");
+                tokens.push(token);
+                token_locators.insert(token, index);
                 encode(1, token.kind().as_str().as_bytes(), &mut canonical);
                 let text = text_at(normalized_text, token.range());
                 encode(2, text.as_bytes(), &mut canonical);
@@ -102,8 +201,14 @@ pub(crate) fn declaration_surface(
             }
         }
     }
-    DeclarationSyntaxSurface {
-        canonical: canonical.into_boxed_slice(),
+    DeclarationSyntaxProjection {
+        surface: DeclarationSyntaxSurface {
+            canonical: canonical.into_boxed_slice(),
+        },
+        nodes: nodes.into_boxed_slice(),
+        tokens: tokens.into_boxed_slice(),
+        node_locators,
+        token_locators,
     }
 }
 
@@ -178,7 +283,10 @@ fn text_at(text: &str, range: nocter_source::TextRange) -> &str {
 mod tests {
     use nocter_source::{SourceMap, SourceName};
 
-    use crate::{ParseGoal, parse_reusable};
+    use crate::{
+        NodeKind, ParseGoal, SyntaxOrigin, declaration_name_token, parse, parse_reusable,
+        project_declaration_syntax,
+    };
 
     fn surface(text: &str) -> super::DeclarationSyntaxSurface {
         let mut sources = SourceMap::new();
@@ -234,5 +342,51 @@ mod tests {
             surface("func answer(): i32 { return 1 }\n"),
             surface("@ func answer(): i32 { return 1 }\n")
         );
+    }
+
+    #[test]
+    fn stable_locators_rebind_declarations_across_body_edits() {
+        let (first_tree, first_source) = tree("func answer(): i32 { return 1 }\n");
+        let (second_tree, second_source) =
+            tree("/// Updated.\nfunc answer( ): i32 { let value = 2\n return value }\n");
+        let first = project_declaration_syntax(&first_tree, &first_source).unwrap();
+        let second = project_declaration_syntax(&second_tree, &second_source).unwrap();
+        assert_eq!(first.surface(), second.surface());
+
+        let first_function = node(&first_tree, NodeKind::FunctionDeclaration);
+        let second_function = node(&second_tree, NodeKind::FunctionDeclaration);
+        let first_name = declaration_name_token(&first_tree, first_function).unwrap();
+        let second_name = declaration_name_token(&second_tree, second_function).unwrap();
+        let locator = first.locate(SyntaxOrigin::Token(first_name)).unwrap();
+        assert_eq!(
+            second.resolve(locator),
+            Some(SyntaxOrigin::Token(second_name))
+        );
+    }
+
+    #[test]
+    fn body_descendants_cannot_escape_through_surface_locators() {
+        let (tree, source) = tree("func answer(): i32 { return 1 }\n");
+        let projection = project_declaration_syntax(&tree, &source).unwrap();
+        let body = node(&tree, NodeKind::Block);
+        let statement = node(&tree, NodeKind::ReturnStatement);
+        assert!(projection.locate(SyntaxOrigin::Node(body)).is_some());
+        assert_eq!(projection.locate(SyntaxOrigin::Node(statement)), None);
+    }
+
+    fn tree(text: &str) -> (crate::SyntaxTree, nocter_source::SourceFile) {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("surface.nct"), text.as_bytes())
+            .unwrap();
+        let source = sources.get(source).unwrap().clone();
+        let tree = parse(&source, ParseGoal::SourceFile);
+        (tree, source)
+    }
+
+    fn node(tree: &crate::SyntaxTree, kind: NodeKind) -> crate::NodeId {
+        tree.nodes()
+            .find_map(|(id, node)| (node.kind() == kind).then_some(id))
+            .unwrap()
     }
 }

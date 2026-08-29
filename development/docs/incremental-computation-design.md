@@ -104,6 +104,13 @@ edited source surface but leaves its fingerprint unchanged, so the containing mo
 reused without execution. Declaration and body-program migration remains incomplete; the current
 whole-scope semantic pipeline still runs after this boundary and is not mislabeled as incremental.
 
+The syntax owner also assigns source-independent locators to nodes and tokens retained by that
+surface. An equal surface can resolve the same locator into its own generation-local syntax
+identity. Block nodes are locatable, but descendants of a block are never assigned declaration
+locators. This is the only permitted bridge for rebinding a reusable declaration product to a
+current source projection; semantic products cannot retain `SourceId`, `NodeId`, token ranges, or
+arena offsets from the generation that first produced them.
+
 ## Source Projection
 
 A stage product carries its semantic result, diagnostics, deterministic fingerprint, and source

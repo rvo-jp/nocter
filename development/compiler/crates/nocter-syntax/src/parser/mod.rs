@@ -44,10 +44,16 @@ pub struct ParsedSyntax {
 }
 
 impl ParsedSyntax {
+    /// Projects declaration-relevant syntax into stable locators and its semantic surface.
+    #[must_use]
+    pub fn declaration_projection(&self) -> crate::DeclarationSyntaxProjection {
+        crate::surface::declaration_projection(&self.tree, &self.text)
+    }
+
     /// Freezes the syntax structure that can affect declaration semantics while excluding bodies.
     #[must_use]
     pub fn declaration_surface(&self) -> crate::DeclarationSyntaxSurface {
-        crate::surface::declaration_surface(&self.tree, &self.text)
+        self.declaration_projection().into_surface()
     }
 
     /// Reports whether this reusable product was derived from the supplied normalized source.
