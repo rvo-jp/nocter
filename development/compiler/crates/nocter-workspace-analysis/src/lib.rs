@@ -730,9 +730,47 @@ mod tests {
         else {
             panic!("newer helper text is accepted");
         };
-        analyses.analyze(helper_revision).unwrap();
+        let warm = analyses.analyze(helper_revision).unwrap();
         let after_helper_change = analyses.source_parse_counts();
         assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
+
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, changed_root_text).unwrap())
+            .unwrap();
+        let fresh = fresh_analyses
+            .analyze(
+                fresh_documents
+                    .open(&helper, 1, changed_helper_text)
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct AnalysisSignature {
+        status: AnalysisStatus,
+        diagnostics: Vec<nocter_diagnostics::SourceDiagnostic>,
+        sources: Vec<(Box<str>, Box<str>)>,
+    }
+
+    fn analysis_signature(generation: &WorkspaceAnalysisGeneration) -> AnalysisSignature {
+        let snapshot = generation.snapshot().expect("analysis reached discovery");
+        let sources = snapshot
+            .sources()
+            .iter()
+            .map(|source| (source.name().as_str().into(), source.text().into()))
+            .collect();
+        AnalysisSignature {
+            status: snapshot.status(),
+            diagnostics: snapshot.diagnostics().to_vec(),
+            sources,
+        }
     }
 
     #[test]
