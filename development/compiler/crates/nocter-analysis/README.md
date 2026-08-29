@@ -15,7 +15,7 @@ results. Protocol crates receive result values only.
 ## Internal Responsibilities
 
 - immutable analysis snapshot storage
-- private semantic-evidence query kernel
+- private semantic-evidence query kernel over session capability views
 - complete/partial/unavailable query coverage
 - deterministic source edit grouping
 - validated semantic mutation transactions
@@ -23,6 +23,8 @@ results. Protocol crates receive result values only.
 ## Invariants
 
 - Feature modules cannot inspect session phase variants or raw `SourceIndex`.
+- Presentation and signature queries consume exclusive semantic inputs instead of optional evidence
+  combinations.
 - Every semantic/source join uses one sealed generation.
 - Missing authored evidence is explicit; an integrity failure cannot become an empty feature result.
 - Rename and code actions publish only a whole-generation validated candidate.

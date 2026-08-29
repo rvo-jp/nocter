@@ -51,8 +51,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the adopted v0.20.0 Phase 0 interface-prerequisite contract while its
-compiler implementation is in progress. v0.19.0 remains the latest published language. The
+This working tree specifies the adopted v0.20.0 Phase 0 interface-prerequisite contract. v0.19.0
+remains the latest published language. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
 

@@ -6,9 +6,9 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-The [v0.20.0 milestone](v0.20.0.md) is implementing Phase 0 interface prerequisites as one checked
-capability closure. Later associative-collection phases remain outside the active scope until
-their public contracts are accepted.
+The [v0.20.0 milestone](v0.20.0.md) has completed Phase 0 interface prerequisites as one checked
+capability closure. Phase 1 associative-collection design is next, but remains outside the active
+implementation scope until its public contracts are accepted.
 
 ## Historical Milestones
 

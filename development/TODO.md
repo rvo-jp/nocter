@@ -21,10 +21,12 @@ The documentation-authority migration is complete: all workspace crates own loca
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
 
-The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 was reopened and completed after a
-design rework and full compiler review on 2026-08-29. It separates dependency and inheritance
-graphs, proof and body requirements, and authored roots from exact capability evidence while
-retaining explicit implementation semantics. The
+The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 was reopened twice and completed
+after design rework and full compiler review on 2026-08-29. It separates dependency and inheritance
+graphs, expands direct prerequisites through a bounded predicate worklist, separates proof and body
+requirements, and separates authored roots from exact capability evidence while retaining explicit
+implementation semantics. Session recovery is exposed to editor queries through semantic
+capabilities rather than phase selection. The
 [Phase 0 review](reviews/v0.20.0-phase-0.md) records the corrected boundary audit and qualification
 evidence.
 
