@@ -2,8 +2,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::Arm64TestSuite;
-use nocter_diagnostics::SourceDiagnostic;
-use nocter_discovery::DiscoveredUnit;
 use nocter_machine::MachineProgram;
 use nocter_macho::MachOImage;
 use nocter_mir::lower_executable;
@@ -14,7 +12,7 @@ use nocter_target_program::{
     ExecutableProgram, TargetProgram, select_test_case, select_test_target,
 };
 
-use nocter_session::{CompileSessionError, TestTargetSelector, compile_target};
+use nocter_session::{CompiledTarget, TestTargetSelector};
 
 use crate::{NativeImage, NativeImageError};
 
@@ -64,39 +62,47 @@ impl TestCaseIdentity {
 
 /// One closed native test compilation request.
 #[derive(Debug)]
-pub struct NativeTestCompileRequest<'unit> {
-    unit: &'unit DiscoveredUnit,
-    target: TestTargetSelector,
+pub struct NativeTestCompileRequest {
+    compiled: CompiledTarget,
+    selector: TestTargetSelector,
     case: Option<Box<str>>,
 }
 
-impl<'unit> NativeTestCompileRequest<'unit> {
+impl NativeTestCompileRequest {
     #[must_use]
     pub const fn new(
-        unit: &'unit DiscoveredUnit,
+        compiled: CompiledTarget,
         target: TestTargetSelector,
         case: Option<Box<str>>,
     ) -> Self {
-        Self { unit, target, case }
+        Self {
+            compiled,
+            selector: target,
+            case,
+        }
     }
 
     #[must_use]
-    pub const fn all(unit: &'unit DiscoveredUnit) -> Self {
-        Self::new(unit, TestTargetSelector::All, None)
+    pub const fn all(compiled: CompiledTarget) -> Self {
+        Self::new(compiled, TestTargetSelector::All, None)
     }
 
     #[must_use]
-    pub fn named(unit: &'unit DiscoveredUnit, target: impl Into<Box<str>>) -> Self {
-        Self::new(unit, TestTargetSelector::named(target), None)
+    pub fn named(compiled: CompiledTarget, target: impl Into<Box<str>>) -> Self {
+        Self::new(compiled, TestTargetSelector::named(target), None)
     }
 
     #[must_use]
     pub fn case(
-        unit: &'unit DiscoveredUnit,
+        compiled: CompiledTarget,
         target: impl Into<Box<str>>,
         case: impl Into<Box<str>>,
     ) -> Self {
-        Self::new(unit, TestTargetSelector::named(target), Some(case.into()))
+        Self::new(
+            compiled,
+            TestTargetSelector::named(target),
+            Some(case.into()),
+        )
     }
 }
 
@@ -188,14 +194,17 @@ impl CompiledNativeTestSet {
 ///
 /// # Errors
 ///
-/// Returns a shared semantic compilation failure or an invalid target/case selection.
+/// Returns an invalid target/case selection or a target-program integrity failure.
 pub fn compile_native_tests(
-    request: NativeTestCompileRequest<'_>,
+    request: NativeTestCompileRequest,
 ) -> Result<CompiledNativeTestSet, NativeTestSessionError> {
-    let NativeTestCompileRequest { unit, target, case } = request;
-    let compiled = compile_target(unit)?;
+    let NativeTestCompileRequest {
+        compiled,
+        selector,
+        case,
+    } = request;
     let (program, source_index) = compiled.into_parts();
-    let targets = select_targets(&program, &target)?;
+    let targets = select_targets(&program, &selector)?;
     if case.is_some() && targets.len() != 1 {
         return Err(TestTargetSelectionError::CaseRequiresNamedTarget.into());
     }
@@ -328,24 +337,14 @@ fn select_targets(
 
 #[derive(Debug)]
 pub enum NativeTestSessionError {
-    Compile(CompileSessionError),
     Selection(TestTargetSelectionError),
     Integrity(Box<str>),
 }
 
 impl NativeTestSessionError {
     #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::Selection(_) | Self::Integrity(_) => &[],
-        }
-    }
-
-    #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
-            Self::Compile(error) => error.diagnostic_code(),
             Self::Selection(_) => Some("E0800"),
             Self::Integrity(_) => None,
         }
@@ -355,7 +354,6 @@ impl NativeTestSessionError {
 impl fmt::Display for NativeTestSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Compile(error) => write!(formatter, "target compilation failed: {error}"),
             Self::Selection(error) => write!(formatter, "test selection failed: {error}"),
             Self::Integrity(message) => {
                 write!(formatter, "test compilation integrity failed: {message}")
@@ -367,16 +365,9 @@ impl fmt::Display for NativeTestSessionError {
 impl std::error::Error for NativeTestSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Compile(error) => Some(error),
             Self::Selection(error) => Some(error),
             Self::Integrity(_) => None,
         }
-    }
-}
-
-impl From<CompileSessionError> for NativeTestSessionError {
-    fn from(error: CompileSessionError) -> Self {
-        Self::Compile(error)
     }
 }
 

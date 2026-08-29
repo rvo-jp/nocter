@@ -7,9 +7,11 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-discovery = { path = "../nocter-discovery" }
+nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-json = { path = "../nocter-json" }
 nocter-model = { path = "../nocter-model" }
 nocter-native-session = { path = "../nocter-native-session" }

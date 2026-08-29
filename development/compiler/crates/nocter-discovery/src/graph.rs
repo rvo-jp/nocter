@@ -330,10 +330,19 @@ impl<'syntax> Builder<'syntax> {
         )?;
         let canonical_name = canonical_text(&path)?;
         let syntax_index = if let Some(source) = self.sources.find_by_name(&canonical_name) {
-            self.syntax
-                .iter()
-                .position(|tree| tree.source() == source.id())
-                .ok_or(DiscoveryError::InconsistentSourceSnapshot(source.id()))?
+            let parsed = self
+                .source_syntax
+                .parsed_syntax(source, ParseGoal::SourceFile)
+                .map_err(|error| DiscoveryError::SourceSyntax {
+                    path: path.clone(),
+                    error,
+                })?;
+            let tree = parsed
+                .bind(source)
+                .ok_or(DiscoveryError::InconsistentSourceSnapshot(source.id()))?;
+            let index = self.syntax.len();
+            self.syntax.push(tree);
+            index
         } else {
             load_source(
                 &self.source_overlay,

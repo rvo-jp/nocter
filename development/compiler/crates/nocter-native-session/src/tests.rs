@@ -1,7 +1,6 @@
-#![allow(clippy::disallowed_methods)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
@@ -18,11 +17,25 @@ use super::{
     compile_native_image, compile_native_images, compile_native_tests,
 };
 use nocter_session::{
-    ExecutableCompileRequest, analyze_incomplete_syntax, analyze_target,
-    bundled_standard_toolchain, compile_target,
+    AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, ExecutableCompileRequest,
+    bundled_standard_toolchain,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+fn analyze_for_test(unit: nocter_discovery::DiscoveredUnit) -> AnalyzedUnit {
+    let unit = Arc::new(unit);
+    let mut computation = nocter_compiler_computation::CompilerComputation::new();
+    computation
+        .advance_sources(unit.source_overlay(), 0)
+        .unwrap();
+    let product = computation.analyze(Arc::clone(&unit)).unwrap();
+    nocter_session::analyze_unit_from_query(&product).unwrap()
+}
+
+fn compile_for_test(unit: nocter_discovery::DiscoveredUnit) -> CompiledTarget {
+    analyze_for_test(unit).into_compilation_result().unwrap()
+}
 
 const DIRECTORY_RECORD_TEST_SOURCE: &[u8] = br#"see ./directory.nct
 
@@ -283,7 +296,7 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
         diagnostics.is_empty(),
         "bundled standard library has syntax diagnostics: {diagnostics:#?}\nsources: {source_names:#?}"
     );
-    let compiled = compile_target(&unit).unwrap();
+    let compiled = compile_for_test(unit);
 
     assert_eq!(
         compiled.program().toolchain().primitives().bindings().len(),
@@ -325,7 +338,8 @@ fn standard_string_concat_crosses_the_complete_native_session() {
     ))
     .unwrap();
 
-    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     assert!(!image.image().bytes().is_empty());
 }
 
@@ -412,7 +426,8 @@ func main(): i32 {
         unit.syntax_diagnostics()
     );
 
-    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_directory_stream(image.image(), &package_root.0, 42);
 }
 
@@ -516,7 +531,8 @@ func main(): i32 {
         unit.syntax_diagnostics()
     );
 
-    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_streaming_lines(image.image(), &package_root.0, 42);
 }
 
@@ -541,7 +557,8 @@ fn standard_collection_ordering_crosses_the_complete_native_session() {
         unit.syntax_diagnostics()
     );
 
-    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_test(image.image(), &package_root.0, "collection-ordering");
 }
 
@@ -579,7 +596,8 @@ fn standard_directory_record_failures_are_terminal_in_native_tests() {
     ))
     .unwrap();
 
-    let compiled = compile_native_tests(NativeTestCompileRequest::all(&unit)).unwrap();
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("directory record tests failed native compilation")
@@ -618,7 +636,8 @@ fn constants_cross_fixed_array_checking_and_native_lowering() {
     ))
     .unwrap();
 
-    let image = compile_native_image(ExecutableCompileRequest::only(&unit)).unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     assert!(!image.image().bytes().is_empty());
 }
 
@@ -640,9 +659,10 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
     ))
     .unwrap();
 
-    let failure = analyze_target(&unit).unwrap_err();
-    assert!(!failure.error().source_diagnostics().is_empty());
-    let semantic = failure.semantic_evidence().unwrap();
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+    assert!(!analysis.diagnostics().is_empty());
+    let semantic = analysis.semantic_evidence().unwrap();
     assert!(!semantic.graph().declarations().callables().is_empty());
     assert!(
         semantic
@@ -656,19 +676,13 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
             ))
     );
     assert!(!semantic.source_index().is_empty());
-    let primary = failure.error().source_diagnostics()[0].primary();
+    let primary = analysis.diagnostics()[0].primary();
     let interruption = semantic
         .interruption_overlapping(primary.source(), primary.span().range())
         .unwrap();
     assert_eq!(
         interruption.origin().span(),
-        failure
-            .error()
-            .source_diagnostics()
-            .first()
-            .unwrap()
-            .primary()
-            .span()
+        analysis.diagnostics().first().unwrap().primary().span()
     );
     assert!(matches!(
         interruption.kind(),
@@ -694,9 +708,10 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
     ))
     .unwrap();
 
-    let failure = analyze_target(&unit).unwrap_err();
-    assert_eq!(failure.error().source_diagnostics()[0].code(), "E0340");
-    let semantic = failure.semantic_evidence().unwrap();
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+    assert_eq!(analysis.diagnostics()[0].code(), "E0340");
+    let semantic = analysis.semantic_evidence().unwrap();
     assert!(!semantic.graph().declarations().callables().is_empty());
     assert!(
         semantic
@@ -731,9 +746,10 @@ fn interface_implementation_failure_retains_declarations_without_claiming_later_
     ))
     .unwrap();
 
-    let failure = analyze_target(&unit).unwrap_err();
-    assert_eq!(failure.error().source_diagnostics()[0].code(), "E0350");
-    let declarations = failure.semantic_evidence().unwrap();
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+    assert_eq!(analysis.diagnostics()[0].code(), "E0350");
+    let declarations = analysis.semantic_evidence().unwrap();
     assert!(
         !declarations
             .graph()
@@ -763,9 +779,10 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::SyntaxFailed);
     let semantic = analysis.semantic_evidence().expect("typed syntax recovery");
-    let diagnostic = unit.syntax_diagnostics()[0].primary();
+    let diagnostic = analysis.unit().syntax_diagnostics()[0].primary();
     let recovery = semantic
         .interruption_overlapping(diagnostic.source(), diagnostic.span().range())
         .expect("expected body evidence");
@@ -791,7 +808,8 @@ fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::SyntaxFailed);
     assert!(analysis.semantic_evidence().is_none());
 }
 
@@ -822,16 +840,13 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
-    assert_eq!(
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::SyntaxFailed);
+    assert!(
         analysis
-            .failure()
-            .unwrap()
-            .source_diagnostics()
-            .first()
-            .unwrap()
-            .code(),
-        "E0350"
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0350")
     );
     let semantic = analysis.semantic_evidence().expect("declaration analysis");
     let declarations = semantic;
@@ -870,16 +885,13 @@ fn incomplete_syntax_preserves_an_earlier_name_failure() {
     .unwrap();
 
     assert!(unit.has_syntax_errors());
-    let analysis = analyze_incomplete_syntax(&unit).expect("incomplete syntax analysis");
-    assert_eq!(
+    let analysis = analyze_for_test(unit);
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::SyntaxFailed);
+    assert!(
         analysis
-            .failure()
-            .unwrap()
-            .source_diagnostics()
-            .first()
-            .unwrap()
-            .code(),
-        "E0340"
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0340")
     );
     let semantic = analysis.semantic_evidence().expect("name analysis");
     assert!(
@@ -914,16 +926,17 @@ fn every_public_single_file_example_crosses_the_complete_target_session() {
             bundled_standard_toolchain(&package),
         ))
         .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", source.display()));
-        compile_native_image(ExecutableCompileRequest::only(&unit))
+        let target_program = compile_for_test(unit);
+        compile_native_image(ExecutableCompileRequest::only(target_program))
             .unwrap_or_else(|error| panic!("{} failed compilation: {error:?}", source.display()));
     }
 }
 
 #[test]
 fn every_public_package_example_crosses_the_complete_target_session() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler.join("../std");
-    let examples_root = compiler.join("../../examples");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let examples_root = compiler_root.join("../../examples");
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut discovered = fs::read_dir(&examples_root)
         .unwrap()
@@ -960,8 +973,9 @@ fn every_public_package_example_crosses_the_complete_target_session() {
             bundled_standard_toolchain(&standard_package),
         ))
         .unwrap_or_else(|error| panic!("{} failed discovery: {error:?}", contract.directory()));
+        let target_program = compile_for_test(unit);
         let target = compile_native_image(ExecutableCompileRequest::named(
-            &unit,
+            target_program,
             contract.executable(),
         ))
         .unwrap_or_else(|error| panic!("{} failed compilation: {error:?}", contract.directory()));
@@ -974,8 +988,8 @@ fn every_public_package_example_crosses_the_complete_target_session() {
 
 #[test]
 fn all_root_executables_share_one_target_compilation_and_keep_declaration_order() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler.join("../std");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
     package_root.source(
         "index.nct",
@@ -1013,7 +1027,8 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
             bundled_standard_toolchain(&standard_package),
         ))
         .unwrap();
-        compile_native_images(NativeImageSetCompileRequest::all(&unit)).unwrap()
+        let target = compile_for_test(unit);
+        compile_native_images(NativeImageSetCompileRequest::all(target)).unwrap()
     };
 
     let image_set = compile(false);
@@ -1090,7 +1105,8 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
     ))
     .unwrap();
 
-    let compiled = compile_native_tests(NativeTestCompileRequest::all(&unit)).unwrap();
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(
         compiled
             .targets()
@@ -1125,8 +1141,25 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
             }
     }));
 
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![
+            resolved,
+            resolved_standard(&standard_root, &standard_package),
+        ]),
+        vec![
+            ModuleIdentity::new(package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(package.clone(), ["unit"]),
+            ModuleIdentity::new(package.clone(), ["integration"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
     let selected =
-        compile_native_tests(NativeTestCompileRequest::case(&unit, "unit", "second")).unwrap();
+        compile_native_tests(NativeTestCompileRequest::case(target, "unit", "second")).unwrap();
     let NativeTestTargetOutcome::Compiled(cases) = selected.targets()[0].outcome() else {
         panic!("selected case failed native compilation")
     };

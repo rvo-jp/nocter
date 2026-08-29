@@ -36,20 +36,21 @@ boundary, rejection and recovery model, instrumentation, and qualification evide
 analysis now demands one complete or incomplete top-level semantic product; it cannot select an
 earlier compiler phase or reconstruct a missing result.
 
+Phase 2 unified command and workspace analysis behind `nocter-compiler-computation` is complete. The
+[Phase 2 review](reviews/v0.20.0-phase-2.md) records the deleted eager session path, query-backed
+package/discovery flow, native target boundary, parse-goal correction, post-commit package snapshot
+fix, instrumentation, and qualification evidence.
+
 ## Next Work
 
-Implement v0.20.0 Phase 2 as the unified CLI and LSP query entry defined in the
-[active milestone](milestones/v0.20.0.md). Extract source-text, parse, declaration-surface,
-module-surface, body-input publication, and closed unit-analysis demand into one shared compiler-
-computation owner. Workspace analysis retains it across accepted revisions; each command creates an
-ephemeral instance. Both paths must discover through its computed syntax provider and pass the same
-closed complete-or-incomplete product to one session consumer.
+Phase 2 query-entry unification is complete and reviewed. Do not reopen direct session compilation,
+permit native layers to accept discovery snapshots, or add another source parser beside
+`nocter-compiler-computation`.
 
-Delete the direct session semantic pipeline and its public analysis/compilation entry points after
-all command, native, test, and workspace callers use the shared owner. Do not leave forwarding
-wrappers or let callers select query stages. Prove fresh command/workspace equivalence, persistent
-workspace reuse, diagnostic and recovery equality, and native-output preservation before closing
-the phase.
+Before implementing Phase 3, write and accept a separate public design for hashing and associative
+collections. That plan must define equality/hash coherence, mutation and iteration guarantees,
+allocation-failure policy, and the minimum compiler features required by a standard-library
+implementation. Do not infer those language contracts from a host-language collection API.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

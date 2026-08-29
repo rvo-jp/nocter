@@ -2,24 +2,21 @@
 
 ## Responsibility
 
-Orchestrate one compiler semantic pipeline from a closed compile input through target validation or
-explicit recovery evidence.
+Translate one closed compiler-query outcome into target validation or explicit recovery evidence.
 
 ## Contract
 
-The crate temporarily accepts either a closed compile input for direct compilation or the sole
-complete-or-incomplete unit outcome from the semantic query graph. Direct compilation still runs
-preparation and body checking until v0.20.0 Phase 2 migrates command callers. Query-backed analysis
-only opens the supplied success or rejection branch and publishes one immutable session outcome
+The crate accepts only the sole complete-or-incomplete unit outcome from the semantic query graph.
+It opens the supplied success or rejection branch and publishes one immutable session outcome
 with capability-oriented semantic views for complete programs, typed bodies, lexical names, typed
 interruptions, and exact repair authority.
 Recovery storage variants and phase order remain private. The crate does not implement stage rules,
-editor queries, native code generation, or protocol projection.
+invoke semantic compiler stages, implement editor queries, generate native code, or project
+protocol values.
 
 ## Internal Responsibilities
 
-- production and recovery semantic pipeline composition
-- current projection materialization and checking continuation from reusable declarations
+- closed complete-or-incomplete outcome translation
 - complete diagnostic retention
 - target and executable request composition
 - semantic evidence handoff
@@ -29,22 +26,25 @@ editor queries, native code generation, or protocol projection.
 
 ## Invariants
 
-- Production and recovery cannot choose different semantic stage functions.
+- The crate cannot invoke declaration lowering, preparation, name resolution, body checking, or
+  semantic finalization.
 - Successful and recovered evidence are exclusive variants.
 - A later failure cannot expose an older successful program.
 - Failure-specific repair evidence moves once into its typed recovery owner.
 - Consumers cannot select raw recovery phases or reconstruct phase fallback order.
 - An analyzed unit cannot pair semantic evidence with a different discovery snapshot.
+- Consuming an analyzed unit for compilation returns either its target or one failure envelope that
+  retains the exact source snapshot and the complete query-selected diagnostic set.
 - The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
   clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.
-- Query-backed checking creates an owned branch of the accepted declaration authority and
+- A checked query result creates an owned branch of the accepted declaration authority and
   materializes current frontend bindings plus source projection from its paired recipe. It then
   appends a deterministic current-body symbol suffix while preserving every reusable declaration
   symbol ID; it cannot invoke declaration lowering again.
-- Query-backed declaration rejection opens an owned branch of the query's exact-current recovery
+- Declaration rejection opens an owned branch of the query's exact-current recovery
   product. Session composes its diagnostics and editor evidence without invoking declaration
   lowering a second time.
-- Query-backed lexical rejection opens the finalization query's exact-current recovery branch.
+- Lexical rejection opens the finalization query's exact-current recovery branch.
   Session translates its typed diagnostic and recovery evidence without invoking name resolution,
   checking preparation, or body checking.
 - No public query-continuation entry point accepts declarations, prepared programs, body-name sets,

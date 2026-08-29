@@ -2,14 +2,11 @@ use nocter_checking::CheckedProgramOutput;
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
-use crate::semantic_pipeline::{
-    SemanticPipelineFailure, SemanticPipelineOutput, run_semantic_pipeline,
-};
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
 /// A failed target analysis and the exact current-generation semantic evidence that remains valid.
 #[derive(Debug)]
-pub struct CompileTargetFailure {
+pub(crate) struct CompileTargetFailure {
     error: CompileSessionError,
     semantic: Option<Box<SemanticEvidenceBundle>>,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
@@ -20,8 +17,7 @@ pub struct CompileTargetFailure {
 /// The syntax outcome remains failed. This value independently retains a semantic failure and the
 /// exact evidence contract reached by that attempt.
 #[derive(Debug)]
-pub struct IncompleteSyntaxAnalysis {
-    failure: Option<CompileSessionError>,
+pub(crate) struct IncompleteSyntaxAnalysis {
     semantic: Option<Box<SemanticEvidenceBundle>>,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
@@ -29,34 +25,17 @@ pub struct IncompleteSyntaxAnalysis {
 impl IncompleteSyntaxAnalysis {
     pub(crate) fn empty() -> Self {
         Self {
-            failure: None,
             semantic: None,
             diagnostics: Box::new([]),
         }
     }
 
-    fn failed(error: CompileSessionError, semantic: Option<SemanticEvidenceBundle>) -> Self {
-        let diagnostics = analysis_diagnostics(Some(&error), semantic.as_ref());
+    fn failed(error: &CompileSessionError, semantic: Option<SemanticEvidenceBundle>) -> Self {
+        let diagnostics = analysis_diagnostics(Some(error), semantic.as_ref());
         Self {
-            failure: Some(error),
             semantic: semantic.map(Box::new),
             diagnostics,
         }
-    }
-
-    #[must_use]
-    pub const fn failure(&self) -> Option<&CompileSessionError> {
-        self.failure.as_ref()
-    }
-
-    #[must_use]
-    pub fn semantic_evidence(&self) -> Option<crate::SemanticEvidenceView<'_>> {
-        self.semantic.as_deref().map(SemanticEvidenceBundle::view)
-    }
-
-    #[must_use]
-    pub const fn source_diagnostics(&self) -> &[nocter_diagnostics::SourceDiagnostic] {
-        &self.diagnostics
     }
 
     #[must_use]
@@ -81,35 +60,18 @@ impl CompileTargetFailure {
     }
 
     #[must_use]
-    pub const fn error(&self) -> &CompileSessionError {
-        &self.error
-    }
-
-    #[must_use]
-    pub fn semantic_evidence(&self) -> Option<crate::SemanticEvidenceView<'_>> {
-        self.semantic.as_deref().map(SemanticEvidenceBundle::view)
-    }
-
-    /// Returns every source diagnostic that explains this analysis result, including rejected
-    /// body evidence retained beneath an earlier production failure.
-    #[must_use]
-    pub const fn source_diagnostics(&self) -> &[nocter_diagnostics::SourceDiagnostic] {
-        &self.diagnostics
-    }
-
-    #[must_use]
     pub fn into_analysis_parts(
         self,
     ) -> (
+        CompileSessionError,
         Option<SemanticEvidenceBundle>,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
-        (self.semantic.map(|semantic| *semantic), self.diagnostics)
-    }
-
-    #[must_use]
-    pub fn into_error(self) -> CompileSessionError {
-        self.error
+        (
+            self.error,
+            self.semantic.map(|semantic| *semantic),
+            self.diagnostics,
+        )
     }
 }
 
@@ -128,33 +90,16 @@ fn analysis_diagnostics(
     diagnostics.into_boxed_slice()
 }
 
-/// Runs one immutable discovery snapshot while retaining the deepest valid current-generation
-/// analysis recovery when declaration preparation, name resolution, or typed-body source fails.
-///
-/// # Errors
-///
-/// Returns the exact production-session failure. No earlier successful generation participates.
-pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    analyze_target_internal(unit, true)
-}
-
-pub(crate) fn analyze_target_from_finalized_program(
+pub(crate) fn target_from_finalized_program(
     unit: &DiscoveredUnit,
     finalized: &nocter_semantic_computation::FinalizedProgram,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitive_bindings = finalized.declarations().primitive_bindings().to_vec();
     let checked = finalized.current_branch();
-    finish_semantic_pipeline(
-        unit,
-        SemanticPipelineOutput {
-            primitive_bindings,
-            checked,
-        },
-        true,
-    )
+    finish_semantic_product(unit, primitive_bindings, checked)
 }
 
-pub(crate) fn analyze_target_from_finalization_failure(
+pub(crate) fn failure_from_finalization(
     failure: &nocter_checking::BodyCheckFailure,
 ) -> Box<CompileTargetFailure> {
     let (error, recovery) = failure.current_branch().into_parts();
@@ -164,7 +109,7 @@ pub(crate) fn analyze_target_from_finalization_failure(
     ))
 }
 
-pub(crate) fn analyze_target_from_name_resolution_failure(
+pub(crate) fn failure_from_name_resolution(
     failure: &nocter_checking::QueriedNameResolutionFailure,
 ) -> Box<CompileTargetFailure> {
     let error = nocter_checking::PreparationError::NameResolution(
@@ -178,7 +123,7 @@ pub(crate) fn analyze_target_from_name_resolution_failure(
     ))
 }
 
-pub(crate) fn analyze_target_from_preparation_rejection(
+pub(crate) fn failure_from_preparation(
     rejection: &nocter_checking::QueriedProgramPreparationRejection,
 ) -> Box<CompileTargetFailure> {
     let (error, evidence) = rejection.current_branch().into_parts();
@@ -188,17 +133,6 @@ pub(crate) fn analyze_target_from_preparation_rejection(
     ))
 }
 
-/// Attempts editor-only semantic analysis beneath an authoritative syntax failure.
-///
-/// This path can never return a target program or claim compilation success. It preserves the
-/// deepest declaration, name, or body stage reached before the explicit missing/error syntax node
-/// or an independent authored rule stopped analysis.
-#[must_use]
-pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSyntaxAnalysis> {
-    let analysis = nocter_semantic_computation::analyze_incomplete_semantics(unit)?;
-    Some(incomplete_syntax_analysis(&analysis))
-}
-
 pub(crate) fn incomplete_syntax_analysis(
     analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
 ) -> IncompleteSyntaxAnalysis {
@@ -206,10 +140,10 @@ pub(crate) fn incomplete_syntax_analysis(
         return IncompleteSyntaxAnalysis::empty();
     };
     let (error, evidence) = semantic_failure_parts(failure);
-    IncompleteSyntaxAnalysis::failed(error, evidence)
+    IncompleteSyntaxAnalysis::failed(&error, evidence)
 }
 
-pub(crate) fn analyze_target_from_semantic_failure(
+pub(crate) fn failure_from_incomplete_semantics(
     failure: &nocter_semantic_computation::IncompleteSemanticFailure,
 ) -> Box<CompileTargetFailure> {
     let (error, evidence) = semantic_failure_parts(failure);
@@ -226,87 +160,48 @@ fn semantic_failure_parts(
     )
 }
 
-pub(crate) fn compile_target_without_recovery(
+fn finish_semantic_product(
     unit: &DiscoveredUnit,
+    primitive_bindings: Vec<nocter_runtime_contract::PrimitiveBinding>,
+    checked: CheckedProgramOutput,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    analyze_target_internal(unit, false)
-}
-
-fn analyze_target_internal(
-    unit: &DiscoveredUnit,
-    retain_semantic: bool,
-) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output =
-        run_semantic_pipeline(unit).map_err(|SemanticPipelineFailure { error, evidence }| {
-            Box::new(CompileTargetFailure::new(
-                *error,
-                retain_semantic.then_some(evidence).flatten(),
-            ))
-        })?;
-    finish_semantic_pipeline(unit, output, retain_semantic)
-}
-
-fn finish_semantic_pipeline(
-    unit: &DiscoveredUnit,
-    output: SemanticPipelineOutput,
-    retain_semantic: bool,
-) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let primitive_bindings = output.primitive_bindings;
-    let checked = output.checked;
     let primitives = match nocter_runtime_contract::PrimitiveRegistry::new(primitive_bindings) {
         Ok(primitives) => primitives,
         Err(error) => {
-            return Err(Box::new(failure_with_checked(
-                error.into(),
-                checked,
-                retain_semantic,
-            )));
+            return Err(Box::new(failure_with_checked(error.into(), checked)));
         }
     };
-    finish_checked_target(unit.target(), primitives, checked, retain_semantic)
+    finish_checked_target(unit.target(), primitives, checked)
 }
 
 fn finish_checked_target(
     target: nocter_model::CompilationTarget,
     primitives: nocter_runtime_contract::PrimitiveRegistry,
     checked: CheckedProgramOutput,
-    retain_semantic: bool,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let Some(standard_package) = checked.program().graph().standard_package() else {
         return Err(Box::new(failure_with_checked(
             CompileSessionError::MissingStandardPackage,
             checked,
-            retain_semantic,
         )));
     };
     let snapshot = match ToolchainSnapshot::select(target, standard_package, primitives) {
         Ok(snapshot) => snapshot,
         Err(error) => {
-            return Err(Box::new(failure_with_checked(
-                error.into(),
-                checked,
-                retain_semantic,
-            )));
+            return Err(Box::new(failure_with_checked(error.into(), checked)));
         }
     };
     let (program, source_index) = checked.into_parts();
-    let program = if retain_semantic {
-        match TargetProgram::build_retaining_checked(program, snapshot) {
-            Ok(program) => program,
-            Err(failure) => {
-                let (error, program) = (*failure).into_parts();
-                let checked = CheckedProgramOutput::new(program, source_index);
-                return Err(Box::new(CompileTargetFailure::new(
-                    error.into(),
-                    Some(SemanticEvidenceBundle::from_checked(checked)),
-                )));
-            }
+    let program = match TargetProgram::build_retaining_checked(program, snapshot) {
+        Ok(program) => program,
+        Err(failure) => {
+            let (error, program) = (*failure).into_parts();
+            let checked = CheckedProgramOutput::new(program, source_index);
+            return Err(Box::new(CompileTargetFailure::new(
+                error.into(),
+                Some(SemanticEvidenceBundle::from_checked(checked)),
+            )));
         }
-    } else {
-        TargetProgram::build(program, snapshot)
-            .map_err(CompileSessionError::from)
-            .map_err(without_prepared)
-            .map_err(Box::new)?
     };
     Ok(CompiledTarget::new(program, source_index))
 }
@@ -314,14 +209,6 @@ fn finish_checked_target(
 fn failure_with_checked(
     error: CompileSessionError,
     checked: CheckedProgramOutput,
-    retain: bool,
 ) -> CompileTargetFailure {
-    CompileTargetFailure::new(
-        error,
-        retain.then(|| SemanticEvidenceBundle::from_checked(checked)),
-    )
-}
-
-fn without_prepared(error: CompileSessionError) -> CompileTargetFailure {
-    CompileTargetFailure::new(error, None)
+    CompileTargetFailure::new(error, Some(SemanticEvidenceBundle::from_checked(checked)))
 }

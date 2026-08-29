@@ -5,6 +5,7 @@ use nocter_diagnostics::SourceDiagnostic;
 /// A failure at one owned compilation-session boundary.
 #[derive(Debug)]
 pub enum CompileSessionError {
+    SyntaxErrorsPresent,
     CompileInput(nocter_discovery::CompileInputError),
     Declaration(nocter_declaration_lowering::DeclarationLoweringError),
     CurrentProjection(nocter_declaration_lowering::CurrentProjectionError),
@@ -26,7 +27,8 @@ impl CompileSessionError {
             Self::Declaration(error) => error.source_diagnostics(),
             Self::Preparation(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::Checking(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
-            Self::CompileInput(_)
+            Self::SyntaxErrorsPresent
+            | Self::CompileInput(_)
             | Self::CurrentProjection(_)
             | Self::CurrentSymbols(_)
             | Self::MissingStandardPackage
@@ -41,7 +43,8 @@ impl CompileSessionError {
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
             Self::TargetUnavailable(_) => Some("E0701"),
-            Self::CompileInput(_)
+            Self::SyntaxErrorsPresent
+            | Self::CompileInput(_)
             | Self::Declaration(_)
             | Self::CurrentProjection(_)
             | Self::CurrentSymbols(_)
@@ -57,6 +60,7 @@ impl CompileSessionError {
 impl fmt::Display for CompileSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SyntaxErrorsPresent => formatter.write_str("source contains syntax errors"),
             Self::CompileInput(error) => error.fmt(formatter),
             Self::Declaration(error) => error.fmt(formatter),
             Self::CurrentProjection(error) => error.fmt(formatter),
@@ -76,6 +80,7 @@ impl fmt::Display for CompileSessionError {
 impl std::error::Error for CompileSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::SyntaxErrorsPresent | Self::MissingStandardPackage => None,
             Self::CompileInput(error) => Some(error),
             Self::Declaration(error) => Some(error),
             Self::CurrentProjection(error) => Some(error),
@@ -85,7 +90,6 @@ impl std::error::Error for CompileSessionError {
             Self::Primitive(error) => Some(error),
             Self::TargetUnavailable(error) => Some(error),
             Self::Target(error) => Some(error),
-            Self::MissingStandardPackage => None,
         }
     }
 }

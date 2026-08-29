@@ -3,20 +3,20 @@ use std::sync::Arc;
 use nocter_discovery::DiscoveredUnit;
 
 use crate::analysis::{
-    analyze_target_from_finalization_failure, analyze_target_from_finalized_program,
-    analyze_target_from_name_resolution_failure, analyze_target_from_preparation_rejection,
-    analyze_target_from_semantic_failure,
+    CompileTargetFailure, IncompleteSyntaxAnalysis, failure_from_finalization,
+    failure_from_incomplete_semantics, failure_from_name_resolution, failure_from_preparation,
+    target_from_finalized_program,
 };
-use crate::{
-    CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
-    analyze_target,
-};
+use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView};
 
 /// The compiler authority retained for one source-complete or explicitly recovered analysis run.
 #[derive(Debug)]
 enum AnalyzedUnitState {
     SyntaxFailed(Option<Box<SemanticEvidenceBundle>>),
-    CompilationFailed(Option<Box<SemanticEvidenceBundle>>),
+    CompilationFailed {
+        error: CompileSessionError,
+        semantic: Option<Box<SemanticEvidenceBundle>>,
+    },
     Complete(Box<CompiledTarget>),
 }
 
@@ -26,6 +26,40 @@ pub enum AnalyzedUnitStatus {
     SyntaxFailed,
     CompilationFailed,
     Complete,
+}
+
+/// One closed session failure paired with the exact source and diagnostic snapshot selected by
+/// the unit-analysis query.
+#[derive(Debug)]
+pub struct AnalyzedCompilationFailure {
+    error: CompileSessionError,
+    sources: nocter_source::SourceMap,
+    diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
+}
+
+impl AnalyzedCompilationFailure {
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        CompileSessionError,
+        nocter_source::SourceMap,
+        Box<[nocter_diagnostics::SourceDiagnostic]>,
+    ) {
+        (self.error, self.sources, self.diagnostics)
+    }
+}
+
+impl std::fmt::Display for AnalyzedCompilationFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(formatter)
+    }
+}
+
+impl std::error::Error for AnalyzedCompilationFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
 }
 
 /// One discovery snapshot paired inseparably with the exact session outcome derived from it.
@@ -45,7 +79,7 @@ impl AnalyzedUnit {
     pub const fn status(&self) -> AnalyzedUnitStatus {
         match self.state {
             AnalyzedUnitState::SyntaxFailed(_) => AnalyzedUnitStatus::SyntaxFailed,
-            AnalyzedUnitState::CompilationFailed(_) => AnalyzedUnitStatus::CompilationFailed,
+            AnalyzedUnitState::CompilationFailed { .. } => AnalyzedUnitStatus::CompilationFailed,
             AnalyzedUnitState::Complete(_) => AnalyzedUnitStatus::Complete,
         }
     }
@@ -63,40 +97,42 @@ impl AnalyzedUnit {
     #[must_use]
     pub fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
         match &self.state {
-            AnalyzedUnitState::SyntaxFailed(evidence)
-            | AnalyzedUnitState::CompilationFailed(evidence) => {
+            AnalyzedUnitState::SyntaxFailed(evidence) => {
                 evidence.as_deref().map(SemanticEvidenceBundle::view)
+            }
+            AnalyzedUnitState::CompilationFailed { semantic, .. } => {
+                semantic.as_deref().map(SemanticEvidenceBundle::view)
             }
             AnalyzedUnitState::Complete(target) => Some(target.semantic_evidence()),
         }
     }
-}
 
-/// Consumes one immutable discovery snapshot through the editor semantic boundary.
-///
-/// Syntax-invalid input runs only the explicit incomplete-syntax admission. Syntax-clean input
-/// runs the production target analysis once. The returned value owns both the source graph and its
-/// exact outcome, so no later layer can substitute either half.
-#[must_use]
-pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
-    if unit.has_syntax_errors() {
-        let analysis =
-            analyze_incomplete_syntax(&unit).unwrap_or_else(crate::IncompleteSyntaxAnalysis::empty);
-        return analyzed_incomplete_unit(unit, analysis);
-    }
-
-    match analyze_target(&unit) {
-        Ok(target) => AnalyzedUnit {
+    /// Consumes this session result through the target boundary used by command compilation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact syntax or semantic failure selected by the query-owned analysis branch.
+    pub fn into_compilation_result(
+        self,
+    ) -> Result<CompiledTarget, Box<AnalyzedCompilationFailure>> {
+        let Self {
             unit,
-            diagnostics: Box::new([]),
-            state: AnalyzedUnitState::Complete(Box::new(target)),
-        },
-        Err(failure) => {
-            let (semantic, diagnostics) = (*failure).into_analysis_parts();
-            AnalyzedUnit {
-                unit,
+            diagnostics,
+            state,
+        } = self;
+        match state {
+            AnalyzedUnitState::Complete(target) => Ok(*target),
+            AnalyzedUnitState::SyntaxFailed(_) => Err(Box::new(AnalyzedCompilationFailure {
+                error: CompileSessionError::SyntaxErrorsPresent,
+                sources: unit.sources().clone(),
                 diagnostics,
-                state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+            })),
+            AnalyzedUnitState::CompilationFailed { error, .. } => {
+                Err(Box::new(AnalyzedCompilationFailure {
+                    error,
+                    sources: unit.sources().clone(),
+                    diagnostics,
+                }))
             }
         }
     }
@@ -133,7 +169,7 @@ fn analyzed_complete_unit(
 ) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
     let analyzed = match product.outcome() {
         nocter_semantic_computation::ProgramAnalysisOutcome::Checked(finalized) => {
-            match analyze_target_from_finalized_program(&unit, finalized) {
+            match target_from_finalized_program(&unit, finalized) {
                 Ok(target) => AnalyzedUnit {
                     unit,
                     diagnostics: Box::new([]),
@@ -143,28 +179,16 @@ fn analyzed_complete_unit(
             }
         }
         nocter_semantic_computation::ProgramAnalysisOutcome::NamesRejected(failed) => {
-            analyzed_compilation_failure(
-                unit,
-                *analyze_target_from_name_resolution_failure(failed.failure()),
-            )
+            analyzed_compilation_failure(unit, *failure_from_name_resolution(failed.failure()))
         }
         nocter_semantic_computation::ProgramAnalysisOutcome::BodiesRejected(failed) => {
-            analyzed_compilation_failure(
-                unit,
-                *analyze_target_from_finalization_failure(failed.failure()),
-            )
+            analyzed_compilation_failure(unit, *failure_from_finalization(failed.failure()))
         }
         nocter_semantic_computation::ProgramAnalysisOutcome::PreparationRejected(rejected) => {
-            analyzed_compilation_failure(
-                unit,
-                *analyze_target_from_preparation_rejection(rejected.rejection()),
-            )
+            analyzed_compilation_failure(unit, *failure_from_preparation(rejected.rejection()))
         }
         nocter_semantic_computation::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
-            analyzed_compilation_failure(
-                unit,
-                *analyze_target_from_semantic_failure(failed.failure()),
-            )
+            analyzed_compilation_failure(unit, *failure_from_incomplete_semantics(failed.failure()))
         }
         nocter_semantic_computation::ProgramAnalysisOutcome::Unavailable(authority) => {
             return Err(SemanticAnalysisDomainError::UnavailableProgramAnalysis(
@@ -177,19 +201,22 @@ fn analyzed_complete_unit(
 
 fn analyzed_compilation_failure(
     unit: Arc<DiscoveredUnit>,
-    failure: crate::CompileTargetFailure,
+    failure: CompileTargetFailure,
 ) -> AnalyzedUnit {
-    let (semantic, diagnostics) = failure.into_analysis_parts();
+    let (error, semantic, diagnostics) = failure.into_analysis_parts();
     AnalyzedUnit {
         unit,
         diagnostics,
-        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+        state: AnalyzedUnitState::CompilationFailed {
+            error,
+            semantic: semantic.map(Box::new),
+        },
     }
 }
 
 fn analyzed_incomplete_unit(
     unit: Arc<DiscoveredUnit>,
-    analysis: crate::IncompleteSyntaxAnalysis,
+    analysis: IncompleteSyntaxAnalysis,
 ) -> AnalyzedUnit {
     let (semantic, semantic_diagnostics) = analysis.into_analysis_parts();
     let mut diagnostics = unit.syntax_diagnostics().into_vec();

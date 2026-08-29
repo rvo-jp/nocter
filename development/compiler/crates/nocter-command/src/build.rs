@@ -1,7 +1,6 @@
 use std::fmt;
 use std::path::Path;
 
-use nocter_diagnostics::SourceDiagnostic;
 use nocter_native_session::{
     NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError, compile_native_image,
     compile_native_images,
@@ -80,9 +79,9 @@ impl BuiltExecutable {
 ///
 /// # Errors
 ///
-/// Returns either the exact compiler-session failure or the exact artifact operation that failed.
+/// Returns either the exact native lowering failure or the exact artifact operation that failed.
 pub fn build_executable(
-    request: ExecutableCompileRequest<'_>,
+    request: ExecutableCompileRequest,
     output: impl AsRef<Path>,
 ) -> Result<BuiltExecutable, BuildCommandError> {
     build_selected_executable(
@@ -95,9 +94,9 @@ pub fn build_executable(
 ///
 /// # Errors
 ///
-/// Returns the exact compiler-session, default-name planning, or artifact failure.
+/// Returns the exact native lowering, default-name planning, or artifact failure.
 pub fn build_selected_executable(
-    request: ExecutableCompileRequest<'_>,
+    request: ExecutableCompileRequest,
     output: SelectedBuildOutput,
 ) -> Result<BuiltExecutable, BuildCommandError> {
     let compiled = compile_native_image(request)?;
@@ -127,7 +126,7 @@ pub fn build_selected_executable(
 ///
 /// Returns the exact compile-set, output-plan, or target-specific artifact failure.
 pub fn build_executables(
-    request: NativeImageSetCompileRequest<'_>,
+    request: NativeImageSetCompileRequest,
     package_root: impl AsRef<Path>,
 ) -> Result<BuiltExecutableSet, BuildSetCommandError> {
     let compiled = compile_native_images(request)?;
@@ -162,14 +161,6 @@ pub enum BuildSetCommandError {
 }
 
 impl BuildSetCommandError {
-    #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::Plan(_) | Self::Artifact { .. } => &[],
-        }
-    }
-
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
@@ -225,14 +216,6 @@ pub enum BuildCommandError {
 }
 
 impl BuildCommandError {
-    #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::Plan(_) | Self::Artifact(_) => &[],
-        }
-    }
-
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {

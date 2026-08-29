@@ -1688,6 +1688,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-checking",
  "nocter-compile-input",
+ "nocter-compiler-computation",
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
@@ -1740,8 +1741,10 @@ name = "nocter-command"
 version = "0.0.0"
 dependencies = [
  "nocter-compile-input",
+ "nocter-compiler-computation",
  "nocter-diagnostics",
  "nocter-discovery",
+ "nocter-filesystem",
  "nocter-json",
  "nocter-model",
  "nocter-native-session",
@@ -1983,7 +1986,7 @@ dependencies = [
  "nocter-arm64",
  "nocter-checking",
  "nocter-compile-input",
- "nocter-diagnostics",
+ "nocter-compiler-computation",
  "nocter-discovery",
  "nocter-filesystem",
  "nocter-machine",
@@ -2064,7 +2067,6 @@ dependencies = [
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
- "nocter-frontend-bindings",
  "nocter-model",
  "nocter-runtime-contract",
  "nocter-semantic-computation",

@@ -308,6 +308,51 @@ fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
 }
 
 #[test]
+fn command_and_workspace_policy_share_only_the_compiler_computation_entry() {
+    for crate_name in ["nocter-command", "nocter-workspace-analysis"] {
+        let dependencies = production_dependencies(crate_name);
+        assert!(
+            dependencies.contains("nocter-compiler-computation"),
+            "{crate_name} must enter semantic work through nocter-compiler-computation"
+        );
+        for forbidden in ["nocter-declaration-lowering", "nocter-semantic-computation"] {
+            assert!(
+                !dependencies.contains(forbidden),
+                "{crate_name} must not select semantic stages through {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn session_cannot_invoke_semantic_compiler_stages() {
+    let source_root = workspace().join("crates/nocter-session/src");
+    let mut pending = vec![source_root];
+    let mut source = String::new();
+    while let Some(path) = pending.pop() {
+        for entry in std::fs::read_dir(path).expect("read session source directory") {
+            let path = entry.expect("read session source entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                source.push_str(&std::fs::read_to_string(path).expect("read session Rust source"));
+            }
+        }
+    }
+    for forbidden in [
+        "lower_compile_unit_declarations_recovering(",
+        "prepare_program_checking_recovering(",
+        "check_prepared_program_recovering(",
+        "analyze_incomplete_semantics(",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "session source must not invoke {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn persistent_storage_has_only_reviewed_semantic_authority_consumers() {
     let allowed = BTreeSet::from(["nocter-checking", "nocter-model"]);
     for crate_name in crate_names() {

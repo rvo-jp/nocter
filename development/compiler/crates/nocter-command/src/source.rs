@@ -3,16 +3,13 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{
-    DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest, discover,
-};
+use nocter_discovery::{DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest};
 use nocter_model::{CompilationTarget, PackageIdentity};
-use nocter_package::{
-    PackageGraphError, ResolvedPackageSelection, StandardPackage, resolve_standard_package,
-};
+use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{ExecutableSelector, TestTargetSelector, bundled_standard_toolchain};
 
+use crate::compiler::CommandCompiler;
 use crate::package_state::resolve_command_package_state;
 use crate::{
     CommandPackageContext, CommandPackageStateError, ResolutionOptions, ResolvedProgramInput,
@@ -92,25 +89,30 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     compile_roots: CommandCompileRoots<'_>,
     authority: &mut A,
+    compiler: &mut CommandCompiler,
 ) -> Result<DiscoveredUnit, CommandSourceError> {
     match input {
         ResolvedProgramInput::Package(package) => {
-            let selected =
-                resolve_command_package_state(package, resolution, toolchain.packages(), authority)
-                    .map_err(CommandSourceError::Package)?;
-            discover_declared(selected, toolchain, compile_roots)
+            let selected = resolve_command_package_state(
+                package,
+                resolution,
+                toolchain.packages(),
+                authority,
+                compiler,
+            )
+            .map_err(CommandSourceError::Package)?;
+            discover_declared(selected, toolchain, compile_roots, compiler)
         }
         ResolvedProgramInput::SingleFile(source) => {
             let standard = toolchain.standard().identity().clone();
-            let support_packages = resolve_standard_package(toolchain.standard().clone())
-                .map_err(CommandSourceError::StandardPackage)?;
-            discover(DiscoveryRequest::single_file(
+            let support_packages =
+                compiler.resolve_standard_package(toolchain.standard().clone())?;
+            compiler.discover(DiscoveryRequest::single_file(
                 toolchain.target(),
                 source.source(),
                 support_packages,
                 bundled_standard_toolchain(&standard),
             ))
-            .map_err(CommandSourceError::Discovery)
         }
     }
 }
@@ -145,9 +147,10 @@ pub(crate) fn discover_command_tests<A: PackageAcquisitionAuthority>(
     toolchain: &CommandToolchain,
     selector: &TestTargetSelector,
     authority: &mut A,
+    compiler: &mut CommandCompiler,
 ) -> Result<Vec<CommandTestSource>, CommandSourceError> {
     let selected =
-        resolve_command_package_state(input, resolution, toolchain.packages(), authority)
+        resolve_command_package_state(input, resolution, toolchain.packages(), authority, compiler)
             .map_err(CommandSourceError::Package)?;
     let root = selected.root().clone();
     let package = selected
@@ -182,6 +185,7 @@ pub(crate) fn discover_command_tests<A: PackageAcquisitionAuthority>(
             selected.clone(),
             toolchain,
             CommandCompileRoots::NamedTest(&target),
+            compiler,
         ) {
             Ok(unit) => Ok(unit),
             Err(CommandSourceError::Discovery(failure)) => Err(failure),
@@ -200,6 +204,7 @@ fn discover_declared(
     selected: ResolvedPackageSelection,
     toolchain: &CommandToolchain,
     compile_roots: CommandCompileRoots<'_>,
+    compiler: &mut CommandCompiler,
 ) -> Result<DiscoveredUnit, CommandSourceError> {
     let root = selected.root().clone();
     let standard = selected.standard().clone();
@@ -255,17 +260,18 @@ fn discover_declared(
         }
     }
     let (packages, _, _) = selected.into_parts();
-    discover(DiscoveryRequest::declared(
+    compiler.discover(DiscoveryRequest::declared(
         toolchain.target(),
         packages,
         roots.into_iter().collect(),
         bundled_standard_toolchain(&standard),
     ))
-    .map_err(CommandSourceError::Discovery)
 }
 
 #[derive(Debug)]
 pub enum CommandSourceError {
+    Computation(nocter_compiler_computation::CompilerComputationError),
+    RevisionExhausted,
     Package(CommandPackageStateError),
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
@@ -284,6 +290,8 @@ pub enum CommandSourceError {
 impl fmt::Display for CommandSourceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Computation(error) => write!(formatter, "source computation failed: {error}"),
+            Self::RevisionExhausted => formatter.write_str("command source revision exhausted"),
             Self::Package(error) => error.fmt(formatter),
             Self::StandardPackage(error) => {
                 write!(formatter, "standard package is invalid: {error}")
@@ -316,10 +324,12 @@ impl fmt::Display for CommandSourceError {
 impl std::error::Error for CommandSourceError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Computation(error) => Some(error),
             Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
-            Self::MissingCommandRoot(_)
+            Self::RevisionExhausted
+            | Self::MissingCommandRoot(_)
             | Self::MissingCommandExecutable { .. }
             | Self::MissingCommandTest { .. }
             | Self::MissingCommandTests(_) => None,
@@ -339,7 +349,9 @@ impl CommandSourceError {
             Self::Discovery(failure) if !failure.diagnostics().is_empty() => {
                 Some((failure.diagnostics(), failure.sources()))
             }
-            Self::Package(_)
+            Self::Computation(_)
+            | Self::RevisionExhausted
+            | Self::Package(_)
             | Self::StandardPackage(_)
             | Self::MissingCommandRoot(_)
             | Self::MissingCommandExecutable { .. }
@@ -382,7 +394,10 @@ impl CommandSourceError {
             {
                 Some("E0702")
             }
-            Self::MissingCommandRoot(_) | Self::Discovery(_) => None,
+            Self::Computation(_)
+            | Self::RevisionExhausted
+            | Self::MissingCommandRoot(_)
+            | Self::Discovery(_) => None,
         }
     }
 
@@ -402,7 +417,7 @@ impl CommandSourceError {
                     | DiscoveryError::ConflictingSourceOwner { .. }
                     | DiscoveryError::InconsistentSyntax(_)
             ),
-            Self::MissingCommandRoot(_) => false,
+            Self::Computation(_) | Self::RevisionExhausted | Self::MissingCommandRoot(_) => false,
         }
     }
 }

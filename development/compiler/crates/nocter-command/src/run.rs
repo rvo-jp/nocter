@@ -3,7 +3,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
-use nocter_diagnostics::SourceDiagnostic;
 use nocter_native_session::{NativeSessionError, compile_native_image};
 use nocter_session::ExecutableCompileRequest;
 use nocter_source_index::SourceIndex;
@@ -45,7 +44,7 @@ impl ExecutedProgram {
 /// Returns the exact compile, temporary-artifact, launch, or cleanup failure. If launch and cleanup
 /// both fail, both errors remain available.
 pub fn run_executable(
-    request: ExecutableCompileRequest<'_>,
+    request: ExecutableCompileRequest,
     working_directory: impl AsRef<Path>,
 ) -> Result<ExecutedProgram, RunCommandError> {
     let compiled = compile_native_image(request)?;
@@ -88,17 +87,6 @@ pub enum RunCommandError {
 }
 
 impl RunCommandError {
-    #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::Artifact(_)
-            | Self::Launch { .. }
-            | Self::Cleanup(_)
-            | Self::LaunchAndCleanup { .. } => &[],
-        }
-    }
-
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {

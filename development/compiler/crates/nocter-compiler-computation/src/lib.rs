@@ -31,8 +31,9 @@ impl CompilerComputation {
         &mut self,
         overlay: &SourceOverlay,
         filesystem_epoch: u64,
-    ) -> Result<ComputationRevision, ComputationError> {
+    ) -> Result<ComputationRevision, CompilerComputationError> {
         source_syntax::advance_revision(&mut self.database, overlay, filesystem_epoch)
+            .map_err(CompilerComputationError::from)
     }
 
     /// Lends the sole syntax provider backed by this owner's source queries.

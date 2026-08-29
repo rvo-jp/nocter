@@ -3,6 +3,7 @@ use std::fmt;
 use nocter_model::PackageIdentity;
 use nocter_package_state::PackageAcquisitionAuthority;
 
+use crate::compiler::CommandCompiler;
 use crate::package_state::resolve_command_package_state;
 use crate::{CommandPackageContext, CommandPackageStateError, PreparedFetchCommand};
 
@@ -33,8 +34,10 @@ pub fn execute_prepared_fetch<A: PackageAcquisitionAuthority>(
     authority: &mut A,
 ) -> Result<FetchCommandResult, FetchCommandExecutionError> {
     let (input, resolution) = command.into_parts();
-    let selected = resolve_command_package_state(&input, resolution, context, authority)
-        .map_err(FetchCommandExecutionError::Package)?;
+    let mut compiler = CommandCompiler::default();
+    let selected =
+        resolve_command_package_state(&input, resolution, context, authority, &mut compiler)
+            .map_err(FetchCommandExecutionError::Package)?;
     Ok(FetchCommandResult {
         root: selected.root().clone(),
     })

@@ -4,7 +4,6 @@ use nocter_source::SourceMap;
 
 use crate::{BuildCommandError, BuildSetCommandError, RunCommandError};
 use nocter_native_session::NativeTestSessionError;
-use nocter_session::CompileSessionError;
 
 pub(crate) trait CommandDiagnosticError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic];
@@ -12,31 +11,31 @@ pub(crate) trait CommandDiagnosticError {
 
 impl CommandDiagnosticError for BuildCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        BuildCommandError::source_diagnostics(self)
+        &[]
     }
 }
 
 impl CommandDiagnosticError for BuildSetCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        BuildSetCommandError::source_diagnostics(self)
+        &[]
     }
 }
 
 impl CommandDiagnosticError for RunCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        RunCommandError::source_diagnostics(self)
+        &[]
     }
 }
 
-impl CommandDiagnosticError for CompileSessionError {
+impl CommandDiagnosticError for crate::CommandAnalysisError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        CompileSessionError::source_diagnostics(self)
+        self.source_diagnostics()
     }
 }
 
 impl CommandDiagnosticError for NativeTestSessionError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        NativeTestSessionError::source_diagnostics(self)
+        &[]
     }
 }
 
@@ -54,18 +53,30 @@ pub struct CommandCompilationFailure<E> {
 
 pub(crate) fn command_compilation_failure<E: CommandDiagnosticError>(
     error: E,
-    unit: DiscoveredUnit,
+    unit: &DiscoveredUnit,
 ) -> CommandCompilationFailure<E> {
     let mut diagnostics = unit.syntax_diagnostics().into_vec();
     diagnostics.extend_from_slice(error.source_diagnostics());
     CommandCompilationFailure {
         error,
-        sources: unit.into_sources(),
+        sources: unit.sources().clone(),
         diagnostics: diagnostics.into_boxed_slice(),
     }
 }
 
 impl<E> CommandCompilationFailure<E> {
+    pub(crate) const fn from_parts(
+        error: E,
+        sources: SourceMap,
+        diagnostics: Box<[SourceDiagnostic]>,
+    ) -> Self {
+        Self {
+            error,
+            sources,
+            diagnostics,
+        }
+    }
+
     #[must_use]
     pub const fn error(&self) -> &E {
         &self.error

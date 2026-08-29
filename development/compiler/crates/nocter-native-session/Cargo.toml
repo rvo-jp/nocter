@@ -8,8 +8,6 @@ publish = false
 
 [dependencies]
 nocter-arm64 = { path = "../nocter-arm64" }
-nocter-diagnostics = { path = "../nocter-diagnostics" }
-nocter-discovery = { path = "../nocter-discovery" }
 nocter-machine = { path = "../nocter-machine" }
 nocter-macho = { path = "../nocter-macho" }
 nocter-mir = { path = "../nocter-mir" }
@@ -20,7 +18,9 @@ nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking" }
+nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-discovery = { path = "../nocter-discovery" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-package = { path = "../nocter-package" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }

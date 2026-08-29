@@ -1,15 +1,16 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nocter_model::CompilationTarget;
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::{CompileSessionError, CompiledTarget, compile_target};
+use nocter_session::CompiledTarget;
 
-use crate::failure::command_compilation_failure;
+use crate::compiler::CommandCompiler;
 use crate::source::{CommandCompileRoots, discover_command_source};
 use crate::{
-    CommandCompilationFailure, CommandSourceError, CommandToolchain, DiagnosticFormat,
-    PreparedCheckCommand,
+    CommandAnalysisError, CommandCompilationFailure, CommandSourceError, CommandToolchain,
+    DiagnosticFormat, PreparedCheckCommand,
 };
 
 /// Target-validated result of one check command.
@@ -96,20 +97,28 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
         CommandCompileRoots::AllExecutables,
         CommandCompileRoots::NamedExecutable,
     );
-    let unit = discover_command_source(&input, resolution, &toolchain, roots, authority).map_err(
-        |error| CheckCommandExecutionError::Source {
-            presentation: presentation.clone(),
-            error: Box::new(error),
-        },
-    )?;
-    match compile_target(&unit) {
+    let mut compiler = CommandCompiler::default();
+    let unit = discover_command_source(
+        &input,
+        resolution,
+        &toolchain,
+        roots,
+        authority,
+        &mut compiler,
+    )
+    .map_err(|error| CheckCommandExecutionError::Source {
+        presentation: presentation.clone(),
+        error: Box::new(error),
+    })?;
+    let unit = Arc::new(unit);
+    match compiler.compile(&unit) {
         Ok(target) => Ok(CheckCommandResult {
             target,
             presentation,
         }),
-        Err(error) => Err(CheckCommandExecutionError::Check {
+        Err(failure) => Err(CheckCommandExecutionError::Check {
             presentation,
-            failure: Box::new(command_compilation_failure(error, unit)),
+            failure,
         }),
     }
 }
@@ -122,7 +131,7 @@ pub enum CheckCommandExecutionError {
     },
     Check {
         presentation: CheckCommandPresentation,
-        failure: Box<CommandCompilationFailure<CompileSessionError>>,
+        failure: Box<CommandCompilationFailure<CommandAnalysisError>>,
     },
 }
 

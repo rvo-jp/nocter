@@ -1,13 +1,11 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nocter_diagnostics::SourceDiagnostic;
-use nocter_discovery::DiscoveredUnit;
 use nocter_model::PackageTargetKind;
 use nocter_model::{PackageIdentity, PackageTargetId};
 use nocter_target_program::{ExecutableProgram, ExecutableProgramError, TargetProgram};
 
-use crate::{CompileSessionError, CompiledExecutable, compile_target};
+use crate::{CompiledExecutable, CompiledTarget};
 
 /// Resolver-stable identity and authored name of one selected executable target.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -50,40 +48,39 @@ impl ExecutableSelector {
 
 /// One closed request to compile and specialize a process executable.
 #[derive(Debug)]
-pub struct ExecutableCompileRequest<'unit> {
-    unit: &'unit DiscoveredUnit,
+pub struct ExecutableCompileRequest {
+    target: CompiledTarget,
     selector: ExecutableSelector,
 }
 
-impl<'unit> ExecutableCompileRequest<'unit> {
+impl ExecutableCompileRequest {
     #[must_use]
-    pub const fn new(unit: &'unit DiscoveredUnit, selector: ExecutableSelector) -> Self {
-        Self { unit, selector }
+    pub const fn new(target: CompiledTarget, selector: ExecutableSelector) -> Self {
+        Self { target, selector }
     }
 
     #[must_use]
-    pub const fn only(unit: &'unit DiscoveredUnit) -> Self {
-        Self::new(unit, ExecutableSelector::Only)
+    pub const fn only(target: CompiledTarget) -> Self {
+        Self::new(target, ExecutableSelector::Only)
     }
 
     #[must_use]
-    pub fn named(unit: &'unit DiscoveredUnit, name: impl Into<Box<str>>) -> Self {
-        Self::new(unit, ExecutableSelector::named(name))
+    pub fn named(target: CompiledTarget, name: impl Into<Box<str>>) -> Self {
+        Self::new(target, ExecutableSelector::named(name))
     }
 }
 
-/// Compiles one discovery snapshot and closes the requested executable root.
+/// Selects and closes one executable root from a compiled target.
 ///
 /// # Errors
 ///
-/// Returns the exact compilation, command-selection, or executable-closure failure. A command
-/// layer never receives a partially selected target program.
+/// Returns the exact command-selection or executable-closure failure. A command layer never
+/// receives a partially selected target program.
 pub fn compile_executable(
-    request: ExecutableCompileRequest<'_>,
+    request: ExecutableCompileRequest,
 ) -> Result<CompiledExecutable, ExecutableSessionError> {
-    let ExecutableCompileRequest { unit, selector } = request;
-    let compiled = compile_target(unit)?;
-    let (target, source_index) = compiled.into_parts();
+    let ExecutableCompileRequest { target, selector } = request;
+    let (target, source_index) = target.into_parts();
     let selected = select_executable(&target, &selector)?;
     let program = ExecutableProgram::for_executable(target, selected.target())?;
     Ok(CompiledExecutable::new(selected, program, source_index))
@@ -191,24 +188,14 @@ impl std::error::Error for ExecutableSelectionError {}
 
 #[derive(Debug)]
 pub enum ExecutableSessionError {
-    Compile(CompileSessionError),
     Selection(ExecutableSelectionError),
     Executable(ExecutableProgramError),
 }
 
 impl ExecutableSessionError {
     #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::Selection(_) | Self::Executable(_) => &[],
-        }
-    }
-
-    #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
-            Self::Compile(error) => error.diagnostic_code(),
             Self::Selection(_) => Some("E0800"),
             Self::Executable(_) => None,
         }
@@ -218,7 +205,6 @@ impl ExecutableSessionError {
 impl fmt::Display for ExecutableSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Compile(error) => write!(formatter, "target compilation failed: {error}"),
             Self::Selection(error) => write!(formatter, "executable selection failed: {error}"),
             Self::Executable(error) => write!(formatter, "executable closure failed: {error}"),
         }
@@ -228,16 +214,9 @@ impl fmt::Display for ExecutableSessionError {
 impl std::error::Error for ExecutableSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Compile(error) => Some(error),
             Self::Selection(error) => Some(error),
             Self::Executable(error) => Some(error),
         }
-    }
-}
-
-impl From<CompileSessionError> for ExecutableSessionError {
-    fn from(error: CompileSessionError) -> Self {
-        Self::Compile(error)
     }
 }
 

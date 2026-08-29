@@ -7,7 +7,7 @@ use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_session::{analyze_unit, bundled_standard_toolchain};
+use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
 use nocter_workspace_revision::GenerationId;
 
@@ -657,7 +657,14 @@ fn analyzed_snapshot(
     generation: GenerationId,
     unit: nocter_discovery::DiscoveredUnit,
 ) -> AnalysisSnapshot {
-    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(std::sync::Arc::new(unit)))
+    let unit = std::sync::Arc::new(unit);
+    let mut computation = nocter_compiler_computation::CompilerComputation::new();
+    computation
+        .advance_sources(unit.source_overlay(), 0)
+        .unwrap();
+    let product = computation.analyze(std::sync::Arc::clone(&unit)).unwrap();
+    let analyzed = nocter_session::analyze_unit_from_query(&product).unwrap();
+    AnalysisSnapshot::from_analyzed_unit(generation, analyzed)
 }
 
 pub(crate) struct TempTree(PathBuf);

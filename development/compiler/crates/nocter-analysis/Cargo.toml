@@ -22,6 +22,7 @@ nocter-syntax = { path = "../nocter-syntax" }
 nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 
 [dev-dependencies]
+nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 

@@ -27,7 +27,73 @@ pub fn resolve_package_state<A: PackageAcquisitionAuthority>(
     request: PackageResolutionRequest,
     authority: &mut A,
 ) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
-    PackageStateTransaction::new(request)?.run(authority)
+    PackageStateTransaction::new(request)?.run(authority, &mut DirectPackageResolution)
+}
+
+/// Read-only package-graph authority used by one mutable package-state transaction.
+pub trait PackageResolutionDriver {
+    /// Resolves one immutable package graph attempt through the driver's source authority.
+    ///
+    /// # Errors
+    ///
+    /// Returns either the authored package-domain rejection or an infrastructure failure from the
+    /// injected source/query authority.
+    fn resolve(
+        &mut self,
+        request: PackageResolutionRequest,
+    ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError>;
+}
+
+/// Runs package-state coordination through a caller-owned source/query authority.
+///
+/// # Errors
+///
+/// Returns the same atomic transaction failures as [`resolve_package_state`], plus an
+/// infrastructure failure selected by `resolver`.
+pub fn resolve_package_state_with_driver<
+    A: PackageAcquisitionAuthority,
+    R: PackageResolutionDriver,
+>(
+    request: PackageResolutionRequest,
+    authority: &mut A,
+    resolver: &mut R,
+) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
+    PackageStateTransaction::new(request)?.run(authority, resolver)
+}
+
+struct DirectPackageResolution;
+
+impl PackageResolutionDriver for DirectPackageResolution {
+    fn resolve(
+        &mut self,
+        request: PackageResolutionRequest,
+    ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError> {
+        resolve_package_selection(request).map_err(PackageResolutionAttemptError::Domain)
+    }
+}
+
+#[derive(Debug)]
+pub enum PackageResolutionAttemptError {
+    Domain(PackageResolutionError),
+    Infrastructure(Box<dyn Error + Send + Sync>),
+}
+
+impl fmt::Display for PackageResolutionAttemptError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Domain(error) => error.fmt(formatter),
+            Self::Infrastructure(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl Error for PackageResolutionAttemptError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Domain(error) => Some(error),
+            Self::Infrastructure(error) => Some(&**error),
+        }
+    }
 }
 
 struct PackageStateTransaction {
@@ -67,9 +133,10 @@ impl PackageStateTransaction {
         })
     }
 
-    fn run<A: PackageAcquisitionAuthority>(
+    fn run<A: PackageAcquisitionAuthority, R: PackageResolutionDriver>(
         mut self,
         authority: &mut A,
+        resolver: &mut R,
     ) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
         loop {
             let attempt = self
@@ -77,22 +144,31 @@ impl PackageStateTransaction {
                 .clone()
                 .with_lock_overlay(self.locks.clone())
                 .with_store_overlay(self.store.clone());
-            match resolve_package_selection(attempt) {
-                Ok(selection) => return self.complete(selection),
-                Err(PackageResolutionError::LockRequired {
-                    package,
-                    package_root,
-                    alias,
-                    source,
-                }) => self.resolve_lock(authority, &package, package_root, &alias, &source)?,
-                Err(PackageResolutionError::FetchRequired {
-                    package,
-                    alias,
-                    package_id,
-                    lock,
-                    source,
-                }) => self.fetch(authority, &package, &alias, package_id, &lock, &source)?,
-                Err(error) => return Err(PackageStateError::Resolution(Box::new(error))),
+            match resolver.resolve(attempt) {
+                Ok(selection) => return self.complete(selection, resolver),
+                Err(PackageResolutionAttemptError::Domain(
+                    PackageResolutionError::LockRequired {
+                        package,
+                        package_root,
+                        alias,
+                        source,
+                    },
+                )) => self.resolve_lock(authority, &package, package_root, &alias, &source)?,
+                Err(PackageResolutionAttemptError::Domain(
+                    PackageResolutionError::FetchRequired {
+                        package,
+                        alias,
+                        package_id,
+                        lock,
+                        source,
+                    },
+                )) => self.fetch(authority, &package, &alias, package_id, &lock, &source)?,
+                Err(PackageResolutionAttemptError::Domain(error)) => {
+                    return Err(PackageStateError::Resolution(Box::new(error)));
+                }
+                Err(PackageResolutionAttemptError::Infrastructure(error)) => {
+                    return Err(PackageStateError::ResolutionInfrastructure(error));
+                }
             }
         }
     }
@@ -189,9 +265,10 @@ impl PackageStateTransaction {
         Ok(self.staging.as_mut().expect("staging area was initialized"))
     }
 
-    fn complete<E: Error + Send + Sync + 'static>(
+    fn complete<E: Error + Send + Sync + 'static, R: PackageResolutionDriver>(
         mut self,
         selection: ResolvedPackageSelection,
+        resolver: &mut R,
     ) -> Result<ResolvedPackageSelection, PackageStateError<E>> {
         if !self.generated_locks && !self.acquired_packages {
             return Ok(selection);
@@ -200,18 +277,37 @@ impl PackageStateTransaction {
             area.publish(&self.canonical_root)
                 .map_err(PackageStateError::Filesystem)?;
         }
-        let selected =
-            resolve_package_selection(self.request.clone().with_lock_overlay(self.locks.clone()))
-                .map_err(|error| PackageStateError::Resolution(Box::new(error)))?;
+        let selected = resolve_attempt(
+            resolver,
+            self.request.clone().with_lock_overlay(self.locks.clone()),
+        )?;
         if self.generated_locks {
             let update = selected
                 .graph()
                 .root_lock_update(&self.root)
                 .map_err(PackageStateError::LockSource)?;
             commit_root_lock_source(&update).map_err(PackageStateError::RootSourceCommit)?;
+            return resolve_attempt(
+                resolver,
+                self.request.clone().with_lock_overlay(self.locks.clone()),
+            );
         }
         Ok(selected)
     }
+}
+
+fn resolve_attempt<E: Error + Send + Sync + 'static, R: PackageResolutionDriver>(
+    resolver: &mut R,
+    request: PackageResolutionRequest,
+) -> Result<ResolvedPackageSelection, PackageStateError<E>> {
+    resolver.resolve(request).map_err(|error| match error {
+        PackageResolutionAttemptError::Domain(error) => {
+            PackageStateError::Resolution(Box::new(error))
+        }
+        PackageResolutionAttemptError::Infrastructure(error) => {
+            PackageStateError::ResolutionInfrastructure(error)
+        }
+    })
 }
 
 fn source_lock_kind(source: &DependencySource) -> Option<ExactDependencyLockKind> {
@@ -226,6 +322,7 @@ fn source_lock_kind(source: &DependencySource) -> Option<ExactDependencyLockKind
 pub enum PackageStateError<E: Error + Send + Sync + 'static> {
     Acquisition(E),
     Resolution(Box<PackageResolutionError>),
+    ResolutionInfrastructure(Box<dyn Error + Send + Sync>),
     NonRootLockRequired {
         root: PackageIdentity,
         package: PackageIdentity,
@@ -255,6 +352,7 @@ impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
         match self {
             Self::Acquisition(error) => write!(formatter, "package acquisition failed: {error}"),
             Self::Resolution(error) => error.fmt(formatter),
+            Self::ResolutionInfrastructure(error) => error.fmt(formatter),
             Self::NonRootLockRequired {
                 package,
                 package_root,
@@ -298,6 +396,7 @@ impl<E: Error + Send + Sync + 'static> Error for PackageStateError<E> {
         match self {
             Self::Acquisition(error) => Some(error),
             Self::Resolution(error) => Some(error),
+            Self::ResolutionInfrastructure(error) => Some(&**error),
             Self::PackageId(error) => Some(error),
             Self::LockOverlay(error) => Some(error),
             Self::StoreOverlay(error) => Some(error),

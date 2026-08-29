@@ -11,7 +11,10 @@ mod transaction;
 pub use authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
 pub use root_source::RootSourceCommitError;
 pub use staging::PackageStateFilesystemError;
-pub use transaction::{PackageStateError, resolve_package_state};
+pub use transaction::{
+    PackageResolutionAttemptError, PackageResolutionDriver, PackageStateError,
+    resolve_package_state, resolve_package_state_with_driver,
+};
 
 #[cfg(test)]
 mod tests;

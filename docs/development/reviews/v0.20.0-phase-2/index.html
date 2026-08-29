@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.19.0 Phase 2 Collection Ordering Review - Nocter</title>
-    <meta name="description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <title>v0.20.0 Phase 2 Unified Query Entry Review - Nocter</title>
+    <meta name="description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.20.0-phase-2/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta property="og:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
+    <meta property="og:title" content="v0.20.0 Phase 2 Unified Query Entry Review - Nocter">
+    <meta property="og:description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.20.0-phase-2/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-29">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta name="twitter:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <meta name="twitter:title" content="v0.20.0 Phase 2 Unified Query Entry Review - Nocter">
+    <meta name="twitter:description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.19.0 Phase 2 Collection Ordering Review - Nocter","description":"Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de","url":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","dateModified":"2026-08-28","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.19.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.19.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.20.0 Phase 2 Unified Query Entry Review - Nocter","description":"Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an","url":"https://nocter.dev/development/reviews/v0.20.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.20.0-phase-2/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.20.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.20.0-phase-2/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -123,13 +123,13 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.20.0 Phase 2 unified query entry review</a></li>
                 <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
                 <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
                 <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
                 <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
                 <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
                 <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
                 <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
                 <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
@@ -144,31 +144,32 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.19.0-phase-2.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.20.0-phase-2.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-19-0-phase-2-collection-ordering-review">v0.19.0 Phase 2 Collection Ordering Review</h1><p><strong>Result: passed (2026-08-28).</strong> This review covers the public readwrite-slice <code>sort</code> contract, strict-order selection, in-place movement of move-only values, destruction, Vec coercion reuse, complexity and allocation bounds, module responsibility, native behavior, and editor behavior introduced by v0.19.0 Phase 2.</p><h2 id="review-criteria">Review Criteria</h2><p>The review traced:</p><ul><li>every comparison from the generic <code>(&amp;T &lt; &amp;T): bool</code> requirement to the concrete selected
-  operation;</li><li>every owner moved out of and back into a slice slot, including duplicate-key and early-return
-  paths;</li><li>arithmetic used for heap children and element byte offsets;</li><li>the public declaration selected for explicit slice views and coerced Vec receivers;</li><li>all new standard-library source and module dependencies;</li><li>public contract and implementation-source hover, member completion, and navigation;</li><li>duplicate algorithms, Vec forwarding methods, unnecessary private wrappers, allocation,
-  compatibility behavior, new compiler primitives, and editor-only reconstruction.</li></ul><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="stability-would-conflict-with-the-bounded-storage-goal">Stability would conflict with the bounded-storage goal</h3><p>A stable general-purpose sort either needs additional owned storage or a substantially more complex in-place merge algorithm. Neither cost should be hidden behind a first practical ordering API. The accepted contract explicitly permits equivalent elements to move, guarantees constant auxiliary storage and <code>O(n log n)</code> worst-case work, and leaves a future stable operation as a separate contract. The method name remains <code>sort</code>; instability is a documented semantic property, not an implementation accident.</p><h3 id="ordering-initially-entered-the-slice-observation-source">Ordering initially entered the slice observation source</h3><p>The first body was added to <code>slice/views.nct</code>, which would have made borrowed observation and owner-moving mutation share one source responsibility. The completed structure places all heap ordering and raw movement in <code>slice/ordering.nct</code>. <code>slice/views.nct</code> retains only length, pointer, borrowed search, equality, and lexicographic comparison.</p><h3 id="the-first-completed-method-retained-a-redundant-private-forwarding-function">The first completed method retained a redundant private forwarding function</h3><p>An intermediate implementation placed the heap loops in a private free <code>sort</code> function and made the method body forward to it. Since no second consumer existed, that wrapper added another name without defining a boundary. The loops now live directly in the contract-completing method body; only <code>sift_down</code> and <code>swap_elements</code>, which each isolate reused invariants, remain helpers.</p><h3 id="fixed-array-unsizing-is-an-independent-language-capability">Fixed-array unsizing is an independent language capability</h3><p>Nocter currently has no public fixed-array-to-slice conversion. Adding one would affect coercion, provenance, method selection, and the language specification beyond collection ordering. Phase 2 does not add an implicit conversion merely to broaden a test. Direct slice behavior is exercised through an explicit Vec readwrite view, while ordinary Vec method syntax separately proves the existing receiver coercion. Fixed-array unsizing can be designed independently if a practical consumer requires it.</p><h3 id="the-native-fixture-obscured-its-orchestration-function">The native fixture obscured its orchestration function</h3><p>Embedding the complete Nocter acceptance package inside the Rust test function crossed the workspace line-count guard. The source is now an immutable file-scope fixture, while the test function owns only temporary package creation, discovery, compilation, and execution. No lint exception was added.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/21-practical-standard-library.md</code> exclusively owns ascending result, instability,
-  complexity, failure, allocation, and ownership behavior.</li><li><code>std/slice/index.nct</code> owns the sole public declaration. <code>std/slice/ordering.nct</code> owns the sole
-  algorithm and raw movement; <code>std/vec</code> contains no <code>sort</code> declaration or wrapper.</li><li>strict-order selection remains the existing compiler-checked generic operation. The algorithm
-  calls <code>&lt;</code> directly and does not reconstruct dispatch, call equality, or accept a parallel
-  comparator abstraction.</li><li>every comparison runs while the complete slice is initialized. <code>swap_elements</code> performs no user
-  call or fallible operation after opening its first slot and fills both slots before returning.</li><li>valid slice layout makes element offsets representable. The <code>root &lt; end / 2</code> condition makes
-  <code>root * 2 + 1</code> representable and within the active heap.</li><li>the algorithm allocates no storage and introduces no recoverable failure. Two moved locals are
-  its only element-sized auxiliary owners.</li><li>native acceptance proves reverse and mixed integer order, empty and one-element inputs, already
-  ordered input, duplicate keys, String ordering through coercion, move-only values, and exactly
-  one destruction per original owner.</li><li>LSP completion exposes <code>sort</code> on Vec, and definition navigation reaches the slice contract rather
-  than an invented Vec declaration. Contract and body hover use the same checked program as native
-  compilation.</li><li>no compiler source, primitive registry, compatibility path, or reviewed module dependency set
-  changed.</li></ul><p>No unresolved correctness or responsibility-boundary finding remains in Phase 2 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed with <code>/private/tmp/nocter-v019-phase2</code> as the external Cargo target:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
-<span class="token-function">cargo</span> clippy <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml \
-  <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
-<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> -- <span class="token-option">--check</span>
-<span class="token-function">node</span> docs/build-docs.js
-<span class="token-function">git</span> diff <span class="token-option">--check</span>
-</code></pre>
+                <h1 id="v0-20-0-phase-2-unified-query-entry-review">v0.20.0 Phase 2 Unified Query Entry Review</h1><h2 id="result">Result</h2><p>Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime and presentation policy, not source parser, semantic scheduler, recovery traversal, or session transition.</p><h2 id="reviewed-flow">Reviewed Flow</h2><p>The accepted flow is:</p><pre><code class="language-text">command policy ----------------&gt; ephemeral CompilerComputation
+workspace revision policy -----&gt; persistent CompilerComputation
+                                           |
+                     computed source syntax provider
+                                           |
+                         discovery + semantic publication
+                                           |
+                              closed UnitAnalysisProduct
+                                           |
+                         session outcome/target translation
+                                           |
+                              optional native lowering
+</code></pre><p><code>CompilerComputation</code> hides the raw database and exposes source revision publication, one syntax provider, one closed unit-analysis demand, and instrumentation. Neither command nor workspace code can demand a declaration, preparation, body, or finalization query directly. Session cannot invoke those stages; it can only translate the variants already selected by <code>UnitAnalysisProduct</code>.</p><h2 id="findings-closed-during-review">Findings Closed During Review</h2><h3 id="parse-goal-identity-was-lost-at-a-shared-physical-path">Parse-goal identity was lost at a shared physical path</h3><p>Discovery previously reused an existing syntax tree whenever a module root path was already in the package graph. The existing tree represented package-declaration parsing, while semantic body inputs required source-file parsing. A generated-lock package test exposed the mismatch as a missing body input. Discovery now requests <code>ParseGoal::SourceFile</code> for every module source even when the physical source already has another parse product. Path identity no longer substitutes for parse-product identity.</p><h3 id="package-state-returned-a-pre-commit-source-snapshot">Package state returned a pre-commit source snapshot</h3><p>A generated lock was committed after the transaction had selected the graph it returned. The computed provider correctly rejected that graph because its retained root bytes differed from the filesystem bytes after commit. Package-state transactions now revalidate through the injected read-only resolver after committing generated lock source and return only that post-commit graph. Commands inject their ephemeral compiler computation as the resolver, so package parsing and later discovery share one source/query authority.</p><h3 id="native-and-session-layers-could-reopen-semantic-compilation">Native and session layers could reopen semantic compilation</h3><p>Executable, native-image-set, and native-test requests previously carried <code>DiscoveredUnit</code> and called session compilation internally. They now own <code>CompiledTarget</code>. The eager session semantic pipeline and public direct analysis/compilation entries were deleted, including forwarding paths.</p><h3 id="command-target-conversion-could-narrow-a-closed-diagnostic-result">Command target conversion could narrow a closed diagnostic result</h3><p>The first query-backed command adapter converted a failed <code>AnalyzedUnit</code> into only its primary <code>CompileSessionError</code>, then rebuilt a command failure from that error. Recovery diagnostics already selected by the query could therefore be discarded. Target conversion now returns a closed session failure envelope containing the primary error, exact source snapshot, and complete diagnostic set. Command presentation consumes that envelope without reconstructing semantic diagnostics.</p><h2 id="boundary-audit">Boundary Audit</h2><ul><li>There is one source-text/parse query implementation and one raw database owner.</li><li>There is one complete-versus-incomplete unit query and one public session consumer.</li><li>Discovery owns physical topology and exact parse-goal binding; it does not schedule semantics.</li><li>Session owns target/runtime validation and recovery-capability projection; it does not schedule
+  compiler stages.</li><li>Session owns the complete source-and-diagnostic failure envelope; command presentation cannot
+  reduce it to a primary diagnostic and rebuild it.</li><li>Native layers own backend closure and lowering; they cannot observe source discovery.</li><li>Package-state mutation accepts an injected read-only resolver and cannot return a snapshot older
+  than its own commit.</li><li>Command and workspace crates depend on <code>nocter-compiler-computation</code> but not directly on semantic
+  computation or declaration lowering.</li></ul><h2 id="evidence">Evidence</h2><ul><li>One-shot command instrumentation executes source text, parse, declaration surface, module
+  surface, declaration, preparation, body-name, typed-body, finalization, complete-analysis, and
+  unit-analysis query families through the shared owner.</li><li>Existing workspace instrumentation continues to prove parsing and semantic reuse across accepted
+  revisions and equality between warmed and fresh analysis results.</li><li>Command acquisition tests cover post-lock source authority, command tests cover diagnostics and
+  native output, and native-session tests cover complete and incomplete semantic outcomes through
+  the query entry.</li><li>Architecture tests freeze the shared dependency entry and scan session source for forbidden
+  semantic-stage calls.</li></ul><p>The complete workspace test suite, warnings-denied all-target Clippy, formatting, documentation generation, and repository integrity gates passed on 2026-08-30.</p>
             </div>
         </main>
     </div>

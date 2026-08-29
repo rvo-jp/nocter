@@ -5,8 +5,11 @@ use nocter_package::{
     PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
     ResolvedPackageSelection,
 };
-use nocter_package_state::{PackageAcquisitionAuthority, PackageStateError, resolve_package_state};
+use nocter_package_state::{
+    PackageAcquisitionAuthority, PackageStateError, resolve_package_state_with_driver,
+};
 
+use crate::compiler::CommandCompiler;
 use crate::{PackageCommandInput, ResolutionOptions};
 
 /// Installation-owned package facts shared by every public package command.
@@ -42,8 +45,9 @@ pub(crate) fn resolve_command_package_state<A: PackageAcquisitionAuthority>(
     resolution: ResolutionOptions,
     context: &CommandPackageContext,
     authority: &mut A,
+    compiler: &mut CommandCompiler,
 ) -> Result<ResolvedPackageSelection, CommandPackageStateError> {
-    resolve_package_state(
+    resolve_package_state_with_driver(
         PackageResolutionRequest::new(
             input.root(),
             context.nocter_home(),
@@ -51,6 +55,7 @@ pub(crate) fn resolve_command_package_state<A: PackageAcquisitionAuthority>(
             PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
         ),
         authority,
+        compiler,
     )
     .map_err(command_package_state_error)
 }
@@ -61,6 +66,9 @@ where
 {
     match error {
         PackageStateError::Resolution(error) => CommandPackageStateError::Resolution(*error),
+        PackageStateError::ResolutionInfrastructure(error) => {
+            CommandPackageStateError::Transaction(error)
+        }
         error => CommandPackageStateError::Transaction(Box::new(error)),
     }
 }

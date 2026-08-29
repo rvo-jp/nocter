@@ -2,14 +2,13 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::{Arm64LoweringError, Arm64Program};
-use nocter_diagnostics::SourceDiagnostic;
 use nocter_machine::{MachineProgram, MachineProgramError};
 use nocter_macho::{MachOError, MachOImage};
 use nocter_mir::{MirLoweringError, lower_executable};
 
 use nocter_session::{
-    CompileSessionError, ExecutableCompileRequest, ExecutableIdentity, ExecutableSessionError,
-    compile_executable, compile_target,
+    CompiledTarget, ExecutableCompileRequest, ExecutableIdentity, ExecutableSessionError,
+    compile_executable,
 };
 
 use crate::output::{CompiledNativeImage, CompiledNativeImageSet, NativeImage, NativeImageEntry};
@@ -21,7 +20,7 @@ use crate::{close_executable, root_executables};
 ///
 /// Returns the exact semantic, MIR, machine, target, or writer boundary that rejected the program.
 pub fn compile_native_image(
-    request: ExecutableCompileRequest<'_>,
+    request: ExecutableCompileRequest,
 ) -> Result<CompiledNativeImage, NativeSessionError> {
     let executable = compile_executable(request)?;
     let identity = executable.identity().clone();
@@ -31,15 +30,15 @@ pub fn compile_native_image(
 }
 
 /// Closed request to compile every executable owned by the command-root packages.
-#[derive(Clone, Copy, Debug)]
-pub struct NativeImageSetCompileRequest<'unit> {
-    unit: &'unit nocter_discovery::DiscoveredUnit,
+#[derive(Debug)]
+pub struct NativeImageSetCompileRequest {
+    target: CompiledTarget,
 }
 
-impl<'unit> NativeImageSetCompileRequest<'unit> {
+impl NativeImageSetCompileRequest {
     #[must_use]
-    pub const fn all(unit: &'unit nocter_discovery::DiscoveredUnit) -> Self {
-        Self { unit }
+    pub const fn all(target: CompiledTarget) -> Self {
+        Self { target }
     }
 }
 
@@ -50,14 +49,13 @@ impl<'unit> NativeImageSetCompileRequest<'unit> {
 ///
 /// # Errors
 ///
-/// Returns the exact compile boundary, rejects a root set with no executable, or identifies the
-/// exact executable whose closure or native lowering failed.
+/// Rejects a root set with no executable or identifies the exact executable whose closure or
+/// native lowering failed.
 pub fn compile_native_images(
-    request: NativeImageSetCompileRequest<'_>,
+    request: NativeImageSetCompileRequest,
 ) -> Result<CompiledNativeImageSet, NativeImageSetError> {
-    let NativeImageSetCompileRequest { unit } = request;
-    let compiled = compile_target(unit)?;
-    let (target, source_index) = compiled.into_parts();
+    let NativeImageSetCompileRequest { target } = request;
+    let (target, source_index) = target.into_parts();
     let identities = root_executables(&target);
     if identities.is_empty() {
         return Err(NativeImageSetError::NoExecutable);
@@ -129,7 +127,6 @@ impl std::error::Error for NativeImageError {
 
 #[derive(Debug)]
 pub enum NativeImageSetError {
-    Compile(CompileSessionError),
     NoExecutable,
     Image {
         executable: ExecutableIdentity,
@@ -139,17 +136,8 @@ pub enum NativeImageSetError {
 
 impl NativeImageSetError {
     #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Compile(error) => error.source_diagnostics(),
-            Self::NoExecutable | Self::Image { .. } => &[],
-        }
-    }
-
-    #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {
-            Self::Compile(error) => error.diagnostic_code(),
             Self::NoExecutable => Some("E0800"),
             Self::Image { .. } => None,
         }
@@ -159,7 +147,6 @@ impl NativeImageSetError {
 impl fmt::Display for NativeImageSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Compile(error) => write!(formatter, "target compilation failed: {error}"),
             Self::NoExecutable => formatter.write_str("compile roots declare no executable"),
             Self::Image { executable, error } => write!(
                 formatter,
@@ -174,16 +161,9 @@ impl fmt::Display for NativeImageSetError {
 impl std::error::Error for NativeImageSetError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Compile(error) => Some(error),
             Self::NoExecutable => None,
             Self::Image { error, .. } => Some(error),
         }
-    }
-}
-
-impl From<CompileSessionError> for NativeImageSetError {
-    fn from(error: CompileSessionError) -> Self {
-        Self::Compile(error)
     }
 }
 
@@ -194,14 +174,6 @@ pub enum NativeSessionError {
 }
 
 impl NativeSessionError {
-    #[must_use]
-    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        match self {
-            Self::Executable(error) => error.source_diagnostics(),
-            Self::Image(_) => &[],
-        }
-    }
-
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<&'static str> {
         match self {

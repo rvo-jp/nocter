@@ -34,6 +34,9 @@ does not lower declarations or interpret body semantics.
   the same directory through a second source authority.
 - Later stages receive the closed graph and cannot rediscover files.
 - A syntax provider cannot change discovery topology or attach a tree from another source identity.
+- A module source always requests the source-file parse goal even when the same physical file was
+  already parsed as a package declaration; path and source identity never erase parse-goal
+  identity.
 - The semantic topology surface contains no `SourceId`, `NodeId`, syntax coordinates, body-local
   import, or source contents. Its ordering and vocabulary come from owning contracts rather than
   Rust enum discriminants or discovery traversal order.

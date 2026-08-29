@@ -14,7 +14,6 @@ nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-discovery = { path = "../nocter-discovery" }
-nocter-frontend-bindings = { path = "../nocter-frontend-bindings" }
 nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-program = { path = "../nocter-target-program" }

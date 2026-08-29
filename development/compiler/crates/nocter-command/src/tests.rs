@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
@@ -272,15 +273,78 @@ fn build_and_run_plans_close_package_and_file_selection_rules() {
 
 #[test]
 fn build_commits_one_complete_session_image_at_the_requested_path() {
-    let unit = discover_hello();
+    let unit = Arc::new(discover_hello());
     let directory = unique_test_directory("build");
     let output = directory.join("hello");
 
-    let built = super::build_executable(ExecutableCompileRequest::only(&unit), &output).unwrap();
+    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let built = super::build_executable(ExecutableCompileRequest::only(compiled), &output).unwrap();
 
     assert_eq!(built.artifact().path(), output);
     assert_eq!(&fs::read(&output).unwrap()[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
     assert_eq!(temporary_entries(&directory), Vec::<String>::new());
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn one_shot_command_demands_the_closed_semantic_query_graph() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler_root.join("../../examples/hello.nct");
+    let standard_root = compiler_root.join("../std");
+    let standard = PackageIdentity::new("toolchain:std");
+    let mut compiler = super::compiler::CommandCompiler::default();
+    let unit = compiler
+        .discover(DiscoveryRequest::single_file(
+            CompilationTarget::Arm64Darwin,
+            source,
+            package_graph(vec![resolved_standard(&standard_root, &standard)]),
+            bundled_standard_toolchain(&standard),
+        ))
+        .unwrap();
+
+    let unit = Arc::new(unit);
+    compiler.compile(&unit).unwrap();
+
+    let statistics = compiler.statistics();
+    assert!(statistics.source_text_executions > 0);
+    assert!(statistics.parse_executions > 0);
+    assert!(statistics.declaration_surface_executions > 0);
+    assert!(statistics.module_surface_executions > 0);
+    assert_eq!(statistics.declaration_executions, 1);
+    assert_eq!(statistics.preparation_executions, 1);
+    assert!(statistics.body_name_executions > 0);
+    assert!(statistics.typed_body_executions > 0);
+    assert_eq!(statistics.finalization_executions, 1);
+    assert_eq!(statistics.complete_analysis_executions, 1);
+    assert_eq!(statistics.incomplete_analysis_executions, 0);
+    assert_eq!(statistics.unit_analysis_executions, 1);
+}
+
+#[test]
+fn command_failure_retains_diagnostics_selected_beneath_incomplete_syntax() {
+    let directory = unique_test_directory("closed-diagnostic-envelope");
+    let source = directory.join("broken.nct");
+    write_source(
+        &directory,
+        "broken.nct",
+        concat!(
+            "func inspect(value: &str): void {\n",
+            "    absent()\n",
+            "    value.\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+    let unit = Arc::new(discover_single_file(&source));
+    let syntax_diagnostic_count = unit.syntax_diagnostics().len();
+
+    let failure = super::compiler::compile_discovered_unit(&unit).unwrap_err();
+
+    assert!(syntax_diagnostic_count > 0);
+    assert!(
+        failure.diagnostics().len() > syntax_diagnostic_count,
+        "the closed session failure must retain semantic recovery diagnostics"
+    );
     fs::remove_dir_all(directory).unwrap();
 }
 
@@ -304,17 +368,19 @@ fn package_build_publishes_all_executables_in_declaration_order() {
         "src/second/index.nct",
         "func main(): void { return }\n",
     );
-    let unit = discover_package(
+    let unit = Arc::new(discover_package(
         vec![package("workspace:tools", "tools", &package_root)],
         vec![
             module("workspace:tools", &[]),
             module("workspace:tools", &["src", "first"]),
             module("workspace:tools", &["src", "second"]),
         ],
-    );
+    ));
 
+    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
     let built =
-        super::build_executables(NativeImageSetCompileRequest::all(&unit), &package_root).unwrap();
+        super::build_executables(NativeImageSetCompileRequest::all(compiled), &package_root)
+            .unwrap();
 
     assert_eq!(
         built
@@ -349,7 +415,7 @@ fn package_build_rejects_cross_root_output_collisions_before_writing() {
         );
         write_source(root, "index.nct", "func main(): void { return }\n");
     }
-    let unit = discover_package(
+    let unit = Arc::new(discover_package(
         vec![
             package("workspace:first", "first", &first_root),
             package("workspace:second", "second", &second_root),
@@ -358,10 +424,11 @@ fn package_build_rejects_cross_root_output_collisions_before_writing() {
             module("workspace:first", &[]),
             module("workspace:second", &[]),
         ],
-    );
+    ));
 
-    let error =
-        super::build_executables(NativeImageSetCompileRequest::all(&unit), &directory).unwrap_err();
+    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let error = super::build_executables(NativeImageSetCompileRequest::all(compiled), &directory)
+        .unwrap_err();
 
     assert!(matches!(error, super::BuildSetCommandError::Plan(_)));
     assert!(!directory.join("tool").exists());
@@ -375,10 +442,11 @@ fn run_returns_a_nonzero_program_status_without_classifying_it_as_orchestration_
     let directory = unique_test_directory("run-status");
     let source = directory.join("status.nct");
     fs::write(&source, "func main(): i32 { 7 }\n").unwrap();
-    let unit = discover_single_file(&source);
+    let unit = Arc::new(discover_single_file(&source));
 
+    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
     let executed =
-        super::run_executable(ExecutableCompileRequest::only(&unit), &directory).unwrap();
+        super::run_executable(ExecutableCompileRequest::only(compiled), &directory).unwrap();
 
     assert_eq!(executed.status().code(), Some(7));
     fs::remove_dir_all(directory).unwrap();
@@ -725,8 +793,8 @@ fn parsed_single_file_run_crosses_the_common_command_adapter() {
 
 #[test]
 fn every_public_single_file_example_runs_to_success() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let examples = compiler.join("../../examples");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let examples = compiler_root.join("../../examples");
     let mut sources = fs::read_dir(&examples)
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -736,10 +804,12 @@ fn every_public_single_file_example_runs_to_success() {
     assert!(!sources.is_empty());
 
     for source in sources {
-        let unit = discover_single_file(&source);
+        let unit = Arc::new(discover_single_file(&source));
         let output_directory = unique_test_directory("public-example");
         let executable = output_directory.join("program");
-        super::build_executable(ExecutableCompileRequest::only(&unit), &executable)
+        let target_program = super::compiler::compile_discovered_unit(&unit)
+            .unwrap_or_else(|error| panic!("{} failed to analyze: {error:?}", source.display()));
+        super::build_executable(ExecutableCompileRequest::only(target_program), &executable)
             .unwrap_or_else(|error| panic!("{} failed to build: {error:?}", source.display()));
         let executed = Command::new(&executable)
             .current_dir(&examples)
@@ -769,12 +839,13 @@ fn every_public_single_file_example_runs_to_success() {
 
 #[test]
 fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let source = compiler.join("tests/fixtures/standard/error-runtime.nct");
-    let unit = discover_single_file(&source);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler_root.join("tests/fixtures/standard/error-runtime.nct");
+    let unit = Arc::new(discover_single_file(&source));
     let output_directory = unique_test_directory("standard-error-runtime");
     let executable = output_directory.join("program");
-    super::build_executable(ExecutableCompileRequest::only(&unit), &executable).unwrap();
+    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap();
+    super::build_executable(ExecutableCompileRequest::only(target_program), &executable).unwrap();
 
     let verified = Command::new(&executable).output().unwrap();
     assert_eq!(verified.status.code(), Some(0));
@@ -791,21 +862,28 @@ fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
 
 #[test]
 fn bundled_standard_filesystem_runtime_crosses_public_stream_and_os_contracts() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let source = compiler.join("tests/fixtures/standard/filesystem-runtime.nct");
-    let unit = discover_single_file(&source);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler_root.join("tests/fixtures/standard/filesystem-runtime.nct");
+    let unit = Arc::new(discover_single_file(&source));
     let output_directory = unique_test_directory("standard-filesystem-runtime");
     let executable = output_directory.join("program");
-    super::build_executable(ExecutableCompileRequest::only(&unit), &executable).unwrap_or_else(
-        |error| {
+    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap_or_else(|error| {
+        let sources = unit
+            .sources()
+            .iter()
+            .map(|source| (source.id(), source.name().as_str()))
+            .collect::<Vec<_>>();
+        panic!("filesystem runtime failed to analyze: {error:?}\nsources: {sources:#?}")
+    });
+    super::build_executable(ExecutableCompileRequest::only(target_program), &executable)
+        .unwrap_or_else(|error| {
             let sources = unit
                 .sources()
                 .iter()
                 .map(|source| (source.id(), source.name().as_str()))
                 .collect::<Vec<_>>();
             panic!("filesystem runtime failed to compile: {error:?}\nsources: {sources:#?}")
-        },
-    );
+        });
 
     let link_target = output_directory.join("link-target.txt");
     let link = output_directory.join("link.txt");
@@ -842,28 +920,31 @@ fn expected_example_output(name: &str) -> &'static [u8] {
 
 #[test]
 fn every_public_package_example_runs_with_its_process_contract() {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
 
     for contract in PUBLIC_PACKAGE_EXAMPLES {
-        run_public_package_example(&compiler, *contract);
+        run_public_package_example(&compiler_root, *contract);
     }
 }
 
-fn run_public_package_example(compiler: &Path, contract: PublicPackageExample) {
-    let package_root = compiler.join("../../examples").join(contract.directory());
-    let unit = discover_package(
+fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExample) {
+    let package_root = compiler_root
+        .join("../../examples")
+        .join(contract.directory());
+    let unit = Arc::new(discover_package(
         vec![package(
             contract.package_identity(),
             contract.executable(),
             &package_root,
         )],
         vec![module(contract.package_identity(), &[])],
-    );
+    ));
     let output_directory = unique_test_directory("public-package-example");
     materialize_public_example_fixtures(&output_directory, contract.fixtures());
     let executable = output_directory.join(contract.executable());
+    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap();
     super::build_executable(
-        ExecutableCompileRequest::named(&unit, contract.executable()),
+        ExecutableCompileRequest::named(target_program, contract.executable()),
         &executable,
     )
     .unwrap_or_else(|error| panic!("{} failed to build: {error:?}", contract.directory()));
@@ -1096,26 +1177,26 @@ fn one_invalid_test_target_does_not_suppress_later_target_sessions() {
 }
 
 fn command_toolchain() -> super::CommandToolchain {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     super::CommandToolchain::new(
         CompilationTarget::Arm64Darwin,
-        compiler.join("../packaging"),
+        compiler_root.join("../packaging"),
         StandardPackage::new(
             PackageIdentity::new("toolchain:std"),
-            compiler.join("../std"),
+            compiler_root.join("../std"),
         ),
     )
 }
 
 fn discover_hello() -> nocter_discovery::DiscoveredUnit {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let source = compiler.join("../../examples/hello.nct");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler_root.join("../../examples/hello.nct");
     discover_single_file(&source)
 }
 
 fn discover_single_file(source: &Path) -> nocter_discovery::DiscoveredUnit {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler.join("../std");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
     let package = PackageIdentity::new("toolchain:std");
     discover(DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
@@ -1143,8 +1224,8 @@ fn discover_package(
     mut packages: Vec<ResolvedPackageSpec>,
     roots: Vec<ModuleIdentity>,
 ) -> nocter_discovery::DiscoveredUnit {
-    let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler.join("../std");
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
     let standard = PackageIdentity::new("toolchain:std");
     packages.push(resolved_standard(&standard_root, &standard));
     discover(DiscoveryRequest::declared(

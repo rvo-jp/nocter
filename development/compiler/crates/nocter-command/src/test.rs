@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveryFailure;
@@ -12,6 +13,7 @@ use nocter_native_session::{
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_source::SourceMap;
 
+use crate::compiler::CommandCompiler;
 use crate::failure::command_compilation_failure;
 use crate::source::discover_command_tests;
 use crate::{
@@ -265,11 +267,19 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
     let (input, selector, case, working_directory) = plan.into_parts();
     let presentation =
         TestCommandPresentation::new(format, toolchain.target(), input.declaration().into());
-    let sources = discover_command_tests(&input, resolution, &toolchain, &selector, authority)
-        .map_err(|error| TestCommandExecutionError::Source {
-            presentation: presentation.clone(),
-            error: Box::new(error),
-        })?;
+    let mut compiler = CommandCompiler::default();
+    let sources = discover_command_tests(
+        &input,
+        resolution,
+        &toolchain,
+        &selector,
+        authority,
+        &mut compiler,
+    )
+    .map_err(|error| TestCommandExecutionError::Source {
+        presentation: presentation.clone(),
+        error: Box::new(error),
+    })?;
     let mut package = None;
     let mut runs = Vec::new();
     for source in sources {
@@ -296,27 +306,38 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
                 continue;
             }
         };
+        let unit = Arc::new(unit);
+        let target_program = match compiler.compile(&unit) {
+            Ok(target_program) => target_program,
+            Err(failure) => {
+                let code = failure.error().diagnostic_code().unwrap_or("E0900");
+                let message = failure.to_string();
+                let (_, sources, diagnostics) = failure.into_parts();
+                runs.push(compile_failure(target, code, message, diagnostics, sources));
+                continue;
+            }
+        };
         let request = NativeTestCompileRequest::new(
-            &unit,
+            target_program,
             nocter_session::TestTargetSelector::Named(target.name().into()),
             case.clone(),
         );
         match compile_native_tests(request) {
-            Ok(compiled) => runs.extend(
-                run_compiled_target(compiled, &target, &working_directory)
+            Ok(test_program) => runs.extend(
+                run_compiled_target(test_program, &target, &working_directory)
                     .map_err(TestCommandExecutionError::Integrity)?,
             ),
             Err(error @ NativeTestSessionError::Selection(_)) => {
                 return Err(TestCommandExecutionError::Compile {
                     presentation: presentation.clone(),
-                    failure: Box::new(command_compilation_failure(error, unit)),
+                    failure: Box::new(command_compilation_failure(error, &unit)),
                 });
             }
             Err(error) => {
                 let code = error.diagnostic_code().unwrap_or("E0900");
                 let message = error.to_string();
                 let (_, sources, diagnostics) =
-                    command_compilation_failure(error, unit).into_parts();
+                    command_compilation_failure(error, &unit).into_parts();
                 runs.push(compile_failure(target, code, message, diagnostics, sources));
             }
         }
