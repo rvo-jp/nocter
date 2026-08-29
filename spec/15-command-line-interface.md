@@ -313,6 +313,11 @@ the same missing lock generation and fetch before analysis.
 The complete dependency graph is validated before generated lock data is committed. A failed graph
 does not partially rewrite `index.nct`.
 
+Each validated exact package is an immutable cache entry and may remain available if a later
+compare-before-write of the generated root `#lock` is rejected, for example after a concurrent edit.
+Such an entry does not select or authorize a dependency: only the root package's authored `#lock`
+does. A later command may reuse the complete cached identity.
+
 - `--locked` rejects any operation that would create or change lock selection.
 - `--offline` prohibits source resolution and downloads; every exact package must already exist in
   the package-local or Nocter-home store.

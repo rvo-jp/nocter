@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_package::PackageLockSourceUpdate;
 
-use crate::staging::PackageStateFilesystemError;
+use crate::filesystem::PackageStateFilesystemError;
 
 static NEXT_SOURCE: AtomicU64 = AtomicU64::new(0);
 

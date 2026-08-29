@@ -166,6 +166,34 @@ impl PackageResolutionDriver for RecordingResolver {
     }
 }
 
+struct ConcurrentEditResolver {
+    source: PathBuf,
+    replacement: Box<[u8]>,
+    edited: bool,
+}
+
+impl PackageResolutionDriver for ConcurrentEditResolver {
+    fn resolve(
+        &mut self,
+        request: PackageResolutionRequest,
+        filesystem_revision: PackageFilesystemRevision,
+    ) -> Result<nocter_package::ResolvedPackageSelection, PackageResolutionAttemptError> {
+        let selected = nocter_package::resolve_package_selection_with_root_catalog(
+            request,
+            nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            &mut nocter_syntax::DirectSourceSyntax,
+        )
+        .map_err(nocter_package::PackageResolutionFailure::into_error)
+        .map_err(PackageResolutionAttemptError::Domain)?;
+        if filesystem_revision.get() == 1 && !self.edited {
+            fs::write(&self.source, &self.replacement)
+                .map_err(|error| PackageResolutionAttemptError::Infrastructure(Box::new(error)))?;
+            self.edited = true;
+        }
+        Ok(selected)
+    }
+}
+
 fn resolve_package_state<A: PackageAcquisitionAuthority>(
     request: PackageResolutionRequest,
     authority: &mut A,
@@ -195,6 +223,41 @@ fn resolver_revision_advances_only_after_committed_filesystem_changes() {
     .unwrap();
 
     assert_eq!(resolver.revisions, [0, 0, 0, 1, 2]);
+}
+
+#[test]
+fn exact_cache_can_warm_without_publishing_a_rejected_root_transition() {
+    let tree = base_tree();
+    let source = tree.0.join("app/index.nct");
+    let replacement = b"//! Concurrent edit.\n#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/remote.git\", revision: \"main\", }, }\n";
+    let mut authority = FakeAuthority::new("#package: { name: \"remote\", version: \"0.0.0\", }\n");
+    let mut resolver = ConcurrentEditResolver {
+        source: source.clone(),
+        replacement: replacement.as_slice().into(),
+        edited: false,
+    };
+
+    let error = resolve_package_state_with_driver(
+        tree.request(PackageResolutionPolicy::default()),
+        &mut authority,
+        &mut resolver,
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        PackageStateError::RootSourceCommit(RootSourceCommitError::SourceChanged(_))
+    ));
+    assert_eq!(fs::read(source).unwrap(), replacement);
+    let package = PackageId::from_git_commit(COMMIT).unwrap();
+    assert!(
+        tree.0
+            .join("app/.nocter/packages")
+            .join(package.as_str())
+            .join("index.nct")
+            .is_file()
+    );
+    assert!(!tree.0.join("app/.nocter/transactions").exists());
 }
 
 #[test]

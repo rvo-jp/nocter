@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
-use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_package::PackageId;
+
+use crate::filesystem::{
+    PackageStateFilesystemError, create_directory, ensure_contained, ensure_directory, invalid,
+    validate_physical_package_root,
+};
 
 static NEXT_TRANSACTION: AtomicU64 = AtomicU64::new(0);
 
@@ -15,6 +19,14 @@ pub(crate) struct StagingArea {
     state: PathBuf,
     packages: BTreeMap<PackageId, PathBuf>,
     next_workspace: u64,
+}
+
+pub(crate) struct StagedPackages(BTreeMap<PackageId, PathBuf>);
+
+impl StagedPackages {
+    pub(crate) fn into_entries(self) -> impl Iterator<Item = (PackageId, PathBuf)> {
+        self.0.into_iter()
+    }
 }
 
 impl StagingArea {
@@ -61,36 +73,11 @@ impl StagingArea {
             .packages
             .get(package)
             .ok_or_else(|| invalid("validate unknown staged package", &self.root))?;
-        require_physical_directory(root)?;
-        require_physical_file(&root.join("index.nct"))
+        validate_physical_package_root(root)
     }
 
-    pub(crate) fn publish(
-        &mut self,
-        package_root: &Path,
-    ) -> Result<(), PackageStateFilesystemError> {
-        let state = ensure_directory(&package_root.join(".nocter"))?;
-        ensure_contained(package_root, &state)?;
-        let store = ensure_directory(&state.join("packages"))?;
-        for (package, staged) in std::mem::take(&mut self.packages) {
-            let destination = store.join(package.as_str());
-            match fs::symlink_metadata(&destination) {
-                Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => continue,
-                Ok(_) => return Err(invalid("publish exact package", &destination)),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(PackageStateFilesystemError::new(
-                        "inspect exact package",
-                        destination,
-                        error,
-                    ));
-                }
-            }
-            fs::rename(&staged, &destination).map_err(|error| {
-                PackageStateFilesystemError::new("publish exact package", &destination, error)
-            })?;
-        }
-        Ok(())
+    pub(crate) fn take_packages(&mut self) -> Option<StagedPackages> {
+        (!self.packages.is_empty()).then(|| StagedPackages(std::mem::take(&mut self.packages)))
     }
 }
 
@@ -99,32 +86,6 @@ impl Drop for StagingArea {
         let _ = fs::remove_dir_all(&self.root);
         let _ = fs::remove_dir(&self.transactions);
         let _ = fs::remove_dir(&self.state);
-    }
-}
-
-fn ensure_directory(path: &Path) -> Result<PathBuf, PackageStateFilesystemError> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
-        Ok(_) => return Err(invalid("select package-state directory", path)),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => create_directory(path)?,
-        Err(error) => {
-            return Err(PackageStateFilesystemError::new(
-                "inspect package-state directory",
-                path,
-                error,
-            ));
-        }
-    }
-    fs::canonicalize(path).map_err(|error| {
-        PackageStateFilesystemError::new("canonicalize package-state directory", path, error)
-    })
-}
-
-fn ensure_contained(root: &Path, path: &Path) -> Result<(), PackageStateFilesystemError> {
-    if path.starts_with(root) {
-        Ok(())
-    } else {
-        Err(invalid("contain package-state directory", path))
     }
 }
 
@@ -147,12 +108,6 @@ fn create_unique_directory(parent: &Path) -> Result<PathBuf, PackageStateFilesys
     Err(invalid("create unique package transaction", parent))
 }
 
-fn create_directory(path: &Path) -> Result<(), PackageStateFilesystemError> {
-    fs::create_dir(path).map_err(|error| {
-        PackageStateFilesystemError::new("create package-state directory", path, error)
-    })
-}
-
 #[cfg(unix)]
 fn create_private_directory(path: &Path) -> io::Result<()> {
     use std::os::unix::fs::DirBuilderExt;
@@ -164,68 +119,4 @@ fn create_private_directory(path: &Path) -> io::Result<()> {
 #[cfg(not(unix))]
 fn create_private_directory(path: &Path) -> io::Result<()> {
     fs::create_dir(path)
-}
-
-fn require_physical_directory(path: &Path) -> Result<(), PackageStateFilesystemError> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| PackageStateFilesystemError::new("inspect staged package", path, error))?;
-    if metadata.is_dir() && !metadata.file_type().is_symlink() {
-        Ok(())
-    } else {
-        Err(invalid("validate staged package directory", path))
-    }
-}
-
-fn require_physical_file(path: &Path) -> Result<(), PackageStateFilesystemError> {
-    let metadata = fs::symlink_metadata(path).map_err(|error| {
-        PackageStateFilesystemError::new("inspect staged package file", path, error)
-    })?;
-    if metadata.is_file() && !metadata.file_type().is_symlink() {
-        Ok(())
-    } else {
-        Err(invalid("validate staged package file", path))
-    }
-}
-
-fn invalid(operation: &'static str, path: &Path) -> PackageStateFilesystemError {
-    PackageStateFilesystemError::new(
-        operation,
-        path,
-        io::Error::new(io::ErrorKind::InvalidData, "invalid package-state object"),
-    )
-}
-
-#[derive(Debug)]
-pub struct PackageStateFilesystemError {
-    operation: &'static str,
-    path: PathBuf,
-    error: io::Error,
-}
-
-impl PackageStateFilesystemError {
-    pub(crate) fn new(operation: &'static str, path: impl Into<PathBuf>, error: io::Error) -> Self {
-        Self {
-            operation,
-            path: path.into(),
-            error,
-        }
-    }
-}
-
-impl fmt::Display for PackageStateFilesystemError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "cannot {} {}: {}",
-            self.operation,
-            self.path.display(),
-            self.error
-        )
-    }
-}
-
-impl std::error::Error for PackageStateFilesystemError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
-    }
 }

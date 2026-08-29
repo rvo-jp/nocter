@@ -11,10 +11,12 @@ use nocter_package::{
 };
 
 use crate::authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
+use crate::filesystem::PackageStateFilesystemError;
+use crate::package_cache::{PackageCachePublication, publish_exact_packages};
 use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
-use crate::staging::{PackageStateFilesystemError, StagingArea};
+use crate::staging::StagingArea;
 
-/// Read-only package-graph authority used by one mutable package-state transaction.
+/// Read-only package-graph authority used by one mutable package-state operation.
 pub trait PackageResolutionDriver {
     /// Resolves one immutable package graph attempt through the driver's source authority.
     ///
@@ -29,7 +31,7 @@ pub trait PackageResolutionDriver {
     ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError>;
 }
 
-/// Monotonic identity of filesystem mutations committed by one package-state transaction.
+/// Monotonic identity of filesystem mutations published by one package-state operation.
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct PackageFilesystemRevision(u64);
 
@@ -63,7 +65,7 @@ impl Error for PackageFilesystemRevisionError {}
 ///
 /// # Errors
 ///
-/// Returns atomic transaction failures plus an infrastructure failure selected by `resolver`.
+/// Returns package-state failures plus an infrastructure failure selected by `resolver`.
 pub fn resolve_package_state_with_driver<
     A: PackageAcquisitionAuthority,
     R: PackageResolutionDriver,
@@ -72,7 +74,7 @@ pub fn resolve_package_state_with_driver<
     authority: &mut A,
     resolver: &mut R,
 ) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
-    PackageStateTransaction::new(request)?.run(authority, resolver)
+    PackageStateOperation::new(request)?.run(authority, resolver)
 }
 
 #[derive(Debug)]
@@ -99,7 +101,7 @@ impl Error for PackageResolutionAttemptError {
     }
 }
 
-struct PackageStateTransaction {
+struct PackageStateOperation {
     request: PackageResolutionRequest,
     canonical_root: PathBuf,
     root: PackageIdentity,
@@ -107,11 +109,10 @@ struct PackageStateTransaction {
     store: PackageStoreOverlay,
     staging: Option<StagingArea>,
     generated_locks: bool,
-    acquired_packages: bool,
     filesystem_revision: PackageFilesystemRevision,
 }
 
-impl PackageStateTransaction {
+impl PackageStateOperation {
     fn new<E: Error + Send + Sync + 'static>(
         request: PackageResolutionRequest,
     ) -> Result<Self, PackageStateError<E>> {
@@ -133,7 +134,6 @@ impl PackageStateTransaction {
             store: PackageStoreOverlay::new(),
             staging: None,
             generated_locks: false,
-            acquired_packages: false,
             filesystem_revision: PackageFilesystemRevision::default(),
         })
     }
@@ -255,7 +255,6 @@ impl PackageStateTransaction {
         self.store
             .insert(package_id, destination)
             .map_err(PackageStateError::StoreOverlay)?;
-        self.acquired_packages = true;
         Ok(())
     }
 
@@ -275,14 +274,16 @@ impl PackageStateTransaction {
         selection: ResolvedPackageSelection,
         resolver: &mut R,
     ) -> Result<ResolvedPackageSelection, PackageStateError<E>> {
-        if !self.generated_locks && !self.acquired_packages {
+        let staged_packages = self.staging.as_mut().and_then(StagingArea::take_packages);
+        if !self.generated_locks && staged_packages.is_none() {
             return Ok(selection);
         }
-        if let Some(area) = &mut self.staging {
-            area.publish(&self.canonical_root)
-                .map_err(PackageStateError::Filesystem)?;
-        }
-        if self.acquired_packages {
+        let requires_filesystem_refresh = staged_packages
+            .map(|packages| publish_exact_packages(&self.canonical_root, packages))
+            .transpose()
+            .map_err(PackageStateError::Filesystem)?
+            .is_some_and(PackageCachePublication::requires_filesystem_refresh);
+        if requires_filesystem_refresh {
             self.filesystem_revision
                 .advance()
                 .map_err(PackageStateError::FilesystemRevision)?;
