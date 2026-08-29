@@ -1,8 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedInstruction,
-    Arm64SelectedRegister,
+    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedRegister,
 };
 
 const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
@@ -12,41 +11,20 @@ const DARWIN_MMAP: u64 = 0x0200_00c5;
 const STDERR: u64 = 2;
 const SEPARATOR_AND_NEWLINE: u64 = u64::from_le_bytes([b':', b' ', b'\n', 0, 0, 0, 0, 0]);
 
-pub(crate) fn emit_selected(
+pub(crate) fn emit_allocation_failure(
     function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
     allocation_failure_error: crate::Arm64DataId,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    match *instruction {
-        Arm64SelectedInstruction::ReportError { place, buffer } => {
-            emit_report(function, place, buffer, code)
-        }
-        Arm64SelectedInstruction::ReleaseError { place } => emit_release(function, place, code),
-        Arm64SelectedInstruction::ConstructErrorLeaf { buffer } => {
-            emit_construct_leaf(function, buffer, code)
-        }
-        Arm64SelectedInstruction::ConstructErrorContext { buffer } => {
-            emit_construct_context(function, buffer, code)
-        }
-        Arm64SelectedInstruction::ReadErrorCode => emit_read_code(code),
-        Arm64SelectedInstruction::ReadErrorMessage => {
-            emit_read_message(code);
-            Ok(())
-        }
-        Arm64SelectedInstruction::LoadAllocationFailureError => {
-            crate::memory_code::emit_data_address(
-                function,
-                Arm64SelectedRegister::Fixed(argument(0)),
-                allocation_failure_error,
-                code,
-            )
-        }
-        _ => unreachable!("error materialization accepts only error lifetime instructions"),
-    }
+    crate::memory_code::emit_data_address(
+        function,
+        Arm64SelectedRegister::Fixed(argument(0)),
+        allocation_failure_error,
+        code,
+    )
 }
 
-fn emit_construct_leaf(
+pub(crate) fn emit_construct_leaf(
     function: &Arm64SelectedFunction,
     buffer: crate::Arm64FrameObjectId,
     code: &mut Arm64CodeBuilder,
@@ -107,7 +85,7 @@ fn emit_construct_leaf(
     Ok(())
 }
 
-fn emit_construct_context(
+pub(crate) fn emit_construct_context(
     function: &Arm64SelectedFunction,
     buffer: crate::Arm64FrameObjectId,
     code: &mut Arm64CodeBuilder,
@@ -196,7 +174,7 @@ fn emit_copy_loop(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializatio
     Ok(())
 }
 
-fn emit_read_code(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+pub(crate) fn emit_read_code(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
     let schema = Arm64NocterAbi::error();
     load_node_word(code, argument(0), argument(0), 0);
     let find_leaf = code.create_label();
@@ -218,7 +196,7 @@ fn emit_read_code(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializatio
     Ok(())
 }
 
-fn emit_read_message(code: &mut Arm64CodeBuilder) {
+pub(crate) fn emit_read_message(code: &mut Arm64CodeBuilder) {
     let schema = Arm64NocterAbi::error();
     load_node_word(code, argument(0), argument(0), 0);
     load_node_word(
@@ -237,7 +215,7 @@ fn emit_read_message(code: &mut Arm64CodeBuilder) {
     add_register(code, argument(0), argument(0), scratch(0));
 }
 
-fn emit_report(
+pub(crate) fn emit_report(
     function: &Arm64SelectedFunction,
     place: crate::Arm64SelectedMemoryAddress,
     buffer: crate::Arm64FrameObjectId,
@@ -320,7 +298,7 @@ fn emit_node_message(node: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
     emit_write(code);
 }
 
-fn emit_release(
+pub(crate) fn emit_release(
     function: &Arm64SelectedFunction,
     place: crate::Arm64SelectedMemoryAddress,
     code: &mut Arm64CodeBuilder,

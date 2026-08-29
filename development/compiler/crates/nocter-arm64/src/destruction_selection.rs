@@ -10,32 +10,6 @@ use crate::{
     Arm64SelectedStackAddress, Arm64SelectionError,
 };
 
-pub(crate) fn select_operation(
-    operation_id: MachineOperationId,
-    operation: &nocter_machine::MachineOperation,
-    context: crate::Arm64SelectionContext<'_>,
-    selected: &mut Vec<Arm64SelectedInstruction>,
-) -> Result<(), Arm64SelectionError> {
-    match operation.kind() {
-        nocter_machine::MachineOperationKind::InvokeDrop {
-            target,
-            place,
-            allocation,
-        } => select_drop(
-            context,
-            operation_id,
-            *target,
-            *place,
-            *allocation,
-            selected,
-        ),
-        nocter_machine::MachineOperationKind::SetDropFlag { flag, initialized } => {
-            select_flag_write(*flag, *initialized, context.frame(), selected)
-        }
-        _ => unreachable!("the caller routes only destruction operations"),
-    }
-}
-
 /// Initializes every conditional ownership bit before source operations begin.
 pub(crate) fn select_entry(
     function: &MachineFunction,

@@ -164,32 +164,6 @@ pub(crate) fn emit_memory_copy(
     Ok(())
 }
 
-pub(crate) fn emit_selected_copy(
-    function: &Arm64SelectedFunction,
-    instruction: &crate::Arm64SelectedInstruction,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    match *instruction {
-        crate::Arm64SelectedInstruction::CopyMemoryNonOverlapping {
-            destination,
-            source,
-            bytes,
-        } => emit_memory_copy(function, destination, source, bytes, code),
-        crate::Arm64SelectedInstruction::CopyMemoryNonOverlappingDynamic {
-            destination,
-            source,
-            bytes,
-        } => crate::primitive_memory_code::emit_dynamic_copy(
-            function,
-            destination,
-            source,
-            bytes,
-            code,
-        ),
-        _ => unreachable!("selected copy routing accepts only copy instructions"),
-    }
-}
-
 fn validate_nonoverlapping_copy(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedStackAddress,

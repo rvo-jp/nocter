@@ -9,24 +9,7 @@ use crate::{
     Arm64SelectionContext, Arm64SelectionError,
 };
 
-pub(crate) fn select_operation(
-    operation: MachineOperationId,
-    source: &nocter_machine::MachineOperation,
-    context: Arm64SelectionContext<'_>,
-    selected: &mut Vec<Arm64SelectedInstruction>,
-) -> Result<(), Arm64SelectionError> {
-    match source.kind() {
-        nocter_machine::MachineOperationKind::ReportError { place } => {
-            select_report(operation, *place, source.result(), context, selected)
-        }
-        nocter_machine::MachineOperationKind::ReleaseError { place } => {
-            select_release(operation, *place, source.result(), context, selected)
-        }
-        _ => unreachable!("the caller routes only error lifetime operations"),
-    }
-}
-
-fn select_report(
+pub(crate) fn select_report(
     operation: MachineOperationId,
     place: nocter_machine::MachineAddressId,
     result: Option<nocter_machine::MachineValueId>,
@@ -64,7 +47,7 @@ fn select_report(
     Ok(())
 }
 
-fn select_release(
+pub(crate) fn select_release(
     operation: MachineOperationId,
     place: nocter_machine::MachineAddressId,
     result: Option<nocter_machine::MachineValueId>,
@@ -121,7 +104,7 @@ pub(crate) fn select_primitive(
             validate_result(operation, target, 1)?;
             Arm64SelectedInstruction::LoadAllocationFailureError
         }
-        _ => unreachable!("the caller routes only built-in error primitives"),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     };
     selected.push(instruction);
     Ok(())

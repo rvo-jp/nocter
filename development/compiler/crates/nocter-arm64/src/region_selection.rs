@@ -4,28 +4,6 @@ use crate::{
     Arm64SelectedInstruction, Arm64SelectionContext, Arm64SelectionError, Arm64ValueStorage,
 };
 
-pub(crate) fn select_operation(
-    operation_id: MachineOperationId,
-    operation: &nocter_machine::MachineOperation,
-    context: Arm64SelectionContext<'_>,
-    selected: &mut Vec<Arm64SelectedInstruction>,
-) -> Result<(), Arm64SelectionError> {
-    match operation.kind() {
-        nocter_machine::MachineOperationKind::CreateRegion { parent, region } => select_create(
-            operation_id,
-            *parent,
-            *region,
-            operation.result(),
-            context,
-            selected,
-        ),
-        nocter_machine::MachineOperationKind::ReleaseRegion { region } => {
-            select_release(operation_id, *region, operation.result(), context, selected)
-        }
-        _ => unreachable!("the caller routes only region lifetime operations"),
-    }
-}
-
 /// Closes creation over the exact frame object that owns the lexical context.
 pub(crate) fn select_create(
     operation: MachineOperationId,

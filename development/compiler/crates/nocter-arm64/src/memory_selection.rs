@@ -10,83 +10,54 @@ use crate::{
     Arm64SelectionError, Arm64ValuePlan,
 };
 
-pub(crate) fn select_operation(
+pub(crate) fn select_address_of(
     scope: (&nocter_machine::MachineProgram, MachineFunctionId),
-    operation_id: nocter_machine::MachineOperationId,
-    operation: &nocter_machine::MachineOperation,
+    source: MachineAddressId,
+    result: MachineValueId,
     values: &Arm64ValuePlan,
-    frame: &Arm64FunctionFrame,
     addresses: &Arm64SelectedAddressPlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    match operation.kind() {
-        nocter_machine::MachineOperationKind::Load { source } => select_load(
-            scope,
-            *source,
-            operation
-                .result()
-                .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
-            values,
-            frame,
-            addresses,
-            selected,
-        ),
-        nocter_machine::MachineOperationKind::Store { destination, value } => select_store(
-            scope,
-            *destination,
-            *value,
-            values,
-            frame,
-            addresses,
-            selected,
-        ),
-        nocter_machine::MachineOperationKind::AddressOf { source } => {
-            let result = operation
-                .result()
-                .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-            let address = machine_address(scope.0, scope.1, *source)?;
-            match address.extent() {
-                nocter_machine::MachineAddressExtent::Stored { .. } => {
-                    let source = addresses.use_address(*source, selected)?;
-                    selected.push(Arm64SelectedInstruction::MemoryAddress {
-                        destination: one_word(values, result)?,
-                        source,
-                    });
-                }
-                nocter_machine::MachineAddressExtent::View => {
-                    let (pointer, length) = addresses.use_view_address(*source, selected)?;
-                    let result_layout = scope
-                        .0
-                        .function(scope.1)
-                        .and_then(|function| function.body().value(result))
-                        .and_then(|value| scope.0.layouts().get(value.ty()))
-                        .ok_or(Arm64SelectionError::MemoryShape(result))?;
-                    let nocter_machine::MachineLayoutKind::View {
-                        pointer_offset,
-                        length_offset,
-                    } = result_layout.kind()
-                    else {
-                        return Err(Arm64SelectionError::MemoryShape(result));
-                    };
-                    let destinations = crate::selection::direct_value(values, result)?;
-                    let pointer_lane = direct_lane(*pointer_offset, destinations.len())?;
-                    let length_lane = direct_lane(*length_offset, destinations.len())?;
-                    selected.push(Arm64SelectedInstruction::Move {
-                        size: Arm64DataSize::Bits64,
-                        destination: Arm64SelectedRegister::Virtual(destinations[pointer_lane]),
-                        source: pointer,
-                    });
-                    selected.push(Arm64SelectedInstruction::Move {
-                        size: Arm64DataSize::Bits64,
-                        destination: Arm64SelectedRegister::Virtual(destinations[length_lane]),
-                        source: length,
-                    });
-                }
-            }
-            Ok(())
+    let address = machine_address(scope.0, scope.1, source)?;
+    match address.extent() {
+        nocter_machine::MachineAddressExtent::Stored { .. } => {
+            let source = addresses.use_address(source, selected)?;
+            selected.push(Arm64SelectedInstruction::MemoryAddress {
+                destination: one_word(values, result)?,
+                source,
+            });
         }
-        _ => unreachable!("the caller classifies memory operations exhaustively"),
+        nocter_machine::MachineAddressExtent::View => {
+            let (pointer, length) = addresses.use_view_address(source, selected)?;
+            let result_layout = scope
+                .0
+                .function(scope.1)
+                .and_then(|function| function.body().value(result))
+                .and_then(|value| scope.0.layouts().get(value.ty()))
+                .ok_or(Arm64SelectionError::MemoryShape(result))?;
+            let nocter_machine::MachineLayoutKind::View {
+                pointer_offset,
+                length_offset,
+            } = result_layout.kind()
+            else {
+                return Err(Arm64SelectionError::MemoryShape(result));
+            };
+            let destinations = crate::selection::direct_value(values, result)?;
+            let pointer_lane = direct_lane(*pointer_offset, destinations.len())?;
+            let length_lane = direct_lane(*length_offset, destinations.len())?;
+            selected.push(Arm64SelectedInstruction::Move {
+                size: Arm64DataSize::Bits64,
+                destination: Arm64SelectedRegister::Virtual(destinations[pointer_lane]),
+                source: pointer,
+            });
+            selected.push(Arm64SelectedInstruction::Move {
+                size: Arm64DataSize::Bits64,
+                destination: Arm64SelectedRegister::Virtual(destinations[length_lane]),
+                source: length,
+            });
+        }
     }
+    Ok(())
 }
 
 pub(crate) fn select_text_constant(

@@ -21,6 +21,8 @@ does not inspect MIR semantics, declaration identities, source, or package state
 ## Invariants
 
 - ARM64 selection implements the ABI already classified by Machine.
+- The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
+  receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
 - Every primitive expansion is selected by closed runtime role.
 - Encoding is deterministic for one machine program.

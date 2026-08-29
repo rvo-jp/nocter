@@ -1,7 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
     Arm64Instruction, Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi,
-    Arm64SelectedFunction, Arm64SelectedInstruction,
+    Arm64SelectedFunction,
 };
 
 use crate::region_layout::Arm64RegionLayout;
@@ -9,23 +9,16 @@ use crate::region_layout::Arm64RegionLayout;
 const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
 const DARWIN_MUNMAP: u64 = 0x0200_0049;
 
-pub(crate) fn emit_selected(
+pub(crate) fn emit_create(
     function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
+    region: crate::Arm64FrameObjectId,
+    parent: crate::Arm64SelectedRegister,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    match *instruction {
-        Arm64SelectedInstruction::CreateRegion { region, parent } => {
-            emit_create(function, region_offset(function, region)?, parent, code)
-        }
-        Arm64SelectedInstruction::ReleaseRegion { region } => {
-            emit_release(region_offset(function, region)?, code)
-        }
-        _ => unreachable!("region materialization accepts only region instructions"),
-    }
+    emit_create_at(function, region_offset(function, region)?, parent, code)
 }
 
-fn emit_create(
+fn emit_create_at(
     function: &Arm64SelectedFunction,
     offset: u64,
     parent: crate::Arm64SelectedRegister,
@@ -81,7 +74,18 @@ fn emit_create(
     Ok(())
 }
 
-fn emit_release(offset: u64, code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+pub(crate) fn emit_release(
+    function: &Arm64SelectedFunction,
+    region: crate::Arm64FrameObjectId,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    emit_release_at(region_offset(function, region)?, code)
+}
+
+fn emit_release_at(
+    offset: u64,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     let loop_ = code.create_label();
     let complete = code.create_label();
     let mapping = argument(0);

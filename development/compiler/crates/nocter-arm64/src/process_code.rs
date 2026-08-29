@@ -1,46 +1,12 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedInstruction,
+    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
 };
 
 use crate::process_layout::Arm64ProcessContextLayout;
 
-pub(crate) fn emit_selected(
-    function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    match *instruction {
-        Arm64SelectedInstruction::InitializeProcessContext { context } => {
-            emit_initialize(function, context, code)
-        }
-        Arm64SelectedInstruction::ReadProcessArgumentCount => {
-            load_context_word(
-                argument(0),
-                Arm64ProcessContextLayout::ARGUMENT_COUNT_OFFSET,
-                code,
-            );
-            Ok(())
-        }
-        Arm64SelectedInstruction::ReadProcessArgument => {
-            emit_indexed_view(ProcessVector::Arguments, code)
-        }
-        Arm64SelectedInstruction::ReadProcessEnvironmentCount => {
-            load_context_word(
-                argument(0),
-                Arm64ProcessContextLayout::ENVIRONMENT_COUNT_OFFSET,
-                code,
-            );
-            Ok(())
-        }
-        Arm64SelectedInstruction::ReadProcessEnvironmentName => emit_environment_name(code),
-        Arm64SelectedInstruction::ReadProcessEnvironmentValue => emit_environment_value(code),
-        _ => unreachable!("process materialization accepts only process instructions"),
-    }
-}
-
-fn emit_initialize(
+pub(crate) fn emit_initialize(
     function: &Arm64SelectedFunction,
     context: crate::Arm64FrameObjectId,
     code: &mut Arm64CodeBuilder,
@@ -77,6 +43,26 @@ fn emit_initialize(
         offset,
     );
     Ok(())
+}
+
+pub(crate) fn emit_argument_count(code: &mut Arm64CodeBuilder) {
+    load_context_word(
+        argument(0),
+        Arm64ProcessContextLayout::ARGUMENT_COUNT_OFFSET,
+        code,
+    );
+}
+
+pub(crate) fn emit_argument(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+    emit_indexed_view(ProcessVector::Arguments, code)
+}
+
+pub(crate) fn emit_environment_count(code: &mut Arm64CodeBuilder) {
+    load_context_word(
+        argument(0),
+        Arm64ProcessContextLayout::ENVIRONMENT_COUNT_OFFSET,
+        code,
+    );
 }
 
 fn emit_count_null_terminated_vector(
@@ -157,7 +143,9 @@ fn load_indexed_string(
     Ok(())
 }
 
-fn emit_environment_name(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+pub(crate) fn emit_environment_name(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     load_indexed_string(ProcessVector::Environment, code)?;
     let result = argument(0);
     let length = argument(1);
@@ -180,7 +168,9 @@ fn emit_environment_name(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materia
     Ok(())
 }
 
-fn emit_environment_value(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+pub(crate) fn emit_environment_value(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     load_indexed_string(ProcessVector::Environment, code)?;
     let result = argument(0);
     let cursor = scratch(0);

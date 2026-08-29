@@ -73,14 +73,6 @@ fn emit_instruction(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let function = context.function;
-    if let Some(result) = emit_target_instruction(
-        function,
-        instruction,
-        context.allocation_failure_error,
-        code,
-    ) {
-        return result;
-    }
     match *instruction {
         Arm64SelectedInstruction::LoadImmediate {
             size,
@@ -142,10 +134,22 @@ fn emit_instruction(
         Arm64SelectedInstruction::ZeroStack { destination, bytes } => {
             crate::memory_code::emit_stack_zero(function, destination, bytes, code)
         }
-        Arm64SelectedInstruction::CopyMemoryNonOverlapping { .. }
-        | Arm64SelectedInstruction::CopyMemoryNonOverlappingDynamic { .. } => {
-            crate::memory_code::emit_selected_copy(function, instruction, code)
-        }
+        Arm64SelectedInstruction::CopyMemoryNonOverlapping {
+            destination,
+            source,
+            bytes,
+        } => crate::memory_code::emit_memory_copy(function, destination, source, bytes, code),
+        Arm64SelectedInstruction::CopyMemoryNonOverlappingDynamic {
+            destination,
+            source,
+            bytes,
+        } => crate::primitive_memory_code::emit_dynamic_copy(
+            function,
+            destination,
+            source,
+            bytes,
+            code,
+        ),
         Arm64SelectedInstruction::ResolveAddress(address) => {
             emit_resolved_address(function, address, code)
         }
@@ -171,105 +175,92 @@ fn emit_instruction(
             left,
             right,
         } => emit_binary(function, operation, destination, left, right, size, code),
-        Arm64SelectedInstruction::CompareBorrowed { .. } => {
-            emit_selected_borrowed_comparison(function, instruction, code)
-        }
+        Arm64SelectedInstruction::CompareBorrowed {
+            size,
+            extension,
+            operation,
+            offset,
+            destination,
+            left,
+            right,
+        } => emit_borrowed_comparison(
+            function,
+            BorrowedComparisonMaterialization {
+                load_size: size,
+                extension,
+                operation,
+                offset,
+                destination,
+                left_address: left,
+                right_address: right,
+            },
+            code,
+        ),
         Arm64SelectedInstruction::Call(target) => {
             function_target(context.functions, target).map(|target| code.call(target))
         }
         Arm64SelectedInstruction::CallRegister(target) => {
             emit_indirect_call(function, target, code)
         }
-        Arm64SelectedInstruction::DarwinSystemCall { .. }
-        | Arm64SelectedInstruction::ExitProcess { .. }
-        | Arm64SelectedInstruction::Break { .. }
-        | Arm64SelectedInstruction::CreateRegion { .. }
-        | Arm64SelectedInstruction::ReleaseRegion { .. }
-        | Arm64SelectedInstruction::ReleaseError { .. }
-        | Arm64SelectedInstruction::ReportError { .. }
-        | Arm64SelectedInstruction::ConstructErrorLeaf { .. }
-        | Arm64SelectedInstruction::ConstructErrorContext { .. }
-        | Arm64SelectedInstruction::ReadErrorCode
-        | Arm64SelectedInstruction::ReadErrorMessage
-        | Arm64SelectedInstruction::LoadAllocationFailureError
-        | Arm64SelectedInstruction::InitializeProcessContext { .. }
-        | Arm64SelectedInstruction::ReadProcessArgumentCount
-        | Arm64SelectedInstruction::ReadProcessArgument
-        | Arm64SelectedInstruction::ReadProcessEnvironmentCount
-        | Arm64SelectedInstruction::ReadProcessEnvironmentName
-        | Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
-            unreachable!("target-owned instructions are routed before common materialization")
+        Arm64SelectedInstruction::DarwinSystemCall { argument_count } => {
+            crate::system_primitive_code::emit_system_call(argument_count, code)
+        }
+        Arm64SelectedInstruction::ExitProcess { status } => {
+            crate::system_primitive_code::emit_exit(function, Some(status), code)
+        }
+        Arm64SelectedInstruction::Break { immediate } => {
+            code.append(Arm64Instruction::Break { immediate });
+            Ok(())
+        }
+        Arm64SelectedInstruction::CreateRegion { region, parent } => {
+            crate::region_code::emit_create(function, region, parent, code)
+        }
+        Arm64SelectedInstruction::ReleaseRegion { region } => {
+            crate::region_code::emit_release(function, region, code)
+        }
+        Arm64SelectedInstruction::ReleaseError { place } => {
+            crate::error_code::emit_release(function, place, code)
+        }
+        Arm64SelectedInstruction::ReportError { place, buffer } => {
+            crate::error_code::emit_report(function, place, buffer, code)
+        }
+        Arm64SelectedInstruction::ConstructErrorLeaf { buffer } => {
+            crate::error_code::emit_construct_leaf(function, buffer, code)
+        }
+        Arm64SelectedInstruction::ConstructErrorContext { buffer } => {
+            crate::error_code::emit_construct_context(function, buffer, code)
+        }
+        Arm64SelectedInstruction::ReadErrorCode => crate::error_code::emit_read_code(code),
+        Arm64SelectedInstruction::ReadErrorMessage => {
+            crate::error_code::emit_read_message(code);
+            Ok(())
+        }
+        Arm64SelectedInstruction::LoadAllocationFailureError => {
+            crate::error_code::emit_allocation_failure(
+                function,
+                context.allocation_failure_error,
+                code,
+            )
+        }
+        Arm64SelectedInstruction::InitializeProcessContext { context } => {
+            crate::process_code::emit_initialize(function, context, code)
+        }
+        Arm64SelectedInstruction::ReadProcessArgumentCount => {
+            crate::process_code::emit_argument_count(code);
+            Ok(())
+        }
+        Arm64SelectedInstruction::ReadProcessArgument => crate::process_code::emit_argument(code),
+        Arm64SelectedInstruction::ReadProcessEnvironmentCount => {
+            crate::process_code::emit_environment_count(code);
+            Ok(())
+        }
+        Arm64SelectedInstruction::ReadProcessEnvironmentName => {
+            crate::process_code::emit_environment_name(code)
+        }
+        Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
+            crate::process_code::emit_environment_value(code)
         }
     }
-}
-
-fn emit_target_instruction(
-    function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
-    allocation_failure_error: crate::Arm64DataId,
-    code: &mut Arm64CodeBuilder,
-) -> Option<Result<(), Arm64MaterializationError>> {
-    match instruction {
-        Arm64SelectedInstruction::DarwinSystemCall { .. }
-        | Arm64SelectedInstruction::ExitProcess { .. }
-        | Arm64SelectedInstruction::Break { .. } => Some(
-            crate::system_primitive_code::emit_selected(function, instruction, code),
-        ),
-        Arm64SelectedInstruction::CreateRegion { .. }
-        | Arm64SelectedInstruction::ReleaseRegion { .. } => Some(
-            crate::region_code::emit_selected(function, instruction, code),
-        ),
-        Arm64SelectedInstruction::ReportError { .. }
-        | Arm64SelectedInstruction::ReleaseError { .. }
-        | Arm64SelectedInstruction::ConstructErrorLeaf { .. }
-        | Arm64SelectedInstruction::ConstructErrorContext { .. }
-        | Arm64SelectedInstruction::ReadErrorCode
-        | Arm64SelectedInstruction::ReadErrorMessage
-        | Arm64SelectedInstruction::LoadAllocationFailureError => Some(
-            crate::error_code::emit_selected(function, instruction, allocation_failure_error, code),
-        ),
-        Arm64SelectedInstruction::InitializeProcessContext { .. }
-        | Arm64SelectedInstruction::ReadProcessArgumentCount
-        | Arm64SelectedInstruction::ReadProcessArgument
-        | Arm64SelectedInstruction::ReadProcessEnvironmentCount
-        | Arm64SelectedInstruction::ReadProcessEnvironmentName
-        | Arm64SelectedInstruction::ReadProcessEnvironmentValue => Some(
-            crate::process_code::emit_selected(function, instruction, code),
-        ),
-        _ => None,
-    }
-}
-
-fn emit_selected_borrowed_comparison(
-    function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    let Arm64SelectedInstruction::CompareBorrowed {
-        size,
-        extension,
-        operation,
-        offset,
-        destination,
-        left,
-        right,
-    } = *instruction
-    else {
-        unreachable!("borrowed comparison emitter receives a borrowed comparison")
-    };
-    emit_borrowed_comparison(
-        function,
-        BorrowedComparisonMaterialization {
-            load_size: size,
-            extension,
-            operation,
-            offset,
-            destination,
-            left_address: left,
-            right_address: right,
-        },
-        code,
-    )
 }
 
 fn emit_integer_conversion(

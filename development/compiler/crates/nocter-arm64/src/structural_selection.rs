@@ -1,31 +1,11 @@
-use nocter_machine::{MachineOperationId, MachineOperationKind, MachineValueId};
+use nocter_machine::{MachineOperationId, MachineValueId};
 
 use crate::{
     Arm64DataSize, Arm64NocterAbi, Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction,
     Arm64SelectedRegister, Arm64SelectionError, Arm64ValuePlan,
 };
 
-pub(crate) fn select_operation(
-    operation_id: MachineOperationId,
-    operation: &nocter_machine::MachineOperation,
-    values: &Arm64ValuePlan,
-    selected: &mut Vec<Arm64SelectedInstruction>,
-) -> Result<(), Arm64SelectionError> {
-    let result = operation
-        .result()
-        .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-    match operation.kind() {
-        MachineOperationKind::IndexBorrow(index) => {
-            select_index_borrow(*index, result, values, selected)
-        }
-        MachineOperationKind::BorrowWeakening { source } => {
-            select_direct_copy(operation_id, *source, result, values, selected)
-        }
-        _ => unreachable!("the caller classifies structural operations exhaustively"),
-    }
-}
-
-fn select_index_borrow(
+pub(crate) fn select_index_borrow(
     index: nocter_machine::MachineIndexBorrow,
     result: MachineValueId,
     values: &Arm64ValuePlan,
@@ -65,7 +45,7 @@ fn select_index_borrow(
     Ok(())
 }
 
-fn select_direct_copy(
+pub(crate) fn select_direct_copy(
     operation: MachineOperationId,
     source: MachineValueId,
     result: MachineValueId,

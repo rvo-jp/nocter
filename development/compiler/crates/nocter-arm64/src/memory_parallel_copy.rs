@@ -1,6 +1,6 @@
 use crate::{
-    Arm64CodeBuilder, Arm64MaterializationError, Arm64SelectedFunction, Arm64SelectedInstruction,
-    Arm64SelectedMemoryAddress, Arm64SelectedMemoryCopy, Arm64SelectedStackAddress,
+    Arm64CodeBuilder, Arm64MaterializationError, Arm64SelectedFunction, Arm64SelectedMemoryAddress,
+    Arm64SelectedMemoryCopy, Arm64SelectedStackAddress,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,13 +105,11 @@ fn emit_copy(
     bytes: u64,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    crate::memory_code::emit_selected_copy(
+    crate::memory_code::emit_memory_copy(
         function,
-        &Arm64SelectedInstruction::CopyMemoryNonOverlapping {
-            destination: Arm64SelectedMemoryAddress::Stack(destination),
-            source: Arm64SelectedMemoryAddress::Stack(source),
-            bytes,
-        },
+        Arm64SelectedMemoryAddress::Stack(destination),
+        Arm64SelectedMemoryAddress::Stack(source),
+        bytes,
         code,
     )
 }

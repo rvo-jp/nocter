@@ -305,11 +305,17 @@ fn select_descriptor(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum Arm64PackOperation {
+    Length(Option<MachineValueId>),
+    Next(Option<MachineValueId>),
+    Destroy,
+}
+
 pub(crate) fn select_pack_operation(
     context: crate::Arm64SelectionContext<'_>,
     operation: MachineOperationId,
-    kind: &nocter_machine::MachineOperationKind,
-    result: Option<MachineValueId>,
+    kind: Arm64PackOperation,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let function = context
@@ -334,7 +340,7 @@ pub(crate) fn select_pack_operation(
         source: frame_memory(pointer, 0),
     });
     match kind {
-        nocter_machine::MachineOperationKind::PackLength => {
+        Arm64PackOperation::Length(result) => {
             let result = result.ok_or(Arm64SelectionError::MissingResult(operation))?;
             let [destination] = crate::selection::direct_value(context.values(), result)? else {
                 return Err(Arm64SelectionError::ExpectedOneWord(result));
@@ -350,7 +356,7 @@ pub(crate) fn select_pack_operation(
             });
             Ok(())
         }
-        nocter_machine::MachineOperationKind::PackNext => select_callback(
+        Arm64PackOperation::Next(result) => select_callback(
             operation,
             Arm64PackDescriptorLayout::NEXT_CALLBACK_OFFSET,
             Some((pack.next_result(), result)),
@@ -359,7 +365,7 @@ pub(crate) fn select_pack_operation(
             descriptor,
             selected,
         ),
-        nocter_machine::MachineOperationKind::DestroyPack => select_callback(
+        Arm64PackOperation::Destroy => select_callback(
             operation,
             Arm64PackDescriptorLayout::DESTROY_CALLBACK_OFFSET,
             None,
@@ -368,10 +374,6 @@ pub(crate) fn select_pack_operation(
             descriptor,
             selected,
         ),
-        _ => Err(Arm64SelectionError::UnsupportedOperation {
-            operation,
-            kind: "non-pack",
-        }),
     }
 }
 

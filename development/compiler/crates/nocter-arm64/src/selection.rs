@@ -538,14 +538,35 @@ fn select_operation(
                 .ok_or(Arm64SelectionError::MissingResult(operation_id))?;
             select_constant(program, owner, *constant, result, values, selected)
         }
-        MachineOperationKind::Load { .. }
-        | MachineOperationKind::Store { .. }
-        | MachineOperationKind::AddressOf { .. } => crate::memory_selection::select_operation(
+        MachineOperationKind::Load { source } => crate::memory_selection::select_load(
             (program, owner),
-            operation_id,
-            operation,
+            *source,
+            operation
+                .result()
+                .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
             values,
             frame,
+            context.addresses(),
+            selected,
+        ),
+        MachineOperationKind::Store { destination, value } => {
+            crate::memory_selection::select_store(
+                (program, owner),
+                *destination,
+                *value,
+                values,
+                frame,
+                context.addresses(),
+                selected,
+            )
+        }
+        MachineOperationKind::AddressOf { source } => crate::memory_selection::select_address_of(
+            (program, owner),
+            *source,
+            operation
+                .result()
+                .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
+            values,
             context.addresses(),
             selected,
         ),
@@ -581,8 +602,26 @@ fn select_operation(
             values,
             selected,
         ),
-        MachineOperationKind::IndexBorrow(_) | MachineOperationKind::BorrowWeakening { .. } => {
-            crate::structural_selection::select_operation(operation_id, operation, values, selected)
+        MachineOperationKind::IndexBorrow(index) => {
+            crate::structural_selection::select_index_borrow(
+                *index,
+                operation
+                    .result()
+                    .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
+                values,
+                selected,
+            )
+        }
+        MachineOperationKind::BorrowWeakening { source } => {
+            crate::structural_selection::select_direct_copy(
+                operation_id,
+                *source,
+                operation
+                    .result()
+                    .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
+                values,
+                selected,
+            )
         }
         MachineOperationKind::Aggregate(aggregate) => select_aggregate_operation(
             (program, owner),
@@ -593,20 +632,52 @@ fn select_operation(
             frame,
             selected,
         ),
-        MachineOperationKind::InvokeDrop { .. } | MachineOperationKind::SetDropFlag { .. } => {
-            crate::destruction_selection::select_operation(
+        MachineOperationKind::InvokeDrop {
+            target,
+            place,
+            allocation,
+        } => crate::destruction_selection::select_drop(
+            context,
+            operation_id,
+            *target,
+            *place,
+            *allocation,
+            selected,
+        ),
+        MachineOperationKind::SetDropFlag { flag, initialized } => {
+            crate::destruction_selection::select_flag_write(*flag, *initialized, frame, selected)
+        }
+        MachineOperationKind::CreateRegion { parent, region } => {
+            crate::region_selection::select_create(
                 operation_id,
-                operation,
+                *parent,
+                *region,
+                operation.result(),
                 context,
                 selected,
             )
         }
-        MachineOperationKind::CreateRegion { .. } | MachineOperationKind::ReleaseRegion { .. } => {
-            crate::region_selection::select_operation(operation_id, operation, context, selected)
-        }
-        MachineOperationKind::ReportError { .. } | MachineOperationKind::ReleaseError { .. } => {
-            crate::error_selection::select_operation(operation_id, operation, context, selected)
-        }
+        MachineOperationKind::ReleaseRegion { region } => crate::region_selection::select_release(
+            operation_id,
+            *region,
+            operation.result(),
+            context,
+            selected,
+        ),
+        MachineOperationKind::ReportError { place } => crate::error_selection::select_report(
+            operation_id,
+            *place,
+            operation.result(),
+            context,
+            selected,
+        ),
+        MachineOperationKind::ReleaseError { place } => crate::error_selection::select_release(
+            operation_id,
+            *place,
+            operation.result(),
+            context,
+            selected,
+        ),
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,
             operation_id,
@@ -614,13 +685,22 @@ fn select_operation(
             operation.result(),
             selected,
         ),
-        MachineOperationKind::PackLength
-        | MachineOperationKind::PackNext
-        | MachineOperationKind::DestroyPack => crate::pack_selection::select_pack_operation(
+        MachineOperationKind::PackLength => crate::pack_selection::select_pack_operation(
             context,
             operation_id,
-            operation.kind(),
-            operation.result(),
+            crate::pack_selection::Arm64PackOperation::Length(operation.result()),
+            selected,
+        ),
+        MachineOperationKind::PackNext => crate::pack_selection::select_pack_operation(
+            context,
+            operation_id,
+            crate::pack_selection::Arm64PackOperation::Next(operation.result()),
+            selected,
+        ),
+        MachineOperationKind::DestroyPack => crate::pack_selection::select_pack_operation(
+            context,
+            operation_id,
+            crate::pack_selection::Arm64PackOperation::Destroy,
             selected,
         ),
         MachineOperationKind::IntegerConversion { operand } => select_integer_conversion(

@@ -1,29 +1,11 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DataSize, Arm64Instruction, Arm64MaterializationError, Arm64NocterAbi,
-    Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedRegister,
+    Arm64SelectedFunction, Arm64SelectedRegister,
 };
 
 const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
 const DARWIN_EXIT: u64 = 1;
-
-pub(crate) fn emit_selected(
-    function: &Arm64SelectedFunction,
-    instruction: &Arm64SelectedInstruction,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    match *instruction {
-        Arm64SelectedInstruction::DarwinSystemCall { argument_count } => {
-            emit_system_call(argument_count, code)
-        }
-        Arm64SelectedInstruction::ExitProcess { status } => emit_exit(function, Some(status), code),
-        Arm64SelectedInstruction::Break { immediate } => {
-            code.append(Arm64Instruction::Break { immediate });
-            Ok(())
-        }
-        _ => unreachable!("system primitive routing accepts only system instructions"),
-    }
-}
 
 /// Translates the ordinary Nocter primitive ABI into Darwin's syscall register convention.
 pub(crate) fn emit_system_call(
