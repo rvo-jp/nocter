@@ -61,10 +61,6 @@ pub(crate) struct BodyRequirement {
 }
 
 impl BodyRequirement {
-    pub(crate) fn root(&self) -> nocter_model::RequirementId {
-        self.requirement.derivations()[0].root()
-    }
-
     pub(crate) const fn predicate(&self) -> &CheckedPredicate {
         self.requirement.predicate()
     }

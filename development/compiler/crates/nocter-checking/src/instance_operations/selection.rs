@@ -95,7 +95,7 @@ pub enum InstanceSelectionError {
     InvalidExpansionSignature(nocter_model::CallableId),
     InvalidMethodSignature(nocter_model::CallableId),
     InvalidInterfaceMethod(nocter_model::InterfaceId),
-    InvalidStructuralIndex(nocter_model::RequirementId),
+    InvalidStructuralIndex,
     IncompleteGeneric(nocter_model::GenericParameterId),
     DuplicateGeneric(nocter_model::GenericParameterId),
     Substitution(SubstitutionError),
@@ -145,11 +145,8 @@ impl fmt::Display for InstanceSelectionError {
                     "invalid method index for interface {interface:?}"
                 )
             }
-            Self::InvalidStructuralIndex(requirement) => {
-                write!(
-                    formatter,
-                    "invalid structural index requirement {requirement:?}"
-                )
+            Self::InvalidStructuralIndex => {
+                formatter.write_str("invalid structural index requirement")
             }
             Self::IncompleteGeneric(parameter) => {
                 write!(formatter, "operation selection did not bind {parameter:?}")
@@ -353,13 +350,10 @@ impl<'program> InstanceOperationSelector<'program> {
             if *required_capability != capability || *container != target {
                 continue;
             }
-            let (result_capability, referent) = borrow_result(self.types, *result).ok_or(
-                InstanceSelectionError::InvalidStructuralIndex(assumption.root()),
-            )?;
+            let (result_capability, referent) = borrow_result(self.types, *result)
+                .ok_or(InstanceSelectionError::InvalidStructuralIndex)?;
             if result_capability != capability {
-                return Err(InstanceSelectionError::InvalidStructuralIndex(
-                    assumption.root(),
-                ));
+                return Err(InstanceSelectionError::InvalidStructuralIndex);
             }
             selected.push(IndexOperationCandidate {
                 index: *index,

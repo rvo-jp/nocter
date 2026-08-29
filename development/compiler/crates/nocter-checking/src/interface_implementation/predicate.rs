@@ -81,13 +81,9 @@ pub struct CheckedRequirement {
 }
 
 impl CheckedRequirement {
-    pub(super) fn new(
-        root: RequirementId,
-        origin: RequirementId,
-        predicate: CheckedPredicate,
-    ) -> Self {
+    fn new(derivation: RequirementDerivation, predicate: CheckedPredicate) -> Self {
         Self {
-            derivations: vec![RequirementDerivation::new(root, origin)],
+            derivations: vec![derivation],
             predicate,
         }
     }
@@ -134,16 +130,14 @@ pub(crate) fn normalize_requirements(
             .get(*id)
             .ok_or(SubstitutionError::InvalidStore)?;
         let predicate = normalize_predicate(graph, types, substitution, requirement.kind())?;
-        let mut pending = VecDeque::from([CheckedRequirement::new(*id, *id, predicate)]);
+        let mut pending = VecDeque::from([(predicate, RequirementDerivation::new(*id, *id))]);
         let mut expanded = HashSet::new();
-        while let Some(requirement) = pending.pop_front() {
-            let predicate = requirement.predicate().clone();
-            let derivation = requirement.derivations()[0];
+        while let Some((predicate, derivation)) = pending.pop_front() {
             if let Some(index) = indexes.get(&predicate).copied() {
                 normalized[index].add_derivation(derivation);
             } else {
                 indexes.insert(predicate.clone(), normalized.len());
-                normalized.push(requirement);
+                normalized.push(CheckedRequirement::new(derivation, predicate.clone()));
             }
             if !expanded.insert(predicate.clone()) {
                 continue;
@@ -156,7 +150,7 @@ pub(crate) fn normalize_requirements(
                 for prerequisite in capability.direct_prerequisites() {
                     let predicate =
                         specialize_prerequisite(graph, types, &predicate, *prerequisite)?;
-                    pending.push_back(CheckedRequirement::new(*id, *prerequisite, predicate));
+                    pending.push_back((predicate, RequirementDerivation::new(*id, *prerequisite)));
                 }
             }
         }

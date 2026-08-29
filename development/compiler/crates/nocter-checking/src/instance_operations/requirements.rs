@@ -6,7 +6,7 @@ use super::selection::{
 };
 use crate::copyability::CopyProofs;
 use crate::interface_implementation::{proves_predicate, substitute_predicate};
-use crate::type_relations::{SubstitutionError, TypeSubstitution};
+use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
 impl InstanceOperationSelector<'_> {
@@ -18,12 +18,7 @@ impl InstanceOperationSelector<'_> {
         for requirement in requirements {
             let predicate =
                 substitute_predicate(self.types, substitution, requirement.predicate())?;
-            let declaration = requirement
-                .derivations()
-                .first()
-                .ok_or(SubstitutionError::InvalidStore)?
-                .origin();
-            if !self.proves_requirement(&predicate, declaration)? {
+            if !self.proves_requirement(&predicate)? {
                 return Ok(false);
             }
         }
@@ -33,7 +28,6 @@ impl InstanceOperationSelector<'_> {
     fn proves_requirement(
         &mut self,
         predicate: &CheckedPredicate,
-        declaration: nocter_model::RequirementId,
     ) -> Result<bool, InstanceSelectionError> {
         if self.contains_assumption(predicate) || self.intrinsic_facts.contains(predicate) {
             return Ok(true);
@@ -65,7 +59,7 @@ impl InstanceOperationSelector<'_> {
                 container,
                 index,
                 result,
-            } => self.proves_index(*container, *index, *result, *capability, declaration)?,
+            } => self.proves_index(*container, *index, *result, *capability)?,
             CheckedPredicate::Coercion { source, target } => {
                 self.proves_coercion(*source, *target)?
             }
@@ -116,12 +110,11 @@ impl InstanceOperationSelector<'_> {
         index: TypeId,
         result: TypeId,
         capability: BorrowCapability,
-        declaration: nocter_model::RequirementId,
     ) -> Result<bool, InstanceSelectionError> {
         let (result_capability, referent) = borrow_result(self.types, result)
-            .ok_or(InstanceSelectionError::InvalidStructuralIndex(declaration))?;
+            .ok_or(InstanceSelectionError::InvalidStructuralIndex)?;
         if result_capability != capability {
-            return Err(InstanceSelectionError::InvalidStructuralIndex(declaration));
+            return Err(InstanceSelectionError::InvalidStructuralIndex);
         }
         if let Some(builtin_result) = builtin_index_result(self.types, container, capability) {
             return Ok(
