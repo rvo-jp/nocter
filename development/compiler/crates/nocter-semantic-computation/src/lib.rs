@@ -277,19 +277,13 @@ pub enum DeclarationQueryOutcome {
     Unavailable,
 }
 
-/// One declaration rejection inseparably paired with the exact source domain that produced it.
+/// One declaration rejection stored only inside an exact-current query product.
 #[derive(Debug)]
 pub struct RejectedDeclarations {
-    unit: Arc<DiscoveredUnit>,
     failure: Arc<DeclarationLoweringFailure>,
 }
 
 impl RejectedDeclarations {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub fn failure(&self) -> &DeclarationLoweringFailure {
         &self.failure
@@ -342,7 +336,6 @@ impl Query for DeclarationQuery {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let outcome = failure.map_or(DeclarationQueryOutcome::Unavailable, |failure| {
             DeclarationQueryOutcome::Rejected(RejectedDeclarations {
-                unit: Arc::clone(&current.unit),
                 failure: Arc::new(failure),
             })
         });

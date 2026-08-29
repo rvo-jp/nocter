@@ -12,17 +12,11 @@ struct ProgramFinalizationQuery;
 /// Exact-current whole-program semantic result after canonical body replay.
 #[derive(Debug)]
 pub struct FinalizedProgram {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     declarations: Arc<nocter_declaration_lowering::ReusableDeclarations>,
     checked: nocter_checking::CheckedProgramOutput,
 }
 
 impl FinalizedProgram {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub fn declarations(&self) -> &nocter_declaration_lowering::ReusableDeclarations {
         &self.declarations
@@ -37,23 +31,16 @@ impl FinalizedProgram {
 /// Exact-current whole-program checking failure after canonical body replay.
 #[derive(Clone, Debug)]
 pub struct FailedProgramFinalization {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     failure: Arc<nocter_checking::BodyCheckFailure>,
 }
 
 /// Exact-current lexical rejection materialized from the complete body-name query set.
 #[derive(Clone, Debug)]
 pub struct FailedProgramNameResolution {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     failure: Arc<nocter_checking::QueriedNameResolutionFailure>,
 }
 
 impl FailedProgramNameResolution {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub fn failure(&self) -> &nocter_checking::QueriedNameResolutionFailure {
         &self.failure
@@ -61,11 +48,6 @@ impl FailedProgramNameResolution {
 }
 
 impl FailedProgramFinalization {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub fn failure(&self) -> &nocter_checking::BodyCheckFailure {
         &self.failure
@@ -124,7 +106,6 @@ impl Query for ProgramFinalizationQuery {
             };
             return Ok(ProgramFinalizationProduct {
                 outcome: ProgramFinalizationOutcome::NamesRejected(FailedProgramNameResolution {
-                    unit: Arc::clone(&current.unit),
                     failure: Arc::new(failure),
                 }),
                 fingerprint: current.fingerprint,
@@ -139,14 +120,12 @@ impl Query for ProgramFinalizationQuery {
         let outcome = match checked {
             nocter_checking::QueriedProgramFinalizationOutcome::Checked(checked) => {
                 ProgramFinalizationOutcome::Checked(Arc::new(FinalizedProgram {
-                    unit: Arc::clone(&current.unit),
                     declarations: Arc::clone(declarations),
                     checked: *checked,
                 }))
             }
             nocter_checking::QueriedProgramFinalizationOutcome::Failed(failure) => {
                 ProgramFinalizationOutcome::Failed(FailedProgramFinalization {
-                    unit: Arc::clone(&current.unit),
                     failure: Arc::from(failure),
                 })
             }

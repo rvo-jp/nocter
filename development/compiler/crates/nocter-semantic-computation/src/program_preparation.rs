@@ -17,19 +17,13 @@ pub enum ProgramPreparationOutcome {
     Unavailable,
 }
 
-/// One program-preparation rejection paired with the exact source domain that produced it.
+/// One program-preparation rejection stored only inside an exact-current query product.
 #[derive(Clone, Debug)]
 pub struct RejectedProgramPreparation {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     rejection: Arc<nocter_checking::QueriedProgramPreparationRejection>,
 }
 
 impl RejectedProgramPreparation {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub fn rejection(&self) -> &nocter_checking::QueriedProgramPreparationRejection {
         &self.rejection
@@ -92,7 +86,6 @@ impl Query for ProgramPreparationQuery {
                 let current = database.input::<CurrentSourceScopeInput>(key)?;
                 Ok(ProgramPreparationProduct {
                     outcome: ProgramPreparationOutcome::Rejected(RejectedProgramPreparation {
-                        unit: Arc::clone(&current.unit),
                         rejection: Arc::from(rejection),
                     }),
                     fingerprint: current.fingerprint,
