@@ -101,6 +101,23 @@ pub struct WorkspaceAnalysisError {
     kind: WorkspaceAnalysisErrorKind,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SemanticProduct {
+    Declarations,
+    Preparation,
+    Finalization,
+}
+
+impl SemanticProduct {
+    const fn description(self) -> &'static str {
+        match self {
+            Self::Declarations => "declaration query",
+            Self::Preparation => "program-preparation query",
+            Self::Finalization => "whole-program finalization query",
+        }
+    }
+}
+
 #[derive(Debug)]
 enum WorkspaceAnalysisErrorKind {
     OutsideWorkspace(PathBuf),
@@ -113,7 +130,7 @@ enum WorkspaceAnalysisErrorKind {
     Computation(nocter_computation::ComputationError),
     SemanticComputation(nocter_semantic_computation::ScopeInputError),
     SemanticRejection(nocter_session::SemanticRejectionDomainError),
-    FinalizationUnavailable,
+    SemanticProductUnavailable(SemanticProduct),
 }
 
 impl WorkspaceAnalysisError {
@@ -149,9 +166,9 @@ impl WorkspaceAnalysisError {
         }
     }
 
-    pub(crate) fn finalization_unavailable() -> Self {
+    pub(crate) fn semantic_product_unavailable(product: SemanticProduct) -> Self {
         Self {
-            kind: WorkspaceAnalysisErrorKind::FinalizationUnavailable,
+            kind: WorkspaceAnalysisErrorKind::SemanticProductUnavailable(product),
         }
     }
 
@@ -185,7 +202,7 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
             | WorkspaceAnalysisErrorKind::SemanticRejection(_)
-            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => None,
+            | WorkspaceAnalysisErrorKind::SemanticProductUnavailable(_) => None,
         }
     }
 
@@ -202,7 +219,7 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
             | WorkspaceAnalysisErrorKind::SemanticRejection(_)
-            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => "E0900",
+            | WorkspaceAnalysisErrorKind::SemanticProductUnavailable(_) => "E0900",
         }
     }
 }
@@ -260,8 +277,10 @@ impl fmt::Display for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::SemanticRejection(error) => {
                 write!(formatter, "semantic rejection input is invalid: {error}")
             }
-            WorkspaceAnalysisErrorKind::FinalizationUnavailable => formatter.write_str(
-                "whole-program finalization is unavailable after complete typed-body queries",
+            WorkspaceAnalysisErrorKind::SemanticProductUnavailable(product) => write!(
+                formatter,
+                "{} is unavailable for source-complete analysis",
+                product.description()
             ),
         }
     }
@@ -280,7 +299,7 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_)
-            | WorkspaceAnalysisErrorKind::FinalizationUnavailable => None,
+            | WorkspaceAnalysisErrorKind::SemanticProductUnavailable(_) => None,
         }
     }
 }

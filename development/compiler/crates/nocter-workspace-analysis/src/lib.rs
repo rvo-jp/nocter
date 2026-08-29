@@ -32,7 +32,7 @@ mod topology;
 use compilation::compile_scope;
 use compilation_input::ScopeCompilationInput;
 pub use configuration::{WorkspaceConfiguration, WorkspaceConfigurationError, WorkspaceToolchain};
-use errors::preparation_diagnostics;
+use errors::{SemanticProduct, preparation_diagnostics};
 pub use errors::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
 use generation::WorkspaceAnalysisState;
 pub use generation::{AnalysisScope, WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};

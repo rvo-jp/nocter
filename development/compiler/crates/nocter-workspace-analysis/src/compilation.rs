@@ -14,8 +14,7 @@ use nocter_semantic_computation::{
     DeclarationQueryOutcome, ProgramFinalizationOutcome, ProgramPreparationOutcome,
 };
 use nocter_session::{
-    analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
-    analyze_unit_from_name_resolution_failure, analyze_unit_from_prepared_declarations,
+    analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_name_resolution_failure,
     bundled_standard_toolchain,
 };
 use nocter_syntax::SourceSyntaxProvider;
@@ -56,6 +55,11 @@ pub(crate) fn compile_scope(
     match discovered {
         Ok(unit) => {
             let unit = Arc::new(unit);
+            if unit.has_syntax_errors() {
+                return WorkspaceAnalysisState::Complete(Box::new(
+                    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit)),
+                ));
+            }
             let (scope, publication, body_inputs) =
                 match prepare_semantic_inputs(computation, Arc::clone(&unit)) {
                     Ok(inputs) => inputs,
@@ -97,8 +101,6 @@ pub(crate) fn compile_scope(
                 unit,
                 products.declarations.outcome(),
                 products.preparation.outcome(),
-                products.body_names.as_ref(),
-                products.typed_bodies.as_ref(),
                 products.finalization.as_deref(),
             ) {
                 Ok(analyzed) => analyzed,
@@ -154,43 +156,40 @@ fn analyze_declaration_outcome(
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     outcome: &DeclarationQueryOutcome,
     preparation: &ProgramPreparationOutcome,
-    body_names: Option<&nocter_semantic_computation::BodyNameSet>,
-    typed_bodies: Option<&nocter_semantic_computation::TypedBodySet>,
     finalization: Option<&nocter_semantic_computation::ProgramFinalizationProduct>,
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {
-        DeclarationQueryOutcome::Accepted(declarations) => match preparation {
-            ProgramPreparationOutcome::Prepared(prepared) => {
-                if let Some(finalization) = finalization {
-                    return match finalization.outcome() {
-                        ProgramFinalizationOutcome::Checked(finalized) => {
-                            nocter_session::analyze_unit_from_finalized_program(unit, finalized)
-                                .map_err(WorkspaceAnalysisError::semantic_rejection)
-                        }
-                        ProgramFinalizationOutcome::NamesRejected(failed) => {
-                            analyze_unit_from_name_resolution_failure(unit, failed)
-                                .map_err(WorkspaceAnalysisError::semantic_rejection)
-                        }
-                        ProgramFinalizationOutcome::Failed(failed) => {
-                            nocter_session::analyze_unit_from_finalization_failure(unit, failed)
-                                .map_err(WorkspaceAnalysisError::semantic_rejection)
-                        }
-                        ProgramFinalizationOutcome::Unavailable => {
-                            Err(WorkspaceAnalysisError::finalization_unavailable())
-                        }
-                    };
-                }
-                match (body_names, typed_bodies) {
-                    (Some(_), _) => Err(WorkspaceAnalysisError::finalization_unavailable()),
-                    (None, _) => Ok(analyze_unit_from_prepared_declarations(
-                        unit,
-                        declarations,
-                        prepared,
-                    )),
+        DeclarationQueryOutcome::Accepted(_) => match preparation {
+            ProgramPreparationOutcome::Prepared(_) => {
+                let finalization = finalization.ok_or_else(|| {
+                    WorkspaceAnalysisError::semantic_product_unavailable(
+                        crate::SemanticProduct::Finalization,
+                    )
+                })?;
+                match finalization.outcome() {
+                    ProgramFinalizationOutcome::Checked(finalized) => {
+                        nocter_session::analyze_unit_from_finalized_program(unit, finalized)
+                            .map_err(WorkspaceAnalysisError::semantic_rejection)
+                    }
+                    ProgramFinalizationOutcome::NamesRejected(failed) => {
+                        analyze_unit_from_name_resolution_failure(unit, failed)
+                            .map_err(WorkspaceAnalysisError::semantic_rejection)
+                    }
+                    ProgramFinalizationOutcome::Failed(failed) => {
+                        nocter_session::analyze_unit_from_finalization_failure(unit, failed)
+                            .map_err(WorkspaceAnalysisError::semantic_rejection)
+                    }
+                    ProgramFinalizationOutcome::Unavailable => {
+                        Err(WorkspaceAnalysisError::semantic_product_unavailable(
+                            crate::SemanticProduct::Finalization,
+                        ))
+                    }
                 }
             }
             ProgramPreparationOutcome::Unavailable => {
-                Ok(analyze_unit_from_declarations(unit, declarations))
+                Err(WorkspaceAnalysisError::semantic_product_unavailable(
+                    crate::SemanticProduct::Preparation,
+                ))
             }
             ProgramPreparationOutcome::Rejected(rejection) => {
                 nocter_session::analyze_unit_from_preparation_rejection(
@@ -205,7 +204,11 @@ fn analyze_declaration_outcome(
             analyze_unit_from_declaration_failure(unit, rejection.unit(), rejection.failure())
                 .map_err(WorkspaceAnalysisError::semantic_rejection)
         }
-        DeclarationQueryOutcome::Unavailable => Ok(analyze_unit(unit)),
+        DeclarationQueryOutcome::Unavailable => {
+            Err(WorkspaceAnalysisError::semantic_product_unavailable(
+                crate::SemanticProduct::Declarations,
+            ))
+        }
     }
 }
 

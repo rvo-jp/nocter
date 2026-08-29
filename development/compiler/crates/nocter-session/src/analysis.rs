@@ -4,8 +4,7 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
-    run_semantic_pipeline_from_declaration_failure, run_semantic_pipeline_from_declarations,
-    run_semantic_pipeline_from_prepared_declarations,
+    run_semantic_pipeline_from_declaration_failure,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -138,30 +137,6 @@ fn analysis_diagnostics(
 /// Returns the exact production-session failure. No earlier successful generation participates.
 pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     analyze_target_internal(unit, true)
-}
-
-pub(crate) fn analyze_target_from_declarations(
-    unit: &DiscoveredUnit,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output = run_semantic_pipeline_from_declarations(unit, declarations).map_err(
-        |SemanticPipelineFailure { error, evidence }| {
-            Box::new(CompileTargetFailure::new(*error, evidence))
-        },
-    )?;
-    finish_semantic_pipeline(unit, output, true)
-}
-
-pub(crate) fn analyze_target_from_prepared_declarations(
-    unit: &DiscoveredUnit,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output = run_semantic_pipeline_from_prepared_declarations(unit, declarations, prepared)
-        .map_err(|SemanticPipelineFailure { error, evidence }| {
-            Box::new(CompileTargetFailure::new(*error, evidence))
-        })?;
-    finish_semantic_pipeline(unit, output, true)
 }
 
 pub(crate) fn analyze_target_from_finalized_program(

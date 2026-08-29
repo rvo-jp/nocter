@@ -46,3 +46,6 @@ editor queries, native code generation, or protocol projection.
 - Query-backed lexical rejection opens the finalization query's exact-current recovery branch.
   Session translates its typed diagnostic and recovery evidence without invoking name resolution,
   checking preparation, or body checking.
+- No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
+  or typed-body sets. A source-complete query consumer must supply one closed final success or
+  rejection branch.

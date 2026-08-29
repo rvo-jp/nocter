@@ -21,9 +21,9 @@ language server.
 - scope caching, invalidation, and generation publication
 - path-keyed source-text and parse queries, input publication, and computation instrumentation
 - source declaration-surface and module-surface query composition
-- atomic semantic-scope input publication plus declaration and program-preparation query demand
+- atomic semantic-scope input publication plus closed semantic-outcome query demand
 - exact per-body input collection from the already demanded source-surface product
-- transport of the opaque complete body-name authority demanded by semantic computation
+- transport of only final complete/rejected semantic products to session
 
 ## Invariants
 
@@ -43,10 +43,9 @@ language server.
 - A module surface depends on each member source's canonical declaration syntax. A body-only edit
   may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.
 - Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
-  discovery snapshot. Accepted declarations enter session checking through their reusable query
-  product; workspace code cannot inspect declaration storage or reconstruct its invalidation rule.
-- Workspace passes the opaque prepared-program product to session. It cannot rebuild checking
-  authorities or attach current body symbols itself.
-- Workspace neither enumerates body queries nor inspects lexical recipes. Semantic computation
-  publishes one complete opaque body-name authority; any unavailable body keeps the existing
-  current recovery path authoritative for the whole attempt.
+  discovery snapshot. It cannot inspect declaration storage, body recipes, or invalidation rules.
+- For source-complete input, workspace passes only a closed semantic success/rejection product to
+  session. Missing declaration, preparation, or finalization products are integrity errors; they
+  cannot select a session fallback that reruns compiler stages.
+- Workspace neither enumerates body queries nor transports intermediate lexical or typed sets.
+  Semantic computation owns complete-set demand and canonical finalization order.

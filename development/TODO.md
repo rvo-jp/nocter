@@ -47,9 +47,11 @@ exact-current query. The query shares the sole current declaration projection, r
 failure as immutable branchable values, and session has no typed-body finalization entry point.
 Lexical failure materialization now belongs to that finalization query as well. The query publishes
 the exact diagnostic and canonical `NameAnalysisRecovery`; workspace and session no longer invoke
-name resolution or checking to reconstruct this rejection. Next remove the earlier-stage
-unavailable fallbacks, make incomplete-syntax recovery a query-owned outcome, review the complete
-query graph, and close Phase 1.
+name resolution or checking to reconstruct this rejection. Source-complete analysis now accepts
+only closed query success/rejection products; unavailable declaration, preparation, or finalization
+products are integrity errors instead of triggers for a second session pipeline. Next make
+incomplete-syntax recovery a query-owned outcome, review the complete query graph, and close Phase
+1.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

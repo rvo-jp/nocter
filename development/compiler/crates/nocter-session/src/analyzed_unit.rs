@@ -3,10 +3,9 @@ use std::sync::Arc;
 use nocter_discovery::DiscoveredUnit;
 
 use crate::analysis::{
-    analyze_target_from_declaration_failure, analyze_target_from_declarations,
-    analyze_target_from_finalization_failure, analyze_target_from_finalized_program,
-    analyze_target_from_name_resolution_failure, analyze_target_from_preparation_rejection,
-    analyze_target_from_prepared_declarations,
+    analyze_target_from_declaration_failure, analyze_target_from_finalization_failure,
+    analyze_target_from_finalized_program, analyze_target_from_name_resolution_failure,
+    analyze_target_from_preparation_rejection,
 };
 use crate::{
     CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
@@ -173,59 +172,6 @@ pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
     }
 
     match analyze_target(&unit) {
-        Ok(target) => AnalyzedUnit {
-            unit,
-            diagnostics: Box::new([]),
-            state: AnalyzedUnitState::Complete(Box::new(target)),
-        },
-        Err(failure) => {
-            let (semantic, diagnostics) = (*failure).into_analysis_parts();
-            AnalyzedUnit {
-                unit,
-                diagnostics,
-                state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-            }
-        }
-    }
-}
-
-/// Consumes one current discovery snapshot using declarations computed by the semantic query.
-#[must_use]
-pub fn analyze_unit_from_declarations(
-    unit: Arc<DiscoveredUnit>,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-) -> AnalyzedUnit {
-    if unit.has_syntax_errors() {
-        return analyze_unit(unit);
-    }
-    match analyze_target_from_declarations(&unit, declarations) {
-        Ok(target) => AnalyzedUnit {
-            unit,
-            diagnostics: Box::new([]),
-            state: AnalyzedUnitState::Complete(Box::new(target)),
-        },
-        Err(failure) => {
-            let (semantic, diagnostics) = (*failure).into_analysis_parts();
-            AnalyzedUnit {
-                unit,
-                diagnostics,
-                state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-            }
-        }
-    }
-}
-
-/// Consumes one current discovery snapshot using query-owned declaration and preparation products.
-#[must_use]
-pub fn analyze_unit_from_prepared_declarations(
-    unit: Arc<DiscoveredUnit>,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-) -> AnalyzedUnit {
-    if unit.has_syntax_errors() {
-        return analyze_unit(unit);
-    }
-    match analyze_target_from_prepared_declarations(&unit, declarations, prepared) {
         Ok(target) => AnalyzedUnit {
             unit,
             diagnostics: Box::new([]),

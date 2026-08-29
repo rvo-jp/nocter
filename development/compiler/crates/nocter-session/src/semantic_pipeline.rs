@@ -2,11 +2,10 @@
 
 use nocter_checking::{
     CheckedProgramOutput, analyze_prepared_program_bodies, check_prepared_program_recovering,
-    prepare_analysis_program_checking_recovering,
-    prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
+    prepare_analysis_program_checking_recovering, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    DeclarationCheckingTransition, DeclarationLoweringRecovery, ReusableDeclarations,
+    DeclarationCheckingTransition, DeclarationLoweringRecovery,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
 };
 use nocter_discovery::DiscoveredUnit;
@@ -102,79 +101,6 @@ fn continue_declaration_failure(
         error: Box::new(error.into()),
         evidence,
     }
-}
-
-/// Continues checking from one source-neutral declaration query result.
-pub(crate) fn run_semantic_pipeline_from_declarations(
-    unit: &DiscoveredUnit,
-    declarations: &ReusableDeclarations,
-) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
-    let input = unit
-        .compile_input()
-        .map_err(CompileSessionError::from)
-        .map_err(|error| SemanticPipelineFailure {
-            error: Box::new(error),
-            evidence: None,
-        })?;
-    let projection = declarations
-        .materialize_projection(&input)
-        .map_err(CompileSessionError::from)
-        .map_err(|error| SemanticPipelineFailure {
-            error: Box::new(error),
-            evidence: None,
-        })?;
-    let primitive_bindings = declarations.primitive_bindings().to_vec();
-    let (frontend_bindings, source_index, checking_symbols) = projection.into_parts();
-    let program = declarations
-        .checking_branch()
-        .with_checking_symbols(checking_symbols.spellings());
-    check_declaration_bodies(
-        &input,
-        primitive_bindings,
-        program,
-        &frontend_bindings,
-        source_index,
-    )
-}
-
-/// Continues checking from query-owned declaration and program-wide semantic authorities.
-pub(crate) fn run_semantic_pipeline_from_prepared_declarations(
-    unit: &DiscoveredUnit,
-    declarations: &ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
-    let input = unit
-        .compile_input()
-        .map_err(CompileSessionError::from)
-        .map_err(|error| SemanticPipelineFailure {
-            error: Box::new(error),
-            evidence: None,
-        })?;
-    let projection = declarations
-        .materialize_projection(&input)
-        .map_err(CompileSessionError::from)
-        .map_err(|error| SemanticPipelineFailure {
-            error: Box::new(error),
-            evidence: None,
-        })?;
-    let primitive_bindings = declarations.primitive_bindings().to_vec();
-    let (frontend_bindings, source_index, checking_symbols) = projection.into_parts();
-    let prepared = prepare_program_checking_from_reusable_recovering(
-        &input,
-        prepared,
-        checking_symbols.spellings(),
-        &frontend_bindings,
-        source_index,
-    )
-    .map_err(|failure| {
-        let (error, evidence) = failure.into_parts();
-        let evidence = evidence.map(SemanticEvidenceBundle::from_preparation_failure);
-        SemanticPipelineFailure {
-            error: Box::new(error.into()),
-            evidence,
-        }
-    })?;
-    check_prepared_bodies(primitive_bindings, &input, prepared)
 }
 
 fn check_declaration_bodies(

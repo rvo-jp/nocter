@@ -233,9 +233,14 @@ workspace analysis reports an integrity error instead of repeating the compiler 
 
 The same query owns the alternative complete lexical-rejection branch. It materializes the full
 body-name catalog into one exact-current `NameAnalysisRecovery` and retains the authored diagnostic
-beside it. Workspace orchestration demands finalization whenever body-name coverage exists, even
-when typed coverage cannot exist, and session only translates the resulting branch. There is no
-session entry point that can replay a queried body-name set through checking preparation.
+beside it. Workspace orchestration demands this final query after accepted preparation and session
+only translates the resulting branch. Workspace does not transport the intermediate body-name or
+typed-body sets, and there is no session entry point that can replay them through compiler stages.
+
+For source-complete input, `Unavailable` always means the query graph failed to produce a required
+authority. Workspace analysis reports that state as an integrity error. It never restarts from
+declarations or a prepared program in session, because such a restart would duplicate dependency
+selection and conceal the missing query edge.
 
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
@@ -253,11 +258,12 @@ seal as defense in depth.
 
 ## Recovery
 
-Complete and incomplete syntax are explicit query inputs to the same session stage graph. Recovery
-does not create a second semantic database or feature-local fallback order. Rejected name and body
-domains, typed interruptions, diagnostics, and complete/partial/unavailable coverage remain ordinary
-cacheable products when their source justification is complete. Internal inconsistency is never
-cached as authored recovery.
+Complete syntax uses the semantic query graph described above. Incomplete syntax still uses one
+explicit editor-only session admission while its recovered declaration/body result is migrated into
+the query graph; it cannot claim compilation success. Recovery does not create feature-local
+fallback order. Rejected name and body domains, typed interruptions, diagnostics, and coverage are
+cacheable products only when their source justification is complete. Internal inconsistency is
+never cached as authored recovery.
 
 ## Deferred Facilities
 
