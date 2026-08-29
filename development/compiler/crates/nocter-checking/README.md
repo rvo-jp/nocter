@@ -20,6 +20,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - program-wide preparation and standard semantic roles
 - lexical name evidence and body scopes
 - source-neutral lexical recipes with current body-local locator and spelling rebinding
+- body-local structural type-extension recipes independent of sibling allocation order
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
@@ -46,6 +47,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A checked query derives type and visibility from its own body generation.
 - Reusable body-name evidence contains body-local locators and spellings, never `NodeId`,
   `SyntaxToken`, `SourceId`, source spans, or current symbol IDs.
+- A body type extension distinguishes the immutable prepared-program prefix from dense body-local
+  additions. Closure references are body-local as well. Canonical program finalization re-interns
+  both domains, so one sibling cannot change another body's reusable type identities.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

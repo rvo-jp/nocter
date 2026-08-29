@@ -191,6 +191,14 @@ fingerprint is the source-neutral declaration authority; only body queries whose
 changed execute against the refreshed context. This contract is private to source-neutral lexical
 queries so a current `NodeId` product cannot accidentally claim the same fingerprint.
 
+Typed-body reuse cannot retain the existing program-wide `TypeId` and `ClosureId` allocation order.
+A preceding body may add an inferred structural type or closure and shift every later identity.
+Checking therefore now owns a body type-extension recipe: references into the immutable prepared
+program remain program identities, while types and closures introduced by the body use dense local
+identities. Replay interns them into the canonical finalization branch and returns the exact
+local-to-current map. The checked-body recipe and closure-definition replay still need to consume
+that map before typed body queries can replace the eager body loop.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

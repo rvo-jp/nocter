@@ -14,6 +14,7 @@ mod body_check;
 mod body_evidence;
 mod body_name_query;
 mod body_sources;
+mod body_type_recipe;
 mod checked;
 mod concrete_destruction;
 mod concrete_dispatch;
@@ -70,6 +71,9 @@ pub use body_name_query::{
 };
 pub use body_sources::{
     BodySource, BodySourceCatalog, BodySourceError, catalog_body_source, catalog_body_sources,
+};
+pub use body_type_recipe::{
+    BodyClosureRef, BodyTypeRecipe, BodyTypeRecipeError, BodyTypeRef, ReplayedBodyTypes,
 };
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,

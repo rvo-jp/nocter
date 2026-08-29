@@ -34,9 +34,11 @@ evidence.
 
 Continue v0.20.0 Phase 1 with per-body typed checking. Declaration lowering, program preparation,
 and lexical body resolution are query-owned; instrumentation proves sibling lexical reuse after a
-body edit shifts current syntax IDs. Typed checking must define body-local type/closure identity
-and an explicit program-finalization merge before it can reuse results safely. Migrate preparation
-and lexical rejection into the same query graph before removing their current recovery fallback.
+body edit shifts current syntax IDs. Structural type additions and closure references now have a
+body-local replay recipe; next make checked bodies and closure definitions consume its canonical
+merge map, then move ownership/provenance/loan finalization behind the complete body-product set.
+Migrate preparation and lexical rejection into the same query graph before removing their current
+recovery fallback.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 
