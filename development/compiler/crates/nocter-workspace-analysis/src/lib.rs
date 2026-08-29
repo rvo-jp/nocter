@@ -167,6 +167,14 @@ impl WorkspaceAnalyses {
         )
     }
 
+    #[cfg(test)]
+    fn declaration_query_counts(&self) -> (u64, u64) {
+        (
+            nocter_semantic_computation::declaration_execution_count(&self.computation),
+            nocter_semantic_computation::declaration_reuse_count(&self.computation),
+        )
+    }
+
     ///
     /// # Errors
     ///
@@ -428,7 +436,7 @@ impl WorkspaceAnalyses {
                             &input,
                             generation,
                             transition.package_roots.clone(),
-                            &self.computation,
+                            &mut self.computation,
                         )
                     } else {
                         WorkspaceAnalysisState::InvalidationOnly {
@@ -527,7 +535,7 @@ impl WorkspaceAnalyses {
             &input,
             source.generation(),
             nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
-            &candidate_computation,
+            &mut candidate_computation,
         ) {
             WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }
@@ -749,6 +757,7 @@ mod tests {
         let after_initial = analyses.source_parse_counts();
         let source_text_after_initial = analyses.source_text_execution_count();
         let surfaces_after_initial = analyses.declaration_surface_counts();
+        let declarations_after_initial = analyses.declaration_query_counts();
         assert!(after_initial.0 > 0);
 
         let DocumentWorkspaceChange::Accepted(root_revision) =
@@ -759,6 +768,7 @@ mod tests {
         analyses.analyze(root_revision).unwrap();
         let after_root_change = analyses.source_parse_counts();
         let surfaces_after_root_change = analyses.declaration_surface_counts();
+        let declarations_after_root_change = analyses.declaration_query_counts();
         assert_eq!(after_root_change.0, after_initial.0 + 1);
         assert_eq!(
             analyses.source_text_execution_count(),
@@ -768,6 +778,11 @@ mod tests {
         assert_eq!(surfaces_after_root_change.0, surfaces_after_initial.0 + 1);
         assert_eq!(surfaces_after_root_change.1, surfaces_after_initial.1);
         assert!(surfaces_after_root_change.2 > surfaces_after_initial.2);
+        assert_eq!(
+            declarations_after_root_change.0,
+            declarations_after_initial.0
+        );
+        assert!(declarations_after_root_change.1 > declarations_after_initial.1);
 
         analyses
             .analyze(documents.open(&helper, 1, helper_text).unwrap())
@@ -775,6 +790,7 @@ mod tests {
         let before_helper_change = analyses.source_parse_counts();
         let source_text_before_helper_change = analyses.source_text_execution_count();
         let surfaces_before_helper_change = analyses.declaration_surface_counts();
+        let declarations_before_helper_change = analyses.declaration_query_counts();
         let DocumentWorkspaceChange::Accepted(helper_revision) =
             documents.change(&helper, 2, changed_helper_text).unwrap()
         else {
@@ -783,6 +799,7 @@ mod tests {
         let warm = analyses.analyze(helper_revision).unwrap();
         let after_helper_change = analyses.source_parse_counts();
         let surfaces_after_helper_change = analyses.declaration_surface_counts();
+        let declarations_after_helper_change = analyses.declaration_query_counts();
         assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
         assert_eq!(
             analyses.source_text_execution_count(),
@@ -796,6 +813,11 @@ mod tests {
             surfaces_after_helper_change.1,
             surfaces_before_helper_change.1
         );
+        assert_eq!(
+            declarations_after_helper_change.0,
+            declarations_before_helper_change.0
+        );
+        assert!(declarations_after_helper_change.1 > declarations_before_helper_change.1);
 
         let mut fresh_documents = DocumentWorkspace::new();
         let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
@@ -813,6 +835,45 @@ mod tests {
             analysis_signature(warm.primary()),
             analysis_signature(fresh.primary())
         );
+    }
+
+    #[test]
+    fn rejected_declarations_depend_on_exact_current_source() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let original = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "struct Duplicate {}\n",
+            "struct Duplicate {}\n",
+            "func body(): i32 { return 1 }\n",
+        );
+        let changed = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "struct Duplicate {}\n",
+            "struct Duplicate {}\n",
+            "func body(): i32 { return 2 }\n",
+        );
+        fs::write(&root, original).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        let initial = analyses
+            .analyze(documents.open(&root, 1, original).unwrap())
+            .unwrap();
+        assert_eq!(
+            initial.primary().snapshot().unwrap().status(),
+            AnalysisStatus::CompilationFailed
+        );
+        let before = analyses.declaration_query_counts();
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, changed).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        analyses.analyze(revision).unwrap();
+        let after = analyses.declaration_query_counts();
+
+        assert_eq!(after.0, before.0 + 1);
     }
 
     #[derive(Debug, Eq, PartialEq)]

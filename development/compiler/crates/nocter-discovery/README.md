@@ -23,6 +23,7 @@ does not lower declarations or interpret body semantics.
 - source ingestion and validated source-syntax provider calls
 - source-neutral canonicalization of package, module, top-level dependency, target, and toolchain
   topology
+- one shared canonical source inventory for semantic topology and exact current-source products
 
 ## Invariants
 
@@ -38,3 +39,5 @@ does not lower declarations or interpret body semantics.
   Rust enum discriminants or discovery traversal order.
 - Every resolution retained by the topology surface is checked against the exact expected syntax
   kind; malformed internal snapshots fail instead of silently changing invalidation behavior.
+- The exact current-source surface uses the same canonical inventory and includes every reached
+  source byte. It is a generation-local invalidation product, never declaration semantics.

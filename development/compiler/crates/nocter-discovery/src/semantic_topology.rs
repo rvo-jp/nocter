@@ -1,11 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt;
 
 use nocter_compile_input::{ModuleIdentity, ModuleSourceKind, PackageMode};
-use nocter_source::SourceId;
 use nocter_syntax::NodeKind;
 
 use crate::DiscoveredUnit;
+use crate::source_domain::{CanonicalSource, SourceDomainError, canonical_sources};
 
 /// Canonical, syntax-content-independent topology that can affect declaration semantics.
 ///
@@ -264,46 +264,6 @@ fn encode_toolchain(
     Ok(())
 }
 
-struct CanonicalSource<'unit> {
-    id: SourceId,
-    path: &'unit str,
-    syntax: usize,
-}
-
-fn canonical_sources(
-    unit: &DiscoveredUnit,
-) -> Result<Vec<CanonicalSource<'_>>, SemanticTopologyError> {
-    let mut sources = unit
-        .modules
-        .iter()
-        .flat_map(|module| module.sources().iter())
-        .map(|source| {
-            let tree = unit.syntax.get(source.syntax_index()).ok_or_else(|| {
-                SemanticTopologyError::MissingSyntax(source.canonical_path().into())
-            })?;
-            Ok(CanonicalSource {
-                id: tree.source(),
-                path: source.canonical_path(),
-                syntax: source.syntax_index(),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    sources.sort_unstable_by_key(|source| source.path);
-    let mut ownership = BTreeMap::new();
-    let mut paths = BTreeMap::new();
-    for source in &sources {
-        if ownership.insert(source.id, source.path).is_some() {
-            return Err(SemanticTopologyError::DuplicateSource(source.id));
-        }
-        if paths.insert(source.path, source.id).is_some() {
-            return Err(SemanticTopologyError::DuplicateSourcePath(
-                source.path.into(),
-            ));
-        }
-    }
-    Ok(sources)
-}
-
 fn require_node_kind(
     tree: &nocter_syntax::SyntaxTree,
     declaration: nocter_syntax::NodeId,
@@ -350,10 +310,8 @@ fn encode(bytes: &[u8], output: &mut Vec<u8>) {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticTopologyError {
+    SourceDomain(SourceDomainError),
     MissingToolchain,
-    MissingSyntax(Box<str>),
-    DuplicateSource(SourceId),
-    DuplicateSourcePath(Box<str>),
     UnknownResolutionSource(nocter_syntax::NodeId),
     DuplicateResolution(nocter_syntax::NodeId),
     InvalidVisibilityResolution {
@@ -373,3 +331,9 @@ impl fmt::Display for SemanticTopologyError {
 }
 
 impl std::error::Error for SemanticTopologyError {}
+
+impl From<SourceDomainError> for SemanticTopologyError {
+    fn from(error: SourceDomainError) -> Self {
+        Self::SourceDomain(error)
+    }
+}

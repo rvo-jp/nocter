@@ -171,6 +171,7 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
     ];
     for crate_name in [
         "nocter-session",
+        "nocter-semantic-computation",
         "nocter-analysis",
         "nocter-workspace-analysis",
         "nocter-language-server",
@@ -198,6 +199,7 @@ fn language_server_consumes_analysis_queries_not_semantic_storage() {
         "nocter-model",
         "nocter-package",
         "nocter-session",
+        "nocter-semantic-computation",
         "nocter-source-index",
         "nocter-syntax",
         "nocter-target-program",
@@ -223,6 +225,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
                 "nocter-filesystem",
                 "nocter-model",
                 "nocter-package",
+                "nocter-semantic-computation",
                 "nocter-session",
                 "nocter-source",
                 "nocter-syntax",
@@ -269,6 +272,18 @@ fn computation_kernel_has_no_compiler_domain_dependency() {
     assert_eq!(
         production_dependencies("nocter-computation"),
         BTreeSet::from(["nocter-hash".to_owned()])
+    );
+}
+
+#[test]
+fn semantic_computation_owns_queries_without_workspace_or_session_policy() {
+    assert_eq!(
+        production_dependencies("nocter-semantic-computation"),
+        BTreeSet::from([
+            "nocter-computation".to_owned(),
+            "nocter-declaration-lowering".to_owned(),
+            "nocter-discovery".to_owned(),
+        ])
     );
 }
 

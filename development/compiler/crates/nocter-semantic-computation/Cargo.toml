@@ -1,0 +1,15 @@
+[package]
+name = "nocter-semantic-computation"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-computation = { path = "../nocter-computation" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-discovery = { path = "../nocter-discovery" }
+
+[lints]
+workspace = true

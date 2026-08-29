@@ -135,6 +135,12 @@ pub(super) fn finish_recovering(
         .zip(reserved.module_ids.iter().copied())
         .collect::<Vec<_>>()
         .into_boxed_slice();
+    let current_symbols = crate::current_symbols::CurrentCheckingSymbols::from_sources(
+        reserved.source_map,
+        &reserved.sources,
+    )
+    .map_err(HeaderDefinitionError::from)
+    .map_err(HeaderDefinitionFailure::without_recovery)?;
     let (projection_recipe, source_index, frontend_bindings) = reserved
         .source_index
         .finish(reserved.source_map, &reserved.sources)
@@ -148,6 +154,7 @@ pub(super) fn finish_recovering(
             primitive_bindings,
             module_bindings,
             projection_recipe,
+            current_symbols,
         )),
         Err(failure) => {
             let (error, recovery) = match failure {
@@ -159,6 +166,7 @@ pub(super) fn finish_recovering(
                                 analysis,
                                 frontend_bindings,
                                 source_index,
+                                &current_symbols,
                             );
                             (
                                 HeaderDefinitionError::Declaration(diagnostics),

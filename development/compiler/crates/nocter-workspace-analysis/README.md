@@ -21,6 +21,7 @@ language server.
 - scope caching, invalidation, and generation publication
 - path-keyed source-text and parse queries, input publication, and computation instrumentation
 - source declaration-surface and module-surface query composition
+- atomic semantic-scope input publication and declaration-query demand
 
 ## Invariants
 
@@ -39,3 +40,6 @@ language server.
   the accepted revision's query state.
 - A module surface depends on each member source's canonical declaration syntax. A body-only edit
   may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.
+- Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
+  discovery snapshot. Accepted declarations enter session checking through their reusable query
+  product; workspace code cannot inspect declaration storage or reconstruct its invalidation rule.

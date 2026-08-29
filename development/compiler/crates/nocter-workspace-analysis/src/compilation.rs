@@ -10,7 +10,8 @@ use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_session::{analyze_unit, bundled_standard_toolchain};
+use nocter_semantic_computation::DeclarationQueryOutcome;
+use nocter_session::{analyze_unit, analyze_unit_from_declarations, bundled_standard_toolchain};
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
 
@@ -24,7 +25,7 @@ pub(crate) fn compile_scope(
     input: &ScopeCompilationInput,
     generation: GenerationId,
     package_roots: PackageRootCatalog,
-    computation: &Database,
+    computation: &mut Database,
 ) -> WorkspaceAnalysisState {
     let source_overlay = package_roots.source_overlay().clone();
     let mut source_syntax = ComputedSourceSyntax::new(computation);
@@ -48,17 +49,65 @@ pub(crate) fn compile_scope(
     };
     match discovered {
         Ok(unit) => {
-            if let Err(error) = crate::module_surface::prime(computation, &unit) {
-                let error = WorkspaceAnalysisError::computation(error);
-                return WorkspaceAnalysisState::PreparationFailed {
-                    source_overlay,
-                    diagnostics: preparation_diagnostics(&error),
-                    error,
+            let module_surface = match crate::module_surface::fingerprint(computation, &unit) {
+                Ok(fingerprint) => fingerprint,
+                Err(error) => {
+                    let error = WorkspaceAnalysisError::computation(error);
+                    return WorkspaceAnalysisState::PreparationFailed {
+                        source_overlay,
+                        diagnostics: preparation_diagnostics(&error),
+                        error,
+                    };
+                }
+            };
+            let unit = Arc::new(unit);
+            let (scope, publication) =
+                match nocter_semantic_computation::ScopeInputPublication::for_unit(
+                    Arc::clone(&unit),
+                    module_surface,
+                ) {
+                    Ok(publication) => publication,
+                    Err(error) => {
+                        let error = WorkspaceAnalysisError::semantic_computation(error);
+                        return WorkspaceAnalysisState::PreparationFailed {
+                            source_overlay,
+                            diagnostics: preparation_diagnostics(&error),
+                            error,
+                        };
+                    }
                 };
-            }
+            let mut revision = match computation.advance_revision() {
+                Ok(revision) => revision,
+                Err(error) => {
+                    let error = WorkspaceAnalysisError::computation(error);
+                    return WorkspaceAnalysisState::PreparationFailed {
+                        source_overlay,
+                        diagnostics: preparation_diagnostics(&error),
+                        error,
+                    };
+                }
+            };
+            publication.publish(&mut revision, &scope);
+            let _ = revision.commit();
+            let declarations = match nocter_semantic_computation::declarations(computation, scope) {
+                Ok(declarations) => declarations,
+                Err(error) => {
+                    let error = WorkspaceAnalysisError::computation(error);
+                    return WorkspaceAnalysisState::PreparationFailed {
+                        source_overlay,
+                        diagnostics: preparation_diagnostics(&error),
+                        error,
+                    };
+                }
+            };
+            let analyzed = match declarations.outcome() {
+                DeclarationQueryOutcome::Accepted(declarations) => {
+                    analyze_unit_from_declarations(unit, declarations)
+                }
+                DeclarationQueryOutcome::Rejected => analyze_unit(unit),
+            };
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
-                generation,
-                analyze_unit(Arc::new(unit)),
+                generation, analyzed,
             )))
         }
         Err(AnalysisPreparationFailure::Discovery(failure)) => {

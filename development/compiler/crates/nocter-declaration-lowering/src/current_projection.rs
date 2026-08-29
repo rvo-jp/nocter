@@ -48,7 +48,9 @@ impl ReusableDeclarations {
     }
 }
 
-fn canonical_sources<'syntax>(input: &CompileUnitInput<'syntax>) -> Vec<SurfaceSource<'syntax>> {
+pub(crate) fn canonical_sources<'syntax>(
+    input: &CompileUnitInput<'syntax>,
+) -> Vec<SurfaceSource<'syntax>> {
     let mut modules = input.modules().iter().collect::<Vec<_>>();
     modules.sort_unstable_by_key(|module| module.identity());
     let mut sources = Vec::new();

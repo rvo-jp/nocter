@@ -2029,6 +2029,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-semantic-computation"
+version = "0.0.0"
+dependencies = [
+ "nocter-computation",
+ "nocter-declaration-lowering",
+ "nocter-discovery",
+]
+
+[[package]]
 name = "nocter-session"
 version = "0.0.0"
 dependencies = [
@@ -2038,6 +2047,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
+ "nocter-frontend-bindings",
  "nocter-model",
  "nocter-runtime-contract",
  "nocter-source",
@@ -2130,6 +2140,7 @@ dependencies = [
  "nocter-filesystem",
  "nocter-model",
  "nocter-package",
+ "nocter-semantic-computation",
  "nocter-session",
  "nocter-source",
  "nocter-syntax",

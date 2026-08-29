@@ -849,22 +849,21 @@ fn semantic_topology_ignores_body_contents_and_block_uses() {
             minimal_toolchain("workspace:app"),
         )
     };
-    let before = discover(request())
-        .unwrap()
-        .semantic_topology_surface()
-        .unwrap();
+    let before_unit = discover(request()).unwrap();
+    let before = before_unit.semantic_topology_surface().unwrap();
+    let before_current = before_unit.current_source_surface().unwrap();
 
     fs::write(
         tree.path().join("app/index.nct"),
         "#package: { name: \"app\", version: \"0.0.0\", }\nuse ./first\nuse ./second\n\nfunc main(): void {\n    use ./second\n    let changed = 1\n    return\n}\n",
     )
     .unwrap();
-    let after = discover(request())
-        .unwrap()
-        .semantic_topology_surface()
-        .unwrap();
+    let after_unit = discover(request()).unwrap();
+    let after = after_unit.semantic_topology_surface().unwrap();
+    let after_current = after_unit.current_source_surface().unwrap();
 
     assert_eq!(before, after);
+    assert_ne!(before_current, after_current);
 }
 
 #[test]

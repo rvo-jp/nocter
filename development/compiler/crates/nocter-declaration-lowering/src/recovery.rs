@@ -57,13 +57,14 @@ impl DeclarationLoweringRecovery {
         program: RejectedDeclarationAnalysis,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
+        current_symbols: &crate::current_symbols::CurrentCheckingSymbols,
     ) -> Self {
         let program = match program {
             RejectedDeclarationAnalysis::Declarations(program) => {
                 DeclarationRecoveryProgram::Declarations(program)
             }
             RejectedDeclarationAnalysis::Bodies(program) => {
-                DeclarationRecoveryProgram::Bodies(program)
+                DeclarationRecoveryProgram::Bodies(current_symbols.extend_body_analysis(program))
             }
         };
         Self {

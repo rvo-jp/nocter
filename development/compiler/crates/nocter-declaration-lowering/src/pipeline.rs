@@ -163,10 +163,30 @@ pub fn lower_compile_unit_declarations(
 pub fn lower_compile_unit_declarations_recovering(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {
+    lower_complete_declarations_recovering(input)
+}
+
+fn lower_complete_declarations_recovering(
+    input: &CompileUnitInput<'_>,
+) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {
     let normalized =
         prepare_compile_unit_declarations_from(input, collect_declaration_surface(input))
             .map_err(DeclarationLoweringFailure::without_recovery)?;
     finish_declarations_recovering(input, normalized)
+}
+
+/// Computes only the source-neutral accepted declaration product for a semantic query.
+///
+/// Current frontend bindings and source projection are deliberately discarded at this boundary;
+/// the query consumer must materialize them from the retained recipe against its current input.
+///
+/// # Errors
+///
+/// Returns the same authored or integrity failure as complete declaration lowering.
+pub fn lower_reusable_declarations(
+    input: &CompileUnitInput<'_>,
+) -> Result<crate::ReusableDeclarations, DeclarationLoweringFailure> {
+    lower_complete_declarations_recovering(input).map(LoweredDeclarations::into_reusable)
 }
 
 /// Lowers declarations from an incomplete-body source while retaining declaration-only facts
@@ -1690,7 +1710,7 @@ mod tests {
         let original_id = add_source(
             &mut original_sources,
             "/tmp/example.nct",
-            "/// Original.\nfunc answer(): i32 { return 1 }\n",
+            "/// Original.\nfunc answer(): i32 {\n    let original_local = 1\n    return original_local\n}\n",
         );
         let standard_id = add_source(
             &mut original_sources,
@@ -1787,6 +1807,19 @@ mod tests {
         .with_toolchain(standard_toolchain(&current_standard));
 
         reusable.materialize_projection(&current_input).unwrap();
+        assert_current_body_symbol_domain(&reusable, &current_input);
+    }
+
+    fn assert_current_body_symbol_domain(
+        reusable: &crate::ReusableDeclarations,
+        current_input: &CompileUnitInput<'_>,
+    ) {
+        let answer = reusable.program().symbols().get("answer").unwrap();
+        assert_eq!(reusable.program().symbols().get("original_local"), None);
+        let checking = reusable.checking_branch_for(current_input).unwrap();
+        assert_eq!(checking.symbols().get("answer"), Some(answer));
+        assert!(checking.symbols().get("changed").is_some());
+        assert_eq!(checking.symbols().get("original_local"), None);
     }
 
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {

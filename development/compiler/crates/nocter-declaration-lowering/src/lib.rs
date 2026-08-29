@@ -17,6 +17,7 @@ use nocter_model::PackageIdentity;
 mod contract;
 mod contract_diagnostic;
 mod current_projection;
+mod current_symbols;
 mod definition_diagnostic;
 mod definitions;
 mod diagnostic;
@@ -54,6 +55,7 @@ mod test_support;
 pub use contract::{DeclarationContractError, DeclarationContracts, analyze_declaration_contracts};
 pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContractRule};
 pub use current_projection::{CurrentDeclarationProjection, CurrentProjectionError};
+pub use current_symbols::CurrentSymbolError;
 pub use definition_diagnostic::DefinitionDiagnostic;
 pub use definitions::{
     DeclarationDiagnostics, DefinitionRule, DefinitionViolation, HeaderDefinitionError,
@@ -74,6 +76,7 @@ pub use namespace_diagnostic::NamespaceDiagnostic;
 pub use pipeline::{
     DeclarationLoweringError, DeclarationLoweringFailure, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
+    lower_reusable_declarations,
 };
 pub use projection_recipe::{FrontendProjectionRecipe, ProjectionRecipeError};
 pub use recovery::{

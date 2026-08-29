@@ -7,6 +7,8 @@ use nocter_diagnostics::SourceDiagnostic;
 pub enum CompileSessionError {
     CompileInput(nocter_discovery::CompileInputError),
     Declaration(nocter_declaration_lowering::DeclarationLoweringError),
+    CurrentProjection(nocter_declaration_lowering::CurrentProjectionError),
+    CurrentSymbols(nocter_declaration_lowering::CurrentSymbolError),
     Preparation(nocter_checking::PreparationError),
     Checking(nocter_checking::BodyCheckError),
     MissingStandardPackage,
@@ -25,6 +27,8 @@ impl CompileSessionError {
             Self::Preparation(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::Checking(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::CompileInput(_)
+            | Self::CurrentProjection(_)
+            | Self::CurrentSymbols(_)
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::TargetUnavailable(_)
@@ -39,6 +43,8 @@ impl CompileSessionError {
             Self::TargetUnavailable(_) => Some("E0701"),
             Self::CompileInput(_)
             | Self::Declaration(_)
+            | Self::CurrentProjection(_)
+            | Self::CurrentSymbols(_)
             | Self::Preparation(_)
             | Self::Checking(_)
             | Self::MissingStandardPackage
@@ -53,6 +59,8 @@ impl fmt::Display for CompileSessionError {
         match self {
             Self::CompileInput(error) => error.fmt(formatter),
             Self::Declaration(error) => error.fmt(formatter),
+            Self::CurrentProjection(error) => error.fmt(formatter),
+            Self::CurrentSymbols(error) => error.fmt(formatter),
             Self::Preparation(error) => error.fmt(formatter),
             Self::Checking(error) => error.fmt(formatter),
             Self::MissingStandardPackage => {
@@ -70,6 +78,8 @@ impl std::error::Error for CompileSessionError {
         match self {
             Self::CompileInput(error) => Some(error),
             Self::Declaration(error) => Some(error),
+            Self::CurrentProjection(error) => Some(error),
+            Self::CurrentSymbols(error) => Some(error),
             Self::Preparation(error) => Some(error),
             Self::Checking(error) => Some(error),
             Self::Primitive(error) => Some(error),
@@ -89,6 +99,18 @@ impl From<nocter_discovery::CompileInputError> for CompileSessionError {
 impl From<nocter_declaration_lowering::DeclarationLoweringError> for CompileSessionError {
     fn from(error: nocter_declaration_lowering::DeclarationLoweringError) -> Self {
         Self::Declaration(error)
+    }
+}
+
+impl From<nocter_declaration_lowering::CurrentProjectionError> for CompileSessionError {
+    fn from(error: nocter_declaration_lowering::CurrentProjectionError) -> Self {
+        Self::CurrentProjection(error)
+    }
+}
+
+impl From<nocter_declaration_lowering::CurrentSymbolError> for CompileSessionError {
+    fn from(error: nocter_declaration_lowering::CurrentSymbolError) -> Self {
+        Self::CurrentSymbols(error)
     }
 }
 

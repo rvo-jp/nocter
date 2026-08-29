@@ -376,6 +376,30 @@ impl AcceptedDeclarationProgram {
         }
     }
 
+    /// Opens a checking branch with a deterministic body-only symbol suffix.
+    ///
+    /// Existing declaration symbols retain their IDs. The suffix is branch-local and therefore
+    /// cannot change reusable declaration identity.
+    #[must_use]
+    pub fn checking_branch_with_symbols<S>(&self, spellings: impl IntoIterator<Item = S>) -> Self
+    where
+        S: AsRef<str>,
+    {
+        let mut branch = self.checking_branch();
+        branch.program.graph.symbols = branch.program.graph.symbols.extended(spellings);
+        branch
+    }
+
+    /// Extends this owned checking branch without cloning its declaration authority.
+    #[must_use]
+    pub fn with_checking_symbols<S>(mut self, spellings: impl IntoIterator<Item = S>) -> Self
+    where
+        S: AsRef<str>,
+    {
+        self.program.graph.symbols = self.program.graph.symbols.extended(spellings);
+        self
+    }
+
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
         &self.program
@@ -886,6 +910,16 @@ pub struct BodyAnalysisDeclarationProgram {
 }
 
 impl BodyAnalysisDeclarationProgram {
+    /// Appends the current body-only symbol domain while preserving declaration symbol IDs.
+    #[must_use]
+    pub fn with_checking_symbols<S>(mut self, spellings: impl IntoIterator<Item = S>) -> Self
+    where
+        S: AsRef<str>,
+    {
+        self.graph.symbols = self.graph.symbols.extended(spellings);
+        self
+    }
+
     #[must_use]
     pub fn into_parts(
         self,

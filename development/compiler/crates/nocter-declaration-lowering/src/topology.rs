@@ -54,6 +54,7 @@ impl PreparedUseResolution<'_> {
 #[derive(Debug)]
 pub struct LoweredDeclarations {
     reusable: ReusableDeclarations,
+    current_symbols: crate::current_symbols::CurrentCheckingSymbols,
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
 }
@@ -119,6 +120,7 @@ impl LoweredDeclarations {
         primitive_bindings: Box<[PrimitiveBinding]>,
         module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
+        current_symbols: crate::current_symbols::CurrentCheckingSymbols,
     ) -> Self {
         Self {
             reusable: ReusableDeclarations {
@@ -127,6 +129,7 @@ impl LoweredDeclarations {
                 module_bindings,
                 projection_recipe,
             },
+            current_symbols,
             frontend_bindings,
             source_index,
         }
@@ -161,7 +164,10 @@ impl LoweredDeclarations {
 
     #[must_use]
     pub fn into_parts(self) -> (AcceptedDeclarationProgram, SourceIndex) {
-        (self.reusable.program, self.source_index)
+        (
+            self.current_symbols.extend_accepted(self.reusable.program),
+            self.source_index,
+        )
     }
 
     /// Separates semantic checking input from the independently retained presentation index.
@@ -170,7 +176,7 @@ impl LoweredDeclarations {
         self,
     ) -> (AcceptedDeclarationProgram, FrontendBindings, SourceIndex) {
         (
-            self.reusable.program,
+            self.current_symbols.extend_accepted(self.reusable.program),
             self.frontend_bindings,
             self.source_index,
         )
@@ -1079,6 +1085,12 @@ fn collect_tree_symbols(
                 if kind == NodeKind::Item
                     && target_selection.is_some_and(|selection| !selection.item_is_active(node))
                 {
+                    continue;
+                }
+                // Function and method bodies belong to the current checking generation, not to
+                // the reusable declaration symbol domain. `current_symbols` appends their
+                // spellings to a checking branch without renumbering this declaration prefix.
+                if kind == NodeKind::Block {
                     continue;
                 }
                 if kind == NodeKind::StringLiteral {

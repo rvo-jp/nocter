@@ -31,6 +31,7 @@ members = [
     "crates/nocter-package-state",
     "crates/nocter-persistent",
     "crates/nocter-runtime-contract",
+    "crates/nocter-semantic-computation",
     "crates/nocter-session",
     "crates/nocter-source",
     "crates/nocter-source-index",

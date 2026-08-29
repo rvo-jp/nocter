@@ -111,6 +111,7 @@ enum WorkspaceAnalysisErrorKind {
     PackageRootProbe(Arc<nocter_package::PackageRootProbeError>),
     ModuleOwner(nocter_discovery::DiscoveryError),
     Computation(nocter_computation::ComputationError),
+    SemanticComputation(nocter_semantic_computation::ScopeInputError),
 }
 
 impl WorkspaceAnalysisError {
@@ -129,6 +130,14 @@ impl WorkspaceAnalysisError {
     pub(crate) fn computation(error: nocter_computation::ComputationError) -> Self {
         Self {
             kind: WorkspaceAnalysisErrorKind::Computation(error),
+        }
+    }
+
+    pub(crate) fn semantic_computation(
+        error: nocter_semantic_computation::ScopeInputError,
+    ) -> Self {
+        Self {
+            kind: WorkspaceAnalysisErrorKind::SemanticComputation(error),
         }
     }
 
@@ -159,7 +168,8 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::StandardPackage(_)
             | WorkspaceAnalysisErrorKind::PackageRootProbe(_)
             | WorkspaceAnalysisErrorKind::ModuleOwner(_)
-            | WorkspaceAnalysisErrorKind::Computation(_) => None,
+            | WorkspaceAnalysisErrorKind::Computation(_)
+            | WorkspaceAnalysisErrorKind::SemanticComputation(_) => None,
         }
     }
 
@@ -173,7 +183,8 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::PackageRootProbe(_) => "E0800",
             WorkspaceAnalysisErrorKind::StandardPackage(_) => "E0703",
             WorkspaceAnalysisErrorKind::MissingRootPackage(_)
-            | WorkspaceAnalysisErrorKind::Computation(_) => "E0900",
+            | WorkspaceAnalysisErrorKind::Computation(_)
+            | WorkspaceAnalysisErrorKind::SemanticComputation(_) => "E0900",
         }
     }
 }
@@ -225,6 +236,9 @@ impl fmt::Display for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::Computation(error) => {
                 write!(formatter, "workspace computation failed: {error}")
             }
+            WorkspaceAnalysisErrorKind::SemanticComputation(error) => {
+                write!(formatter, "semantic computation input is invalid: {error}")
+            }
         }
     }
 }
@@ -237,6 +251,7 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::PackageRootProbe(error) => Some(error.as_ref()),
             WorkspaceAnalysisErrorKind::ModuleOwner(error) => Some(error),
             WorkspaceAnalysisErrorKind::Computation(error) => Some(error),
+            WorkspaceAnalysisErrorKind::SemanticComputation(error) => Some(error),
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_) => None,

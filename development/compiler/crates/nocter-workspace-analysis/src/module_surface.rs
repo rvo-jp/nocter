@@ -68,6 +68,12 @@ struct ModuleSurfaceProduct {
     fingerprint: Fingerprint,
 }
 
+impl ModuleSurfaceProduct {
+    const fn semantic_fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+}
+
 impl QueryValue for ModuleSurfaceProduct {
     fn fingerprint(&self) -> Fingerprint {
         self.fingerprint
@@ -92,13 +98,20 @@ impl Query for ModuleSurfaceQuery {
     }
 }
 
-/// Demands every discovered module's source-neutral declaration surface for this revision.
-pub(super) fn prime(database: &Database, unit: &DiscoveredUnit) -> Result<(), ComputationError> {
-    for module in unit.modules() {
-        let _ =
+/// Composes every discovered module's source-neutral declaration surface for this scope.
+pub(super) fn fingerprint(
+    database: &Database,
+    unit: &DiscoveredUnit,
+) -> Result<Fingerprint, ComputationError> {
+    let mut modules = unit.modules().iter().collect::<Vec<_>>();
+    modules.sort_unstable_by_key(|module| module.identity());
+    let mut semantic = Vec::new();
+    for module in modules {
+        let surface =
             database.query::<ModuleSurfaceQuery>(ModuleSurfaceKey::new(unit.target(), module))?;
+        semantic.extend_from_slice(&surface.semantic_fingerprint().digest());
     }
-    Ok(())
+    Ok(Fingerprint::from_bytes(&semantic))
 }
 
 const fn source_kind_code(kind: ModuleSourceKind) -> u8 {

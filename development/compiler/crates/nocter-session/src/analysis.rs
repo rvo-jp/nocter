@@ -2,7 +2,10 @@ use nocter_checking::CheckedProgramOutput;
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
-use crate::semantic_pipeline::{SemanticPipelineFailure, SyntaxAdmission, run_semantic_pipeline};
+use crate::semantic_pipeline::{
+    SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
+    run_semantic_pipeline_from_declarations,
+};
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
 /// A failed target analysis and the exact current-generation semantic evidence that remains valid.
@@ -136,6 +139,18 @@ pub fn analyze_target(unit: &DiscoveredUnit) -> Result<CompiledTarget, Box<Compi
     analyze_target_internal(unit, true)
 }
 
+pub(crate) fn analyze_target_from_declarations(
+    unit: &DiscoveredUnit,
+    declarations: &nocter_declaration_lowering::ReusableDeclarations,
+) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
+    let output = run_semantic_pipeline_from_declarations(unit, declarations).map_err(
+        |SemanticPipelineFailure { error, evidence }| {
+            Box::new(CompileTargetFailure::new(*error, evidence))
+        },
+    )?;
+    finish_semantic_pipeline(unit, output, true)
+}
+
 /// Attempts editor-only semantic analysis beneath an authoritative syntax failure.
 ///
 /// This path can never return a target program or claim compilation success. It preserves the
@@ -172,6 +187,14 @@ fn analyze_target_internal(
             ))
         },
     )?;
+    finish_semantic_pipeline(unit, output, retain_semantic)
+}
+
+fn finish_semantic_pipeline(
+    unit: &DiscoveredUnit,
+    output: SemanticPipelineOutput,
+    retain_semantic: bool,
+) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitive_bindings = output.primitive_bindings;
     let checked = output.checked;
     let primitives = match nocter_runtime_contract::PrimitiveRegistry::new(primitive_bindings) {

@@ -102,7 +102,7 @@ contents, and body-local diagnostics do not. A module-surface query composes tho
 in canonical physical-source order. Instrumented tests prove that a body edit reevaluates the
 edited source surface but leaves its fingerprint unchanged, so the containing module surface is
 reused without execution. Declaration and body-program migration remains incomplete; the current
-whole-scope semantic pipeline still runs after this boundary and is not mislabeled as incremental.
+body-program pipeline still runs after this boundary and is not mislabeled as incremental.
 
 The syntax owner also assigns source-independent locators to nodes and tokens retained by that
 surface. An equal surface can resolve the same locator into its own generation-local syntax
@@ -143,6 +143,28 @@ uses stable vocabulary supplied by the owning model contracts, validates every r
 kind, and is independent of discovery traversal order. The declaration query will compose this
 topology product with module surfaces instead of rerunning discovery or interpreting its private
 storage.
+
+That composition is now integrated through the dedicated `nocter-semantic-computation` owner.
+Workspace orchestration publishes two fingerprints carrying the same shared discovery snapshot:
+declaration semantics combine canonical topology with all module surfaces, while exact current
+source additionally includes every reached source byte. The declaration query reads only the
+semantic input on acceptance. It dynamically reads exact current source on rejection, preventing
+generation-local failure evidence from surviving any edit without invalidating successful
+declarations. Session checking consumes an owned branch of an accepted query result and its freshly
+materialized projection; it does not invoke declaration lowering again.
+
+The declaration program's `SymbolTable` follows the same invalidation boundary. Declaration and
+type spellings form a stable prefix fixed by declaration surfaces. Identifiers and decoded string
+literals beneath function or method blocks are absent from that reusable prefix. Every checking
+request deterministically appends the exact current body's missing spellings to its owned program
+branch. Existing symbol IDs therefore remain valid across a body edit, while a newly authored
+local, member name, body type name, block import alias, or string value is available to the current
+checker without widening declaration invalidation.
+
+Rejected declarations are currently recomputed once by the legacy recovery continuation after the
+query records rejection. Moving source-projected rejection evidence into the dynamically
+current-source-bound query product is required before Phase 1 completion; this is the remaining
+declaration-stage duplicate traversal, not a compatibility path for accepted programs.
 
 ## Source Projection
 

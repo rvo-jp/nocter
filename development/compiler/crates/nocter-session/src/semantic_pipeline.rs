@@ -5,7 +5,7 @@ use nocter_checking::{
     prepare_analysis_program_checking_recovering, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
-    DeclarationCheckingTransition, DeclarationLoweringRecovery,
+    DeclarationCheckingTransition, DeclarationLoweringRecovery, ReusableDeclarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
 };
 use nocter_discovery::DiscoveredUnit;
@@ -71,8 +71,61 @@ pub(crate) fn run_semantic_pipeline(
 
     let primitive_bindings = lowered.primitive_bindings().to_vec();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    check_declaration_bodies(
+        &input,
+        primitive_bindings,
+        program,
+        &frontend_bindings,
+        source_index,
+    )
+}
+
+/// Continues checking from one source-neutral declaration query result.
+pub(crate) fn run_semantic_pipeline_from_declarations(
+    unit: &DiscoveredUnit,
+    declarations: &ReusableDeclarations,
+) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
+    let input = unit
+        .compile_input()
+        .map_err(CompileSessionError::from)
+        .map_err(|error| SemanticPipelineFailure {
+            error: Box::new(error),
+            evidence: None,
+        })?;
+    let projection = declarations
+        .materialize_projection(&input)
+        .map_err(CompileSessionError::from)
+        .map_err(|error| SemanticPipelineFailure {
+            error: Box::new(error),
+            evidence: None,
+        })?;
+    let primitive_bindings = declarations.primitive_bindings().to_vec();
+    let program = declarations
+        .checking_branch_for(&input)
+        .map_err(CompileSessionError::from)
+        .map_err(|error| SemanticPipelineFailure {
+            error: Box::new(error),
+            evidence: None,
+        })?;
+    let (frontend_bindings, source_index) = projection.into_parts();
+    check_declaration_bodies(
+        &input,
+        primitive_bindings,
+        program,
+        &frontend_bindings,
+        source_index,
+    )
+}
+
+fn check_declaration_bodies(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+    primitive_bindings: Vec<PrimitiveBinding>,
+    program: nocter_declarations::AcceptedDeclarationProgram,
+    frontend_bindings: &nocter_frontend_bindings::FrontendBindings,
+    source_index: nocter_source_index::SourceIndex,
+) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
     let prepared =
-        prepare_program_checking_recovering(&input, program, &frontend_bindings, source_index)
+        prepare_program_checking_recovering(input, program, frontend_bindings, source_index)
             .map_err(|failure| {
                 let (error, evidence) = failure.into_parts();
                 let evidence = evidence.map(SemanticEvidenceBundle::from_preparation_failure);
@@ -81,7 +134,7 @@ pub(crate) fn run_semantic_pipeline(
                     evidence,
                 }
             })?;
-    let checked = check_prepared_program_recovering(&input, prepared).map_err(|failure| {
+    let checked = check_prepared_program_recovering(input, prepared).map_err(|failure| {
         let (error, recovery) = failure.into_parts();
         SemanticPipelineFailure {
             error: Box::new(error.into()),
