@@ -19,7 +19,7 @@ language server.
 - package-root catalog construction and topology freeze
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
-- content-addressed parse queries and computation instrumentation
+- path-keyed source-text and parse queries, input publication, and computation instrumentation
 
 ## Invariants
 
@@ -30,5 +30,9 @@ language server.
 - Ambiguous shared-source contexts are rejected rather than ordered.
 - Changed/closed files may invalidate demand but cannot create demand.
 - Foreign, cloned, or non-increasing revisions cannot mutate latest state.
+- Overlay membership, each open source's bytes, and the filesystem epoch are separate inputs;
+  editing one open source cannot dirty unrelated source-text queries.
 - Reused parse products are rebound through the syntax-owned text/identity contract; workspace code
   cannot rewrite syntax identities itself.
+- Speculative mutation validation owns an isolated computation database and cannot read or mutate
+  the accepted revision's query state.

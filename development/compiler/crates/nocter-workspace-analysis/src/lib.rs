@@ -14,7 +14,9 @@ use nocter_analysis::{
     EvidenceIntegrityError, SemanticMutationCandidate, ValidatedSemanticMutation,
 };
 use nocter_filesystem::SourceOverlay;
-use nocter_workspace_revision::{GenerationId, WorkspaceRevisionSequence, WorkspaceSourceRevision};
+use nocter_workspace_revision::{
+    GenerationId, WorkspaceRevisionSequence, WorkspaceSourceChangeKind, WorkspaceSourceRevision,
+};
 
 mod compilation;
 mod compilation_input;
@@ -44,6 +46,7 @@ pub struct WorkspaceAnalyses {
     document_scopes: BTreeMap<PathBuf, AnalysisScope>,
     source_scopes: BTreeMap<PathBuf, BTreeSet<AnalysisScope>>,
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
+    filesystem_epoch: u64,
     computation: nocter_computation::Database,
 }
 
@@ -130,6 +133,7 @@ impl WorkspaceAnalyses {
             document_scopes: BTreeMap::new(),
             source_scopes: BTreeMap::new(),
             unscoped: BTreeMap::new(),
+            filesystem_epoch: 0,
             computation: nocter_computation::Database::new(),
         }
     }
@@ -146,6 +150,11 @@ impl WorkspaceAnalyses {
             source_syntax::execution_count(&self.computation),
             source_syntax::reuse_count(&self.computation),
         )
+    }
+
+    #[cfg(test)]
+    fn source_text_execution_count(&self) -> u64 {
+        source_syntax::source_text_execution_count(&self.computation)
     }
 
     ///
@@ -207,11 +216,6 @@ impl WorkspaceAnalyses {
         source: WorkspaceSourceRevision,
     ) -> Result<WorkspaceAnalysisBatch, WorkspaceRevisionError> {
         self.validate_revision(&source)?;
-        let computation_revision = self
-            .computation
-            .advance_revision()
-            .map_err(|_| WorkspaceRevisionError::ComputationRevisionExhausted)?;
-        let _ = computation_revision.commit();
         let revision_sequence = source.sequence().clone();
         let document = source.primary_document().to_path_buf();
         let generation = source.generation();
@@ -225,7 +229,20 @@ impl WorkspaceAnalyses {
             .iter()
             .map(|change| change.path().to_path_buf())
             .collect::<BTreeSet<_>>();
+        let filesystem_epoch = if source
+            .changes()
+            .iter()
+            .any(|change| change.kind() == WorkspaceSourceChangeKind::Filesystem)
+        {
+            self.filesystem_epoch
+                .checked_add(1)
+                .ok_or(WorkspaceRevisionError::ComputationRevisionExhausted)?
+        } else {
+            self.filesystem_epoch
+        };
         let source_overlay = source.into_source_overlay();
+        source_syntax::advance_revision(&mut self.computation, &source_overlay, filesystem_epoch)
+            .map_err(|_| WorkspaceRevisionError::ComputationRevisionExhausted)?;
         let mut transition = self.plan_transition(
             &document,
             &open_documents,
@@ -261,6 +278,7 @@ impl WorkspaceAnalyses {
         self.rebuild_source_scopes();
         self.revision_sequence = Some(revision_sequence);
         self.latest_generation = Some(generation);
+        self.filesystem_epoch = filesystem_epoch;
         Ok(WorkspaceAnalysisBatch::new(
             primary,
             related.into_boxed_slice(),
@@ -484,12 +502,22 @@ impl WorkspaceAnalyses {
             .filter(|(_, selected)| *selected == scope)
             .map(|(source, _)| source.clone());
         let input = ScopeCompilationInput::new(scope, requested_sources);
+        let mut candidate_computation = nocter_computation::Database::new();
+        if source_syntax::advance_revision(
+            &mut candidate_computation,
+            candidate.source_overlay(),
+            self.filesystem_epoch,
+        )
+        .is_err()
+        {
+            return Ok(None);
+        }
         match compile_scope(
             &self.configuration,
             &input,
             source.generation(),
             nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
-            &self.computation,
+            &candidate_computation,
         ) {
             WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }
@@ -709,6 +737,7 @@ mod tests {
             .analyze(documents.open(&root, 1, root_text).unwrap())
             .unwrap();
         let after_initial = analyses.source_parse_counts();
+        let source_text_after_initial = analyses.source_text_execution_count();
         assert!(after_initial.0 > 0);
 
         let DocumentWorkspaceChange::Accepted(root_revision) =
@@ -719,12 +748,17 @@ mod tests {
         analyses.analyze(root_revision).unwrap();
         let after_root_change = analyses.source_parse_counts();
         assert_eq!(after_root_change.0, after_initial.0 + 1);
+        assert_eq!(
+            analyses.source_text_execution_count(),
+            source_text_after_initial + 1
+        );
         assert!(after_root_change.1 > after_initial.1);
 
         analyses
             .analyze(documents.open(&helper, 1, helper_text).unwrap())
             .unwrap();
         let before_helper_change = analyses.source_parse_counts();
+        let source_text_before_helper_change = analyses.source_text_execution_count();
         let DocumentWorkspaceChange::Accepted(helper_revision) =
             documents.change(&helper, 2, changed_helper_text).unwrap()
         else {
@@ -733,6 +767,10 @@ mod tests {
         let warm = analyses.analyze(helper_revision).unwrap();
         let after_helper_change = analyses.source_parse_counts();
         assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
+        assert_eq!(
+            analyses.source_text_execution_count(),
+            source_text_before_helper_change + 1
+        );
 
         let mut fresh_documents = DocumentWorkspace::new();
         let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));

@@ -79,15 +79,23 @@ Examples:
 Every reuse decision is observable in tests through computation counters. Correctness tests compare
 a warm incremental result with a fresh computation from the same final source revision.
 
-The first integrated vertical slice stores reusable parsing by parse goal and normalized source
-content. `nocter-syntax` owns the provider and alone knows how to bind that product into the current
+The first integrated vertical slice uses stable canonical-path identities for a two-step
+`source_text(path) -> parse(path, goal)` chain. Workspace revision publication separates overlay
+membership, the bytes of each open source, and a filesystem-change epoch into typed inputs. An
+ordinary edit therefore dirties only that source's text query. A filesystem notification may dirty
+disk-backed sources, and opening or closing a document may change source authority, without making
+editor text and filesystem state parallel semantic authorities.
+
+`nocter-syntax` owns the reusable parse product and alone knows how to bind it into the current
 `SourceMap` identity domain. Package topology, graph loading, and discovery consume the same narrow
-contract and validate the bound identity. A package-root probe retains its parse product for graph
-loading, eliminating the prior same-revision second parse. Unchanged package roots and
-implementation sources avoid lexing and parsing across workspace revisions without allowing a
-prior generation's `SourceId` to escape into the current snapshot. Module-surface, declaration,
-and body queries remain migration work; the full scope pipeline is not treated as an incremental
-query merely to claim cache coverage.
+contract and validate the bound text before identity rebinding. A package-root probe retains its
+parse product for graph loading, eliminating the prior same-revision second parse. Unchanged
+package roots and implementation sources avoid lexing and parsing across workspace revisions
+without allowing a prior generation's `SourceId` to escape into the current snapshot. Speculative
+mutation validation uses an isolated database populated from the candidate overlay; it cannot
+pollute or accidentally read the accepted revision. Module-surface, declaration, and body queries
+remain migration work; the full scope pipeline is not treated as an incremental query merely to
+claim cache coverage.
 
 ## Source Projection
 

@@ -44,12 +44,18 @@ pub struct ParsedSyntax {
 }
 
 impl ParsedSyntax {
+    /// Reports whether this reusable product was derived from the supplied normalized source.
+    #[must_use]
+    pub fn matches(&self, source: &SourceFile) -> bool {
+        source.text() == self.text.as_ref()
+    }
+
     /// Clones this parse product into the supplied source-identity domain.
     ///
     /// Returns `None` rather than trusting the caller when the normalized source text differs.
     #[must_use]
     pub fn bind(&self, source: &SourceFile) -> Option<SyntaxTree> {
-        if source.text() != self.text.as_ref() {
+        if !self.matches(source) {
             return None;
         }
         let mut tree = self.tree.clone();

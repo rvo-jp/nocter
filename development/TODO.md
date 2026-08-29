@@ -32,9 +32,10 @@ evidence.
 
 ## Next Work
 
-Design v0.20.0 Phase 1 around the public `Hash` and `Hasher` contracts. Do not begin implementation
-until hashing semantics, deterministic test vectors, error behavior, and the exact dependency on
-the Phase 0 equality prerequisite have one accepted specification and completion gate.
+Continue v0.20.0 Phase 1 by introducing source-neutral module-surface products above the stable
+`source_text -> parse` query chain. A body-only edit must preserve the module-surface fingerprint so
+dependent modules do not repeat declaration work. Do not cache generation-local syntax or semantic
+arena IDs across revisions. Hashing and associative collections remain later v0.20.0 phases.
 
 ## Blockers
 
