@@ -11,9 +11,9 @@ pub use body_names::{
     body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
 };
 pub use program_finalization::{
-    FailedProgramFinalization, FinalizedProgram, ProgramFinalizationOutcome,
-    ProgramFinalizationProduct, finalization_execution_count, finalization_reuse_count,
-    finalized_program,
+    FailedProgramFinalization, FailedProgramNameResolution, FinalizedProgram,
+    ProgramFinalizationOutcome, ProgramFinalizationProduct, finalization_execution_count,
+    finalization_reuse_count, finalized_program,
 };
 pub use program_preparation::{
     ProgramPreparationOutcome, ProgramPreparationProduct, RejectedProgramPreparation,

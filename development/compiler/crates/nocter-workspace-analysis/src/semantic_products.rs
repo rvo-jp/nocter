@@ -38,7 +38,7 @@ pub(super) fn demand(
     } else {
         None
     };
-    let finalization = if typed_bodies.is_some() {
+    let finalization = if body_names.is_some() {
         Some(
             nocter_semantic_computation::finalized_program(computation, scope.clone())
                 .map_err(WorkspaceAnalysisError::computation)?,

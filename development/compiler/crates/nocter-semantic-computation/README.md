@@ -59,5 +59,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   source-neutral, and the complete body-name product carries accepted and rejected body coverage
   together. Session cannot mistake rejection for missing computation or rerun name resolution.
 - Finalization depends on complete canonical body products and the same private current context.
-  It publishes branchable checked output or `BodyCheckFailure` after ownership, provenance, loans,
-  opaque witnesses, and semantic completion; workspace code cannot select a second finalizer.
+  It publishes branchable checked output, canonical lexical recovery, or `BodyCheckFailure` after
+  the applicable complete-set materialization. Ownership, provenance, loans, opaque witnesses, and
+  semantic completion run only for typed coverage; workspace code cannot select a second
+  finalizer or lexical-recovery builder.

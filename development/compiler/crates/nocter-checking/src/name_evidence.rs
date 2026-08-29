@@ -52,7 +52,7 @@ impl QueriedBodyNameRejection {
 }
 
 /// The exact lexical-name result retained for one declared body in an editor analysis report.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BodyNameEvidence {
     Resolved(ResolvedBodyNames),
     Rejected(NameRejection),
@@ -78,7 +78,7 @@ impl BodyNameEvidence {
 }
 
 /// One authored name-resolution rejection and the lexical prefix fixed before it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NameRejection {
     diagnostic: SourceDiagnostic,
     evidence: NameRejectionEvidence,
@@ -106,7 +106,7 @@ impl NameRejection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum NameRejectionEvidence {
     None,
     Partial(ResolvedBodyNames),

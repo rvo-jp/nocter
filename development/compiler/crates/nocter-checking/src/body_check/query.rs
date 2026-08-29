@@ -49,6 +49,29 @@ impl QueriedBodyRejection {
 }
 
 impl ProgramBodyCheckingContext {
+    /// Materializes one complete query-owned lexical catalog against this current checking context.
+    ///
+    /// # Errors
+    ///
+    /// Returns the authored lexical rejection with canonical recovery, or an internal preparation
+    /// failure when the catalog cannot be joined to the current context.
+    pub fn prepare_names<'syntax>(
+        &self,
+        input: &'syntax CompileUnitInput<'syntax>,
+        bindings: &FrontendBindings,
+        names: &[&ReusableBodyNames],
+        rejections: &[&crate::QueriedBodyNameRejection],
+    ) -> Result<crate::PreparedChecking<'syntax>, crate::PreparationFailure> {
+        crate::preparation::prepare_program_checking_from_current_queried_names(
+            input,
+            self.current.clone(),
+            bindings,
+            self.source_index.clone(),
+            names,
+            rejections,
+        )
+    }
+
     #[must_use]
     pub fn new<S>(
         program: &ReusablePreparedProgram,
@@ -172,14 +195,7 @@ impl ProgramBodyCheckingContext {
         bodies: &[&ReusableCheckedBody],
         body_rejections: &[&QueriedBodyRejection],
     ) -> Result<super::QueriedProgramFinalizationOutcome, crate::PreparationFailure> {
-        let prepared = crate::preparation::prepare_program_checking_from_current_queried_names(
-            input,
-            self.current.clone(),
-            bindings,
-            self.source_index.clone(),
-            names,
-            name_rejections,
-        )?;
+        let prepared = self.prepare_names(input, bindings, names, name_rejections)?;
         Ok(super::finalize_prepared_program_from_queried_bodies(
             prepared,
             bodies,

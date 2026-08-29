@@ -7,12 +7,13 @@ explicit recovery evidence.
 
 ## Contract
 
-The crate accepts either a closed compile input or the accepted source-neutral result of the
-declaration query, then runs preparation, body checking, and target construction in the only
-production order. It publishes one immutable session outcome and capability-oriented semantic
-views for complete programs, typed bodies, lexical names, typed interruptions, and exact repair
-authority. Recovery storage variants and phase order remain private. The crate does not implement
-stage rules, editor queries, native code generation, or protocol projection.
+The crate accepts either a closed compile input for direct compilation or a closed outcome from the
+semantic query graph. Direct compilation runs preparation, body checking, and target construction
+in the only production order. Query-backed analysis only opens the supplied success or rejection
+branch and publishes one immutable session outcome with capability-oriented semantic views for
+complete programs, typed bodies, lexical names, typed interruptions, and exact repair authority.
+Recovery storage variants and phase order remain private. The crate does not implement stage rules,
+editor queries, native code generation, or protocol projection.
 
 ## Internal Responsibilities
 
@@ -42,3 +43,6 @@ stage rules, editor queries, native code generation, or protocol projection.
 - Query-backed declaration rejection opens an owned branch of the query's exact-current recovery
   product. Session composes its diagnostics and editor evidence without invoking declaration
   lowering a second time.
+- Query-backed lexical rejection opens the finalization query's exact-current recovery branch.
+  Session translates its typed diagnostic and recovery evidence without invoking name resolution,
+  checking preparation, or body checking.

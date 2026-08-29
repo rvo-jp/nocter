@@ -5,7 +5,7 @@ use nocter_discovery::DiscoveredUnit;
 use crate::analysis::{
     analyze_target_from_declaration_failure, analyze_target_from_declarations,
     analyze_target_from_finalization_failure, analyze_target_from_finalized_program,
-    analyze_target_from_preparation_rejection, analyze_target_from_prepared_body_names,
+    analyze_target_from_name_resolution_failure, analyze_target_from_preparation_rejection,
     analyze_target_from_prepared_declarations,
 };
 use crate::{
@@ -67,6 +67,28 @@ pub fn analyze_unit_from_finalization_failure(
         return Ok(analyze_unit(unit));
     }
     let failure = analyze_target_from_finalization_failure(failed.failure());
+    let (semantic, diagnostics) = (*failure).into_analysis_parts();
+    Ok(AnalyzedUnit {
+        unit,
+        diagnostics,
+        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+    })
+}
+
+/// Consumes a query-owned lexical rejection without invoking name resolution or body checking.
+///
+/// # Errors
+///
+/// Returns an integrity error when the failure belongs to a different exact source domain.
+pub fn analyze_unit_from_name_resolution_failure(
+    unit: Arc<DiscoveredUnit>,
+    failed: &nocter_semantic_computation::FailedProgramNameResolution,
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
+    validate_rejection_domain(&unit, failed.unit())?;
+    if unit.has_syntax_errors() {
+        return Ok(analyze_unit(unit));
+    }
+    let failure = analyze_target_from_name_resolution_failure(failed.failure());
     let (semantic, diagnostics) = (*failure).into_analysis_parts();
     Ok(AnalyzedUnit {
         unit,
@@ -204,34 +226,6 @@ pub fn analyze_unit_from_prepared_declarations(
         return analyze_unit(unit);
     }
     match analyze_target_from_prepared_declarations(&unit, declarations, prepared) {
-        Ok(target) => AnalyzedUnit {
-            unit,
-            diagnostics: Box::new([]),
-            state: AnalyzedUnitState::Complete(Box::new(target)),
-        },
-        Err(failure) => {
-            let (semantic, diagnostics) = (*failure).into_analysis_parts();
-            AnalyzedUnit {
-                unit,
-                diagnostics,
-                state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
-            }
-        }
-    }
-}
-
-/// Consumes one current discovery snapshot using query-owned program and per-body lexical products.
-#[must_use]
-pub fn analyze_unit_from_prepared_body_names(
-    unit: Arc<DiscoveredUnit>,
-    declarations: &nocter_declaration_lowering::ReusableDeclarations,
-    prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::BodyNameSet,
-) -> AnalyzedUnit {
-    if unit.has_syntax_errors() {
-        return analyze_unit(unit);
-    }
-    match analyze_target_from_prepared_body_names(&unit, declarations, prepared, body_names) {
         Ok(target) => AnalyzedUnit {
             unit,
             diagnostics: Box::new([]),

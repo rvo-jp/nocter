@@ -21,6 +21,18 @@ pub(crate) struct BodySemanticContextProduct {
 }
 
 impl BodySemanticContextProduct {
+    fn queried_name_inputs(
+        body_names: &crate::BodyNameSet,
+    ) -> (
+        Vec<&nocter_checking::ReusableBodyNames>,
+        Vec<&nocter_checking::QueriedBodyNameRejection>,
+    ) {
+        (
+            body_names.entries().iter().map(AsRef::as_ref).collect(),
+            body_names.rejections().iter().map(AsRef::as_ref).collect(),
+        )
+    }
+
     /// Resolves only after the exact body input has been demanded by the calling body query.
     pub(crate) fn resolve_names(
         &self,
@@ -60,16 +72,7 @@ impl BodySemanticContextProduct {
     ) -> Option<nocter_checking::QueriedProgramFinalizationOutcome> {
         let context = self.context.as_ref()?;
         let input = context.unit.compile_input().ok()?;
-        let names = body_names
-            .entries()
-            .iter()
-            .map(AsRef::as_ref)
-            .collect::<Vec<_>>();
-        let name_rejections = body_names
-            .rejections()
-            .iter()
-            .map(AsRef::as_ref)
-            .collect::<Vec<_>>();
+        let (names, name_rejections) = Self::queried_name_inputs(body_names);
         let bodies = typed_bodies
             .entries()
             .iter()
@@ -91,6 +94,25 @@ impl BodySemanticContextProduct {
                 &body_rejections,
             )
             .ok()
+    }
+
+    pub(crate) fn materialize_name_rejection(
+        &self,
+        body_names: &crate::BodyNameSet,
+    ) -> Option<nocter_checking::QueriedNameResolutionFailure> {
+        let context = self.context.as_ref()?;
+        let input = context.unit.compile_input().ok()?;
+        let (names, rejections) = Self::queried_name_inputs(body_names);
+        let failure = context
+            .checking
+            .prepare_names(
+                &input,
+                context.projection.frontend_bindings(),
+                &names,
+                &rejections,
+            )
+            .err()?;
+        nocter_checking::QueriedNameResolutionFailure::from_preparation_failure(failure).ok()
     }
 }
 

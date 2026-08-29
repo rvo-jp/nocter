@@ -231,6 +231,12 @@ success and `BodyCheckFailure` values both open owned consumer branches; session
 replay or finalization. If complete typed coverage exists but finalization is unavailable,
 workspace analysis reports an integrity error instead of repeating the compiler stage.
 
+The same query owns the alternative complete lexical-rejection branch. It materializes the full
+body-name catalog into one exact-current `NameAnalysisRecovery` and retains the authored diagnostic
+beside it. Workspace orchestration demands finalization whenever body-name coverage exists, even
+when typed coverage cannot exist, and session only translates the resulting branch. There is no
+session entry point that can replay a queried body-name set through checking preparation.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

@@ -1099,6 +1099,7 @@ mod tests {
             AnalysisStatus::CompilationFailed
         );
         let before = analyses.body_name_query_counts();
+        let finalization_before = analyses.program_finalization_counts();
         let DocumentWorkspaceChange::Accepted(revision) =
             documents.change(&root, 2, changed).unwrap()
         else {
@@ -1106,8 +1107,10 @@ mod tests {
         };
         let warm = analyses.analyze(revision).unwrap();
         let after = analyses.body_name_query_counts();
+        let finalization_after = analyses.program_finalization_counts();
         assert_eq!(after.0, before.0 + 1);
         assert!(after.1 > before.1);
+        assert_eq!(finalization_after.0, finalization_before.0 + 1);
 
         let mut fresh_documents = DocumentWorkspace::new();
         let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));

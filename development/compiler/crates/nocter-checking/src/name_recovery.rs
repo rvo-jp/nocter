@@ -5,8 +5,49 @@ use nocter_source_index::SourceIndex;
 
 use crate::{BodyNameEvidence, ResolvedBodyNames};
 
+/// Exact-current authored lexical failure materialized from one complete queried name set.
+#[derive(Clone, Debug)]
+pub struct QueriedNameResolutionFailure {
+    diagnostic: nocter_diagnostics::SourceDiagnostic,
+    recovery: NameAnalysisRecovery,
+}
+
+impl QueriedNameResolutionFailure {
+    /// Narrows one preparation failure to the query-owned lexical-rejection contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original failure when it is not an authored name rejection with recovery.
+    pub fn from_preparation_failure(
+        failure: crate::PreparationFailure,
+    ) -> Result<Self, crate::PreparationFailure> {
+        let (error, evidence) = failure.into_parts();
+        let diagnostic = match error.source_diagnostic() {
+            Some(diagnostic) => diagnostic.clone(),
+            None => return Err(error.into()),
+        };
+        let Some(crate::PreparationFailureEvidence::Names(recovery)) = evidence else {
+            return Err(error.into());
+        };
+        Ok(Self {
+            diagnostic,
+            recovery: *recovery,
+        })
+    }
+
+    #[must_use]
+    pub const fn diagnostic(&self) -> &nocter_diagnostics::SourceDiagnostic {
+        &self.diagnostic
+    }
+
+    #[must_use]
+    pub fn current_recovery(&self) -> NameAnalysisRecovery {
+        self.recovery.clone()
+    }
+}
+
 /// Explicit lexical-name evidence for every declared body.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyNameEvidenceTable {
     bodies: Arena<BodyId, BodyNameEvidence>,
 }
@@ -61,7 +102,7 @@ impl BodyNameEvidenceTable {
 /// Failing spellings have no invented targets. Each body owns an independent sparse recovery slot,
 /// so a failure cannot hide valid scopes from bodies visited later. The table remains unsuitable as
 /// checking input because failed bodies are intentionally incomplete.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NameAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,

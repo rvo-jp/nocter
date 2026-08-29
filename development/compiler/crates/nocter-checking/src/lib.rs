@@ -145,7 +145,9 @@ pub use member_completion::{
 pub use name_evidence::{
     BodyNameEvidence, NameRejection, QueriedBodyNameRejection, ReusableBodyNameQueryOutcome,
 };
-pub use name_recovery::{BodyNameEvidenceTable, NameAnalysisRecovery};
+pub use name_recovery::{
+    BodyNameEvidenceTable, NameAnalysisRecovery, QueriedNameResolutionFailure,
+};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,

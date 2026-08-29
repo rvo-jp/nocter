@@ -74,6 +74,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Authored lexical rejection retains its exact diagnostic and an optional source-neutral partial
   recipe. Canonical catalog materialization produces either complete names or one
   `NameAnalysisRecovery`; callers cannot provide a body ID separately from the recipe that owns it.
+  The complete lexical catalog is the only input accepted by this materialization contract, so a
+  consumer cannot reconstruct recovery by rerunning one rejected body independently.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

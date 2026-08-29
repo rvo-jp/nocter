@@ -15,7 +15,7 @@ use nocter_semantic_computation::{
 };
 use nocter_session::{
     analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
-    analyze_unit_from_prepared_body_names, analyze_unit_from_prepared_declarations,
+    analyze_unit_from_name_resolution_failure, analyze_unit_from_prepared_declarations,
     bundled_standard_toolchain,
 };
 use nocter_syntax::SourceSyntaxProvider;
@@ -160,13 +160,15 @@ fn analyze_declaration_outcome(
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {
         DeclarationQueryOutcome::Accepted(declarations) => match preparation {
-            ProgramPreparationOutcome::Prepared(prepared) => match (body_names, typed_bodies) {
-                (Some(_), Some(_)) => {
-                    let finalization = finalization
-                        .ok_or_else(WorkspaceAnalysisError::finalization_unavailable)?;
-                    match finalization.outcome() {
+            ProgramPreparationOutcome::Prepared(prepared) => {
+                if let Some(finalization) = finalization {
+                    return match finalization.outcome() {
                         ProgramFinalizationOutcome::Checked(finalized) => {
                             nocter_session::analyze_unit_from_finalized_program(unit, finalized)
+                                .map_err(WorkspaceAnalysisError::semantic_rejection)
+                        }
+                        ProgramFinalizationOutcome::NamesRejected(failed) => {
+                            analyze_unit_from_name_resolution_failure(unit, failed)
                                 .map_err(WorkspaceAnalysisError::semantic_rejection)
                         }
                         ProgramFinalizationOutcome::Failed(failed) => {
@@ -176,20 +178,17 @@ fn analyze_declaration_outcome(
                         ProgramFinalizationOutcome::Unavailable => {
                             Err(WorkspaceAnalysisError::finalization_unavailable())
                         }
-                    }
+                    };
                 }
-                (Some(body_names), None) => Ok(analyze_unit_from_prepared_body_names(
-                    unit,
-                    declarations,
-                    prepared,
-                    body_names,
-                )),
-                (None, _) => Ok(analyze_unit_from_prepared_declarations(
-                    unit,
-                    declarations,
-                    prepared,
-                )),
-            },
+                match (body_names, typed_bodies) {
+                    (Some(_), _) => Err(WorkspaceAnalysisError::finalization_unavailable()),
+                    (None, _) => Ok(analyze_unit_from_prepared_declarations(
+                        unit,
+                        declarations,
+                        prepared,
+                    )),
+                }
+            }
             ProgramPreparationOutcome::Unavailable => {
                 Ok(analyze_unit_from_declarations(unit, declarations))
             }

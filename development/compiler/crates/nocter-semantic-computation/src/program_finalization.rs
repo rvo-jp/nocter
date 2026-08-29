@@ -41,6 +41,25 @@ pub struct FailedProgramFinalization {
     failure: Arc<nocter_checking::BodyCheckFailure>,
 }
 
+/// Exact-current lexical rejection materialized from the complete body-name query set.
+#[derive(Debug)]
+pub struct FailedProgramNameResolution {
+    unit: Arc<nocter_discovery::DiscoveredUnit>,
+    failure: Arc<nocter_checking::QueriedNameResolutionFailure>,
+}
+
+impl FailedProgramNameResolution {
+    #[must_use]
+    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
+        &self.unit
+    }
+
+    #[must_use]
+    pub fn failure(&self) -> &nocter_checking::QueriedNameResolutionFailure {
+        &self.failure
+    }
+}
+
 impl FailedProgramFinalization {
     #[must_use]
     pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
@@ -56,6 +75,7 @@ impl FailedProgramFinalization {
 #[derive(Debug)]
 pub enum ProgramFinalizationOutcome {
     Checked(Arc<FinalizedProgram>),
+    NamesRejected(FailedProgramNameResolution),
     Failed(FailedProgramFinalization),
     Unavailable,
 }
@@ -95,15 +115,24 @@ impl Query for ProgramFinalizationQuery {
         let Some(body_names) = crate::resolved_body_names(database, key)? else {
             return unavailable(database, key);
         };
+        let current = database.input::<CurrentSourceScopeInput>(key)?;
+        let context =
+            database.query::<crate::body_context::BodySemanticContextQuery>(key.clone())?;
         if !body_names.rejections().is_empty() {
-            return unavailable(database, key);
+            let Some(failure) = context.materialize_name_rejection(&body_names) else {
+                return unavailable(database, key);
+            };
+            return Ok(ProgramFinalizationProduct {
+                outcome: ProgramFinalizationOutcome::NamesRejected(FailedProgramNameResolution {
+                    unit: Arc::clone(&current.unit),
+                    failure: Arc::new(failure),
+                }),
+                fingerprint: current.fingerprint,
+            });
         }
         let Some(typed_bodies) = crate::typed_bodies(database, key)? else {
             return unavailable(database, key);
         };
-        let current = database.input::<CurrentSourceScopeInput>(key)?;
-        let context =
-            database.query::<crate::body_context::BodySemanticContextQuery>(key.clone())?;
         let Some(checked) = context.finalize(&body_names, &typed_bodies) else {
             return unavailable(database, key);
         };
