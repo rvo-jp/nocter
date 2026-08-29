@@ -100,7 +100,7 @@ impl WorkspaceAnalysisGeneration {
     }
 
     #[must_use]
-    pub const fn source_overlay(&self) -> &SourceOverlay {
+    pub fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             WorkspaceAnalysisState::Complete(snapshot) => snapshot.source_overlay(),
             WorkspaceAnalysisState::PreparationFailed { source_overlay, .. }

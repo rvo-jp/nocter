@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
@@ -57,7 +58,7 @@ pub(crate) fn compile_scope(
             }
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
                 generation,
-                analyze_unit(unit),
+                analyze_unit(Arc::new(unit)),
             )))
         }
         Err(AnalysisPreparationFailure::Discovery(failure)) => {

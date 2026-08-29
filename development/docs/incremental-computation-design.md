@@ -123,6 +123,10 @@ authority is the next integration step. `ReusableDeclarations` is the source-neu
 unit for that query: it contains the accepted authority, primitive bindings, and recipe, while the
 ordinary lowering result keeps current `FrontendBindings` and `SourceIndex` outside it.
 
+The session-owned analyzed unit retains the exact immutable discovery snapshot through shared
+ownership. A declaration query and its final analysis result can therefore borrow the same object;
+neither side clones a graph containing generation-local IDs or reconstructs discovery from paths.
+
 ## Source Projection
 
 A stage product carries its semantic result, diagnostics, deterministic fingerprint, and source

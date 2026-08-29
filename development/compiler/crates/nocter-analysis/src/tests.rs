@@ -657,7 +657,7 @@ fn analyzed_snapshot(
     generation: GenerationId,
     unit: nocter_discovery::DiscoveredUnit,
 ) -> AnalysisSnapshot {
-    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit))
+    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(std::sync::Arc::new(unit)))
 }
 
 pub(crate) struct TempTree(PathBuf);

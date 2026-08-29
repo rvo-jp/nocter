@@ -96,7 +96,7 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub const fn source_overlay(&self) -> &SourceOverlay {
+    pub fn source_overlay(&self) -> &SourceOverlay {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.source_overlay(),
             AnalysisState::Analyzed(analysis) => analysis.unit().source_overlay(),
@@ -111,7 +111,7 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub const fn sources(&self) -> &SourceMap {
+    pub fn sources(&self) -> &SourceMap {
         match &self.state {
             AnalysisState::DiscoveryFailed(failure) => failure.sources(),
             AnalysisState::Analyzed(analysis) => analysis.unit().sources(),

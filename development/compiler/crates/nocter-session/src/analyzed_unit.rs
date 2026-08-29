@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use nocter_discovery::DiscoveredUnit;
 
 use crate::{
@@ -27,7 +29,7 @@ pub enum AnalyzedUnitStatus {
 /// session remains the sole owner of compiler stage order and recovery selection.
 #[derive(Debug)]
 pub struct AnalyzedUnit {
-    unit: Box<DiscoveredUnit>,
+    unit: Arc<DiscoveredUnit>,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
     state: AnalyzedUnitState,
 }
@@ -43,7 +45,7 @@ impl AnalyzedUnit {
     }
 
     #[must_use]
-    pub const fn unit(&self) -> &DiscoveredUnit {
+    pub fn unit(&self) -> &DiscoveredUnit {
         &self.unit
     }
 
@@ -70,7 +72,7 @@ impl AnalyzedUnit {
 /// runs the production target analysis once. The returned value owns both the source graph and its
 /// exact outcome, so no later layer can substitute either half.
 #[must_use]
-pub fn analyze_unit(unit: DiscoveredUnit) -> AnalyzedUnit {
+pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
     if unit.has_syntax_errors() {
         let (semantic, semantic_diagnostics) = analyze_incomplete_syntax(&unit).map_or(
             (
@@ -82,7 +84,7 @@ pub fn analyze_unit(unit: DiscoveredUnit) -> AnalyzedUnit {
         let mut diagnostics = unit.syntax_diagnostics().into_vec();
         extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
         return AnalyzedUnit {
-            unit: Box::new(unit),
+            unit,
             diagnostics: diagnostics.into_boxed_slice(),
             state: AnalyzedUnitState::SyntaxFailed(semantic.map(Box::new)),
         };
@@ -90,14 +92,14 @@ pub fn analyze_unit(unit: DiscoveredUnit) -> AnalyzedUnit {
 
     match analyze_target(&unit) {
         Ok(target) => AnalyzedUnit {
-            unit: Box::new(unit),
+            unit,
             diagnostics: Box::new([]),
             state: AnalyzedUnitState::Complete(Box::new(target)),
         },
         Err(failure) => {
             let (semantic, diagnostics) = (*failure).into_analysis_parts();
             AnalyzedUnit {
-                unit: Box::new(unit),
+                unit,
                 diagnostics,
                 state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
             }

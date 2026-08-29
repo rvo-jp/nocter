@@ -31,3 +31,5 @@ stage rules, editor queries, native code generation, or protocol projection.
 - Failure-specific repair evidence moves once into its typed recovery owner.
 - Consumers cannot select raw recovery phases or reconstruct phase fallback order.
 - An analyzed unit cannot pair semantic evidence with a different discovery snapshot.
+- The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
+  clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.
