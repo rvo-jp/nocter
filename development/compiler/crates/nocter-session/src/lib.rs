@@ -10,6 +10,7 @@ mod executable;
 mod output;
 mod profile;
 mod semantic_analysis;
+mod semantic_capabilities;
 mod semantic_pipeline;
 mod test_selection;
 
@@ -24,6 +25,10 @@ pub use executable::{
 pub use output::{CompiledExecutable, CompiledTarget};
 pub use profile::bundled_standard_toolchain;
 pub use semantic_analysis::{SemanticEvidenceBundle, SemanticEvidenceView};
+pub use semantic_capabilities::{
+    CompleteSemanticEvidenceView, InterfaceImplementationRepairView, SemanticBodyNamesView,
+    SemanticInterruptionView, SemanticTypedBodyView,
+};
 pub use test_selection::TestTargetSelector;
 
 use nocter_discovery::DiscoveredUnit;

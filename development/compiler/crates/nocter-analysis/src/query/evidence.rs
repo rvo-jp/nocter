@@ -7,10 +7,7 @@ use nocter_source::{SourceId, SourceMap, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceProjectionIssue};
 use nocter_syntax::{SyntaxOrigin, SyntaxTree};
 
-use super::presentation::{
-    SemanticPresentation, body_recovery_presentation, declaration_presentation, hover_presentation,
-    name_recovery_presentation,
-};
+use super::presentation::{SemanticPresentation, evidence_presentation, hover_presentation};
 use super::source_context::SourceContextError;
 
 /// The only adapter from session-owned semantic evidence into editor query capabilities.
@@ -56,29 +53,7 @@ impl<'a> SemanticQueryContext<'a> {
         &self,
         evidence: nocter_model::CapabilityEvidenceId,
     ) -> Option<&'a nocter_checking::CapabilityEvidence> {
-        self.checked()
-            .and_then(|checked| checked.capability_evidence(evidence))
-            .or_else(|| {
-                self.body_recovery()?
-                    .prepared()
-                    .capability_evidence(evidence)
-            })
-    }
-
-    fn checked(&self) -> Option<&'a nocter_checking::CheckedProgram> {
-        self.evidence.checked()
-    }
-
-    fn body_recovery(&self) -> Option<&'a nocter_checking::BodyAnalysisRecovery> {
-        self.evidence.body_analysis()
-    }
-
-    fn name_recovery(&self) -> Option<&'a nocter_checking::NameAnalysisRecovery> {
-        self.evidence.name_analysis()
-    }
-
-    fn declaration_recovery(&self) -> Option<&'a nocter_checking::DeclarationAnalysisRecovery> {
-        self.evidence.declaration_analysis()
+        self.evidence.capability_evidence(evidence)
     }
 
     /// Selects body-interruption evidence by source position without exposing body recovery.
@@ -87,13 +62,9 @@ impl<'a> SemanticQueryContext<'a> {
         source: SourceId,
         offset: nocter_source::ByteOffset,
     ) -> Option<InterruptedBodyQuery<'a>> {
-        let recovery = self.body_recovery()?;
-        let (index, interruption) = recovery.interruption_position_at(source, offset)?;
-        Some(InterruptedBodyQuery {
-            recovery,
-            index,
-            interruption,
-        })
+        self.evidence
+            .interruption_at(source, offset)
+            .map(InterruptedBodyQuery)
     }
 
     /// Selects body-interruption evidence by diagnostic range without exposing body recovery.
@@ -102,22 +73,18 @@ impl<'a> SemanticQueryContext<'a> {
         source: SourceId,
         range: TextRange,
     ) -> Option<InterruptedBodyQuery<'a>> {
-        let recovery = self.body_recovery()?;
-        let (index, interruption) = recovery.interruption_position_overlapping(source, range)?;
-        Some(InterruptedBodyQuery {
-            recovery,
-            index,
-            interruption,
-        })
+        self.evidence
+            .interruption_overlapping(source, range)
+            .map(InterruptedBodyQuery)
     }
 
     /// Borrows the complete capability required to repair one failed interface implementation.
     pub(super) fn interface_implementation_mutation(
         self,
     ) -> Option<InterfaceImplementationMutationQuery<'a>> {
-        let recovery = self.declaration_recovery()?;
-        let missing = self.evidence.missing_interface_methods()?;
-        Some(InterfaceImplementationMutationQuery { recovery, missing })
+        self.evidence
+            .interface_implementation_repair()
+            .map(InterfaceImplementationMutationQuery)
     }
 
     pub(super) fn completion_detail(
@@ -125,19 +92,17 @@ impl<'a> SemanticQueryContext<'a> {
         entity: SemanticEntity,
         spellings: &super::presentation::visible_spelling::VisibleSpellings,
     ) -> Result<Option<Box<str>>, super::presentation::PresentationError> {
-        let presentation = if let Some(checked) = self.checked() {
-            Ok(super::presentation::presentation(
-                checked, entity, spellings,
-            ))
-        } else if let Some(analysis) = self.body_recovery() {
-            body_recovery_presentation(analysis, entity, spellings)
-        } else if let Some(analysis) = self.name_recovery() {
-            Ok(name_recovery_presentation(analysis, entity, spellings))
-        } else if let Some(analysis) = self.declaration_recovery() {
-            Ok(declaration_presentation(analysis, entity, spellings))
+        let presentation = if let Some(complete) = self.evidence.complete() {
+            super::presentation::presentation(complete.program(), entity, spellings)
         } else {
-            unreachable!("session semantic evidence always exposes one authority")
-        }?;
+            evidence_presentation(
+                self.graph(),
+                self.types(),
+                self.body_for_entity(entity)?,
+                entity,
+                spellings,
+            )
+        };
         Ok(presentation.map(|presentation| Box::<str>::from(presentation.code())))
     }
 
@@ -147,16 +112,36 @@ impl<'a> SemanticQueryContext<'a> {
         spellings: &super::presentation::visible_spelling::VisibleSpellings,
         source: SourceId,
     ) -> Result<Option<SemanticPresentation>, super::presentation::PresentationError> {
-        if let Some(checked) = self.checked() {
-            hover_presentation(checked, entity, spellings, source).map(Some)
-        } else if let Some(analysis) = self.body_recovery() {
-            body_recovery_presentation(analysis, entity, spellings)
-        } else if let Some(recovery) = self.name_recovery() {
-            Ok(name_recovery_presentation(recovery, entity, spellings))
-        } else if let Some(recovery) = self.declaration_recovery() {
-            Ok(declaration_presentation(recovery, entity, spellings))
+        if let Some(complete) = self.evidence.complete() {
+            hover_presentation(complete.program(), entity, spellings, source).map(Some)
         } else {
-            unreachable!("session semantic evidence always exposes one authority")
+            Ok(evidence_presentation(
+                self.graph(),
+                self.types(),
+                self.body_for_entity(entity)?,
+                entity,
+                spellings,
+            ))
+        }
+    }
+
+    fn body_for_entity(
+        &self,
+        entity: SemanticEntity,
+    ) -> Result<Option<&'a nocter_checking::CheckedBody>, EvidenceIntegrityError> {
+        let (SemanticEntity::LocalBinding(body, _) | SemanticEntity::Capture(body, _)) = entity
+        else {
+            return Ok(None);
+        };
+        match self
+            .evidence
+            .typed_body(body)
+            .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
+        {
+            nocter_session::SemanticTypedBodyView::Available(body) => Ok(Some(body)),
+            nocter_session::SemanticTypedBodyView::BodyRejected
+            | nocter_session::SemanticTypedBodyView::NamesRejected
+            | nocter_session::SemanticTypedBodyView::TypingNotReached => Ok(None),
         }
     }
 }
@@ -166,31 +151,27 @@ impl<'a> SemanticQueryContext<'a> {
 /// The checker recovery snapshot and its lookup rules remain private. Feature modules receive
 /// only operations valid for this exact interruption.
 #[derive(Clone, Copy)]
-pub(super) struct InterruptedBodyQuery<'a> {
-    recovery: &'a nocter_checking::BodyAnalysisRecovery,
-    index: usize,
-    interruption: &'a nocter_checking::TypedBodyInterruption,
-}
+pub(super) struct InterruptedBodyQuery<'a>(nocter_session::SemanticInterruptionView<'a>);
 
 impl<'a> InterruptedBodyQuery<'a> {
     pub(super) const fn index(self) -> usize {
-        self.index
+        self.0.index()
     }
 
     pub(super) const fn body(self) -> BodyId {
-        self.interruption.body()
+        self.0.body()
     }
 
     pub(super) const fn kind(self) -> &'a nocter_checking::TypedBodyInterruptionKind {
-        self.interruption.kind()
+        self.0.kind()
     }
 
     pub(super) fn graph(self) -> &'a nocter_declarations::DeclarationGraph {
-        self.recovery.prepared().graph()
+        self.0.graph()
     }
 
     pub(super) fn source_index(self) -> &'a SourceIndex {
-        self.recovery.source_index()
+        self.0.source_index()
     }
 
     pub(super) fn presentation(
@@ -198,7 +179,7 @@ impl<'a> InterruptedBodyQuery<'a> {
         entity: SemanticEntity,
         spellings: &super::presentation::visible_spelling::VisibleSpellings,
     ) -> Option<SemanticPresentation> {
-        super::presentation::prepared_presentation(self.recovery.prepared(), entity, spellings)
+        evidence_presentation(self.0.graph(), self.0.types(), None, entity, spellings)
     }
 
     pub(super) fn member_completions(
@@ -210,8 +191,7 @@ impl<'a> InterruptedBodyQuery<'a> {
             nocter_checking::MemberCompletionError,
         >,
     > {
-        self.recovery
-            .interrupted_member_completions(session, self.interruption)
+        self.0.member_completions(session)
     }
 
     pub(super) fn construction_completions(
@@ -223,8 +203,7 @@ impl<'a> InterruptedBodyQuery<'a> {
             nocter_checking::ConstructionCompletionError,
         >,
     > {
-        self.recovery
-            .interrupted_construction_completions(self.interruption, source)
+        self.0.construction_completions(source)
     }
 
     pub(super) fn structural_field_completions(
@@ -236,8 +215,7 @@ impl<'a> InterruptedBodyQuery<'a> {
             nocter_checking::StructuralFieldCompletionError,
         >,
     > {
-        self.recovery
-            .interrupted_structural_field_completions(self.interruption, source)
+        self.0.structural_field_completions(source)
     }
 
     pub(super) fn enum_pattern_completions(
@@ -249,8 +227,7 @@ impl<'a> InterruptedBodyQuery<'a> {
             nocter_checking::EnumPatternCompletionError,
         >,
     > {
-        self.recovery
-            .interrupted_enum_pattern_completions(self.interruption, source)
+        self.0.enum_pattern_completions(source)
     }
 
     pub(super) fn associated_type_completions(
@@ -261,50 +238,44 @@ impl<'a> InterruptedBodyQuery<'a> {
             nocter_checking::AssociatedTypeCompletionError,
         >,
     > {
-        self.recovery
-            .interrupted_associated_type_completions(self.interruption)
+        self.0.associated_type_completions()
     }
 
     pub(super) fn outcome_type(
         self,
     ) -> Option<Result<&'a nocter_model::TypeProjection, nocter_checking::InterruptionEvidenceError>>
     {
-        self.recovery.interrupted_outcome_type(self.interruption)
+        self.0.outcome_type()
     }
 }
 
 /// Declaration semantics that can safely drive a source mutation.
 #[derive(Clone, Copy)]
-pub(super) struct InterfaceImplementationMutationQuery<'a> {
-    recovery: &'a nocter_checking::DeclarationAnalysisRecovery,
-    missing: &'a nocter_checking::MissingInterfaceImplementationMethods,
-}
+pub(super) struct InterfaceImplementationMutationQuery<'a>(
+    nocter_session::InterfaceImplementationRepairView<'a>,
+);
 
 impl<'a> InterfaceImplementationMutationQuery<'a> {
     pub(super) const fn missing(
         self,
     ) -> &'a nocter_checking::MissingInterfaceImplementationMethods {
-        self.missing
+        self.0.missing()
     }
 
     pub(super) fn graph(self) -> &'a nocter_declarations::DeclarationGraph {
-        self.recovery.graph()
+        self.0.graph()
     }
 
     pub(super) fn types(self) -> &'a nocter_model::TypeStore {
-        self.recovery.types()
+        self.0.types()
     }
 
     pub(super) fn source_index(self) -> &'a SourceIndex {
-        self.recovery.source_index()
+        self.0.source_index()
     }
 
     pub(super) fn process_abort(self) -> Option<nocter_model::CallableId> {
-        use nocter_toolchain_contract::StandardDeclarationRole;
-
-        self.recovery
-            .standard_semantics()
-            .and_then(|standard| standard.callable(StandardDeclarationRole::ProcessAbort))
+        self.0.process_abort()
     }
 }
 
@@ -559,6 +530,8 @@ pub enum EvidenceIntegrityError {
         body: BodyId,
         scope: BodyScopeId,
     },
+    MissingCapabilityEvidence(nocter_model::CapabilityEvidenceId),
+    InvalidCapabilityEvidencePredicate(nocter_model::CapabilityEvidenceId),
 }
 
 impl fmt::Display for EvidenceIntegrityError {
@@ -616,6 +589,14 @@ impl fmt::Display for EvidenceIntegrityError {
             Self::MissingBodyScope { body, scope } => write!(
                 formatter,
                 "analysis evidence has no body scope {body:?}/{scope:?}"
+            ),
+            Self::MissingCapabilityEvidence(evidence) => write!(
+                formatter,
+                "analysis evidence has no capability evidence {evidence:?}"
+            ),
+            Self::InvalidCapabilityEvidencePredicate(evidence) => write!(
+                formatter,
+                "capability evidence {evidence:?} is not a callable contract"
             ),
         }
     }
@@ -723,97 +704,56 @@ impl<'a> SemanticQueryContext<'a> {
     }
 
     fn scope_exists(&self, body: BodyId, scope: BodyScopeId) -> bool {
-        if let Some(checked) = self.checked() {
-            checked
-                .bodies()
-                .get(body)
-                .is_some_and(|body| body.scopes().get(scope).is_some())
-        } else if let Some(analysis) = self.body_recovery() {
-            analysis
-                .body_names()
-                .get(body)
-                .is_some_and(|names| names.scopes().get(scope).is_some())
-        } else if let Some(analysis) = self.name_recovery() {
-            analysis
-                .body_names()
-                .evidence(body)
-                .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.scopes().get(scope).is_some())
-        } else {
-            false
-        }
+        matches!(
+            self.evidence.typed_body(body),
+            Some(nocter_session::SemanticTypedBodyView::Available(body))
+                if body.scopes().get(scope).is_some()
+        ) || matches!(
+            self.evidence.body_names(body),
+            Some(nocter_session::SemanticBodyNamesView::Available(names))
+                if names.scopes().get(scope).is_some()
+        )
     }
 
     fn node_exists(&self, body: BodyId, node: BodyNodeId) -> bool {
-        if let Some(checked) = self.checked() {
-            checked
-                .bodies()
-                .get(body)
-                .is_some_and(|body| body.nodes().get(node).is_some())
-        } else if let Some(analysis) = self.body_recovery() {
-            match analysis.body_evidence(body) {
-                Some(nocter_checking::BodyEvidence::Typed(body)) => {
-                    body.nodes().get(node).is_some()
-                }
-                // Rejected body construction retains only its explicit interruption contract.
-                // Partial checked nodes and their source projections are discarded together, so
-                // the retained body-node domain is empty rather than unknown.
-                Some(nocter_checking::BodyEvidence::Rejected(_)) | None => false,
-            }
-        } else {
-            false
-        }
+        matches!(
+            self.evidence.typed_body(body),
+            Some(nocter_session::SemanticTypedBodyView::Available(body))
+                if body.nodes().get(node).is_some()
+        )
     }
 
     fn local_exists(&self, body: BodyId, local: LocalBindingId) -> bool {
-        if let Some(checked) = self.checked() {
-            checked
-                .bodies()
-                .get(body)
-                .is_some_and(|body| body.locals().get(local).is_some())
-        } else if let Some(analysis) = self.body_recovery() {
-            analysis
-                .body_names()
-                .get(body)
-                .is_some_and(|names| names.locals().get(local).is_some())
-        } else if let Some(analysis) = self.name_recovery() {
-            analysis
-                .body_names()
-                .evidence(body)
-                .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.locals().get(local).is_some())
-        } else {
-            false
-        }
+        matches!(
+            self.evidence.typed_body(body),
+            Some(nocter_session::SemanticTypedBodyView::Available(body))
+                if body.locals().get(local).is_some()
+        ) || matches!(
+            self.evidence.body_names(body),
+            Some(nocter_session::SemanticBodyNamesView::Available(names))
+                if names.locals().get(local).is_some()
+        )
     }
 
     fn capture_exists(&self, body: BodyId, capture: CaptureId) -> bool {
-        if let Some(checked) = self.checked() {
-            checked
-                .bodies()
-                .get(body)
-                .is_some_and(|body| body.captures().get(capture).is_some())
-        } else if let Some(analysis) = self.body_recovery() {
-            analysis
-                .body_names()
-                .get(body)
-                .is_some_and(|names| names.captures().get(capture).is_some())
-        } else if let Some(analysis) = self.name_recovery() {
-            analysis
-                .body_names()
-                .evidence(body)
-                .and_then(nocter_checking::BodyNameEvidence::usable_names)
-                .is_some_and(|names| names.captures().get(capture).is_some())
-        } else {
-            false
-        }
+        matches!(
+            self.evidence.typed_body(body),
+            Some(nocter_session::SemanticTypedBodyView::Available(body))
+                if body.captures().get(capture).is_some()
+        ) || matches!(
+            self.evidence.body_names(body),
+            Some(nocter_session::SemanticBodyNamesView::Available(names))
+                if names.captures().get(capture).is_some()
+        )
     }
 
     pub(super) fn complete(self) -> Option<CompleteSemanticQuery<'a>> {
-        self.checked().map(|checked| CompleteSemanticQuery {
-            checked,
-            source_index: self.source_index(),
-        })
+        self.evidence
+            .complete()
+            .map(|complete| CompleteSemanticQuery {
+                checked: complete.program(),
+                source_index: complete.source_index(),
+            })
     }
 
     /// Resolves one body identity through the explicit evidence owned by the current generation.
@@ -827,42 +767,26 @@ impl<'a> SemanticQueryContext<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        if let Some(checked) = self.checked() {
-            checked
-                .bodies()
-                .get(body)
-                .map(TypedBodyEvidence::Available)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))
-        } else if let Some(analysis) = self.body_recovery() {
-            match analysis
-                .body_evidence(body)
+        Ok(
+            match self
+                .evidence
+                .typed_body(body)
                 .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
             {
-                nocter_checking::BodyEvidence::Typed(body) => {
-                    Ok(TypedBodyEvidence::Available(body))
+                nocter_session::SemanticTypedBodyView::Available(body) => {
+                    TypedBodyEvidence::Available(body)
                 }
-                nocter_checking::BodyEvidence::Rejected(_) => Ok(TypedBodyEvidence::Unavailable(
-                    TypedBodyUnavailability::BodyRejected,
-                )),
-            }
-        } else if let Some(analysis) = self.name_recovery() {
-            match analysis
-                .body_names()
-                .evidence(body)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
-            {
-                nocter_checking::BodyNameEvidence::Resolved(_) => Ok(
-                    TypedBodyEvidence::Unavailable(TypedBodyUnavailability::TypingNotReached),
-                ),
-                nocter_checking::BodyNameEvidence::Rejected(_) => Ok(
-                    TypedBodyEvidence::Unavailable(TypedBodyUnavailability::NamesRejected),
-                ),
-            }
-        } else {
-            Ok(TypedBodyEvidence::Unavailable(
-                TypedBodyUnavailability::TypingNotReached,
-            ))
-        }
+                nocter_session::SemanticTypedBodyView::BodyRejected => {
+                    TypedBodyEvidence::Unavailable(TypedBodyUnavailability::BodyRejected)
+                }
+                nocter_session::SemanticTypedBodyView::NamesRejected => {
+                    TypedBodyEvidence::Unavailable(TypedBodyUnavailability::NamesRejected)
+                }
+                nocter_session::SemanticTypedBodyView::TypingNotReached => {
+                    TypedBodyEvidence::Unavailable(TypedBodyUnavailability::TypingNotReached)
+                }
+            },
+        )
     }
 
     /// Proves which declared body domains can contribute typed semantic occurrences.
@@ -952,46 +876,32 @@ impl<'a> SemanticQueryContext<'a> {
         if self.graph().declarations().bodies().get(body).is_none() {
             return Err(EvidenceIntegrityError::MissingBodyDomain(body));
         }
-        let names = if let Some(checked) = self.checked() {
-            let checked_body = checked
-                .bodies()
-                .get(body)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
+        if let Some(nocter_session::SemanticTypedBodyView::Available(checked_body)) =
+            self.evidence.typed_body(body)
+        {
             return checked_body
                 .scopes()
                 .get(scope)
                 .map(SemanticFact::Available)
                 .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
-        } else if let Some(analysis) = self.body_recovery() {
-            let names = analysis
-                .body_names()
-                .get(body)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?;
-            return names
+        }
+        match self
+            .evidence
+            .body_names(body)
+            .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
+        {
+            nocter_session::SemanticBodyNamesView::Available(names) => names
                 .scopes()
                 .get(scope)
                 .map(SemanticFact::Available)
-                .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope });
-        } else if let Some(analysis) = self.name_recovery() {
-            analysis
-                .body_names()
-                .evidence(body)
-                .ok_or(EvidenceIntegrityError::MissingBodyDomain(body))?
-        } else {
-            return Ok(SemanticFact::Unavailable(
-                ScopeUnavailability::NameResolutionNotReached,
-            ));
-        };
-        let Some(names) = names.usable_names() else {
-            return Ok(SemanticFact::Unavailable(
+                .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope }),
+            nocter_session::SemanticBodyNamesView::NamesRejected => Ok(SemanticFact::Unavailable(
                 ScopeUnavailability::NamesRejected,
-            ));
-        };
-        names
-            .scopes()
-            .get(scope)
-            .map(SemanticFact::Available)
-            .ok_or(EvidenceIntegrityError::MissingBodyScope { body, scope })
+            )),
+            nocter_session::SemanticBodyNamesView::NameResolutionNotReached => Ok(
+                SemanticFact::Unavailable(ScopeUnavailability::NameResolutionNotReached),
+            ),
+        }
     }
 }
 
@@ -1038,16 +948,19 @@ mod tests {
             .semantic_query()
             .expect("valid semantic index")
             .expect("semantic query");
-        let (body, evidence) = query
-            .body_recovery()
-            .expect("expected body recovery")
-            .body_evidence_iter()
-            .find(|(_, evidence)| matches!(evidence, nocter_checking::BodyEvidence::Rejected(_)))
+        let body = query
+            .graph()
+            .declarations()
+            .bodies()
+            .iter()
+            .map(|(body, _)| body)
+            .find(|body| {
+                matches!(
+                    query.evidence.typed_body(*body),
+                    Some(nocter_session::SemanticTypedBodyView::BodyRejected)
+                )
+            })
             .expect("rejected body evidence");
-        assert!(matches!(
-            evidence,
-            nocter_checking::BodyEvidence::Rejected(_)
-        ));
 
         let mut nodes = ArenaBuilder::<nocter_model::BodyNodeId, ()>::new();
         let node = nodes.insert(());

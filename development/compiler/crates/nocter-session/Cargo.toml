@@ -19,6 +19,7 @@ nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-program = { path = "../nocter-target-program" }
 nocter-model = { path = "../nocter-model" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }
+nocter-source = { path = "../nocter-source" }
 
 [lints]
 workspace = true

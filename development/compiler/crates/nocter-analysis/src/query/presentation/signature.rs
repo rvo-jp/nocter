@@ -1,7 +1,5 @@
-use nocter_checking::{
-    CheckedProgram, ClosureParameter, GenericArguments, StaticDispatch, StaticSelection,
-};
-use nocter_model::{CallableCapability, TypeId, TypeStore};
+use nocter_checking::{CheckedProgram, ClosureParameter, GenericArguments};
+use nocter_model::{CallableCapability, CallableContract, CallableId, TypeId, TypeStore};
 
 use super::{Renderer, SemanticPresentation};
 
@@ -10,37 +8,23 @@ pub(in crate::query) struct RenderedSignature {
     pub(in crate::query) parameter_ranges: Box<[(usize, usize)]>,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::query) enum StaticSignatureSource<'a> {
+    Callable(CallableId),
+    Contract(&'a CallableContract),
+}
+
 pub(in crate::query) fn static_signature_presentation(
     graph: &nocter_declarations::DeclarationGraph,
     types: &TypeStore,
-    selection: &StaticSelection,
-    evidence: Option<&nocter_checking::CapabilityEvidence>,
+    generics: &GenericArguments,
+    source: StaticSignatureSource<'_>,
     spellings: &super::visible_spelling::VisibleSpellings,
 ) -> Option<RenderedSignature> {
-    let mut renderer =
-        Renderer::with_generics(graph, types, selection.generic_arguments(), spellings);
-    match selection.dispatch() {
-        StaticDispatch::Direct(callable)
-        | StaticDispatch::InterfaceMethod {
-            method: callable, ..
-        }
-        | StaticDispatch::InterfaceSelfMethod {
-            method: callable, ..
-        }
-        | StaticDispatch::InterfaceDefault {
-            method: callable, ..
-        }
-        | StaticDispatch::OpaqueMethod {
-            method: callable, ..
-        } => renderer.callable(callable)?,
-        StaticDispatch::StructuralRequirement { .. } => {
-            let nocter_checking::CheckedPredicate::Callable { contract, .. } =
-                evidence?.predicate()
-            else {
-                return None;
-            };
-            renderer.callable_contract(contract)?;
-        }
+    let mut renderer = Renderer::with_generics(graph, types, generics, spellings);
+    match source {
+        StaticSignatureSource::Callable(callable) => renderer.callable(callable)?,
+        StaticSignatureSource::Contract(contract) => renderer.callable_contract(contract)?,
     }
     Some(renderer.finish_signature())
 }

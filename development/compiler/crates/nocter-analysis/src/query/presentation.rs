@@ -15,7 +15,9 @@ use nocter_source_index::SemanticEntity;
 mod signature;
 pub(in crate::query) mod visible_spelling;
 
-pub(super) use signature::{closure_signature_presentation, static_signature_presentation};
+pub(super) use signature::{
+    StaticSignatureSource, closure_signature_presentation, static_signature_presentation,
+};
 
 /// Canonical source-language presentation derived from checked semantics, never source slicing.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,7 +90,7 @@ pub(super) fn presentation(
 ) -> Option<SemanticPresentation> {
     let graph = checked.graph();
     let mut renderer = Renderer::new(graph, checked.types(), spellings);
-    renderer.entity(Some(checked), entity)?;
+    renderer.entity(checked_body(checked, entity), entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
     })
@@ -129,7 +131,7 @@ pub(super) fn hover_presentation(
     let source_access = checked.source_access_context(source)?;
     let mut renderer = Renderer::new(graph, checked.types(), spellings);
     renderer
-        .entity(Some(checked), entity)
+        .entity(checked_body(checked, entity), entity)
         .ok_or(PresentationError::InvalidEntity(entity))?;
     if let SemanticEntity::NominalType(nominal) = entity {
         renderer
@@ -141,94 +143,18 @@ pub(super) fn hover_presentation(
     })
 }
 
-pub(super) fn prepared_presentation(
-    prepared: &nocter_checking::PreparedSemanticProgram,
+pub(super) fn evidence_presentation(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    body: Option<&nocter_checking::CheckedBody>,
     entity: SemanticEntity,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    semantic_presentation(prepared.graph(), prepared.types(), entity, spellings)
-}
-
-pub(super) fn body_recovery_presentation(
-    recovery: &nocter_checking::BodyAnalysisRecovery,
-    entity: SemanticEntity,
-    spellings: &visible_spelling::VisibleSpellings,
-) -> Result<Option<SemanticPresentation>, PresentationError> {
-    let prepared = recovery.prepared();
-    let mut renderer = Renderer::new(prepared.graph(), prepared.types(), spellings);
-    match entity {
-        SemanticEntity::LocalBinding(body, id) => {
-            let evidence = recovery
-                .body_evidence(body)
-                .ok_or(crate::EvidenceIntegrityError::MissingBodyDomain(body))?;
-            let Some(checked) = evidence.typed() else {
-                return Ok(None);
-            };
-            let local = checked
-                .locals()
-                .get(id)
-                .ok_or(crate::EvidenceIntegrityError::MissingLocalBinding { body, local: id })?;
-            let introducer = match local.declaration().kind() {
-                LocalBindingKind::Mutable => "var",
-                LocalBindingKind::Immutable
-                | LocalBindingKind::PatternPayload
-                | LocalBindingKind::Loop
-                | LocalBindingKind::Region
-                | LocalBindingKind::Catch
-                | LocalBindingKind::ClosureParameter => "let",
-            };
-            let Some(name) = renderer.symbol(local.declaration().name()) else {
-                return Ok(None);
-            };
-            write!(renderer.output, "{introducer} {name}: ").ok();
-            if renderer.ty(local.ty()).is_none() {
-                return Ok(None);
-            }
-        }
-        SemanticEntity::Capture(body, id) => {
-            let evidence = recovery
-                .body_evidence(body)
-                .ok_or(crate::EvidenceIntegrityError::MissingBodyDomain(body))?;
-            let Some(checked) = evidence.typed() else {
-                return Ok(None);
-            };
-            let capture = checked
-                .captures()
-                .get(id)
-                .ok_or(crate::EvidenceIntegrityError::MissingCapture { body, capture: id })?;
-            let Some(name) = renderer.symbol(capture.declaration().name()) else {
-                return Ok(None);
-            };
-            write!(renderer.output, "capture {name}: ").ok();
-            if renderer.ty(capture.ty()).is_none() {
-                return Ok(None);
-            }
-        }
-        _ => {
-            if renderer.entity(None, entity).is_none() {
-                return Ok(None);
-            }
-        }
-    }
-    Ok(Some(SemanticPresentation {
+    let mut renderer = Renderer::new(graph, types, spellings);
+    renderer.entity(body, entity)?;
+    Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
-    }))
-}
-
-pub(super) fn name_recovery_presentation(
-    recovery: &nocter_checking::NameAnalysisRecovery,
-    entity: SemanticEntity,
-    spellings: &visible_spelling::VisibleSpellings,
-) -> Option<SemanticPresentation> {
-    semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
-}
-
-pub(super) fn declaration_presentation(
-    recovery: &nocter_checking::DeclarationAnalysisRecovery,
-    entity: SemanticEntity,
-    spellings: &visible_spelling::VisibleSpellings,
-) -> Option<SemanticPresentation> {
-    semantic_presentation(recovery.graph(), recovery.types(), entity, spellings)
+    })
 }
 
 pub(super) fn required_interface_implementation_method_presentation(
@@ -244,17 +170,16 @@ pub(super) fn required_interface_implementation_method_presentation(
     })
 }
 
-fn semantic_presentation(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
+fn checked_body(
+    checked: &CheckedProgram,
     entity: SemanticEntity,
-    spellings: &visible_spelling::VisibleSpellings,
-) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, types, spellings);
-    renderer.entity(None, entity)?;
-    Some(SemanticPresentation {
-        code: renderer.output.into_boxed_str(),
-    })
+) -> Option<&nocter_checking::CheckedBody> {
+    match entity {
+        SemanticEntity::LocalBinding(body, _) | SemanticEntity::Capture(body, _) => {
+            checked.bodies().get(body)
+        }
+        _ => None,
+    }
 }
 
 pub(super) struct Renderer<'a> {
@@ -286,7 +211,11 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    fn entity(&mut self, checked: Option<&CheckedProgram>, entity: SemanticEntity) -> Option<()> {
+    fn entity(
+        &mut self,
+        body: Option<&nocter_checking::CheckedBody>,
+        entity: SemanticEntity,
+    ) -> Option<()> {
         match entity {
             SemanticEntity::Module(_) => {
                 self.workspace_entity(entity)?;
@@ -304,7 +233,7 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::Parameter(_)
             | SemanticEntity::LocalBinding(..)
             | SemanticEntity::Capture(..)
-            | SemanticEntity::Test(_) => self.value_entity(checked, entity)?,
+            | SemanticEntity::Test(_) => self.value_entity(body, entity)?,
             SemanticEntity::Package(_)
             | SemanticEntity::PackageTarget(_)
             | SemanticEntity::Import(_)
@@ -416,7 +345,7 @@ impl<'a> Renderer<'a> {
 
     fn value_entity(
         &mut self,
-        checked: Option<&CheckedProgram>,
+        body_evidence: Option<&nocter_checking::CheckedBody>,
         entity: SemanticEntity,
     ) -> Option<()> {
         let declarations = self.graph.declarations();
@@ -461,8 +390,8 @@ impl<'a> Renderer<'a> {
                 self.ty(parameter.ty())?;
             }
             SemanticEntity::LocalBinding(body, id) => {
-                let checked = checked?;
-                let local = checked.bodies().get(body)?.locals().get(id)?;
+                let _ = body;
+                let local = body_evidence?.locals().get(id)?;
                 let introducer = match local.declaration().kind() {
                     LocalBindingKind::Mutable => "var",
                     LocalBindingKind::Immutable
@@ -481,8 +410,8 @@ impl<'a> Renderer<'a> {
                 self.ty(local.ty())?;
             }
             SemanticEntity::Capture(body, id) => {
-                let checked = checked?;
-                let capture = checked.bodies().get(body)?.captures().get(id)?;
+                let _ = body;
+                let capture = body_evidence?.captures().get(id)?;
                 write!(
                     self.output,
                     "capture {}: ",

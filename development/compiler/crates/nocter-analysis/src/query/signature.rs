@@ -6,9 +6,10 @@ use nocter_source::{ByteOffset, SourceId};
 use nocter_source_index::SemanticEntity;
 
 use crate::AnalysisSnapshot;
-use crate::query::evidence::EvidenceIntegrityError;
+use crate::query::evidence::{EvidenceIntegrityError, SemanticQueryContext};
 use crate::query::presentation::{
-    SemanticPresentation, closure_signature_presentation, static_signature_presentation,
+    SemanticPresentation, StaticSignatureSource, closure_signature_presentation,
+    static_signature_presentation,
 };
 use crate::query::source_context::SourceContextError;
 use crate::query::source_selection::{select_source_binding, select_source_candidates};
@@ -102,19 +103,16 @@ impl AnalysisSnapshot {
             | CallTarget::CallableValue {
                 dispatch: selection,
                 ..
-            } => static_signature_presentation(
-                authority.graph(),
-                authority.types(),
-                selection,
-                match selection.dispatch() {
-                    StaticDispatch::StructuralRequirement { evidence }
-                    | StaticDispatch::InterfaceMethod { evidence, .. } => {
-                        authority.capability_evidence(evidence)
-                    }
-                    _ => None,
-                },
-                &spellings,
-            ),
+            } => {
+                let source = static_signature_source(&authority, selection.dispatch())?;
+                static_signature_presentation(
+                    authority.graph(),
+                    authority.types(),
+                    selection.generic_arguments(),
+                    source,
+                    &spellings,
+                )
+            }
             CallTarget::ClosureValue { closure, .. } => {
                 authority.complete().and_then(|authority| {
                     closure_signature_presentation(authority.checked(), *closure, &spellings)
@@ -150,6 +148,40 @@ impl AnalysisSnapshot {
             active_parameter,
         }))
     }
+}
+
+fn static_signature_source<'a>(
+    authority: &SemanticQueryContext<'a>,
+    dispatch: StaticDispatch,
+) -> Result<StaticSignatureSource<'a>, EvidenceIntegrityError> {
+    Ok(match dispatch {
+        StaticDispatch::Direct(callable)
+        | StaticDispatch::InterfaceMethod {
+            method: callable, ..
+        }
+        | StaticDispatch::InterfaceSelfMethod {
+            method: callable, ..
+        }
+        | StaticDispatch::InterfaceDefault {
+            method: callable, ..
+        }
+        | StaticDispatch::OpaqueMethod {
+            method: callable, ..
+        } => StaticSignatureSource::Callable(callable),
+        StaticDispatch::StructuralRequirement { evidence } => {
+            let capability = authority
+                .capability_evidence(evidence)
+                .ok_or(EvidenceIntegrityError::MissingCapabilityEvidence(evidence))?;
+            let nocter_checking::CheckedPredicate::Callable { contract, .. } =
+                capability.predicate()
+            else {
+                return Err(EvidenceIntegrityError::InvalidCapabilityEvidencePredicate(
+                    evidence,
+                ));
+            };
+            StaticSignatureSource::Contract(contract)
+        }
+    })
 }
 
 /// An internal inconsistency while answering a signature-help query.

@@ -14,9 +14,4 @@ disallowed-methods = [
     { path = "nocter_checking::check_prepared_program_recovering", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
     { path = "nocter_checking::analyze_prepared_program_bodies", reason = "production recovery orchestration is owned by nocter-session::semantic_pipeline" },
     { path = "nocter_source_index::SourceIndex::issues", reason = "source projection integrity is consumed only by the analysis evidence kernel" },
-    { path = "nocter_session::SemanticEvidenceView::checked", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
-    { path = "nocter_session::SemanticEvidenceView::body_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
-    { path = "nocter_session::SemanticEvidenceView::name_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
-    { path = "nocter_session::SemanticEvidenceView::declaration_analysis", reason = "raw semantic phase selection is owned by the analysis evidence kernel" },
-    { path = "nocter_session::SemanticEvidenceView::missing_interface_methods", reason = "semantic repair evidence is owned by the analysis evidence kernel" },
 ]

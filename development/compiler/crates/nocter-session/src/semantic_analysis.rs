@@ -7,7 +7,13 @@ use nocter_checking::{
 use nocter_declaration_lowering::DeclarationLoweringRecovery;
 use nocter_declarations::DeclarationGraph;
 use nocter_model::TypeStore;
+use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::SourceIndex;
+
+use crate::{
+    CompleteSemanticEvidenceView, InterfaceImplementationRepairView, SemanticBodyNamesView,
+    SemanticInterruptionView, SemanticTypedBodyView,
+};
 
 /// The exact current-generation source-semantic evidence retained by one analysis attempt.
 ///
@@ -109,9 +115,15 @@ impl<'a> SemanticEvidenceView<'a> {
     }
 
     #[must_use]
-    pub const fn checked(self) -> Option<&'a CheckedProgram> {
+    pub const fn complete(self) -> Option<CompleteSemanticEvidenceView<'a>> {
         match self.authority {
-            SemanticAuthorityView::Checked { program, .. } => Some(program),
+            SemanticAuthorityView::Checked {
+                program,
+                source_index,
+            } => Some(CompleteSemanticEvidenceView {
+                program,
+                source_index,
+            }),
             SemanticAuthorityView::Declarations { .. }
             | SemanticAuthorityView::Names(_)
             | SemanticAuthorityView::Bodies(_) => None,
@@ -119,46 +131,133 @@ impl<'a> SemanticEvidenceView<'a> {
     }
 
     #[must_use]
-    pub const fn body_analysis(self) -> Option<&'a BodyAnalysisRecovery> {
-        match self.authority {
-            SemanticAuthorityView::Bodies(analysis) => Some(analysis),
-            SemanticAuthorityView::Declarations { .. }
-            | SemanticAuthorityView::Names(_)
-            | SemanticAuthorityView::Checked { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn name_analysis(self) -> Option<&'a NameAnalysisRecovery> {
-        match self.authority {
-            SemanticAuthorityView::Names(analysis) => Some(analysis),
-            SemanticAuthorityView::Declarations { .. }
-            | SemanticAuthorityView::Bodies(_)
-            | SemanticAuthorityView::Checked { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn declaration_analysis(self) -> Option<&'a DeclarationAnalysisRecovery> {
-        match self.authority {
-            SemanticAuthorityView::Declarations { analysis, .. } => Some(analysis),
-            SemanticAuthorityView::Names(_)
-            | SemanticAuthorityView::Bodies(_)
-            | SemanticAuthorityView::Checked { .. } => None,
-        }
-    }
-
-    /// Exact declaration-repair evidence retained from the failure that produced this authority.
-    #[must_use]
-    pub const fn missing_interface_methods(
+    pub fn capability_evidence(
         self,
-    ) -> Option<&'a nocter_checking::MissingInterfaceImplementationMethods> {
+        evidence: nocter_model::CapabilityEvidenceId,
+    ) -> Option<&'a nocter_checking::CapabilityEvidence> {
+        match self.authority {
+            SemanticAuthorityView::Bodies(analysis) => {
+                analysis.prepared().capability_evidence(evidence)
+            }
+            SemanticAuthorityView::Checked { program, .. } => program.capability_evidence(evidence),
+            SemanticAuthorityView::Declarations { .. } | SemanticAuthorityView::Names(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn typed_body(self, body: nocter_model::BodyId) -> Option<SemanticTypedBodyView<'a>> {
+        match self.authority {
+            SemanticAuthorityView::Checked { program, .. } => program
+                .bodies()
+                .get(body)
+                .map(SemanticTypedBodyView::Available),
+            SemanticAuthorityView::Bodies(analysis) => {
+                Some(match analysis.body_evidence(body)? {
+                    nocter_checking::BodyEvidence::Typed(body) => {
+                        SemanticTypedBodyView::Available(body)
+                    }
+                    nocter_checking::BodyEvidence::Rejected(_) => {
+                        SemanticTypedBodyView::BodyRejected
+                    }
+                })
+            }
+            SemanticAuthorityView::Names(analysis) => {
+                Some(match analysis.body_names().evidence(body)? {
+                    nocter_checking::BodyNameEvidence::Resolved(_) => {
+                        SemanticTypedBodyView::TypingNotReached
+                    }
+                    nocter_checking::BodyNameEvidence::Rejected(_) => {
+                        SemanticTypedBodyView::NamesRejected
+                    }
+                })
+            }
+            SemanticAuthorityView::Declarations { analysis, .. } => analysis
+                .graph()
+                .declarations()
+                .bodies()
+                .get(body)
+                .map(|_| SemanticTypedBodyView::TypingNotReached),
+        }
+    }
+
+    #[must_use]
+    pub fn body_names(self, body: nocter_model::BodyId) -> Option<SemanticBodyNamesView<'a>> {
+        match self.authority {
+            SemanticAuthorityView::Bodies(analysis) => analysis
+                .body_names()
+                .get(body)
+                .map(SemanticBodyNamesView::Available),
+            SemanticAuthorityView::Names(analysis) => {
+                Some(match analysis.body_names().evidence(body)? {
+                    nocter_checking::BodyNameEvidence::Resolved(names) => {
+                        SemanticBodyNamesView::Available(names)
+                    }
+                    nocter_checking::BodyNameEvidence::Rejected(rejection) => {
+                        rejection.partial_names().map_or(
+                            SemanticBodyNamesView::NamesRejected,
+                            SemanticBodyNamesView::Available,
+                        )
+                    }
+                })
+            }
+            SemanticAuthorityView::Declarations { analysis, .. } => analysis
+                .graph()
+                .declarations()
+                .bodies()
+                .get(body)
+                .map(|_| SemanticBodyNamesView::NameResolutionNotReached),
+            SemanticAuthorityView::Checked { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn interruption_at(
+        self,
+        source: SourceId,
+        offset: ByteOffset,
+    ) -> Option<SemanticInterruptionView<'a>> {
+        let SemanticAuthorityView::Bodies(recovery) = self.authority else {
+            return None;
+        };
+        let (index, interruption) = recovery.interruption_position_at(source, offset)?;
+        Some(SemanticInterruptionView {
+            recovery,
+            index,
+            interruption,
+        })
+    }
+
+    #[must_use]
+    pub fn interruption_overlapping(
+        self,
+        source: SourceId,
+        range: TextRange,
+    ) -> Option<SemanticInterruptionView<'a>> {
+        let SemanticAuthorityView::Bodies(recovery) = self.authority else {
+            return None;
+        };
+        let (index, interruption) = recovery.interruption_position_overlapping(source, range)?;
+        Some(SemanticInterruptionView {
+            recovery,
+            index,
+            interruption,
+        })
+    }
+
+    #[must_use]
+    pub const fn interface_implementation_repair(
+        self,
+    ) -> Option<InterfaceImplementationRepairView<'a>> {
         match self.authority {
             SemanticAuthorityView::Declarations {
-                missing_interface_methods,
+                analysis,
+                missing_interface_methods: Some(missing),
+            } => Some(InterfaceImplementationRepairView { analysis, missing }),
+            SemanticAuthorityView::Declarations {
+                missing_interface_methods: None,
                 ..
-            } => missing_interface_methods,
-            SemanticAuthorityView::Names(_)
+            }
+            | SemanticAuthorityView::Names(_)
             | SemanticAuthorityView::Bodies(_)
             | SemanticAuthorityView::Checked { .. } => None,
         }
