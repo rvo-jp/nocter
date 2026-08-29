@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -7,6 +8,8 @@ use nocter_model::{
     ClosureId, ClosureSequence, LocalBindingId, TypeId,
 };
 use nocter_persistent::PersistentVector;
+
+use crate::{BodyClosureRef, BodyTypeCapture, BodyTypeRecipeError, BodyTypeRef, ReplayedBodyTypes};
 
 /// The fully typed invocation shape of one anonymous concrete closure.
 ///
@@ -180,6 +183,203 @@ pub struct ClosureTable {
     definitions: Arena<ClosureId, ClosureDefinition>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BodyClosureSignature {
+    capability: CallableCapability,
+    parameters: Box<[(LocalBindingId, BodyTypeRef)]>,
+    result: BodyTypeRef,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BodyClosureDefinition {
+    ty: BodyTypeRef,
+    signature: BodyClosureSignature,
+    environment: Box<[(CaptureId, BodyTypeRef)]>,
+    body: BodyNodeId,
+    callable_requirements: Box<[BodyCallableContract]>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BodyCallableContract {
+    capability: CallableCapability,
+    parameters: Box<[BodyTypeRef]>,
+    pack: Option<BodyTypeRef>,
+    result: BodyTypeRef,
+    provenance: nocter_model::ResultProvenance,
+}
+
+/// Source-neutral closure definitions contributed by one checked body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BodyClosureRecipe {
+    owner: BodyId,
+    definitions: Box<[BodyClosureDefinition]>,
+    source_references: HashMap<ClosureId, BodyClosureRef>,
+}
+
+/// Current canonical closure identities reserved for one replayed body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReplayedBodyClosures {
+    owner: BodyId,
+    ids: Box<[ClosureId]>,
+}
+
+impl ReplayedBodyClosures {
+    #[must_use]
+    pub const fn ids(&self) -> &[ClosureId] {
+        &self.ids
+    }
+
+    /// Resolves one body-local closure identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error for an unknown local identity.
+    pub fn resolve(&self, closure: BodyClosureRef) -> Result<ClosureId, BodyClosureRecipeError> {
+        self.ids
+            .get(closure.index() as usize)
+            .copied()
+            .ok_or(BodyClosureRecipeError::UnknownLocalClosure(closure.index()))
+    }
+}
+
+impl BodyClosureRecipe {
+    /// Classifies one closure from the exact body branch captured by this recipe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the identity did not originate in this body.
+    pub fn reference(&self, closure: ClosureId) -> Result<BodyClosureRef, BodyClosureRecipeError> {
+        self.source_references
+            .get(&closure)
+            .copied()
+            .ok_or(BodyClosureRecipeError::UnknownClosure(closure))
+    }
+
+    /// Reserves current canonical identities before structural type replay.
+    pub(crate) fn reserve(&self, target: &mut ClosureTransaction) -> ReplayedBodyClosures {
+        ReplayedBodyClosures {
+            owner: self.owner,
+            ids: (0..self.definitions.len())
+                .map(|_| target.reserve(self.owner))
+                .collect(),
+        }
+    }
+
+    /// Defines every previously reserved closure after body-local types have been replayed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity failure when closure or type maps do not cover this recipe or the
+    /// target authority rejects a definition.
+    pub(crate) fn define(
+        &self,
+        target: &mut ClosureTransaction,
+        closures: &ReplayedBodyClosures,
+        types: &ReplayedBodyTypes,
+    ) -> Result<(), BodyClosureRecipeError> {
+        if closures.owner != self.owner || closures.ids.len() != self.definitions.len() {
+            return Err(BodyClosureRecipeError::ReplayDomainMismatch);
+        }
+        for (closure, recipe) in closures.ids.iter().copied().zip(&self.definitions) {
+            let definition = ClosureDefinition::new(
+                self.owner,
+                types.resolve(recipe.ty)?,
+                ClosureSignature::new(
+                    recipe.signature.capability,
+                    recipe
+                        .signature
+                        .parameters
+                        .iter()
+                        .map(|(binding, ty)| {
+                            types
+                                .resolve(*ty)
+                                .map(|ty| ClosureParameter::new(*binding, ty))
+                                .map_err(BodyClosureRecipeError::from)
+                        })
+                        .collect::<Result<Vec<_>, BodyClosureRecipeError>>()?,
+                    types.resolve(recipe.signature.result)?,
+                ),
+                recipe
+                    .environment
+                    .iter()
+                    .map(|(binding, ty)| {
+                        types
+                            .resolve(*ty)
+                            .map(|ty| ClosureEnvironmentField::new(*binding, ty))
+                            .map_err(BodyClosureRecipeError::from)
+                    })
+                    .collect::<Result<Vec<_>, BodyClosureRecipeError>>()?,
+                recipe.body,
+            );
+            target.define(closure, definition)?;
+            for requirement in &recipe.callable_requirements {
+                target.require_callable(self.owner, closure, requirement.replay(types)?)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn register_copyability(
+        &self,
+        graph: &nocter_declarations::DeclarationGraph,
+        type_store: &mut nocter_model::TypeTransaction,
+        copyabilities: &mut crate::copyability::CopyabilityTransaction,
+        types: &ReplayedBodyTypes,
+    ) -> Result<(), BodyClosureRecipeError> {
+        for definition in &self.definitions {
+            copyabilities.register_closure(
+                graph,
+                type_store,
+                types.resolve(definition.ty)?,
+                definition
+                    .environment
+                    .iter()
+                    .map(|(_, ty)| types.resolve(*ty))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl BodyCallableContract {
+    fn capture(
+        contract: &CallableContract,
+        types: &BodyTypeCapture,
+    ) -> Result<Self, BodyClosureRecipeError> {
+        Ok(Self {
+            capability: contract.capability(),
+            parameters: contract
+                .parameters()
+                .iter()
+                .copied()
+                .map(|ty| types.reference(ty))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice(),
+            pack: contract.pack().map(|ty| types.reference(ty)).transpose()?,
+            result: types.reference(contract.result())?,
+            provenance: contract.provenance().clone(),
+        })
+    }
+
+    fn replay(
+        &self,
+        types: &ReplayedBodyTypes,
+    ) -> Result<CallableContract, BodyClosureRecipeError> {
+        Ok(CallableContract::new(
+            self.capability,
+            self.parameters
+                .iter()
+                .copied()
+                .map(|ty| types.resolve(ty))
+                .collect::<Result<Vec<_>, _>>()?,
+            self.pack.map(|ty| types.resolve(ty)).transpose()?,
+            types.resolve(self.result)?,
+            self.provenance.clone(),
+        )?)
+    }
+}
+
 impl ClosureTable {
     const fn new(definitions: Arena<ClosureId, ClosureDefinition>) -> Self {
         Self { definitions }
@@ -222,6 +422,95 @@ impl ClosureAuthority {
             Some(ClosureSlot::Defined(draft)) => Some(&draft.core.signature),
             Some(ClosureSlot::Reserved(_)) | None => None,
         }
+    }
+
+    pub(crate) fn body_identities(
+        &self,
+        owner: BodyId,
+    ) -> Result<HashMap<ClosureId, BodyClosureRef>, BodyClosureRecipeError> {
+        self.slots
+            .iter()
+            .enumerate()
+            .map(|(index, (closure, slot))| {
+                let ClosureSlot::Defined(draft) = slot else {
+                    return Err(BodyClosureRecipeError::IncompleteClosure(closure));
+                };
+                if draft.core.owner != owner {
+                    return Err(BodyClosureRecipeError::OwnerMismatch(closure));
+                }
+                let index =
+                    u32::try_from(index).map_err(|_| BodyClosureRecipeError::TooManyClosures)?;
+                Ok((closure, BodyClosureRef::new(index)))
+            })
+            .collect()
+    }
+
+    pub(crate) fn capture_body_recipe(
+        &self,
+        owner: BodyId,
+        identities: &HashMap<ClosureId, BodyClosureRef>,
+        types: &BodyTypeCapture,
+    ) -> Result<BodyClosureRecipe, BodyClosureRecipeError> {
+        if identities.len() != self.slots.iter().len() {
+            return Err(BodyClosureRecipeError::IdentityDomainMismatch);
+        }
+        let definitions = self
+            .slots
+            .iter()
+            .enumerate()
+            .map(|(index, (closure, slot))| {
+                let ClosureSlot::Defined(draft) = slot else {
+                    return Err(BodyClosureRecipeError::IncompleteClosure(closure));
+                };
+                if draft.core.owner != owner {
+                    return Err(BodyClosureRecipeError::OwnerMismatch(closure));
+                }
+                let expected = u32::try_from(index)
+                    .map(BodyClosureRef::new)
+                    .map_err(|_| BodyClosureRecipeError::TooManyClosures)?;
+                if identities.get(&closure) != Some(&expected) {
+                    return Err(BodyClosureRecipeError::IdentityDomainMismatch);
+                }
+                Ok(BodyClosureDefinition {
+                    ty: types.reference(draft.core.ty)?,
+                    signature: BodyClosureSignature {
+                        capability: draft.core.signature.capability(),
+                        parameters: draft
+                            .core
+                            .signature
+                            .parameters()
+                            .iter()
+                            .map(|parameter| {
+                                types
+                                    .reference(parameter.ty())
+                                    .map(|ty| (parameter.binding(), ty))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into_boxed_slice(),
+                        result: types.reference(draft.core.signature.result())?,
+                    },
+                    environment: draft
+                        .core
+                        .environment
+                        .iter()
+                        .map(|field| types.reference(field.ty()).map(|ty| (field.binding(), ty)))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
+                    body: draft.core.body,
+                    callable_requirements: draft
+                        .requirements
+                        .iter()
+                        .map(|requirement| BodyCallableContract::capture(requirement, types))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
+                })
+            })
+            .collect::<Result<Vec<_>, BodyClosureRecipeError>>()?;
+        Ok(BodyClosureRecipe {
+            owner,
+            definitions: definitions.into_boxed_slice(),
+            source_references: identities.clone(),
+        })
     }
 
     pub(crate) fn finish(self) -> Result<ClosureTable, ClosureTableBuildError> {
@@ -397,6 +686,53 @@ pub enum ClosureTableBuildError {
     OwnerMismatch(ClosureId),
     IncompleteClosure(ClosureId),
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BodyClosureRecipeError {
+    TooManyClosures,
+    IdentityDomainMismatch,
+    ReplayDomainMismatch,
+    UnknownLocalClosure(u32),
+    UnknownClosure(ClosureId),
+    IncompleteClosure(ClosureId),
+    OwnerMismatch(ClosureId),
+    Type(BodyTypeRecipeError),
+    Callable(nocter_model::InvalidParameterOrigin),
+    Build(ClosureTableBuildError),
+    Copyability(crate::CopyabilityError),
+}
+
+impl From<BodyTypeRecipeError> for BodyClosureRecipeError {
+    fn from(error: BodyTypeRecipeError) -> Self {
+        Self::Type(error)
+    }
+}
+
+impl From<nocter_model::InvalidParameterOrigin> for BodyClosureRecipeError {
+    fn from(error: nocter_model::InvalidParameterOrigin) -> Self {
+        Self::Callable(error)
+    }
+}
+
+impl From<ClosureTableBuildError> for BodyClosureRecipeError {
+    fn from(error: ClosureTableBuildError) -> Self {
+        Self::Build(error)
+    }
+}
+
+impl From<crate::CopyabilityError> for BodyClosureRecipeError {
+    fn from(error: crate::CopyabilityError) -> Self {
+        Self::Copyability(error)
+    }
+}
+
+impl fmt::Display for BodyClosureRecipeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "invalid body closure recipe: {self:?}")
+    }
+}
+
+impl std::error::Error for BodyClosureRecipeError {}
 
 impl fmt::Display for ClosureTableBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

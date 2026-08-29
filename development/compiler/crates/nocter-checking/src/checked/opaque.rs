@@ -13,6 +13,13 @@ pub struct CheckedOpaqueWitness {
 }
 
 impl CheckedOpaqueWitness {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.witness = semantics.ty(self.witness)?;
+        Ok(())
+    }
     pub(crate) const fn new(value: BodyNodeId, definition: OpaqueTypeId, witness: TypeId) -> Self {
         Self {
             value,

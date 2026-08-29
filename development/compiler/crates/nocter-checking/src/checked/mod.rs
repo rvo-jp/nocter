@@ -9,6 +9,7 @@ mod opaque;
 mod place;
 mod program;
 mod provenance;
+mod rebind;
 mod selection;
 
 pub use argument_pack::{ArgumentPackSegment, CheckedArgumentPack, SpreadMode};
@@ -19,10 +20,11 @@ pub use cleanup::{
     CleanupAction, CleanupCondition, CleanupFieldProjection, CleanupPath, CleanupSchedule,
     CleanupTable, CleanupTarget, CleanupTiming,
 };
-pub use closure::ClosureTableBuildError;
+pub use closure::{BodyClosureRecipe, BodyClosureRecipeError, ClosureTableBuildError};
 pub(crate) use closure::{ClosureAuthority, ClosureTransaction, StaleClosureTransaction};
 pub use closure::{
     ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureSignature, ClosureTable,
+    ReplayedBodyClosures,
 };
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
@@ -49,6 +51,8 @@ pub use provenance::{
     CheckedCallableProvenance, CheckedClosureProvenance, ClosureProvenanceTable,
     ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
 };
+pub use rebind::CheckedSemanticRebindError;
+pub(super) use rebind::CheckedSemanticRebinder;
 pub use selection::{
     DropSelection, DuplicateGenericArgument, GenericArgument, GenericArguments, StaticDispatch,
     StaticSelection,

@@ -47,6 +47,25 @@ impl<I: SemanticId, T> Arena<I, T> {
     pub const fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
+
+    /// Transforms every immutable slot while preserving its typed identity domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first transformation error without producing a partial arena.
+    pub fn try_map<U, E>(
+        &self,
+        mut transform: impl FnMut(I, &T) -> Result<U, E>,
+    ) -> Result<Arena<I, U>, E> {
+        let values = self
+            .iter()
+            .map(|(id, value)| transform(id, value))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Arena {
+            values: values.into_boxed_slice(),
+            identity: PhantomData,
+        })
+    }
 }
 
 /// The single mutable construction path for an [`Arena`].
@@ -215,6 +234,21 @@ mod tests {
         let mut modules = ArenaBuilder::<ModuleId, _>::new();
         let root = modules.insert("/");
         assert_eq!(modules.finish().get(root), Some(&"/"));
+    }
+
+    #[test]
+    fn immutable_transform_preserves_typed_identity_order() {
+        let mut source = ArenaBuilder::<PackageId, _>::new();
+        let first = source.insert(2_u32);
+        let second = source.insert(3_u32);
+        let source = source.finish();
+
+        let mapped = source
+            .try_map::<_, ()>(|id, value| Ok((id, value * 2)))
+            .unwrap();
+
+        assert_eq!(mapped.get(first), Some(&(first, 4)));
+        assert_eq!(mapped.get(second), Some(&(second, 6)));
     }
 
     #[test]

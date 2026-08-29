@@ -17,6 +17,13 @@ pub struct CheckedNode {
 }
 
 impl CheckedNode {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.ty = semantics.ty(self.ty)?;
+        self.operation.rebind(semantics)
+    }
     pub(super) const fn new(ty: TypeId, operation: CheckedOperation) -> Self {
         Self { ty, operation }
     }
@@ -33,6 +40,40 @@ impl CheckedNode {
 
     pub(super) fn replace_operation(&mut self, operation: CheckedOperation) {
         self.operation = operation;
+    }
+}
+
+impl CheckedOperation {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match self {
+            Self::Call(call) => call.rebind(semantics)?,
+            Self::BorrowConversion(conversion) => conversion.rebind(semantics)?,
+            Self::Comparison(comparison) => comparison.rebind(semantics)?,
+            Self::Primitive(PrimitiveOperation::IntegerConversion { target, .. }) => {
+                *target = semantics.ty(*target)?;
+            }
+            Self::OpaqueWitness(witness) => witness.rebind(semantics)?,
+            Self::Closure(closure) => closure.closure = semantics.closure(closure.closure)?,
+            Self::IteratorAcquisition(acquisition) => acquisition.rebind(semantics)?,
+            Self::Sequence(sequence) => sequence.rebind(semantics)?,
+            Self::StringLiteral { constructor, .. } => constructor.rebind(semantics)?,
+            Self::Interpolation(interpolation) => interpolation.rebind(semantics)?,
+            Self::Control(control) => control.rebind(semantics)?,
+            Self::Complete
+            | Self::Constant(_)
+            | Self::Place(_)
+            | Self::Copy(_)
+            | Self::Move(_)
+            | Self::Borrow { .. }
+            | Self::Primitive(_)
+            | Self::Aggregate(_)
+            | Self::Outcome(_)
+            | Self::ArgumentPackLength(_) => {}
+        }
+        Ok(())
     }
 }
 
@@ -90,6 +131,16 @@ pub struct CheckedBorrowConversion {
 }
 
 impl CheckedBorrowConversion {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.target = semantics.ty(self.target)?;
+        if let BorrowConversionImplementation::Selected(selection) = &mut self.implementation {
+            selection.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) const fn new(
         value: BodyNodeId,
         target: TypeId,
@@ -169,6 +220,12 @@ pub struct CheckedReceiverCoercion {
 }
 
 impl CheckedReceiverCoercion {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.selection.rebind(semantics)
+    }
     pub(crate) const fn new(
         selection: StaticSelection,
         result_preparation: CoercedReceiverPreparation,
@@ -199,6 +256,15 @@ pub struct CheckedReceiver {
 }
 
 impl CheckedReceiver {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        if let Some(coercion) = &mut self.coercion {
+            coercion.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) const fn new(
         value: BodyNodeId,
         preparation: ReceiverPreparation,
@@ -236,6 +302,25 @@ pub struct CheckedCall {
 }
 
 impl CheckedCall {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match &mut self.target {
+            CallTarget::Static(selection) => selection.rebind(semantics)?,
+            CallTarget::ClosureValue { closure, .. } => {
+                *closure = semantics.closure(*closure)?;
+            }
+            CallTarget::CallableValue { dispatch, .. } => dispatch.rebind(semantics)?,
+        }
+        if let Some(receiver) = &mut self.receiver {
+            receiver.rebind(semantics)?;
+        }
+        if let Some(pack) = &mut self.pack {
+            pack.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) fn new(
         target: CallTarget,
         receiver: Option<CheckedReceiver>,
@@ -312,6 +397,15 @@ pub struct CheckedReadonlyOperand {
 }
 
 impl CheckedReadonlyOperand {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        if let Some(coercion) = &mut self.coercion {
+            coercion.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) const fn new(
         value: BodyNodeId,
         preparation: ReadonlyOperandPreparation,
@@ -359,6 +453,17 @@ pub struct CheckedComparison {
 }
 
 impl CheckedComparison {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.left.rebind(semantics)?;
+        self.right.rebind(semantics)?;
+        if let ComparisonImplementation::Selected(selection) = &mut self.implementation {
+            selection.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) const fn new(
         operation: ComparisonOperation,
         left: CheckedReadonlyOperand,
@@ -536,6 +641,16 @@ pub struct CheckedIteratorAcquisition {
 }
 
 impl CheckedIteratorAcquisition {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.source.rebind(semantics)?;
+        if let IterationAcquisition::Expansion(selection) = &mut self.acquisition {
+            selection.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) const fn new(source: CheckedReceiver, acquisition: IterationAcquisition) -> Self {
         Self {
             source,
@@ -562,6 +677,14 @@ pub struct TypedIteration {
 }
 
 impl TypedIteration {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.next.rebind(semantics)?;
+        self.item = semantics.ty(self.item)?;
+        Ok(())
+    }
     pub(crate) const fn new(iterator: BodyNodeId, next: StaticSelection, item: TypeId) -> Self {
         Self {
             iterator,
@@ -600,6 +723,13 @@ pub struct CheckedSequence {
 }
 
 impl CheckedSequence {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.constructor.rebind(semantics)?;
+        self.pack.rebind(semantics)
+    }
     pub(crate) fn new(
         constructor: StaticSelection,
         segments: impl Into<Box<[ArgumentPackSegment]>>,
@@ -648,6 +778,21 @@ pub struct CheckedInterpolation {
 }
 
 impl CheckedInterpolation {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.constructor.rebind(semantics)?;
+        self.text_appender.rebind(semantics)?;
+        for part in &mut self.parts {
+            if let InterpolationPart::Formatted { operand, formatter } = part {
+                operand.rebind(semantics)?;
+                formatter.rebind(semantics)?;
+            }
+        }
+        self.output = semantics.ty(self.output)?;
+        Ok(())
+    }
     pub(crate) fn new(
         constructor: StaticSelection,
         text_appender: StaticSelection,
@@ -814,6 +959,15 @@ pub struct CheckedPattern {
 }
 
 impl CheckedPattern {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        if let Some(selection) = &mut self.before_transfer_drop {
+            selection.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(crate) fn new(
         variant: VariantId,
         slots: impl Into<Box<[CheckedPatternSlot]>>,
@@ -924,6 +1078,17 @@ pub struct CheckedLoop {
 }
 
 impl CheckedLoop {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match &mut self.kind {
+            LoopKind::For { iteration, .. } => iteration.rebind(semantics)?,
+            LoopKind::ArgumentPack { item, .. } => *item = semantics.ty(*item)?,
+            LoopKind::Infinite | LoopKind::While { .. } | LoopKind::Range { .. } => {}
+        }
+        Ok(())
+    }
     pub(crate) const fn new(kind: LoopKind, body: BodyNodeId, body_scope: BodyScopeId) -> Self {
         Self {
             kind,
@@ -998,4 +1163,18 @@ pub enum CheckedControl {
         allocator: BodyNodeId,
         body: BodyNodeId,
     },
+}
+
+impl CheckedControl {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        if let Self::Pattern { arms, .. } = self {
+            for arm in arms {
+                arm.pattern.rebind(semantics)?;
+            }
+        }
+        Ok(())
+    }
 }

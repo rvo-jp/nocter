@@ -50,6 +50,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A body type extension distinguishes the immutable prepared-program prefix from dense body-local
   additions. Closure references are body-local as well. Canonical program finalization re-interns
   both domains, so one sibling cannot change another body's reusable type identities.
+- Each body checker opens from the same prepared semantic prefix and an empty closure domain. It
+  cannot observe inferred types, copyability memoization, or closure allocation from a preceding
+  sibling. Only a successful body recipe is replayed into the canonical program authority, and one
+  closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

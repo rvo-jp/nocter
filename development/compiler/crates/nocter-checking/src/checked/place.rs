@@ -73,6 +73,16 @@ pub struct CheckedPlace {
 }
 
 impl CheckedPlace {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.root_ty = semantics.ty(self.root_ty)?;
+        for projection in &mut self.projections {
+            projection.rebind(semantics)?;
+        }
+        Ok(())
+    }
     pub(super) fn new(
         root: PlaceRoot,
         root_ty: TypeId,
@@ -150,6 +160,40 @@ impl CheckedPlace {
 
     pub(crate) fn has_dynamic_evaluation(&self) -> bool {
         self.evaluation_nodes().next().is_some()
+    }
+}
+
+impl PlaceProjection {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match self {
+            Self::Field { ty, .. }
+            | Self::BorrowDeref { ty, .. }
+            | Self::BuiltinIndex { ty, .. } => *ty = semantics.ty(*ty)?,
+            Self::CoercedBuiltinIndex {
+                receiver_coercion,
+                ty,
+                ..
+            } => {
+                receiver_coercion.rebind(semantics)?;
+                *ty = semantics.ty(*ty)?;
+            }
+            Self::SelectedIndex {
+                operation,
+                receiver_coercion,
+                ty,
+                ..
+            } => {
+                operation.rebind(semantics)?;
+                if let Some(coercion) = receiver_coercion {
+                    coercion.rebind(semantics)?;
+                }
+                *ty = semantics.ty(*ty)?;
+            }
+        }
+        Ok(())
     }
 }
 

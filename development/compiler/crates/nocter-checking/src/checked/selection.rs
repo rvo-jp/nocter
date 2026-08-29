@@ -120,6 +120,37 @@ impl StaticSelection {
     pub const fn generic_arguments(&self) -> &GenericArguments {
         &self.generic_arguments
     }
+
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match &mut self.dispatch {
+            StaticDispatch::InterfaceDefault { receiver, .. } => {
+                *receiver = semantics.ty(*receiver)?;
+            }
+            StaticDispatch::OpaqueMethod { opaque, .. } => {
+                *opaque = semantics.ty(*opaque)?;
+            }
+            StaticDispatch::Direct(_)
+            | StaticDispatch::InterfaceMethod { .. }
+            | StaticDispatch::InterfaceSelfMethod { .. }
+            | StaticDispatch::StructuralRequirement { .. } => {}
+        }
+        self.generic_arguments.rebind(semantics)
+    }
+}
+
+impl GenericArguments {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        for argument in &mut self.0 {
+            argument.ty = semantics.ty(argument.ty)?;
+        }
+        Ok(())
+    }
 }
 
 /// One exact type-owned drop body and the complete declaration-generic substitution it requires.
@@ -146,6 +177,13 @@ impl DropSelection {
     #[must_use]
     pub const fn generic_arguments(&self) -> &GenericArguments {
         &self.generic_arguments
+    }
+
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.generic_arguments.rebind(semantics)
     }
 }
 

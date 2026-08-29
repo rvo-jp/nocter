@@ -478,21 +478,19 @@ fn check_declared_bodies<'input, 'syntax>(
     let mut associated_type_completion_contexts = Vec::new();
     let mut first_error = None;
     let mut rejections = Vec::new();
+    let program_semantics = semantics.semantics().clone();
     for (body, _) in facts.graph().declarations().bodies().iter() {
-        let source = body_sources
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(body))
-            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-        let names = body_names
-            .get(body)
-            .ok_or(BodyCheckInternalError::MissingBodyNames(body))
-            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-        if names.body() != body {
-            return Err(RecoveringBodyConstructionFailure::single(
-                BodyCheckInternalError::BodyIdentityMismatch(body).into(),
-            ));
-        }
-        let attempt = attempt_body(input, facts, source, names, retain_recovery, semantics);
+        let (source, names) = body_construction_unit(body, body_sources, body_names)?;
+        let mut body_semantics =
+            BodySemanticAuthority::new(program_semantics.clone(), ClosureAuthority::new());
+        let attempt = attempt_body(
+            input,
+            facts,
+            source,
+            names,
+            retain_recovery,
+            &mut body_semantics,
+        );
         let mut body_output = match attempt {
             Ok(output) => output,
             Err(BodyAttemptFailure::Direct(failure)) => {
@@ -528,6 +526,14 @@ fn check_declared_bodies<'input, 'syntax>(
                 continue;
             }
         };
+        body_output = merge_checked_body(
+            facts.graph(),
+            source,
+            &program_semantics,
+            &body_semantics,
+            semantics,
+            body_output,
+        )?;
         projections.append(&mut body_output.projections);
         associated_type_completion_contexts
             .append(&mut body_output.associated_type_completion_contexts);
@@ -551,6 +557,98 @@ fn check_declared_bodies<'input, 'syntax>(
         opaque_witnesses,
         associated_type_completion_contexts,
     })
+}
+
+fn body_construction_unit<'input, 'syntax>(
+    body: BodyId,
+    sources: &'input BodySourceCatalog<'syntax>,
+    names: &'input Arena<BodyId, ResolvedBodyNames>,
+) -> Result<(BodySource<'syntax>, &'input ResolvedBodyNames), RecoveringBodyConstructionFailure> {
+    let source = sources
+        .get(body)
+        .ok_or(BodyCheckInternalError::MissingBodySource(body))
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    let names = names
+        .get(body)
+        .ok_or(BodyCheckInternalError::MissingBodyNames(body))
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    if names.body() != body {
+        return Err(RecoveringBodyConstructionFailure::single(
+            BodyCheckInternalError::BodyIdentityMismatch(body).into(),
+        ));
+    }
+    Ok((source, names))
+}
+
+fn merge_checked_body(
+    graph: &nocter_declarations::DeclarationGraph,
+    source: BodySource<'_>,
+    program_semantics: &crate::semantic_authority::SemanticAuthority,
+    body_semantics: &BodySemanticAuthority,
+    accepted: &mut BodySemanticAuthority,
+    mut output: CheckedBodyOutput,
+) -> Result<CheckedBodyOutput, RecoveringBodyConstructionFailure> {
+    let body = source.body();
+    let closure_identities = body_semantics
+        .closures()
+        .body_identities(body)
+        .map_err(BodyCheckInternalError::from)
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    let type_capture = crate::BodyTypeRecipe::capture_authority(
+        program_semantics.types(),
+        body_semantics.semantics().types(),
+        &closure_identities,
+    )
+    .map_err(BodyCheckInternalError::from)
+    .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    let closure_recipe = body_semantics
+        .closures()
+        .capture_body_recipe(body, &closure_identities, &type_capture)
+        .map_err(BodyCheckInternalError::from)
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+
+    let mut transaction = accepted.transaction();
+    let replayed_closures = closure_recipe.reserve(transaction.closures_mut());
+    let replayed_types = type_capture
+        .recipe()
+        .replay(
+            program_semantics.types(),
+            transaction.types_mut(),
+            replayed_closures.ids(),
+        )
+        .map_err(BodyCheckInternalError::from)
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    {
+        let (types, copyabilities, closures) = transaction.replay_parts();
+        closure_recipe
+            .define(closures, &replayed_closures, &replayed_types)
+            .and_then(|()| {
+                closure_recipe.register_copyability(graph, types, copyabilities, &replayed_types)
+            })
+            .map_err(BodyCheckInternalError::from)
+            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    }
+    let semantics = crate::checked::CheckedSemanticRebinder::new(
+        type_capture.recipe(),
+        &replayed_types,
+        &closure_recipe,
+        &replayed_closures,
+    );
+    output.body = output
+        .body
+        .rebind(source.syntax().source(), &semantics)
+        .map_err(BodyCheckInternalError::from)
+        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    if let Some((_, witness)) = &mut output.opaque_witness {
+        *witness = semantics
+            .ty(*witness)
+            .map_err(BodyCheckInternalError::from)
+            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    }
+    *accepted = transaction
+        .commit(accepted)
+        .expect("canonical body replay must commit to its exact accepted authorities");
+    Ok(output)
 }
 
 fn classify_body_rejection(

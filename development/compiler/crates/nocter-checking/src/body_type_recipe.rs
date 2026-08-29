@@ -94,9 +94,54 @@ enum BodyTypeKind {
 pub struct BodyTypeRecipe {
     program_type_count: usize,
     additions: Box<[BodyTypeKind]>,
+    source_references: HashMap<TypeId, BodyTypeRef>,
+}
+
+/// Transient capture authority shared while converting one checked body and its closures.
+///
+/// Every consumer uses its one classification of program-prefix and body-local types. The reusable
+/// recipe retains source-branch IDs only as private lookup keys paired with that exact branch; no
+/// consumer may interpret or publish them as current canonical program identities.
+pub struct BodyTypeCapture {
+    recipe: BodyTypeRecipe,
+}
+
+impl BodyTypeCapture {
+    /// Classifies one type from the exact source branch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the type belongs to neither the program prefix nor this
+    /// body's extension.
+    pub fn reference(&self, ty: TypeId) -> Result<BodyTypeRef, BodyTypeRecipeError> {
+        self.recipe.reference(ty)
+    }
+
+    #[must_use]
+    pub const fn recipe(&self) -> &BodyTypeRecipe {
+        &self.recipe
+    }
+
+    #[must_use]
+    pub fn into_recipe(self) -> BodyTypeRecipe {
+        self.recipe
+    }
 }
 
 impl BodyTypeRecipe {
+    /// Classifies one type from the exact body branch captured by this recipe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an integrity error when the type belongs to neither the program prefix nor this
+    /// body's extension.
+    pub fn reference(&self, ty: TypeId) -> Result<BodyTypeRef, BodyTypeRecipeError> {
+        self.source_references
+            .get(&ty)
+            .copied()
+            .ok_or(BodyTypeRecipeError::UnknownType(ty))
+    }
+
     /// Captures only the suffix added to `program` by one body transaction.
     ///
     /// `body_closures` must map every closure referenced by that suffix to its body-local identity.
@@ -111,6 +156,19 @@ impl BodyTypeRecipe {
         branch: &TypeStore,
         body_closures: &HashMap<ClosureId, BodyClosureRef>,
     ) -> Result<Self, BodyTypeRecipeError> {
+        Self::capture_authority(program, branch, body_closures).map(BodyTypeCapture::into_recipe)
+    }
+
+    /// Captures the reusable extension and its one transient source-identity classification.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same integrity failures as [`Self::capture`].
+    pub fn capture_authority(
+        program: &TypeStore,
+        branch: &TypeStore,
+        body_closures: &HashMap<ClosureId, BodyClosureRef>,
+    ) -> Result<BodyTypeCapture, BodyTypeRecipeError> {
         if branch.type_count() < program.type_count()
             || program
                 .iter()
@@ -127,23 +185,27 @@ impl BodyTypeRecipe {
                     .map_err(|_| BodyTypeRecipeError::TooManyLocalTypes)
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
+        let mut references = program
+            .iter()
+            .map(|(ty, _)| (ty, BodyTypeRef::program(ty)))
+            .collect::<HashMap<_, _>>();
+        references.extend(local_ids.iter().map(|(ty, reference)| (*ty, *reference)));
         let reference = |ty| {
-            if program.get(ty).is_some() {
-                Ok(BodyTypeRef::program(ty))
-            } else {
-                local_ids
-                    .get(&ty)
-                    .copied()
-                    .ok_or(BodyTypeRecipeError::UnknownType(ty))
-            }
+            references
+                .get(&ty)
+                .copied()
+                .ok_or(BodyTypeRecipeError::UnknownType(ty))
         };
         let additions = branch
             .iter_from(program.type_count())
             .map(|(_, kind)| capture_kind(kind, &reference, body_closures))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            program_type_count: program.type_count(),
-            additions: additions.into_boxed_slice(),
+        Ok(BodyTypeCapture {
+            recipe: Self {
+                program_type_count: program.type_count(),
+                additions: additions.into_boxed_slice(),
+                source_references: references,
+            },
         })
     }
 

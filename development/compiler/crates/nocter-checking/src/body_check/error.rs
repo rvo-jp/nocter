@@ -240,6 +240,9 @@ pub enum BodyCheckInternalError {
     LoanAnalysis,
     OpaqueWitnessPlanning,
     TypeProjection(nocter_model::TypeProjectionError),
+    BodyClosureRecipe(crate::BodyClosureRecipeError),
+    BodyTypeRecipe(crate::BodyTypeRecipeError),
+    CheckedSemanticRebind(crate::CheckedSemanticRebindError),
 }
 
 impl fmt::Display for BodyCheckInternalError {
@@ -307,5 +310,23 @@ impl From<crate::ConstructionSurfaceSelectionError> for BodyCheckInternalError {
 impl From<nocter_model::TypeProjectionError> for BodyCheckInternalError {
     fn from(error: nocter_model::TypeProjectionError) -> Self {
         Self::TypeProjection(error)
+    }
+}
+
+impl From<crate::BodyClosureRecipeError> for BodyCheckInternalError {
+    fn from(error: crate::BodyClosureRecipeError) -> Self {
+        Self::BodyClosureRecipe(error)
+    }
+}
+
+impl From<crate::BodyTypeRecipeError> for BodyCheckInternalError {
+    fn from(error: crate::BodyTypeRecipeError) -> Self {
+        Self::BodyTypeRecipe(error)
+    }
+}
+
+impl From<crate::CheckedSemanticRebindError> for BodyCheckInternalError {
+    fn from(error: crate::CheckedSemanticRebindError) -> Self {
+        Self::CheckedSemanticRebind(error)
     }
 }

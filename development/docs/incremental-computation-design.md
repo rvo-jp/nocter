@@ -196,8 +196,13 @@ A preceding body may add an inferred structural type or closure and shift every 
 Checking therefore now owns a body type-extension recipe: references into the immutable prepared
 program remain program identities, while types and closures introduced by the body use dense local
 identities. Replay interns them into the canonical finalization branch and returns the exact
-local-to-current map. The checked-body recipe and closure-definition replay still need to consume
-that map before typed body queries can replace the eager body loop.
+local-to-current map. Body construction now opens every body from that same prepared semantic
+prefix and an empty closure domain; it no longer observes semantic additions from earlier siblings.
+Successful closure definitions and structural types replay in canonical body order, and one closed
+rebinder rewrites the checked body, nested selections, places, generic arguments, iteration plans,
+and opaque witnesses. Ownership, provenance, and loans still run once after the complete canonical
+body set. Current source origins must become body-local projection recipes before these independent
+body products can cross revisions as typed queries.
 
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor

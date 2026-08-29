@@ -42,6 +42,7 @@ impl CheckedSemanticAuthority {
 }
 
 /// One accepted generation of every semantic authority extended during body construction.
+#[derive(Clone)]
 pub(super) struct BodySemanticAuthority {
     semantics: SemanticAuthority,
     closures: ClosureAuthority,
@@ -72,6 +73,14 @@ impl BodySemanticAuthority {
     pub(super) fn finish_recovery(self) -> SemanticAuthority {
         self.semantics
     }
+
+    pub(super) const fn semantics(&self) -> &SemanticAuthority {
+        &self.semantics
+    }
+
+    pub(super) const fn closures(&self) -> &ClosureAuthority {
+        &self.closures
+    }
 }
 
 /// The sole owner of program-wide semantic additions made while checking one body.
@@ -86,6 +95,25 @@ impl BodySemanticTransaction {
             semantics: self.semantics.access(),
             closures: &mut self.closures,
         }
+    }
+
+    pub(super) fn types_mut(&mut self) -> &mut nocter_model::TypeTransaction {
+        self.semantics.types_mut()
+    }
+
+    pub(super) fn closures_mut(&mut self) -> &mut ClosureTransaction {
+        &mut self.closures
+    }
+
+    pub(super) fn replay_parts(
+        &mut self,
+    ) -> (
+        &mut nocter_model::TypeTransaction,
+        &mut crate::copyability::CopyabilityTransaction,
+        &mut ClosureTransaction,
+    ) {
+        let (types, copyabilities) = self.semantics.access().into_reasoning_parts();
+        (types, copyabilities, &mut self.closures)
     }
 
     pub(super) fn commit(

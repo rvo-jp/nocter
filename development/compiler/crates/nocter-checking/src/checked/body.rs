@@ -75,6 +75,39 @@ pub(super) struct CheckedBodyDomains {
 }
 
 impl CheckedBody {
+    pub(crate) fn rebind(
+        mut self,
+        source: SourceId,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<Self, super::CheckedSemanticRebindError> {
+        self.source = source;
+        self.locals = self.locals.try_map(|_, local| {
+            let mut local = *local;
+            local.ty = semantics.ty(local.ty)?;
+            Ok::<_, super::CheckedSemanticRebindError>(local)
+        })?;
+        self.captures = self.captures.try_map(|_, capture| {
+            let mut capture = *capture;
+            capture.ty = semantics.ty(capture.ty)?;
+            Ok::<_, super::CheckedSemanticRebindError>(capture)
+        })?;
+        self.places = self.places.try_map(|_, place| {
+            let mut place = place.clone();
+            place.rebind(semantics)?;
+            Ok::<_, super::CheckedSemanticRebindError>(place)
+        })?;
+        self.loops = self.loops.try_map(|_, loop_| {
+            let mut loop_ = loop_.clone();
+            loop_.rebind(semantics)?;
+            Ok::<_, super::CheckedSemanticRebindError>(loop_)
+        })?;
+        self.nodes = self.nodes.try_map(|_, node| {
+            let mut node = node.clone();
+            node.rebind(semantics)?;
+            Ok::<_, super::CheckedSemanticRebindError>(node)
+        })?;
+        Ok(self)
+    }
     pub(super) fn new(
         source: SourceId,
         domains: CheckedBodyDomains,

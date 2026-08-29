@@ -63,6 +63,25 @@ enum ArgumentPackTransport {
 }
 
 impl CheckedArgumentPack {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        if let ArgumentPackTransport::Prepared(segments) = &mut self.transport {
+            for segment in segments {
+                if let ArgumentPackSegment::Spread {
+                    iteration,
+                    exact_size,
+                    ..
+                } = segment
+                {
+                    iteration.rebind(semantics)?;
+                    exact_size.rebind(semantics)?;
+                }
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn new(segments: impl Into<Box<[ArgumentPackSegment]>>) -> Self {
         Self {
             transport: ArgumentPackTransport::Prepared(segments.into()),
