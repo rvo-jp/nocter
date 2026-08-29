@@ -57,6 +57,7 @@ pub struct LoweredDeclarations {
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
     primitive_bindings: Box<[PrimitiveBinding]>,
+    projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
 }
 
 /// Topology-only output used by the focused topology pass.
@@ -105,12 +106,14 @@ impl LoweredDeclarations {
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
         primitive_bindings: Box<[PrimitiveBinding]>,
+        projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     ) -> Self {
         Self {
             program,
             frontend_bindings,
             source_index,
             primitive_bindings,
+            projection_recipe,
         }
     }
 
@@ -127,6 +130,12 @@ impl LoweredDeclarations {
     #[must_use]
     pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
         &self.primitive_bindings
+    }
+
+    /// Returns the source-neutral projection recipe emitted with this semantic program.
+    #[must_use]
+    pub const fn projection_recipe(&self) -> &crate::FrontendProjectionRecipe {
+        &self.projection_recipe
     }
 
     #[must_use]

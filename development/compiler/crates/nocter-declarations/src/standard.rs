@@ -16,7 +16,7 @@ pub enum StandardDeclaration {
 }
 
 /// Exact compiler-selected authority for standard-library-only declarations.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StandardLibrary {
     package: PackageId,
     structural_attachment_modules: BTreeMap<StructuralAttachment, ModuleId>,

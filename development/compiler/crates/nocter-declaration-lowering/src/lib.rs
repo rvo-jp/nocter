@@ -30,6 +30,7 @@ mod namespace_diagnostic;
 mod package_source;
 mod package_targets;
 mod pipeline;
+mod projection_recipe;
 mod recovery;
 mod representation_contract;
 mod reservation;
@@ -72,6 +73,7 @@ pub use pipeline::{
     DeclarationLoweringError, DeclarationLoweringFailure, lower_compile_unit_declarations,
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
 };
+pub use projection_recipe::{FrontendProjectionRecipe, ProjectionRecipeError};
 pub use recovery::{
     DeclarationBodyAnalysisInput, DeclarationCheckingTransition, DeclarationLoweringRecovery,
 };

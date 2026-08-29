@@ -66,6 +66,7 @@ pub enum HeaderDefinitionError {
     Definition(DefinitionError),
     Program(ProgramBuildError),
     FrontendBindings(nocter_frontend_bindings::FrontendBindingDefinitionError),
+    Projection(crate::projection_recipe::ProjectionRecipeError),
 }
 
 impl fmt::Display for HeaderDefinitionError {
@@ -130,6 +131,7 @@ impl fmt::Display for HeaderDefinitionError {
             Self::Definition(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
             Self::FrontendBindings(error) => error.fmt(formatter),
+            Self::Projection(error) => error.fmt(formatter),
         }
     }
 }
@@ -151,6 +153,12 @@ impl From<DefinitionError> for HeaderDefinitionError {
 impl From<DefinitionViolation> for HeaderDefinitionError {
     fn from(violation: DefinitionViolation) -> Self {
         Self::Rule(violation)
+    }
+}
+
+impl From<crate::projection_recipe::ProjectionRecipeError> for HeaderDefinitionError {
+    fn from(error: crate::projection_recipe::ProjectionRecipeError) -> Self {
+        Self::Projection(error)
     }
 }
 

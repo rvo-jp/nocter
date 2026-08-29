@@ -176,7 +176,10 @@ fn public_file_documentation_has_one_semantic_owner() {
     );
     let package = reserved.package_ids()[0];
     let module = reserved.module_ids()[0];
-    let (source_index, _) = reserved.source_index.finish();
+    let (_, source_index, _) = reserved
+        .source_index
+        .finish(reserved.source_map, &reserved.sources)
+        .unwrap();
 
     assert_eq!(
         source_index.documentation(SemanticEntity::Package(package)),

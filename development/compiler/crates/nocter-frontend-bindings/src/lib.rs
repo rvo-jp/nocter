@@ -105,6 +105,15 @@ pub struct DuplicateBlockImport {
 
 impl DuplicateBlockImport {
     #[must_use]
+    pub const fn new(declaration: NodeId, existing: ModuleId, duplicate: ModuleId) -> Self {
+        Self {
+            declaration,
+            existing,
+            duplicate,
+        }
+    }
+
+    #[must_use]
     pub const fn declaration(self) -> NodeId {
         self.declaration
     }
@@ -393,11 +402,9 @@ impl FrontendBindingsBuilder {
                 entry.insert(target);
                 Ok(())
             }
-            std::collections::hash_map::Entry::Occupied(entry) => Err(DuplicateBlockImport {
-                declaration,
-                existing: *entry.get(),
-                duplicate: target,
-            }),
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                Err(DuplicateBlockImport::new(declaration, *entry.get(), target))
+            }
         }
     }
 

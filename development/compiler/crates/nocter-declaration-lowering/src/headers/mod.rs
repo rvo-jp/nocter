@@ -310,7 +310,7 @@ fn project_site(
         .source();
     reserved
         .source_index
-        .define_declaration_site_source(site, source)?;
+        .define_declaration_site_source(site, source);
     let origin = declaration_site_origin(reserved, declaration)?;
     reserved.source_index.insert(
         SemanticEntity::DeclarationSite(site),
@@ -336,7 +336,7 @@ fn project_entities(reserved: &mut ReservedDeclarations<'_>) -> Result<(), Heade
                 nominal,
                 source,
                 private_representation.is_some(),
-            )?;
+            );
         }
         let role = if reserved.contracts.is_implementation(id) {
             SourceRole::Implementation

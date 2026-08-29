@@ -68,7 +68,7 @@ impl DeclarationSite {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationGraph {
     target: CompilationTarget,
     symbols: SymbolTable,
@@ -87,7 +87,7 @@ pub struct DeclarationGraph {
 }
 
 /// Immutable Phase 2 declaration graph and its canonical header-type store.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
@@ -363,16 +363,30 @@ impl std::ops::Deref for AcceptedDeclarationProgram {
 }
 
 impl AcceptedDeclarationProgram {
+    /// Creates an owned checking branch from this immutable accepted declaration authority.
+    ///
+    /// The branch preserves semantic IDs and the type-authority lineage. Checking may therefore
+    /// consume and extend its branch without mutating the reusable declaration product or
+    /// rebuilding declaration decisions.
+    #[must_use]
+    pub fn checking_branch(&self) -> Self {
+        Self {
+            program: self.program.clone(),
+            admission: self.admission.clone(),
+        }
+    }
+
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
         &self.program
     }
 
-    /// Opens the sole Phase 2-to-Phase 3 ownership boundary.
+    /// Opens this accepted program branch's Phase 2-to-Phase 3 ownership boundary.
     ///
     /// The returned type authority keeps every declaration `TypeId` as an immutable prefix.
     /// Phase 3 may open branch-local body and specialization transactions before publishing a
-    /// read-only checked snapshot; no second store or ID translation is created.
+    /// read-only checked snapshot; no second store or ID translation is created. A reusable owner
+    /// may create another branch explicitly with [`Self::checking_branch`].
     #[must_use]
     pub fn into_parts(
         self,
@@ -1084,8 +1098,11 @@ mod tests {
             .define_module_namespace(dependency_root, ModuleNamespace::default())
             .unwrap();
         let program = builder.finish().unwrap();
+        let checking_branch = program.checking_branch();
 
         assert_eq!(program.root_packages(), &[app]);
+        assert_eq!(checking_branch.root_packages(), &[app]);
+        assert_eq!(checking_branch.target(), program.target());
         assert_eq!(
             program.packages().get(app).unwrap().identity(),
             &PackageIdentity::new("workspace:app")

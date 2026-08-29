@@ -126,13 +126,13 @@ impl PreparedNamespaces<'_> {
                 .headers
                 .reserved
                 .source_index
-                .define_source_namespace(source_id, authored, fallback)?;
+                .define_source_namespace(source_id, authored, fallback);
             self.imports
                 .generics
                 .headers
                 .reserved
                 .source_index
-                .define_source_access(source_id, directly_visible)?;
+                .define_source_access(source_id, directly_visible);
         }
         let namespaces = self
             .imports

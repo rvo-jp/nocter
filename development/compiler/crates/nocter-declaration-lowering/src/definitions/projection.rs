@@ -143,28 +143,26 @@ pub(super) fn documentation(
     declaration: SurfaceDeclarationId,
     entity: SemanticEntity,
 ) -> Result<(), HeaderDefinitionError> {
-    let markdown = tree(types, declaration)?
-        .documentation(
-            types
-                .namespaces
-                .imports
-                .generics
-                .headers
-                .reserved
-                .declarations[declaration.index()]
-            .node(),
-        )
-        .map(Box::<str>::from);
-    if let Some(markdown) = markdown {
-        types
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .source_index
-            .insert_documentation(entity, markdown);
-    }
+    let node = types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .declarations[declaration.index()]
+    .node();
+    let _ = tree(types, declaration)?;
+    types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_index
+        .insert_documentation(
+            entity,
+            crate::projection_recipe::DocumentationSite::Node(node),
+        );
     Ok(())
 }
 
@@ -175,18 +173,14 @@ pub(super) fn occurrence_documentation(
     entity: SemanticEntity,
     origin: SourceOrigin,
 ) -> Result<(), HeaderDefinitionError> {
-    let markdown = tree(types, declaration)?
-        .documentation(documented_node)
-        .map(Box::<str>::from);
-    if let Some(markdown) = markdown {
-        types
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .source_index
-            .insert_occurrence_documentation(entity, origin, markdown);
-    }
+    let _ = tree(types, declaration)?;
+    types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_index
+        .insert_occurrence_documentation(entity, origin, documented_node);
     Ok(())
 }

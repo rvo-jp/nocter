@@ -1,34 +1,56 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use nocter_frontend_bindings::{
-    AssociatedProjectionUse, DuplicateBlockImport, FrontendBindingDefinitionError,
-    FrontendBindings, FrontendBindingsBuilder, FrontendDeclaration, SourceOwnershipError,
-};
+use nocter_frontend_bindings::{DuplicateBlockImport, FrontendBindings, FrontendDeclaration};
 use nocter_model::{
     AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
 };
-use nocter_source::SourceId;
-use nocter_source_index::{
-    SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
-};
+use nocter_source::{SourceId, SourceMap};
+use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
 use nocter_syntax::{NodeId, SyntaxToken};
 
-/// One lowering-owned write path that independently emits semantic checking bindings and the
-/// presentation index. Neither completed product is reconstructed from the other.
-#[derive(Debug, Default)]
+use crate::SurfaceSource;
+use crate::projection_recipe::{
+    DocumentationSite, FrontendProjectionRecipe, ProjectionRecipeBuilder, ProjectionRecipeError,
+};
+
+/// Sole declaration-lowering write path for a reusable projection recipe.
+///
+/// Current-generation syntax is converted to stable surface locators immediately. `finish`
+/// materializes `SourceIndex` and `FrontendBindings` from that recipe; neither current-generation
+/// product is maintained as a parallel authority.
+#[derive(Debug)]
 pub(crate) struct FrontendProjectionBuilder {
-    source_index: SourceIndexBuilder,
-    bindings: FrontendBindingsBuilder,
+    recipe: ProjectionRecipeBuilder,
+    error: Option<ProjectionRecipeError>,
     associated_references: HashSet<(AssociatedTypeId, nocter_syntax::SyntaxOrigin)>,
+    block_imports: HashMap<NodeId, ModuleId>,
+    binding_count: usize,
 }
 
 impl FrontendProjectionBuilder {
-    pub(crate) fn new() -> Self {
-        Self::default()
+    pub(crate) fn new(
+        source_map: &SourceMap,
+        sources: &[SurfaceSource<'_>],
+    ) -> Result<Self, ProjectionRecipeError> {
+        Ok(Self {
+            recipe: ProjectionRecipeBuilder::new(source_map, sources)?,
+            error: None,
+            associated_references: HashSet::new(),
+            block_imports: HashMap::new(),
+            binding_count: 0,
+        })
     }
 
     pub(crate) const fn len(&self) -> usize {
-        self.source_index.len()
+        self.binding_count
+    }
+
+    fn retain(&mut self, result: Result<(), ProjectionRecipeError>) {
+        if self.error.is_none()
+            && let Err(error) = result
+        {
+            self.error = Some(error);
+        }
     }
 
     pub(crate) fn insert(
@@ -37,7 +59,9 @@ impl FrontendProjectionBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) {
-        self.source_index.insert(entity, role, origin);
+        self.binding_count += 1;
+        let result = self.recipe.binding(entity, role, origin);
+        self.retain(result);
     }
 
     pub(crate) fn insert_module_source(
@@ -46,11 +70,10 @@ impl FrontendProjectionBuilder {
         source: SourceId,
         role: SourceRole,
         origin: SourceOrigin,
-    ) -> Result<(), ModuleSourceProjectionError> {
-        self.bindings.add_module_source(module, source)?;
-        self.source_index
-            .insert(SemanticEntity::Module(module), role, origin);
-        Ok(())
+    ) {
+        self.binding_count += 1;
+        let result = self.recipe.module_source(module, source, role, origin);
+        self.retain(result);
     }
 
     pub(crate) fn insert_body(
@@ -60,9 +83,9 @@ impl FrontendProjectionBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) {
-        self.bindings.add_body_block(body, block);
-        self.source_index
-            .insert(SemanticEntity::Body(body), role, origin);
+        self.binding_count += 1;
+        let result = self.recipe.body(body, block, role, origin);
+        self.retain(result);
     }
 
     pub(crate) fn insert_parameter(
@@ -72,10 +95,9 @@ impl FrontendProjectionBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) {
-        self.bindings
-            .add_parameter_declaration(parameter, declaration);
-        self.source_index
-            .insert(SemanticEntity::Parameter(parameter), role, origin);
+        self.binding_count += 1;
+        let result = self.recipe.parameter(parameter, declaration, role, origin);
+        self.retain(result);
     }
 
     pub(crate) fn insert_declaration(
@@ -85,15 +107,9 @@ impl FrontendProjectionBuilder {
         role: SourceRole,
         origin: SourceOrigin,
     ) {
-        self.bindings.add_declaration(token, declaration);
-        let entity = match declaration {
-            FrontendDeclaration::BuiltinType(builtin) => SemanticEntity::BuiltinType(builtin),
-            FrontendDeclaration::NominalType(id) => SemanticEntity::NominalType(id),
-            FrontendDeclaration::Interface(id) => SemanticEntity::Interface(id),
-            FrontendDeclaration::AssociatedType(id) => SemanticEntity::AssociatedType(id),
-            FrontendDeclaration::Callable(id) => SemanticEntity::Callable(id),
-        };
-        self.source_index.insert(entity, role, origin);
+        self.binding_count += 1;
+        let result = self.recipe.declaration(declaration, token, role, origin);
+        self.retain(result);
     }
 
     pub(crate) fn insert_associated_projection_use(
@@ -103,14 +119,12 @@ impl FrontendProjectionBuilder {
         syntax: nocter_syntax::SyntaxOrigin,
         origin: SourceOrigin,
     ) {
-        self.bindings
-            .add_associated_projection_use(AssociatedProjectionUse::new(base, associated, syntax));
         if self.associated_references.insert((associated, syntax)) {
-            self.source_index.insert(
-                SemanticEntity::AssociatedType(associated),
-                SourceRole::Reference,
-                origin,
-            );
+            self.binding_count += 1;
+            let result = self
+                .recipe
+                .associated_projection(base, associated, syntax, origin);
+            self.retain(result);
         }
     }
 
@@ -119,15 +133,24 @@ impl FrontendProjectionBuilder {
         declaration: NodeId,
         target: ModuleId,
     ) -> Result<(), DuplicateBlockImport> {
-        self.bindings.add_block_import(declaration, target)
+        match self.block_imports.entry(declaration) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(target);
+                Ok(())
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                Err(DuplicateBlockImport::new(declaration, *entry.get(), target))
+            }
+        }
     }
 
     pub(crate) fn define_declaration_site_source(
         &mut self,
         site: DeclarationSiteId,
         source: SourceId,
-    ) -> Result<(), FrontendBindingDefinitionError> {
-        self.bindings.define_declaration_site_source(site, source)
+    ) {
+        let result = self.recipe.declaration_site_source(site, source);
+        self.retain(result);
     }
 
     pub(crate) fn define_nominal_representation_source(
@@ -135,27 +158,28 @@ impl FrontendProjectionBuilder {
         nominal: NominalTypeId,
         source: SourceId,
         contract_private: bool,
-    ) -> Result<(), FrontendBindingDefinitionError> {
-        self.bindings
-            .define_nominal_representation_source(nominal, source, contract_private)
+    ) {
+        let result = self
+            .recipe
+            .nominal_representation_source(nominal, source, contract_private);
+        self.retain(result);
     }
 
-    pub(crate) fn insert_documentation(
-        &mut self,
-        entity: SemanticEntity,
-        markdown: impl Into<Box<str>>,
-    ) {
-        self.source_index.insert_documentation(entity, markdown);
+    pub(crate) fn insert_documentation(&mut self, entity: SemanticEntity, site: DocumentationSite) {
+        let result = self.recipe.documentation(entity, site);
+        self.retain(result);
     }
 
     pub(crate) fn insert_occurrence_documentation(
         &mut self,
         entity: SemanticEntity,
         origin: SourceOrigin,
-        markdown: impl Into<Box<str>>,
+        documented_node: NodeId,
     ) {
-        self.source_index
-            .insert_occurrence_documentation(entity, origin, markdown);
+        let result = self
+            .recipe
+            .occurrence_documentation(entity, origin, documented_node);
+        self.retain(result);
     }
 
     pub(crate) fn define_source_namespace(
@@ -163,58 +187,37 @@ impl FrontendProjectionBuilder {
         source: SourceId,
         authored: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
         fallback: impl IntoIterator<Item = (nocter_model::Symbol, nocter_declarations::ExportedEntity)>,
-    ) -> Result<(), FrontendBindingDefinitionError> {
-        let authored = authored.into_iter().collect::<Vec<_>>();
-        let fallback = fallback.into_iter().collect::<Vec<_>>();
-        self.bindings.define_source_namespace(
+    ) {
+        let result = self.recipe.source_namespace(
             source,
-            authored.iter().copied(),
-            fallback.iter().copied(),
-        )?;
-        self.source_index.define_visible_names(
-            source,
-            authored
-                .into_iter()
-                .chain(fallback)
-                .map(|(name, entity)| (name, source_entity(entity))),
+            authored.into_iter().collect::<Vec<_>>().into_boxed_slice(),
+            fallback.into_iter().collect::<Vec<_>>().into_boxed_slice(),
         );
-        Ok(())
+        self.retain(result);
     }
 
     pub(crate) fn define_source_access(
         &mut self,
         source: SourceId,
         directly_visible: impl IntoIterator<Item = SourceId>,
-    ) -> Result<(), FrontendBindingDefinitionError> {
-        self.bindings.define_source_access(source, directly_visible)
+    ) {
+        let directly_visible = directly_visible.into_iter().collect::<Vec<_>>();
+        let result = self.recipe.source_access(source, &directly_visible);
+        self.retain(result);
     }
 
-    pub(crate) fn finish(self) -> (SourceIndex, FrontendBindings) {
-        (self.source_index.finish(), self.bindings.finish())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ModuleSourceProjectionError {
-    SourceOwnership(SourceOwnershipError),
-}
-
-impl From<SourceOwnershipError> for ModuleSourceProjectionError {
-    fn from(error: SourceOwnershipError) -> Self {
-        Self::SourceOwnership(error)
-    }
-}
-
-const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticEntity {
-    match entity {
-        nocter_declarations::ExportedEntity::BuiltinType(builtin) => {
-            SemanticEntity::BuiltinType(builtin)
+    pub(crate) fn finish(
+        self,
+        source_map: &SourceMap,
+        sources: &[SurfaceSource<'_>],
+    ) -> Result<(FrontendProjectionRecipe, SourceIndex, FrontendBindings), ProjectionRecipeError>
+    {
+        if let Some(error) = self.error {
+            return Err(error);
         }
-        nocter_declarations::ExportedEntity::Module(id) => SemanticEntity::Module(id),
-        nocter_declarations::ExportedEntity::NominalType(id) => SemanticEntity::NominalType(id),
-        nocter_declarations::ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
-        nocter_declarations::ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
-        nocter_declarations::ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
-        nocter_declarations::ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
+        let recipe = self.recipe.finish();
+        let (source_index, bindings) =
+            recipe.materialize(source_map, sources, &self.block_imports)?;
+        Ok((recipe, source_index, bindings))
     }
 }

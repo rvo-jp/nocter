@@ -26,6 +26,8 @@ coordinates, or checking internals.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
 - A declaration identity never contains a source range or rendered name.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
+- An accepted immutable program may create owned checking branches without rebuilding declaration
+  decisions; every branch preserves semantic IDs and the type-authority lineage.
 - Interface prerequisite cycles and effective member collisions cannot cross the accepted-program
   boundary.
 - Dependency-cycle validation follows every interface predicate; member inheritance follows only

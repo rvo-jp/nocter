@@ -111,6 +111,16 @@ locators. This is the only permitted bridge for rebinding a reusable declaration
 current source projection; semantic products cannot retain `SourceId`, `NodeId`, token ranges, or
 arena offsets from the generation that first produced them.
 
+Declaration lowering now emits one source-neutral projection recipe rather than independently
+building semantic bindings and editor indexes. The recipe pairs semantic identities with surface
+source ordinals and syntax locators. One current-generation interpreter produces both
+`FrontendBindings` and `SourceIndex`. It reads documentation from the current syntax tree instead
+of retaining Markdown in the recipe, because documentation does not invalidate declaration
+semantics. Body-local imports are deliberately supplied as current body projection and never enter
+the reusable declaration recipe. The accepted declaration authority can create an owned checking
+branch while preserving its semantic IDs and type-authority lineage; query ownership of that
+authority is the next integration step.
+
 ## Source Projection
 
 A stage product carries its semantic result, diagnostics, deterministic fingerprint, and source

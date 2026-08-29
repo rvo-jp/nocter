@@ -7,7 +7,7 @@ use nocter_model::{ConstructionId, DropId, InstanceId, InterfaceImplementationId
 /// This value contains decisions; it does not evaluate declaration rules. The validation pass is
 /// its only constructor, so recovery and checking cannot independently reinterpret a rejected
 /// declaration graph.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationAnalysisAdmission {
     constructions: BTreeSet<ConstructionId>,
     instances: BTreeSet<InstanceId>,

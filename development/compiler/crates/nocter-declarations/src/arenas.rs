@@ -111,7 +111,7 @@ impl fmt::Display for IncompleteDefinition {
 impl std::error::Error for IncompleteDefinition {}
 
 /// All resolved declaration domains in one immutable compile unit.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationArenas {
     nominal_types: Arena<NominalTypeId, NominalTypeDeclaration>,
     type_aliases: Arena<TypeAliasId, TypeAliasDeclaration>,

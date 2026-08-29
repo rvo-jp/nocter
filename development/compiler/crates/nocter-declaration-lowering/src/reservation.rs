@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{DeclarationProgramBuilder, ModulePath, ProgramBuildError};
-use nocter_frontend_bindings::{DuplicateBlockImport, SourceOwnershipError};
+use nocter_frontend_bindings::DuplicateBlockImport;
 use nocter_model::{
     AssociatedTypeId, BuiltinType, CallableId, ConstantId, ConstructionId, DropId, InstanceId,
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
@@ -119,7 +119,7 @@ pub enum ReservationError {
     Contract(DeclarationContractError),
     Program(ProgramBuildError),
     DuplicateBlockImport(DuplicateBlockImport),
-    SourceOwnership(SourceOwnershipError),
+    Projection(crate::projection_recipe::ProjectionRecipeError),
     MissingSymbol(Box<str>),
     UnknownPackage(ModuleIdentity),
     UnknownRootPackage(crate::PackageIdentity),
@@ -138,7 +138,7 @@ impl fmt::Display for ReservationError {
             Self::Contract(error) => error.fmt(formatter),
             Self::Program(error) => error.fmt(formatter),
             Self::DuplicateBlockImport(error) => error.fmt(formatter),
-            Self::SourceOwnership(error) => error.fmt(formatter),
+            Self::Projection(error) => error.fmt(formatter),
             Self::MissingSymbol(spelling) => {
                 write!(formatter, "canonical symbol table is missing {spelling}")
             }
@@ -201,13 +201,9 @@ impl From<DuplicateBlockImport> for ReservationError {
     }
 }
 
-impl From<crate::frontend_projection::ModuleSourceProjectionError> for ReservationError {
-    fn from(error: crate::frontend_projection::ModuleSourceProjectionError) -> Self {
-        match error {
-            crate::frontend_projection::ModuleSourceProjectionError::SourceOwnership(error) => {
-                Self::SourceOwnership(error)
-            }
-        }
+impl From<crate::projection_recipe::ProjectionRecipeError> for ReservationError {
+    fn from(error: crate::projection_recipe::ProjectionRecipeError) -> Self {
+        Self::Projection(error)
     }
 }
 
@@ -363,7 +359,8 @@ pub(crate) fn reserve_with_contracts(
         declarations,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
-    let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new();
+    let mut source_index =
+        crate::frontend_projection::FrontendProjectionBuilder::new(source_map, &sources)?;
     let package_ids = reserve_packages(&packages, &sources, &mut program, &mut source_index)?;
     let semantic_roots = root_packages
         .iter()
@@ -497,9 +494,10 @@ fn reserve_packages(
                 })
                 .map(SurfaceSource::syntax)
                 .ok_or_else(|| ReservationError::UnknownModule(module.clone()))?;
-            if let Some(markdown) = tree.file_documentation() {
-                source_index.insert_documentation(SemanticEntity::Package(id), markdown);
-            }
+            source_index.insert_documentation(
+                SemanticEntity::Package(id),
+                crate::projection_recipe::DocumentationSite::File(tree.source()),
+            );
             source_index.insert(
                 SemanticEntity::Package(id),
                 SourceRole::Declaration,
@@ -570,10 +568,11 @@ fn project_sources(
             };
             let owns_module_documentation = source.kind() == ModuleSourceKind::SingleFile
                 || source.kind() == ModuleSourceKind::Root && !source.module().path().is_empty();
-            if owns_module_documentation
-                && let Some(markdown) = source.syntax().file_documentation()
-            {
-                source_index.insert_documentation(SemanticEntity::Module(module), markdown);
+            if owns_module_documentation {
+                source_index.insert_documentation(
+                    SemanticEntity::Module(module),
+                    crate::projection_recipe::DocumentationSite::File(source.syntax().source()),
+                );
             }
             source_index.insert_module_source(
                 module,
@@ -581,7 +580,7 @@ fn project_sources(
                 role,
                 SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
                     .map_err(|_| ReservationError::InconsistentSource(source.syntax().source()))?,
-            )?;
+            );
             Ok(module)
         })
         .collect()
@@ -602,11 +601,11 @@ fn project_declaration_documentation(
         let source = sources
             .get(declaration.source().index())
             .ok_or(InconsistentSurface(id))?;
-        let Some(markdown) = source.syntax().documentation(declaration.node()) else {
-            continue;
-        };
         if contracts.representative(id) == id {
-            source_index.insert_documentation(entity.semantic_entity(), markdown);
+            source_index.insert_documentation(
+                entity.semantic_entity(),
+                crate::projection_recipe::DocumentationSite::Node(declaration.node()),
+            );
         } else {
             let origin = match declaration.entity_origin() {
                 SyntaxOrigin::Node(node) => SourceOrigin::from_node(source.syntax(), node)
@@ -617,7 +616,7 @@ fn project_declaration_documentation(
             source_index.insert_occurrence_documentation(
                 entity.semantic_entity(),
                 origin,
-                markdown,
+                declaration.node(),
             );
         }
     }
