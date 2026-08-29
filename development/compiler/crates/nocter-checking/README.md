@@ -19,6 +19,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 
 - program-wide preparation and standard semantic roles
 - lexical name evidence and body scopes
+- source-neutral lexical recipes with current body-local locator and spelling rebinding
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
@@ -43,6 +44,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.
 - A checked query derives type and visibility from its own body generation.
+- Reusable body-name evidence contains body-local locators and spellings, never `NodeId`,
+  `SyntaxToken`, `SourceId`, source spans, or current symbol IDs.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

@@ -80,7 +80,9 @@ pub use pipeline::{
     lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
     lower_reusable_declarations,
 };
-pub use projection_recipe::{FrontendProjectionRecipe, ProjectionRecipeError};
+pub use projection_recipe::{
+    FrontendProjectionRecipe, ProjectionRecipeError, ReusableBodyIdentity,
+};
 pub use recovery::{
     DeclarationBodyAnalysisInput, DeclarationCheckingTransition, DeclarationLoweringRecovery,
 };

@@ -13,7 +13,8 @@ use nocter_package::{
 use nocter_semantic_computation::{DeclarationQueryOutcome, ProgramPreparationOutcome};
 use nocter_session::{
     analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
-    analyze_unit_from_prepared_declarations, bundled_standard_toolchain,
+    analyze_unit_from_prepared_body_names, analyze_unit_from_prepared_declarations,
+    bundled_standard_toolchain,
 };
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
@@ -80,21 +81,21 @@ pub(crate) fn compile_scope(
                 body.publish(&mut revision);
             }
             let _ = revision.commit();
-            let (declarations, preparation) =
-                match crate::semantic_products::demand(computation, scope) {
-                    Ok(products) => products,
-                    Err(error) => {
-                        return WorkspaceAnalysisState::PreparationFailed {
-                            source_overlay,
-                            diagnostics: preparation_diagnostics(&error),
-                            error,
-                        };
-                    }
-                };
+            let products = match crate::semantic_products::demand(computation, &scope) {
+                Ok(products) => products,
+                Err(error) => {
+                    return WorkspaceAnalysisState::PreparationFailed {
+                        source_overlay,
+                        diagnostics: preparation_diagnostics(&error),
+                        error,
+                    };
+                }
+            };
             let analyzed = match analyze_declaration_outcome(
                 unit,
-                declarations.outcome(),
-                preparation.outcome(),
+                products.declarations.outcome(),
+                products.preparation.outcome(),
+                products.body_names.as_ref(),
             ) {
                 Ok(analyzed) => analyzed,
                 Err(error) => {
@@ -149,12 +150,23 @@ fn analyze_declaration_outcome(
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     outcome: &DeclarationQueryOutcome,
     preparation: &ProgramPreparationOutcome,
+    body_names: Option<&nocter_semantic_computation::ResolvedBodyNameSet>,
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {
         DeclarationQueryOutcome::Accepted(declarations) => match preparation {
-            ProgramPreparationOutcome::Prepared(prepared) => Ok(
-                analyze_unit_from_prepared_declarations(unit, declarations, prepared),
-            ),
+            ProgramPreparationOutcome::Prepared(prepared) => match body_names {
+                Some(body_names) => Ok(analyze_unit_from_prepared_body_names(
+                    unit,
+                    declarations,
+                    prepared,
+                    body_names,
+                )),
+                None => Ok(analyze_unit_from_prepared_declarations(
+                    unit,
+                    declarations,
+                    prepared,
+                )),
+            },
             ProgramPreparationOutcome::Unavailable => {
                 Ok(analyze_unit_from_declarations(unit, declarations))
             }

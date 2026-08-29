@@ -1,6 +1,7 @@
 mod diagnostic;
 mod model;
 mod resolver;
+mod reusable;
 
 #[cfg(test)]
 mod tests;
@@ -27,6 +28,7 @@ pub use model::{
     ResolvedNameUse, ScopeBinding,
 };
 use resolver::BodyNameResolver;
+pub use reusable::{ReusableBodyNames, ReusableBodyNamesError, ReusableBodyResolutionError};
 
 pub(crate) struct PartialNameResolution {
     pub(crate) bodies: Arena<BodyId, BodyNameEvidence>,
@@ -131,6 +133,7 @@ pub enum NameResolutionInternalError {
     MissingSymbol(Box<str>),
     MissingParameterProjection(nocter_model::ParameterId),
     InvalidBodyOwner(BodyId),
+    ReusableBodyNames(ReusableBodyNameCatalogError),
 }
 
 impl fmt::Display for NameResolutionInternalError {
@@ -185,6 +188,7 @@ impl fmt::Display for NameResolutionInternalError {
             Self::InvalidBodyOwner(body) => {
                 write!(formatter, "body {body:?} has no valid parameter owner")
             }
+            Self::ReusableBodyNames(error) => error.fmt(formatter),
         }
     }
 }
@@ -216,6 +220,101 @@ pub fn resolve_body_names<'syntax>(
         catalog_body_sources(input, graph, bindings).map_err(NameResolutionInternalError::from)?;
     resolve_cataloged_body_names(input, graph, bindings, source_index, catalog)
 }
+
+/// Resolves one exact body and removes all current syntax and symbol identities from the result.
+///
+/// # Errors
+///
+/// Returns the body's authored or internal name-resolution failure, or an integrity failure while
+/// converting the accepted result into stable body-local locators and spellings.
+pub fn resolve_reusable_body_names(
+    input: &CompileUnitInput<'_>,
+    graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
+    source: crate::BodySource<'_>,
+) -> Result<ReusableBodyNames, ReusableBodyResolutionError> {
+    let resolved = BodyNameResolver::new(input, graph, bindings, source)
+        .resolve_recovering()
+        .map_err(|failure| ReusableBodyResolutionError::Resolution(*failure.error))?;
+    ReusableBodyNames::capture(graph, source, &resolved.body, resolved.projections)
+        .map_err(ReusableBodyResolutionError::Projection)
+}
+
+/// Rebinds one source-neutral lexical result into an exact current body and extends its source
+/// projection in the same operation.
+///
+/// # Errors
+///
+/// Returns an integrity failure when the current body shape, semantic identity, or symbol suffix
+/// differs from the reusable result's declared input domain.
+pub fn materialize_reusable_body_names(
+    reusable: &ReusableBodyNames,
+    graph: &DeclarationGraph,
+    source: crate::BodySource<'_>,
+    source_index: SourceIndex,
+) -> Result<(ResolvedBodyNames, SourceIndex), ReusableBodyNamesError> {
+    let (names, projections) = reusable.materialize(graph, source)?;
+    Ok((names, extend_name_source_index(source_index, projections)))
+}
+
+/// Materializes one complete canonical body-name arena and extends source projection once.
+///
+/// # Errors
+///
+/// Returns an integrity failure for missing, duplicate, noncanonical, or unbindable body results.
+pub fn materialize_reusable_body_name_catalog(
+    graph: &DeclarationGraph,
+    sources: &BodySourceCatalog<'_>,
+    recipes: &[(BodyId, &ReusableBodyNames)],
+    source_index: SourceIndex,
+) -> Result<(Arena<BodyId, ResolvedBodyNames>, SourceIndex), ReusableBodyNameCatalogError> {
+    let mut by_body = std::collections::HashMap::new();
+    for (body, recipe) in recipes {
+        if by_body.insert(*body, *recipe).is_some() {
+            return Err(ReusableBodyNameCatalogError::Duplicate(*body));
+        }
+    }
+    let mut bodies = ArenaBuilder::new();
+    let mut projections = Vec::new();
+    for source in sources.iter() {
+        let body = source.body();
+        let recipe = by_body
+            .remove(&body)
+            .ok_or(ReusableBodyNameCatalogError::Missing(body))?;
+        let (names, mut body_projections) = recipe
+            .materialize(graph, source)
+            .map_err(ReusableBodyNameCatalogError::Projection)?;
+        let actual = bodies.insert(names);
+        if actual != body {
+            return Err(ReusableBodyNameCatalogError::NonCanonical(body));
+        }
+        projections.append(&mut body_projections);
+    }
+    if let Some((body, _)) = by_body.into_iter().next() {
+        return Err(ReusableBodyNameCatalogError::Unknown(body));
+    }
+    Ok((
+        bodies.finish(),
+        extend_name_source_index(source_index, projections),
+    ))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReusableBodyNameCatalogError {
+    Missing(BodyId),
+    Duplicate(BodyId),
+    Unknown(BodyId),
+    NonCanonical(BodyId),
+    Projection(ReusableBodyNamesError),
+}
+
+impl std::fmt::Display for ReusableBodyNameCatalogError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid reusable body-name catalog: {self:?}")
+    }
+}
+
+impl std::error::Error for ReusableBodyNameCatalogError {}
 
 pub(crate) fn resolve_cataloged_body_names<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,

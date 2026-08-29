@@ -70,6 +70,7 @@ pub struct ReusableDeclarations {
     primitive_bindings: Box<[PrimitiveBinding]>,
     module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
+    body_identities: Box<[crate::ReusableBodyIdentity]>,
 }
 
 /// Topology-only output used by the focused topology pass.
@@ -113,7 +114,7 @@ impl fmt::Display for PackageTargetResolutionError {
 impl std::error::Error for PackageTargetResolutionError {}
 
 impl LoweredDeclarations {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         program: AcceptedDeclarationProgram,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
@@ -122,12 +123,14 @@ impl LoweredDeclarations {
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
         current_symbols: crate::current_symbols::CurrentCheckingSymbols,
     ) -> Self {
+        let body_identities = projection_recipe.body_identities();
         Self {
             reusable: ReusableDeclarations {
                 program,
                 primitive_bindings,
                 module_bindings,
                 projection_recipe,
+                body_identities,
             },
             current_symbols,
             frontend_bindings,
@@ -203,6 +206,36 @@ impl ReusableDeclarations {
     #[must_use]
     pub const fn projection_recipe(&self) -> &crate::FrontendProjectionRecipe {
         &self.projection_recipe
+    }
+
+    #[must_use]
+    pub const fn body_identities(&self) -> &[crate::ReusableBodyIdentity] {
+        &self.body_identities
+    }
+
+    #[must_use]
+    pub fn body_identity(
+        &self,
+        canonical_path: &str,
+        locator: nocter_syntax::DeclarationSyntaxLocator,
+    ) -> Option<&crate::ReusableBodyIdentity> {
+        let locator = match locator {
+            nocter_syntax::DeclarationSyntaxLocator::Node(index) => (0_u8, index),
+            nocter_syntax::DeclarationSyntaxLocator::Token(index) => (1_u8, index),
+        };
+        self.body_identities
+            .binary_search_by(|identity| {
+                let identity_locator = match identity.locator() {
+                    nocter_syntax::DeclarationSyntaxLocator::Node(index) => (0_u8, index),
+                    nocter_syntax::DeclarationSyntaxLocator::Token(index) => (1_u8, index),
+                };
+                identity
+                    .canonical_path()
+                    .cmp(canonical_path)
+                    .then_with(|| identity_locator.cmp(&locator))
+            })
+            .ok()
+            .map(|index| &self.body_identities[index])
     }
 
     pub(crate) fn module_binding(&self, identity: &ModuleIdentity) -> Option<ModuleId> {

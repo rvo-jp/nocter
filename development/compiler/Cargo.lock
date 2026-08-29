@@ -2052,6 +2052,7 @@ dependencies = [
  "nocter-frontend-bindings",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-semantic-computation",
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",

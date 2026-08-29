@@ -86,7 +86,7 @@ impl ReusablePreparedProgram {
         self.semantics.types()
     }
 
-    fn open_current<S>(
+    pub(crate) fn open_current<S>(
         &self,
         spellings: impl IntoIterator<Item = S>,
         source_access: SourceAccessTable,
@@ -701,6 +701,48 @@ where
             });
         }
     };
+    Ok(PreparedChecking {
+        semantic,
+        body_sources,
+        body_names,
+        source_namespaces: bindings.source_namespaces().clone(),
+        source_index,
+    })
+}
+
+/// Opens one current source generation from reusable program and per-body lexical authorities.
+///
+/// This is the accepted query path: it catalogs current body syntax and rebinds stable body-local
+/// locators without running lexical resolution again.
+///
+/// # Errors
+///
+/// Returns a current source-domain or reusable-name integrity failure.
+pub fn prepare_program_checking_from_reusable_names<'syntax, S>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    reusable: &ReusablePreparedProgram,
+    checking_spellings: impl IntoIterator<Item = S>,
+    bindings: &FrontendBindings,
+    source_index: SourceIndex,
+    names: &[(BodyId, &crate::ReusableBodyNames)],
+) -> Result<PreparedChecking<'syntax>, PreparationFailure>
+where
+    S: AsRef<str>,
+{
+    validate_preparation_target(input, reusable.graph())?;
+    let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
+    let body_sources =
+        prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
+    let (body_names, source_index) = crate::materialize_reusable_body_name_catalog(
+        semantic.graph(),
+        &body_sources,
+        names,
+        source_index,
+    )
+    .map_err(NameResolutionInternalError::ReusableBodyNames)
+    .map_err(NameResolutionError::Internal)
+    .map_err(PreparationError::NameResolution)
+    .map_err(PreparationFailure::new)?;
     Ok(PreparedChecking {
         semantic,
         body_sources,

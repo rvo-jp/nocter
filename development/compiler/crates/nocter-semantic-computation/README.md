@@ -19,6 +19,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - stable path-and-declaration-locator body input publication
 - declaration-query evaluation and dependency selection
 - reusable program-wide checking preparation above accepted declarations
+- per-body lexical queries and one exact-current shared resolution context
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -41,3 +42,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - Successful program preparation owns only source-neutral environment and semantic authorities.
   Body-only edits reuse that query; current source access and body symbols join later through the
   checking-owned current-generation opening contract.
+- One private current-resolution context refreshes projection, symbols, and source access once per
+  revision. Its semantic fingerprint is the declaration authority, so unchanged source-neutral
+  body results remain reusable; a changed body reads the refreshed context through its own exact
+  body input.

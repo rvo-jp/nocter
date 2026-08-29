@@ -20,6 +20,16 @@ pub struct CurrentDeclarationProjection {
 
 impl CurrentDeclarationProjection {
     #[must_use]
+    pub const fn frontend_bindings(&self) -> &FrontendBindings {
+        &self.frontend_bindings
+    }
+
+    #[must_use]
+    pub const fn checking_symbols(&self) -> &crate::CurrentCheckingSymbols {
+        &self.checking_symbols
+    }
+
+    #[must_use]
     pub fn into_parts(
         self,
     ) -> (

@@ -23,6 +23,7 @@ language server.
 - source declaration-surface and module-surface query composition
 - atomic semantic-scope input publication plus declaration and program-preparation query demand
 - exact per-body input collection from the already demanded source-surface product
+- transport of the opaque complete body-name authority demanded by semantic computation
 
 ## Invariants
 
@@ -46,3 +47,6 @@ language server.
   product; workspace code cannot inspect declaration storage or reconstruct its invalidation rule.
 - Workspace passes the opaque prepared-program product to session. It cannot rebuild checking
   authorities or attach current body symbols itself.
+- Workspace neither enumerates body queries nor inspects lexical recipes. Semantic computation
+  publishes one complete opaque body-name authority; any unavailable body keeps the existing
+  current recovery path authoritative for the whole attempt.

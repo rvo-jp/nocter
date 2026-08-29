@@ -27,6 +27,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - validated rebinding of source-independent parse work into one current `SourceMap` identity domain
 - source-neutral declaration-syntax canonicalization with explicit body pruning
 - exact per-body source surfaces under stable declaration locators
+- bidirectional body-local node/token locators for source-neutral semantic recipes
 - the shared direct/reusable source-syntax provider boundary
 
 ## Invariants

@@ -113,6 +113,31 @@ pub struct FrontendProjectionRecipe {
     operations: Box<[ProjectionOperation]>,
 }
 
+/// Stable physical-semantic identity of one declaration body in a reusable program.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReusableBodyIdentity {
+    body: BodyId,
+    canonical_path: Box<str>,
+    locator: DeclarationSyntaxLocator,
+}
+
+impl ReusableBodyIdentity {
+    #[must_use]
+    pub const fn body(&self) -> BodyId {
+        self.body
+    }
+
+    #[must_use]
+    pub const fn canonical_path(&self) -> &str {
+        &self.canonical_path
+    }
+
+    #[must_use]
+    pub const fn locator(&self) -> DeclarationSyntaxLocator {
+        self.locator
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ProjectionSourceKey {
     module: ModuleIdentity,
@@ -131,6 +156,31 @@ impl ProjectionSourceKey {
 }
 
 impl FrontendProjectionRecipe {
+    #[must_use]
+    pub fn body_identities(&self) -> Box<[ReusableBodyIdentity]> {
+        let mut identities = self
+            .operations
+            .iter()
+            .filter_map(|operation| {
+                let ProjectionOperation::Body { body, block, .. } = operation else {
+                    return None;
+                };
+                let source = self.sources.get(block.source.index())?;
+                Some(ReusableBodyIdentity {
+                    body: *body,
+                    canonical_path: source.canonical_path.clone(),
+                    locator: block.syntax,
+                })
+            })
+            .collect::<Vec<_>>();
+        identities.sort_unstable_by(|left, right| {
+            left.canonical_path
+                .cmp(&right.canonical_path)
+                .then_with(|| locator_key(left.locator).cmp(&locator_key(right.locator)))
+        });
+        identities.into_boxed_slice()
+    }
+
     // Keeping the closed operation interpreter together makes omissions auditable when a new
     // projection fact is added. Splitting this match would create parallel partial interpreters.
     #[allow(clippy::too_many_lines)]
@@ -315,6 +365,13 @@ impl FrontendProjectionRecipe {
                 .map_err(|_| ProjectionRecipeError::DuplicateBlockImport(*declaration))?;
         }
         Ok((index.finish(), bindings.finish()))
+    }
+}
+
+const fn locator_key(locator: DeclarationSyntaxLocator) -> (u8, u32) {
+    match locator {
+        DeclarationSyntaxLocator::Node(index) => (0, index),
+        DeclarationSyntaxLocator::Token(index) => (1, index),
     }
 }
 

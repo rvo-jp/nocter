@@ -185,6 +185,14 @@ impl WorkspaceAnalyses {
         )
     }
 
+    #[cfg(test)]
+    fn body_name_query_counts(&self) -> (u64, u64) {
+        (
+            nocter_semantic_computation::body_name_execution_count(&self.computation),
+            nocter_semantic_computation::body_name_reuse_count(&self.computation),
+        )
+    }
+
     ///
     /// # Errors
     ///
@@ -937,6 +945,52 @@ mod tests {
         analyses.analyze(revision).unwrap();
 
         assert_query_reused(before, analyses.program_preparation_counts());
+    }
+
+    #[test]
+    fn body_edit_resolves_only_the_changed_body_and_rebinds_unchanged_siblings() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let original = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func first(): i32 { return 1 }\n",
+            "func second(): i32 { return 2 }\n",
+        );
+        let changed = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func first(): i32 {\n",
+            "    let value = 1\n",
+            "    return value\n",
+            "}\n",
+            "func second(): i32 { return 2 }\n",
+        );
+        fs::write(&root, original).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        analyses
+            .analyze(documents.open(&root, 1, original).unwrap())
+            .unwrap();
+        let before = analyses.body_name_query_counts();
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, changed).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        let warm = analyses.analyze(revision).unwrap();
+        let after = analyses.body_name_query_counts();
+        assert_eq!(after.0, before.0 + 1);
+        assert!(after.1 > before.1);
+
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let fresh = fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, changed).unwrap())
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
     }
 
     fn analysis_signature(generation: &WorkspaceAnalysisGeneration) -> AnalysisSignature {

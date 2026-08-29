@@ -32,11 +32,11 @@ evidence.
 
 ## Next Work
 
-Continue v0.20.0 Phase 1 by giving body resolution and checking their own stable keys. Declaration
-lowering, current projection, and program-wide checking preparation are query-owned; a body-only
-edit now reuses the source-neutral `ProgramEnvironment` and every completed program authority.
-Current body spellings and source access join only when session opens a current checking branch.
-Migrate preparation rejection into the same query graph before removing its explicit fallback.
+Continue v0.20.0 Phase 1 with per-body typed checking. Declaration lowering, program preparation,
+and lexical body resolution are query-owned; instrumentation proves sibling lexical reuse after a
+body edit shifts current syntax IDs. Typed checking must define body-local type/closure identity
+and an explicit program-finalization merge before it can reuse results safely. Migrate preparation
+and lexical rejection into the same query graph before removing their current recovery fallback.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

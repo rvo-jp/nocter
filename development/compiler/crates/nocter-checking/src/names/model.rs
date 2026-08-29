@@ -273,4 +273,16 @@ impl ResolvedBodyNames {
     pub const fn uses(&self) -> &[ResolvedNameUse] {
         &self.uses
     }
+
+    pub(super) const fn local_origins(&self) -> &Arena<LocalBindingId, SyntaxOrigin> {
+        &self.local_origins
+    }
+
+    pub(super) const fn capture_origins(&self) -> &Arena<CaptureId, SyntaxOrigin> {
+        &self.capture_origins
+    }
+
+    pub(super) const fn block_scopes(&self) -> &HashMap<NodeId, BodyScopeId> {
+        &self.block_scopes
+    }
 }

@@ -90,6 +90,7 @@ pub enum BodySourceError {
     InvalidBodyOwner(BodyId),
     MissingDeclarationSite(DeclarationSiteId),
     BodyOutsideOwnerModule(BodyId),
+    MissingSourceOwnership(SourceId),
 }
 
 impl fmt::Display for BodySourceError {
@@ -143,11 +144,60 @@ impl fmt::Display for BodySourceError {
             Self::BodyOutsideOwnerModule(body) => {
                 write!(formatter, "body {body:?} is outside its owner's module")
             }
+            Self::MissingSourceOwnership(source) => {
+                write!(formatter, "source {source} has no semantic module owner")
+            }
         }
     }
 }
 
 impl std::error::Error for BodySourceError {}
+
+/// Selects one exact declaration body without cataloging sibling bodies.
+///
+/// # Errors
+///
+/// Returns an integrity failure when declaration, frontend, and syntax ownership disagree.
+pub fn catalog_body_source<'syntax>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
+    body: BodyId,
+) -> Result<BodySource<'syntax>, BodySourceError> {
+    let declaration = graph
+        .declarations()
+        .bodies()
+        .get(body)
+        .ok_or(BodySourceError::InvalidBodyOwner(body))?;
+    let blocks = bindings.body_blocks(body);
+    let [block] = blocks else {
+        if blocks.is_empty() {
+            return Err(BodySourceError::MissingBodyProjection(body));
+        }
+        return Err(BodySourceError::DuplicateBodyProjection(body));
+    };
+    let tree = input
+        .syntax_tree(block.source())
+        .ok_or(BodySourceError::MissingSyntaxSource(body))?;
+    if tree.node(*block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
+        return Err(BodySourceError::InvalidBodyProjection(body));
+    }
+    let module = body_module(graph, body, declaration.owner())?;
+    let source_module = bindings
+        .source_ownership()
+        .module_for_source(tree.source())
+        .map_err(|_| BodySourceError::MissingSourceOwnership(tree.source()))?;
+    if source_module != module {
+        return Err(BodySourceError::BodyOutsideOwnerModule(body));
+    }
+    Ok(BodySource {
+        body,
+        owner: declaration.owner(),
+        module,
+        syntax: tree,
+        block: *block,
+    })
+}
 
 /// Selects every declaration body from exact source projections.
 ///

@@ -19,6 +19,7 @@ check callable bodies.
 - deterministic identity reservation and definition
 - define-once semantic projection recipes and current-generation materialization
 - declaration-only authority projection separated from current body imports and spellings
+- stable path-plus-block identities mapping body query keys to declaration-owned `BodyId` values
 - canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization

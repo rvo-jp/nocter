@@ -9,9 +9,48 @@ use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use super::{
-    CaptureMode, LocalBindingKind, NameTarget, resolve_body_names,
-    resolve_cataloged_body_names_recovering,
+    CaptureMode, LocalBindingKind, NameTarget, materialize_reusable_body_names, resolve_body_names,
+    resolve_cataloged_body_names_recovering, resolve_reusable_body_names,
 };
+
+#[test]
+fn reusable_body_names_round_trip_all_body_local_identity_domains() {
+    let fixture = Fixture::new(
+        "func main(input: i32): void {\n    let local = input\n    let closure = (&local; value: i32): i32 { value + local }\n    return\n}\n",
+        "",
+    );
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let catalog = crate::catalog_body_sources(&input, program.graph(), &frontend_bindings).unwrap();
+    let source = catalog
+        .iter()
+        .find(|source| {
+            program
+                .graph()
+                .declarations()
+                .bodies()
+                .get(source.body())
+                .is_some()
+        })
+        .unwrap();
+    let reusable =
+        resolve_reusable_body_names(&input, program.graph(), &frontend_bindings, source).unwrap();
+    let (materialized, source_index) =
+        materialize_reusable_body_names(&reusable, program.graph(), source, source_index).unwrap();
+
+    assert_eq!(materialized.body(), source.body());
+    assert!(materialized.locals().len() >= 2);
+    assert_eq!(materialized.captures().len(), 1);
+    assert!(!materialized.uses().is_empty());
+    let (local, _) = materialized.locals().iter().next().unwrap();
+    assert!(materialized.local_origin(local).is_some());
+    assert!(
+        !source_index
+            .bindings_for(SemanticEntity::LocalBinding(source.body(), local))
+            .is_empty()
+    );
+}
 
 #[test]
 fn lexical_identities_cover_scopes_and_explicit_capture_projection() {

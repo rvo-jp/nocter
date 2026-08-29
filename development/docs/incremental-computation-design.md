@@ -180,6 +180,17 @@ capability preparation without allowing a prior generation's source identities i
 Preparation rejection still uses the current non-query recovery path; name and body migration must
 close that remaining fallback before Phase 1 completion.
 
+Lexical resolution now consumes the published body inputs through one query per stable
+path-plus-declaration locator. An accepted result is converted immediately into a source-neutral
+recipe: local and capture IDs remain body-local semantic identities, symbol IDs become spellings,
+and every node/token origin becomes an ordinal locator within the exact body. Session resolves
+those locators against current syntax and extends `SourceIndex` once for the complete canonical
+body arena. A private exact-current context query materializes frontend bindings and the current
+symbol branch once per revision. Although its value refreshes with current source, its successful
+fingerprint is the source-neutral declaration authority; only body queries whose exact body input
+changed execute against the refreshed context. This contract is private to source-neutral lexical
+queries so a current `NodeId` product cannot accidentally claim the same fingerprint.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

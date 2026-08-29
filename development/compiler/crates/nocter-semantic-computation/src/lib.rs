@@ -1,7 +1,12 @@
 //! Demand-owned semantic queries above physical source discovery.
 
+mod body_names;
 mod program_preparation;
 
+pub use body_names::{
+    BodyNameQueryOutcome, BodyNameQueryProduct, ResolvedBodyNameSet, SemanticBodyKey,
+    body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
+};
 pub use program_preparation::{
     ProgramPreparationOutcome, ProgramPreparationProduct, preparation_execution_count,
     preparation_reuse_count, prepared_program,
@@ -161,6 +166,8 @@ impl Input for BodySourceInput {
 /// Stable physical identity of one executable body beneath a declaration surface.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct BodySourceKey {
+    path: Box<str>,
+    locator: nocter_syntax::DeclarationSyntaxLocator,
     stable: Box<[u8]>,
 }
 
@@ -179,6 +186,8 @@ impl BodySourceKey {
             }
         }
         Self {
+            path: path.into(),
+            locator,
             stable: stable.into_boxed_slice(),
         }
     }
