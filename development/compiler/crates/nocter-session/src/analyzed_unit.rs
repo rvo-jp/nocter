@@ -4,7 +4,8 @@ use nocter_discovery::DiscoveredUnit;
 
 use crate::analysis::{
     analyze_target_from_declaration_failure, analyze_target_from_declarations,
-    analyze_target_from_prepared_body_names, analyze_target_from_prepared_declarations,
+    analyze_target_from_preparation_rejection, analyze_target_from_prepared_body_names,
+    analyze_target_from_prepared_declarations,
 };
 use crate::{
     CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
@@ -237,7 +238,7 @@ pub fn analyze_unit_from_declaration_failure(
     unit: Arc<DiscoveredUnit>,
     rejection_unit: &DiscoveredUnit,
     failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
-) -> Result<AnalyzedUnit, DeclarationRejectionDomainError> {
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
     validate_rejection_domain(&unit, rejection_unit)?;
     if unit.has_syntax_errors() {
         return Ok(analyze_unit(unit));
@@ -251,10 +252,33 @@ pub fn analyze_unit_from_declaration_failure(
     })
 }
 
+/// Consumes one current discovery snapshot and its query-owned preparation rejection.
+///
+/// # Errors
+///
+/// Returns an integrity error when the rejection belongs to a different exact source domain.
+pub fn analyze_unit_from_preparation_rejection(
+    unit: Arc<DiscoveredUnit>,
+    rejection_unit: &DiscoveredUnit,
+    rejection: &nocter_checking::QueriedProgramPreparationRejection,
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
+    validate_rejection_domain(&unit, rejection_unit)?;
+    if unit.has_syntax_errors() {
+        return Ok(analyze_unit(unit));
+    }
+    let failure = analyze_target_from_preparation_rejection(rejection);
+    let (semantic, diagnostics) = (*failure).into_analysis_parts();
+    Ok(AnalyzedUnit {
+        unit,
+        diagnostics,
+        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+    })
+}
+
 fn validate_rejection_domain(
     current: &DiscoveredUnit,
     rejection: &DiscoveredUnit,
-) -> Result<(), DeclarationRejectionDomainError> {
+) -> Result<(), SemanticRejectionDomainError> {
     if std::ptr::eq(current, rejection) {
         return Ok(());
     }
@@ -263,39 +287,38 @@ fn validate_rejection_domain(
     let current_sources = current.current_source_surface()?;
     let rejection_sources = rejection.current_source_surface()?;
     if current_topology != rejection_topology || current_sources != rejection_sources {
-        return Err(DeclarationRejectionDomainError::Mismatch);
+        return Err(SemanticRejectionDomainError::Mismatch);
     }
     Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DeclarationRejectionDomainError {
+pub enum SemanticRejectionDomainError {
     SemanticTopology(nocter_discovery::SemanticTopologyError),
     CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
     Mismatch,
 }
 
-impl std::fmt::Display for DeclarationRejectionDomainError {
+impl std::fmt::Display for SemanticRejectionDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SemanticTopology(error) => error.fmt(formatter),
             Self::CurrentSource(error) => error.fmt(formatter),
-            Self::Mismatch => formatter.write_str(
-                "declaration rejection and current analysis use different source domains",
-            ),
+            Self::Mismatch => formatter
+                .write_str("semantic rejection and current analysis use different source domains"),
         }
     }
 }
 
-impl std::error::Error for DeclarationRejectionDomainError {}
+impl std::error::Error for SemanticRejectionDomainError {}
 
-impl From<nocter_discovery::SemanticTopologyError> for DeclarationRejectionDomainError {
+impl From<nocter_discovery::SemanticTopologyError> for SemanticRejectionDomainError {
     fn from(error: nocter_discovery::SemanticTopologyError) -> Self {
         Self::SemanticTopology(error)
     }
 }
 
-impl From<nocter_discovery::CurrentSourceSurfaceError> for DeclarationRejectionDomainError {
+impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticRejectionDomainError {
     fn from(error: nocter_discovery::CurrentSourceSurfaceError) -> Self {
         Self::CurrentSource(error)
     }

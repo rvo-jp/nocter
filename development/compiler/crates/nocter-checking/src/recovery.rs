@@ -44,6 +44,16 @@ impl DeclarationAnalysisRecovery {
         }
     }
 
+    pub(crate) fn current_branch(&self) -> Self {
+        Self {
+            graph: self.graph.clone(),
+            types: self.types.clone(),
+            source_ownership: self.source_ownership.clone(),
+            source_index: self.source_index.clone(),
+            standard_semantics: self.standard_semantics.clone(),
+        }
+    }
+
     /// Creates declaration-only analysis from the exact facts retained by the rejecting phase.
     #[must_use]
     pub fn from_parts(

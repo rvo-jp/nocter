@@ -13,7 +13,27 @@ struct ProgramPreparationQuery;
 #[derive(Debug)]
 pub enum ProgramPreparationOutcome {
     Prepared(Arc<nocter_checking::ReusablePreparedProgram>),
+    Rejected(RejectedProgramPreparation),
     Unavailable,
+}
+
+/// One program-preparation rejection paired with the exact source domain that produced it.
+#[derive(Debug)]
+pub struct RejectedProgramPreparation {
+    unit: Arc<nocter_discovery::DiscoveredUnit>,
+    rejection: Arc<nocter_checking::QueriedProgramPreparationRejection>,
+}
+
+impl RejectedProgramPreparation {
+    #[must_use]
+    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
+        &self.unit
+    }
+
+    #[must_use]
+    pub fn rejection(&self) -> &nocter_checking::QueriedProgramPreparationRejection {
+        &self.rejection
+    }
 }
 
 #[derive(Debug)]
@@ -50,28 +70,41 @@ impl Query for ProgramPreparationQuery {
             });
         };
         let semantic = database.input::<DeclarationScopeInput>(key)?;
-        let prepared = semantic.unit.compile_input().ok().and_then(|input| {
+        let outcome = semantic.unit.compile_input().ok().and_then(|input| {
             let projection = declarations.materialize_authority_projection(&input).ok()?;
             let (bindings, source_index) = projection.into_parts();
-            nocter_checking::prepare_reusable_program(
+            nocter_checking::prepare_reusable_program_for_query(
                 &input,
                 declarations.checking_branch(),
                 &bindings,
-                source_index.diagnostic_origins(),
+                source_index,
             )
             .ok()
         });
-        if let Some(prepared) = prepared {
-            Ok(ProgramPreparationProduct {
-                outcome: ProgramPreparationOutcome::Prepared(Arc::new(prepared)),
-                fingerprint: declaration_fingerprint,
-            })
-        } else {
-            let current = database.input::<CurrentSourceScopeInput>(key)?;
-            Ok(ProgramPreparationProduct {
-                outcome: ProgramPreparationOutcome::Unavailable,
-                fingerprint: current.fingerprint,
-            })
+        match outcome {
+            Some(nocter_checking::ReusableProgramPreparationQueryOutcome::Prepared(prepared)) => {
+                Ok(ProgramPreparationProduct {
+                    outcome: ProgramPreparationOutcome::Prepared(Arc::from(prepared)),
+                    fingerprint: declaration_fingerprint,
+                })
+            }
+            Some(nocter_checking::ReusableProgramPreparationQueryOutcome::Rejected(rejection)) => {
+                let current = database.input::<CurrentSourceScopeInput>(key)?;
+                Ok(ProgramPreparationProduct {
+                    outcome: ProgramPreparationOutcome::Rejected(RejectedProgramPreparation {
+                        unit: Arc::clone(&current.unit),
+                        rejection: Arc::from(rejection),
+                    }),
+                    fingerprint: current.fingerprint,
+                })
+            }
+            None => {
+                let current = database.input::<CurrentSourceScopeInput>(key)?;
+                Ok(ProgramPreparationProduct {
+                    outcome: ProgramPreparationOutcome::Unavailable,
+                    fingerprint: current.fingerprint,
+                })
+            }
         }
     }
 }
@@ -80,8 +113,8 @@ impl Query for ProgramPreparationQuery {
 ///
 /// # Errors
 ///
-/// Returns only computation-kernel failures. Compiler rejection remains an ordinary unavailable
-/// outcome until query-owned recovery migration is complete.
+/// Returns only computation-kernel failures. Authored preparation rejection is a first-class
+/// exact-current outcome; unavailable is reserved for missing input or internal failure.
 pub fn prepared_program(
     database: &Database,
     key: SemanticScopeKey,

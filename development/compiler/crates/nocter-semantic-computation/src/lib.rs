@@ -10,8 +10,8 @@ pub use body_names::{
     body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
 };
 pub use program_preparation::{
-    ProgramPreparationOutcome, ProgramPreparationProduct, preparation_execution_count,
-    preparation_reuse_count, prepared_program,
+    ProgramPreparationOutcome, ProgramPreparationProduct, RejectedProgramPreparation,
+    preparation_execution_count, preparation_reuse_count, prepared_program,
 };
 pub use typed_bodies::{
     TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet, typed_bodies, typed_body,

@@ -112,7 +112,7 @@ enum WorkspaceAnalysisErrorKind {
     ModuleOwner(nocter_discovery::DiscoveryError),
     Computation(nocter_computation::ComputationError),
     SemanticComputation(nocter_semantic_computation::ScopeInputError),
-    DeclarationRejection(nocter_session::DeclarationRejectionDomainError),
+    SemanticRejection(nocter_session::SemanticRejectionDomainError),
 }
 
 impl WorkspaceAnalysisError {
@@ -142,11 +142,9 @@ impl WorkspaceAnalysisError {
         }
     }
 
-    pub(crate) fn declaration_rejection(
-        error: nocter_session::DeclarationRejectionDomainError,
-    ) -> Self {
+    pub(crate) fn semantic_rejection(error: nocter_session::SemanticRejectionDomainError) -> Self {
         Self {
-            kind: WorkspaceAnalysisErrorKind::DeclarationRejection(error),
+            kind: WorkspaceAnalysisErrorKind::SemanticRejection(error),
         }
     }
 
@@ -179,7 +177,7 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::ModuleOwner(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::DeclarationRejection(_) => None,
+            | WorkspaceAnalysisErrorKind::SemanticRejection(_) => None,
         }
     }
 
@@ -195,7 +193,7 @@ impl WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::MissingRootPackage(_)
             | WorkspaceAnalysisErrorKind::Computation(_)
             | WorkspaceAnalysisErrorKind::SemanticComputation(_)
-            | WorkspaceAnalysisErrorKind::DeclarationRejection(_) => "E0900",
+            | WorkspaceAnalysisErrorKind::SemanticRejection(_) => "E0900",
         }
     }
 }
@@ -250,7 +248,7 @@ impl fmt::Display for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::SemanticComputation(error) => {
                 write!(formatter, "semantic computation input is invalid: {error}")
             }
-            WorkspaceAnalysisErrorKind::DeclarationRejection(error) => {
+            WorkspaceAnalysisErrorKind::SemanticRejection(error) => {
                 write!(formatter, "declaration rejection input is invalid: {error}")
             }
         }
@@ -266,7 +264,7 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::ModuleOwner(error) => Some(error),
             WorkspaceAnalysisErrorKind::Computation(error) => Some(error),
             WorkspaceAnalysisErrorKind::SemanticComputation(error) => Some(error),
-            WorkspaceAnalysisErrorKind::DeclarationRejection(error) => Some(error),
+            WorkspaceAnalysisErrorKind::SemanticRejection(error) => Some(error),
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_) => None,

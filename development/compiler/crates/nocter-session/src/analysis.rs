@@ -208,6 +208,16 @@ pub(crate) fn analyze_target_from_declaration_failure(
     Box::new(CompileTargetFailure::new(*error, evidence))
 }
 
+pub(crate) fn analyze_target_from_preparation_rejection(
+    rejection: &nocter_checking::QueriedProgramPreparationRejection,
+) -> Box<CompileTargetFailure> {
+    let (error, evidence) = rejection.current_branch().into_parts();
+    Box::new(CompileTargetFailure::new(
+        error.into(),
+        evidence.map(SemanticEvidenceBundle::from_preparation_failure),
+    ))
+}
+
 /// Attempts editor-only semantic analysis beneath an authoritative syntax failure.
 ///
 /// This path can never return a target program or claim compilation success. It preserves the

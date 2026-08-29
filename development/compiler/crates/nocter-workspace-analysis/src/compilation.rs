@@ -181,10 +181,18 @@ fn analyze_declaration_outcome(
             ProgramPreparationOutcome::Unavailable => {
                 Ok(analyze_unit_from_declarations(unit, declarations))
             }
+            ProgramPreparationOutcome::Rejected(rejection) => {
+                nocter_session::analyze_unit_from_preparation_rejection(
+                    unit,
+                    rejection.unit(),
+                    rejection.rejection(),
+                )
+                .map_err(WorkspaceAnalysisError::semantic_rejection)
+            }
         },
         DeclarationQueryOutcome::Rejected(rejection) => {
             analyze_unit_from_declaration_failure(unit, rejection.unit(), rejection.failure())
-                .map_err(WorkspaceAnalysisError::declaration_rejection)
+                .map_err(WorkspaceAnalysisError::semantic_rejection)
         }
         DeclarationQueryOutcome::Unavailable => Ok(analyze_unit(unit)),
     }

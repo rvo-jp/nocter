@@ -158,10 +158,12 @@ pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
 pub use preparation::{
     PreparationError, PreparationFailure, PreparationFailureEvidence, PreparationRepairEvidence,
-    PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram, ReusablePreparedProgram,
-    prepare_analysis_program_checking_recovering, prepare_program_checking,
-    prepare_program_checking_from_queried_names, prepare_program_checking_from_reusable_recovering,
-    prepare_program_checking_recovering, prepare_reusable_program,
+    PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram,
+    QueriedProgramPreparationRejection, ReusablePreparedProgram,
+    ReusableProgramPreparationQueryOutcome, prepare_analysis_program_checking_recovering,
+    prepare_program_checking, prepare_program_checking_from_queried_names,
+    prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
+    prepare_reusable_program, prepare_reusable_program_for_query,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};

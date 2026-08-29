@@ -42,6 +42,9 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - Successful program preparation owns only source-neutral environment and semantic authorities.
   Body-only edits reuse that query; current source access and body symbols join later through the
   checking-owned current-generation opening contract.
+- Authored program-preparation rejection is paired with the exact current discovery snapshot and
+  fingerprint. Its rule, declaration recovery, and optional repair capability are query values;
+  internal failure remains unavailable.
 - One private current body-semantic context refreshes projection, symbols, and source access once per
   revision. Its semantic fingerprint is the declaration authority, so unchanged source-neutral
   body results remain reusable; a changed body reads the refreshed context through its own exact

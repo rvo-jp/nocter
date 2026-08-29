@@ -20,7 +20,7 @@ use interpolation::validate_interpolation_roles;
 /// Consumers query semantic roles, never source spellings. A table may omit roles that the active
 /// compile unit does not need; a feature requiring one reports that missing capability at its own
 /// checked boundary.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct StandardSemanticTable {
     entries: BTreeMap<StandardDeclarationRole, StandardDeclaration>,
 }

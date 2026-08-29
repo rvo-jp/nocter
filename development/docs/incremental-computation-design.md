@@ -177,8 +177,11 @@ contains no body-only symbol suffix. Current declaration projection computes tha
 session opens a graph branch and pairs current source access immediately before name resolution.
 Consequently a body-only edit reuses interface, copyability, drop, construction, instance, and
 capability preparation without allowing a prior generation's source identities into the result.
-Preparation rejection still uses the current non-query recovery path; its migration must close
-that remaining fallback before Phase 1 completion.
+Program-wide authored preparation rejection is an exact-current query value. Checking captures a
+closed rule category rather than cloning arbitrary internal errors, pairs it with declaration-only
+recovery, and retains optional interface-method repair evidence. Session opens a new owned branch
+from that value. Missing inputs and internal preparation inconsistencies remain unavailable, so a
+computation-kernel absence cannot masquerade as authored source rejection.
 
 Lexical resolution now consumes the published body inputs through one query per stable
 path-plus-declaration locator. An accepted result is converted immediately into a source-neutral

@@ -75,6 +75,90 @@ pub struct ReusablePreparedProgram {
     semantics: crate::semantic_authority::SemanticAuthority,
 }
 
+/// Source-backed program-preparation rejection retained by the computation graph.
+#[derive(Debug)]
+pub struct QueriedProgramPreparationRejection {
+    rule: QueriedPreparationRule,
+    analysis: crate::DeclarationAnalysisRecovery,
+}
+
+impl QueriedProgramPreparationRejection {
+    /// Opens an owned session branch without rerunning program preparation.
+    #[must_use]
+    pub fn current_branch(&self) -> PreparationFailure {
+        PreparationFailure::with_declaration_recovery(
+            self.rule.current_error(),
+            Box::new(self.analysis.current_branch()),
+        )
+    }
+}
+
+#[derive(Debug)]
+enum QueriedPreparationRule {
+    TypeValidity(SourceDiagnostic),
+    Copyability(SourceDiagnostic),
+    InterfaceImplementation {
+        diagnostic: Box<SourceDiagnostic>,
+        missing_methods: Option<Box<crate::MissingInterfaceImplementationMethods>>,
+    },
+    InstanceOperations(SourceDiagnostic),
+}
+
+impl QueriedPreparationRule {
+    fn capture(error: PreparationError) -> Result<Self, PreparationError> {
+        match error {
+            PreparationError::TypeValidity(crate::DeclarationTypeValidityError::Rule(
+                diagnostic,
+            )) => Ok(Self::TypeValidity(diagnostic)),
+            PreparationError::Copyability(crate::CopyabilityBuildError::Rule(diagnostic)) => {
+                Ok(Self::Copyability(diagnostic))
+            }
+            PreparationError::InterfaceImplementation(
+                crate::InterfaceImplementationBuildError::Rule {
+                    diagnostic,
+                    missing_methods,
+                },
+            ) => Ok(Self::InterfaceImplementation {
+                diagnostic,
+                missing_methods,
+            }),
+            PreparationError::InstanceOperations(crate::InstanceOperationBuildError::Rule(
+                diagnostic,
+            )) => Ok(Self::InstanceOperations(diagnostic)),
+            error => Err(error),
+        }
+    }
+
+    fn current_error(&self) -> PreparationError {
+        match self {
+            Self::TypeValidity(diagnostic) => PreparationError::TypeValidity(
+                crate::DeclarationTypeValidityError::Rule(diagnostic.clone()),
+            ),
+            Self::Copyability(diagnostic) => PreparationError::Copyability(
+                crate::CopyabilityBuildError::Rule(diagnostic.clone()),
+            ),
+            Self::InterfaceImplementation {
+                diagnostic,
+                missing_methods,
+            } => PreparationError::InterfaceImplementation(
+                crate::InterfaceImplementationBuildError::Rule {
+                    diagnostic: diagnostic.clone(),
+                    missing_methods: missing_methods.clone(),
+                },
+            ),
+            Self::InstanceOperations(diagnostic) => PreparationError::InstanceOperations(
+                crate::InstanceOperationBuildError::Rule(diagnostic.clone()),
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ReusableProgramPreparationQueryOutcome {
+    Prepared(Box<ReusablePreparedProgram>),
+    Rejected(Box<QueriedProgramPreparationRejection>),
+}
+
 impl ReusablePreparedProgram {
     #[must_use]
     pub fn graph(&self) -> &DeclarationGraph {
@@ -656,6 +740,51 @@ pub fn prepare_reusable_program(
         diagnostic_origins,
     )
     .map_err(|failure| failure.error)
+}
+
+/// Builds the query-owned program-wide preparation outcome for one exact current projection.
+///
+/// # Errors
+///
+/// Returns internal or non-authored preparation failures. Authored rules are retained as an
+/// exact-current rejection with declaration-level recovery.
+pub fn prepare_reusable_program_for_query(
+    input: &CompileUnitInput<'_>,
+    program: AcceptedDeclarationProgram,
+    bindings: &FrontendBindings,
+    source_index: SourceIndex,
+) -> Result<ReusableProgramPreparationQueryOutcome, PreparationError> {
+    match prepare_reusable_program_internal(
+        input,
+        PreparationProgram::Accepted(program),
+        bindings,
+        source_index.diagnostic_origins(),
+    ) {
+        Ok(prepared) => Ok(ReusableProgramPreparationQueryOutcome::Prepared(Box::new(
+            prepared,
+        ))),
+        Err(failure) => {
+            let ReusablePreparationFailure {
+                error,
+                graph,
+                types,
+                standard_semantics,
+            } = *failure;
+            let rule = QueriedPreparationRule::capture(error)?;
+            Ok(ReusableProgramPreparationQueryOutcome::Rejected(Box::new(
+                QueriedProgramPreparationRejection {
+                    rule,
+                    analysis: crate::DeclarationAnalysisRecovery::new(
+                        graph,
+                        types,
+                        bindings.source_ownership().clone(),
+                        source_index,
+                        standard_semantics,
+                    ),
+                },
+            )))
+        }
+    }
 }
 
 /// Opens one current source generation from reusable program-wide authorities and resolves its

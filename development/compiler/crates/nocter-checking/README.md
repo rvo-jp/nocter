@@ -34,6 +34,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - One source-neutral `ProgramEnvironment` carries stable facts through the complete checking
   lifetime. Generation-local `SourceAccessTable` storage is paired only by prepared and checked
   current-generation owners.
+- Query-owned program preparation accepts only a closed set of authored rule variants. It retains
+  declaration recovery and repair evidence as one exact-current rejection; opening a session
+  branch clones that authority and cannot rerun preparation or publish an internal error as source.
 - Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
   one evidence identity; no optional-evidence state exists.
 - One independent capability-evidence table owns each specialized predicate and every authored

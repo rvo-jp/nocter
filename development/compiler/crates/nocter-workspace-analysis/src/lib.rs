@@ -1109,6 +1109,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn authored_preparation_rejection_stays_exact_current_and_matches_fresh_analysis() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let original = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "pub interface Readable {\n",
+            "    pub method &self.read(): i32\n",
+            "}\n",
+            "struct Value {}\n",
+            "instance Value { impl Readable }\n",
+            "func helper(): i32 { return 1 }\n",
+        );
+        let changed = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "pub interface Readable {\n",
+            "    pub method &self.read(): i32\n",
+            "}\n",
+            "struct Value {}\n",
+            "instance Value { impl Readable }\n",
+            "func helper(): i32 {\n",
+            "    return 2\n",
+            "}\n",
+        );
+        fs::write(&root, original).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        let first = analyses
+            .analyze(documents.open(&root, 1, original).unwrap())
+            .unwrap();
+        assert_eq!(
+            first.primary().snapshot().unwrap().status(),
+            AnalysisStatus::CompilationFailed
+        );
+        let before = analyses.program_preparation_counts();
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, changed).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        let warm = analyses.analyze(revision).unwrap();
+        let after = analyses.program_preparation_counts();
+        assert_eq!(after.0, before.0 + 1);
+
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let fresh = fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, changed).unwrap())
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
+    }
+
     fn analysis_signature(generation: &WorkspaceAnalysisGeneration) -> AnalysisSignature {
         let snapshot = generation.snapshot().expect("analysis reached discovery");
         let sources = snapshot

@@ -39,9 +39,11 @@ identities; session replays the canonical complete set without rechecking. Instr
 that one body edit executes one lexical and one typed query while reusing a syntax-shifted sibling.
 Typed authored rejection and interruption recovery now travel through the same body query graph.
 Lexical authored rejection is query-owned as well: its current diagnostic and reusable partial
-prefix materialize one canonical `NameAnalysisRecovery` without resolving any body twice. Next
-publish preparation rejection/recovery, then move ownership/provenance/loan finalization behind a
-complete body-product query before removing the remaining recovery fallback.
+prefix materialize one canonical `NameAnalysisRecovery` without resolving any body twice.
+Program-wide authored preparation rejection now retains its exact diagnostic, declaration
+recovery, and repair capability in the query graph; session opens an owned branch without running
+preparation again. Next move ownership/provenance/loan finalization behind a complete body-product
+query and remove the remaining semantic fallback.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 
