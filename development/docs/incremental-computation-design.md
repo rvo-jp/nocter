@@ -127,6 +127,15 @@ The session-owned analyzed unit retains the exact immutable discovery snapshot t
 ownership. A declaration query and its final analysis result can therefore borrow the same object;
 neither side clones a graph containing generation-local IDs or reconstructs discovery from paths.
 
+Discovery additionally freezes one source-neutral semantic topology surface. It canonicalizes the
+selected target, package identities and dependency aliases, module/source membership, top-level
+`see` and `use` resolutions, package targets, and toolchain attachments. Source contents remain
+owned by source/module surface queries, while body-local imports remain body inputs. The encoding
+uses stable vocabulary supplied by the owning model contracts, validates every retained resolution
+kind, and is independent of discovery traversal order. The declaration query will compose this
+topology product with module surfaces instead of rerunning discovery or interpreting its private
+storage.
+
 ## Source Projection
 
 A stage product carries its semantic result, diagnostics, deterministic fingerprint, and source

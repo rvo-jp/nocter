@@ -818,6 +818,96 @@ fn canonical_output_does_not_depend_on_request_order() {
     ];
     assert_eq!(forward.root_packages(), expected_roots.as_slice());
     assert_eq!(reverse.root_packages(), expected_roots.as_slice());
+    assert_eq!(
+        forward.semantic_topology_surface().unwrap(),
+        reverse.semantic_topology_surface().unwrap()
+    );
+}
+
+#[test]
+fn semantic_topology_ignores_body_contents_and_block_uses() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\nuse ./first\nuse ./second\n\nfunc main(): void {\n    use ./first\n    return\n}\n",
+    );
+    tree.source("app/first/index.nct", "pub func first(): void { return }\n");
+    tree.source(
+        "app/second/index.nct",
+        "pub func second(): void { return }\n",
+    );
+    let identity = PackageIdentity::new("workspace:app");
+    let request = || {
+        DiscoveryRequest::declared(
+            CompilationTarget::Arm64Darwin,
+            package_graph(vec![package(
+                "workspace:app",
+                "app",
+                &tree.path().join("app"),
+            )]),
+            vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+            minimal_toolchain("workspace:app"),
+        )
+    };
+    let before = discover(request())
+        .unwrap()
+        .semantic_topology_surface()
+        .unwrap();
+
+    fs::write(
+        tree.path().join("app/index.nct"),
+        "#package: { name: \"app\", version: \"0.0.0\", }\nuse ./first\nuse ./second\n\nfunc main(): void {\n    use ./second\n    let changed = 1\n    return\n}\n",
+    )
+    .unwrap();
+    let after = discover(request())
+        .unwrap()
+        .semantic_topology_surface()
+        .unwrap();
+
+    assert_eq!(before, after);
+}
+
+#[test]
+fn semantic_topology_tracks_top_level_use_selection() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\nuse ./first\n",
+    );
+    tree.source("app/first/index.nct", "pub func first(): void { return }\n");
+    tree.source(
+        "app/second/index.nct",
+        "pub func second(): void { return }\n",
+    );
+    let identity = PackageIdentity::new("workspace:app");
+    let request = || {
+        DiscoveryRequest::declared(
+            CompilationTarget::Arm64Darwin,
+            package_graph(vec![package(
+                "workspace:app",
+                "app",
+                &tree.path().join("app"),
+            )]),
+            vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+            minimal_toolchain("workspace:app"),
+        )
+    };
+    let before = discover(request())
+        .unwrap()
+        .semantic_topology_surface()
+        .unwrap();
+
+    fs::write(
+        tree.path().join("app/index.nct"),
+        "#package: { name: \"app\", version: \"0.0.0\", }\nuse ./second\n",
+    )
+    .unwrap();
+    let after = discover(request())
+        .unwrap()
+        .semantic_topology_surface()
+        .unwrap();
+
+    assert_ne!(before, after);
 }
 
 #[test]

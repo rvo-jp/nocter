@@ -104,6 +104,59 @@ impl PrimitiveRole {
         Self::Unreachable,
     ];
 
+    /// Returns the stable compiler-contract name of this primitive role.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NewError => "new_error",
+            Self::ErrorContext => "error_context",
+            Self::ErrorCode => "error_code",
+            Self::ErrorMessage => "error_message",
+            Self::AllocationFailureError => "allocation_failure_error",
+            Self::CurrentAllocatorState => "current_allocator_state",
+            Self::CurrentAllocatorKind => "current_allocator_kind",
+            Self::AllocationAbort => "allocation_abort",
+            Self::PointerAddress => "pointer_address",
+            Self::PointerFromReference => "pointer_from_reference",
+            Self::PointerFromReadWriteReference => "pointer_from_read_write_reference",
+            Self::PointerFromAddress => "pointer_from_address",
+            Self::PointeeSize => "pointee_size",
+            Self::PointeeAlignment => "pointee_alignment",
+            Self::CopyStringToPointer => "copy_string_to_pointer",
+            Self::CopyPointerToPointer => "copy_pointer_to_pointer",
+            Self::StoreByteToPointer => "store_byte_to_pointer",
+            Self::StoreValueToPointer => "store_value_to_pointer",
+            Self::DropValueAtPointer => "drop_value_at_pointer",
+            Self::TakeValueAtPointer => "take_value_at_pointer",
+            Self::StringFromRawParts => "string_from_raw_parts",
+            Self::ByteSliceFromRawParts => "byte_slice_from_raw_parts",
+            Self::MutableByteSliceFromRawParts => "mutable_byte_slice_from_raw_parts",
+            Self::ValueSliceFromRawParts => "value_slice_from_raw_parts",
+            Self::MutableValueSliceFromRawParts => "mutable_value_slice_from_raw_parts",
+            Self::BytesFromString => "bytes_from_string",
+            Self::StringSubviewUnchecked => "string_subview_unchecked",
+            Self::SliceLength => "slice_length",
+            Self::SlicePointerAddress => "slice_pointer_address",
+            Self::StringLength => "string_length",
+            Self::StringPointerAddress => "string_pointer_address",
+            Self::ProcessExit => "process_exit",
+            Self::ProcessArgumentCount => "process_argument_count",
+            Self::ProcessArgument => "process_argument",
+            Self::ProcessEnvironmentCount => "process_environment_count",
+            Self::ProcessEnvironmentName => "process_environment_name",
+            Self::ProcessEnvironmentValue => "process_environment_value",
+            Self::Syscall0 => "syscall_0",
+            Self::Syscall1 => "syscall_1",
+            Self::Syscall2 => "syscall_2",
+            Self::Syscall3 => "syscall_3",
+            Self::Syscall4 => "syscall_4",
+            Self::Syscall5 => "syscall_5",
+            Self::Syscall6 => "syscall_6",
+            Self::Trap => "trap",
+            Self::Unreachable => "unreachable",
+        }
+    }
+
     const fn index(self) -> usize {
         self as usize
     }

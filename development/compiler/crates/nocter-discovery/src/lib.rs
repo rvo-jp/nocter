@@ -11,6 +11,7 @@ mod failure;
 mod graph;
 mod module_catalog;
 mod request;
+mod semantic_topology;
 mod snapshot;
 mod source_visibility;
 mod syntax;
@@ -20,6 +21,7 @@ pub use failure::DiscoveryFailure;
 pub use graph::{discover, discover_with_source_syntax};
 pub use module_catalog::module_for_source;
 pub use request::{DiscoveryLayout, DiscoveryRequest};
+pub use semantic_topology::{SemanticTopologyError, SemanticTopologySurface};
 pub use snapshot::{
     CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,
     DiscoveredUnit,

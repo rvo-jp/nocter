@@ -11,6 +11,17 @@ pub enum PackageTargetKind {
     Test,
 }
 
+impl PackageTargetKind {
+    /// Returns the stable source vocabulary for this target category.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Executable => "executable",
+            Self::Test => "test",
+        }
+    }
+}
+
 /// One target name recognized by this compiler release.
 ///
 /// Recognition and implementation availability are deliberately separate. Frontend selection
