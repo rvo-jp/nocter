@@ -173,6 +173,7 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
         "nocter-compiler-computation",
         "nocter-session",
         "nocter-semantic-computation",
+        "nocter-semantic-product",
         "nocter-analysis",
         "nocter-workspace-analysis",
         "nocter-language-server",
@@ -301,6 +302,7 @@ fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
             "nocter-filesystem".to_owned(),
             "nocter-model".to_owned(),
             "nocter-semantic-computation".to_owned(),
+            "nocter-semantic-product".to_owned(),
             "nocter-source".to_owned(),
             "nocter-syntax".to_owned(),
         ])
@@ -325,30 +327,26 @@ fn command_and_workspace_policy_share_only_the_compiler_computation_entry() {
 }
 
 #[test]
-fn session_cannot_invoke_semantic_compiler_stages() {
-    let source_root = workspace().join("crates/nocter-session/src");
-    let mut pending = vec![source_root];
-    let mut source = String::new();
-    while let Some(path) = pending.pop() {
-        for entry in std::fs::read_dir(path).expect("read session source directory") {
-            let path = entry.expect("read session source entry").path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "rs") {
-                source.push_str(&std::fs::read_to_string(path).expect("read session Rust source"));
-            }
+fn session_can_consume_semantic_products_but_cannot_invoke_semantic_computation() {
+    let dependencies = production_dependencies("nocter-session");
+    assert!(dependencies.contains("nocter-semantic-product"));
+    assert!(!dependencies.contains("nocter-semantic-computation"));
+    assert_eq!(
+        production_dependencies("nocter-semantic-product"),
+        BTreeSet::from(["nocter-semantic-computation".to_owned()])
+    );
+}
+
+#[test]
+fn semantic_query_execution_has_only_its_owner_and_product_facade_as_consumers() {
+    let allowed = BTreeSet::from(["nocter-compiler-computation", "nocter-semantic-product"]);
+    for crate_name in crate_names() {
+        if production_dependencies(&crate_name).contains("nocter-semantic-computation") {
+            assert!(
+                allowed.contains(crate_name.as_str()),
+                "{crate_name} must consume semantic products instead of query execution"
+            );
         }
-    }
-    for forbidden in [
-        "lower_compile_unit_declarations_recovering(",
-        "prepare_program_checking_recovering(",
-        "check_prepared_program_recovering(",
-        "analyze_incomplete_semantics(",
-    ] {
-        assert!(
-            !source.contains(forbidden),
-            "session source must not invoke {forbidden}"
-        );
     }
 }
 

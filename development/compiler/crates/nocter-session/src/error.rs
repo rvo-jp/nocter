@@ -130,19 +130,19 @@ impl From<nocter_checking::BodyCheckError> for CompileSessionError {
     }
 }
 
-impl From<nocter_semantic_computation::IncompleteSemanticError> for CompileSessionError {
-    fn from(error: nocter_semantic_computation::IncompleteSemanticError) -> Self {
+impl From<nocter_semantic_product::IncompleteSemanticError> for CompileSessionError {
+    fn from(error: nocter_semantic_product::IncompleteSemanticError) -> Self {
         match error {
-            nocter_semantic_computation::IncompleteSemanticError::CompileInput(error) => {
+            nocter_semantic_product::IncompleteSemanticError::CompileInput(error) => {
                 Self::CompileInput(error)
             }
-            nocter_semantic_computation::IncompleteSemanticError::Declaration(error) => {
+            nocter_semantic_product::IncompleteSemanticError::Declaration(error) => {
                 Self::Declaration(error)
             }
-            nocter_semantic_computation::IncompleteSemanticError::Preparation(error) => {
+            nocter_semantic_product::IncompleteSemanticError::Preparation(error) => {
                 Self::Preparation(error)
             }
-            nocter_semantic_computation::IncompleteSemanticError::Checking(error) => {
+            nocter_semantic_product::IncompleteSemanticError::Checking(error) => {
                 Self::Checking(error)
             }
         }

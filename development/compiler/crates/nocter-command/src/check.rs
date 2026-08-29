@@ -1,6 +1,5 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use nocter_model::CompilationTarget;
 use nocter_package_state::PackageAcquisitionAuthority;
@@ -110,7 +109,6 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
         presentation: presentation.clone(),
         error: Box::new(error),
     })?;
-    let unit = Arc::new(unit);
     match compiler.compile(&unit) {
         Ok(target) => Ok(CheckCommandResult {
             target,

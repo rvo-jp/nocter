@@ -42,15 +42,14 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     )
     .unwrap();
     let root = ModuleIdentity::new(package.clone(), Vec::<&str>::new());
-    let unit = discover(DiscoveryRequest::declared(
+    let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         graph,
         vec![root.clone()],
         ToolchainInput::new(package, root, Vec::new(), Vec::new()),
-    ))
-    .unwrap();
+    );
 
-    let snapshot = analyzed_snapshot(GenerationId::new(41), unit);
+    let snapshot = analyzed_snapshot(GenerationId::new(41), request);
 
     assert_eq!(snapshot.generation(), GenerationId::new(41));
     assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
@@ -618,14 +617,13 @@ fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> Analy
     ])
     .unwrap();
     let root = ModuleIdentity::new(package, Vec::<&str>::new());
-    let unit = discover(DiscoveryRequest::declared(
+    let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         graph,
         vec![root],
         bundled_standard_toolchain(&standard),
-    ))
-    .unwrap();
-    analyzed_snapshot(generation, unit)
+    );
+    analyzed_snapshot(generation, request)
 }
 
 pub(crate) fn bundled_snapshot(
@@ -643,26 +641,22 @@ pub(crate) fn bundled_snapshot(
             .with_standard_dependency(standard.clone()),
     ])
     .unwrap();
-    let unit = discover(DiscoveryRequest::single_file(
+    let request = DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
         &source_path,
         graph,
         bundled_standard_toolchain(&standard),
-    ))
-    .unwrap();
-    (source_path, analyzed_snapshot(generation, unit))
+    );
+    (source_path, analyzed_snapshot(generation, request))
 }
 
-fn analyzed_snapshot(
-    generation: GenerationId,
-    unit: nocter_discovery::DiscoveredUnit,
-) -> AnalysisSnapshot {
-    let unit = std::sync::Arc::new(unit);
+fn analyzed_snapshot(generation: GenerationId, request: DiscoveryRequest) -> AnalysisSnapshot {
     let mut computation = nocter_compiler_computation::CompilerComputation::new();
-    computation
-        .advance_sources(unit.source_overlay(), 0)
+    let revision = computation
+        .advance_sources(request.source_overlay(), 0)
         .unwrap();
-    let product = computation.analyze(std::sync::Arc::clone(&unit)).unwrap();
+    let discovered = computation.discover(&revision, request).unwrap();
+    let product = computation.analyze(&discovered).unwrap();
     let analyzed = nocter_session::analyze_unit_from_query(&product).unwrap();
     AnalysisSnapshot::from_analyzed_unit(generation, analyzed)
 }

@@ -971,7 +971,7 @@ mod tests {
         let mut source_syntax = CountingSourceSyntax::default();
         assert!(
             catalog
-                .has_package_declaration_with_source_syntax(&root, &mut source_syntax)
+                .has_package_declaration(&root, &mut source_syntax)
                 .unwrap()
         );
 

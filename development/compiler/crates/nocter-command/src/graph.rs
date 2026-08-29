@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use nocter_json::{Member, Value, write_value};
 use nocter_package::{
     DependencySource, PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
-    ResolvedPackageSelection, ResolvedPackageSnapshot, resolve_package_selection,
+    ResolvedPackageSelection, ResolvedPackageSnapshot,
 };
 
+use crate::compiler::{CommandCompiler, CommandPackageQueryError};
 use crate::{CommandPackageContext, GraphOutputFormat, PreparedGraphCommand};
 
 /// Source authority associated with one resolved package edge.
@@ -218,13 +219,18 @@ pub fn execute_prepared_graph(
     context: &CommandPackageContext,
 ) -> Result<GraphCommandResult, GraphCommandError> {
     let (input, resolution, format) = command.into_parts();
-    let selection = resolve_package_selection(PackageResolutionRequest::new(
-        input.root(),
-        context.nocter_home(),
-        context.standard().clone(),
-        PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
-    ))
-    .map_err(GraphCommandError::Resolution)?;
+    let mut compiler = CommandCompiler::default();
+    let selection = compiler
+        .resolve_package_selection(PackageResolutionRequest::new(
+            input.root(),
+            context.nocter_home(),
+            context.standard().clone(),
+            PackageResolutionPolicy::new(resolution.locked(), resolution.offline()),
+        ))
+        .map_err(|error| match error {
+            CommandPackageQueryError::Resolution(error) => GraphCommandError::Resolution(error),
+            CommandPackageQueryError::Computation(error) => GraphCommandError::Computation(error),
+        })?;
     project_graph(&selection, format)
 }
 
@@ -310,6 +316,7 @@ fn object<const N: usize>(members: [(&str, Value); N]) -> Value {
 #[derive(Debug)]
 pub enum GraphCommandError {
     Resolution(PackageResolutionError),
+    Computation(nocter_compiler_computation::CompilerComputationError),
     NonUnicodeRoot(PathBuf),
 }
 
@@ -319,7 +326,7 @@ impl GraphCommandError {
         match self {
             Self::Resolution(PackageResolutionError::Filesystem { .. })
             | Self::NonUnicodeRoot(_) => "E0702",
-            Self::Resolution(_) => "E0800",
+            Self::Computation(_) | Self::Resolution(_) => "E0800",
         }
     }
 }
@@ -328,6 +335,7 @@ impl fmt::Display for GraphCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Resolution(error) => error.fmt(formatter),
+            Self::Computation(error) => write!(formatter, "package query failed: {error}"),
             Self::NonUnicodeRoot(path) => write!(
                 formatter,
                 "package root is not valid Unicode and cannot be represented in graph output: {}",
@@ -341,6 +349,7 @@ impl std::error::Error for GraphCommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Resolution(error) => Some(error),
+            Self::Computation(error) => Some(error),
             Self::NonUnicodeRoot(_) => None,
         }
     }

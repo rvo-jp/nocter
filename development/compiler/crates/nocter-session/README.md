@@ -6,7 +6,8 @@ Translate one closed compiler-query outcome into target validation or explicit r
 
 ## Contract
 
-The crate accepts only the sole complete-or-incomplete unit outcome from the semantic query graph.
+The crate depends on `nocter-semantic-product` and accepts only the sole complete-or-incomplete unit
+outcome from the semantic query graph.
 It opens the supplied success or rejection branch and publishes one immutable session outcome
 with capability-oriented semantic views for complete programs, typed bodies, lexical names, typed
 interruptions, and exact repair authority.
@@ -33,6 +34,8 @@ protocol values.
 - Failure-specific repair evidence moves once into its typed recovery owner.
 - Consumers cannot select raw recovery phases or reconstruct phase fallback order.
 - An analyzed unit cannot pair semantic evidence with a different discovery snapshot.
+- Bulk executable closure retains the declaring target program with every selected identity; a
+  consumer cannot combine identities and programs from separate compilations.
 - Consuming an analyzed unit for compilation returns either its target or one failure envelope that
   retains the exact source snapshot and the complete query-selected diagnostic set.
 - The analyzed unit shares one immutable discovery snapshot with computation inputs; it never

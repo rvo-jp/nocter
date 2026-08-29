@@ -117,7 +117,7 @@ fn select_executable(
 ///
 /// Panics only if `program` violates its validated package-target integrity guarantees.
 #[must_use]
-pub fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
+fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
     let graph = program.checked().graph();
     let root_packages = graph.root_packages();
     graph
@@ -145,16 +145,77 @@ pub fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
         .collect()
 }
 
-/// Closes one previously selected executable identity over its target program.
+/// Closes every root executable while retaining the target program that declared each identity.
 ///
 /// # Errors
 ///
-/// Returns an executable-closure error if the selected root cannot produce a closed program.
-pub fn close_executable(
-    target: Arc<TargetProgram>,
-    selected: &ExecutableIdentity,
-) -> Result<ExecutableProgram, ExecutableProgramError> {
-    ExecutableProgram::for_executable(target, selected.target())
+/// Returns an executable-closure error if any selected root cannot produce a closed program.
+pub fn close_root_executables(
+    target: TargetProgram,
+) -> Result<Box<[RootExecutableProgram]>, RootExecutableClosureError> {
+    let identities = root_executables(&target);
+    let target = Arc::new(target);
+    identities
+        .into_iter()
+        .map(|identity| {
+            let executable =
+                ExecutableProgram::for_executable(Arc::clone(&target), identity.target()).map_err(
+                    |source| RootExecutableClosureError {
+                        executable: identity.clone(),
+                        source,
+                    },
+                )?;
+            Ok(RootExecutableProgram {
+                identity,
+                executable,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Vec::into_boxed_slice)
+}
+
+/// One executable identity inseparably closed over the target program that declared it.
+#[derive(Debug)]
+pub struct RootExecutableProgram {
+    identity: ExecutableIdentity,
+    executable: ExecutableProgram,
+}
+
+impl RootExecutableProgram {
+    #[must_use]
+    pub fn into_parts(self) -> (ExecutableIdentity, ExecutableProgram) {
+        (self.identity, self.executable)
+    }
+}
+
+#[derive(Debug)]
+pub struct RootExecutableClosureError {
+    executable: ExecutableIdentity,
+    source: ExecutableProgramError,
+}
+
+impl RootExecutableClosureError {
+    #[must_use]
+    pub fn into_parts(self) -> (ExecutableIdentity, ExecutableProgramError) {
+        (self.executable, self.source)
+    }
+}
+
+impl fmt::Display for RootExecutableClosureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "executable {} closure failed: {}",
+            self.executable.name(),
+            self.source,
+        )
+    }
+}
+
+impl std::error::Error for RootExecutableClosureError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

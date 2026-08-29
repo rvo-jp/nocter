@@ -1,18 +1,15 @@
-use std::fmt;
-use std::sync::Arc;
-
 use nocter_arm64::{Arm64LoweringError, Arm64Program};
 use nocter_machine::{MachineProgram, MachineProgramError};
 use nocter_macho::{MachOError, MachOImage};
 use nocter_mir::{MirLoweringError, lower_executable};
+use std::fmt;
 
 use nocter_session::{
     CompiledTarget, ExecutableCompileRequest, ExecutableIdentity, ExecutableSessionError,
-    compile_executable,
+    close_root_executables, compile_executable,
 };
 
 use crate::output::{CompiledNativeImage, CompiledNativeImageSet, NativeImage, NativeImageEntry};
-use crate::{close_executable, root_executables};
 
 /// Compiles one selected executable through the complete native image boundary.
 ///
@@ -56,19 +53,19 @@ pub fn compile_native_images(
 ) -> Result<CompiledNativeImageSet, NativeImageSetError> {
     let NativeImageSetCompileRequest { target } = request;
     let (target, source_index) = target.into_parts();
-    let identities = root_executables(&target);
-    if identities.is_empty() {
+    let executables = close_root_executables(target).map_err(|error| {
+        let (executable, error) = error.into_parts();
+        NativeImageSetError::Image {
+            executable,
+            error: NativeImageError::Executable(error),
+        }
+    })?;
+    if executables.is_empty() {
         return Err(NativeImageSetError::NoExecutable);
     }
-    let target = Arc::new(target);
-    let mut entries = Vec::with_capacity(identities.len());
-    for identity in identities {
-        let executable = close_executable(Arc::clone(&target), &identity).map_err(|error| {
-            NativeImageSetError::Image {
-                executable: identity.clone(),
-                error: NativeImageError::Executable(error),
-            }
-        })?;
+    let mut entries = Vec::with_capacity(executables.len());
+    for executable in executables {
+        let (identity, executable) = executable.into_parts();
         let image = lower_native_image(executable).map_err(|error| NativeImageSetError::Image {
             executable: identity.clone(),
             error,

@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 
 use nocter_native_session::NativeImageSetCompileRequest;
 use nocter_package_state::PackageAcquisitionAuthority;
@@ -50,7 +49,6 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
         &mut compiler,
     )
     .map_err(BuildCommandExecutionError::Source)?;
-    let unit = Arc::new(unit);
     let target = compiler
         .compile(&unit)
         .map_err(BuildCommandExecutionError::Analysis)?;
@@ -59,7 +57,7 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
             match build_executables(NativeImageSetCompileRequest::all(target), output_directory) {
                 Ok(built) => Ok(BuildCommandResult::PackageSet(built)),
                 Err(error) => Err(BuildCommandExecutionError::PackageSet(Box::new(
-                    command_compilation_failure(error, &unit),
+                    command_compilation_failure(error, unit.unit()),
                 ))),
             }
         }
@@ -68,7 +66,7 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
             {
                 Ok(built) => Ok(BuildCommandResult::Selected(built)),
                 Err(error) => Err(BuildCommandExecutionError::Selected(Box::new(
-                    command_compilation_failure(error, &unit),
+                    command_compilation_failure(error, unit.unit()),
                 ))),
             }
         }
@@ -99,7 +97,6 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
         &mut compiler,
     )
     .map_err(RunCommandExecutionError::Source)?;
-    let unit = Arc::new(unit);
     let target = compiler
         .compile(&unit)
         .map_err(RunCommandExecutionError::Analysis)?;
@@ -109,7 +106,7 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     ) {
         Ok(executed) => Ok(executed),
         Err(error) => Err(RunCommandExecutionError::Run(Box::new(
-            command_compilation_failure(error, &unit),
+            command_compilation_failure(error, unit.unit()),
         ))),
     }
 }

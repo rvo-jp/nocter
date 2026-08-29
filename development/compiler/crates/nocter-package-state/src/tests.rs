@@ -11,8 +11,9 @@ use nocter_package::{
 
 use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
 use crate::{
-    LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest, PackageStateError,
-    resolve_package_state,
+    LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
+    PackageFilesystemRevision, PackageResolutionAttemptError, PackageResolutionDriver,
+    PackageStateError, resolve_package_state, resolve_package_state_with_driver,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -133,6 +134,40 @@ fn validates_staging_before_publishing_and_commits_the_root_lock_last() {
     let package_source = fs::read_to_string(tree.0.join("app/index.nct")).unwrap();
     assert!(package_source.contains(&format!("remote: \"git:{COMMIT}\"")));
     assert!(!tree.0.join("app/.nocter/transactions").exists());
+}
+
+struct RecordingResolver {
+    revisions: Vec<u64>,
+}
+
+impl PackageResolutionDriver for RecordingResolver {
+    fn resolve(
+        &mut self,
+        request: PackageResolutionRequest,
+        filesystem_revision: PackageFilesystemRevision,
+    ) -> Result<nocter_package::ResolvedPackageSelection, PackageResolutionAttemptError> {
+        self.revisions.push(filesystem_revision.get());
+        nocter_package::resolve_package_selection(request)
+            .map_err(PackageResolutionAttemptError::Domain)
+    }
+}
+
+#[test]
+fn resolver_revision_advances_only_after_committed_filesystem_changes() {
+    let tree = base_tree();
+    let mut authority = FakeAuthority::new("#package: { name: \"remote\", version: \"0.0.0\", }\n");
+    let mut resolver = RecordingResolver {
+        revisions: Vec::new(),
+    };
+
+    resolve_package_state_with_driver(
+        tree.request(PackageResolutionPolicy::default()),
+        &mut authority,
+        &mut resolver,
+    )
+    .unwrap();
+
+    assert_eq!(resolver.revisions, [0, 0, 0, 1, 2]);
 }
 
 #[test]

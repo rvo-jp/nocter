@@ -1,10 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, discover};
+use nocter_discovery::{DiscoveredUnit, DiscoveryRequest};
 use nocter_filesystem::{SourceOverlay, SourceOverride};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
@@ -23,17 +22,35 @@ use nocter_session::{
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-fn analyze_for_test(unit: nocter_discovery::DiscoveredUnit) -> AnalyzedUnit {
-    let unit = Arc::new(unit);
+struct TestDiscoveredUnit {
+    computation: nocter_compiler_computation::CompilerComputation,
+    discovered: nocter_compiler_computation::CompilerDiscoveredUnit,
+}
+
+impl std::ops::Deref for TestDiscoveredUnit {
+    type Target = DiscoveredUnit;
+
+    fn deref(&self) -> &Self::Target {
+        self.discovered.unit()
+    }
+}
+
+fn discover(request: DiscoveryRequest) -> Result<TestDiscoveredUnit, Box<dyn std::error::Error>> {
     let mut computation = nocter_compiler_computation::CompilerComputation::new();
-    computation
-        .advance_sources(unit.source_overlay(), 0)
-        .unwrap();
-    let product = computation.analyze(Arc::clone(&unit)).unwrap();
+    let revision = computation.advance_sources(request.source_overlay(), 0)?;
+    let discovered = computation.discover(&revision, request)?;
+    Ok(TestDiscoveredUnit {
+        computation,
+        discovered,
+    })
+}
+
+fn analyze_for_test(mut unit: TestDiscoveredUnit) -> AnalyzedUnit {
+    let product = unit.computation.analyze(&unit.discovered).unwrap();
     nocter_session::analyze_unit_from_query(&product).unwrap()
 }
 
-fn compile_for_test(unit: nocter_discovery::DiscoveredUnit) -> CompiledTarget {
+fn compile_for_test(unit: TestDiscoveredUnit) -> CompiledTarget {
     analyze_for_test(unit).into_compilation_result().unwrap()
 }
 

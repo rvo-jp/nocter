@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, discover_with_source_syntax};
+use nocter_compiler_computation::{CompilerDiscoveryError, CompilerSourceRevision};
+use nocter_discovery::DiscoveryRequest;
 use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
@@ -23,14 +23,23 @@ pub(crate) fn compile_scope(
     generation: GenerationId,
     package_roots: PackageRootCatalog,
     computation: &mut nocter_compiler_computation::CompilerComputation,
+    revision: &CompilerSourceRevision,
 ) -> WorkspaceAnalysisState {
     let source_overlay = package_roots.source_overlay().clone();
-    let mut source_syntax = computation.source_syntax();
-    let discovered = match input {
+    let mut source_syntax = match computation.source_syntax(revision) {
+        Ok(source_syntax) => source_syntax,
+        Err(error) => {
+            return preparation_failed(
+                source_overlay,
+                WorkspaceAnalysisError::compiler_computation(error),
+            );
+        }
+    };
+    let request = match input {
         ScopeCompilationInput::Package {
             root,
             requested_sources,
-        } => discover_package(
+        } => prepare_package(
             configuration,
             root,
             requested_sources,
@@ -38,50 +47,53 @@ pub(crate) fn compile_scope(
             &mut source_syntax,
         ),
         ScopeCompilationInput::ToolchainStandard => {
-            discover_toolchain_standard(configuration, package_roots.clone(), &mut source_syntax)
+            prepare_toolchain_standard(configuration, package_roots.clone(), &mut source_syntax)
         }
         ScopeCompilationInput::SingleFile(source) => {
-            discover_single_file(configuration, source, package_roots, &mut source_syntax)
+            prepare_single_file(configuration, source, package_roots, &mut source_syntax)
         }
     };
     drop(source_syntax);
-    match discovered {
-        Ok(unit) => {
-            let unit = Arc::new(unit);
-            let product = match computation.analyze(Arc::clone(&unit)) {
-                Ok(product) => product,
-                Err(error) => {
-                    return preparation_failed(
-                        source_overlay,
-                        WorkspaceAnalysisError::compiler_computation(error),
-                    );
-                }
-            };
-            let analyzed = match nocter_session::analyze_unit_from_query(&product) {
-                Ok(analyzed) => analyzed,
-                Err(error) => {
-                    return preparation_failed(
-                        source_overlay,
-                        WorkspaceAnalysisError::semantic_analysis(error),
-                    );
-                }
-            };
-            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
-                generation, analyzed,
-            )))
+    let request = match request {
+        Ok(request) => request,
+        Err(error) => return preparation_failed(source_overlay, error),
+    };
+    let discovered = match computation.discover(revision, request) {
+        Ok(discovered) => discovered,
+        Err(CompilerDiscoveryError::Discovery(failure)) => {
+            return WorkspaceAnalysisState::Complete(Box::new(
+                AnalysisSnapshot::from_discovery_failure(generation, failure),
+            ));
         }
-        Err(AnalysisPreparationFailure::Discovery(failure)) => {
-            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_discovery_failure(
-                generation, failure,
-            )))
-        }
-        Err(AnalysisPreparationFailure::Preparation(error)) => {
-            WorkspaceAnalysisState::PreparationFailed {
+        Err(CompilerDiscoveryError::Computation(error)) => {
+            return preparation_failed(
                 source_overlay,
-                diagnostics: preparation_diagnostics(&error),
-                error,
-            }
+                WorkspaceAnalysisError::compiler_computation(error),
+            );
         }
+    };
+    {
+        let product = match computation.analyze(&discovered) {
+            Ok(product) => product,
+            Err(error) => {
+                return preparation_failed(
+                    source_overlay.clone(),
+                    WorkspaceAnalysisError::compiler_computation(error),
+                );
+            }
+        };
+        let analyzed = match nocter_session::analyze_unit_from_query(&product) {
+            Ok(analyzed) => analyzed,
+            Err(error) => {
+                return preparation_failed(
+                    source_overlay.clone(),
+                    WorkspaceAnalysisError::semantic_analysis(error),
+                );
+            }
+        };
+        WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
+            generation, analyzed,
+        )))
     }
 }
 
@@ -96,11 +108,11 @@ fn preparation_failed(
     }
 }
 
-fn discover_toolchain_standard(
+fn prepare_toolchain_standard(
     configuration: &WorkspaceConfiguration,
     package_roots: PackageRootCatalog,
     source_syntax: &mut dyn SourceSyntaxProvider,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
+) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let package = resolve_standard_package_with_root_catalog(
@@ -108,25 +120,21 @@ fn discover_toolchain_standard(
         package_roots,
         source_syntax,
     )
-    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover_with_source_syntax(
-        DiscoveryRequest::toolchain_standard(
-            toolchain.target(),
-            package,
-            bundled_standard_toolchain(&standard),
-        ),
-        source_syntax,
-    )
-    .map_err(AnalysisPreparationFailure::Discovery)
+    .map_err(WorkspaceAnalysisError::from)?;
+    Ok(DiscoveryRequest::toolchain_standard(
+        toolchain.target(),
+        package,
+        bundled_standard_toolchain(&standard),
+    ))
 }
 
-fn discover_package(
+fn prepare_package(
     configuration: &WorkspaceConfiguration,
     root: &Path,
     requested_sources: &[PathBuf],
     package_roots: PackageRootCatalog,
     source_syntax: &mut dyn SourceSyntaxProvider,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
+) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
     let selected = resolve_package_selection_with_root_catalog(
         PackageResolutionRequest::new(
@@ -138,7 +146,7 @@ fn discover_package(
         package_roots,
         source_syntax,
     )
-    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
+    .map_err(WorkspaceAnalysisError::from)?;
     let root_package = selected.root().clone();
     let standard = selected.standard().clone();
     let package = selected
@@ -146,11 +154,7 @@ fn discover_package(
         .packages()
         .iter()
         .find(|package| package.identity() == &root_package)
-        .ok_or_else(|| {
-            AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::missing_root_package(
-                root_package.clone(),
-            ))
-        })?;
+        .ok_or_else(|| WorkspaceAnalysisError::missing_root_package(root_package.clone()))?;
     let mut roots = BTreeSet::new();
     roots.insert(ModuleIdentity::new(
         root_package.clone(),
@@ -164,9 +168,7 @@ fn discover_package(
                 source,
                 selected.graph().source_overlay(),
             )
-            .map_err(|error| {
-                AnalysisPreparationFailure::Preparation(WorkspaceAnalysisError::module_owner(error))
-            })?,
+            .map_err(WorkspaceAnalysisError::module_owner)?,
         );
     }
     if let Some(declaration) = package.declaration() {
@@ -175,24 +177,20 @@ fn discover_package(
         }));
     }
     let (packages, _, _) = selected.into_parts();
-    discover_with_source_syntax(
-        DiscoveryRequest::declared(
-            toolchain.target(),
-            packages,
-            roots.into_iter().collect(),
-            bundled_standard_toolchain(&standard),
-        ),
-        source_syntax,
-    )
-    .map_err(AnalysisPreparationFailure::Discovery)
+    Ok(DiscoveryRequest::declared(
+        toolchain.target(),
+        packages,
+        roots.into_iter().collect(),
+        bundled_standard_toolchain(&standard),
+    ))
 }
 
-fn discover_single_file(
+fn prepare_single_file(
     configuration: &WorkspaceConfiguration,
     source: &Path,
     package_roots: PackageRootCatalog,
     source_syntax: &mut dyn SourceSyntaxProvider,
-) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
+) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let packages = resolve_standard_package_with_root_catalog(
@@ -200,20 +198,11 @@ fn discover_single_file(
         package_roots,
         source_syntax,
     )
-    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover_with_source_syntax(
-        DiscoveryRequest::single_file(
-            toolchain.target(),
-            source,
-            packages,
-            bundled_standard_toolchain(&standard),
-        ),
-        source_syntax,
-    )
-    .map_err(AnalysisPreparationFailure::Discovery)
-}
-
-enum AnalysisPreparationFailure {
-    Preparation(WorkspaceAnalysisError),
-    Discovery(nocter_discovery::DiscoveryFailure),
+    .map_err(WorkspaceAnalysisError::from)?;
+    Ok(DiscoveryRequest::single_file(
+        toolchain.target(),
+        source,
+        packages,
+        bundled_standard_toolchain(&standard),
+    ))
 }

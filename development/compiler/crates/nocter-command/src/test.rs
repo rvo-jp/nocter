@@ -1,7 +1,6 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::DiscoveryFailure;
@@ -306,7 +305,6 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
                 continue;
             }
         };
-        let unit = Arc::new(unit);
         let target_program = match compiler.compile(&unit) {
             Ok(target_program) => target_program,
             Err(failure) => {
@@ -330,14 +328,14 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
             Err(error @ NativeTestSessionError::Selection(_)) => {
                 return Err(TestCommandExecutionError::Compile {
                     presentation: presentation.clone(),
-                    failure: Box::new(command_compilation_failure(error, &unit)),
+                    failure: Box::new(command_compilation_failure(error, unit.unit())),
                 });
             }
             Err(error) => {
                 let code = error.diagnostic_code().unwrap_or("E0900");
                 let message = error.to_string();
                 let (_, sources, diagnostics) =
-                    command_compilation_failure(error, &unit).into_parts();
+                    command_compilation_failure(error, unit.unit()).into_parts();
                 runs.push(compile_failure(target, code, message, diagnostics, sources));
             }
         }

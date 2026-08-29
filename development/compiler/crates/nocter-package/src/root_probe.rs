@@ -7,8 +7,8 @@ use std::sync::Arc;
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceError, SourceMap, SourceName};
 use nocter_syntax::{
-    DirectSourceSyntax, NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider,
-    SyntaxElement, SyntaxTree,
+    NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider, SyntaxElement,
+    SyntaxTree,
 };
 
 /// Immutable package-root facts selected from one exact source overlay.
@@ -76,20 +76,6 @@ impl PackageRootCatalogBuilder {
     /// Returns the exact retained source-selection or source-decoding failure. A missing index is
     /// reported as `Ok(false)`.
     pub fn has_package_declaration(
-        &mut self,
-        directory: &Path,
-    ) -> Result<bool, Arc<PackageRootProbeError>> {
-        self.has_package_declaration_with_source_syntax(directory, &mut DirectSourceSyntax)
-    }
-
-    /// Reports whether a directory declares a package while obtaining syntax from one caller-owned
-    /// provider.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same retained failure as [`Self::has_package_declaration`], including a syntax
-    /// provider infrastructure failure.
-    pub fn has_package_declaration_with_source_syntax(
         &mut self,
         directory: &Path,
         source_syntax: &mut dyn SourceSyntaxProvider,
@@ -319,8 +305,9 @@ mod tests {
 
         let root = fs::canonicalize(root).unwrap();
         let mut catalog = PackageRootCatalogBuilder::new(SourceOverlay::empty());
-        assert!(catalog.has_package_declaration(&root).unwrap());
-        assert!(catalog.has_package_declaration(&root).unwrap());
+        let mut syntax = nocter_syntax::DirectSourceSyntax;
+        assert!(catalog.has_package_declaration(&root, &mut syntax).unwrap());
+        assert!(catalog.has_package_declaration(&root, &mut syntax).unwrap());
         assert_eq!(catalog.finish().len(), 1);
 
         fs::remove_dir_all(root).unwrap();

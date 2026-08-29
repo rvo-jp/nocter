@@ -130,8 +130,9 @@
   editing one open source cannot dirty unrelated source-text queries.</li><li>Reused parse products are rebound through the syntax-owned text/identity contract; workspace code
   cannot rewrite syntax identities itself.</li><li>Speculative mutation validation owns an isolated computation database and cannot read or mutate
   the accepted revision's query state.</li><li>A module surface depends on each member source's canonical declaration syntax. A body-only edit
-  may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.</li><li>Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
-  discovery snapshot. It cannot inspect declaration storage, body recipes, or invalidation rules.</li><li>For source-complete input, workspace passes only a closed semantic success/rejection product to
+  may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.</li><li>Compiler computation publishes semantic and exact-current fingerprints from the same shared
+  discovery snapshot. Workspace orchestration cannot inspect declaration storage, body recipes,
+  fingerprint construction, or invalidation rules.</li><li>For source-complete input, workspace passes only a closed semantic success/rejection product to
   session. Missing declaration, preparation, or finalization products are integrity errors; they
   cannot select a session fallback that reruns compiler stages.</li><li>Workspace demands one top-level unit-analysis query rather than selecting complete versus
   incomplete syntax or demanding declaration, preparation, lexical, typed, finalization, and

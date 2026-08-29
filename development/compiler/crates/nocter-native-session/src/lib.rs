@@ -18,7 +18,5 @@ pub use test::{
     TestTargetSelectionError, compile_native_tests,
 };
 
-use nocter_session::{close_executable, root_executables};
-
 #[cfg(test)]
 mod tests;

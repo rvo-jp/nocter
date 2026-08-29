@@ -127,7 +127,7 @@ pub enum DocumentChange {
 /// Mutable protocol-independent owner of accepted open documents.
 ///
 /// Mutation stays here. Every accepted transition emits a complete immutable overlay suitable for
-/// exactly one [`crate::AnalysisSnapshot`].
+/// exactly one analysis snapshot.
 #[derive(Debug)]
 pub struct WorkspaceDocuments {
     sequence: WorkspaceRevisionSequence,

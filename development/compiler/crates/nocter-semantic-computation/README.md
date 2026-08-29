@@ -7,10 +7,12 @@ source-neutral compiler results.
 
 ## Contract
 
-Workspace orchestration publishes one immutable discovery snapshot through separate declaration-
+Compiler computation publishes one immutable discovery snapshot through separate declaration-
 semantic and exact-current-source fingerprints. Queries read the narrowest input required by their
 outcome and publish reusable semantic products without exposing query storage or invalidation
-policy. This crate does not discover files, interpret editor requests, or invoke target backends.
+policy. One closed public entry owns input publication and final demand; intermediate query entries
+remain crate-private. This crate does not discover files, interpret editor requests, or invoke
+target backends.
 
 ## Internal Responsibilities
 
@@ -68,8 +70,8 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   finalizer or lexical-recovery builder.
 - Incomplete syntax enters one separate exact-current query. Its result contains the selected
   compiler-domain failure and deepest valid recovery authority, never a target-program success.
-  Direct session analysis delegates to the same pure traversal rather than implementing another
-  declaration/preparation/body recovery order.
+  Session receives the selected result through `nocter-semantic-product` and cannot invoke the
+  traversal or implement another declaration/preparation/body recovery order.
 - One top-level exact-current analysis query selects the declaration, preparation, lexical, body,
   or checked branch. It is the only source-complete product transported across the workspace/session
   boundary. Intermediate queries remain independently memoized but cannot become orchestration

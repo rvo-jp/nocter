@@ -44,10 +44,11 @@ may demand only the semantic capability it needs. Both paths invoke the same sta
   implements this mechanism without depending on a compiler-domain crate.
 - declaration lowering, checking, target construction, and later backend stages own semantic rules
   and return immutable products.
-- semantic computation owns the only workspace-query stage order and recovery continuation. Direct
-  session compilation uses the same recovery composer, then owns target construction and the
-  translation from a closed query outcome. One analyzed unit owns its discovery snapshot and exact
-  session result inseparably.
+- semantic computation owns the only compiler-query stage order and recovery continuation.
+  Compiler computation publishes one closed query input and demands its result. Session depends on
+  the separate semantic-product contract, then owns target construction and translation from that
+  closed outcome. One analyzed unit owns its discovery snapshot and exact session result
+  inseparably.
 - analysis owns the validated join between semantic evidence and source projection. It does not
   invoke compiler stages or inspect computation storage.
 - protocol layers consume typed analysis results only.
@@ -146,8 +147,8 @@ kind, and is independent of discovery traversal order. The declaration query com
 topology product with module surfaces instead of rerunning discovery or interpreting its private
 storage.
 
-That composition is now integrated through the dedicated `nocter-semantic-computation` owner.
-Workspace orchestration publishes two fingerprints carrying the same shared discovery snapshot:
+That composition is integrated through the dedicated `nocter-semantic-computation` owner.
+`nocter-compiler-computation` publishes two fingerprints carrying the same shared discovery snapshot:
 declaration semantics combine canonical topology with all module surfaces, while exact current
 source additionally includes every reached canonical path, normalized byte sequence, and
 `SourceId` layout. The declaration query reads only the
@@ -166,7 +167,7 @@ checker without widening declaration invalidation.
 
 The body-query input boundary now exists independently of checking. Syntax pairs every executable
 block pruned from a declaration surface with that block's stable declaration locator and exact
-normalized bytes. Workspace orchestration reads those body surfaces from the same source-surface
+normalized bytes. Compiler computation reads those body surfaces from the same source-surface
 product already demanded for module composition, then atomically publishes inputs keyed by
 canonical physical path plus locator. A sibling-body edit therefore leaves an unchanged body's key
 and fingerprint equal. Lexical and typed-body queries now consume that same input; publication

@@ -15,5 +15,7 @@ analysis, implement backend rules, select command-line policy, or publish filesy
 
 - Each stage consumes exactly the previous closed product.
 - Native requests cannot carry a discovery snapshot or reopen semantic compilation.
+- Multi-executable lowering receives already paired identities and executable programs from
+  session; it cannot repeat target lookup or combine separate target owners.
 - A backend integrity failure cannot be presented as a source-language diagnostic.
 - Partial native output is never returned as a successful artifact.

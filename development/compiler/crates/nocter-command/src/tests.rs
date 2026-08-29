@@ -1,11 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, discover};
+use nocter_discovery::DiscoveryRequest;
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_native_session::NativeImageSetCompileRequest;
@@ -273,12 +272,13 @@ fn build_and_run_plans_close_package_and_file_selection_rules() {
 
 #[test]
 fn build_commits_one_complete_session_image_at_the_requested_path() {
-    let unit = Arc::new(discover_hello());
+    let mut compiler = super::compiler::CommandCompiler::default();
+    let unit = compiler.discover(hello_request()).unwrap();
     let directory = unique_test_directory("build");
     let output = directory.join("hello");
 
-    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
-    let built = super::build_executable(ExecutableCompileRequest::only(compiled), &output).unwrap();
+    let target = compiler.compile(&unit).unwrap();
+    let built = super::build_executable(ExecutableCompileRequest::only(target), &output).unwrap();
 
     assert_eq!(built.artifact().path(), output);
     assert_eq!(&fs::read(&output).unwrap()[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
@@ -302,7 +302,6 @@ fn one_shot_command_demands_the_closed_semantic_query_graph() {
         ))
         .unwrap();
 
-    let unit = Arc::new(unit);
     compiler.compile(&unit).unwrap();
 
     let statistics = compiler.statistics();
@@ -335,10 +334,10 @@ fn command_failure_retains_diagnostics_selected_beneath_incomplete_syntax() {
             "}\n",
         ),
     );
-    let unit = Arc::new(discover_single_file(&source));
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
     let syntax_diagnostic_count = unit.syntax_diagnostics().len();
 
-    let failure = super::compiler::compile_discovered_unit(&unit).unwrap_err();
+    let failure = compiler.compile(&unit).unwrap_err();
 
     assert!(syntax_diagnostic_count > 0);
     assert!(
@@ -368,7 +367,7 @@ fn package_build_publishes_all_executables_in_declaration_order() {
         "src/second/index.nct",
         "func main(): void { return }\n",
     );
-    let unit = Arc::new(discover_package(
+    let (mut compiler, unit) = command_discover(package_request(
         vec![package("workspace:tools", "tools", &package_root)],
         vec![
             module("workspace:tools", &[]),
@@ -377,10 +376,9 @@ fn package_build_publishes_all_executables_in_declaration_order() {
         ],
     ));
 
-    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let target = compiler.compile(&unit).unwrap();
     let built =
-        super::build_executables(NativeImageSetCompileRequest::all(compiled), &package_root)
-            .unwrap();
+        super::build_executables(NativeImageSetCompileRequest::all(target), &package_root).unwrap();
 
     assert_eq!(
         built
@@ -415,7 +413,7 @@ fn package_build_rejects_cross_root_output_collisions_before_writing() {
         );
         write_source(root, "index.nct", "func main(): void { return }\n");
     }
-    let unit = Arc::new(discover_package(
+    let (mut compiler, unit) = command_discover(package_request(
         vec![
             package("workspace:first", "first", &first_root),
             package("workspace:second", "second", &second_root),
@@ -426,8 +424,8 @@ fn package_build_rejects_cross_root_output_collisions_before_writing() {
         ],
     ));
 
-    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
-    let error = super::build_executables(NativeImageSetCompileRequest::all(compiled), &directory)
+    let target = compiler.compile(&unit).unwrap();
+    let error = super::build_executables(NativeImageSetCompileRequest::all(target), &directory)
         .unwrap_err();
 
     assert!(matches!(error, super::BuildSetCommandError::Plan(_)));
@@ -442,11 +440,11 @@ fn run_returns_a_nonzero_program_status_without_classifying_it_as_orchestration_
     let directory = unique_test_directory("run-status");
     let source = directory.join("status.nct");
     fs::write(&source, "func main(): i32 { 7 }\n").unwrap();
-    let unit = Arc::new(discover_single_file(&source));
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
 
-    let compiled = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let target = compiler.compile(&unit).unwrap();
     let executed =
-        super::run_executable(ExecutableCompileRequest::only(compiled), &directory).unwrap();
+        super::run_executable(ExecutableCompileRequest::only(target), &directory).unwrap();
 
     assert_eq!(executed.status().code(), Some(7));
     fs::remove_dir_all(directory).unwrap();
@@ -804,10 +802,11 @@ fn every_public_single_file_example_runs_to_success() {
     assert!(!sources.is_empty());
 
     for source in sources {
-        let unit = Arc::new(discover_single_file(&source));
+        let (mut compiler, unit) = command_discover(single_file_request(&source));
         let output_directory = unique_test_directory("public-example");
         let executable = output_directory.join("program");
-        let target_program = super::compiler::compile_discovered_unit(&unit)
+        let target_program = compiler
+            .compile(&unit)
             .unwrap_or_else(|error| panic!("{} failed to analyze: {error:?}", source.display()));
         super::build_executable(ExecutableCompileRequest::only(target_program), &executable)
             .unwrap_or_else(|error| panic!("{} failed to build: {error:?}", source.display()));
@@ -841,10 +840,10 @@ fn every_public_single_file_example_runs_to_success() {
 fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("tests/fixtures/standard/error-runtime.nct");
-    let unit = Arc::new(discover_single_file(&source));
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
     let output_directory = unique_test_directory("standard-error-runtime");
     let executable = output_directory.join("program");
-    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let target_program = compiler.compile(&unit).unwrap();
     super::build_executable(ExecutableCompileRequest::only(target_program), &executable).unwrap();
 
     let verified = Command::new(&executable).output().unwrap();
@@ -864,10 +863,10 @@ fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
 fn bundled_standard_filesystem_runtime_crosses_public_stream_and_os_contracts() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("tests/fixtures/standard/filesystem-runtime.nct");
-    let unit = Arc::new(discover_single_file(&source));
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
     let output_directory = unique_test_directory("standard-filesystem-runtime");
     let executable = output_directory.join("program");
-    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap_or_else(|error| {
+    let target_program = compiler.compile(&unit).unwrap_or_else(|error| {
         let sources = unit
             .sources()
             .iter()
@@ -931,7 +930,7 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
     let package_root = compiler_root
         .join("../../examples")
         .join(contract.directory());
-    let unit = Arc::new(discover_package(
+    let (mut compiler, unit) = command_discover(package_request(
         vec![package(
             contract.package_identity(),
             contract.executable(),
@@ -942,7 +941,7 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
     let output_directory = unique_test_directory("public-package-example");
     materialize_public_example_fixtures(&output_directory, contract.fixtures());
     let executable = output_directory.join(contract.executable());
-    let target_program = super::compiler::compile_discovered_unit(&unit).unwrap();
+    let target_program = compiler.compile(&unit).unwrap();
     super::build_executable(
         ExecutableCompileRequest::named(target_program, contract.executable()),
         &executable,
@@ -1188,23 +1187,29 @@ fn command_toolchain() -> super::CommandToolchain {
     )
 }
 
-fn discover_hello() -> nocter_discovery::DiscoveredUnit {
+fn hello_request() -> DiscoveryRequest {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("../../examples/hello.nct");
-    discover_single_file(&source)
-}
-
-fn discover_single_file(source: &Path) -> nocter_discovery::DiscoveredUnit {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package = PackageIdentity::new("toolchain:std");
-    discover(DiscoveryRequest::single_file(
+    DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
         source,
         package_graph(vec![resolved_standard(&standard_root, &package)]),
         bundled_standard_toolchain(&package),
-    ))
-    .unwrap()
+    )
+}
+
+fn single_file_request(source: &Path) -> DiscoveryRequest {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package = PackageIdentity::new("toolchain:std");
+    DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        source,
+        package_graph(vec![resolved_standard(&standard_root, &package)]),
+        bundled_standard_toolchain(&package),
+    )
 }
 
 fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackageSpec {
@@ -1220,21 +1225,31 @@ fn module(package: &str, path: &[&str]) -> ModuleIdentity {
     ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied())
 }
 
-fn discover_package(
+fn package_request(
     mut packages: Vec<ResolvedPackageSpec>,
     roots: Vec<ModuleIdentity>,
-) -> nocter_discovery::DiscoveredUnit {
+) -> DiscoveryRequest {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let standard = PackageIdentity::new("toolchain:std");
     packages.push(resolved_standard(&standard_root, &standard));
-    discover(DiscoveryRequest::declared(
+    DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         package_graph(packages),
         roots,
         bundled_standard_toolchain(&standard),
-    ))
-    .unwrap()
+    )
+}
+
+fn command_discover(
+    request: DiscoveryRequest,
+) -> (
+    super::compiler::CommandCompiler,
+    nocter_compiler_computation::CompilerDiscoveredUnit,
+) {
+    let mut compiler = super::compiler::CommandCompiler::default();
+    let unit = compiler.discover(request).unwrap();
+    (compiler, unit)
 }
 
 fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {

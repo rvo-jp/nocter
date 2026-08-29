@@ -144,20 +144,20 @@ impl AnalyzedUnit {
 ///
 /// Returns an integrity error when the query graph did not publish required semantic authority.
 pub fn analyze_unit_from_query(
-    product: &nocter_semantic_computation::UnitAnalysisProduct,
+    product: &nocter_semantic_product::UnitAnalysisProduct,
 ) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
     let unit = Arc::clone(product.unit());
     match product.outcome() {
-        nocter_semantic_computation::UnitAnalysisOutcome::Complete(complete) => {
+        nocter_semantic_product::UnitAnalysisOutcome::Complete(complete) => {
             analyzed_complete_unit(unit, complete)
         }
-        nocter_semantic_computation::UnitAnalysisOutcome::Incomplete(incomplete) => {
+        nocter_semantic_product::UnitAnalysisOutcome::Incomplete(incomplete) => {
             Ok(analyzed_incomplete_unit(
                 unit,
                 crate::analysis::incomplete_syntax_analysis(incomplete),
             ))
         }
-        nocter_semantic_computation::UnitAnalysisOutcome::Unavailable(authority) => Err(
+        nocter_semantic_product::UnitAnalysisOutcome::Unavailable(authority) => Err(
             SemanticAnalysisDomainError::UnavailableUnitAnalysis(*authority),
         ),
     }
@@ -165,10 +165,10 @@ pub fn analyze_unit_from_query(
 
 fn analyzed_complete_unit(
     unit: Arc<DiscoveredUnit>,
-    product: &nocter_semantic_computation::ProgramAnalysisProduct,
+    product: &nocter_semantic_product::ProgramAnalysisProduct,
 ) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
     let analyzed = match product.outcome() {
-        nocter_semantic_computation::ProgramAnalysisOutcome::Checked(finalized) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::Checked(finalized) => {
             match target_from_finalized_program(&unit, finalized) {
                 Ok(target) => AnalyzedUnit {
                     unit,
@@ -178,19 +178,19 @@ fn analyzed_complete_unit(
                 Err(failure) => analyzed_compilation_failure(unit, *failure),
             }
         }
-        nocter_semantic_computation::ProgramAnalysisOutcome::NamesRejected(failed) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::NamesRejected(failed) => {
             analyzed_compilation_failure(unit, *failure_from_name_resolution(failed.failure()))
         }
-        nocter_semantic_computation::ProgramAnalysisOutcome::BodiesRejected(failed) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::BodiesRejected(failed) => {
             analyzed_compilation_failure(unit, *failure_from_finalization(failed.failure()))
         }
-        nocter_semantic_computation::ProgramAnalysisOutcome::PreparationRejected(rejected) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::PreparationRejected(rejected) => {
             analyzed_compilation_failure(unit, *failure_from_preparation(rejected.rejection()))
         }
-        nocter_semantic_computation::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
             analyzed_compilation_failure(unit, *failure_from_incomplete_semantics(failed.failure()))
         }
-        nocter_semantic_computation::ProgramAnalysisOutcome::Unavailable(authority) => {
+        nocter_semantic_product::ProgramAnalysisOutcome::Unavailable(authority) => {
             return Err(SemanticAnalysisDomainError::UnavailableProgramAnalysis(
                 *authority,
             ));
@@ -230,8 +230,8 @@ fn analyzed_incomplete_unit(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticAnalysisDomainError {
-    UnavailableUnitAnalysis(nocter_semantic_computation::UnitAnalysisUnavailable),
-    UnavailableProgramAnalysis(nocter_semantic_computation::ProgramAnalysisUnavailable),
+    UnavailableUnitAnalysis(nocter_semantic_product::UnitAnalysisUnavailable),
+    UnavailableProgramAnalysis(nocter_semantic_product::ProgramAnalysisUnavailable),
 }
 
 impl std::fmt::Display for SemanticAnalysisDomainError {

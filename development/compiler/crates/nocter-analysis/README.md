@@ -26,6 +26,8 @@ results. Protocol crates receive result values only.
 - Presentation and signature queries consume exclusive semantic inputs instead of optional evidence
   combinations.
 - Every semantic/source join uses one sealed generation.
+- Diagnostics are read from the sealed discovery or analyzed state and are not cloned into a
+  parallel snapshot authority.
 - Missing authored evidence is explicit; an integrity failure cannot become an empty feature result.
 - Rename and code actions publish only a whole-generation validated candidate.
 

@@ -1,7 +1,7 @@
-use std::sync::Arc;
-
-use nocter_compiler_computation::{CompilerComputation, CompilerComputationError};
-use nocter_discovery::DiscoveredUnit;
+use nocter_compiler_computation::{
+    CompilerComputation, CompilerComputationError, CompilerDiscoveredUnit, CompilerDiscoveryError,
+    CompilerSourceRevision,
+};
 use nocter_session::{CompileSessionError, CompiledTarget, SemanticAnalysisDomainError};
 
 use crate::failure::command_compilation_failure;
@@ -23,25 +23,26 @@ impl CommandCompiler {
     fn advance_sources(
         &mut self,
         overlay: &nocter_filesystem::SourceOverlay,
-    ) -> Result<(), CommandSourceError> {
-        self.filesystem_epoch = self
-            .filesystem_epoch
-            .checked_add(1)
-            .ok_or(CommandSourceError::RevisionExhausted)?;
+    ) -> Result<CompilerSourceRevision, CompilerComputationError> {
         self.computation
             .advance_sources(overlay, self.filesystem_epoch)
-            .map_err(CommandSourceError::Computation)?;
-        Ok(())
     }
 
     pub(crate) fn discover(
         &mut self,
         request: nocter_discovery::DiscoveryRequest,
-    ) -> Result<DiscoveredUnit, CommandSourceError> {
-        self.advance_sources(request.source_overlay())?;
-        let mut source_syntax = self.computation.source_syntax();
-        nocter_discovery::discover_with_source_syntax(request, &mut source_syntax)
-            .map_err(CommandSourceError::Discovery)
+    ) -> Result<CompilerDiscoveredUnit, CommandSourceError> {
+        let revision = self
+            .advance_sources(request.source_overlay())
+            .map_err(CommandSourceError::Computation)?;
+        self.computation
+            .discover(&revision, request)
+            .map_err(|error| match error {
+                CompilerDiscoveryError::Computation(error) => {
+                    CommandSourceError::Computation(error)
+                }
+                CompilerDiscoveryError::Discovery(error) => CommandSourceError::Discovery(error),
+            })
     }
 
     pub(crate) fn resolve_standard_package(
@@ -49,9 +50,14 @@ impl CommandCompiler {
         standard: nocter_package::StandardPackage,
     ) -> Result<nocter_package::ResolvedPackageGraph, CommandSourceError> {
         let overlay = nocter_filesystem::SourceOverlay::empty();
-        self.advance_sources(&overlay)?;
+        let revision = self
+            .advance_sources(&overlay)
+            .map_err(CommandSourceError::Computation)?;
         let roots = nocter_package::PackageRootCatalog::new(overlay);
-        let mut source_syntax = self.computation.source_syntax();
+        let mut source_syntax = self
+            .computation
+            .source_syntax(&revision)
+            .map_err(CommandSourceError::Computation)?;
         nocter_package::resolve_standard_package_with_root_catalog(
             standard,
             roots,
@@ -60,13 +66,36 @@ impl CommandCompiler {
         .map_err(CommandSourceError::StandardPackage)
     }
 
+    pub(crate) fn resolve_package_selection(
+        &mut self,
+        request: nocter_package::PackageResolutionRequest,
+    ) -> Result<nocter_package::ResolvedPackageSelection, CommandPackageQueryError> {
+        let overlay = nocter_filesystem::SourceOverlay::empty();
+        let revision = self
+            .advance_sources(&overlay)
+            .map_err(CommandPackageQueryError::Computation)?;
+        let roots = nocter_package::PackageRootCatalog::new(overlay);
+        let mut source_syntax = self
+            .computation
+            .source_syntax(&revision)
+            .map_err(CommandPackageQueryError::Computation)?;
+        nocter_package::resolve_package_selection_with_root_catalog(
+            request,
+            roots,
+            &mut source_syntax,
+        )
+        .map_err(nocter_package::PackageResolutionFailure::into_error)
+        .map_err(CommandPackageQueryError::Resolution)
+    }
+
     pub(crate) fn compile(
         &mut self,
-        unit: &Arc<DiscoveredUnit>,
+        discovered: &CompilerDiscoveredUnit,
     ) -> Result<CompiledTarget, Box<CommandCompilationFailure<CommandAnalysisError>>> {
+        let unit = discovered.unit();
         let product = self
             .computation
-            .analyze(Arc::clone(unit))
+            .analyze(discovered)
             .map_err(CommandAnalysisError::Computation)
             .map_err(|error| Box::new(command_compilation_failure(error, unit)))?;
         let analyzed = nocter_session::analyze_unit_from_query(&product)
@@ -83,20 +112,31 @@ impl CommandCompiler {
     }
 }
 
+pub(crate) enum CommandPackageQueryError {
+    Computation(CompilerComputationError),
+    Resolution(nocter_package::PackageResolutionError),
+}
+
 impl nocter_package_state::PackageResolutionDriver for CommandCompiler {
     fn resolve(
         &mut self,
         request: nocter_package::PackageResolutionRequest,
+        filesystem_revision: nocter_package_state::PackageFilesystemRevision,
     ) -> Result<
         nocter_package::ResolvedPackageSelection,
         nocter_package_state::PackageResolutionAttemptError,
     > {
+        self.filesystem_epoch = filesystem_revision.get();
         let overlay = nocter_filesystem::SourceOverlay::empty();
-        self.advance_sources(&overlay).map_err(|error| {
+        let revision = self.advance_sources(&overlay).map_err(|error| {
             nocter_package_state::PackageResolutionAttemptError::Infrastructure(Box::new(error))
         })?;
         let roots = nocter_package::PackageRootCatalog::new(overlay);
-        let mut source_syntax = self.computation.source_syntax();
+        let mut source_syntax = self.computation.source_syntax(&revision).map_err(|error| {
+            nocter_package_state::PackageResolutionAttemptError::Infrastructure(Box::new(
+                CommandSourceError::Computation(error),
+            ))
+        })?;
         nocter_package::resolve_package_selection_with_root_catalog(
             request,
             roots,
@@ -105,20 +145,6 @@ impl nocter_package_state::PackageResolutionDriver for CommandCompiler {
         .map_err(nocter_package::PackageResolutionFailure::into_error)
         .map_err(nocter_package_state::PackageResolutionAttemptError::Domain)
     }
-}
-
-/// Runs a previously discovered test fixture through the shared query owner.
-#[cfg(test)]
-pub(crate) fn compile_discovered_unit(
-    unit: &Arc<DiscoveredUnit>,
-) -> Result<CompiledTarget, Box<CommandCompilationFailure<CommandAnalysisError>>> {
-    let mut compiler = CommandCompiler::default();
-    compiler
-        .computation
-        .advance_sources(unit.source_overlay(), 0)
-        .map_err(CommandAnalysisError::Computation)
-        .map_err(|error| command_compilation_failure(error, unit))?;
-    compiler.compile(unit)
 }
 
 /// Failure from the shared computation entry or its sole session consumer.

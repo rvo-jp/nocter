@@ -29,7 +29,6 @@ enum AnalysisState {
 #[derive(Debug)]
 pub struct AnalysisSnapshot {
     generation: GenerationId,
-    diagnostics: Box<[SourceDiagnostic]>,
     state: AnalysisState,
     pub(crate) queries: AnalysisQuerySession,
 }
@@ -52,11 +51,9 @@ impl AnalysisSnapshot {
     /// Retains a failed discovery rather than falling back to an older source graph.
     #[must_use]
     pub fn from_discovery_failure(generation: GenerationId, failure: DiscoveryFailure) -> Self {
-        let diagnostics = failure.diagnostics().into();
         let state = AnalysisState::DiscoveryFailed(failure);
         Self {
             generation,
-            diagnostics,
             queries: AnalysisQuerySession::default(),
             state,
         }
@@ -67,7 +64,6 @@ impl AnalysisSnapshot {
     pub fn from_analyzed_unit(generation: GenerationId, analysis: AnalyzedUnit) -> Self {
         Self {
             generation,
-            diagnostics: analysis.diagnostics().into(),
             queries: AnalysisQuerySession::default(),
             state: AnalysisState::Analyzed(Box::new(analysis)),
         }
@@ -91,8 +87,11 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub const fn diagnostics(&self) -> &[SourceDiagnostic] {
-        &self.diagnostics
+    pub fn diagnostics(&self) -> &[SourceDiagnostic] {
+        match &self.state {
+            AnalysisState::DiscoveryFailed(failure) => failure.diagnostics(),
+            AnalysisState::Analyzed(analysis) => analysis.diagnostics(),
+        }
     }
 
     #[must_use]

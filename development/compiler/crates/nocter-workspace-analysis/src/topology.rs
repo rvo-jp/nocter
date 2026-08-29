@@ -87,7 +87,7 @@ fn select_scope(
         .parent()
         .ok_or_else(|| WorkspaceAnalysisError::outside_workspace(document.to_path_buf()))?;
     loop {
-        match package_roots.has_package_declaration_with_source_syntax(directory, source_syntax) {
+        match package_roots.has_package_declaration(directory, source_syntax) {
             Ok(true) => return Ok(AnalysisScope::Package(directory.to_path_buf())),
             Ok(false) => {}
             Err(error) => return Err(WorkspaceAnalysisError::package_root_probe(error)),

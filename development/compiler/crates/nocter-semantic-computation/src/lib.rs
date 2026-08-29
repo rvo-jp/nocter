@@ -9,38 +9,30 @@ mod program_preparation;
 mod typed_bodies;
 mod unit_analysis;
 
-pub use body_names::{
-    BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey,
-    body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
-};
+pub use body_names::{BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey};
+pub(crate) use body_names::{resolve_body_name, resolved_body_names};
 pub use incomplete_analysis::{
     IncompleteAnalysisProduct, IncompleteSemanticAnalysis, IncompleteSemanticError,
-    IncompleteSemanticEvidence, IncompleteSemanticFailure, analyze_declaration_failure,
-    analyze_incomplete_semantics, continue_declaration_recovery, incomplete_analysis,
-    incomplete_analysis_execution_count, incomplete_analysis_reuse_count,
+    IncompleteSemanticEvidence, IncompleteSemanticFailure,
 };
+pub(crate) use incomplete_analysis::{analyze_declaration_failure, incomplete_analysis};
+pub(crate) use program_analysis::analyzed_program;
 pub use program_analysis::{
     FailedDeclarationAnalysis, ProgramAnalysisOutcome, ProgramAnalysisProduct,
-    ProgramAnalysisUnavailable, analyzed_program, program_analysis_execution_count,
-    program_analysis_reuse_count,
+    ProgramAnalysisUnavailable,
 };
+pub(crate) use program_finalization::finalized_program;
 pub use program_finalization::{
     FailedProgramFinalization, FailedProgramNameResolution, FinalizedProgram,
-    ProgramFinalizationOutcome, ProgramFinalizationProduct, finalization_execution_count,
-    finalization_reuse_count, finalized_program,
+    ProgramFinalizationOutcome, ProgramFinalizationProduct,
 };
+pub(crate) use program_preparation::prepared_program;
 pub use program_preparation::{
     ProgramPreparationOutcome, ProgramPreparationProduct, RejectedProgramPreparation,
-    preparation_execution_count, preparation_reuse_count, prepared_program,
 };
-pub use typed_bodies::{
-    TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet, typed_bodies, typed_body,
-    typed_body_execution_count, typed_body_reuse_count,
-};
-pub use unit_analysis::{
-    UnitAnalysisOutcome, UnitAnalysisProduct, UnitAnalysisUnavailable, analyzed_unit,
-    unit_analysis_execution_count, unit_analysis_reuse_count,
-};
+pub(crate) use typed_bodies::typed_bodies;
+pub use typed_bodies::{TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet};
+pub use unit_analysis::{UnitAnalysisOutcome, UnitAnalysisProduct, UnitAnalysisUnavailable};
 
 use std::sync::Arc;
 
@@ -55,13 +47,13 @@ use nocter_discovery::DiscoveredUnit;
 
 /// Stable identity of one selected semantic compile scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SemanticScopeKey {
+struct SemanticScopeKey {
     stable: Box<[u8]>,
 }
 
 impl SemanticScopeKey {
     #[must_use]
-    pub fn for_unit(unit: &DiscoveredUnit) -> Self {
+    fn for_unit(unit: &DiscoveredUnit) -> Self {
         let mut stable = Vec::new();
         encode(unit.target().name().as_bytes(), &mut stable);
         let mut roots = unit.root_packages().iter().collect::<Vec<_>>();
@@ -82,7 +74,7 @@ impl ComputationKey for SemanticScopeKey {
 }
 
 /// Both invalidation views of one exact discovery snapshot.
-pub struct ScopeInputPublication {
+struct ScopeInputPublication {
     unit: Arc<DiscoveredUnit>,
     declaration_fingerprint: Fingerprint,
     current_source_fingerprint: Fingerprint,
@@ -95,7 +87,7 @@ impl ScopeInputPublication {
     ///
     /// Returns a discovery-integrity failure rather than publishing mismatched topology or source
     /// storage.
-    pub fn for_unit(
+    fn for_unit(
         unit: Arc<DiscoveredUnit>,
         module_surface_fingerprint: Fingerprint,
     ) -> Result<(SemanticScopeKey, Self), ScopeInputError> {
@@ -115,7 +107,7 @@ impl ScopeInputPublication {
     }
 
     #[must_use]
-    pub const fn new(
+    const fn new(
         unit: Arc<DiscoveredUnit>,
         declaration_fingerprint: Fingerprint,
         current_source_fingerprint: Fingerprint,
@@ -127,7 +119,7 @@ impl ScopeInputPublication {
         }
     }
 
-    pub fn publish(self, revision: &mut InputRevision<'_>, key: &SemanticScopeKey) {
+    fn publish(self, revision: &mut InputRevision<'_>, key: &SemanticScopeKey) {
         revision.set::<DeclarationScopeInput>(
             key,
             ScopeInputValue {
@@ -256,7 +248,7 @@ impl BodySourcePublication {
         }
     }
 
-    pub fn publish(self, revision: &mut InputRevision<'_>) {
+    fn publish(self, revision: &mut InputRevision<'_>) {
         revision.set::<BodySourceInput>(&self.key, self.value);
     }
 }
@@ -357,7 +349,7 @@ impl Query for DeclarationQuery {
 ///
 /// Returns only computation-kernel failures. Authored declaration rejection is an ordinary
 /// [`DeclarationQueryOutcome`].
-pub fn declarations(
+pub(crate) fn declarations(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<DeclarationQueryProduct>, ComputationError> {
@@ -365,16 +357,120 @@ pub fn declarations(
 }
 
 #[must_use]
-pub fn declaration_execution_count(database: &Database) -> u64 {
+fn declaration_execution_count(database: &Database) -> u64 {
     database.execution_count::<DeclarationQuery>()
 }
 
 #[must_use]
-pub fn declaration_reuse_count(database: &Database) -> u64 {
+fn declaration_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<DeclarationQuery>()
 }
 
 fn encode(bytes: &[u8], output: &mut Vec<u8>) {
     output.extend_from_slice(&(bytes.len() as u64).to_be_bytes());
     output.extend_from_slice(bytes);
+}
+
+/// Publishes one exact source unit and demands its sole closed semantic outcome.
+///
+/// Intermediate semantic stages remain private to this crate; callers can neither reorder them
+/// nor manufacture invalidation fingerprints.
+///
+/// # Errors
+///
+/// Returns source-surface validation or computation-kernel failures.
+pub fn analyze_unit(
+    database: &mut Database,
+    unit: Arc<DiscoveredUnit>,
+    module_surface_fingerprint: Fingerprint,
+    bodies: impl IntoIterator<Item = BodySourcePublication>,
+) -> Result<Arc<UnitAnalysisProduct>, SemanticComputationError> {
+    let (scope, publication) = ScopeInputPublication::for_unit(unit, module_surface_fingerprint)?;
+    let mut revision = database.advance_revision()?;
+    publication.publish(&mut revision, &scope);
+    for body in bodies {
+        body.publish(&mut revision);
+    }
+    let _ = revision.commit();
+    unit_analysis::analyzed_unit(database, scope).map_err(SemanticComputationError::from)
+}
+
+#[derive(Debug)]
+pub enum SemanticComputationError {
+    Computation(ComputationError),
+    Scope(ScopeInputError),
+}
+
+impl std::fmt::Display for SemanticComputationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Computation(error) => error.fmt(formatter),
+            Self::Scope(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for SemanticComputationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Computation(error) => Some(error),
+            Self::Scope(error) => Some(error),
+        }
+    }
+}
+
+impl From<ComputationError> for SemanticComputationError {
+    fn from(error: ComputationError) -> Self {
+        Self::Computation(error)
+    }
+}
+
+impl From<ScopeInputError> for SemanticComputationError {
+    fn from(error: ScopeInputError) -> Self {
+        Self::Scope(error)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct SemanticComputationStatistics {
+    pub declaration_executions: u64,
+    pub declaration_reuses: u64,
+    pub preparation_executions: u64,
+    pub preparation_reuses: u64,
+    pub body_name_executions: u64,
+    pub body_name_reuses: u64,
+    pub typed_body_executions: u64,
+    pub typed_body_reuses: u64,
+    pub finalization_executions: u64,
+    pub finalization_reuses: u64,
+    pub complete_analysis_executions: u64,
+    pub complete_analysis_reuses: u64,
+    pub incomplete_analysis_executions: u64,
+    pub incomplete_analysis_reuses: u64,
+    pub unit_analysis_executions: u64,
+    pub unit_analysis_reuses: u64,
+}
+
+#[must_use]
+pub fn statistics(database: &Database) -> SemanticComputationStatistics {
+    SemanticComputationStatistics {
+        declaration_executions: declaration_execution_count(database),
+        declaration_reuses: declaration_reuse_count(database),
+        preparation_executions: program_preparation::preparation_execution_count(database),
+        preparation_reuses: program_preparation::preparation_reuse_count(database),
+        body_name_executions: body_names::body_name_execution_count(database),
+        body_name_reuses: body_names::body_name_reuse_count(database),
+        typed_body_executions: typed_bodies::typed_body_execution_count(database),
+        typed_body_reuses: typed_bodies::typed_body_reuse_count(database),
+        finalization_executions: program_finalization::finalization_execution_count(database),
+        finalization_reuses: program_finalization::finalization_reuse_count(database),
+        complete_analysis_executions: program_analysis::program_analysis_execution_count(database),
+        complete_analysis_reuses: program_analysis::program_analysis_reuse_count(database),
+        incomplete_analysis_executions: incomplete_analysis::incomplete_analysis_execution_count(
+            database,
+        ),
+        incomplete_analysis_reuses: incomplete_analysis::incomplete_analysis_reuse_count(database),
+        unit_analysis_executions: unit_analysis::unit_analysis_execution_count(database),
+        unit_analysis_reuses: unit_analysis::unit_analysis_reuse_count(database),
+    }
 }

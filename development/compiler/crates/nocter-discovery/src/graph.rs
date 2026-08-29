@@ -146,6 +146,7 @@ impl<'syntax> Builder<'syntax> {
                     &standard,
                     &state.canonical_root,
                     &mut loaded.package_roots,
+                    source_syntax,
                 )?;
                 (loaded, roots, None, vec![standard])
             }
@@ -665,7 +666,7 @@ impl<'syntax> Builder<'syntax> {
         while directory != state.canonical_root {
             if self
                 .package_roots
-                .has_package_declaration(directory)
+                .has_package_declaration(directory, self.source_syntax)
                 .map_err(DiscoveryError::PackageRootProbe)?
             {
                 return Err(UseFailure::CrossesPackage {

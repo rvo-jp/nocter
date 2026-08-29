@@ -41,8 +41,9 @@ workspace outcomes to the language server.
   the accepted revision's query state.
 - A module surface depends on each member source's canonical declaration syntax. A body-only edit
   may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.
-- Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
-  discovery snapshot. It cannot inspect declaration storage, body recipes, or invalidation rules.
+- Compiler computation publishes semantic and exact-current fingerprints from the same shared
+  discovery snapshot. Workspace orchestration cannot inspect declaration storage, body recipes,
+  fingerprint construction, or invalidation rules.
 - For source-complete input, workspace passes only a closed semantic success/rejection product to
   session. Missing declaration, preparation, or finalization products are integrity errors; they
   cannot select a session fallback that reruns compiler stages.

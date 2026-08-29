@@ -266,16 +266,16 @@ impl<'a> SemanticEvidenceView<'a> {
 
 impl SemanticEvidenceBundle {
     pub(crate) fn from_incomplete(
-        evidence: nocter_semantic_computation::IncompleteSemanticEvidence,
+        evidence: nocter_semantic_product::IncompleteSemanticEvidence,
     ) -> Self {
         match evidence {
-            nocter_semantic_computation::IncompleteSemanticEvidence::Declarations(recovery) => {
+            nocter_semantic_product::IncompleteSemanticEvidence::Declarations(recovery) => {
                 Self::from_declaration_lowering(*recovery)
             }
-            nocter_semantic_computation::IncompleteSemanticEvidence::Preparation(evidence) => {
+            nocter_semantic_product::IncompleteSemanticEvidence::Preparation(evidence) => {
                 Self::from_preparation_failure(*evidence)
             }
-            nocter_semantic_computation::IncompleteSemanticEvidence::Bodies(recovery) => {
+            nocter_semantic_product::IncompleteSemanticEvidence::Bodies(recovery) => {
                 Self::from_bodies(*recovery)
             }
         }

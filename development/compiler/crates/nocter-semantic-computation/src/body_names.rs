@@ -19,7 +19,7 @@ pub struct SemanticBodyKey {
 
 impl SemanticBodyKey {
     #[must_use]
-    pub fn for_identity(
+    pub(crate) fn for_identity(
         scope: SemanticScopeKey,
         identity: &nocter_declaration_lowering::ReusableBodyIdentity,
     ) -> Self {

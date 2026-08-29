@@ -85,7 +85,7 @@ impl Query for UnitAnalysisQuery {
 /// # Errors
 ///
 /// Returns computation-kernel failures. Authored rejection remains inside the selected branch.
-pub fn analyzed_unit(
+pub(crate) fn analyzed_unit(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<UnitAnalysisProduct>, ComputationError> {

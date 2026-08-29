@@ -3,7 +3,8 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest};
+use nocter_compiler_computation::CompilerDiscoveredUnit;
+use nocter_discovery::{DiscoveryError, DiscoveryFailure, DiscoveryRequest};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
 use nocter_package_state::PackageAcquisitionAuthority;
@@ -90,7 +91,7 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
     compile_roots: CommandCompileRoots<'_>,
     authority: &mut A,
     compiler: &mut CommandCompiler,
-) -> Result<DiscoveredUnit, CommandSourceError> {
+) -> Result<CompilerDiscoveredUnit, CommandSourceError> {
     match input {
         ResolvedProgramInput::Package(package) => {
             let selected = resolve_command_package_state(
@@ -120,7 +121,7 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
 pub(crate) struct CommandTestSource {
     package: PackageIdentity,
     target: Box<str>,
-    discovery: Result<DiscoveredUnit, DiscoveryFailure>,
+    discovery: Result<CompilerDiscoveredUnit, DiscoveryFailure>,
 }
 
 impl CommandTestSource {
@@ -129,7 +130,7 @@ impl CommandTestSource {
     ) -> (
         PackageIdentity,
         Box<str>,
-        Result<DiscoveredUnit, DiscoveryFailure>,
+        Result<CompilerDiscoveredUnit, DiscoveryFailure>,
     ) {
         (self.package, self.target, self.discovery)
     }
@@ -205,7 +206,7 @@ fn discover_declared(
     toolchain: &CommandToolchain,
     compile_roots: CommandCompileRoots<'_>,
     compiler: &mut CommandCompiler,
-) -> Result<DiscoveredUnit, CommandSourceError> {
+) -> Result<CompilerDiscoveredUnit, CommandSourceError> {
     let root = selected.root().clone();
     let standard = selected.standard().clone();
     let mut roots = BTreeSet::new();
@@ -271,7 +272,6 @@ fn discover_declared(
 #[derive(Debug)]
 pub enum CommandSourceError {
     Computation(nocter_compiler_computation::CompilerComputationError),
-    RevisionExhausted,
     Package(CommandPackageStateError),
     StandardPackage(PackageGraphError),
     MissingCommandRoot(PackageIdentity),
@@ -291,7 +291,6 @@ impl fmt::Display for CommandSourceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Computation(error) => write!(formatter, "source computation failed: {error}"),
-            Self::RevisionExhausted => formatter.write_str("command source revision exhausted"),
             Self::Package(error) => error.fmt(formatter),
             Self::StandardPackage(error) => {
                 write!(formatter, "standard package is invalid: {error}")
@@ -328,8 +327,7 @@ impl std::error::Error for CommandSourceError {
             Self::Package(error) => Some(error),
             Self::StandardPackage(error) => Some(error),
             Self::Discovery(error) => Some(error),
-            Self::RevisionExhausted
-            | Self::MissingCommandRoot(_)
+            Self::MissingCommandRoot(_)
             | Self::MissingCommandExecutable { .. }
             | Self::MissingCommandTest { .. }
             | Self::MissingCommandTests(_) => None,
@@ -350,7 +348,6 @@ impl CommandSourceError {
                 Some((failure.diagnostics(), failure.sources()))
             }
             Self::Computation(_)
-            | Self::RevisionExhausted
             | Self::Package(_)
             | Self::StandardPackage(_)
             | Self::MissingCommandRoot(_)
@@ -394,10 +391,7 @@ impl CommandSourceError {
             {
                 Some("E0702")
             }
-            Self::Computation(_)
-            | Self::RevisionExhausted
-            | Self::MissingCommandRoot(_)
-            | Self::Discovery(_) => None,
+            Self::Computation(_) | Self::MissingCommandRoot(_) | Self::Discovery(_) => None,
         }
     }
 
@@ -417,7 +411,7 @@ impl CommandSourceError {
                     | DiscoveryError::ConflictingSourceOwner { .. }
                     | DiscoveryError::InconsistentSyntax(_)
             ),
-            Self::Computation(_) | Self::RevisionExhausted | Self::MissingCommandRoot(_) => false,
+            Self::Computation(_) | Self::MissingCommandRoot(_) => false,
         }
     }
 }

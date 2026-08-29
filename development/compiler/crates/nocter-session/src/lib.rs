@@ -21,7 +21,8 @@ pub use analyzed_unit::{
 pub use error::CompileSessionError;
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,
-    ExecutableSessionError, close_executable, compile_executable, root_executables,
+    ExecutableSessionError, RootExecutableClosureError, RootExecutableProgram,
+    close_root_executables, compile_executable,
 };
 pub use output::{CompiledExecutable, CompiledTarget};
 pub use profile::bundled_standard_toolchain;

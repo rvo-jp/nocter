@@ -7,11 +7,12 @@ workspace analysis.
 
 ## Contract
 
-The crate accepts atomic source revisions, lends one computed syntax provider to physical package
-and discovery owners, publishes one exact discovered unit into semantic inputs, and demands the
-sole complete-or-incomplete unit analysis product. It owns the computation database and query
-instrumentation but does not select packages, discover modules, translate session outcomes, build
-targets, or interpret editor requests.
+The crate accepts atomic source revisions and returns an owner-bound revision token. That token is
+required both to lend the computed syntax provider and to analyze a discovered unit. The crate
+publishes the exact unit into semantic inputs and demands the sole complete-or-incomplete unit
+analysis product. It owns the computation database and query instrumentation but does not select
+packages, discover modules, translate session outcomes, build targets, or interpret editor
+requests.
 
 ## Internal Responsibilities
 
@@ -25,6 +26,10 @@ targets, or interpret editor requests.
 
 - Command and workspace callers differ only in owner lifetime, not query providers or stage order.
 - Source parsing used by discovery and declaration surfaces comes from the same query product.
+- A source token from another owner or an earlier source revision is rejected before any query is
+  supplied or semantic input is published.
+- Semantic input publication may advance the internal database without invalidating the current
+  source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
 - Callers cannot access the raw computation database or demand an intermediate semantic query.
 - The crate owns no filesystem topology, package acquisition, session, target, native, or protocol

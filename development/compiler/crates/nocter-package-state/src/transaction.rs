@@ -41,8 +41,39 @@ pub trait PackageResolutionDriver {
     fn resolve(
         &mut self,
         request: PackageResolutionRequest,
+        filesystem_revision: PackageFilesystemRevision,
     ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError>;
 }
+
+/// Monotonic identity of filesystem mutations committed by one package-state transaction.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+pub struct PackageFilesystemRevision(u64);
+
+impl PackageFilesystemRevision {
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    fn advance(&mut self) -> Result<(), PackageFilesystemRevisionError> {
+        self.0 = self
+            .0
+            .checked_add(1)
+            .ok_or(PackageFilesystemRevisionError)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PackageFilesystemRevisionError;
+
+impl fmt::Display for PackageFilesystemRevisionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("package filesystem revision identity space is exhausted")
+    }
+}
+
+impl Error for PackageFilesystemRevisionError {}
 
 /// Runs package-state coordination through a caller-owned source/query authority.
 ///
@@ -67,6 +98,7 @@ impl PackageResolutionDriver for DirectPackageResolution {
     fn resolve(
         &mut self,
         request: PackageResolutionRequest,
+        _filesystem_revision: PackageFilesystemRevision,
     ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError> {
         resolve_package_selection(request).map_err(PackageResolutionAttemptError::Domain)
     }
@@ -105,6 +137,7 @@ struct PackageStateTransaction {
     staging: Option<StagingArea>,
     generated_locks: bool,
     acquired_packages: bool,
+    filesystem_revision: PackageFilesystemRevision,
 }
 
 impl PackageStateTransaction {
@@ -130,6 +163,7 @@ impl PackageStateTransaction {
             staging: None,
             generated_locks: false,
             acquired_packages: false,
+            filesystem_revision: PackageFilesystemRevision::default(),
         })
     }
 
@@ -144,7 +178,7 @@ impl PackageStateTransaction {
                 .clone()
                 .with_lock_overlay(self.locks.clone())
                 .with_store_overlay(self.store.clone());
-            match resolver.resolve(attempt) {
+            match resolver.resolve(attempt, self.filesystem_revision) {
                 Ok(selection) => return self.complete(selection, resolver),
                 Err(PackageResolutionAttemptError::Domain(
                     PackageResolutionError::LockRequired {
@@ -277,9 +311,15 @@ impl PackageStateTransaction {
             area.publish(&self.canonical_root)
                 .map_err(PackageStateError::Filesystem)?;
         }
+        if self.acquired_packages {
+            self.filesystem_revision
+                .advance()
+                .map_err(PackageStateError::FilesystemRevision)?;
+        }
         let selected = resolve_attempt(
             resolver,
             self.request.clone().with_lock_overlay(self.locks.clone()),
+            self.filesystem_revision,
         )?;
         if self.generated_locks {
             let update = selected
@@ -287,9 +327,13 @@ impl PackageStateTransaction {
                 .root_lock_update(&self.root)
                 .map_err(PackageStateError::LockSource)?;
             commit_root_lock_source(&update).map_err(PackageStateError::RootSourceCommit)?;
+            self.filesystem_revision
+                .advance()
+                .map_err(PackageStateError::FilesystemRevision)?;
             return resolve_attempt(
                 resolver,
                 self.request.clone().with_lock_overlay(self.locks.clone()),
+                self.filesystem_revision,
             );
         }
         Ok(selected)
@@ -299,15 +343,18 @@ impl PackageStateTransaction {
 fn resolve_attempt<E: Error + Send + Sync + 'static, R: PackageResolutionDriver>(
     resolver: &mut R,
     request: PackageResolutionRequest,
+    filesystem_revision: PackageFilesystemRevision,
 ) -> Result<ResolvedPackageSelection, PackageStateError<E>> {
-    resolver.resolve(request).map_err(|error| match error {
-        PackageResolutionAttemptError::Domain(error) => {
-            PackageStateError::Resolution(Box::new(error))
-        }
-        PackageResolutionAttemptError::Infrastructure(error) => {
-            PackageStateError::ResolutionInfrastructure(error)
-        }
-    })
+    resolver
+        .resolve(request, filesystem_revision)
+        .map_err(|error| match error {
+            PackageResolutionAttemptError::Domain(error) => {
+                PackageStateError::Resolution(Box::new(error))
+            }
+            PackageResolutionAttemptError::Infrastructure(error) => {
+                PackageStateError::ResolutionInfrastructure(error)
+            }
+        })
 }
 
 fn source_lock_kind(source: &DependencySource) -> Option<ExactDependencyLockKind> {
@@ -345,6 +392,7 @@ pub enum PackageStateError<E: Error + Send + Sync + 'static> {
     LockSource(nocter_package::PackageLockSourceError),
     RootSourceCommit(RootSourceCommitError),
     Filesystem(PackageStateFilesystemError),
+    FilesystemRevision(PackageFilesystemRevisionError),
 }
 
 impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
@@ -387,6 +435,7 @@ impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
             Self::LockSource(error) => error.fmt(formatter),
             Self::RootSourceCommit(error) => error.fmt(formatter),
             Self::Filesystem(error) => error.fmt(formatter),
+            Self::FilesystemRevision(error) => error.fmt(formatter),
         }
     }
 }
@@ -403,6 +452,7 @@ impl<E: Error + Send + Sync + 'static> Error for PackageStateError<E> {
             Self::LockSource(error) => Some(error),
             Self::RootSourceCommit(error) => Some(error),
             Self::Filesystem(error) => Some(error),
+            Self::FilesystemRevision(error) => Some(error),
             Self::NonRootLockRequired { .. }
             | Self::UnexpectedLockSource { .. }
             | Self::LockKindMismatch { .. } => None,

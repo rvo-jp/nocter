@@ -92,7 +92,7 @@ fn analysis_diagnostics(
 
 pub(crate) fn target_from_finalized_program(
     unit: &DiscoveredUnit,
-    finalized: &nocter_semantic_computation::FinalizedProgram,
+    finalized: &nocter_semantic_product::FinalizedProgram,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitive_bindings = finalized.declarations().primitive_bindings().to_vec();
     let checked = finalized.current_branch();
@@ -134,7 +134,7 @@ pub(crate) fn failure_from_preparation(
 }
 
 pub(crate) fn incomplete_syntax_analysis(
-    analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
+    analysis: &nocter_semantic_product::IncompleteSemanticAnalysis,
 ) -> IncompleteSyntaxAnalysis {
     let Some(failure) = analysis.failure() else {
         return IncompleteSyntaxAnalysis::empty();
@@ -144,14 +144,14 @@ pub(crate) fn incomplete_syntax_analysis(
 }
 
 pub(crate) fn failure_from_incomplete_semantics(
-    failure: &nocter_semantic_computation::IncompleteSemanticFailure,
+    failure: &nocter_semantic_product::IncompleteSemanticFailure,
 ) -> Box<CompileTargetFailure> {
     let (error, evidence) = semantic_failure_parts(failure);
     Box::new(CompileTargetFailure::new(error, evidence))
 }
 
 fn semantic_failure_parts(
-    failure: &nocter_semantic_computation::IncompleteSemanticFailure,
+    failure: &nocter_semantic_product::IncompleteSemanticFailure,
 ) -> (CompileSessionError, Option<SemanticEvidenceBundle>) {
     let (error, evidence) = failure.current_branch().into_parts();
     (

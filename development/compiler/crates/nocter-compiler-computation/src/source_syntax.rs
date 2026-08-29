@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_computation::{
-    ComputationError, ComputationKey, ComputationRevision, Database, Fingerprint, Input, Query,
-    QueryValue,
+    ComputationError, ComputationKey, Database, Fingerprint, Input, Query, QueryValue,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceFile, SourceMap, SourceName};
@@ -328,23 +327,50 @@ fn tagged_fingerprint(tag: u8, bytes: &[u8]) -> Fingerprint {
     Fingerprint::from_bytes(&input)
 }
 
-/// Publishes the source view for one accepted or isolated candidate computation revision.
-pub(crate) fn advance_revision(
-    database: &mut Database,
-    overlay: &SourceOverlay,
-    filesystem_epoch: u64,
-) -> Result<ComputationRevision, ComputationError> {
-    let mut revision = database.advance_revision()?;
-    let paths = overlay
-        .sources()
-        .map(|(path, _)| SourcePath::new(path))
-        .collect::<BTreeSet<_>>();
-    revision.set::<OverlayDomainInput>(&(), OverlayDomain::new(paths));
-    revision.set::<FilesystemEpochInput>(&(), FilesystemEpoch::new(filesystem_epoch));
-    for (path, source) in overlay.sources() {
-        revision.set::<OverlayTextInput>(&SourcePath::new(path), OverlayText::new(source.bytes()));
+/// Prepared source inputs whose identity and publication are derived from one representation.
+pub(crate) struct SourceRevisionPublication {
+    domain: OverlayDomain,
+    epoch: FilesystemEpoch,
+    texts: Vec<(SourcePath, OverlayText)>,
+    fingerprint: Fingerprint,
+}
+
+impl SourceRevisionPublication {
+    pub(crate) fn new(overlay: &SourceOverlay, filesystem_epoch: u64) -> Self {
+        let texts = overlay
+            .sources()
+            .map(|(path, source)| (SourcePath::new(path), OverlayText::new(source.bytes())))
+            .collect::<Vec<_>>();
+        let domain = OverlayDomain::new(texts.iter().map(|(path, _)| path.clone()).collect());
+        let epoch = FilesystemEpoch::new(filesystem_epoch);
+        let mut source_identity = Vec::new();
+        source_identity.extend_from_slice(&domain.fingerprint.digest());
+        source_identity.extend_from_slice(&epoch.fingerprint.digest());
+        for (_, text) in &texts {
+            source_identity.extend_from_slice(&text.fingerprint.digest());
+        }
+        Self {
+            domain,
+            epoch,
+            texts,
+            fingerprint: Fingerprint::from_bytes(&source_identity),
+        }
     }
-    Ok(revision.commit())
+
+    pub(crate) const fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+
+    pub(crate) fn publish(self, database: &mut Database) -> Result<(), ComputationError> {
+        let mut revision = database.advance_revision()?;
+        revision.set::<OverlayDomainInput>(&(), self.domain);
+        revision.set::<FilesystemEpochInput>(&(), self.epoch);
+        for (path, text) in self.texts {
+            revision.set::<OverlayTextInput>(&path, text);
+        }
+        let _ = revision.commit();
+        Ok(())
+    }
 }
 
 pub(crate) struct ComputedSourceSyntax<'database> {

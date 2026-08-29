@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nocter-native-session - Nocter</title>
-    <meta name="description" content="Compose a successful compiler session with Target, MIR, Machine, ARM64, and Mach-O lowering and return a complete native artifact or typed failure.">
+    <title>nocter-semantic-product - Nocter</title>
+    <meta name="description" content="Expose the immutable result vocabulary produced by semantic computation without exposing its query entry, database, stage functions, or input-publication m">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-native-session/">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-semantic-product/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="nocter-native-session - Nocter">
-    <meta property="og:description" content="Compose a successful compiler session with Target, MIR, Machine, ARM64, and Mach-O lowering and return a complete native artifact or typed failure.">
-    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-native-session/">
+    <meta property="og:title" content="nocter-semantic-product - Nocter">
+    <meta property="og:description" content="Expose the immutable result vocabulary produced by semantic computation without exposing its query entry, database, stage functions, or input-publication m">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-semantic-product/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-29">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="nocter-native-session - Nocter">
-    <meta name="twitter:description" content="Compose a successful compiler session with Target, MIR, Machine, ARM64, and Mach-O lowering and return a complete native artifact or typed failure.">
+    <meta name="twitter:title" content="nocter-semantic-product - Nocter">
+    <meta name="twitter:description" content="Expose the immutable result vocabulary produced by semantic computation without exposing its query entry, database, stage functions, or input-publication m">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-native-session - Nocter","description":"Compose a successful compiler session with Target, MIR, Machine, ARM64, and Mach-O lowering and return a complete native artifact or typed failure.","url":"https://nocter.dev/development/compiler/crates/nocter-native-session/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-native-session/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Native Session","item":"https://nocter.dev/development/compiler/crates/nocter-native-session/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-semantic-product - Nocter","description":"Expose the immutable result vocabulary produced by semantic computation without exposing its query entry, database, stage functions, or input-publication m","url":"https://nocter.dev/development/compiler/crates/nocter-semantic-product/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-semantic-product/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Semantic Product","item":"https://nocter.dev/development/compiler/crates/nocter-semantic-product/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -122,11 +122,11 @@
         <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/compiler/crates/nocter-native-session/README.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-semantic-product/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-native-session">nocter-native-session</h1><h2 id="responsibility">Responsibility</h2><p>Compose a successful compiler session with Target, MIR, Machine, ARM64, and Mach-O lowering and return a complete native artifact or typed failure.</p><h2 id="contract">Contract</h2><p>The crate accepts only a query-backed <code>CompiledTarget</code>, orchestrates backend stage contracts, and owns output bytes plus native test execution support. It does not discover source, run semantic analysis, implement backend rules, select command-line policy, or publish filesystem artifacts.</p><h2 id="invariants">Invariants</h2><ul><li>Each stage consumes exactly the previous closed product.</li><li>Native requests cannot carry a discovery snapshot or reopen semantic compilation.</li><li>Multi-executable lowering receives already paired identities and executable programs from
-  session; it cannot repeat target lookup or combine separate target owners.</li><li>A backend integrity failure cannot be presented as a source-language diagnostic.</li><li>Partial native output is never returned as a successful artifact.</li></ul>
+                <h1 id="nocter-semantic-product">nocter-semantic-product</h1><h2 id="responsibility">Responsibility</h2><p>Expose the immutable result vocabulary produced by semantic computation without exposing its query entry, database, stage functions, or input-publication machinery.</p><h2 id="contract">Contract</h2><p>Post-computation consumers depend on this crate when interpreting complete or recoverable semantic outcomes. The crate intentionally exports only result types. <code>nocter-compiler-computation</code> remains the sole production owner permitted to depend on and execute <code>nocter-semantic-computation</code>.</p><h2 id="invariants">Invariants</h2><ul><li>Session and editor consumers cannot demand, reorder, or publish semantic queries.</li><li>Re-exported values preserve their original identity; the contract performs no conversion or
+  recomputation.</li><li>This crate owns no source, query, session, target, backend, or protocol policy.</li></ul>
             </div>
         </main>
     </div>

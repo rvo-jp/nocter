@@ -5,6 +5,7 @@ use std::path::{Component, Path, PathBuf};
 use nocter_compile_input::ModuleIdentity;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
+use nocter_syntax::SourceSyntaxProvider;
 
 use crate::DiscoveryError;
 
@@ -83,6 +84,7 @@ pub(crate) fn toolchain_standard_modules(
     package: &PackageIdentity,
     root: &Path,
     package_roots: &mut nocter_package::PackageRootCatalogBuilder,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<Vec<ModuleIdentity>, DiscoveryError> {
     let source_overlay = package_roots.source_overlay().clone();
     let mut pending = BTreeSet::from([root.to_path_buf()]);
@@ -90,7 +92,7 @@ pub(crate) fn toolchain_standard_modules(
     while let Some(directory) = pending.pop_first() {
         if directory != root
             && package_roots
-                .has_package_declaration(&directory)
+                .has_package_declaration(&directory, source_syntax)
                 .map_err(DiscoveryError::PackageRootProbe)?
         {
             continue;

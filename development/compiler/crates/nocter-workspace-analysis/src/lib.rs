@@ -308,7 +308,8 @@ impl WorkspaceAnalyses {
             self.filesystem_epoch
         };
         let source_overlay = source.into_source_overlay();
-        self.computation
+        let computation_revision = self
+            .computation
             .advance_sources(&source_overlay, filesystem_epoch)
             .map_err(|_| WorkspaceRevisionError::ComputationRevisionExhausted)?;
         let mut transition = self.plan_transition(
@@ -316,11 +317,17 @@ impl WorkspaceAnalyses {
             &open_documents,
             &changed_documents,
             &source_overlay,
+            &computation_revision,
         );
         for scope in &transition.invalidated {
             self.latest.remove(scope);
         }
-        let mut scoped_results = self.refresh_scoped(generation, &source_overlay, &transition);
+        let mut scoped_results = self.refresh_scoped(
+            generation,
+            &source_overlay,
+            &transition,
+            &computation_revision,
+        );
         let mut related =
             self.refresh_unscoped(&document, generation, &source_overlay, &mut transition);
         self.document_scopes = transition.active_selected.clone();
@@ -379,12 +386,16 @@ impl WorkspaceAnalyses {
         open_documents: &BTreeSet<PathBuf>,
         changed_documents: &BTreeSet<PathBuf>,
         source_overlay: &SourceOverlay,
+        revision: &nocter_compiler_computation::CompilerSourceRevision,
     ) -> ScopeTransition {
         let documents = open_documents
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let mut source_syntax = self.computation.source_syntax();
+        let mut source_syntax = self
+            .computation
+            .source_syntax(revision)
+            .expect("workspace retains the current compiler source revision");
         let (selections, package_roots) = WorkspaceTopology::build_with_source_syntax(
             &self.configuration,
             source_overlay,
@@ -456,6 +467,7 @@ impl WorkspaceAnalyses {
         generation: GenerationId,
         source_overlay: &SourceOverlay,
         transition: &ScopeTransition,
+        revision: &nocter_compiler_computation::CompilerSourceRevision,
     ) -> BTreeMap<AnalysisScope, Arc<WorkspaceAnalysisGeneration>> {
         transition
             .affected
@@ -487,6 +499,7 @@ impl WorkspaceAnalyses {
                             generation,
                             transition.package_roots.clone(),
                             &mut self.computation,
+                            revision,
                         )
                     } else {
                         WorkspaceAnalysisState::InvalidationOnly {
@@ -571,18 +584,18 @@ impl WorkspaceAnalyses {
             .map(|(source, _)| source.clone());
         let input = ScopeCompilationInput::new(scope, requested_sources);
         let mut candidate_computation = nocter_compiler_computation::CompilerComputation::new();
-        if candidate_computation
+        let Ok(candidate_revision) = candidate_computation
             .advance_sources(candidate.source_overlay(), self.filesystem_epoch)
-            .is_err()
-        {
+        else {
             return Ok(None);
-        }
+        };
         match compile_scope(
             &self.configuration,
             &input,
             source.generation(),
             nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
             &mut candidate_computation,
+            &candidate_revision,
         ) {
             WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }

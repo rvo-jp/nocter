@@ -36,16 +36,19 @@ boundary, rejection and recovery model, instrumentation, and qualification evide
 analysis now demands one complete or incomplete top-level semantic product; it cannot select an
 earlier compiler phase or reconstruct a missing result.
 
-Phase 2 unified command and workspace analysis behind `nocter-compiler-computation` is complete. The
+Phase 2 unified command and workspace analysis behind `nocter-compiler-computation` is complete
+after its final enforcement review. The
 [Phase 2 review](reviews/v0.20.0-phase-2.md) records the deleted eager session path, query-backed
 package/discovery flow, native target boundary, parse-goal correction, post-commit package snapshot
 fix, instrumentation, and qualification evidence.
 
 ## Next Work
 
-Phase 2 query-entry unification is complete and reviewed. Do not reopen direct session compilation,
-permit native layers to accept discovery snapshots, or add another source parser beside
-`nocter-compiler-computation`.
+Phase 2 query-entry unification is complete and reviewed. Source queries require an owner-bound
+current revision token, session consumes `nocter-semantic-product` rather than semantic computation,
+and root executable closure cannot detach an identity from its target program. Do not reopen direct
+session compilation, permit native layers to accept discovery snapshots, or add another source
+parser beside `nocter-compiler-computation`.
 
 Before implementing Phase 3, write and accept a separate public design for hashing and associative
 collections. That plan must define equality/hash coherence, mutation and iteration guarantees,
