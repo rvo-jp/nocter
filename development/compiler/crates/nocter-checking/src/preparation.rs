@@ -393,7 +393,7 @@ impl BodyCheckingParts<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PreparationError {
     MissingToolchain,
     TargetMismatch {
@@ -413,20 +413,20 @@ pub enum PreparationError {
 
 /// A preparation failure with the deepest current-generation semantic recovery stage retained for
 /// editor analysis.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PreparationFailure {
     error: PreparationError,
     evidence: Option<Box<PreparationFailureEvidence>>,
 }
 
 /// Typed editor repair evidence separated from one rejected preparation attempt.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PreparationRepairEvidence {
     MissingInterfaceMethods(Box<crate::MissingInterfaceImplementationMethods>),
 }
 
 /// Recovery and repair facts that are valid together for one preparation failure.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PreparationFailureEvidence {
     Declarations {
         analysis: Box<crate::DeclarationAnalysisRecovery>,

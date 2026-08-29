@@ -47,5 +47,8 @@ language server.
 - For source-complete input, workspace passes only a closed semantic success/rejection product to
   session. Missing declaration, preparation, or finalization products are integrity errors; they
   cannot select a session fallback that reruns compiler stages.
+- For syntax-invalid input, workspace demands one exact-current incomplete-analysis product.
+  Session opens that product only after validating its discovery snapshot; workspace cannot invoke
+  or order declaration, preparation, or body recovery stages itself.
 - Workspace neither enumerates body queries nor transports intermediate lexical or typed sets.
   Semantic computation owns complete-set demand and canonical finalization order.

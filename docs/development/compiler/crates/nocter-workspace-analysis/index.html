@@ -133,7 +133,9 @@
   may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.</li><li>Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
   discovery snapshot. It cannot inspect declaration storage, body recipes, or invalidation rules.</li><li>For source-complete input, workspace passes only a closed semantic success/rejection product to
   session. Missing declaration, preparation, or finalization products are integrity errors; they
-  cannot select a session fallback that reruns compiler stages.</li><li>Workspace neither enumerates body queries nor transports intermediate lexical or typed sets.
+  cannot select a session fallback that reruns compiler stages.</li><li>For syntax-invalid input, workspace demands one exact-current incomplete-analysis product.
+  Session opens that product only after validating its discovery snapshot; workspace cannot invoke
+  or order declaration, preparation, or body recovery stages itself.</li><li>Workspace neither enumerates body queries nor transports intermediate lexical or typed sets.
   Semantic computation owns complete-set demand and canonical finalization order.</li></ul>
             </div>
         </main>

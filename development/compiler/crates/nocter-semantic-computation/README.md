@@ -21,6 +21,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - reusable program-wide checking preparation above accepted declarations
 - per-body lexical and typed queries sharing one exact-current semantic context
 - exact-current canonical body replay and whole-program finalization
+- exact-current incomplete-syntax analysis and recovery continuation
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -63,3 +64,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   the applicable complete-set materialization. Ownership, provenance, loans, opaque witnesses, and
   semantic completion run only for typed coverage; workspace code cannot select a second
   finalizer or lexical-recovery builder.
+- Incomplete syntax enters one separate exact-current query. Its result contains the selected
+  compiler-domain failure and deepest valid recovery authority, never a target-program success.
+  Direct session analysis delegates to the same pure traversal rather than implementing another
+  declaration/preparation/body recovery order.

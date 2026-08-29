@@ -49,3 +49,6 @@ editor queries, native code generation, or protocol projection.
 - No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
   or typed-body sets. A source-complete query consumer must supply one closed final success or
   rejection branch.
+- Query-backed incomplete syntax opens one exact-current analysis product and only translates its
+  compiler-domain failure/evidence branch. The recovery traversal itself belongs to semantic
+  computation; the direct session API delegates to the same traversal.

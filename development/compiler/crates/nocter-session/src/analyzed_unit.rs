@@ -155,20 +155,9 @@ impl AnalyzedUnit {
 #[must_use]
 pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
     if unit.has_syntax_errors() {
-        let (semantic, semantic_diagnostics) = analyze_incomplete_syntax(&unit).map_or(
-            (
-                None,
-                Box::<[nocter_diagnostics::SourceDiagnostic]>::default(),
-            ),
-            crate::IncompleteSyntaxAnalysis::into_analysis_parts,
-        );
-        let mut diagnostics = unit.syntax_diagnostics().into_vec();
-        extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
-        return AnalyzedUnit {
-            unit,
-            diagnostics: diagnostics.into_boxed_slice(),
-            state: AnalyzedUnitState::SyntaxFailed(semantic.map(Box::new)),
-        };
+        let analysis =
+            analyze_incomplete_syntax(&unit).unwrap_or_else(crate::IncompleteSyntaxAnalysis::empty);
+        return analyzed_incomplete_unit(unit, analysis);
     }
 
     match analyze_target(&unit) {
@@ -185,6 +174,41 @@ pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
                 state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
             }
         }
+    }
+}
+
+/// Consumes one exact-current query-owned incomplete-syntax analysis.
+///
+/// # Errors
+///
+/// Returns an integrity error when the analysis belongs to another source domain or the supplied
+/// unit does not contain syntax errors.
+pub fn analyze_unit_from_incomplete_analysis(
+    unit: Arc<DiscoveredUnit>,
+    analysis_unit: &DiscoveredUnit,
+    analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
+) -> Result<AnalyzedUnit, SemanticRejectionDomainError> {
+    validate_rejection_domain(&unit, analysis_unit)?;
+    if !unit.has_syntax_errors() {
+        return Err(SemanticRejectionDomainError::ExpectedSyntaxErrors);
+    }
+    Ok(analyzed_incomplete_unit(
+        unit,
+        crate::analysis::incomplete_syntax_analysis(analysis),
+    ))
+}
+
+fn analyzed_incomplete_unit(
+    unit: Arc<DiscoveredUnit>,
+    analysis: crate::IncompleteSyntaxAnalysis,
+) -> AnalyzedUnit {
+    let (semantic, semantic_diagnostics) = analysis.into_analysis_parts();
+    let mut diagnostics = unit.syntax_diagnostics().into_vec();
+    extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
+    AnalyzedUnit {
+        unit,
+        diagnostics: diagnostics.into_boxed_slice(),
+        state: AnalyzedUnitState::SyntaxFailed(semantic.map(Box::new)),
     }
 }
 
@@ -257,6 +281,7 @@ pub enum SemanticRejectionDomainError {
     SemanticTopology(nocter_discovery::SemanticTopologyError),
     CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
     Mismatch,
+    ExpectedSyntaxErrors,
 }
 
 impl std::fmt::Display for SemanticRejectionDomainError {
@@ -266,6 +291,8 @@ impl std::fmt::Display for SemanticRejectionDomainError {
             Self::CurrentSource(error) => error.fmt(formatter),
             Self::Mismatch => formatter
                 .write_str("semantic rejection and current analysis use different source domains"),
+            Self::ExpectedSyntaxErrors => formatter
+                .write_str("incomplete semantic analysis requires a syntax-invalid source domain"),
         }
     }
 }

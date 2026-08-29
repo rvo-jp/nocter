@@ -258,12 +258,13 @@ seal as defense in depth.
 
 ## Recovery
 
-Complete syntax uses the semantic query graph described above. Incomplete syntax still uses one
-explicit editor-only session admission while its recovered declaration/body result is migrated into
-the query graph; it cannot claim compilation success. Recovery does not create feature-local
-fallback order. Rejected name and body domains, typed interruptions, diagnostics, and coverage are
-cacheable products only when their source justification is complete. Internal inconsistency is
-never cached as authored recovery.
+Complete syntax uses the demand graph described above. Incomplete syntax uses a separate
+exact-current query whose value is either not applicable or one editor-only analysis containing the
+selected compiler-domain failure and deepest valid recovery evidence. It cannot claim compilation
+success. The query and direct session API call the same pure recovery traversal, so recovery does
+not create a second semantic meaning or feature-local fallback order. Rejected name and body
+domains, typed interruptions, diagnostics, and coverage are cacheable only when their source
+justification is complete. Internal inconsistency is never cached as authored recovery.
 
 ## Deferred Facilities
 

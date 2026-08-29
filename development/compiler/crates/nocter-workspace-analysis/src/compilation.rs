@@ -14,7 +14,7 @@ use nocter_semantic_computation::{
     DeclarationQueryOutcome, ProgramFinalizationOutcome, ProgramPreparationOutcome,
 };
 use nocter_session::{
-    analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_name_resolution_failure,
+    analyze_unit_from_declaration_failure, analyze_unit_from_name_resolution_failure,
     bundled_standard_toolchain,
 };
 use nocter_syntax::SourceSyntaxProvider;
@@ -55,31 +55,16 @@ pub(crate) fn compile_scope(
     match discovered {
         Ok(unit) => {
             let unit = Arc::new(unit);
-            if unit.has_syntax_errors() {
-                return WorkspaceAnalysisState::Complete(Box::new(
-                    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit)),
-                ));
-            }
             let (scope, publication, body_inputs) =
                 match prepare_semantic_inputs(computation, Arc::clone(&unit)) {
                     Ok(inputs) => inputs,
-                    Err(error) => {
-                        return WorkspaceAnalysisState::PreparationFailed {
-                            source_overlay,
-                            diagnostics: preparation_diagnostics(&error),
-                            error,
-                        };
-                    }
+                    Err(error) => return preparation_failed(source_overlay, error),
                 };
             let mut revision = match computation.advance_revision() {
                 Ok(revision) => revision,
                 Err(error) => {
                     let error = WorkspaceAnalysisError::computation(error);
-                    return WorkspaceAnalysisState::PreparationFailed {
-                        source_overlay,
-                        diagnostics: preparation_diagnostics(&error),
-                        error,
-                    };
+                    return preparation_failed(source_overlay, error);
                 }
             };
             publication.publish(&mut revision, &scope);
@@ -87,15 +72,18 @@ pub(crate) fn compile_scope(
                 body.publish(&mut revision);
             }
             let _ = revision.commit();
+            if unit.has_syntax_errors() {
+                return analyze_incomplete_scope(
+                    unit,
+                    generation,
+                    source_overlay,
+                    computation,
+                    scope,
+                );
+            }
             let products = match crate::semantic_products::demand(computation, &scope) {
                 Ok(products) => products,
-                Err(error) => {
-                    return WorkspaceAnalysisState::PreparationFailed {
-                        source_overlay,
-                        diagnostics: preparation_diagnostics(&error),
-                        error,
-                    };
-                }
+                Err(error) => return preparation_failed(source_overlay, error),
             };
             let analyzed = match analyze_declaration_outcome(
                 unit,
@@ -104,13 +92,7 @@ pub(crate) fn compile_scope(
                 products.finalization.as_deref(),
             ) {
                 Ok(analyzed) => analyzed,
-                Err(error) => {
-                    return WorkspaceAnalysisState::PreparationFailed {
-                        source_overlay,
-                        diagnostics: preparation_diagnostics(&error),
-                        error,
-                    };
-                }
+                Err(error) => return preparation_failed(source_overlay, error),
             };
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
                 generation, analyzed,
@@ -129,6 +111,48 @@ pub(crate) fn compile_scope(
             }
         }
     }
+}
+
+fn preparation_failed(
+    source_overlay: nocter_filesystem::SourceOverlay,
+    error: WorkspaceAnalysisError,
+) -> WorkspaceAnalysisState {
+    WorkspaceAnalysisState::PreparationFailed {
+        source_overlay,
+        diagnostics: preparation_diagnostics(&error),
+        error,
+    }
+}
+
+fn analyze_incomplete_scope(
+    unit: Arc<nocter_discovery::DiscoveredUnit>,
+    generation: GenerationId,
+    source_overlay: nocter_filesystem::SourceOverlay,
+    computation: &Database,
+    scope: nocter_semantic_computation::SemanticScopeKey,
+) -> WorkspaceAnalysisState {
+    let product = match crate::semantic_products::demand_incomplete(computation, scope) {
+        Ok(product) => product,
+        Err(error) => return preparation_failed(source_overlay, error),
+    };
+    let Some(analysis) = product.analysis() else {
+        let error = WorkspaceAnalysisError::semantic_product_unavailable(
+            crate::SemanticProduct::IncompleteAnalysis,
+        );
+        return preparation_failed(source_overlay, error);
+    };
+    let analyzed =
+        match nocter_session::analyze_unit_from_incomplete_analysis(unit, product.unit(), analysis)
+        {
+            Ok(analyzed) => analyzed,
+            Err(error) => {
+                let error = WorkspaceAnalysisError::semantic_rejection(error);
+                return preparation_failed(source_overlay, error);
+            }
+        };
+    WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
+        generation, analyzed,
+    )))
 }
 
 fn prepare_semantic_inputs(

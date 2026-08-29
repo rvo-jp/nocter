@@ -51,7 +51,10 @@ name resolution or checking to reconstruct this rejection. Source-complete analy
 only closed query success/rejection products; unavailable declaration, preparation, or finalization
 products are integrity errors instead of triggers for a second session pipeline. Next make
 incomplete-syntax recovery a query-owned outcome, review the complete query graph, and close Phase
-1.
+1. Incomplete-syntax recovery is now one exact-current query as well: semantic computation owns the
+sole declaration/preparation/body recovery traversal, direct session analysis delegates to that
+same compiler-domain contract, and workspace session code only opens the retained branch. Complete
+the final graph/boundary review and Phase 1 qualification.
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

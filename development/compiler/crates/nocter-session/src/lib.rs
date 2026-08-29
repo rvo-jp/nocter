@@ -21,8 +21,8 @@ pub use analysis::{
 pub use analyzed_unit::{
     AnalyzedUnit, AnalyzedUnitStatus, SemanticRejectionDomainError, analyze_unit,
     analyze_unit_from_declaration_failure, analyze_unit_from_finalization_failure,
-    analyze_unit_from_finalized_program, analyze_unit_from_name_resolution_failure,
-    analyze_unit_from_preparation_rejection,
+    analyze_unit_from_finalized_program, analyze_unit_from_incomplete_analysis,
+    analyze_unit_from_name_resolution_failure, analyze_unit_from_preparation_rejection,
 };
 pub use error::CompileSessionError;
 pub use executable::{

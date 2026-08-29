@@ -78,7 +78,7 @@ impl<'syntax> NameResolution<'syntax> {
 }
 
 /// Authored body-name failure or an inconsistent compiler boundary.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NameResolutionError {
     Rule(SourceDiagnostic),
     Internal(NameResolutionInternalError),
@@ -120,7 +120,7 @@ impl From<NameResolutionInternalError> for NameResolutionError {
 }
 
 /// Internal inconsistency at the lexical-name boundary.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NameResolutionInternalError {
     BodySource(BodySourceError),
     DuplicateModuleSource(SourceId),

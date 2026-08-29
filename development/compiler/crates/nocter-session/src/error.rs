@@ -126,6 +126,25 @@ impl From<nocter_checking::BodyCheckError> for CompileSessionError {
     }
 }
 
+impl From<nocter_semantic_computation::IncompleteSemanticError> for CompileSessionError {
+    fn from(error: nocter_semantic_computation::IncompleteSemanticError) -> Self {
+        match error {
+            nocter_semantic_computation::IncompleteSemanticError::CompileInput(error) => {
+                Self::CompileInput(error)
+            }
+            nocter_semantic_computation::IncompleteSemanticError::Declaration(error) => {
+                Self::Declaration(error)
+            }
+            nocter_semantic_computation::IncompleteSemanticError::Preparation(error) => {
+                Self::Preparation(error)
+            }
+            nocter_semantic_computation::IncompleteSemanticError::Checking(error) => {
+                Self::Checking(error)
+            }
+        }
+    }
+}
+
 impl From<nocter_runtime_contract::PrimitiveBindingError> for CompileSessionError {
     fn from(error: nocter_runtime_contract::PrimitiveBindingError) -> Self {
         Self::Primitive(error)

@@ -3,7 +3,7 @@ use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::semantic_pipeline::{
-    SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
+    SemanticPipelineFailure, SemanticPipelineOutput, run_semantic_pipeline,
     run_semantic_pipeline_from_declaration_failure,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
@@ -28,7 +28,7 @@ pub struct IncompleteSyntaxAnalysis {
 }
 
 impl IncompleteSyntaxAnalysis {
-    fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         Self {
             failure: None,
             semantic: None,
@@ -205,15 +205,21 @@ pub(crate) fn analyze_target_from_preparation_rejection(
 /// or an independent authored rule stopped analysis.
 #[must_use]
 pub fn analyze_incomplete_syntax(unit: &DiscoveredUnit) -> Option<IncompleteSyntaxAnalysis> {
-    if !unit.has_syntax_errors() {
-        return None;
-    }
-    match run_semantic_pipeline(unit, SyntaxAdmission::IncompleteBodies) {
-        Err(SemanticPipelineFailure { error, evidence }) => {
-            Some(IncompleteSyntaxAnalysis::failed(*error, evidence))
-        }
-        Ok(_) => Some(IncompleteSyntaxAnalysis::empty()),
-    }
+    let analysis = nocter_semantic_computation::analyze_incomplete_semantics(unit)?;
+    Some(incomplete_syntax_analysis(&analysis))
+}
+
+pub(crate) fn incomplete_syntax_analysis(
+    analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
+) -> IncompleteSyntaxAnalysis {
+    let Some(failure) = analysis.failure() else {
+        return IncompleteSyntaxAnalysis::empty();
+    };
+    let (error, evidence) = failure.current_branch().into_parts();
+    IncompleteSyntaxAnalysis::failed(
+        error.into(),
+        evidence.map(SemanticEvidenceBundle::from_incomplete),
+    )
 }
 
 pub(crate) fn compile_target_without_recovery(
@@ -226,14 +232,13 @@ fn analyze_target_internal(
     unit: &DiscoveredUnit,
     retain_semantic: bool,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
-    let output = run_semantic_pipeline(unit, SyntaxAdmission::Complete).map_err(
-        |SemanticPipelineFailure { error, evidence }| {
+    let output =
+        run_semantic_pipeline(unit).map_err(|SemanticPipelineFailure { error, evidence }| {
             Box::new(CompileTargetFailure::new(
                 *error,
                 retain_semantic.then_some(evidence).flatten(),
             ))
-        },
-    )?;
+        })?;
     finish_semantic_pipeline(unit, output, retain_semantic)
 }
 

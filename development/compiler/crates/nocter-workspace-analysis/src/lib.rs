@@ -209,6 +209,14 @@ impl WorkspaceAnalyses {
         )
     }
 
+    #[cfg(test)]
+    fn incomplete_analysis_counts(&self) -> (u64, u64) {
+        (
+            nocter_semantic_computation::incomplete_analysis_execution_count(&self.computation),
+            nocter_semantic_computation::incomplete_analysis_reuse_count(&self.computation),
+        )
+    }
+
     ///
     /// # Errors
     ///
@@ -763,6 +771,45 @@ mod tests {
                 .generation(),
             analyzed.primary().generation()
         );
+    }
+
+    #[test]
+    fn incomplete_syntax_analysis_is_a_reusable_exact_current_query() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let source = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func inspect(value: &str): void {\n",
+            "    value.\n",
+            "    return\n",
+            "}\n",
+        );
+        fs::write(&root, source).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        let first = analyses
+            .analyze(documents.open(&root, 1, source).unwrap())
+            .unwrap();
+        assert_eq!(
+            first.primary().snapshot().unwrap().status(),
+            AnalysisStatus::SyntaxFailed
+        );
+        assert_eq!(analyses.incomplete_analysis_counts().0, 1);
+
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, source).unwrap()
+        else {
+            panic!("newer document version is accepted");
+        };
+        let second = analyses.analyze(revision).unwrap();
+        assert_eq!(
+            second.primary().snapshot().unwrap().status(),
+            AnalysisStatus::SyntaxFailed
+        );
+        let counts = analyses.incomplete_analysis_counts();
+        assert_eq!(counts.0, 1);
+        assert!(counts.1 > 0);
     }
 
     #[test]

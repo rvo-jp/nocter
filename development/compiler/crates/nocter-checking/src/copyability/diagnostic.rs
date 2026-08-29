@@ -33,7 +33,7 @@ impl CopyabilityRule {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CopyabilityBuildError {
     Rule(SourceDiagnostic),
     Internal(CopyabilityError),

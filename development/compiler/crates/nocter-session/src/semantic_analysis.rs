@@ -265,6 +265,22 @@ impl<'a> SemanticEvidenceView<'a> {
 }
 
 impl SemanticEvidenceBundle {
+    pub(crate) fn from_incomplete(
+        evidence: nocter_semantic_computation::IncompleteSemanticEvidence,
+    ) -> Self {
+        match evidence {
+            nocter_semantic_computation::IncompleteSemanticEvidence::Declarations(recovery) => {
+                Self::from_declaration_lowering(*recovery)
+            }
+            nocter_semantic_computation::IncompleteSemanticEvidence::Preparation(evidence) => {
+                Self::from_preparation_failure(*evidence)
+            }
+            nocter_semantic_computation::IncompleteSemanticEvidence::Bodies(recovery) => {
+                Self::from_bodies(*recovery)
+            }
+        }
+    }
+
     pub(crate) fn from_declaration_lowering(recovery: DeclarationLoweringRecovery) -> Self {
         let (graph, types, source_ownership, source_index) = recovery.into_declaration_parts();
         Self {

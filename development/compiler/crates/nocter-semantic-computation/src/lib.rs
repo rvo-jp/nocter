@@ -2,6 +2,7 @@
 
 mod body_context;
 mod body_names;
+mod incomplete_analysis;
 mod program_finalization;
 mod program_preparation;
 mod typed_bodies;
@@ -9,6 +10,12 @@ mod typed_bodies;
 pub use body_names::{
     BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey,
     body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
+};
+pub use incomplete_analysis::{
+    IncompleteAnalysisProduct, IncompleteSemanticAnalysis, IncompleteSemanticError,
+    IncompleteSemanticEvidence, IncompleteSemanticFailure, analyze_incomplete_semantics,
+    continue_declaration_recovery, incomplete_analysis, incomplete_analysis_execution_count,
+    incomplete_analysis_reuse_count,
 };
 pub use program_finalization::{
     FailedProgramFinalization, FailedProgramNameResolution, FinalizedProgram,

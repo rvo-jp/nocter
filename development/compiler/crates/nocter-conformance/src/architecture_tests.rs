@@ -281,6 +281,7 @@ fn semantic_computation_owns_queries_without_workspace_or_session_policy() {
         production_dependencies("nocter-semantic-computation"),
         BTreeSet::from([
             "nocter-checking".to_owned(),
+            "nocter-compile-input".to_owned(),
             "nocter-computation".to_owned(),
             "nocter-declaration-lowering".to_owned(),
             "nocter-discovery".to_owned(),

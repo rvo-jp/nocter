@@ -18,7 +18,7 @@ use crate::{
 /// It may retain the independently completed standard contract capability when a later preparation
 /// authority rejects source. Tooling can inspect these exact facts without rerunning lowering or
 /// pretending that the rejecting authority completed.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,

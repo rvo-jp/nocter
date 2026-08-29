@@ -25,7 +25,7 @@ use crate::declaration_patterns::DeclarationPatternTable;
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// Authored interface implementation failure or an inconsistent semantic boundary.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum InterfaceImplementationBuildError {
     Rule {
         diagnostic: Box<SourceDiagnostic>,
@@ -138,7 +138,7 @@ impl From<SubstitutionError> for InterfaceImplementationInternalError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum InterfaceImplementationInternalError {
     MissingInterface(InterfaceId),
     MissingInterfaceImplementation(nocter_model::InterfaceImplementationId),

@@ -21,7 +21,7 @@ use super::model::{CheckedInstanceOperations, InstanceOperationTable};
 use crate::declaration_patterns::DeclarationPatternTable;
 use crate::type_relations::{SubstitutionError, type_patterns_overlap};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum InstanceOperationBuildError {
     Rule(SourceDiagnostic),
     Internal(InstanceOperationInternalError),
@@ -68,7 +68,7 @@ impl From<SubstitutionError> for InstanceOperationBuildError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum InstanceOperationInternalError {
     InvalidTarget(nocter_model::TypeId),
     MissingInstance(InstanceId),

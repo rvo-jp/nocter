@@ -2033,6 +2033,7 @@ name = "nocter-semantic-computation"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
+ "nocter-compile-input",
  "nocter-computation",
  "nocter-declaration-lowering",
  "nocter-discovery",

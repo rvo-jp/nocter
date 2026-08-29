@@ -106,6 +106,7 @@ pub(crate) enum SemanticProduct {
     Declarations,
     Preparation,
     Finalization,
+    IncompleteAnalysis,
 }
 
 impl SemanticProduct {
@@ -114,6 +115,7 @@ impl SemanticProduct {
             Self::Declarations => "declaration query",
             Self::Preparation => "program-preparation query",
             Self::Finalization => "whole-program finalization query",
+            Self::IncompleteAnalysis => "incomplete-syntax analysis query",
         }
     }
 }

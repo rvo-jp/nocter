@@ -14,6 +14,14 @@ pub(super) struct DemandedSemanticProducts {
     pub(super) finalization: Option<Arc<ProgramFinalizationProduct>>,
 }
 
+pub(super) fn demand_incomplete(
+    computation: &Database,
+    scope: SemanticScopeKey,
+) -> Result<Arc<nocter_semantic_computation::IncompleteAnalysisProduct>, WorkspaceAnalysisError> {
+    nocter_semantic_computation::incomplete_analysis(computation, scope)
+        .map_err(WorkspaceAnalysisError::computation)
+}
+
 /// Demands the paired declaration and program-preparation products for one published scope.
 pub(super) fn demand(
     computation: &Database,

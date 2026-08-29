@@ -7,7 +7,7 @@ use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
 use super::shape::{TypePosition, TypeValidityFailure, validate_type};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DeclarationTypeValidityError {
     Rule(SourceDiagnostic),
     Internal(TypeValidityInternalError),
@@ -42,7 +42,7 @@ impl From<TypeValidityInternalError> for DeclarationTypeValidityError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TypeValidityInternalError {
     UnknownType(TypeId),
     MissingSource(SemanticEntity),
