@@ -53,9 +53,19 @@ impl PreparedUseResolution<'_> {
 
 #[derive(Debug)]
 pub struct LoweredDeclarations {
-    program: AcceptedDeclarationProgram,
+    reusable: ReusableDeclarations,
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
+}
+
+/// Source-neutral declaration query result reusable across equal module surfaces.
+///
+/// This owner contains no generation-local source or syntax identity. Each checking request takes
+/// an explicit owned branch; source presentation must be materialized from the paired recipe for
+/// the current generation.
+#[derive(Debug)]
+pub struct ReusableDeclarations {
+    program: AcceptedDeclarationProgram,
     primitive_bindings: Box<[PrimitiveBinding]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
 }
@@ -109,17 +119,19 @@ impl LoweredDeclarations {
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     ) -> Self {
         Self {
-            program,
+            reusable: ReusableDeclarations {
+                program,
+                primitive_bindings,
+                projection_recipe,
+            },
             frontend_bindings,
             source_index,
-            primitive_bindings,
-            projection_recipe,
         }
     }
 
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
-        self.program.program()
+        self.reusable.program()
     }
 
     #[must_use]
@@ -129,18 +141,24 @@ impl LoweredDeclarations {
 
     #[must_use]
     pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
-        &self.primitive_bindings
+        self.reusable.primitive_bindings()
     }
 
     /// Returns the source-neutral projection recipe emitted with this semantic program.
     #[must_use]
     pub const fn projection_recipe(&self) -> &crate::FrontendProjectionRecipe {
-        &self.projection_recipe
+        self.reusable.projection_recipe()
+    }
+
+    /// Discards current-generation projection after extracting the reusable declaration result.
+    #[must_use]
+    pub fn into_reusable(self) -> ReusableDeclarations {
+        self.reusable
     }
 
     #[must_use]
     pub fn into_parts(self) -> (AcceptedDeclarationProgram, SourceIndex) {
-        (self.program, self.source_index)
+        (self.reusable.program, self.source_index)
     }
 
     /// Separates semantic checking input from the independently retained presentation index.
@@ -148,7 +166,34 @@ impl LoweredDeclarations {
     pub fn into_checking_parts(
         self,
     ) -> (AcceptedDeclarationProgram, FrontendBindings, SourceIndex) {
-        (self.program, self.frontend_bindings, self.source_index)
+        (
+            self.reusable.program,
+            self.frontend_bindings,
+            self.source_index,
+        )
+    }
+}
+
+impl ReusableDeclarations {
+    #[must_use]
+    pub const fn program(&self) -> &DeclarationProgram {
+        self.program.program()
+    }
+
+    /// Opens one owned checking branch without rebuilding declaration decisions.
+    #[must_use]
+    pub fn checking_branch(&self) -> AcceptedDeclarationProgram {
+        self.program.checking_branch()
+    }
+
+    #[must_use]
+    pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
+        &self.primitive_bindings
+    }
+
+    #[must_use]
+    pub const fn projection_recipe(&self) -> &crate::FrontendProjectionRecipe {
+        &self.projection_recipe
     }
 }
 

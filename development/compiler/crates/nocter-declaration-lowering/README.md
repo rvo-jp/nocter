@@ -9,7 +9,8 @@ contracts, and publish accepted or explicitly recoverable declaration evidence.
 
 The crate consumes syntax, compile-unit topology, target selection, toolchain/runtime contracts, and
 model construction authority. It produces `DeclarationProgram`, `AcceptedDeclarationProgram`, and
-one source-neutral `FrontendProjectionRecipe`. The recipe materializes frontend bindings,
+one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive
+bindings, and `FrontendProjectionRecipe`. The recipe materializes frontend bindings,
 diagnostic origins, and source projection together for one current syntax generation. It does not
 check callable bodies.
 

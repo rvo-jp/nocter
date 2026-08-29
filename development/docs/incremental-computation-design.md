@@ -119,7 +119,9 @@ of retaining Markdown in the recipe, because documentation does not invalidate d
 semantics. Body-local imports are deliberately supplied as current body projection and never enter
 the reusable declaration recipe. The accepted declaration authority can create an owned checking
 branch while preserving its semantic IDs and type-authority lineage; query ownership of that
-authority is the next integration step.
+authority is the next integration step. `ReusableDeclarations` is the source-neutral ownership
+unit for that query: it contains the accepted authority, primitive bindings, and recipe, while the
+ordinary lowering result keeps current `FrontendBindings` and `SourceIndex` outside it.
 
 ## Source Projection
 
