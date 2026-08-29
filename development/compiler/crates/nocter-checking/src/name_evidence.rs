@@ -1,6 +1,55 @@
 use nocter_diagnostics::SourceDiagnostic;
+use nocter_model::BodyId;
 
-use crate::ResolvedBodyNames;
+use crate::{ResolvedBodyNames, ReusableBodyNames};
+
+/// One independently queried lexical result.
+///
+/// Accepted names are source-neutral and may be reused across current source generations. A
+/// rejection retains its exact current diagnostic while keeping any lexical prefix as a reusable
+/// recipe for current-generation recovery materialization.
+#[derive(Debug)]
+pub enum ReusableBodyNameQueryOutcome {
+    Resolved(ReusableBodyNames),
+    Rejected(QueriedBodyNameRejection),
+}
+
+/// Exact-current authored name rejection plus an optional source-neutral lexical prefix.
+#[derive(Debug)]
+pub struct QueriedBodyNameRejection {
+    body: BodyId,
+    diagnostic: SourceDiagnostic,
+    partial: Option<ReusableBodyNames>,
+}
+
+impl QueriedBodyNameRejection {
+    pub(crate) const fn new(
+        body: BodyId,
+        diagnostic: SourceDiagnostic,
+        partial: Option<ReusableBodyNames>,
+    ) -> Self {
+        Self {
+            body,
+            diagnostic,
+            partial,
+        }
+    }
+
+    #[must_use]
+    pub const fn body(&self) -> BodyId {
+        self.body
+    }
+
+    #[must_use]
+    pub const fn diagnostic(&self) -> &SourceDiagnostic {
+        &self.diagnostic
+    }
+
+    #[must_use]
+    pub const fn partial_names(&self) -> Option<&ReusableBodyNames> {
+        self.partial.as_ref()
+    }
+}
 
 /// The exact lexical-name result retained for one declared body in an editor analysis report.
 #[derive(Debug)]

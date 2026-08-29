@@ -169,7 +169,7 @@ pub(crate) fn analyze_target_from_prepared_body_names(
     unit: &DiscoveredUnit,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let output =
         run_semantic_pipeline_from_prepared_body_names(unit, declarations, prepared, body_names)
@@ -183,7 +183,7 @@ pub(crate) fn analyze_target_from_typed_bodies(
     unit: &DiscoveredUnit,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
     typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let output = run_semantic_pipeline_from_typed_bodies(

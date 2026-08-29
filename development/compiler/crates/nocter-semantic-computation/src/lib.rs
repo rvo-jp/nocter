@@ -6,7 +6,7 @@ mod program_preparation;
 mod typed_bodies;
 
 pub use body_names::{
-    BodyNameQueryOutcome, BodyNameQueryProduct, ResolvedBodyNameSet, SemanticBodyKey,
+    BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey,
     body_name_execution_count, body_name_reuse_count, resolve_body_name, resolved_body_names,
 };
 pub use program_preparation::{

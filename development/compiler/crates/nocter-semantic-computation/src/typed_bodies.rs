@@ -60,8 +60,11 @@ impl Query for TypedBodyQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let name_product = crate::resolve_body_name(database, key.clone())?;
-        let BodyNameQueryOutcome::Resolved(names) = name_product.outcome() else {
-            return unavailable(database, key);
+        let names = match name_product.outcome() {
+            BodyNameQueryOutcome::Resolved(names) => names,
+            BodyNameQueryOutcome::Rejected(_) | BodyNameQueryOutcome::Unavailable => {
+                return unavailable(database, key);
+            }
         };
         let body = database.input::<crate::BodySourceInput>(key.source())?;
         let context =
@@ -69,18 +72,30 @@ impl Query for TypedBodyQuery {
         let Some(outcome) = context.check_body(&body, names) else {
             return unavailable(database, key);
         };
-        let mut fingerprint = name_product.fingerprint().digest().to_vec();
-        fingerprint.extend_from_slice(&body.fingerprint.digest());
+        let outcome = match outcome {
+            nocter_checking::ReusableBodyQueryOutcome::Checked(checked) => {
+                TypedBodyQueryOutcome::Checked(Arc::new(checked))
+            }
+            nocter_checking::ReusableBodyQueryOutcome::Rejected(rejection) => {
+                TypedBodyQueryOutcome::Rejected(Arc::new(rejection))
+            }
+        };
+        let fingerprint = match &outcome {
+            TypedBodyQueryOutcome::Checked(_) => {
+                let mut fingerprint = name_product.fingerprint().digest().to_vec();
+                fingerprint.extend_from_slice(&body.fingerprint.digest());
+                Fingerprint::from_bytes(&fingerprint)
+            }
+            TypedBodyQueryOutcome::Rejected(_) => {
+                database
+                    .input::<CurrentSourceScopeInput>(key.scope())?
+                    .fingerprint
+            }
+            TypedBodyQueryOutcome::Unavailable => unreachable!("constructed outcome"),
+        };
         Ok(TypedBodyQueryProduct {
-            outcome: match outcome {
-                nocter_checking::ReusableBodyQueryOutcome::Checked(checked) => {
-                    TypedBodyQueryOutcome::Checked(Arc::new(checked))
-                }
-                nocter_checking::ReusableBodyQueryOutcome::Rejected(rejection) => {
-                    TypedBodyQueryOutcome::Rejected(Arc::new(rejection))
-                }
-            },
-            fingerprint: Fingerprint::from_bytes(&fingerprint),
+            outcome,
+            fingerprint,
         })
     }
 }

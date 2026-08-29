@@ -65,6 +65,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Authored typed-body rejection is an exact-current query value. Successful siblings replay into
   editor evidence while the rejecting body contributes its diagnostic and typed-interruption
   capability; session assembles `BodyAnalysisRecovery` without checking either body again.
+- Authored lexical rejection retains its exact diagnostic and an optional source-neutral partial
+  recipe. Canonical catalog materialization produces either complete names or one
+  `NameAnalysisRecovery`; callers cannot provide a body ID separately from the recipe that owns it.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

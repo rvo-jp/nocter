@@ -26,7 +26,7 @@ impl BodySemanticContextProduct {
         &self,
         _exact_body: &crate::BodySourceValue,
         identity: &nocter_declaration_lowering::ReusableBodyIdentity,
-    ) -> Option<nocter_checking::ReusableBodyNames> {
+    ) -> Option<nocter_checking::ReusableBodyNameQueryOutcome> {
         let context = self.context.as_ref()?;
         let input = context.unit.compile_input().ok()?;
         context

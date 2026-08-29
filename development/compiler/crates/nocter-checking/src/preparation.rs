@@ -714,7 +714,7 @@ where
     })
 }
 
-/// Opens one current source generation from reusable program and per-body lexical authorities.
+/// Opens one current source generation from reusable program and per-body lexical query outcomes.
 ///
 /// This is the accepted query path: it catalogs current body syntax and rebinds stable body-local
 /// locators without running lexical resolution again.
@@ -722,13 +722,14 @@ where
 /// # Errors
 ///
 /// Returns a current source-domain or reusable-name integrity failure.
-pub fn prepare_program_checking_from_reusable_names<'syntax, S>(
+pub fn prepare_program_checking_from_queried_names<'syntax, S>(
     input: &'syntax CompileUnitInput<'syntax>,
     reusable: &ReusablePreparedProgram,
     checking_spellings: impl IntoIterator<Item = S>,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
-    names: &[(BodyId, &crate::ReusableBodyNames)],
+    names: &[&crate::ReusableBodyNames],
+    rejections: &[&crate::QueriedBodyNameRejection],
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure>
 where
     S: AsRef<str>,
@@ -737,23 +738,46 @@ where
     let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
     let body_sources =
         prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
-    let (body_names, source_index) = crate::materialize_reusable_body_name_catalog(
+    let catalog = crate::names::materialize_queried_body_name_catalog(
         semantic.graph(),
         &body_sources,
         names,
+        rejections,
         source_index,
     )
     .map_err(NameResolutionInternalError::ReusableBodyNames)
     .map_err(NameResolutionError::Internal)
     .map_err(PreparationError::NameResolution)
     .map_err(PreparationFailure::new)?;
-    Ok(PreparedChecking {
-        semantic,
-        body_sources,
-        body_names,
-        source_namespaces: bindings.source_namespaces().clone(),
-        source_index,
-    })
+    match catalog {
+        crate::names::QueriedBodyNameCatalog::Resolved {
+            bodies: body_names,
+            source_index,
+        } => Ok(PreparedChecking {
+            semantic,
+            body_sources,
+            body_names,
+            source_namespaces: bindings.source_namespaces().clone(),
+            source_index,
+        }),
+        crate::names::QueriedBodyNameCatalog::Rejected {
+            bodies,
+            source_index,
+            diagnostic,
+        } => {
+            let recovery = crate::NameAnalysisRecovery::new(
+                semantic.graph().clone(),
+                semantic.types().clone(),
+                bodies,
+                bindings.source_ownership().clone(),
+                source_index,
+            );
+            Err(PreparationFailure::with_name_recovery(
+                PreparationError::NameResolution(NameResolutionError::Rule(diagnostic)),
+                Box::new(recovery),
+            ))
+        }
+    }
 }
 
 fn prepare_program_checking_internal<'syntax>(

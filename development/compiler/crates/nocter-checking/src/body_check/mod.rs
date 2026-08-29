@@ -80,7 +80,7 @@ pub use pipeline::{
 };
 pub use query::{
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,
-    ReusableProgramBodyCheckError,
+    ReusableProgramBodyCheckError, ReusableProgramBodyNameError,
 };
 pub use reusable_body::ReusableCheckedBody;
 mod assumptions;

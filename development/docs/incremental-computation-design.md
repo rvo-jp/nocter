@@ -177,8 +177,8 @@ contains no body-only symbol suffix. Current declaration projection computes tha
 session opens a graph branch and pairs current source access immediately before name resolution.
 Consequently a body-only edit reuses interface, copyability, drop, construction, instance, and
 capability preparation without allowing a prior generation's source identities into the result.
-Preparation rejection still uses the current non-query recovery path; name and body migration must
-close that remaining fallback before Phase 1 completion.
+Preparation rejection still uses the current non-query recovery path; its migration must close
+that remaining fallback before Phase 1 completion.
 
 Lexical resolution now consumes the published body inputs through one query per stable
 path-plus-declaration locator. An accepted result is converted immediately into a source-neutral
@@ -190,6 +190,12 @@ symbol branch once per revision. Although its value refreshes with current sourc
 fingerprint is the source-neutral declaration authority; only body queries whose exact body input
 changed execute against the refreshed context. Lexical and typed queries share that context without
 sharing either result; a current `NodeId` product cannot claim its source-neutral fingerprint.
+Authored lexical rejection is also a query value. The diagnostic remains bound to the exact current
+source fingerprint, while the resolved prefix is captured with the same source-neutral locator
+recipe as success. The complete body-name set owns both accepted recipes and rejections. One
+canonical materialization extends `SourceIndex` and constructs `NameAnalysisRecovery`; session
+does not run the resolver again. Internal resolution or projection inconsistency remains
+unavailable rather than becoming an authored rejection.
 
 Typed-body reuse cannot retain the existing program-wide `TypeId` and `ClosureId` allocation order.
 A preceding body may add an inferred structural type or closure and shift every later identity.

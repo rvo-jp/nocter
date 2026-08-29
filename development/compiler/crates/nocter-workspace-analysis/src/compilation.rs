@@ -151,7 +151,7 @@ fn analyze_declaration_outcome(
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     outcome: &DeclarationQueryOutcome,
     preparation: &ProgramPreparationOutcome,
-    body_names: Option<&nocter_semantic_computation::ResolvedBodyNameSet>,
+    body_names: Option<&nocter_semantic_computation::BodyNameSet>,
     typed_bodies: Option<&nocter_semantic_computation::TypedBodySet>,
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {

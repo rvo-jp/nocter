@@ -19,7 +19,8 @@ use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
 use crate::{
-    BodyNameEvidence, BodySourceCatalog, BodySourceError, NameRejection, catalog_body_sources,
+    BodyNameEvidence, BodySourceCatalog, BodySourceError, NameRejection, QueriedBodyNameRejection,
+    ReusableBodyNameQueryOutcome, catalog_body_sources,
 };
 
 pub use diagnostic::NameRule;
@@ -240,6 +241,40 @@ pub fn resolve_reusable_body_names(
         .map_err(ReusableBodyResolutionError::Projection)
 }
 
+/// Resolves one exact body while retaining authored rejection as a query result.
+///
+/// Internal resolution and source-neutral projection failures remain errors because no safe
+/// semantic evidence can be published for them.
+pub(crate) fn resolve_reusable_body_names_for_query(
+    input: &CompileUnitInput<'_>,
+    graph: &DeclarationGraph,
+    bindings: &FrontendBindings,
+    source: crate::BodySource<'_>,
+) -> Result<ReusableBodyNameQueryOutcome, ReusableBodyResolutionError> {
+    match BodyNameResolver::new(input, graph, bindings, source).resolve_recovering() {
+        Ok(resolved) => {
+            ReusableBodyNames::capture(graph, source, &resolved.body, resolved.projections)
+                .map(ReusableBodyNameQueryOutcome::Resolved)
+                .map_err(ReusableBodyResolutionError::Projection)
+        }
+        Err(failure) => {
+            let resolver::BodyResolutionFailure { error, partial } = failure;
+            let NameResolutionError::Rule(diagnostic) = *error else {
+                return Err(ReusableBodyResolutionError::Resolution(*error));
+            };
+            let partial = partial
+                .map(|partial| {
+                    ReusableBodyNames::capture(graph, source, &partial.body, partial.projections)
+                })
+                .transpose()
+                .map_err(ReusableBodyResolutionError::Projection)?;
+            Ok(ReusableBodyNameQueryOutcome::Rejected(
+                QueriedBodyNameRejection::new(source.body(), diagnostic, partial),
+            ))
+        }
+    }
+}
+
 /// Rebinds one source-neutral lexical result into an exact current body and extends its source
 /// projection in the same operation.
 ///
@@ -262,16 +297,17 @@ pub fn materialize_reusable_body_names(
 /// # Errors
 ///
 /// Returns an integrity failure for missing, duplicate, noncanonical, or unbindable body results.
-pub fn materialize_reusable_body_name_catalog(
+fn materialize_reusable_body_name_catalog(
     graph: &DeclarationGraph,
     sources: &BodySourceCatalog<'_>,
-    recipes: &[(BodyId, &ReusableBodyNames)],
+    recipes: &[&ReusableBodyNames],
     source_index: SourceIndex,
 ) -> Result<(Arena<BodyId, ResolvedBodyNames>, SourceIndex), ReusableBodyNameCatalogError> {
     let mut by_body = std::collections::HashMap::new();
-    for (body, recipe) in recipes {
-        if by_body.insert(*body, *recipe).is_some() {
-            return Err(ReusableBodyNameCatalogError::Duplicate(*body));
+    for recipe in recipes {
+        let body = recipe.body();
+        if by_body.insert(body, *recipe).is_some() {
+            return Err(ReusableBodyNameCatalogError::Duplicate(body));
         }
     }
     let mut bodies = ArenaBuilder::new();
@@ -297,6 +333,108 @@ pub fn materialize_reusable_body_name_catalog(
         bodies.finish(),
         extend_name_source_index(source_index, projections),
     ))
+}
+
+pub(crate) enum QueriedBodyNameCatalog {
+    Resolved {
+        bodies: Arena<BodyId, ResolvedBodyNames>,
+        source_index: SourceIndex,
+    },
+    Rejected {
+        bodies: Arena<BodyId, BodyNameEvidence>,
+        source_index: SourceIndex,
+        diagnostic: SourceDiagnostic,
+    },
+}
+
+enum QueriedBodyNameRecipe<'a> {
+    Resolved(&'a ReusableBodyNames),
+    Rejected(&'a QueriedBodyNameRejection),
+}
+
+/// Materializes one complete canonical body-name query catalog exactly once.
+pub(crate) fn materialize_queried_body_name_catalog(
+    graph: &DeclarationGraph,
+    sources: &BodySourceCatalog<'_>,
+    recipes: &[&ReusableBodyNames],
+    rejections: &[&QueriedBodyNameRejection],
+    source_index: SourceIndex,
+) -> Result<QueriedBodyNameCatalog, ReusableBodyNameCatalogError> {
+    let Some(first_rejection) = rejections.first() else {
+        let (bodies, source_index) =
+            materialize_reusable_body_name_catalog(graph, sources, recipes, source_index)?;
+        return Ok(QueriedBodyNameCatalog::Resolved {
+            bodies,
+            source_index,
+        });
+    };
+    let first_diagnostic = first_rejection.diagnostic().clone();
+    let mut by_body = std::collections::HashMap::new();
+    for recipe in recipes {
+        let body = recipe.body();
+        if by_body
+            .insert(body, QueriedBodyNameRecipe::Resolved(recipe))
+            .is_some()
+        {
+            return Err(ReusableBodyNameCatalogError::Duplicate(body));
+        }
+    }
+    for rejection in rejections {
+        let body = rejection.body();
+        if by_body
+            .insert(body, QueriedBodyNameRecipe::Rejected(rejection))
+            .is_some()
+        {
+            return Err(ReusableBodyNameCatalogError::Duplicate(body));
+        }
+    }
+
+    let mut bodies = ArenaBuilder::new();
+    let mut projections = Vec::new();
+    for source in sources.iter() {
+        let body = source.body();
+        let recipe = by_body
+            .remove(&body)
+            .ok_or(ReusableBodyNameCatalogError::Missing(body))?;
+        let evidence = match recipe {
+            QueriedBodyNameRecipe::Resolved(recipe) => {
+                let (names, mut body_projections) = recipe
+                    .materialize(graph, source)
+                    .map_err(ReusableBodyNameCatalogError::Projection)?;
+                projections.append(&mut body_projections);
+                BodyNameEvidence::Resolved(names)
+            }
+            QueriedBodyNameRecipe::Rejected(rejection) => {
+                let partial = rejection
+                    .partial_names()
+                    .map(|names| names.materialize(graph, source))
+                    .transpose()
+                    .map_err(ReusableBodyNameCatalogError::Projection)?
+                    .map(|(names, mut body_projections)| {
+                        projections.append(&mut body_projections);
+                        names
+                    });
+                BodyNameEvidence::Rejected(NameRejection::new(
+                    rejection.diagnostic().clone(),
+                    partial,
+                ))
+            }
+        };
+        let actual = bodies.insert(evidence);
+        if actual != body {
+            return Err(ReusableBodyNameCatalogError::NonCanonical(body));
+        }
+    }
+    if let Some((body, _)) = by_body.into_iter().next() {
+        return Err(ReusableBodyNameCatalogError::Unknown(body));
+    }
+
+    let source_index = extend_name_source_index(source_index, projections);
+    Ok(QueriedBodyNameCatalog::Rejected {
+        bodies: bodies.finish(),
+        source_index,
+        diagnostic: first_diagnostic,
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

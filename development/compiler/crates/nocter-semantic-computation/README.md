@@ -51,3 +51,6 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   set is ordered by `BodyId`; workspace policy cannot observe or select query execution order.
 - Authored typed rejection is retained under the exact-current fingerprint rather than collapsed
   into absence. Internal checking failure remains unavailable and cannot masquerade as source.
+- Authored lexical rejection follows the same exact-current rule. Its optional resolved prefix is
+  source-neutral, and the complete body-name product carries accepted and rejected body coverage
+  together. Session cannot mistake rejection for missing computation or rerun name resolution.

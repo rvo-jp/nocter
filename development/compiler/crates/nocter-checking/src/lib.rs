@@ -12,7 +12,6 @@ mod associated_type_completion;
 mod associated_type_resolution;
 mod body_check;
 mod body_evidence;
-mod body_name_query;
 mod body_sources;
 mod body_type_recipe;
 mod checked;
@@ -63,14 +62,12 @@ pub use associated_type_resolution::AssociatedTypeResolutionError;
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, CapabilityEvidence,
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,
-    ReusableCheckedBody, ReusableProgramBodyCheckError, TypedBodyInterruption,
-    TypedBodyInterruptionKind, analyze_prepared_program_bodies, check_prepared_program,
-    check_prepared_program_from_queried_bodies, check_prepared_program_recovering,
+    ReusableCheckedBody, ReusableProgramBodyCheckError, ReusableProgramBodyNameError,
+    TypedBodyInterruption, TypedBodyInterruptionKind, analyze_prepared_program_bodies,
+    check_prepared_program, check_prepared_program_from_queried_bodies,
+    check_prepared_program_recovering,
 };
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
-pub use body_name_query::{
-    ProgramBodyNameContext, ReusableProgramBodyNameError, resolve_reusable_program_body_names,
-};
 pub use body_sources::{
     BodySource, BodySourceCatalog, BodySourceError, catalog_body_source, catalog_body_sources,
 };
@@ -145,14 +142,16 @@ pub use member_completion::{
     MemberCompletionCandidate, MemberCompletionError, MemberCompletionQuerySession,
     MemberCompletionTarget,
 };
-pub use name_evidence::{BodyNameEvidence, NameRejection};
+pub use name_evidence::{
+    BodyNameEvidence, NameRejection, QueriedBodyNameRejection, ReusableBodyNameQueryOutcome,
+};
 pub use name_recovery::{BodyNameEvidenceTable, NameAnalysisRecovery};
 pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
     ReusableBodyNameCatalogError, ReusableBodyNames, ReusableBodyNamesError,
-    ReusableBodyResolutionError, ScopeBinding, materialize_reusable_body_name_catalog,
-    materialize_reusable_body_names, resolve_body_names, resolve_reusable_body_names,
+    ReusableBodyResolutionError, ScopeBinding, materialize_reusable_body_names, resolve_body_names,
+    resolve_reusable_body_names,
 };
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
@@ -161,9 +160,8 @@ pub use preparation::{
     PreparationError, PreparationFailure, PreparationFailureEvidence, PreparationRepairEvidence,
     PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram, ReusablePreparedProgram,
     prepare_analysis_program_checking_recovering, prepare_program_checking,
-    prepare_program_checking_from_reusable_names,
-    prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
-    prepare_reusable_program,
+    prepare_program_checking_from_queried_names, prepare_program_checking_from_reusable_recovering,
+    prepare_program_checking_recovering, prepare_reusable_program,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};

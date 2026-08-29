@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use nocter_computation::Database;
 use nocter_semantic_computation::{
-    DeclarationQueryOutcome, DeclarationQueryProduct, ProgramPreparationOutcome,
-    ProgramPreparationProduct, ResolvedBodyNameSet, SemanticScopeKey, TypedBodySet,
+    BodyNameSet, DeclarationQueryOutcome, DeclarationQueryProduct, ProgramPreparationOutcome,
+    ProgramPreparationProduct, SemanticScopeKey, TypedBodySet,
 };
 
 use crate::WorkspaceAnalysisError;
@@ -11,7 +11,7 @@ use crate::WorkspaceAnalysisError;
 pub(super) struct DemandedSemanticProducts {
     pub(super) declarations: Arc<DeclarationQueryProduct>,
     pub(super) preparation: Arc<ProgramPreparationProduct>,
-    pub(super) body_names: Option<ResolvedBodyNameSet>,
+    pub(super) body_names: Option<BodyNameSet>,
     pub(super) typed_bodies: Option<TypedBodySet>,
 }
 

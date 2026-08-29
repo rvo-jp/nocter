@@ -170,7 +170,7 @@ pub fn analyze_unit_from_prepared_body_names(
     unit: Arc<DiscoveredUnit>,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
 ) -> AnalyzedUnit {
     if unit.has_syntax_errors() {
         return analyze_unit(unit);
@@ -198,7 +198,7 @@ pub fn analyze_unit_from_typed_bodies(
     unit: Arc<DiscoveredUnit>,
     declarations: &nocter_declaration_lowering::ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
     typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> AnalyzedUnit {
     if unit.has_syntax_errors() {

@@ -3,7 +3,7 @@
 use nocter_checking::{
     CheckedProgramOutput, analyze_prepared_program_bodies,
     check_prepared_program_from_queried_bodies, check_prepared_program_recovering,
-    prepare_analysis_program_checking_recovering, prepare_program_checking_from_reusable_names,
+    prepare_analysis_program_checking_recovering, prepare_program_checking_from_queried_names,
     prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
 };
 use nocter_declaration_lowering::{
@@ -183,7 +183,7 @@ pub(crate) fn run_semantic_pipeline_from_prepared_body_names(
     unit: &DiscoveredUnit,
     declarations: &ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
 ) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
     let input = unit
         .compile_input()
@@ -204,15 +204,21 @@ pub(crate) fn run_semantic_pipeline_from_prepared_body_names(
     let names = body_names
         .entries()
         .iter()
-        .map(|names| (names.body(), names.as_ref()))
+        .map(AsRef::as_ref)
         .collect::<Vec<_>>();
-    let prepared = prepare_program_checking_from_reusable_names(
+    let rejections = body_names
+        .rejections()
+        .iter()
+        .map(AsRef::as_ref)
+        .collect::<Vec<_>>();
+    let prepared = prepare_program_checking_from_queried_names(
         &input,
         prepared,
         checking_symbols.spellings(),
         &frontend_bindings,
         source_index,
         &names,
+        &rejections,
     )
     .map_err(|failure| {
         let (error, evidence) = failure.into_parts();
@@ -230,7 +236,7 @@ pub(crate) fn run_semantic_pipeline_from_typed_bodies(
     unit: &DiscoveredUnit,
     declarations: &ReusableDeclarations,
     prepared: &nocter_checking::ReusablePreparedProgram,
-    body_names: &nocter_semantic_computation::ResolvedBodyNameSet,
+    body_names: &nocter_semantic_computation::BodyNameSet,
     typed_bodies: &nocter_semantic_computation::TypedBodySet,
 ) -> Result<SemanticPipelineOutput, SemanticPipelineFailure> {
     let input = unit
@@ -252,15 +258,21 @@ pub(crate) fn run_semantic_pipeline_from_typed_bodies(
     let names = body_names
         .entries()
         .iter()
-        .map(|names| (names.body(), names.as_ref()))
+        .map(AsRef::as_ref)
         .collect::<Vec<_>>();
-    let prepared = prepare_program_checking_from_reusable_names(
+    let rejections = body_names
+        .rejections()
+        .iter()
+        .map(AsRef::as_ref)
+        .collect::<Vec<_>>();
+    let prepared = prepare_program_checking_from_queried_names(
         &input,
         prepared,
         checking_symbols.spellings(),
         &frontend_bindings,
         source_index,
         &names,
+        &rejections,
     )
     .map_err(|failure| {
         let (error, evidence) = failure.into_parts();

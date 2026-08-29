@@ -8,8 +8,8 @@ use super::reusable_body::{ReusableCheckedBody, capture_checked_body};
 use super::semantic_transaction::BodySemanticAuthority;
 use crate::checked::ClosureAuthority;
 use crate::{
-    BodySourceError, ReusableBodyNames, ReusableBodyNamesError, ReusablePreparedProgram,
-    ReusableProgramBodyNameError, catalog_body_source, resolve_reusable_body_names,
+    BodySourceError, ReusableBodyNameQueryOutcome, ReusableBodyNames, ReusableBodyNamesError,
+    ReusableBodyResolutionError, ReusablePreparedProgram, catalog_body_source,
 };
 
 /// Exact-current projection required to produce independent source-neutral typed-body results.
@@ -76,11 +76,16 @@ impl ProgramBodyCheckingContext {
         input: &CompileUnitInput<'_>,
         bindings: &FrontendBindings,
         body: nocter_model::BodyId,
-    ) -> Result<ReusableBodyNames, ReusableProgramBodyNameError> {
+    ) -> Result<ReusableBodyNameQueryOutcome, ReusableProgramBodyNameError> {
         let source = catalog_body_source(input, self.current.graph(), bindings, body)
             .map_err(ReusableProgramBodyNameError::BodySource)?;
-        resolve_reusable_body_names(input, self.current.graph(), bindings, source)
-            .map_err(ReusableProgramBodyNameError::Resolution)
+        crate::names::resolve_reusable_body_names_for_query(
+            input,
+            self.current.graph(),
+            bindings,
+            source,
+        )
+        .map_err(ReusableProgramBodyNameError::Resolution)
     }
 
     /// Checks exactly one body and returns a result containing no current source identities.
@@ -152,6 +157,23 @@ impl ProgramBodyCheckingContext {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum ReusableProgramBodyNameError {
+    BodySource(BodySourceError),
+    Resolution(ReusableBodyResolutionError),
+}
+
+impl std::fmt::Display for ReusableProgramBodyNameError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BodySource(error) => error.fmt(formatter),
+            Self::Resolution(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ReusableProgramBodyNameError {}
 
 #[derive(Debug)]
 pub enum ReusableProgramBodyCheckError {

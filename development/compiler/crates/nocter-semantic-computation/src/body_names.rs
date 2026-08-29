@@ -53,6 +53,7 @@ struct BodyNameQuery;
 #[derive(Debug)]
 pub enum BodyNameQueryOutcome {
     Resolved(Arc<nocter_checking::ReusableBodyNames>),
+    Rejected(Arc<nocter_checking::QueriedBodyNameRejection>),
     Unavailable,
 }
 
@@ -67,14 +68,20 @@ pub struct BodyNameQueryProduct {
 /// Workspace orchestration transports this authority as one opaque semantic product. Only the
 /// semantic session consumes its checking-level entries.
 #[derive(Debug)]
-pub struct ResolvedBodyNameSet {
+pub struct BodyNameSet {
     entries: Box<[Arc<nocter_checking::ReusableBodyNames>]>,
+    rejections: Box<[Arc<nocter_checking::QueriedBodyNameRejection>]>,
 }
 
-impl ResolvedBodyNameSet {
+impl BodyNameSet {
     #[must_use]
     pub fn entries(&self) -> &[Arc<nocter_checking::ReusableBodyNames>] {
         &self.entries
+    }
+
+    #[must_use]
+    pub fn rejections(&self) -> &[Arc<nocter_checking::QueriedBodyNameRejection>] {
+        &self.rejections
     }
 }
 
@@ -108,15 +115,34 @@ impl Query for BodyNameQuery {
         let body = database.input::<BodySourceInput>(&key.source)?;
         let context =
             database.query::<crate::body_context::BodySemanticContextQuery>(key.scope.clone())?;
-        let resolved = context.resolve_names(&body, identity);
-        let Some(resolved) = resolved else {
+        let outcome = context.resolve_names(&body, identity);
+        let Some(outcome) = outcome else {
             return unavailable(database, key);
         };
-        let mut fingerprint = declaration_fingerprint.digest().to_vec();
-        fingerprint.extend_from_slice(&body.fingerprint.digest());
+        let outcome = match outcome {
+            nocter_checking::ReusableBodyNameQueryOutcome::Resolved(resolved) => {
+                BodyNameQueryOutcome::Resolved(Arc::new(resolved))
+            }
+            nocter_checking::ReusableBodyNameQueryOutcome::Rejected(rejection) => {
+                BodyNameQueryOutcome::Rejected(Arc::new(rejection))
+            }
+        };
+        let fingerprint = match &outcome {
+            BodyNameQueryOutcome::Resolved(_) => {
+                let mut fingerprint = declaration_fingerprint.digest().to_vec();
+                fingerprint.extend_from_slice(&body.fingerprint.digest());
+                Fingerprint::from_bytes(&fingerprint)
+            }
+            BodyNameQueryOutcome::Rejected(_) => {
+                database
+                    .input::<CurrentSourceScopeInput>(&key.scope)?
+                    .fingerprint
+            }
+            BodyNameQueryOutcome::Unavailable => unreachable!("constructed outcome"),
+        };
         Ok(BodyNameQueryProduct {
-            outcome: BodyNameQueryOutcome::Resolved(Arc::new(resolved)),
-            fingerprint: Fingerprint::from_bytes(&fingerprint),
+            outcome,
+            fingerprint,
         })
     }
 }
@@ -136,8 +162,8 @@ fn unavailable(
 ///
 /// # Errors
 ///
-/// Returns only computation-kernel failures. Current authored rejection remains an unavailable
-/// outcome until query-owned recovery migration is complete.
+/// Returns only computation-kernel failures. Authored rejection is a first-class exact-current
+/// query outcome; unavailable is reserved for an earlier missing authority or internal failure.
 pub fn resolve_body_name(
     database: &Database,
     key: SemanticBodyKey,
@@ -157,25 +183,31 @@ pub fn resolve_body_name(
 pub fn resolved_body_names(
     database: &Database,
     scope: &SemanticScopeKey,
-) -> Result<Option<ResolvedBodyNameSet>, ComputationError> {
+) -> Result<Option<BodyNameSet>, ComputationError> {
     let declarations = database.query::<DeclarationQuery>(scope.clone())?;
     let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
         return Ok(None);
     };
     let mut entries = Vec::with_capacity(declarations.body_identities().len());
+    let mut rejections = Vec::new();
     for identity in declarations.body_identities() {
         let product = resolve_body_name(
             database,
             SemanticBodyKey::for_identity(scope.clone(), identity),
         )?;
-        let BodyNameQueryOutcome::Resolved(names) = product.outcome() else {
-            return Ok(None);
-        };
-        entries.push(Arc::clone(names));
+        match product.outcome() {
+            BodyNameQueryOutcome::Resolved(names) => entries.push(Arc::clone(names)),
+            BodyNameQueryOutcome::Rejected(rejection) => {
+                rejections.push(Arc::clone(rejection));
+            }
+            BodyNameQueryOutcome::Unavailable => return Ok(None),
+        }
     }
     entries.sort_unstable_by_key(|names| names.body());
-    Ok(Some(ResolvedBodyNameSet {
+    rejections.sort_unstable_by_key(|rejection| rejection.body());
+    Ok(Some(BodyNameSet {
         entries: entries.into_boxed_slice(),
+        rejections: rejections.into_boxed_slice(),
     }))
 }
 
