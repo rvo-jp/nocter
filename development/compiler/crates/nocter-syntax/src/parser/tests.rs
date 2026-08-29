@@ -13,6 +13,57 @@ fn parse_text(text: &str, goal: ParseGoal) -> SyntaxTree {
     parse(sources.get(id).unwrap(), goal)
 }
 
+#[test]
+fn reusable_parse_products_bind_every_identity_to_the_current_source() {
+    let text = "/// docs\nfunc broken(value i32): void { return }\n";
+    let mut sources = SourceMap::new();
+    let first = sources
+        .add_bytes(SourceName::new("first.nct"), text.as_bytes())
+        .unwrap();
+    let second = sources
+        .add_bytes(SourceName::new("second.nct"), text.as_bytes())
+        .unwrap();
+    let parsed = crate::parse_reusable(sources.get(first).unwrap(), ParseGoal::SourceFile);
+    let tree = parsed.bind(sources.get(second).unwrap()).unwrap();
+
+    assert_eq!(tree.source(), second);
+    assert!(tree.nodes().all(|(node, _)| node.source() == second));
+    assert!(
+        tree.lexed()
+            .tokens()
+            .iter()
+            .all(|token| token.span().source() == second)
+    );
+    assert!(
+        tree.lexed()
+            .comments()
+            .iter()
+            .all(|comment| comment.span().source() == second)
+    );
+    assert!(
+        tree.diagnostics()
+            .iter()
+            .all(|diagnostic| diagnostic.span().source() == second)
+    );
+    assert!(
+        crate::descendant_token_iter(&tree, tree.root_id()).all(|token| token.source() == second)
+    );
+}
+
+#[test]
+fn reusable_parse_products_reject_different_source_text() {
+    let mut sources = SourceMap::new();
+    let first = sources
+        .add_bytes(SourceName::new("first.nct"), b"func first(): void {}\n")
+        .unwrap();
+    let second = sources
+        .add_bytes(SourceName::new("second.nct"), b"func second(): void {}\n")
+        .unwrap();
+    let parsed = crate::parse_reusable(sources.get(first).unwrap(), ParseGoal::SourceFile);
+
+    assert!(parsed.bind(sources.get(second).unwrap()).is_none());
+}
+
 fn assert_syntax_ok(text: &str, goal: ParseGoal) -> SyntaxTree {
     let tree = parse_text(text, goal);
     assert!(tree.lexed().diagnostics().is_empty());

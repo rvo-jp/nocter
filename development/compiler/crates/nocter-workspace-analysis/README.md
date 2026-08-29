@@ -9,8 +9,9 @@ immutable analysis generations.
 
 The crate consumes canonical workspace roots, installation facts, and linear
 `WorkspaceSourceRevision` values. It prepares package, toolchain-standard, or single-file scopes,
-invokes compiler analysis once per demanded scope, and publishes normalized workspace outcomes to
-the language server.
+owns the revisioned computation database, supplies reusable source syntax to discovery, invokes
+compiler analysis once per demanded scope, and publishes normalized workspace outcomes to the
+language server.
 
 ## Internal Responsibilities
 
@@ -18,6 +19,7 @@ the language server.
 - package-root catalog construction and topology freeze
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
+- content-addressed parse queries and computation instrumentation
 
 ## Invariants
 
@@ -28,3 +30,5 @@ the language server.
 - Ambiguous shared-source contexts are rejected rather than ordered.
 - Changed/closed files may invalidate demand but cannot create demand.
 - Foreign, cloned, or non-increasing revisions cannot mutate latest state.
+- Reused parse products are rebound through the syntax-owned text/identity contract; workspace code
+  cannot rewrite syntax identities itself.

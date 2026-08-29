@@ -40,6 +40,13 @@ impl Comment {
     pub const fn span(self) -> Span {
         self.span
     }
+
+    const fn with_source(self, source: SourceId) -> Self {
+        Self {
+            kind: self.kind,
+            span: Span::new(source, self.span.range()),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -77,6 +84,13 @@ impl LexDiagnostic {
     pub const fn span(self) -> Span {
         self.span
     }
+
+    const fn with_source(self, source: SourceId) -> Self {
+        Self {
+            kind: self.kind,
+            span: Span::new(source, self.span.range()),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -106,6 +120,19 @@ impl LexedFile {
     #[must_use]
     pub fn diagnostics(&self) -> &[LexDiagnostic] {
         &self.diagnostics
+    }
+
+    pub(crate) fn rebind_source(&mut self, source: SourceId) {
+        self.source = source;
+        for token in &mut self.tokens {
+            *token = token.with_source(source);
+        }
+        for comment in &mut self.comments {
+            *comment = comment.with_source(source);
+        }
+        for diagnostic in &mut self.diagnostics {
+            *diagnostic = diagnostic.with_source(source);
+        }
     }
 }
 

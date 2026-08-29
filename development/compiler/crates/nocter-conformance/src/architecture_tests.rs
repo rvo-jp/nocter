@@ -217,6 +217,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
             &[
                 "nocter-analysis",
                 "nocter-compile-input",
+                "nocter-computation",
                 "nocter-diagnostics",
                 "nocter-discovery",
                 "nocter-filesystem",
@@ -224,6 +225,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
                 "nocter-package",
                 "nocter-session",
                 "nocter-source",
+                "nocter-syntax",
                 "nocter-workspace-revision",
             ][..],
         ),

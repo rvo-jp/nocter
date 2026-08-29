@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::Arc;
 
 use crate::{ComputationError, ComputationIdentity, Fingerprint, Input, Query, QueryValue};
@@ -80,6 +81,18 @@ impl Default for DatabaseState {
 #[derive(Default)]
 pub struct Database {
     state: RefCell<DatabaseState>,
+}
+
+impl fmt::Debug for Database {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let state = self.state.borrow();
+        formatter
+            .debug_struct("Database")
+            .field("revision", &state.revision)
+            .field("entries", &state.entries.len())
+            .field("active_evaluations", &state.evaluations.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Database {

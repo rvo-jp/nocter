@@ -341,6 +341,13 @@ impl NodeId {
     pub const fn index(self) -> usize {
         self.index
     }
+
+    const fn with_source(self, source: SourceId) -> Self {
+        Self {
+            source,
+            index: self.index,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -403,6 +410,10 @@ impl SyntaxToken {
     pub const fn range(self) -> TextRange {
         self.range
     }
+
+    const fn with_source(self, source: SourceId) -> Self {
+        Self { source, ..self }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -420,6 +431,13 @@ impl MissingSyntax {
     #[must_use]
     pub const fn span(self) -> Span {
         self.span
+    }
+
+    const fn with_source(self, source: SourceId) -> Self {
+        Self {
+            expected: self.expected,
+            span: Span::new(source, self.span.range()),
+        }
     }
 }
 
@@ -482,6 +500,23 @@ impl SyntaxTree {
     #[must_use]
     pub fn source(&self) -> SourceId {
         self.lexed.source()
+    }
+
+    pub(crate) fn rebind_source(&mut self, source: SourceId) {
+        self.lexed.rebind_source(source);
+        for element in &mut self.elements {
+            *element = match *element {
+                SyntaxElement::Node(node) => SyntaxElement::Node(node.with_source(source)),
+                SyntaxElement::Token(token) => SyntaxElement::Token(token.with_source(source)),
+                SyntaxElement::Missing(missing) => {
+                    SyntaxElement::Missing(missing.with_source(source))
+                }
+            };
+        }
+        self.root = self.root.with_source(source);
+        for diagnostic in &mut self.diagnostics {
+            *diagnostic = diagnostic.with_source(source);
+        }
     }
 
     #[must_use]

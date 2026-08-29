@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 
 use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
-use nocter_discovery::{DiscoveryRequest, discover};
+use nocter_computation::Database;
+use nocter_discovery::{DiscoveryRequest, SourceSyntaxProvider, discover_with_source_syntax};
 use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
@@ -13,6 +14,7 @@ use nocter_workspace_revision::GenerationId;
 
 use crate::compilation_input::ScopeCompilationInput;
 use crate::errors::preparation_diagnostics;
+use crate::source_syntax::ComputedSourceSyntax;
 use crate::{WorkspaceAnalysisError, WorkspaceAnalysisState, WorkspaceConfiguration};
 
 pub(crate) fn compile_scope(
@@ -20,8 +22,10 @@ pub(crate) fn compile_scope(
     input: &ScopeCompilationInput,
     generation: GenerationId,
     package_roots: PackageRootCatalog,
+    computation: &Database,
 ) -> WorkspaceAnalysisState {
     let source_overlay = package_roots.source_overlay().clone();
+    let mut source_syntax = ComputedSourceSyntax::new(computation);
     let discovered = match input {
         ScopeCompilationInput::Package {
             root,
@@ -31,12 +35,13 @@ pub(crate) fn compile_scope(
             root,
             requested_sources,
             package_roots.clone(),
+            &mut source_syntax,
         ),
         ScopeCompilationInput::ToolchainStandard => {
-            discover_toolchain_standard(configuration, package_roots.clone())
+            discover_toolchain_standard(configuration, package_roots.clone(), &mut source_syntax)
         }
         ScopeCompilationInput::SingleFile(source) => {
-            discover_single_file(configuration, source, package_roots)
+            discover_single_file(configuration, source, package_roots, &mut source_syntax)
         }
     };
     match discovered {
@@ -61,17 +66,21 @@ pub(crate) fn compile_scope(
 fn discover_toolchain_standard(
     configuration: &WorkspaceConfiguration,
     package_roots: PackageRootCatalog,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let package =
         resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
             .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover(DiscoveryRequest::toolchain_standard(
-        toolchain.target(),
-        package,
-        bundled_standard_toolchain(&standard),
-    ))
+    discover_with_source_syntax(
+        DiscoveryRequest::toolchain_standard(
+            toolchain.target(),
+            package,
+            bundled_standard_toolchain(&standard),
+        ),
+        source_syntax,
+    )
     .map_err(AnalysisPreparationFailure::Discovery)
 }
 
@@ -80,6 +89,7 @@ fn discover_package(
     root: &Path,
     requested_sources: &[PathBuf],
     package_roots: PackageRootCatalog,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let selected = resolve_package_selection_with_root_catalog(
@@ -128,12 +138,15 @@ fn discover_package(
         }));
     }
     let (packages, _, _) = selected.into_parts();
-    discover(DiscoveryRequest::declared(
-        toolchain.target(),
-        packages,
-        roots.into_iter().collect(),
-        bundled_standard_toolchain(&standard),
-    ))
+    discover_with_source_syntax(
+        DiscoveryRequest::declared(
+            toolchain.target(),
+            packages,
+            roots.into_iter().collect(),
+            bundled_standard_toolchain(&standard),
+        ),
+        source_syntax,
+    )
     .map_err(AnalysisPreparationFailure::Discovery)
 }
 
@@ -141,18 +154,22 @@ fn discover_single_file(
     configuration: &WorkspaceConfiguration,
     source: &Path,
     package_roots: PackageRootCatalog,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
     let packages =
         resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
             .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
-    discover(DiscoveryRequest::single_file(
-        toolchain.target(),
-        source,
-        packages,
-        bundled_standard_toolchain(&standard),
-    ))
+    discover_with_source_syntax(
+        DiscoveryRequest::single_file(
+            toolchain.target(),
+            source,
+            packages,
+            bundled_standard_toolchain(&standard),
+        ),
+        source_syntax,
+    )
     .map_err(AnalysisPreparationFailure::Discovery)
 }
 

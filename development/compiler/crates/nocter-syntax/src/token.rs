@@ -75,6 +75,14 @@ impl Token {
         self.joint_to_next
     }
 
+    pub(crate) const fn with_source(self, source: nocter_source::SourceId) -> Self {
+        Self {
+            kind: self.kind,
+            span: Span::new(source, self.span.range()),
+            joint_to_next: self.joint_to_next,
+        }
+    }
+
     pub(crate) fn set_joint_to_next(&mut self, joint: bool) {
         self.joint_to_next = joint;
     }

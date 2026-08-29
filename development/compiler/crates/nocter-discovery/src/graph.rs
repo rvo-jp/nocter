@@ -9,7 +9,7 @@ use nocter_compile_input::{
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+use nocter_syntax::{ParseGoal, SyntaxTree};
 use nocter_target_selection::TargetSelectionBuilder;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
@@ -21,6 +21,7 @@ use crate::snapshot::{
 };
 use crate::source_visibility::source_visibility_paths;
 use crate::syntax::active_use_paths;
+use crate::{DirectSourceSyntax, SourceSyntaxProvider};
 use crate::{DiscoveryError, DiscoveryFailure};
 
 #[derive(Debug)]
@@ -55,8 +56,7 @@ enum Work {
     },
 }
 
-#[derive(Debug)]
-struct Builder {
+struct Builder<'syntax> {
     target: nocter_model::CompilationTarget,
     packages: BTreeMap<PackageIdentity, PackageState>,
     package_roots: nocter_package::PackageRootCatalogBuilder,
@@ -73,6 +73,7 @@ struct Builder {
     target_selection: TargetSelectionBuilder,
     pending: BTreeSet<Work>,
     toolchain: ToolchainInput,
+    source_syntax: &'syntax mut dyn SourceSyntaxProvider,
 }
 
 #[derive(Debug)]
@@ -100,14 +101,30 @@ impl From<DiscoveryError> for ResolveError {
 /// Returns a filesystem or topology error when an exact package, module, source, or active import
 /// cannot be selected unambiguously.
 pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
+    discover_with_source_syntax(request, &mut DirectSourceSyntax)
+}
+
+/// Resolves one source graph while delegating only source-text parsing to `source_syntax`.
+///
+/// # Errors
+///
+/// Returns the same discovery failures as [`discover`], including infrastructure failures from
+/// the supplied syntax provider.
+pub fn discover_with_source_syntax(
+    request: DiscoveryRequest,
+    source_syntax: &mut dyn SourceSyntaxProvider,
+) -> Result<DiscoveredUnit, DiscoveryFailure> {
     let source_overlay = request.source_overlay().clone();
-    Builder::new(request)
+    Builder::new(request, source_syntax)
         .map_err(|error| DiscoveryFailure::before_source_snapshot(error, source_overlay))?
         .run()
 }
 
-impl Builder {
-    fn new(request: DiscoveryRequest) -> Result<Self, DiscoveryError> {
+impl<'syntax> Builder<'syntax> {
+    fn new(
+        request: DiscoveryRequest,
+        source_syntax: &'syntax mut dyn SourceSyntaxProvider,
+    ) -> Result<Self, DiscoveryError> {
         let (target, layout, toolchain) = request.into_parts();
         let (loaded, roots, single_file, root_packages) = match layout {
             DiscoveryLayout::Declared { packages, roots } => {
@@ -175,6 +192,7 @@ impl Builder {
             target_selection: TargetSelectionBuilder::new(),
             pending,
             toolchain,
+            source_syntax,
         })
     }
 
@@ -324,6 +342,7 @@ impl Builder {
                 &mut self.syntax,
                 &path,
                 ParseGoal::SourceFile,
+                self.source_syntax,
             )?
         };
         self.source_owners.insert(path.clone(), module.clone());
@@ -692,6 +711,7 @@ fn load_source(
     syntax: &mut Vec<SyntaxTree>,
     path: &Path,
     goal: ParseGoal,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<usize, DiscoveryError> {
     let bytes = source_overlay
         .read(path)
@@ -707,12 +727,20 @@ fn load_source(
             path: path.into(),
             error,
         })?;
-    let tree = parse(
-        sources
-            .get(source)
-            .expect("newly allocated source remains in the source map"),
-        goal,
-    );
+    let tree = source_syntax
+        .syntax(
+            sources
+                .get(source)
+                .expect("newly allocated source remains in the source map"),
+            goal,
+        )
+        .map_err(|error| DiscoveryError::SourceSyntax {
+            path: path.into(),
+            error,
+        })?;
+    if tree.source() != source {
+        return Err(DiscoveryError::InconsistentSourceSnapshot(source));
+    }
     let index = syntax.len();
     syntax.push(tree);
     Ok(index)

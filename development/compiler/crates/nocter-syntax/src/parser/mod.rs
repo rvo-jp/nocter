@@ -26,8 +26,53 @@ pub enum ParseGoal {
     SourceFile,
 }
 
+impl ParseGoal {
+    /// Stable name used by computation identities and diagnostics.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceFile => "source_file",
+        }
+    }
+}
+
+/// Source-text-owned parse product that can be bound to the exact identity of an equal source.
+#[derive(Clone, Debug)]
+pub struct ParsedSyntax {
+    text: Box<str>,
+    tree: SyntaxTree,
+}
+
+impl ParsedSyntax {
+    /// Clones this parse product into the supplied source-identity domain.
+    ///
+    /// Returns `None` rather than trusting the caller when the normalized source text differs.
+    #[must_use]
+    pub fn bind(&self, source: &SourceFile) -> Option<SyntaxTree> {
+        if source.text() != self.text.as_ref() {
+            return None;
+        }
+        let mut tree = self.tree.clone();
+        tree.rebind_source(source.id());
+        Some(tree)
+    }
+}
+
 #[must_use]
 pub fn parse(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
+    parse_tree(source, goal)
+}
+
+/// Parses normalized source text into a product independent of one source-map identity.
+#[must_use]
+pub fn parse_reusable(source: &SourceFile, goal: ParseGoal) -> ParsedSyntax {
+    ParsedSyntax {
+        text: source.text().into(),
+        tree: parse_tree(source, goal),
+    }
+}
+
+fn parse_tree(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
     let lexed = lex(source);
     let mut parser = Parser::new(source, lexed.tokens());
     match goal {

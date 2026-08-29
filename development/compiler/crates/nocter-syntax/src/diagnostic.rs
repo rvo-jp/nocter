@@ -60,4 +60,11 @@ impl ParseDiagnostic {
     pub const fn span(self) -> Span {
         self.span
     }
+
+    pub(crate) const fn with_source(self, source: nocter_source::SourceId) -> Self {
+        Self {
+            kind: self.kind,
+            span: Span::new(source, self.span.range()),
+        }
+    }
 }

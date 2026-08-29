@@ -21,6 +21,7 @@ mod compilation_input;
 mod configuration;
 mod errors;
 mod generation;
+mod source_syntax;
 mod topology;
 
 use compilation::compile_scope;
@@ -43,6 +44,7 @@ pub struct WorkspaceAnalyses {
     document_scopes: BTreeMap<PathBuf, AnalysisScope>,
     source_scopes: BTreeMap<PathBuf, BTreeSet<AnalysisScope>>,
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
+    computation: nocter_computation::Database,
 }
 
 /// More than one current package context can answer a source request and none is authoritative.
@@ -80,6 +82,7 @@ impl std::error::Error for AmbiguousDocumentAnalysis {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkspaceRevisionError {
     ForeignSequence,
+    ComputationRevisionExhausted,
     NonIncreasing {
         current: GenerationId,
         received: GenerationId,
@@ -91,6 +94,9 @@ impl fmt::Display for WorkspaceRevisionError {
         match self {
             Self::ForeignSequence => {
                 formatter.write_str("source revision belongs to another workspace sequence")
+            }
+            Self::ComputationRevisionExhausted => {
+                formatter.write_str("workspace computation revision identity space is exhausted")
             }
             Self::NonIncreasing { current, received } => write!(
                 formatter,
@@ -124,6 +130,7 @@ impl WorkspaceAnalyses {
             document_scopes: BTreeMap::new(),
             source_scopes: BTreeMap::new(),
             unscoped: BTreeMap::new(),
+            computation: nocter_computation::Database::new(),
         }
     }
 
@@ -131,6 +138,14 @@ impl WorkspaceAnalyses {
     #[must_use]
     fn latest(&self, scope: &AnalysisScope) -> Option<&WorkspaceAnalysisGeneration> {
         self.latest.get(scope).map(Arc::as_ref)
+    }
+
+    #[cfg(test)]
+    fn source_parse_counts(&self) -> (u64, u64) {
+        (
+            source_syntax::execution_count(&self.computation),
+            source_syntax::reuse_count(&self.computation),
+        )
     }
 
     ///
@@ -192,6 +207,11 @@ impl WorkspaceAnalyses {
         source: WorkspaceSourceRevision,
     ) -> Result<WorkspaceAnalysisBatch, WorkspaceRevisionError> {
         self.validate_revision(&source)?;
+        let computation_revision = self
+            .computation
+            .advance_revision()
+            .map_err(|_| WorkspaceRevisionError::ComputationRevisionExhausted)?;
+        let _ = computation_revision.commit();
         let revision_sequence = source.sequence().clone();
         let document = source.primary_document().to_path_buf();
         let generation = source.generation();
@@ -374,6 +394,7 @@ impl WorkspaceAnalyses {
                             &input,
                             generation,
                             transition.package_roots.clone(),
+                            &self.computation,
                         )
                     } else {
                         WorkspaceAnalysisState::InvalidationOnly {
@@ -462,6 +483,7 @@ impl WorkspaceAnalyses {
             &input,
             source.generation(),
             nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
+            &self.computation,
         ) {
             WorkspaceAnalysisState::Complete(snapshot) => candidate.validate(snapshot),
             WorkspaceAnalysisState::PreparationFailed { .. }
@@ -655,6 +677,56 @@ mod tests {
                 .generation(),
             analyzed.primary().generation()
         );
+    }
+
+    #[test]
+    fn unchanged_source_text_reuses_parsing_across_workspace_revisions() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let helper = temporary.path().join("helper.nct");
+        let root_text = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func answer(): i32 { return helper() }\n",
+        );
+        let changed_root_text = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func answer(): i32 { return helper() + 1 }\n",
+        );
+        let helper_text = "func helper(): i32 { return 41 }\n";
+        let changed_helper_text = "func helper(): i32 { return 42 }\n";
+        fs::write(&root, root_text).unwrap();
+        fs::write(&helper, helper_text).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        analyses
+            .analyze(documents.open(&root, 1, root_text).unwrap())
+            .unwrap();
+        let after_initial = analyses.source_parse_counts();
+        assert!(after_initial.0 > 0);
+
+        let DocumentWorkspaceChange::Accepted(root_revision) =
+            documents.change(&root, 2, changed_root_text).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        analyses.analyze(root_revision).unwrap();
+        let after_root_change = analyses.source_parse_counts();
+        assert_eq!(after_root_change.0, after_initial.0);
+        assert!(after_root_change.1 > after_initial.1);
+
+        analyses
+            .analyze(documents.open(&helper, 1, helper_text).unwrap())
+            .unwrap();
+        let before_helper_change = analyses.source_parse_counts();
+        let DocumentWorkspaceChange::Accepted(helper_revision) =
+            documents.change(&helper, 2, changed_helper_text).unwrap()
+        else {
+            panic!("newer helper text is accepted");
+        };
+        analyses.analyze(helper_revision).unwrap();
+        let after_helper_change = analyses.source_parse_counts();
+        assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
     }
 
     #[test]

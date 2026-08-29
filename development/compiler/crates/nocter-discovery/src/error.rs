@@ -77,6 +77,10 @@ pub enum DiscoveryError {
         path: PathBuf,
         error: SourceError,
     },
+    SourceSyntax {
+        path: PathBuf,
+        error: crate::SourceSyntaxError,
+    },
     TargetSelection(TargetSelectionError),
     InconsistentSyntax(NodeId),
     InconsistentSourceSnapshot(SourceId),
@@ -160,6 +164,9 @@ impl fmt::Display for DiscoveryError {
             Self::Source { path, error } => {
                 write!(formatter, "cannot ingest {}: {error:?}", path.display())
             }
+            Self::SourceSyntax { path, error } => {
+                write!(formatter, "cannot parse {}: {error}", path.display())
+            }
             Self::TargetSelection(error) => {
                 write!(formatter, "invalid target selection: {error:?}")
             }
@@ -178,6 +185,7 @@ impl std::error::Error for DiscoveryError {
         match self {
             Self::Filesystem { error, .. } => Some(error),
             Self::Toolchain(error) => Some(error),
+            Self::SourceSyntax { error, .. } => Some(error),
             Self::PackageRootProbe(error) => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)

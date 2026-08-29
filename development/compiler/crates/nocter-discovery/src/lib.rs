@@ -12,18 +12,20 @@ mod graph;
 mod module_catalog;
 mod request;
 mod snapshot;
+mod source_syntax;
 mod source_visibility;
 mod syntax;
 
 pub use error::{DiscoveryError, SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
 pub use failure::DiscoveryFailure;
-pub use graph::discover;
+pub use graph::{discover, discover_with_source_syntax};
 pub use module_catalog::module_for_source;
 pub use request::{DiscoveryLayout, DiscoveryRequest};
 pub use snapshot::{
     CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,
     DiscoveredUnit,
 };
+pub use source_syntax::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 
 #[cfg(test)]
 mod tests;
