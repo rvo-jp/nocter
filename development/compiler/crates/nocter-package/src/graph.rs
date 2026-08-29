@@ -7,7 +7,7 @@ use std::sync::Arc;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceError, SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+use nocter_syntax::{DirectSourceSyntax, SourceSyntaxProvider, SyntaxTree};
 
 use crate::{
     DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
@@ -196,7 +196,11 @@ impl ResolvedPackageGraph {
         specs: Vec<ResolvedPackageSpec>,
         source_overlay: SourceOverlay,
     ) -> Result<Self, PackageGraphError> {
-        Self::load_with_root_catalog(specs, PackageRootCatalog::new(source_overlay))
+        Self::load_with_root_catalog(
+            specs,
+            PackageRootCatalog::new(source_overlay),
+            &mut DirectSourceSyntax,
+        )
     }
 
     /// Loads exact packages while retaining package-root facts already selected for this overlay.
@@ -207,6 +211,7 @@ impl ResolvedPackageGraph {
     pub fn load_with_root_catalog(
         mut specs: Vec<ResolvedPackageSpec>,
         package_roots: PackageRootCatalog,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Self, PackageGraphError> {
         specs.sort_unstable_by(|left, right| left.identity.cmp(&right.identity));
         let mut identities = BTreeSet::new();
@@ -219,7 +224,7 @@ impl ResolvedPackageGraph {
         let mut edges = BTreeMap::new();
         for spec in specs {
             let identity = spec.identity.clone();
-            builder.load(spec.identity, &spec.root)?;
+            builder.load(spec.identity, &spec.root, source_syntax)?;
             if edges
                 .insert(
                     identity.clone(),
@@ -330,16 +335,18 @@ impl PackageGraphBuilder {
         &mut self,
         identity: PackageIdentity,
         root: &Path,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<(), PackageGraphError> {
         let canonical_root =
             canonical_package_root_with_overlay(self.package_roots.source_overlay(), root)?;
-        self.load_canonical(identity, canonical_root)
+        self.load_canonical(identity, canonical_root, source_syntax)
     }
 
     pub(crate) fn load_canonical(
         &mut self,
         identity: PackageIdentity,
         canonical_root: PathBuf,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<(), PackageGraphError> {
         if self.packages.contains_key(&identity) {
             return Err(PackageGraphError::DuplicatePackage(identity));
@@ -351,6 +358,7 @@ impl PackageGraphBuilder {
             &mut self.roots,
             &mut self.sources,
             &mut self.syntax,
+            source_syntax,
         )?;
         self.packages.insert(identity, package);
         Ok(())
@@ -449,6 +457,7 @@ fn load_package(
     roots: &mut BTreeMap<PathBuf, PackageIdentity>,
     sources: &mut SourceMap,
     syntax: &mut Vec<SyntaxTree>,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<LoadedPackageSnapshot, PackageGraphError> {
     if !canonical_root.is_dir() {
         return Err(PackageGraphError::InvalidPackageRoot {
@@ -464,7 +473,7 @@ fn load_package(
         });
     }
     let Some(root_source) = package_roots
-        .root_source(&canonical_root)
+        .root_source_with_source_syntax(&canonical_root, source_syntax)
         .map_err(PackageGraphError::PackageRootProbe)?
     else {
         return Err(PackageGraphError::MissingPackageRootSource {
@@ -489,12 +498,13 @@ fn load_package(
             path: declaration_path.clone(),
             error,
         })?;
-    let tree = parse(
-        sources
-            .get(source_id)
-            .expect("new package source remains in the source map"),
-        ParseGoal::SourceFile,
-    );
+    let source_file = sources
+        .get(source_id)
+        .expect("new package source remains in the source map");
+    let tree = root_source
+        .syntax()
+        .bind(source_file)
+        .ok_or_else(|| PackageGraphError::InconsistentRootSyntax(declaration_path.clone()))?;
     let declaration_syntax = syntax.len();
     syntax.push(tree);
     let tree = syntax
@@ -767,6 +777,7 @@ pub enum PackageGraphError {
         path: PathBuf,
         error: SourceError,
     },
+    InconsistentRootSyntax(PathBuf),
 }
 
 impl fmt::Display for PackageGraphError {
@@ -858,6 +869,11 @@ impl fmt::Display for PackageGraphError {
             Self::Source { path, error } => {
                 write!(formatter, "cannot ingest {}: {error:?}", path.display())
             }
+            Self::InconsistentRootSyntax(path) => write!(
+                formatter,
+                "package-root syntax does not match retained source {}",
+                path.display()
+            ),
         }
     }
 }
@@ -881,7 +897,8 @@ impl std::error::Error for PackageGraphError {
             | Self::InvalidPathDependency { .. }
             | Self::InvalidImplicitDependency { .. }
             | Self::NonUnicodeCanonicalPath(_)
-            | Self::Source { .. } => None,
+            | Self::Source { .. }
+            | Self::InconsistentRootSyntax(_) => None,
         }
     }
 }
@@ -925,6 +942,23 @@ mod tests {
         PackageIdentity::new(value)
     }
 
+    #[derive(Default)]
+    struct CountingSourceSyntax {
+        direct: DirectSourceSyntax,
+        calls: usize,
+    }
+
+    impl SourceSyntaxProvider for CountingSourceSyntax {
+        fn parsed_syntax(
+            &mut self,
+            source: &nocter_source::SourceFile,
+            goal: nocter_syntax::ParseGoal,
+        ) -> Result<Arc<nocter_syntax::ParsedSyntax>, nocter_syntax::SourceSyntaxError> {
+            self.calls += 1;
+            self.direct.parsed_syntax(source, goal)
+        }
+    }
+
     #[test]
     fn package_loading_reuses_a_topology_root_source() {
         let tree = TempTree::new();
@@ -934,14 +968,21 @@ mod tests {
         );
         let root = fs::canonicalize(tree.0.join("app")).unwrap();
         let mut catalog = PackageRootCatalogBuilder::new(SourceOverlay::empty());
-        assert!(catalog.has_package_declaration(&root).unwrap());
+        let mut source_syntax = CountingSourceSyntax::default();
+        assert!(
+            catalog
+                .has_package_declaration_with_source_syntax(&root, &mut source_syntax)
+                .unwrap()
+        );
 
         let graph = ResolvedPackageGraph::load_with_root_catalog(
             vec![ResolvedPackageSpec::new(identity("app"), root)],
             catalog.finish(),
+            &mut source_syntax,
         )
         .unwrap();
 
+        assert_eq!(source_syntax.calls, 1);
         assert_eq!(graph.sources().len(), 1);
         assert_eq!(graph.syntax_trees().len(), 1);
     }

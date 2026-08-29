@@ -7,8 +7,10 @@ deterministic package graph from an immutable filesystem view.
 
 ## Contract
 
-The crate reads package metadata and installed exact packages but does not download, mutate lock
-state, choose compiler semantics, or publish files. Acquisition and mutation use separate crates.
+The crate reads package metadata and installed exact packages through the syntax-owned source
+provider contract but does not know whether parse work is direct or reused. It does not download,
+mutate lock state, choose compiler semantics, or publish files. Acquisition and mutation use
+separate crates.
 
 ## Internal Responsibilities
 
@@ -16,6 +18,7 @@ state, choose compiler semantics, or publish files. Acquisition and mutation use
 - revision-local package-root source catalog and canonical package identity
 - dependency graph resolution
 - package-store and lock overlays for validation
+- retained package-root parse products shared by topology probing and graph loading
 
 ## Invariants
 
@@ -23,6 +26,6 @@ state, choose compiler semantics, or publish files. Acquisition and mutation use
 - Dependency aliases never replace canonical package identities.
 - Resolution is deterministic and independent of filesystem enumeration order.
 - One root catalog retains the exact bytes and result behind every package-boundary decision.
-  Package loading assigns cached bytes its semantic source identity, while discovery reuses the
-  decision instead of reopening or reclassifying the root.
+  Package loading binds the same retained parse product to its semantic source identity, while
+  discovery reuses the decision instead of reopening, reparsing, or reclassifying the root.
 - An overlay is an input view, not authority to publish persistent state.

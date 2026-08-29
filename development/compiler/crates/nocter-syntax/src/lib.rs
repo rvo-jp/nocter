@@ -8,6 +8,7 @@ mod literal;
 mod navigation;
 mod origin;
 mod parser;
+mod provider;
 mod query;
 mod token;
 mod tree;
@@ -28,6 +29,7 @@ pub use navigation::{
 pub use nocter_language::BuiltinType;
 pub use origin::SyntaxOrigin;
 pub use parser::{ParseGoal, ParsedSyntax, parse, parse_reusable};
+pub use provider::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 pub use query::declaration_name_token;
 pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{

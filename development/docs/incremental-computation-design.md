@@ -80,12 +80,14 @@ Every reuse decision is observable in tests through computation counters. Correc
 a warm incremental result with a fresh computation from the same final source revision.
 
 The first integrated vertical slice stores reusable parsing by parse goal and normalized source
-content. `nocter-syntax` alone knows how to bind that product into the current `SourceMap` identity
-domain, and discovery validates the bound identity through its source-syntax provider contract.
-Unchanged implementation sources therefore avoid lexing and parsing across workspace revisions
-without allowing a prior generation's `SourceId` to escape into the current snapshot. Package-root,
-module-surface, declaration, and body queries remain migration work; the full scope pipeline is not
-treated as an incremental query merely to claim cache coverage.
+content. `nocter-syntax` owns the provider and alone knows how to bind that product into the current
+`SourceMap` identity domain. Package topology, graph loading, and discovery consume the same narrow
+contract and validate the bound identity. A package-root probe retains its parse product for graph
+loading, eliminating the prior same-revision second parse. Unchanged package roots and
+implementation sources avoid lexing and parsing across workspace revisions without allowing a
+prior generation's `SourceId` to escape into the current snapshot. Module-surface, declaration,
+and body queries remain migration work; the full scope pipeline is not treated as an incremental
+query merely to claim cache coverage.
 
 ## Source Projection
 

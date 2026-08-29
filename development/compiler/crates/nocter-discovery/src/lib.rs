@@ -12,7 +12,6 @@ mod graph;
 mod module_catalog;
 mod request;
 mod snapshot;
-mod source_syntax;
 mod source_visibility;
 mod syntax;
 
@@ -25,7 +24,6 @@ pub use snapshot::{
     CompileInputError, DiscoveredModule, DiscoveredModuleDependency, DiscoveredSource,
     DiscoveredUnit,
 };
-pub use source_syntax::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 
 #[cfg(test)]
 mod tests;

@@ -6,7 +6,10 @@ use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceError, SourceMap, SourceName};
-use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
+use nocter_syntax::{
+    DirectSourceSyntax, NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider,
+    SyntaxElement, SyntaxTree,
+};
 
 /// Immutable package-root facts selected from one exact source overlay.
 ///
@@ -76,7 +79,24 @@ impl PackageRootCatalogBuilder {
         &mut self,
         directory: &Path,
     ) -> Result<bool, Arc<PackageRootProbeError>> {
-        Ok(self.probe(directory)?.is_some_and(|root| root.is_package))
+        self.has_package_declaration_with_source_syntax(directory, &mut DirectSourceSyntax)
+    }
+
+    /// Reports whether a directory declares a package while obtaining syntax from one caller-owned
+    /// provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same retained failure as [`Self::has_package_declaration`], including a syntax
+    /// provider infrastructure failure.
+    pub fn has_package_declaration_with_source_syntax(
+        &mut self,
+        directory: &Path,
+        source_syntax: &mut dyn SourceSyntaxProvider,
+    ) -> Result<bool, Arc<PackageRootProbeError>> {
+        Ok(self
+            .probe(directory, source_syntax)?
+            .is_some_and(|root| root.is_package))
     }
 
     #[must_use]
@@ -88,11 +108,12 @@ impl PackageRootCatalogBuilder {
         self.catalog.clone()
     }
 
-    pub(crate) fn root_source(
+    pub(crate) fn root_source_with_source_syntax(
         &mut self,
         directory: &Path,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Option<PackageRootSource>, Arc<PackageRootProbeError>> {
-        self.probe(directory)
+        self.probe(directory, source_syntax)
     }
 
     #[must_use]
@@ -103,11 +124,12 @@ impl PackageRootCatalogBuilder {
     fn probe(
         &mut self,
         directory: &Path,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Option<PackageRootSource>, Arc<PackageRootProbeError>> {
         if let Some(probe) = self.catalog.roots.get(directory) {
             return probe.result();
         }
-        let result = self.read_root(directory);
+        let result = self.read_root(directory, source_syntax);
         let probe = match result {
             Ok(root) => PackageRootProbe::Resolved(root),
             Err(error) => PackageRootProbe::Failed(Arc::new(error)),
@@ -120,6 +142,7 @@ impl PackageRootCatalogBuilder {
     fn read_root(
         &mut self,
         directory: &Path,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Option<PackageRootSource>, PackageRootProbeError> {
         let requested_path = directory.join("index.nct");
         if !self
@@ -157,12 +180,21 @@ impl PackageRootCatalogBuilder {
         let source_file = sources
             .get(source)
             .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
-        let tree = parse(source_file, ParseGoal::SourceFile);
+        let syntax = source_syntax
+            .parsed_syntax(source_file, ParseGoal::SourceFile)
+            .map_err(|source| PackageRootProbeError::SourceSyntax {
+                path: path.clone(),
+                source,
+            })?;
+        let tree = syntax
+            .bind(source_file)
+            .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
         let is_package = has_package_directive(source_file, &tree);
         Ok(Some(PackageRootSource {
             path,
             bytes: bytes.into(),
             is_package,
+            syntax,
         }))
     }
 }
@@ -187,6 +219,7 @@ pub(crate) struct PackageRootSource {
     path: PathBuf,
     bytes: Arc<[u8]>,
     is_package: bool,
+    syntax: Arc<ParsedSyntax>,
 }
 
 impl PackageRootSource {
@@ -196,6 +229,10 @@ impl PackageRootSource {
 
     pub(crate) fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub(crate) fn syntax(&self) -> &ParsedSyntax {
+        &self.syntax
     }
 }
 
@@ -218,9 +255,19 @@ fn has_package_directive(source: &nocter_source::SourceFile, syntax: &SyntaxTree
 
 #[derive(Debug)]
 pub enum PackageRootProbeError {
-    Filesystem { path: PathBuf, source: io::Error },
-    Source { path: PathBuf, source: SourceError },
+    Filesystem {
+        path: PathBuf,
+        source: io::Error,
+    },
+    Source {
+        path: PathBuf,
+        source: SourceError,
+    },
     MissingSource(PathBuf),
+    SourceSyntax {
+        path: PathBuf,
+        source: SourceSyntaxError,
+    },
 }
 
 impl fmt::Display for PackageRootProbeError {
@@ -235,6 +282,9 @@ impl fmt::Display for PackageRootProbeError {
             Self::MissingSource(path) => {
                 write!(formatter, "package probe lost source {}", path.display())
             }
+            Self::SourceSyntax { path, source } => {
+                write!(formatter, "could not parse {}: {source}", path.display())
+            }
         }
     }
 }
@@ -244,6 +294,7 @@ impl std::error::Error for PackageRootProbeError {
         match self {
             Self::Filesystem { source, .. } => Some(source),
             Self::Source { source, .. } => Some(source),
+            Self::SourceSyntax { source, .. } => Some(source),
             Self::MissingSource(_) => None,
         }
     }

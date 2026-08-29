@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use nocter_computation::{
     ComputationError, ComputationKey, Database, Fingerprint, Query, QueryValue,
 };
-use nocter_discovery::{SourceSyntaxError, SourceSyntaxProvider};
 use nocter_source::SourceFile;
-use nocter_syntax::{ParseGoal, ParsedSyntax, SyntaxTree, parse_reusable};
+use nocter_syntax::{
+    ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider, parse_reusable,
+};
 
 #[derive(Clone)]
 struct SourceSyntaxKey {
@@ -35,7 +38,7 @@ impl ComputationKey for SourceSyntaxKey {
 struct SourceSyntaxQuery;
 
 struct SourceSyntaxProduct {
-    syntax: ParsedSyntax,
+    syntax: Arc<ParsedSyntax>,
     fingerprint: Fingerprint,
 }
 
@@ -51,7 +54,7 @@ impl Query for SourceSyntaxQuery {
 
     fn execute(_: &Database, key: &SourceSyntaxKey) -> Result<Self::Value, ComputationError> {
         Ok(SourceSyntaxProduct {
-            syntax: parse_reusable(&key.source, key.goal),
+            syntax: Arc::new(parse_reusable(&key.source, key.goal)),
             fingerprint: key.fingerprint,
         })
     }
@@ -68,32 +71,18 @@ impl<'database> ComputedSourceSyntax<'database> {
 }
 
 impl SourceSyntaxProvider for ComputedSourceSyntax<'_> {
-    fn syntax(
+    fn parsed_syntax(
         &mut self,
         source: &SourceFile,
         goal: ParseGoal,
-    ) -> Result<SyntaxTree, SourceSyntaxError> {
+    ) -> Result<Arc<ParsedSyntax>, SourceSyntaxError> {
         let syntax = self
             .database
             .query::<SourceSyntaxQuery>(SourceSyntaxKey::new(source, goal))
             .map_err(SourceSyntaxError::new)?;
-        syntax
-            .syntax
-            .bind(source)
-            .ok_or_else(|| SourceSyntaxError::new(SourceBindingMismatch))
+        Ok(Arc::clone(&syntax.syntax))
     }
 }
-
-#[derive(Debug)]
-struct SourceBindingMismatch;
-
-impl std::fmt::Display for SourceBindingMismatch {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("cached syntax text does not match the current source")
-    }
-}
-
-impl std::error::Error for SourceBindingMismatch {}
 
 #[cfg(test)]
 pub(super) fn execution_count(database: &Database) -> u64 {

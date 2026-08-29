@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
 use nocter_computation::Database;
-use nocter_discovery::{DiscoveryRequest, SourceSyntaxProvider, discover_with_source_syntax};
+use nocter_discovery::{DiscoveryRequest, discover_with_source_syntax};
 use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
 use nocter_session::{analyze_unit, bundled_standard_toolchain};
+use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
 
 use crate::compilation_input::ScopeCompilationInput;
@@ -70,9 +71,12 @@ fn discover_toolchain_standard(
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
-    let package =
-        resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
-            .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
+    let package = resolve_standard_package_with_root_catalog(
+        toolchain.standard().clone(),
+        package_roots,
+        source_syntax,
+    )
+    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     discover_with_source_syntax(
         DiscoveryRequest::toolchain_standard(
             toolchain.target(),
@@ -100,6 +104,7 @@ fn discover_package(
             PackageResolutionPolicy::new(true, true),
         ),
         package_roots,
+        source_syntax,
     )
     .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     let root_package = selected.root().clone();
@@ -158,9 +163,12 @@ fn discover_single_file(
 ) -> Result<nocter_discovery::DiscoveredUnit, AnalysisPreparationFailure> {
     let toolchain = configuration.toolchain();
     let standard = toolchain.standard().identity().clone();
-    let packages =
-        resolve_standard_package_with_root_catalog(toolchain.standard().clone(), package_roots)
-            .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
+    let packages = resolve_standard_package_with_root_catalog(
+        toolchain.standard().clone(),
+        package_roots,
+        source_syntax,
+    )
+    .map_err(|error| AnalysisPreparationFailure::Preparation(error.into()))?;
     discover_with_source_syntax(
         DiscoveryRequest::single_file(
             toolchain.target(),

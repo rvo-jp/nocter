@@ -9,7 +9,7 @@ use nocter_compile_input::{
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{ParseGoal, SyntaxTree};
+use nocter_syntax::{DirectSourceSyntax, ParseGoal, SourceSyntaxProvider, SyntaxTree};
 use nocter_target_selection::TargetSelectionBuilder;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
@@ -21,7 +21,6 @@ use crate::snapshot::{
 };
 use crate::source_visibility::source_visibility_paths;
 use crate::syntax::active_use_paths;
-use crate::{DirectSourceSyntax, SourceSyntaxProvider};
 use crate::{DiscoveryError, DiscoveryFailure};
 
 #[derive(Debug)]
@@ -727,8 +726,8 @@ fn load_source(
             path: path.into(),
             error,
         })?;
-    let tree = source_syntax
-        .syntax(
+    let parsed = source_syntax
+        .parsed_syntax(
             sources
                 .get(source)
                 .expect("newly allocated source remains in the source map"),
@@ -738,9 +737,13 @@ fn load_source(
             path: path.into(),
             error,
         })?;
-    if tree.source() != source {
-        return Err(DiscoveryError::InconsistentSourceSnapshot(source));
-    }
+    let tree = parsed
+        .bind(
+            sources
+                .get(source)
+                .expect("newly allocated source remains in the source map"),
+        )
+        .ok_or(DiscoveryError::InconsistentSourceSnapshot(source))?;
     let index = syntax.len();
     syntax.push(tree);
     Ok(index)

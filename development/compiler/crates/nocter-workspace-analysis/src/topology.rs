@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use nocter_filesystem::SourceOverlay;
+use nocter_syntax::SourceSyntaxProvider;
 
 use super::{AnalysisScope, WorkspaceAnalysisError};
 use crate::WorkspaceConfiguration;
@@ -22,20 +23,23 @@ pub(super) enum DocumentScopeSelection {
 }
 
 impl WorkspaceTopology {
-    pub(super) fn build(
+    pub(super) fn build_with_source_syntax(
         configuration: &WorkspaceConfiguration,
         source_overlay: &SourceOverlay,
         documents: BTreeSet<PathBuf>,
+        source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Self {
         let mut package_roots =
             nocter_package::PackageRootCatalogBuilder::new(source_overlay.clone());
         let selections = documents
             .into_iter()
             .map(|document| {
-                let selection = match select_scope(configuration, &document, &mut package_roots) {
-                    Ok(scope) => DocumentScopeSelection::Selected(scope),
-                    Err(error) => DocumentScopeSelection::Rejected(error),
-                };
+                let selection =
+                    match select_scope(configuration, &document, &mut package_roots, source_syntax)
+                    {
+                        Ok(scope) => DocumentScopeSelection::Selected(scope),
+                        Err(error) => DocumentScopeSelection::Rejected(error),
+                    };
                 (document, selection)
             })
             .collect();
@@ -59,6 +63,7 @@ fn select_scope(
     configuration: &WorkspaceConfiguration,
     document: &Path,
     package_roots: &mut nocter_package::PackageRootCatalogBuilder,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<AnalysisScope, WorkspaceAnalysisError> {
     if document
         .extension()
@@ -82,7 +87,7 @@ fn select_scope(
         .parent()
         .ok_or_else(|| WorkspaceAnalysisError::outside_workspace(document.to_path_buf()))?;
     loop {
-        match package_roots.has_package_declaration(directory) {
+        match package_roots.has_package_declaration_with_source_syntax(directory, source_syntax) {
             Ok(true) => return Ok(AnalysisScope::Package(directory.to_path_buf())),
             Ok(false) => {}
             Err(error) => return Err(WorkspaceAnalysisError::package_root_probe(error)),
@@ -124,10 +129,11 @@ mod tests {
             fs::canonicalize(source_a).unwrap(),
             fs::canonicalize(source_b).unwrap(),
         ]);
-        let topology = WorkspaceTopology::build(
+        let topology = WorkspaceTopology::build_with_source_syntax(
             &configuration(temporary.path()),
             &SourceOverlay::empty(),
             documents,
+            &mut nocter_syntax::DirectSourceSyntax,
         );
 
         let (selections, package_roots) = topology.into_parts();

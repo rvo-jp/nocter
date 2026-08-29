@@ -79,7 +79,7 @@ pub enum DiscoveryError {
     },
     SourceSyntax {
         path: PathBuf,
-        error: crate::SourceSyntaxError,
+        error: nocter_syntax::SourceSyntaxError,
     },
     TargetSelection(TargetSelectionError),
     InconsistentSyntax(NodeId),

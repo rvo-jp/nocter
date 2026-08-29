@@ -10,7 +10,9 @@ tree for an explicit parse goal.
 The crate consumes `nocter-source` and the closed language vocabulary. It publishes token and node
 identities, source-preserving trees, documentation trivia, structural queries, literal decoding,
 syntax-owned subtree completeness, and a reusable parse product that binds only to equal normalized
-source text. It does not resolve names or apply semantic rules.
+source text. Its source-syntax provider contract lets callers choose direct or revisioned parsing
+without exposing either mechanism to package or discovery code. It does not resolve names or apply
+semantic rules.
 
 ## Internal Responsibilities
 
@@ -20,6 +22,7 @@ source text. It does not resolve names or apply semantic rules.
 - structural navigation and documentation extraction
 - exact node-completeness queries for recovery consumers
 - validated rebinding of source-independent parse work into one current `SourceMap` identity domain
+- the shared direct/reusable source-syntax provider boundary
 
 ## Invariants
 

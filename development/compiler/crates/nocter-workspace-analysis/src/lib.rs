@@ -298,8 +298,14 @@ impl WorkspaceAnalyses {
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let (selections, package_roots) =
-            WorkspaceTopology::build(&self.configuration, source_overlay, documents).into_parts();
+        let mut source_syntax = source_syntax::ComputedSourceSyntax::new(&self.computation);
+        let (selections, package_roots) = WorkspaceTopology::build_with_source_syntax(
+            &self.configuration,
+            source_overlay,
+            documents,
+            &mut source_syntax,
+        )
+        .into_parts();
         let selected = selections
             .iter()
             .filter_map(|(path, selection)| match selection {
@@ -712,7 +718,7 @@ mod tests {
         };
         analyses.analyze(root_revision).unwrap();
         let after_root_change = analyses.source_parse_counts();
-        assert_eq!(after_root_change.0, after_initial.0);
+        assert_eq!(after_root_change.0, after_initial.0 + 1);
         assert!(after_root_change.1 > after_initial.1);
 
         analyses

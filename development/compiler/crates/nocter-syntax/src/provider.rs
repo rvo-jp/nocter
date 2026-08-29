@@ -1,8 +1,10 @@
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
 
 use nocter_source::SourceFile;
-use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+
+use crate::{ParseGoal, ParsedSyntax, parse_reusable};
 
 /// Infrastructure failure returned by a source-syntax provider.
 #[derive(Debug)]
@@ -28,20 +30,20 @@ impl Error for SourceSyntaxError {
 
 /// Supplies the lossless syntax product for one already-ingested source.
 ///
-/// Discovery owns when a source is needed and validates the returned tree's identity. A provider
-/// may parse directly or bind a reusable source-text product; it cannot influence module topology.
+/// The consumer owns why a source is needed and must validate the returned tree's identity. A
+/// provider may parse directly or bind a reusable source-text product; it cannot select sources.
 pub trait SourceSyntaxProvider {
-    /// Returns syntax bound to `source` and `goal`.
+    /// Returns a source-text-owned parse product for `source` and `goal`.
     ///
     /// # Errors
     ///
     /// Returns an infrastructure failure. Authored lexical and parse errors remain ordinary
-    /// diagnostics in the returned syntax tree.
-    fn syntax(
+    /// diagnostics in the returned parse product.
+    fn parsed_syntax(
         &mut self,
         source: &SourceFile,
         goal: ParseGoal,
-    ) -> Result<SyntaxTree, SourceSyntaxError>;
+    ) -> Result<Arc<ParsedSyntax>, SourceSyntaxError>;
 }
 
 /// Non-caching source parser used outside a revisioned computation owner.
@@ -49,11 +51,11 @@ pub trait SourceSyntaxProvider {
 pub struct DirectSourceSyntax;
 
 impl SourceSyntaxProvider for DirectSourceSyntax {
-    fn syntax(
+    fn parsed_syntax(
         &mut self,
         source: &SourceFile,
         goal: ParseGoal,
-    ) -> Result<SyntaxTree, SourceSyntaxError> {
-        Ok(parse(source, goal))
+    ) -> Result<Arc<ParsedSyntax>, SourceSyntaxError> {
+        Ok(Arc::new(parse_reusable(source, goal)))
     }
 }

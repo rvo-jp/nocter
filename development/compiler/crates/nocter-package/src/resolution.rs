@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
+use nocter_syntax::{DirectSourceSyntax, SourceSyntaxProvider};
 
 #[cfg(test)]
 use crate::graph::canonical_package_root;
@@ -209,7 +210,11 @@ pub fn resolve_package_selection_with_source_snapshot(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
-    resolve_package_selection_with_root_catalog(request, PackageRootCatalog::new(source_overlay))
+    resolve_package_selection_with_root_catalog(
+        request,
+        PackageRootCatalog::new(source_overlay),
+        &mut DirectSourceSyntax,
+    )
 }
 
 /// Resolves through package-root facts already selected from one immutable source view.
@@ -221,6 +226,7 @@ pub fn resolve_package_selection_with_source_snapshot(
 pub fn resolve_package_selection_with_root_catalog(
     request: PackageResolutionRequest,
     package_roots: PackageRootCatalog,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
     let empty_snapshot = || PackageSourceSnapshot::from_root_catalog(package_roots.clone());
     let PackageResolutionRequest {
@@ -254,6 +260,7 @@ pub fn resolve_package_selection_with_root_catalog(
         &mut pending,
         standard_id.clone(),
         standard_root,
+        source_syntax,
     ) {
         return Err(PackageResolutionFailure::from_builder(error, &builder));
     }
@@ -263,6 +270,7 @@ pub fn resolve_package_selection_with_root_catalog(
         &mut pending,
         root_id.clone(),
         root.clone(),
+        source_syntax,
     ) {
         return Err(PackageResolutionFailure::from_builder(error, &builder));
     }
@@ -307,12 +315,22 @@ pub fn resolve_package_selection_with_root_catalog(
                 &mut pending,
                 dependency.target,
                 dependency.root,
+                source_syntax,
             ) {
                 return Err(PackageResolutionFailure::from_builder(error, &builder));
             }
         }
         edges.insert(identity, resolved.edges);
     }
+    finish_resolution(builder, edges, root_id, standard_id)
+}
+
+fn finish_resolution(
+    builder: PackageGraphBuilder,
+    edges: BTreeMap<PackageIdentity, ResolvedPackageEdges>,
+    root: PackageIdentity,
+    standard: PackageIdentity,
+) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
     let reached = builder.source_snapshot();
     let graph = builder
         .finish(edges)
@@ -320,8 +338,8 @@ pub fn resolve_package_selection_with_root_catalog(
         .map_err(|error| PackageResolutionFailure::new(error, reached))?;
     Ok(ResolvedPackageSelection {
         graph,
-        root: root_id,
-        standard: standard_id,
+        root,
+        standard,
     })
 }
 
@@ -436,7 +454,11 @@ pub fn resolve_standard_package_with_source_overlay(
     standard: StandardPackage,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
-    resolve_standard_package_with_root_catalog(standard, PackageRootCatalog::new(source_overlay))
+    resolve_standard_package_with_root_catalog(
+        standard,
+        PackageRootCatalog::new(source_overlay),
+        &mut DirectSourceSyntax,
+    )
 }
 
 /// Loads the selected standard package from an existing package-root catalog.
@@ -447,6 +469,7 @@ pub fn resolve_standard_package_with_source_overlay(
 pub fn resolve_standard_package_with_root_catalog(
     standard: StandardPackage,
     package_roots: PackageRootCatalog,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
     let identity = standard.identity;
     ResolvedPackageGraph::load_with_root_catalog(
@@ -455,6 +478,7 @@ pub fn resolve_standard_package_with_root_catalog(
                 .with_standard_dependency(identity),
         ],
         package_roots,
+        source_syntax,
     )
 }
 
@@ -464,6 +488,7 @@ fn insert_package(
     pending: &mut BTreeMap<PackageIdentity, PathBuf>,
     identity: PackageIdentity,
     root: PathBuf,
+    source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<(), PackageResolutionError> {
     if let Some(first) = roots.get(&identity) {
         return Err(PackageResolutionError::IdentityRootConflict {
@@ -473,7 +498,7 @@ fn insert_package(
         });
     }
     builder
-        .load_canonical(identity.clone(), root.clone())
+        .load_canonical(identity.clone(), root.clone(), source_syntax)
         .map_err(PackageResolutionError::Graph)?;
     roots.insert(identity.clone(), root.clone());
     pending.insert(identity, root);
