@@ -20,6 +20,7 @@ language server.
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
 - path-keyed source-text and parse queries, input publication, and computation instrumentation
+- source declaration-surface and module-surface query composition
 
 ## Invariants
 
@@ -36,3 +37,5 @@ language server.
   cannot rewrite syntax identities itself.
 - Speculative mutation validation owns an isolated computation database and cannot read or mutate
   the accepted revision's query state.
+- A module surface depends on each member source's canonical declaration syntax. A body-only edit
+  may reevaluate that source boundary, but its unchanged fingerprint prevents module recomputation.

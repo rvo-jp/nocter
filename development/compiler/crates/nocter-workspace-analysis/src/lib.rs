@@ -23,6 +23,7 @@ mod compilation_input;
 mod configuration;
 mod errors;
 mod generation;
+mod module_surface;
 mod source_syntax;
 mod topology;
 
@@ -155,6 +156,15 @@ impl WorkspaceAnalyses {
     #[cfg(test)]
     fn source_text_execution_count(&self) -> u64 {
         source_syntax::source_text_execution_count(&self.computation)
+    }
+
+    #[cfg(test)]
+    fn declaration_surface_counts(&self) -> (u64, u64, u64) {
+        (
+            source_syntax::declaration_surface_execution_count(&self.computation),
+            module_surface::execution_count(&self.computation),
+            module_surface::reuse_count(&self.computation),
+        )
     }
 
     ///
@@ -738,6 +748,7 @@ mod tests {
             .unwrap();
         let after_initial = analyses.source_parse_counts();
         let source_text_after_initial = analyses.source_text_execution_count();
+        let surfaces_after_initial = analyses.declaration_surface_counts();
         assert!(after_initial.0 > 0);
 
         let DocumentWorkspaceChange::Accepted(root_revision) =
@@ -747,18 +758,23 @@ mod tests {
         };
         analyses.analyze(root_revision).unwrap();
         let after_root_change = analyses.source_parse_counts();
+        let surfaces_after_root_change = analyses.declaration_surface_counts();
         assert_eq!(after_root_change.0, after_initial.0 + 1);
         assert_eq!(
             analyses.source_text_execution_count(),
             source_text_after_initial + 1
         );
         assert!(after_root_change.1 > after_initial.1);
+        assert_eq!(surfaces_after_root_change.0, surfaces_after_initial.0 + 1);
+        assert_eq!(surfaces_after_root_change.1, surfaces_after_initial.1);
+        assert!(surfaces_after_root_change.2 > surfaces_after_initial.2);
 
         analyses
             .analyze(documents.open(&helper, 1, helper_text).unwrap())
             .unwrap();
         let before_helper_change = analyses.source_parse_counts();
         let source_text_before_helper_change = analyses.source_text_execution_count();
+        let surfaces_before_helper_change = analyses.declaration_surface_counts();
         let DocumentWorkspaceChange::Accepted(helper_revision) =
             documents.change(&helper, 2, changed_helper_text).unwrap()
         else {
@@ -766,10 +782,19 @@ mod tests {
         };
         let warm = analyses.analyze(helper_revision).unwrap();
         let after_helper_change = analyses.source_parse_counts();
+        let surfaces_after_helper_change = analyses.declaration_surface_counts();
         assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
         assert_eq!(
             analyses.source_text_execution_count(),
             source_text_before_helper_change + 1
+        );
+        assert_eq!(
+            surfaces_after_helper_change.0,
+            surfaces_before_helper_change.0 + 1
+        );
+        assert_eq!(
+            surfaces_after_helper_change.1,
+            surfaces_before_helper_change.1
         );
 
         let mut fresh_documents = DocumentWorkspace::new();

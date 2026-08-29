@@ -32,10 +32,11 @@ evidence.
 
 ## Next Work
 
-Continue v0.20.0 Phase 1 by introducing source-neutral module-surface products above the stable
-`source_text -> parse` query chain. A body-only edit must preserve the module-surface fingerprint so
-dependent modules do not repeat declaration work. Do not cache generation-local syntax or semantic
-arena IDs across revisions. Hashing and associative collections remain later v0.20.0 phases.
+Continue v0.20.0 Phase 1 by separating declaration semantics from generation-local frontend
+bindings and source projection. The source-neutral module-surface query now stops body-only
+invalidation, but the eager session pipeline still repeats declaration lowering. Do not cache
+`NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable semantic
+programs. Hashing and associative collections remain later v0.20.0 phases.
 
 ## Blockers
 

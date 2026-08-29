@@ -46,9 +46,20 @@ pub(crate) fn compile_scope(
         }
     };
     match discovered {
-        Ok(unit) => WorkspaceAnalysisState::Complete(Box::new(
-            AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit)),
-        )),
+        Ok(unit) => {
+            if let Err(error) = crate::module_surface::prime(computation, &unit) {
+                let error = WorkspaceAnalysisError::computation(error);
+                return WorkspaceAnalysisState::PreparationFailed {
+                    source_overlay,
+                    diagnostics: preparation_diagnostics(&error),
+                    error,
+                };
+            }
+            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
+                generation,
+                analyze_unit(unit),
+            )))
+        }
         Err(AnalysisPreparationFailure::Discovery(failure)) => {
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_discovery_failure(
                 generation, failure,

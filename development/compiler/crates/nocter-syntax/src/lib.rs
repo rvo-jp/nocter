@@ -10,6 +10,7 @@ mod origin;
 mod parser;
 mod provider;
 mod query;
+mod surface;
 mod token;
 mod tree;
 
@@ -31,6 +32,7 @@ pub use origin::SyntaxOrigin;
 pub use parser::{ParseGoal, ParsedSyntax, parse, parse_reusable};
 pub use provider::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 pub use query::declaration_name_token;
+pub use surface::DeclarationSyntaxSurface;
 pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{
     MissingSyntax, NodeId, NodeKind, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree, TokenId,

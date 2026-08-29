@@ -44,6 +44,12 @@ pub struct ParsedSyntax {
 }
 
 impl ParsedSyntax {
+    /// Freezes the syntax structure that can affect declaration semantics while excluding bodies.
+    #[must_use]
+    pub fn declaration_surface(&self) -> crate::DeclarationSyntaxSurface {
+        crate::surface::declaration_surface(&self.tree, &self.text)
+    }
+
     /// Reports whether this reusable product was derived from the supplied normalized source.
     #[must_use]
     pub fn matches(&self, source: &SourceFile) -> bool {

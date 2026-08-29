@@ -110,6 +110,7 @@ enum WorkspaceAnalysisErrorKind {
     StandardPackage(PackageGraphError),
     PackageRootProbe(Arc<nocter_package::PackageRootProbeError>),
     ModuleOwner(nocter_discovery::DiscoveryError),
+    Computation(nocter_computation::ComputationError),
 }
 
 impl WorkspaceAnalysisError {
@@ -122,6 +123,12 @@ impl WorkspaceAnalysisError {
     pub(crate) fn module_owner(error: nocter_discovery::DiscoveryError) -> Self {
         Self {
             kind: WorkspaceAnalysisErrorKind::ModuleOwner(error),
+        }
+    }
+
+    pub(crate) fn computation(error: nocter_computation::ComputationError) -> Self {
+        Self {
+            kind: WorkspaceAnalysisErrorKind::Computation(error),
         }
     }
 
@@ -151,7 +158,8 @@ impl WorkspaceAnalysisError {
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_)
             | WorkspaceAnalysisErrorKind::StandardPackage(_)
             | WorkspaceAnalysisErrorKind::PackageRootProbe(_)
-            | WorkspaceAnalysisErrorKind::ModuleOwner(_) => None,
+            | WorkspaceAnalysisErrorKind::ModuleOwner(_)
+            | WorkspaceAnalysisErrorKind::Computation(_) => None,
         }
     }
 
@@ -164,7 +172,8 @@ impl WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::Package(_)
             | WorkspaceAnalysisErrorKind::PackageRootProbe(_) => "E0800",
             WorkspaceAnalysisErrorKind::StandardPackage(_) => "E0703",
-            WorkspaceAnalysisErrorKind::MissingRootPackage(_) => "E0900",
+            WorkspaceAnalysisErrorKind::MissingRootPackage(_)
+            | WorkspaceAnalysisErrorKind::Computation(_) => "E0900",
         }
     }
 }
@@ -213,6 +222,9 @@ impl fmt::Display for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::ModuleOwner(error) => {
                 write!(formatter, "cannot determine source module: {error}")
             }
+            WorkspaceAnalysisErrorKind::Computation(error) => {
+                write!(formatter, "workspace computation failed: {error}")
+            }
         }
     }
 }
@@ -224,6 +236,7 @@ impl std::error::Error for WorkspaceAnalysisError {
             WorkspaceAnalysisErrorKind::StandardPackage(error) => Some(error),
             WorkspaceAnalysisErrorKind::PackageRootProbe(error) => Some(error.as_ref()),
             WorkspaceAnalysisErrorKind::ModuleOwner(error) => Some(error),
+            WorkspaceAnalysisErrorKind::Computation(error) => Some(error),
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
             | WorkspaceAnalysisErrorKind::MissingRootPackage(_) => None,

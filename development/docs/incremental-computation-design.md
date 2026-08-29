@@ -93,9 +93,16 @@ parse product for graph loading, eliminating the prior same-revision second pars
 package roots and implementation sources avoid lexing and parsing across workspace revisions
 without allowing a prior generation's `SourceId` to escape into the current snapshot. Speculative
 mutation validation uses an isolated database populated from the candidate overlay; it cannot
-pollute or accidentally read the accepted revision. Module-surface, declaration, and body queries
-remain migration work; the full scope pipeline is not treated as an incremental query merely to
-claim cache coverage.
+pollute or accidentally read the accepted revision.
+
+The next integrated boundary canonicalizes declaration-relevant syntax while pruning every
+function or method block. Node kinds, non-body tokens, body presence, missing syntax, and
+declaration-local diagnostics remain in that product; source identities, coordinates, trivia, body
+contents, and body-local diagnostics do not. A module-surface query composes those source products
+in canonical physical-source order. Instrumented tests prove that a body edit reevaluates the
+edited source surface but leaves its fingerprint unchanged, so the containing module surface is
+reused without execution. Declaration and body-program migration remains incomplete; the current
+whole-scope semantic pipeline still runs after this boundary and is not mislabeled as incremental.
 
 ## Source Projection
 

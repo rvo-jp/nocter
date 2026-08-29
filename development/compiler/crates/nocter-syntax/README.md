@@ -10,9 +10,10 @@ tree for an explicit parse goal.
 The crate consumes `nocter-source` and the closed language vocabulary. It publishes token and node
 identities, source-preserving trees, documentation trivia, structural queries, literal decoding,
 syntax-owned subtree completeness, and a reusable parse product that binds only to equal normalized
-source text. Its source-syntax provider contract lets callers choose direct or revisioned parsing
-without exposing either mechanism to package or discovery code. It does not resolve names or apply
-semantic rules.
+source text. It also publishes a canonical declaration-syntax surface that excludes body contents,
+trivia, and source identities without interpreting a declaration. Its source-syntax provider
+contract lets callers choose direct or revisioned parsing without exposing either mechanism to
+package or discovery code. It does not resolve names or apply semantic rules.
 
 ## Internal Responsibilities
 
@@ -22,6 +23,7 @@ semantic rules.
 - structural navigation and documentation extraction
 - exact node-completeness queries for recovery consumers
 - validated rebinding of source-independent parse work into one current `SourceMap` identity domain
+- source-neutral declaration-syntax canonicalization with explicit body pruning
 - the shared direct/reusable source-syntax provider boundary
 
 ## Invariants
@@ -31,3 +33,5 @@ semantic rules.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.
+- Body edits and body-local diagnostics do not change the declaration-syntax surface; declaration
+  shape, body presence, and declaration-local diagnostics do.

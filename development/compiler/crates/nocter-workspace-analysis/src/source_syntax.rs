@@ -255,6 +255,46 @@ impl Query for SourceSyntaxQuery {
     }
 }
 
+pub(super) struct SourceDeclarationSurfaceProduct {
+    fingerprint: Fingerprint,
+}
+
+impl SourceDeclarationSurfaceProduct {
+    pub(super) const fn semantic_fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+}
+
+impl QueryValue for SourceDeclarationSurfaceProduct {
+    fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+}
+
+struct SourceDeclarationSurfaceQuery;
+
+impl Query for SourceDeclarationSurfaceQuery {
+    type Key = SourceSyntaxKey;
+    type Value = SourceDeclarationSurfaceProduct;
+
+    fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
+        let syntax = database.query::<SourceSyntaxQuery>(key.clone())?;
+        let fingerprint = match &syntax.result {
+            Ok(syntax) => tagged_fingerprint(0, syntax.declaration_surface().canonical_bytes()),
+            Err(message) => tagged_fingerprint(1, message.as_bytes()),
+        };
+        Ok(SourceDeclarationSurfaceProduct { fingerprint })
+    }
+}
+
+pub(super) fn declaration_surface(
+    database: &Database,
+    path: &Path,
+) -> Result<Arc<SourceDeclarationSurfaceProduct>, ComputationError> {
+    database
+        .query::<SourceDeclarationSurfaceQuery>(SourceSyntaxKey::new(path, ParseGoal::SourceFile))
+}
+
 fn tagged_fingerprint(tag: u8, bytes: &[u8]) -> Fingerprint {
     let mut input = Vec::with_capacity(bytes.len() + 1);
     input.push(tag);
@@ -340,4 +380,9 @@ pub(super) fn reuse_count(database: &Database) -> u64 {
 #[cfg(test)]
 pub(super) fn source_text_execution_count(database: &Database) -> u64 {
     database.execution_count::<SourceTextQuery>()
+}
+
+#[cfg(test)]
+pub(super) fn declaration_surface_execution_count(database: &Database) -> u64 {
+    database.execution_count::<SourceDeclarationSurfaceQuery>()
 }

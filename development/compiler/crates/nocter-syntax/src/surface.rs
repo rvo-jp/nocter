@@ -1,0 +1,238 @@
+use crate::{
+    ExpectedSyntax, LexDiagnosticKind, NodeKind, ParseDiagnosticKind, SyntaxElement, SyntaxTree,
+    TokenKind,
+};
+
+/// Canonical, source-identity-independent syntax that can affect declaration semantics.
+///
+/// Function and method block contents are represented only by a block marker. Comments,
+/// documentation, whitespace, and source coordinates are deliberately absent. This product is an
+/// invalidation boundary, not a second parser or a declaration model.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeclarationSyntaxSurface {
+    canonical: Box<[u8]>,
+}
+
+impl DeclarationSyntaxSurface {
+    /// Returns deterministic bytes suitable for a revision-local semantic fingerprint.
+    #[must_use]
+    pub const fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical
+    }
+}
+
+pub(crate) fn declaration_surface(
+    tree: &SyntaxTree,
+    normalized_text: &str,
+) -> DeclarationSyntaxSurface {
+    enum Visit {
+        Element(SyntaxElement),
+        CloseNode,
+    }
+
+    let mut canonical = Vec::new();
+    let mut pending = vec![Visit::Element(SyntaxElement::Node(tree.root_id()))];
+    while let Some(visit) = pending.pop() {
+        match visit {
+            Visit::Element(SyntaxElement::Node(node)) => {
+                let syntax = tree
+                    .node(node)
+                    .expect("surface traversal retains one syntax-tree owner");
+                encode(0, syntax.kind().as_str().as_bytes(), &mut canonical);
+                pending.push(Visit::CloseNode);
+                if syntax.kind() != NodeKind::Block {
+                    pending.extend(
+                        tree.children(node)
+                            .iter()
+                            .rev()
+                            .copied()
+                            .map(Visit::Element),
+                    );
+                }
+            }
+            Visit::Element(SyntaxElement::Token(token)) => {
+                if matches!(token.kind(), TokenKind::Newline | TokenKind::Eof) {
+                    continue;
+                }
+                encode(1, token.kind().as_str().as_bytes(), &mut canonical);
+                let text = text_at(normalized_text, token.range());
+                encode(2, text.as_bytes(), &mut canonical);
+            }
+            Visit::Element(SyntaxElement::Missing(missing)) => {
+                encode_expected(missing.expected(), &mut canonical);
+            }
+            Visit::CloseNode => canonical.push(4),
+        }
+    }
+    let body_ranges = tree
+        .nodes()
+        .filter(|(_, node)| node.kind() == NodeKind::Block)
+        .map(|(_, node)| node.range())
+        .collect::<Vec<_>>();
+    for diagnostic in tree.lexed().diagnostics() {
+        if body_ranges
+            .iter()
+            .any(|body| body.contains_range(diagnostic.span().range()))
+        {
+            continue;
+        }
+        encode(
+            6,
+            lex_diagnostic_name(diagnostic.kind()).as_bytes(),
+            &mut canonical,
+        );
+    }
+    for diagnostic in tree.diagnostics() {
+        if body_ranges
+            .iter()
+            .any(|body| body.contains_range(diagnostic.span().range()))
+        {
+            continue;
+        }
+        match diagnostic.kind() {
+            ParseDiagnosticKind::Expected(expected) => {
+                encode(7, b"expected", &mut canonical);
+                encode_expected(expected, &mut canonical);
+            }
+            ParseDiagnosticKind::LateDependencyDeclaration => {
+                encode(7, b"late_dependency_declaration", &mut canonical);
+            }
+            ParseDiagnosticKind::NestingLimit => {
+                encode(7, b"nesting_limit", &mut canonical);
+            }
+        }
+    }
+    DeclarationSyntaxSurface {
+        canonical: canonical.into_boxed_slice(),
+    }
+}
+
+const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
+    match kind {
+        LexDiagnosticKind::UnexpectedCharacter => "unexpected_character",
+        LexDiagnosticKind::UnterminatedBlockComment => "unterminated_block_comment",
+        LexDiagnosticKind::InvalidIntegerLiteral => "invalid_integer_literal",
+        LexDiagnosticKind::UnsupportedFloatLiteral => "unsupported_float_literal",
+        LexDiagnosticKind::UnterminatedString => "unterminated_string",
+        LexDiagnosticKind::SingleLineStringNewline => "single_line_string_newline",
+        LexDiagnosticKind::MultilineStringOpeningNewline => "multiline_string_opening_newline",
+        LexDiagnosticKind::InvalidEscape => "invalid_escape",
+        LexDiagnosticKind::InvalidStringUtf8 => "invalid_string_utf8",
+        LexDiagnosticKind::MultilineStringIndentation => "multiline_string_indentation",
+        LexDiagnosticKind::UnterminatedByteLiteral => "unterminated_byte_literal",
+        LexDiagnosticKind::ByteLiteralNewline => "byte_literal_newline",
+        LexDiagnosticKind::InvalidByteLength => "invalid_byte_length",
+        LexDiagnosticKind::PlainSingleQuote => "plain_single_quote",
+        LexDiagnosticKind::UnterminatedInterpolation => "unterminated_interpolation",
+    }
+}
+
+fn encode_expected(expected: ExpectedSyntax, output: &mut Vec<u8>) {
+    let (category, detail) = match expected {
+        ExpectedSyntax::Token(kind) => ("token", kind.as_str()),
+        ExpectedSyntax::Keyword(keyword) => ("keyword", keyword.as_str()),
+        ExpectedSyntax::Punctuation(punctuation) => ("punctuation", punctuation.as_str()),
+        ExpectedSyntax::Contextual(name) => ("contextual", name),
+        ExpectedSyntax::Name => ("name", ""),
+        ExpectedSyntax::Visibility => ("visibility", ""),
+        ExpectedSyntax::PackageDirectiveName => ("package_directive_name", ""),
+        ExpectedSyntax::DirectiveValue => ("directive_value", ""),
+        ExpectedSyntax::StringLiteral => ("string_literal", ""),
+        ExpectedSyntax::ModuleSegment => ("module_segment", ""),
+        ExpectedSyntax::Type => ("type", ""),
+        ExpectedSyntax::Parameter => ("parameter", ""),
+        ExpectedSyntax::TargetableItem => ("targetable_item", ""),
+        ExpectedSyntax::Item => ("item", ""),
+        ExpectedSyntax::DeclarationMember => ("declaration_member", ""),
+        ExpectedSyntax::AssociatedTypeBinding => ("associated_type_binding", ""),
+        ExpectedSyntax::DeclarationTypePattern => ("declaration_type_pattern", ""),
+        ExpectedSyntax::Receiver => ("receiver", ""),
+        ExpectedSyntax::Block => ("block", ""),
+        ExpectedSyntax::LiteralShape => ("literal_shape", ""),
+        ExpectedSyntax::Expression => ("expression", ""),
+        ExpectedSyntax::AssignmentTarget => ("assignment_target", ""),
+        ExpectedSyntax::EnumPattern => ("enum_pattern", ""),
+        ExpectedSyntax::ClosureHead => ("closure_head", ""),
+        ExpectedSyntax::Predicate => ("predicate", ""),
+        ExpectedSyntax::Interface => ("interface", ""),
+        ExpectedSyntax::Newline => ("newline", ""),
+    };
+    encode(3, category.as_bytes(), output);
+    encode(5, detail.as_bytes(), output);
+}
+
+fn encode(tag: u8, bytes: &[u8], output: &mut Vec<u8>) {
+    output.push(tag);
+    output.extend_from_slice(&(bytes.len() as u64).to_be_bytes());
+    output.extend_from_slice(bytes);
+}
+
+fn text_at(text: &str, range: nocter_source::TextRange) -> &str {
+    let start = usize::try_from(range.start().get()).expect("source offsets fit usize");
+    let end = usize::try_from(range.end().get()).expect("source offsets fit usize");
+    text.get(start..end)
+        .expect("syntax token ranges address normalized source text")
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_source::{SourceMap, SourceName};
+
+    use crate::{ParseGoal, parse_reusable};
+
+    fn surface(text: &str) -> super::DeclarationSyntaxSurface {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("surface.nct"), text.as_bytes())
+            .unwrap();
+        parse_reusable(sources.get(source).unwrap(), ParseGoal::SourceFile).declaration_surface()
+    }
+
+    #[test]
+    fn body_edits_preserve_the_declaration_surface() {
+        assert_eq!(
+            surface("func answer(): i32 { return 1 }\n"),
+            surface("func answer(): i32 { let value = 40\n return value + 2 }\n")
+        );
+    }
+
+    #[test]
+    fn declaration_edits_change_the_declaration_surface() {
+        assert_ne!(
+            surface("func answer(): i32 { return 1 }\n"),
+            surface("func answer(): usize { return 1 }\n")
+        );
+        assert_ne!(
+            surface("func answer(): i32\n"),
+            surface("func answer(): i32 { return 1 }\n")
+        );
+    }
+
+    #[test]
+    fn formatting_and_documentation_do_not_change_semantic_surface() {
+        assert_eq!(
+            surface("/// Computes.\nfunc answer(): i32 { return 1 }\n"),
+            surface("func answer(  ): i32 { return 1 }\n")
+        );
+    }
+
+    #[test]
+    fn declarations_after_a_body_remain_part_of_the_surface() {
+        assert_ne!(
+            surface("func first(): i32 { return 1 }\nfunc second(): i32\n"),
+            surface("func first(): i32 { return 2 }\nfunc second(): usize\n")
+        );
+    }
+
+    #[test]
+    fn body_diagnostics_do_not_poison_the_declaration_boundary() {
+        assert_eq!(
+            surface("func answer(): i32 { return 1 }\n"),
+            surface("func answer(): i32 { @ }\n")
+        );
+        assert_ne!(
+            surface("func answer(): i32 { return 1 }\n"),
+            surface("@ func answer(): i32 { return 1 }\n")
+        );
+    }
+}
