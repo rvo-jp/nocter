@@ -21,7 +21,7 @@ mod syntax;
 pub use current_source::{CurrentSourceSurface, CurrentSourceSurfaceError};
 pub use error::{DiscoveryError, SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
 pub use failure::DiscoveryFailure;
-pub use graph::{discover, discover_with_source_syntax};
+pub use graph::discover_with_source_syntax;
 pub use module_catalog::module_for_source;
 pub use request::{DiscoveryLayout, DiscoveryRequest};
 pub use semantic_topology::{SemanticTopologyError, SemanticTopologySurface};

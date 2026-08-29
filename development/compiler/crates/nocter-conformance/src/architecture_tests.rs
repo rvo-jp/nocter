@@ -172,7 +172,6 @@ fn semantic_editor_stack_does_not_inherit_native_backend_layers() {
     for crate_name in [
         "nocter-compiler-computation",
         "nocter-session",
-        "nocter-semantic-computation",
         "nocter-semantic-product",
         "nocter-analysis",
         "nocter-workspace-analysis",
@@ -201,7 +200,6 @@ fn language_server_consumes_analysis_queries_not_semantic_storage() {
         "nocter-model",
         "nocter-package",
         "nocter-session",
-        "nocter-semantic-computation",
         "nocter-source-index",
         "nocter-syntax",
         "nocter-target-program",
@@ -277,32 +275,17 @@ fn computation_kernel_has_no_compiler_domain_dependency() {
 }
 
 #[test]
-fn semantic_computation_owns_queries_without_workspace_or_session_policy() {
+fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
     assert_eq!(
-        production_dependencies("nocter-semantic-computation"),
+        production_dependencies("nocter-compiler-computation"),
         BTreeSet::from([
             "nocter-checking".to_owned(),
             "nocter-compile-input".to_owned(),
             "nocter-computation".to_owned(),
             "nocter-declaration-lowering".to_owned(),
             "nocter-discovery".to_owned(),
-            "nocter-syntax".to_owned(),
-        ])
-    );
-}
-
-#[test]
-fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
-    assert_eq!(
-        production_dependencies("nocter-compiler-computation"),
-        BTreeSet::from([
-            "nocter-compile-input".to_owned(),
-            "nocter-computation".to_owned(),
-            "nocter-discovery".to_owned(),
             "nocter-filesystem".to_owned(),
             "nocter-model".to_owned(),
-            "nocter-semantic-computation".to_owned(),
-            "nocter-semantic-product".to_owned(),
             "nocter-source".to_owned(),
             "nocter-syntax".to_owned(),
         ])
@@ -317,7 +300,7 @@ fn command_and_workspace_policy_share_only_the_compiler_computation_entry() {
             dependencies.contains("nocter-compiler-computation"),
             "{crate_name} must enter semantic work through nocter-compiler-computation"
         );
-        for forbidden in ["nocter-declaration-lowering", "nocter-semantic-computation"] {
+        for forbidden in ["nocter-checking", "nocter-declaration-lowering"] {
             assert!(
                 !dependencies.contains(forbidden),
                 "{crate_name} must not select semantic stages through {forbidden}"
@@ -327,24 +310,28 @@ fn command_and_workspace_policy_share_only_the_compiler_computation_entry() {
 }
 
 #[test]
-fn session_can_consume_semantic_products_but_cannot_invoke_semantic_computation() {
+fn session_can_consume_semantic_products_but_cannot_invoke_compiler_computation() {
     let dependencies = production_dependencies("nocter-session");
     assert!(dependencies.contains("nocter-semantic-product"));
-    assert!(!dependencies.contains("nocter-semantic-computation"));
+    assert!(!dependencies.contains("nocter-compiler-computation"));
     assert_eq!(
         production_dependencies("nocter-semantic-product"),
-        BTreeSet::from(["nocter-semantic-computation".to_owned()])
+        BTreeSet::from(["nocter-compiler-computation".to_owned()])
     );
 }
 
 #[test]
-fn semantic_query_execution_has_only_its_owner_and_product_facade_as_consumers() {
-    let allowed = BTreeSet::from(["nocter-compiler-computation", "nocter-semantic-product"]);
+fn compiler_query_execution_has_only_reviewed_direct_consumers() {
+    let allowed = BTreeSet::from([
+        "nocter-command",
+        "nocter-semantic-product",
+        "nocter-workspace-analysis",
+    ]);
     for crate_name in crate_names() {
-        if production_dependencies(&crate_name).contains("nocter-semantic-computation") {
+        if production_dependencies(&crate_name).contains("nocter-compiler-computation") {
             assert!(
                 allowed.contains(crate_name.as_str()),
-                "{crate_name} must consume semantic products instead of query execution"
+                "{crate_name} must consume semantic products instead of compiler query execution"
             );
         }
     }

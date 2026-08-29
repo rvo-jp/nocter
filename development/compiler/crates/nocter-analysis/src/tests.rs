@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
-use nocter_discovery::{DiscoveryRequest, discover};
+use nocter_discovery::{DiscoveryFailure, DiscoveryRequest};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
-use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
 use nocter_workspace_revision::GenerationId;
@@ -14,6 +14,22 @@ use nocter_workspace_revision::GenerationId;
 use crate::{AnalysisSnapshot, AnalysisStatus, SemanticCoverage, TypedBodyUnavailability};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
+    package_graph_with_overlay(packages, SourceOverlay::empty())
+}
+
+fn package_graph_with_overlay(
+    packages: Vec<ResolvedPackageSpec>,
+    overlay: SourceOverlay,
+) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load_with_root_catalog(
+        packages,
+        PackageRootCatalog::new(overlay),
+        &mut nocter_syntax::DirectSourceSyntax,
+    )
+    .unwrap()
+}
 
 #[test]
 fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
@@ -33,14 +49,13 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
         .unwrap();
     let overlay = overlay.finish();
     let package = PackageIdentity::new("workspace:app");
-    let graph = ResolvedPackageGraph::load_with_source_overlay(
+    let graph = package_graph_with_overlay(
         vec![ResolvedPackageSpec::new(
             package.clone(),
             tree.path().join("app"),
         )],
         overlay,
-    )
-    .unwrap();
+    );
     let root = ModuleIdentity::new(package.clone(), Vec::<&str>::new());
     let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
@@ -84,22 +99,20 @@ fn discovery_failure_is_the_generation_result_instead_of_a_stale_success() {
         )
         .unwrap();
     let package = PackageIdentity::new("workspace:app");
-    let graph = ResolvedPackageGraph::load_with_source_overlay(
+    let graph = package_graph_with_overlay(
         vec![ResolvedPackageSpec::new(
             package.clone(),
             tree.path().join("app"),
         )],
         overlay.finish(),
-    )
-    .unwrap();
+    );
     let root = ModuleIdentity::new(package.clone(), Vec::<&str>::new());
-    let failure = discover(DiscoveryRequest::declared(
+    let failure = discovery_failure(DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         graph,
         vec![root.clone()],
         ToolchainInput::new(package, root, Vec::new(), Vec::new()),
-    ))
-    .unwrap_err();
+    ));
 
     let snapshot = AnalysisSnapshot::from_discovery_failure(GenerationId::new(42), failure);
 
@@ -609,13 +622,12 @@ fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> Analy
     let standard = PackageIdentity::new("toolchain:std");
     let standard_root =
         fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
-    let graph = ResolvedPackageGraph::load(vec![
+    let graph = package_graph(vec![
         ResolvedPackageSpec::new(package.clone(), tree.path().join("app"))
             .with_standard_dependency(standard.clone()),
         ResolvedPackageSpec::new(standard.clone(), standard_root)
             .with_standard_dependency(standard.clone()),
-    ])
-    .unwrap();
+    ]);
     let root = ModuleIdentity::new(package, Vec::<&str>::new());
     let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
@@ -636,11 +648,10 @@ pub(crate) fn bundled_snapshot(
     let standard_root =
         fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
     let standard = PackageIdentity::new("toolchain:std");
-    let graph = ResolvedPackageGraph::load(vec![
+    let graph = package_graph(vec![
         ResolvedPackageSpec::new(standard.clone(), &standard_root)
             .with_standard_dependency(standard.clone()),
-    ])
-    .unwrap();
+    ]);
     let request = DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
         &source_path,
@@ -659,6 +670,19 @@ fn analyzed_snapshot(generation: GenerationId, request: DiscoveryRequest) -> Ana
     let product = computation.analyze(&discovered).unwrap();
     let analyzed = nocter_session::analyze_unit_from_query(&product).unwrap();
     AnalysisSnapshot::from_analyzed_unit(generation, analyzed)
+}
+
+fn discovery_failure(request: DiscoveryRequest) -> DiscoveryFailure {
+    let mut computation = nocter_compiler_computation::CompilerComputation::new();
+    let revision = computation
+        .advance_sources(request.source_overlay(), 0)
+        .unwrap();
+    match computation.discover(&revision, request).unwrap_err() {
+        nocter_compiler_computation::CompilerDiscoveryError::Discovery(failure) => failure,
+        nocter_compiler_computation::CompilerDiscoveryError::Computation(error) => {
+            panic!("unexpected computation failure: {error}")
+        }
+    }
 }
 
 pub(crate) struct TempTree(PathBuf);

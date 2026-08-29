@@ -1253,7 +1253,12 @@ fn command_discover(
 }
 
 fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
-    ResolvedPackageGraph::load(packages).unwrap()
+    ResolvedPackageGraph::load_with_root_catalog(
+        packages,
+        nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+        &mut nocter_syntax::DirectSourceSyntax,
+    )
+    .unwrap()
 }
 
 fn write_source(root: &Path, relative: &str, text: &str) {

@@ -29,3 +29,5 @@ separate crates.
   Package loading binds the same retained parse product to its semantic source identity, while
   discovery reuses the decision instead of reopening, reparsing, or reclassifying the root.
 - An overlay is an input view, not authority to publish persistent state.
+- Production graph loading and resolution require a caller-owned syntax provider and retained root
+  catalog; convenience direct parsing is confined to tests.

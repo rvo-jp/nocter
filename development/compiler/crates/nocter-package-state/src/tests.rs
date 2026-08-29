@@ -13,11 +13,20 @@ use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
 use crate::{
     LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
     PackageFilesystemRevision, PackageResolutionAttemptError, PackageResolutionDriver,
-    PackageStateError, resolve_package_state, resolve_package_state_with_driver,
+    PackageStateError, resolve_package_state_with_driver,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 const COMMIT: &str = "7db21c1000000000000000000000000000000000";
+
+fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
+    ResolvedPackageGraph::load_with_root_catalog(
+        packages,
+        nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+        &mut nocter_syntax::DirectSourceSyntax,
+    )
+    .unwrap()
+}
 
 struct TempTree(PathBuf);
 
@@ -147,9 +156,27 @@ impl PackageResolutionDriver for RecordingResolver {
         filesystem_revision: PackageFilesystemRevision,
     ) -> Result<nocter_package::ResolvedPackageSelection, PackageResolutionAttemptError> {
         self.revisions.push(filesystem_revision.get());
-        nocter_package::resolve_package_selection(request)
-            .map_err(PackageResolutionAttemptError::Domain)
+        nocter_package::resolve_package_selection_with_root_catalog(
+            request,
+            nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            &mut nocter_syntax::DirectSourceSyntax,
+        )
+        .map_err(nocter_package::PackageResolutionFailure::into_error)
+        .map_err(PackageResolutionAttemptError::Domain)
     }
+}
+
+fn resolve_package_state<A: PackageAcquisitionAuthority>(
+    request: PackageResolutionRequest,
+    authority: &mut A,
+) -> Result<nocter_package::ResolvedPackageSelection, PackageStateError<A::Error>> {
+    resolve_package_state_with_driver(
+        request,
+        authority,
+        &mut RecordingResolver {
+            revisions: Vec::new(),
+        },
+    )
 }
 
 #[test]
@@ -228,12 +255,11 @@ fn root_source_commit_rejects_a_concurrent_source_change() {
         "#package: { name: \"remote\", version: \"0.0.0\", }\n",
     );
     let app = PackageIdentity::new("app");
-    let graph = ResolvedPackageGraph::load(vec![
+    let graph = package_graph(vec![
         ResolvedPackageSpec::new(app.clone(), tree.0.join("app"))
             .with_dependency("remote", PackageIdentity::new("remote")),
         ResolvedPackageSpec::new(PackageIdentity::new("remote"), tree.0.join("remote")),
-    ])
-    .unwrap();
+    ]);
     let update = graph.root_lock_update(&app).unwrap();
     let path = tree.0.join("app/index.nct");
     let concurrent = b"#package: { name: \"changed\", version: \"0.0.0\", }\n";

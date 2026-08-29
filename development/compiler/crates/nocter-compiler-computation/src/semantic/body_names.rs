@@ -1,10 +1,12 @@
+//! Source-neutral lexical body queries.
+
 use std::sync::Arc;
 
 use nocter_computation::{
     ComputationError, ComputationKey, Database, Fingerprint, Query, QueryValue,
 };
 
-use crate::{
+use super::{
     BodySourceInput, BodySourceKey, CurrentSourceScopeInput, DeclarationQuery,
     DeclarationQueryOutcome, SemanticScopeKey,
 };
@@ -19,7 +21,7 @@ pub struct SemanticBodyKey {
 
 impl SemanticBodyKey {
     #[must_use]
-    pub(crate) fn for_identity(
+    pub(super) fn for_identity(
         scope: SemanticScopeKey,
         identity: &nocter_declaration_lowering::ReusableBodyIdentity,
     ) -> Self {
@@ -33,11 +35,11 @@ impl SemanticBodyKey {
         }
     }
 
-    pub(crate) const fn scope(&self) -> &SemanticScopeKey {
+    pub(super) const fn scope(&self) -> &SemanticScopeKey {
         &self.scope
     }
 
-    pub(crate) const fn source(&self) -> &BodySourceKey {
+    pub(super) const fn source(&self) -> &BodySourceKey {
         &self.source
     }
 }
@@ -114,7 +116,7 @@ impl Query for BodyNameQuery {
         };
         let body = database.input::<BodySourceInput>(&key.source)?;
         let context =
-            database.query::<crate::body_context::BodySemanticContextQuery>(key.scope.clone())?;
+            database.query::<super::body_context::BodySemanticContextQuery>(key.scope.clone())?;
         let outcome = context.resolve_names(&body, identity);
         let Some(outcome) = outcome else {
             return unavailable(database, key);
@@ -164,7 +166,7 @@ fn unavailable(
 ///
 /// Returns only computation-kernel failures. Authored rejection is a first-class exact-current
 /// query outcome; unavailable is reserved for an earlier missing authority or internal failure.
-pub fn resolve_body_name(
+pub(super) fn resolve_body_name(
     database: &Database,
     key: SemanticBodyKey,
 ) -> Result<Arc<BodyNameQueryProduct>, ComputationError> {
@@ -180,7 +182,7 @@ pub fn resolve_body_name(
 /// # Errors
 ///
 /// Returns computation-kernel failures from an individual body demand.
-pub fn resolved_body_names(
+pub(super) fn resolved_body_names(
     database: &Database,
     scope: &SemanticScopeKey,
 ) -> Result<Option<BodyNameSet>, ComputationError> {
@@ -212,11 +214,11 @@ pub fn resolved_body_names(
 }
 
 #[must_use]
-pub fn body_name_execution_count(database: &Database) -> u64 {
+pub(super) fn body_name_execution_count(database: &Database) -> u64 {
     database.execution_count::<BodyNameQuery>()
 }
 
 #[must_use]
-pub fn body_name_reuse_count(database: &Database) -> u64 {
+pub(super) fn body_name_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<BodyNameQuery>()
 }

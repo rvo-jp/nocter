@@ -44,7 +44,8 @@ may demand only the semantic capability it needs. Both paths invoke the same sta
   implements this mechanism without depending on a compiler-domain crate.
 - declaration lowering, checking, target construction, and later backend stages own semantic rules
   and return immutable products.
-- semantic computation owns the only compiler-query stage order and recovery continuation.
+- compiler computation privately owns the only semantic-query stage order and recovery
+  continuation.
   Compiler computation publishes one closed query input and demands its result. Session depends on
   the separate semantic-product contract, then owns target construction and translation from that
   closed outcome. One analyzed unit owns its discovery snapshot and exact session result
@@ -147,8 +148,8 @@ kind, and is independent of discovery traversal order. The declaration query com
 topology product with module surfaces instead of rerunning discovery or interpreting its private
 storage.
 
-That composition is integrated through the dedicated `nocter-semantic-computation` owner.
-`nocter-compiler-computation` publishes two fingerprints carrying the same shared discovery snapshot:
+That composition is private to the `nocter-compiler-computation` owner. The same crate derives and
+publishes two fingerprints carrying the same shared discovery snapshot:
 declaration semantics combine canonical topology with all module surfaces, while exact current
 source additionally includes every reached canonical path, normalized byte sequence, and
 `SourceId` layout. The declaration query reads only the

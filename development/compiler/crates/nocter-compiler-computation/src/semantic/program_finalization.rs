@@ -1,8 +1,10 @@
+//! Canonical whole-program finalization query.
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
-use crate::{
+use super::{
     CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome, ProgramPreparationOutcome,
     SemanticScopeKey,
 };
@@ -90,16 +92,16 @@ impl Query for ProgramFinalizationQuery {
         let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
             return unavailable(database, key);
         };
-        let preparation = crate::prepared_program(database, key.clone())?;
+        let preparation = super::prepared_program(database, key.clone())?;
         let ProgramPreparationOutcome::Prepared(_) = preparation.outcome() else {
             return unavailable(database, key);
         };
-        let Some(body_names) = crate::resolved_body_names(database, key)? else {
+        let Some(body_names) = super::resolved_body_names(database, key)? else {
             return unavailable(database, key);
         };
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let context =
-            database.query::<crate::body_context::BodySemanticContextQuery>(key.clone())?;
+            database.query::<super::body_context::BodySemanticContextQuery>(key.clone())?;
         if !body_names.rejections().is_empty() {
             let Some(failure) = context.materialize_name_rejection(&body_names) else {
                 return unavailable(database, key);
@@ -111,7 +113,7 @@ impl Query for ProgramFinalizationQuery {
                 fingerprint: current.fingerprint,
             });
         }
-        let Some(typed_bodies) = crate::typed_bodies(database, key)? else {
+        let Some(typed_bodies) = super::typed_bodies(database, key)? else {
             return unavailable(database, key);
         };
         let Some(checked) = context.finalize(&body_names, &typed_bodies) else {
@@ -154,7 +156,7 @@ fn unavailable(
 ///
 /// Returns only computation-kernel failures. Compiler-domain finalization failure is an ordinary
 /// exact-current outcome.
-pub fn finalized_program(
+pub(super) fn finalized_program(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<ProgramFinalizationProduct>, ComputationError> {
@@ -162,11 +164,11 @@ pub fn finalized_program(
 }
 
 #[must_use]
-pub fn finalization_execution_count(database: &Database) -> u64 {
+pub(super) fn finalization_execution_count(database: &Database) -> u64 {
     database.execution_count::<ProgramFinalizationQuery>()
 }
 
 #[must_use]
-pub fn finalization_reuse_count(database: &Database) -> u64 {
+pub(super) fn finalization_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<ProgramFinalizationQuery>()
 }

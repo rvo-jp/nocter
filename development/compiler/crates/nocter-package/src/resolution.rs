@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
-use nocter_syntax::{DirectSourceSyntax, SourceSyntaxProvider};
+#[cfg(test)]
+use nocter_syntax::DirectSourceSyntax;
+use nocter_syntax::SourceSyntaxProvider;
 
 #[cfg(test)]
 use crate::graph::canonical_package_root;
@@ -177,6 +179,7 @@ impl ResolvedPackageSelection {
 ///
 /// Returns an error for invalid package data, inconsistent identities, filesystem failures, or a
 /// lock/fetch requirement that this read-only resolver cannot satisfy.
+#[cfg(test)]
 pub fn resolve_package_selection(
     request: PackageResolutionRequest,
 ) -> Result<ResolvedPackageSelection, PackageResolutionError> {
@@ -192,6 +195,7 @@ pub fn resolve_package_selection(
 /// # Errors
 ///
 /// Returns the same exact resolution errors as [`resolve_package_selection`].
+#[cfg(test)]
 pub fn resolve_package_selection_with_source_overlay(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
@@ -206,6 +210,7 @@ pub fn resolve_package_selection_with_source_overlay(
 /// # Errors
 ///
 /// Returns the same exact resolution error together with its immutable reached-source snapshot.
+#[cfg(test)]
 pub fn resolve_package_selection_with_source_snapshot(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
@@ -221,8 +226,8 @@ pub fn resolve_package_selection_with_source_snapshot(
 ///
 /// # Errors
 ///
-/// Returns the same exact resolution error and reached-source snapshot as
-/// [`resolve_package_selection_with_source_snapshot`].
+/// Returns the exact package-domain rejection together with the immutable source snapshot reached
+/// through the supplied catalog and syntax provider.
 pub fn resolve_package_selection_with_root_catalog(
     request: PackageResolutionRequest,
     package_roots: PackageRootCatalog,
@@ -411,6 +416,7 @@ fn resolve_package_edges(
 /// # Errors
 ///
 /// Returns the same exact resolution error as [`resolve_package_selection`].
+#[cfg(test)]
 pub fn resolve_package_graph(
     request: PackageResolutionRequest,
 ) -> Result<ResolvedPackageGraph, PackageResolutionError> {
@@ -423,6 +429,7 @@ pub fn resolve_package_graph(
 /// # Errors
 ///
 /// Returns the same exact resolution errors as [`resolve_package_graph`].
+#[cfg(test)]
 pub fn resolve_package_graph_with_source_overlay(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
@@ -432,40 +439,11 @@ pub fn resolve_package_graph_with_source_overlay(
     Ok(graph)
 }
 
-/// Loads the self-contained standard package selected by a toolchain for single-file mode.
-///
-/// # Errors
-///
-/// Returns a graph error if the package is invalid or declares an authored dependency. Bundled
-/// standard libraries are closed toolchain inputs and never resolve through user package stores.
-pub fn resolve_standard_package(
-    standard: StandardPackage,
-) -> Result<ResolvedPackageGraph, PackageGraphError> {
-    resolve_standard_package_with_source_overlay(standard, SourceOverlay::empty())
-}
-
-/// Loads the self-contained standard package through the same immutable source view as a
-/// single-file editor generation.
-///
-/// # Errors
-///
-/// Returns the same graph errors as [`resolve_standard_package`].
-pub fn resolve_standard_package_with_source_overlay(
-    standard: StandardPackage,
-    source_overlay: SourceOverlay,
-) -> Result<ResolvedPackageGraph, PackageGraphError> {
-    resolve_standard_package_with_root_catalog(
-        standard,
-        PackageRootCatalog::new(source_overlay),
-        &mut DirectSourceSyntax,
-    )
-}
-
 /// Loads the selected standard package from an existing package-root catalog.
 ///
 /// # Errors
 ///
-/// Returns the same graph errors as [`resolve_standard_package_with_source_overlay`].
+/// Returns graph errors when the package is invalid or declares an authored dependency.
 pub fn resolve_standard_package_with_root_catalog(
     standard: StandardPackage,
     package_roots: PackageRootCatalog,

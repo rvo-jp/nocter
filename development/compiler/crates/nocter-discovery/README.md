@@ -34,6 +34,8 @@ does not lower declarations or interpret body semantics.
   the same directory through a second source authority.
 - Later stages receive the closed graph and cannot rediscover files.
 - A syntax provider cannot change discovery topology or attach a tree from another source identity.
+- Production discovery requires a caller-owned syntax provider; it cannot construct a direct parser
+  and bypass compiler-computation source authority.
 - A module source always requests the source-file parse goal even when the same physical file was
   already parsed as a package declaration; path and source identity never erase parse-goal
   identity.

@@ -7,13 +7,13 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-checking = { path = "../nocter-checking" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-computation = { path = "../nocter-computation" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-discovery = { path = "../nocter-discovery" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-model = { path = "../nocter-model" }
-nocter-semantic-computation = { path = "../nocter-semantic-computation" }
-nocter-semantic-product = { path = "../nocter-semantic-product" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 

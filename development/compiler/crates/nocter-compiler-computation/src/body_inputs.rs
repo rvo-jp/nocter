@@ -3,7 +3,8 @@ use std::path::Path;
 
 use nocter_computation::{ComputationError, Database};
 use nocter_discovery::DiscoveredUnit;
-use nocter_semantic_computation::BodySourcePublication;
+
+use crate::semantic::BodySourcePublication;
 
 /// Collects exact body inputs from source-syntax products already demanded by module surfaces.
 pub(crate) fn collect(

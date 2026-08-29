@@ -1,8 +1,10 @@
+//! Sole complete-or-incomplete unit query.
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
-use crate::{CurrentSourceScopeInput, SemanticScopeKey};
+use super::{CurrentSourceScopeInput, SemanticScopeKey};
 
 struct UnitAnalysisQuery;
 
@@ -25,8 +27,8 @@ impl std::fmt::Display for UnitAnalysisUnavailable {
 /// Sole complete-or-incomplete semantic branch for one exact source revision.
 #[derive(Debug)]
 pub enum UnitAnalysisOutcome {
-    Complete(Arc<crate::ProgramAnalysisProduct>),
-    Incomplete(crate::IncompleteSemanticAnalysis),
+    Complete(Arc<super::ProgramAnalysisProduct>),
+    Incomplete(super::IncompleteSemanticAnalysis),
     Unavailable(UnitAnalysisUnavailable),
 }
 
@@ -63,13 +65,13 @@ impl Query for UnitAnalysisQuery {
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let outcome = if current.unit.has_syntax_errors() {
-            let incomplete = crate::incomplete_analysis(database, key.clone())?;
+            let incomplete = super::incomplete_analysis(database, key.clone())?;
             incomplete.analysis().cloned().map_or(
                 UnitAnalysisOutcome::Unavailable(UnitAnalysisUnavailable::Incomplete),
                 UnitAnalysisOutcome::Incomplete,
             )
         } else {
-            let complete = crate::analyzed_program(database, key.clone())?;
+            let complete = super::analyzed_program(database, key.clone())?;
             UnitAnalysisOutcome::Complete(complete)
         };
         Ok(UnitAnalysisProduct {
@@ -85,7 +87,7 @@ impl Query for UnitAnalysisQuery {
 /// # Errors
 ///
 /// Returns computation-kernel failures. Authored rejection remains inside the selected branch.
-pub(crate) fn analyzed_unit(
+pub(super) fn analyzed_unit(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<UnitAnalysisProduct>, ComputationError> {
@@ -93,11 +95,11 @@ pub(crate) fn analyzed_unit(
 }
 
 #[must_use]
-pub fn unit_analysis_execution_count(database: &Database) -> u64 {
+pub(super) fn unit_analysis_execution_count(database: &Database) -> u64 {
     database.execution_count::<UnitAnalysisQuery>()
 }
 
 #[must_use]
-pub fn unit_analysis_reuse_count(database: &Database) -> u64 {
+pub(super) fn unit_analysis_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<UnitAnalysisQuery>()
 }

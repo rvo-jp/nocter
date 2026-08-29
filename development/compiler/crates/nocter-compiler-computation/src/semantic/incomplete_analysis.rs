@@ -1,3 +1,5 @@
+//! Exact-current incomplete-syntax analysis.
+
 #![allow(clippy::disallowed_methods)]
 
 use std::sync::Arc;
@@ -8,7 +10,7 @@ use nocter_declaration_lowering::{
     lower_incomplete_body_declarations_recovering,
 };
 
-use crate::{CurrentSourceScopeInput, SemanticScopeKey};
+use super::{CurrentSourceScopeInput, SemanticScopeKey};
 
 struct IncompleteAnalysisQuery;
 
@@ -99,17 +101,17 @@ impl Query for IncompleteAnalysisQuery {
 /// # Errors
 ///
 /// Returns computation-kernel failures. Compiler-domain failure is retained inside the product.
-pub fn incomplete_analysis(
+pub(super) fn incomplete_analysis(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<IncompleteAnalysisProduct>, ComputationError> {
     database.query::<IncompleteAnalysisQuery>(key)
 }
 
-/// Runs the one compiler-domain incomplete-syntax traversal used by both direct sessions and the
-/// incremental query graph.
+/// Runs the one compiler-domain incomplete-syntax traversal demanded by the incremental query
+/// graph.
 #[must_use]
-pub fn analyze_incomplete_semantics(
+pub(super) fn analyze_incomplete_semantics(
     unit: &nocter_discovery::DiscoveredUnit,
 ) -> Option<IncompleteSemanticAnalysis> {
     if !unit.has_syntax_errors() {
@@ -182,7 +184,7 @@ fn continue_declaration_failure(
 
 /// Materializes the deepest valid editor recovery beneath one exact-current declaration failure.
 #[must_use]
-pub fn analyze_declaration_failure(
+pub(super) fn analyze_declaration_failure(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
 ) -> IncompleteSemanticFailure {
@@ -191,7 +193,7 @@ pub fn analyze_declaration_failure(
 
 /// Continues one declaration recovery through its sole editor-analysis transition.
 #[must_use]
-pub fn continue_declaration_recovery(
+pub(super) fn continue_declaration_recovery(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
 ) -> Option<IncompleteSemanticEvidence> {
@@ -227,11 +229,11 @@ pub fn continue_declaration_recovery(
 }
 
 #[must_use]
-pub fn incomplete_analysis_execution_count(database: &Database) -> u64 {
+pub(super) fn incomplete_analysis_execution_count(database: &Database) -> u64 {
     database.execution_count::<IncompleteAnalysisQuery>()
 }
 
 #[must_use]
-pub fn incomplete_analysis_reuse_count(database: &Database) -> u64 {
+pub(super) fn incomplete_analysis_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<IncompleteAnalysisQuery>()
 }

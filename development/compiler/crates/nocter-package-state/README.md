@@ -31,3 +31,5 @@ overlays do not impersonate filesystem changes.
 - A transaction never returns a package snapshot captured before its own source commit.
 - Resolver retries over in-memory overlays retain one filesystem revision and cannot invalidate
   disk-backed source queries by attempt count.
+- Every transaction requires an injected resolution driver; package state cannot silently select a
+  direct parser outside the compiler-computation source authority.

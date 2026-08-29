@@ -7,28 +7,12 @@ use nocter_model::PackageIdentity;
 use nocter_package::{
     DependencySource, ExactDependencyLockKind, PackageId, PackageIdError, PackageLockOverlay,
     PackageLockOverlayError, PackageResolutionError, PackageResolutionRequest, PackageStoreOverlay,
-    PackageStoreOverlayError, ResolvedPackageSelection, resolve_package_selection,
+    PackageStoreOverlayError, ResolvedPackageSelection,
 };
 
 use crate::authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
 use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
 use crate::staging::{PackageStateFilesystemError, StagingArea};
-
-/// Resolves and commits all mutable package state as one graph-validated transaction.
-///
-/// Generated locks apply only to the selected root package. Exact packages are first acquired into
-/// a private store overlay. The complete staged graph must resolve before any package is published;
-/// persistent stores are then selected again before the root lock source is committed atomically.
-///
-/// # Errors
-///
-/// Returns a typed resolution, acquisition, staging, publication, or source-commit failure.
-pub fn resolve_package_state<A: PackageAcquisitionAuthority>(
-    request: PackageResolutionRequest,
-    authority: &mut A,
-) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
-    PackageStateTransaction::new(request)?.run(authority, &mut DirectPackageResolution)
-}
 
 /// Read-only package-graph authority used by one mutable package-state transaction.
 pub trait PackageResolutionDriver {
@@ -79,8 +63,7 @@ impl Error for PackageFilesystemRevisionError {}
 ///
 /// # Errors
 ///
-/// Returns the same atomic transaction failures as [`resolve_package_state`], plus an
-/// infrastructure failure selected by `resolver`.
+/// Returns atomic transaction failures plus an infrastructure failure selected by `resolver`.
 pub fn resolve_package_state_with_driver<
     A: PackageAcquisitionAuthority,
     R: PackageResolutionDriver,
@@ -90,18 +73,6 @@ pub fn resolve_package_state_with_driver<
     resolver: &mut R,
 ) -> Result<ResolvedPackageSelection, PackageStateError<A::Error>> {
     PackageStateTransaction::new(request)?.run(authority, resolver)
-}
-
-struct DirectPackageResolution;
-
-impl PackageResolutionDriver for DirectPackageResolution {
-    fn resolve(
-        &mut self,
-        request: PackageResolutionRequest,
-        _filesystem_revision: PackageFilesystemRevision,
-    ) -> Result<ResolvedPackageSelection, PackageResolutionAttemptError> {
-        resolve_package_selection(request).map_err(PackageResolutionAttemptError::Domain)
-    }
 }
 
 #[derive(Debug)]

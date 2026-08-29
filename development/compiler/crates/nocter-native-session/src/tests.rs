@@ -1189,14 +1189,19 @@ fn resolved_standard(root: &Path, package: &PackageIdentity) -> ResolvedPackageS
 }
 
 fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
-    ResolvedPackageGraph::load(packages).unwrap()
+    package_graph_with_overlay(packages, SourceOverlay::empty())
 }
 
 fn package_graph_with_overlay(
     packages: Vec<ResolvedPackageSpec>,
     overlay: SourceOverlay,
 ) -> ResolvedPackageGraph {
-    ResolvedPackageGraph::load_with_source_overlay(packages, overlay).unwrap()
+    ResolvedPackageGraph::load_with_root_catalog(
+        packages,
+        nocter_package::PackageRootCatalog::new(overlay),
+        &mut nocter_syntax::DirectSourceSyntax,
+    )
+    .unwrap()
 }
 
 fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {

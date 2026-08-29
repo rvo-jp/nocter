@@ -9,8 +9,10 @@ workspace analysis.
 
 The crate accepts atomic source revisions and returns an owner-bound revision token. That token is
 required both to lend the computed syntax provider and to analyze a discovered unit. The crate
-publishes the exact unit into semantic inputs and demands the sole complete-or-incomplete unit
-analysis product. It owns the computation database and query instrumentation but does not select
+derives and publishes semantic inputs from that exact unit, then demands the sole
+complete-or-incomplete unit analysis product. The publication types and semantic query entries are
+private to this crate, so callers cannot assemble mismatched module, body, and scope authority. It
+owns the computation database, retention policy, and query instrumentation but does not select
 packages, discover modules, translate session outcomes, build targets, or interpret editor
 requests.
 
@@ -19,7 +21,9 @@ requests.
 - source-text, parse, declaration-surface, and module-surface queries
 - stable body-input collection from declaration surfaces
 - atomic semantic-scope publication
+- private declaration, preparation, body, finalization, and unit query graph
 - closed unit-analysis demand
+- bounded retention of source revisions and dependency-closed inactive-entry collection
 - execution and reuse statistics for equivalence tests
 
 ## Invariants
@@ -32,5 +36,7 @@ requests.
   source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
 - Callers cannot access the raw computation database or demand an intermediate semantic query.
+- Old overlay bytes, semantic inputs, and query products cannot accumulate beyond the retained
+  source-revision window.
 - The crate owns no filesystem topology, package acquisition, session, target, native, or protocol
   policy.

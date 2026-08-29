@@ -20,6 +20,8 @@ modules, declarations, types, source projections, diagnostics, or editor request
 - clean-dependency validation and value-fingerprint propagation
 - recursive-query cycle reporting
 - execution and reuse counters for conformance tests
+- explicit persistent versus revision-derived input retention
+- dependency-closed collection of inactive query and revision-derived input entries
 
 ## Invariants
 
@@ -29,3 +31,5 @@ modules, declarations, types, source projections, diagnostics, or editor request
 - An input update and a query evaluation cannot overlap through the safe API.
 - An unchanged result fingerprint stops invalidation propagation.
 - Internal query failure is not stored as a successful domain value.
+- A retained query's complete verified dependency closure is retained with it.
+- Persistent inputs survive inactive-entry collection; domain owners select the revision window.

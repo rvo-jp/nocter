@@ -2,14 +2,15 @@
 
 ## Responsibility
 
-Expose the immutable result vocabulary produced by semantic computation without exposing its query
+Expose the immutable result vocabulary produced by compiler computation without exposing its query
 entry, database, stage functions, or input-publication machinery.
 
 ## Contract
 
 Post-computation consumers depend on this crate when interpreting complete or recoverable semantic
-outcomes. The crate intentionally exports only result types. `nocter-compiler-computation` remains
-the sole production owner permitted to depend on and execute `nocter-semantic-computation`.
+outcomes. The crate intentionally exports only result types from `nocter-compiler-computation`.
+Session can therefore interpret a completed result without receiving a direct dependency on the
+query owner or access to its execution entry.
 
 ## Invariants
 

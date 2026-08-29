@@ -8,17 +8,24 @@ use nocter_compile_input::{
 };
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
-use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
-use nocter_syntax::NodeKind;
+use nocter_syntax::{DirectSourceSyntax, NodeKind};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
-use crate::{DiscoveryError, DiscoveryRequest, UseFailure, discover};
+use crate::{
+    DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest, UseFailure,
+    discover_with_source_syntax,
+};
 
 #[path = "tests/standard_contract.rs"]
 mod standard_contract;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
+    discover_with_source_syntax(request, &mut DirectSourceSyntax)
+}
 
 const TEST_BUILTIN_SOURCE: &str = "\
 pub primitive type bool\n\
@@ -72,14 +79,19 @@ fn package(identity: &str, _name: &str, root: &Path) -> ResolvedPackageSpec {
 }
 
 fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
-    ResolvedPackageGraph::load(packages).unwrap()
+    package_graph_with_overlay(packages, SourceOverlay::empty())
 }
 
 fn package_graph_with_overlay(
     packages: Vec<ResolvedPackageSpec>,
     overlay: SourceOverlay,
 ) -> ResolvedPackageGraph {
-    ResolvedPackageGraph::load_with_source_overlay(packages, overlay).unwrap()
+    ResolvedPackageGraph::load_with_root_catalog(
+        packages,
+        PackageRootCatalog::new(overlay),
+        &mut DirectSourceSyntax,
+    )
+    .unwrap()
 }
 
 fn module(package: &str, path: &[&str]) -> ModuleIdentity {

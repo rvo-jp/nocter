@@ -9,5 +9,9 @@ license.workspace = true
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 
+[dev-dependencies]
+nocter-filesystem = { path = "../nocter-filesystem" }
+nocter-syntax = { path = "../nocter-syntax" }
+
 [lints]
 workspace = true

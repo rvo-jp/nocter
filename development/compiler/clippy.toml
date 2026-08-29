@@ -7,11 +7,11 @@ disallowed-types = [
 ]
 
 disallowed-methods = [
-    { path = "nocter_declaration_lowering::lower_compile_unit_declarations_recovering", reason = "semantic query composition is owned by nocter-semantic-computation" },
-    { path = "nocter_declaration_lowering::lower_incomplete_body_declarations_recovering", reason = "incomplete editor traversal is owned by nocter-semantic-computation::incomplete_analysis" },
-    { path = "nocter_checking::prepare_program_checking_recovering", reason = "semantic query composition is owned by nocter-semantic-computation" },
-    { path = "nocter_checking::prepare_analysis_program_checking_recovering", reason = "incomplete editor traversal is owned by nocter-semantic-computation::incomplete_analysis" },
-    { path = "nocter_checking::check_prepared_program_recovering", reason = "semantic query composition is owned by nocter-semantic-computation" },
-    { path = "nocter_checking::analyze_prepared_program_bodies", reason = "incomplete editor traversal is owned by nocter-semantic-computation::incomplete_analysis" },
+    { path = "nocter_declaration_lowering::lower_compile_unit_declarations_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },
+    { path = "nocter_declaration_lowering::lower_incomplete_body_declarations_recovering", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
+    { path = "nocter_checking::prepare_program_checking_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },
+    { path = "nocter_checking::prepare_analysis_program_checking_recovering", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
+    { path = "nocter_checking::check_prepared_program_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },
+    { path = "nocter_checking::analyze_prepared_program_bodies", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
     { path = "nocter_source_index::SourceIndex::issues", reason = "source projection integrity is consumed only by the analysis evidence kernel" },
 ]

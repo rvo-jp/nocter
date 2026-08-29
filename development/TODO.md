@@ -45,10 +45,12 @@ fix, instrumentation, and qualification evidence.
 ## Next Work
 
 Phase 2 query-entry unification is complete and reviewed. Source queries require an owner-bound
-current revision token, session consumes `nocter-semantic-product` rather than semantic computation,
-and root executable closure cannot detach an identity from its target program. Do not reopen direct
-session compilation, permit native layers to accept discovery snapshots, or add another source
-parser beside `nocter-compiler-computation`.
+current revision token, semantic input publication and query demand are private to
+`nocter-compiler-computation`, session consumes only `nocter-semantic-product`, and root executable
+closure cannot detach an identity from its target program. Compiler computation retains a bounded
+source-revision window and collects inactive query closures. Do not reopen direct session
+compilation, permit native layers to accept discovery snapshots, or add another production source
+parser or package resolver beside the provider-backed compiler-computation path.
 
 Before implementing Phase 3, write and accept a separate public design for hashing and associative
 collections. That plan must define equality/hash coherence, mutation and iteration guarantees,

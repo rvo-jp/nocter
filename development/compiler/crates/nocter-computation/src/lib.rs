@@ -8,10 +8,22 @@ pub use database::{ComputationRevision, Database, InputRevision};
 pub use error::ComputationError;
 pub use identity::{ComputationCategory, ComputationIdentity, ComputationKey, Fingerprint};
 
+/// Storage policy for an input key that is not read by retained computations.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum InputRetention {
+    /// Retain the last published value until its owner explicitly replaces the database.
+    #[default]
+    Persistent,
+    /// Permit collection after the input falls outside the owner's retained revision window.
+    RevisionDerived,
+}
+
 /// Immutable input family supplied at a computation revision.
 pub trait Input: 'static {
     type Key: ComputationKey;
     type Value: QueryValue;
+
+    const RETENTION: InputRetention = InputRetention::Persistent;
 }
 
 /// One pure derived computation family.

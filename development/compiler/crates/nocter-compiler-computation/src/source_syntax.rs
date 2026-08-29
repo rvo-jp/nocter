@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_computation::{
-    ComputationError, ComputationKey, Database, Fingerprint, Input, Query, QueryValue,
+    ComputationError, ComputationKey, ComputationRevision, Database, Fingerprint, Input,
+    InputRetention, Query, QueryValue,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceFile, SourceMap, SourceName};
@@ -19,6 +20,8 @@ struct OverlayDomainInput;
 impl Input for OverlayDomainInput {
     type Key = ();
     type Value = OverlayDomain;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 struct OverlayDomain {
@@ -52,6 +55,8 @@ struct OverlayTextInput;
 impl Input for OverlayTextInput {
     type Key = SourcePath;
     type Value = OverlayText;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 struct OverlayText {
@@ -79,6 +84,8 @@ struct FilesystemEpochInput;
 impl Input for FilesystemEpochInput {
     type Key = ();
     type Value = FilesystemEpoch;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 struct FilesystemEpoch {
@@ -361,15 +368,17 @@ impl SourceRevisionPublication {
         self.fingerprint
     }
 
-    pub(crate) fn publish(self, database: &mut Database) -> Result<(), ComputationError> {
+    pub(crate) fn publish(
+        self,
+        database: &mut Database,
+    ) -> Result<ComputationRevision, ComputationError> {
         let mut revision = database.advance_revision()?;
         revision.set::<OverlayDomainInput>(&(), self.domain);
         revision.set::<FilesystemEpochInput>(&(), self.epoch);
         for (path, text) in self.texts {
             revision.set::<OverlayTextInput>(&path, text);
         }
-        let _ = revision.commit();
-        Ok(())
+        Ok(revision.commit())
     }
 }
 

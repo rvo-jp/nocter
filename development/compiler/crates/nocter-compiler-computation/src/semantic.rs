@@ -1,4 +1,4 @@
-//! Demand-owned semantic queries above physical source discovery.
+//! Demand-owned semantic queries behind the compiler-computation entry.
 
 mod body_context;
 mod body_names;
@@ -9,36 +9,34 @@ mod program_preparation;
 mod typed_bodies;
 mod unit_analysis;
 
-pub use body_names::{BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey};
-pub(crate) use body_names::{resolve_body_name, resolved_body_names};
+use body_names::{
+    BodyNameQueryOutcome, BodyNameSet, SemanticBodyKey, resolve_body_name, resolved_body_names,
+};
 pub use incomplete_analysis::{
-    IncompleteAnalysisProduct, IncompleteSemanticAnalysis, IncompleteSemanticError,
-    IncompleteSemanticEvidence, IncompleteSemanticFailure,
+    IncompleteSemanticAnalysis, IncompleteSemanticError, IncompleteSemanticEvidence,
+    IncompleteSemanticFailure,
 };
-pub(crate) use incomplete_analysis::{analyze_declaration_failure, incomplete_analysis};
-pub(crate) use program_analysis::analyzed_program;
+use incomplete_analysis::{analyze_declaration_failure, incomplete_analysis};
+use program_analysis::analyzed_program;
 pub use program_analysis::{
-    FailedDeclarationAnalysis, ProgramAnalysisOutcome, ProgramAnalysisProduct,
-    ProgramAnalysisUnavailable,
+    ProgramAnalysisOutcome, ProgramAnalysisProduct, ProgramAnalysisUnavailable,
 };
-pub(crate) use program_finalization::finalized_program;
-pub use program_finalization::{
-    FailedProgramFinalization, FailedProgramNameResolution, FinalizedProgram,
-    ProgramFinalizationOutcome, ProgramFinalizationProduct,
+pub use program_finalization::FinalizedProgram;
+use program_finalization::{
+    FailedProgramFinalization, FailedProgramNameResolution, ProgramFinalizationOutcome,
+    finalized_program,
 };
-pub(crate) use program_preparation::prepared_program;
-pub use program_preparation::{
-    ProgramPreparationOutcome, ProgramPreparationProduct, RejectedProgramPreparation,
+use program_preparation::{
+    ProgramPreparationOutcome, RejectedProgramPreparation, prepared_program,
 };
-pub(crate) use typed_bodies::typed_bodies;
-pub use typed_bodies::{TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet};
+use typed_bodies::{TypedBodySet, typed_bodies};
 pub use unit_analysis::{UnitAnalysisOutcome, UnitAnalysisProduct, UnitAnalysisUnavailable};
 
 use std::sync::Arc;
 
 use nocter_computation::{
-    ComputationError, ComputationKey, Database, Fingerprint, Input, InputRevision, Query,
-    QueryValue,
+    ComputationError, ComputationKey, Database, Fingerprint, Input, InputRetention, InputRevision,
+    Query, QueryValue,
 };
 use nocter_declaration_lowering::{
     DeclarationLoweringFailure, ReusableDeclarations, lower_reusable_declarations,
@@ -47,7 +45,7 @@ use nocter_discovery::DiscoveredUnit;
 
 /// Stable identity of one selected semantic compile scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct SemanticScopeKey {
+pub(super) struct SemanticScopeKey {
     stable: Box<[u8]>,
 }
 
@@ -90,7 +88,7 @@ impl ScopeInputPublication {
     fn for_unit(
         unit: Arc<DiscoveredUnit>,
         module_surface_fingerprint: Fingerprint,
-    ) -> Result<(SemanticScopeKey, Self), ScopeInputError> {
+    ) -> Result<(SemanticScopeKey, Self), SemanticInputError> {
         let key = SemanticScopeKey::for_unit(&unit);
         let topology = unit.semantic_topology_surface()?;
         let current = unit.current_source_surface()?;
@@ -138,12 +136,12 @@ impl ScopeInputPublication {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ScopeInputError {
+pub enum SemanticInputError {
     SemanticTopology(nocter_discovery::SemanticTopologyError),
     CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
 }
 
-impl std::fmt::Display for ScopeInputError {
+impl std::fmt::Display for SemanticInputError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SemanticTopology(error) => error.fmt(formatter),
@@ -152,15 +150,15 @@ impl std::fmt::Display for ScopeInputError {
     }
 }
 
-impl std::error::Error for ScopeInputError {}
+impl std::error::Error for SemanticInputError {}
 
-impl From<nocter_discovery::SemanticTopologyError> for ScopeInputError {
+impl From<nocter_discovery::SemanticTopologyError> for SemanticInputError {
     fn from(error: nocter_discovery::SemanticTopologyError) -> Self {
         Self::SemanticTopology(error)
     }
 }
 
-impl From<nocter_discovery::CurrentSourceSurfaceError> for ScopeInputError {
+impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticInputError {
     fn from(error: nocter_discovery::CurrentSourceSurfaceError) -> Self {
         Self::CurrentSource(error)
     }
@@ -168,26 +166,32 @@ impl From<nocter_discovery::CurrentSourceSurfaceError> for ScopeInputError {
 
 struct DeclarationScopeInput;
 struct CurrentSourceScopeInput;
-struct BodySourceInput;
+pub(super) struct BodySourceInput;
 
 impl Input for DeclarationScopeInput {
     type Key = SemanticScopeKey;
     type Value = ScopeInputValue;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 impl Input for CurrentSourceScopeInput {
     type Key = SemanticScopeKey;
     type Value = ScopeInputValue;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 impl Input for BodySourceInput {
     type Key = BodySourceKey;
     type Value = BodySourceValue;
+
+    const RETENTION: InputRetention = InputRetention::RevisionDerived;
 }
 
 /// Stable physical identity of one executable body beneath a declaration surface.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct BodySourceKey {
+pub(super) struct BodySourceKey {
     path: Box<str>,
     locator: nocter_syntax::DeclarationSyntaxLocator,
     stable: Box<[u8]>,
@@ -221,7 +225,7 @@ impl ComputationKey for BodySourceKey {
     }
 }
 
-struct BodySourceValue {
+pub(super) struct BodySourceValue {
     fingerprint: Fingerprint,
 }
 
@@ -232,14 +236,14 @@ impl QueryValue for BodySourceValue {
 }
 
 /// One exact per-body input staged with its containing semantic scope revision.
-pub struct BodySourcePublication {
+pub(super) struct BodySourcePublication {
     key: BodySourceKey,
     value: BodySourceValue,
 }
 
 impl BodySourcePublication {
     #[must_use]
-    pub fn new(path: &str, body: &nocter_syntax::BodySyntaxSurface) -> Self {
+    pub(super) fn new(path: &str, body: &nocter_syntax::BodySyntaxSurface) -> Self {
         Self {
             key: BodySourceKey::new(path, body.locator()),
             value: BodySourceValue {
@@ -379,12 +383,12 @@ fn encode(bytes: &[u8], output: &mut Vec<u8>) {
 /// # Errors
 ///
 /// Returns source-surface validation or computation-kernel failures.
-pub fn analyze_unit(
+pub(super) fn analyze_unit(
     database: &mut Database,
     unit: Arc<DiscoveredUnit>,
     module_surface_fingerprint: Fingerprint,
     bodies: impl IntoIterator<Item = BodySourcePublication>,
-) -> Result<Arc<UnitAnalysisProduct>, SemanticComputationError> {
+) -> Result<Arc<UnitAnalysisProduct>, SemanticAnalysisError> {
     let (scope, publication) = ScopeInputPublication::for_unit(unit, module_surface_fingerprint)?;
     let mut revision = database.advance_revision()?;
     publication.publish(&mut revision, &scope);
@@ -392,47 +396,47 @@ pub fn analyze_unit(
         body.publish(&mut revision);
     }
     let _ = revision.commit();
-    unit_analysis::analyzed_unit(database, scope).map_err(SemanticComputationError::from)
+    unit_analysis::analyzed_unit(database, scope).map_err(SemanticAnalysisError::from)
 }
 
 #[derive(Debug)]
-pub enum SemanticComputationError {
+pub(super) enum SemanticAnalysisError {
     Computation(ComputationError),
-    Scope(ScopeInputError),
+    Input(SemanticInputError),
 }
 
-impl std::fmt::Display for SemanticComputationError {
+impl std::fmt::Display for SemanticAnalysisError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Computation(error) => error.fmt(formatter),
-            Self::Scope(error) => error.fmt(formatter),
+            Self::Input(error) => error.fmt(formatter),
         }
     }
 }
 
-impl std::error::Error for SemanticComputationError {
+impl std::error::Error for SemanticAnalysisError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Computation(error) => Some(error),
-            Self::Scope(error) => Some(error),
+            Self::Input(error) => Some(error),
         }
     }
 }
 
-impl From<ComputationError> for SemanticComputationError {
+impl From<ComputationError> for SemanticAnalysisError {
     fn from(error: ComputationError) -> Self {
         Self::Computation(error)
     }
 }
 
-impl From<ScopeInputError> for SemanticComputationError {
-    fn from(error: ScopeInputError) -> Self {
-        Self::Scope(error)
+impl From<SemanticInputError> for SemanticAnalysisError {
+    fn from(error: SemanticInputError) -> Self {
+        Self::Input(error)
     }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct SemanticComputationStatistics {
+pub(super) struct SemanticComputationStatistics {
     pub declaration_executions: u64,
     pub declaration_reuses: u64,
     pub preparation_executions: u64,
@@ -452,7 +456,7 @@ pub struct SemanticComputationStatistics {
 }
 
 #[must_use]
-pub fn statistics(database: &Database) -> SemanticComputationStatistics {
+pub(super) fn statistics(database: &Database) -> SemanticComputationStatistics {
     SemanticComputationStatistics {
         declaration_executions: declaration_execution_count(database),
         declaration_reuses: declaration_reuse_count(database),

@@ -7,7 +7,9 @@ use std::sync::Arc;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceError, SourceMap, SourceName};
-use nocter_syntax::{DirectSourceSyntax, SourceSyntaxProvider, SyntaxTree};
+#[cfg(test)]
+use nocter_syntax::DirectSourceSyntax;
+use nocter_syntax::{SourceSyntaxProvider, SyntaxTree};
 
 use crate::{
     DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
@@ -180,6 +182,7 @@ impl ResolvedPackageGraph {
     ///
     /// Returns an error for filesystem failures, invalid package data, duplicate identities or
     /// roots, unknown dependency identities, or an inconsistent resolved edge.
+    #[cfg(test)]
     pub fn load(specs: Vec<ResolvedPackageSpec>) -> Result<Self, PackageGraphError> {
         Self::load_with_source_overlay(specs, SourceOverlay::empty())
     }
@@ -192,6 +195,7 @@ impl ResolvedPackageGraph {
     /// # Errors
     ///
     /// Returns the same exact errors as [`Self::load`].
+    #[cfg(test)]
     pub fn load_with_source_overlay(
         specs: Vec<ResolvedPackageSpec>,
         source_overlay: SourceOverlay,
@@ -207,7 +211,8 @@ impl ResolvedPackageGraph {
     ///
     /// # Errors
     ///
-    /// Returns the same exact errors as [`Self::load_with_source_overlay`].
+    /// Returns an error for filesystem failures, invalid package data, duplicate identities or
+    /// roots, unknown dependency identities, or an inconsistent resolved edge.
     pub fn load_with_root_catalog(
         mut specs: Vec<ResolvedPackageSpec>,
         package_roots: PackageRootCatalog,

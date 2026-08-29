@@ -23,6 +23,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-source-tooling = { path = "../nocter-source-tooling" }
 
 [dev-dependencies]
+nocter-syntax = { path = "../nocter-syntax" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

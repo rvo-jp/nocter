@@ -13,8 +13,7 @@ pub use root_source::RootSourceCommitError;
 pub use staging::PackageStateFilesystemError;
 pub use transaction::{
     PackageFilesystemRevision, PackageFilesystemRevisionError, PackageResolutionAttemptError,
-    PackageResolutionDriver, PackageStateError, resolve_package_state,
-    resolve_package_state_with_driver,
+    PackageResolutionDriver, PackageStateError, resolve_package_state_with_driver,
 };
 
 #[cfg(test)]

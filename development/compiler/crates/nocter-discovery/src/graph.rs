@@ -9,7 +9,7 @@ use nocter_compile_input::{
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{DirectSourceSyntax, ParseGoal, SourceSyntaxProvider, SyntaxTree};
+use nocter_syntax::{ParseGoal, SourceSyntaxProvider, SyntaxTree};
 use nocter_target_selection::TargetSelectionBuilder;
 
 use crate::error::{SourceVisibilityFailure, ToolchainDiscoveryError, UseFailure};
@@ -93,22 +93,12 @@ impl From<DiscoveryError> for ResolveError {
     }
 }
 
-/// Resolves one closed package graph and its selected root modules into an immutable source graph.
-///
-/// # Errors
-///
-/// Returns a filesystem or topology error when an exact package, module, source, or active import
-/// cannot be selected unambiguously.
-pub fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
-    discover_with_source_syntax(request, &mut DirectSourceSyntax)
-}
-
 /// Resolves one source graph while delegating only source-text parsing to `source_syntax`.
 ///
 /// # Errors
 ///
-/// Returns the same discovery failures as [`discover`], including infrastructure failures from
-/// the supplied syntax provider.
+/// Returns discovery failures, including infrastructure failures from the supplied syntax
+/// provider.
 pub fn discover_with_source_syntax(
     request: DiscoveryRequest,
     source_syntax: &mut dyn SourceSyntaxProvider,

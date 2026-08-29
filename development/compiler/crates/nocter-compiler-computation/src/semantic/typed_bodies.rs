@@ -1,8 +1,10 @@
+//! Source-neutral typed-body queries.
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
-use crate::{
+use super::{
     BodyNameQueryOutcome, CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome,
     SemanticBodyKey, SemanticScopeKey,
 };
@@ -59,16 +61,16 @@ impl Query for TypedBodyQuery {
     type Value = TypedBodyQueryProduct;
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
-        let name_product = crate::resolve_body_name(database, key.clone())?;
+        let name_product = super::resolve_body_name(database, key.clone())?;
         let names = match name_product.outcome() {
             BodyNameQueryOutcome::Resolved(names) => names,
             BodyNameQueryOutcome::Rejected(_) | BodyNameQueryOutcome::Unavailable => {
                 return unavailable(database, key);
             }
         };
-        let body = database.input::<crate::BodySourceInput>(key.source())?;
+        let body = database.input::<super::BodySourceInput>(key.source())?;
         let context =
-            database.query::<crate::body_context::BodySemanticContextQuery>(key.scope().clone())?;
+            database.query::<super::body_context::BodySemanticContextQuery>(key.scope().clone())?;
         let Some(outcome) = context.check_body(&body, names) else {
             return unavailable(database, key);
         };
@@ -117,7 +119,7 @@ fn unavailable(
 ///
 /// Returns only computation-kernel failures. Authored rejection is a first-class exact-current
 /// query outcome; unavailable is reserved for an earlier missing authority or internal failure.
-pub fn typed_body(
+pub(super) fn typed_body(
     database: &Database,
     key: SemanticBodyKey,
 ) -> Result<Arc<TypedBodyQueryProduct>, ComputationError> {
@@ -129,7 +131,7 @@ pub fn typed_body(
 /// # Errors
 ///
 /// Returns computation-kernel failures from an individual body demand.
-pub fn typed_bodies(
+pub(super) fn typed_bodies(
     database: &Database,
     scope: &SemanticScopeKey,
 ) -> Result<Option<TypedBodySet>, ComputationError> {
@@ -161,11 +163,11 @@ pub fn typed_bodies(
 }
 
 #[must_use]
-pub fn typed_body_execution_count(database: &Database) -> u64 {
+pub(super) fn typed_body_execution_count(database: &Database) -> u64 {
     database.execution_count::<TypedBodyQuery>()
 }
 
 #[must_use]
-pub fn typed_body_reuse_count(database: &Database) -> u64 {
+pub(super) fn typed_body_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<TypedBodyQuery>()
 }

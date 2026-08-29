@@ -2,13 +2,24 @@
 
 mod body_inputs;
 mod module_surface;
+mod semantic;
 mod source_syntax;
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
-use nocter_computation::{ComputationError, Database, Fingerprint};
+use nocter_computation::{ComputationError, ComputationRevision, Database, Fingerprint};
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure, DiscoveryRequest};
 use nocter_filesystem::SourceOverlay;
+
+pub use semantic::{
+    FinalizedProgram, IncompleteSemanticAnalysis, IncompleteSemanticError,
+    IncompleteSemanticEvidence, IncompleteSemanticFailure, ProgramAnalysisOutcome,
+    ProgramAnalysisProduct, ProgramAnalysisUnavailable, SemanticInputError, UnitAnalysisOutcome,
+    UnitAnalysisProduct, UnitAnalysisUnavailable,
+};
+
+const RETAINED_SOURCE_REVISIONS: usize = 32;
 
 /// Sequential owner of compiler source and semantic query state.
 #[derive(Debug)]
@@ -17,6 +28,7 @@ pub struct CompilerComputation {
     revision_owner: Arc<()>,
     source_revision: u64,
     source_view: Option<Fingerprint>,
+    source_checkpoints: VecDeque<ComputationRevision>,
 }
 
 impl Default for CompilerComputation {
@@ -26,6 +38,7 @@ impl Default for CompilerComputation {
             revision_owner: Arc::new(()),
             source_revision: 0,
             source_view: None,
+            source_checkpoints: VecDeque::new(),
         }
     }
 }
@@ -48,20 +61,37 @@ impl CompilerComputation {
     ) -> Result<CompilerSourceRevision, CompilerComputationError> {
         let publication = source_syntax::SourceRevisionPublication::new(overlay, filesystem_epoch);
         let source_view = publication.fingerprint();
-        let source_revision = if self.source_view == Some(source_view) {
-            self.source_revision
-        } else {
+        let changed = self.source_view != Some(source_view);
+        let source_revision = if changed {
             self.source_revision
                 .checked_add(1)
                 .ok_or(ComputationError::RevisionExhausted)?
+        } else {
+            self.source_revision
         };
-        publication.publish(&mut self.database)?;
+        let checkpoint = publication.publish(&mut self.database)?;
+        if changed {
+            self.retain_source_checkpoint(checkpoint);
+        }
         self.source_revision = source_revision;
         self.source_view = Some(source_view);
         Ok(CompilerSourceRevision {
             owner: Arc::clone(&self.revision_owner),
             revision: source_revision,
         })
+    }
+
+    fn retain_source_checkpoint(&mut self, checkpoint: ComputationRevision) {
+        self.source_checkpoints.push_back(checkpoint);
+        if self.source_checkpoints.len() <= RETAINED_SOURCE_REVISIONS {
+            return;
+        }
+        let _expired = self.source_checkpoints.pop_front();
+        let oldest_retained = *self
+            .source_checkpoints
+            .front()
+            .expect("a nonzero source-retention window has a first checkpoint");
+        let _ = self.database.collect_inactive(oldest_retained);
     }
 
     /// Lends the sole syntax provider backed by this owner's source queries.
@@ -107,18 +137,13 @@ impl CompilerComputation {
     pub fn analyze(
         &mut self,
         discovered: &CompilerDiscoveredUnit,
-    ) -> Result<Arc<nocter_semantic_product::UnitAnalysisProduct>, CompilerComputationError> {
+    ) -> Result<Arc<UnitAnalysisProduct>, CompilerComputationError> {
         self.validate_revision(&discovered.revision)?;
         let unit = Arc::clone(&discovered.unit);
         let module_surface = module_surface::fingerprint(&self.database, &unit)?;
         let body_inputs = body_inputs::collect(&self.database, &unit)?;
-        nocter_semantic_computation::analyze_unit(
-            &mut self.database,
-            unit,
-            module_surface,
-            body_inputs,
-        )
-        .map_err(CompilerComputationError::from)
+        semantic::analyze_unit(&mut self.database, unit, module_surface, body_inputs)
+            .map_err(CompilerComputationError::from)
     }
 
     fn validate_revision(
@@ -144,8 +169,9 @@ impl CompilerComputation {
 
     #[must_use]
     pub fn statistics(&self) -> CompilerComputationStatistics {
-        let semantic = nocter_semantic_computation::statistics(&self.database);
+        let semantic = semantic::statistics(&self.database);
         CompilerComputationStatistics {
+            retained_entries: self.database.retained_entry_count(),
             source_text_executions: source_syntax::source_text_execution_count(&self.database),
             parse_executions: source_syntax::execution_count(&self.database),
             parse_reuses: source_syntax::reuse_count(&self.database),
@@ -251,6 +277,7 @@ impl std::error::Error for CompilerSourceRevisionError {}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CompilerComputationStatistics {
+    pub retained_entries: usize,
     pub source_text_executions: u64,
     pub parse_executions: u64,
     pub parse_reuses: u64,
@@ -278,7 +305,7 @@ pub struct CompilerComputationStatistics {
 #[derive(Debug)]
 pub enum CompilerComputationError {
     Computation(ComputationError),
-    Semantic(nocter_semantic_computation::SemanticComputationError),
+    SemanticInput(SemanticInputError),
     SourceRevision(CompilerSourceRevisionError),
 }
 
@@ -286,7 +313,7 @@ impl std::fmt::Display for CompilerComputationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Computation(error) => error.fmt(formatter),
-            Self::Semantic(error) => error.fmt(formatter),
+            Self::SemanticInput(error) => error.fmt(formatter),
             Self::SourceRevision(error) => error.fmt(formatter),
         }
     }
@@ -296,7 +323,7 @@ impl std::error::Error for CompilerComputationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Computation(error) => Some(error),
-            Self::Semantic(error) => Some(error),
+            Self::SemanticInput(error) => Some(error),
             Self::SourceRevision(error) => Some(error),
         }
     }
@@ -308,17 +335,25 @@ impl From<ComputationError> for CompilerComputationError {
     }
 }
 
-impl From<nocter_semantic_computation::SemanticComputationError> for CompilerComputationError {
-    fn from(error: nocter_semantic_computation::SemanticComputationError) -> Self {
-        Self::Semantic(error)
+impl From<semantic::SemanticAnalysisError> for CompilerComputationError {
+    fn from(error: semantic::SemanticAnalysisError) -> Self {
+        match error {
+            semantic::SemanticAnalysisError::Computation(error) => Self::Computation(error),
+            semantic::SemanticAnalysisError::Input(error) => Self::SemanticInput(error),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use nocter_filesystem::SourceOverlay;
+    use std::path::PathBuf;
 
-    use super::{CompilerComputation, CompilerComputationError, CompilerSourceRevisionError};
+    use nocter_filesystem::{SourceOverlay, SourceOverride};
+
+    use super::{
+        CompilerComputation, CompilerComputationError, CompilerSourceRevisionError,
+        RETAINED_SOURCE_REVISIONS,
+    };
 
     #[test]
     fn source_revision_rejects_an_earlier_revision() {
@@ -368,5 +403,29 @@ mod tests {
             error,
             CompilerComputationError::SourceRevision(CompilerSourceRevisionError::ForeignOwner)
         ));
+    }
+
+    #[test]
+    fn source_retention_bounds_obsolete_overlay_inputs() {
+        let mut computation = CompilerComputation::new();
+        for revision in 0..(RETAINED_SOURCE_REVISIONS + 8) {
+            let mut overlay = SourceOverlay::builder();
+            overlay
+                .insert_source(
+                    PathBuf::from(format!("/virtual/revision-{revision}.nct")),
+                    SourceOverride::new(
+                        format!("func value(): usize {{ return {revision} }}\n").into_bytes(),
+                    ),
+                )
+                .unwrap();
+            computation
+                .advance_sources(&overlay.finish(), revision as u64)
+                .unwrap();
+        }
+
+        assert_eq!(
+            computation.statistics().retained_entries,
+            RETAINED_SOURCE_REVISIONS + 2
+        );
     }
 }

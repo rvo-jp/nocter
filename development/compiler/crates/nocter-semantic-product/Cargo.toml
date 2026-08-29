@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-nocter-semantic-computation = { path = "../nocter-semantic-computation" }
+nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 
 [lints]
 workspace = true

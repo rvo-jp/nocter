@@ -1754,6 +1754,7 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-source-tooling",
+ "nocter-syntax",
  "nocter-test-support",
 ]
 
@@ -1773,13 +1774,13 @@ dependencies = [
 name = "nocter-compiler-computation"
 version = "0.0.0"
 dependencies = [
+ "nocter-checking",
  "nocter-compile-input",
  "nocter-computation",
+ "nocter-declaration-lowering",
  "nocter-discovery",
  "nocter-filesystem",
  "nocter-model",
- "nocter-semantic-computation",
- "nocter-semantic-product",
  "nocter-source",
  "nocter-syntax",
 ]
@@ -1998,6 +1999,7 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-session",
  "nocter-source-index",
+ "nocter-syntax",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -2031,8 +2033,10 @@ dependencies = [
 name = "nocter-package-state"
 version = "0.0.0"
 dependencies = [
+ "nocter-filesystem",
  "nocter-model",
  "nocter-package",
+ "nocter-syntax",
 ]
 
 [[package]]
@@ -2047,22 +2051,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "nocter-semantic-computation"
-version = "0.0.0"
-dependencies = [
- "nocter-checking",
- "nocter-compile-input",
- "nocter-computation",
- "nocter-declaration-lowering",
- "nocter-discovery",
- "nocter-syntax",
-]
-
-[[package]]
 name = "nocter-semantic-product"
 version = "0.0.0"
 dependencies = [
- "nocter-semantic-computation",
+ "nocter-compiler-computation",
 ]
 
 [[package]]

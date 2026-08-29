@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::{ComputationError, ComputationIdentity, Fingerprint, Input, Query, QueryValue};
+use crate::{
+    ComputationError, ComputationIdentity, Fingerprint, Input, InputRetention, Query, QueryValue,
+};
 
 type Erased = dyn Any + Send + Sync;
 type Evaluator = fn(&Database, &ComputationIdentity, Arc<Erased>) -> Result<(), ComputationError>;
@@ -32,7 +34,9 @@ struct EvaluationFrame {
 }
 
 enum EntryKind {
-    Input,
+    Input {
+        retention: InputRetention,
+    },
     Query {
         key: Arc<Erased>,
         evaluator: Evaluator,
@@ -43,7 +47,6 @@ enum EntryKind {
 struct Entry {
     value: Arc<Erased>,
     fingerprint: Fingerprint,
-    changed_at: ComputationRevision,
     verified_at: ComputationRevision,
     kind: EntryKind,
 }
@@ -51,6 +54,7 @@ struct Entry {
 struct PendingInput {
     value: Arc<Erased>,
     fingerprint: Fingerprint,
+    retention: InputRetention,
 }
 
 #[derive(Default)]
@@ -104,6 +108,37 @@ impl Database {
     #[must_use]
     pub fn revision(&self) -> ComputationRevision {
         self.state.borrow().revision
+    }
+
+    /// Removes query values and revision-derived inputs older than the retained window.
+    ///
+    /// The cutoff is clamped to the current revision, so current entries are never removed.
+    /// A query verified at or after the cutoff has already verified its complete dependency
+    /// closure at the same revision; collection therefore cannot leave a retained query pointing
+    /// at a collected dependency. Persistent inputs are independent roots and are never removed.
+    pub fn collect_inactive(&mut self, oldest_retained: ComputationRevision) -> usize {
+        let state = self.state.get_mut();
+        debug_assert!(
+            state.evaluations.is_empty(),
+            "inactive entries cannot be collected during query evaluation"
+        );
+        let cutoff = oldest_retained.min(state.revision);
+        let before = state.entries.len();
+        state.entries.retain(|_, entry| {
+            entry.verified_at >= cutoff
+                || matches!(
+                    entry.kind,
+                    EntryKind::Input {
+                        retention: InputRetention::Persistent
+                    }
+                )
+        });
+        before - state.entries.len()
+    }
+
+    #[must_use]
+    pub fn retained_entry_count(&self) -> usize {
+        self.state.borrow().entries.len()
     }
 
     /// Starts an atomic input transaction for the next revision.
@@ -217,7 +252,7 @@ impl Database {
                 Validation::Current(entry.fingerprint)
             } else {
                 match &entry.kind {
-                    EntryKind::Input => Validation::Input,
+                    EntryKind::Input { .. } => Validation::Input,
                     EntryKind::Query {
                         key,
                         evaluator,
@@ -289,17 +324,11 @@ impl Database {
         let key: Arc<Erased> = Arc::new(key);
         let mut state = self.state.borrow_mut();
         let revision = state.revision;
-        let changed_at = state
-            .entries
-            .get(&identity)
-            .filter(|entry| entry.fingerprint == fingerprint)
-            .map_or(revision, |entry| entry.changed_at);
         state.entries.insert(
             identity.clone(),
             Entry {
                 value,
                 fingerprint,
-                changed_at,
                 verified_at: revision,
                 kind: EntryKind::Query {
                     key,
@@ -415,8 +444,14 @@ impl InputRevision<'_> {
         let identity = ComputationIdentity::input::<I>(key);
         let fingerprint = value.fingerprint();
         let value: Arc<Erased> = Arc::new(value);
-        self.pending
-            .insert(identity, PendingInput { value, fingerprint });
+        self.pending.insert(
+            identity,
+            PendingInput {
+                value,
+                fingerprint,
+                retention: I::RETENTION,
+            },
+        );
     }
 
     /// Atomically publishes every staged input and advances the visible database revision.
@@ -424,19 +459,15 @@ impl InputRevision<'_> {
     pub fn commit(self) -> ComputationRevision {
         let state = self.database.state.get_mut();
         for (identity, pending) in self.pending {
-            let changed_at = state
-                .entries
-                .get(&identity)
-                .filter(|entry| entry.fingerprint == pending.fingerprint)
-                .map_or(self.revision, |entry| entry.changed_at);
             state.entries.insert(
                 identity,
                 Entry {
                     value: pending.value,
                     fingerprint: pending.fingerprint,
-                    changed_at,
                     verified_at: self.revision,
-                    kind: EntryKind::Input,
+                    kind: EntryKind::Input {
+                        retention: pending.retention,
+                    },
                 },
             );
         }

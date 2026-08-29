@@ -1,13 +1,15 @@
+//! Current-generation context shared by body queries.
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
-use crate::{
+use super::{
     CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome, ProgramPreparationOutcome,
     SemanticScopeKey,
 };
 
-pub(crate) struct BodySemanticContextQuery;
+pub(super) struct BodySemanticContextQuery;
 
 struct BodySemanticContext {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
@@ -15,14 +17,14 @@ struct BodySemanticContext {
     checking: nocter_checking::ProgramBodyCheckingContext,
 }
 
-pub(crate) struct BodySemanticContextProduct {
+pub(super) struct BodySemanticContextProduct {
     context: Option<BodySemanticContext>,
     fingerprint: Fingerprint,
 }
 
 impl BodySemanticContextProduct {
     fn queried_name_inputs(
-        body_names: &crate::BodyNameSet,
+        body_names: &super::BodyNameSet,
     ) -> (
         Vec<&nocter_checking::ReusableBodyNames>,
         Vec<&nocter_checking::QueriedBodyNameRejection>,
@@ -34,9 +36,9 @@ impl BodySemanticContextProduct {
     }
 
     /// Resolves only after the exact body input has been demanded by the calling body query.
-    pub(crate) fn resolve_names(
+    pub(super) fn resolve_names(
         &self,
-        _exact_body: &crate::BodySourceValue,
+        _exact_body: &super::BodySourceValue,
         identity: &nocter_declaration_lowering::ReusableBodyIdentity,
     ) -> Option<nocter_checking::ReusableBodyNameQueryOutcome> {
         let context = self.context.as_ref()?;
@@ -52,9 +54,9 @@ impl BodySemanticContextProduct {
     }
 
     /// Types only after the exact body and its source-neutral lexical result have been demanded.
-    pub(crate) fn check_body(
+    pub(super) fn check_body(
         &self,
-        _exact_body: &crate::BodySourceValue,
+        _exact_body: &super::BodySourceValue,
         names: &nocter_checking::ReusableBodyNames,
     ) -> Option<nocter_checking::ReusableBodyQueryOutcome> {
         let context = self.context.as_ref()?;
@@ -65,10 +67,10 @@ impl BodySemanticContextProduct {
             .ok()
     }
 
-    pub(crate) fn finalize(
+    pub(super) fn finalize(
         &self,
-        body_names: &crate::BodyNameSet,
-        typed_bodies: &crate::TypedBodySet,
+        body_names: &super::BodyNameSet,
+        typed_bodies: &super::TypedBodySet,
     ) -> Option<nocter_checking::QueriedProgramFinalizationOutcome> {
         let context = self.context.as_ref()?;
         let input = context.unit.compile_input().ok()?;
@@ -96,9 +98,9 @@ impl BodySemanticContextProduct {
             .ok()
     }
 
-    pub(crate) fn materialize_name_rejection(
+    pub(super) fn materialize_name_rejection(
         &self,
-        body_names: &crate::BodyNameSet,
+        body_names: &super::BodyNameSet,
     ) -> Option<nocter_checking::QueriedNameResolutionFailure> {
         let context = self.context.as_ref()?;
         let input = context.unit.compile_input().ok()?;
@@ -129,7 +131,7 @@ impl Query for BodySemanticContextQuery {
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let declarations = database.query::<DeclarationQuery>(key.clone())?;
         let declaration_fingerprint = declarations.fingerprint();
-        let preparation = crate::prepared_program(database, key.clone())?;
+        let preparation = super::prepared_program(database, key.clone())?;
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let context = match (declarations.outcome(), preparation.outcome()) {
             (

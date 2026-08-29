@@ -1,8 +1,10 @@
+//! Source-neutral program preparation query.
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
-use crate::{
+use super::{
     CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome, DeclarationScopeInput,
     SemanticScopeKey,
 };
@@ -108,7 +110,7 @@ impl Query for ProgramPreparationQuery {
 ///
 /// Returns only computation-kernel failures. Authored preparation rejection is a first-class
 /// exact-current outcome; unavailable is reserved for missing input or internal failure.
-pub fn prepared_program(
+pub(super) fn prepared_program(
     database: &Database,
     key: SemanticScopeKey,
 ) -> Result<Arc<ProgramPreparationProduct>, ComputationError> {
@@ -116,11 +118,11 @@ pub fn prepared_program(
 }
 
 #[must_use]
-pub fn preparation_execution_count(database: &Database) -> u64 {
+pub(super) fn preparation_execution_count(database: &Database) -> u64 {
     database.execution_count::<ProgramPreparationQuery>()
 }
 
 #[must_use]
-pub fn preparation_reuse_count(database: &Database) -> u64 {
+pub(super) fn preparation_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<ProgramPreparationQuery>()
 }
