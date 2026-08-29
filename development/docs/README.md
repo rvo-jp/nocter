@@ -22,6 +22,7 @@ colocated `README.md`, not in this directory.
 - [Machine Program and Native Target Boundary](machine-program-design.md)
 - [Declaration Diagnostic Boundary](declaration-diagnostic-boundary.md)
 - [Semantic Presentation Boundary](semantic-presentation-design.md)
+- [Incremental Computation Boundary](incremental-computation-design.md)
 - [Grammar Conformance](grammar-conformance.md)
 - [Standard-Library Source Design](standard-library-source-design.md)
 - [Maintenance Policy](maintenance.md)

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Architecture Documentation - Nocter</title>
-    <meta name="description" content="This directory owns cross-crate implementation contracts for the active Nocter compiler. Public language and standard-library behavior belongs exclusively ">
+    <title>nocter-workspace-revision - Nocter</title>
+    <meta name="description" content="Own accepted open-document state and emit one complete immutable source revision for every causally valid editor transition.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-workspace-revision/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Architecture Documentation - Nocter">
-    <meta property="og:description" content="This directory owns cross-crate implementation contracts for the active Nocter compiler. Public language and standard-library behavior belongs exclusively ">
-    <meta property="og:url" content="https://nocter.dev/development/docs/">
+    <meta property="og:title" content="nocter-workspace-revision - Nocter">
+    <meta property="og:description" content="Own accepted open-document state and emit one complete immutable source revision for every causally valid editor transition.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-workspace-revision/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-29">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Architecture Documentation - Nocter">
-    <meta name="twitter:description" content="This directory owns cross-crate implementation contracts for the active Nocter compiler. Public language and standard-library behavior belongs exclusively ">
+    <meta name="twitter:title" content="nocter-workspace-revision - Nocter">
+    <meta name="twitter:description" content="Own accepted open-document state and emit one complete immutable source revision for every causally valid editor transition.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Architecture Documentation - Nocter","description":"This directory owns cross-crate implementation contracts for the active Nocter compiler. Public language and standard-library behavior belongs exclusively ","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-workspace-revision - Nocter","description":"Own accepted open-document state and emit one complete immutable source revision for every causally valid editor transition.","url":"https://nocter.dev/development/compiler/crates/nocter-workspace-revision/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-workspace-revision/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Workspace Revision","item":"https://nocter.dev/development/compiler/crates/nocter-workspace-revision/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -119,34 +119,15 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/docs/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="./architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="../milestones/v0.20.0/index.html#content">milestone</a></li>
-                <li><a href="../reviews/index.html#content">review</a></li>
-                <li><a href="./checked-program-design/index.html#content">Checked Program Boundary</a></li>
-                <li><a href="./target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
-                <li><a href="./machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
-                <li><a href="./declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
-                <li><a href="./semantic-presentation-design/index.html#content">Semantic Presentation Boundary</a></li>
-                <li><a href="./incremental-computation-design/index.html#content">Incremental Computation Boundary</a></li>
-                <li><a href="./grammar-conformance/index.html#content">Grammar Conformance</a></li>
-                <li><a href="./standard-library-source-design/index.html#content">Standard-Library Source Design</a></li>
-                <li><a href="./maintenance/index.html#content">Maintenance Policy</a></li>
-                <li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/README.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-workspace-revision/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-architecture-documentation">Nocter Architecture Documentation</h1><p>This directory owns cross-crate implementation contracts for the active Nocter compiler. Public language and standard-library behavior belongs exclusively in <a href="../../spec/index.html#content"><code>spec/</code></a>. A workspace crate's internal mechanism belongs in that crate's colocated <code>README.md</code>, not in this directory.</p><h2 id="reading-order">Reading Order</h2><ol><li>1. <a href="./architecture/index.html#content">Compiler Architecture</a> — pipeline, side authorities, and dependency rules.</li><li>The relevant <a href="../compiler/index.html#crate-documentation">workspace crate README</a> — one crate's
-   inputs, outputs, internal responsibilities, and invariants.</li><li>A cross-crate contract below when a decision spans more than one crate.</li><li>The active <a href="../milestones/v0.20.0/index.html#content">milestone</a> or a completed
-   <a href="../reviews/index.html#content">review</a> only when
-   implementation history or qualification evidence is needed.</li></ol><h2 id="cross-crate-contracts">Cross-Crate Contracts</h2><ul><li><a href="./checked-program-design/index.html#content">Checked Program Boundary</a></li><li><a href="./target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li><li><a href="./machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li><li><a href="./declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li><li><a href="./semantic-presentation-design/index.html#content">Semantic Presentation Boundary</a></li><li><a href="./incremental-computation-design/index.html#content">Incremental Computation Boundary</a></li><li><a href="./grammar-conformance/index.html#content">Grammar Conformance</a></li><li><a href="./standard-library-source-design/index.html#content">Standard-Library Source Design</a></li><li><a href="./maintenance/index.html#content">Maintenance Policy</a></li><li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li></ul><p>Superseded implementation design lives under <code>development/archive/</code> and is excluded from the generated website. It must not be consulted to determine current compiler behavior.</p><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Sole owner</th></tr></thead><tbody><tr><td>Public language, standard-library, CLI, diagnostic, and editor behavior</td><td><code>spec/</code></td></tr><tr><td>Published versions and downloads</td><td>root <code>releases/</code></td></tr><tr><td>Compiler pipeline and cross-crate dependency direction</td><td><code>architecture.md</code></td></tr><tr><td>One crate's responsibility, internal modules, and invariants</td><td>that crate's <code>README.md</code></td></tr><tr><td>Exact Rust workspace membership and dependency edges</td><td><code>development/compiler/Cargo.toml</code> and crate manifests</td></tr><tr><td>Exact Rust API</td><td>Rust source and rustdoc</td></tr><tr><td>Active scope and completion gates</td><td><code>development/milestones/v0.20.0.md</code></td></tr><tr><td>Review findings and remediation evidence</td><td><code>development/reviews/</code></td></tr><tr><td>Next concrete work and blockers</td><td><code>development/TODO.md</code></td></tr><tr><td>Published-candidate qualification evidence</td><td><code>development/releases/</code></td></tr></tbody></table><p>Do not copy a crate's module layout into a cross-crate document. Do not copy milestone progress into architecture. A cross-crate document may name the contracts on both sides of a boundary, but it must not explain either side's private implementation.</p>
+                <h1 id="nocter-workspace-revision">nocter-workspace-revision</h1><h2 id="responsibility">Responsibility</h2><p>Own accepted open-document state and emit one complete immutable source revision for every causally valid editor transition.</p><h2 id="contract">Contract</h2><p>The crate consumes canonical source paths, document versions, and normalized source bytes. It publishes linear <code>WorkspaceSourceRevision</code> values containing the exact open-document domain, overlay, primary document, and changed-source set. It does not select packages, discover modules, invoke compiler stages, or answer semantic queries.</p><h2 id="internal-responsibilities">Internal Responsibilities</h2><ul><li>open/change/save/close state transitions</li><li>stale-version rejection</li><li>opaque revision-sequence ownership</li><li>monotonic generation assignment</li><li>complete source-overlay publication</li></ul><h2 id="invariants">Invariants</h2><ul><li>Only this owner constructs a workspace source revision.</li><li>A revision carries its complete overlay and open-document domain; consumers do not reconstruct
+  either value from earlier generations.</li><li>Foreign, duplicate, and non-increasing revision sequences cannot be fabricated through the
+  public API.</li><li>Filesystem paths end at the workspace-planning boundary and never become semantic query keys.</li></ul>
             </div>
         </main>
     </div>
@@ -162,6 +143,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

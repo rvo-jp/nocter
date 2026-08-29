@@ -14,6 +14,7 @@ nocter-json = { path = "../nocter-json" }
 nocter-lsp = { path = "../nocter-lsp" }
 nocter-source = { path = "../nocter-source" }
 nocter-workspace-analysis = { path = "../nocter-workspace-analysis" }
+nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 
 [dev-dependencies]
 nocter-model = { path = "../nocter-model" }

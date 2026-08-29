@@ -28,13 +28,13 @@ pub use documents::{DocumentWorkspace, DocumentWorkspaceChange, DocumentWorkspac
 pub use hover::HoverQueryError;
 pub use inlay_hints::InlayHintQueryError;
 pub use navigation::NavigationQueryError;
-pub use nocter_analysis::WorkspaceSourceRevision;
 pub use nocter_workspace_analysis::{
     AmbiguousDocumentAnalysis, AnalysisScope, WorkspaceAnalyses, WorkspaceAnalysisBatch,
     WorkspaceAnalysisError, WorkspaceAnalysisGeneration, WorkspaceConfiguration,
     WorkspaceDiagnosticError, WorkspaceRevisionError,
     WorkspaceToolchain as LanguageServerToolchain,
 };
+pub use nocter_workspace_revision::WorkspaceSourceRevision;
 pub use paths::{DocumentPathError, DocumentPathResolver};
 pub use rename::RenameQueryError;
 pub use run::{LanguageServerExit, LanguageServerRunError, run_language_server};

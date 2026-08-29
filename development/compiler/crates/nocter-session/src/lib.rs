@@ -5,6 +5,7 @@
 //! decisions owned by lower layers.
 
 mod analysis;
+mod analyzed_unit;
 mod error;
 mod executable;
 mod output;
@@ -17,6 +18,7 @@ mod test_selection;
 pub use analysis::{
     CompileTargetFailure, IncompleteSyntaxAnalysis, analyze_incomplete_syntax, analyze_target,
 };
+pub use analyzed_unit::{AnalyzedUnit, AnalyzedUnitStatus, analyze_unit};
 pub use error::CompileSessionError;
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,

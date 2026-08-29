@@ -322,9 +322,9 @@ impl std::error::Error for SemanticMutationBuildError {
 #[cfg(test)]
 mod tests {
     use nocter_source::{ByteOffset, TextRange};
+    use nocter_workspace_revision::GenerationId;
 
     use super::*;
-    use crate::GenerationId;
     use crate::tests::{TempTree, bundled_snapshot};
 
     #[test]

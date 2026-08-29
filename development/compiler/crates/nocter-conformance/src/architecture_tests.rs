@@ -224,6 +224,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
                 "nocter-package",
                 "nocter-session",
                 "nocter-source",
+                "nocter-workspace-revision",
             ][..],
         ),
         (
@@ -236,6 +237,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
                 "nocter-lsp",
                 "nocter-source",
                 "nocter-workspace-analysis",
+                "nocter-workspace-revision",
             ][..],
         ),
     ];
@@ -250,6 +252,14 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
             "review every new production dependency for {crate_name}"
         );
     }
+}
+
+#[test]
+fn workspace_revision_owns_source_transitions_without_semantic_dependencies() {
+    assert_eq!(
+        production_dependencies("nocter-workspace-revision"),
+        BTreeSet::from(["nocter-filesystem".to_owned()])
+    );
 }
 
 #[test]

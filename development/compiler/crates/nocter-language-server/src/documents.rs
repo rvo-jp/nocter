@@ -3,11 +3,11 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_analysis::{
-    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceRevision,
-};
 use nocter_filesystem::DocumentVersion;
 use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, DidSaveParams, DocumentUri};
+use nocter_workspace_revision::{
+    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceSourceRevision,
+};
 
 use crate::{DocumentPathError, DocumentPathResolver};
 
@@ -190,8 +190,8 @@ mod tests {
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::GenerationId;
     use nocter_json::parse;
+    use nocter_workspace_revision::GenerationId;
 
     use super::*;
 

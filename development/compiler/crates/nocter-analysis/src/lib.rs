@@ -4,15 +4,10 @@
 //! outcome, and its deepest completed semantic authority as independent facts. Query layers cannot
 //! substitute a previous successful program when the current generation fails.
 
-mod documents;
 mod query;
 mod snapshot;
 mod source_edits;
 
-pub use documents::{
-    DocumentChange, DocumentStateError, WorkspaceDocuments, WorkspaceRevisionSequence,
-    WorkspaceSourceChange, WorkspaceSourceChangeKind, WorkspaceSourceRevision,
-};
 pub use query::{
     EvidenceIntegrityError, InterfaceImplementationActionError, OutcomeActionError,
     PresentationError, SemanticBodyGap, SemanticCodeAction, SemanticCodeActionError,
@@ -24,7 +19,7 @@ pub use query::{
     SemanticSignatureError, SemanticSignatureHelp, SemanticSubject, SourceContextError,
     TypedBodyUnavailability,
 };
-pub use snapshot::{AnalysisSnapshot, AnalysisStatus, GenerationId};
+pub use snapshot::{AnalysisSnapshot, AnalysisStatus};
 pub use source_edits::{
     SemanticMutationBuildError, SemanticMutationCandidate, SemanticSourceEdit,
     SemanticSourceEditGroup, ValidatedSemanticMutation,

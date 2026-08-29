@@ -909,9 +909,9 @@ impl<'a> SemanticQueryContext<'a> {
 #[cfg(test)]
 mod tests {
     use nocter_model::{ArenaBuilder, BodyId};
+    use nocter_workspace_revision::GenerationId;
 
     use super::EvidenceIntegrityError;
-    use crate::GenerationId;
     use crate::tests::{TempTree, bundled_snapshot};
 
     #[test]

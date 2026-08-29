@@ -3,41 +3,17 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
-use nocter_diagnostics::SourceDiagnostic;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_session::bundled_standard_toolchain;
-use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
+use nocter_session::{analyze_unit, bundled_standard_toolchain};
+use nocter_source::ByteOffset;
+use nocter_workspace_revision::GenerationId;
 
-use crate::{
-    AnalysisSnapshot, AnalysisStatus, GenerationId, SemanticCoverage, TypedBodyUnavailability,
-};
+use crate::{AnalysisSnapshot, AnalysisStatus, SemanticCoverage, TypedBodyUnavailability};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
-
-#[test]
-fn diagnostic_composition_deduplicates_identity_without_inventing_range_causality() {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_bytes(SourceName::new("diagnostics.nct"), b"diagnostic")
-        .unwrap();
-    let span = sources
-        .get(source)
-        .unwrap()
-        .span(TextRange::new(ByteOffset::new(4), ByteOffset::new(7)));
-    let syntax = SourceDiagnostic::new("E0120", "syntax", span, [], None::<&str>);
-    let semantic = SourceDiagnostic::new("E0350", "semantic", span, [], None::<&str>);
-    let mut diagnostics = vec![syntax.clone()];
-
-    crate::snapshot::extend_unique_diagnostics(
-        &mut diagnostics,
-        &[syntax.clone(), semantic.clone()],
-    );
-
-    assert_eq!(diagnostics, [syntax, semantic]);
-}
 
 #[test]
 fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
@@ -74,7 +50,7 @@ fn syntax_failure_retains_generation_overlay_sources_and_diagnostics() {
     ))
     .unwrap();
 
-    let snapshot = AnalysisSnapshot::compile(GenerationId::new(41), unit);
+    let snapshot = analyzed_snapshot(GenerationId::new(41), unit);
 
     assert_eq!(snapshot.generation(), GenerationId::new(41));
     assert_eq!(snapshot.status(), AnalysisStatus::SyntaxFailed);
@@ -649,7 +625,7 @@ fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> Analy
         bundled_standard_toolchain(&standard),
     ))
     .unwrap();
-    AnalysisSnapshot::compile(generation, unit)
+    analyzed_snapshot(generation, unit)
 }
 
 pub(crate) fn bundled_snapshot(
@@ -674,7 +650,14 @@ pub(crate) fn bundled_snapshot(
         bundled_standard_toolchain(&standard),
     ))
     .unwrap();
-    (source_path, AnalysisSnapshot::compile(generation, unit))
+    (source_path, analyzed_snapshot(generation, unit))
+}
+
+fn analyzed_snapshot(
+    generation: GenerationId,
+    unit: nocter_discovery::DiscoveredUnit,
+) -> AnalysisSnapshot {
+    AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit))
 }
 
 pub(crate) struct TempTree(PathBuf);

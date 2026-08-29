@@ -253,9 +253,9 @@ fn active_parameter(
 mod tests {
     use nocter_checking::StaticDispatch;
     use nocter_model::{ArenaBuilder, CapabilityEvidenceId};
+    use nocter_workspace_revision::GenerationId;
 
     use super::static_signature_source;
-    use crate::GenerationId;
     use crate::query::evidence::EvidenceIntegrityError;
     use crate::tests::{TempTree, bundled_snapshot};
 

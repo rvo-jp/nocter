@@ -68,6 +68,7 @@ Their owners are:
 | Responsibility | Owner |
 |---|---|
 | immutable disk/open-document view | [`nocter-filesystem`](../compiler/crates/nocter-filesystem/README.md) |
+| accepted editor source revisions | [`nocter-workspace-revision`](../compiler/crates/nocter-workspace-revision/README.md) |
 | semantic identity to source projection | [`nocter-source-index`](../compiler/crates/nocter-source-index/README.md) |
 | phase-neutral diagnostics | [`nocter-diagnostics`](../compiler/crates/nocter-diagnostics/README.md) |
 | compiler session composition | [`nocter-session`](../compiler/crates/nocter-session/README.md) |
@@ -133,7 +134,8 @@ without reopening a root already selected from the same overlay.
 
 ## Editor Generation Boundary
 
-One accepted document event produces one immutable workspace revision. Workspace analysis freezes
+One accepted document event is admitted by `nocter-workspace-revision` and produces one immutable
+workspace revision. Workspace analysis freezes
 topology and compilation demand for that revision, then produces one analysis snapshot per selected
 scope. A changed or closed document may invalidate active demand but cannot silently become demand.
 
@@ -147,6 +149,10 @@ The [semantic presentation boundary](semantic-presentation-design.md) owns compi
 rendering rules. The completed
 [semantic tooling reconstruction](../reviews/v0.18.0-semantic-tooling-reconstruction.md) records why
 the current authority shape replaced the older sparse recovery model.
+
+The [incremental computation boundary](incremental-computation-design.md) owns the active migration
+from eager scope recompilation to revision-pinned dependency queries. It does not change the
+semantic authority or editor presentation contracts above.
 
 ## Dependency Enforcement
 

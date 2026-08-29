@@ -479,10 +479,11 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::{GenerationId, SemanticHighlightKind};
+    use nocter_analysis::SemanticHighlightKind;
     use nocter_lsp::{DocumentUri, OutboundRequestError};
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
+    use nocter_workspace_revision::GenerationId;
 
     use super::*;
 

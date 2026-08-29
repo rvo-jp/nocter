@@ -1,14 +1,15 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use nocter_analysis::{AnalysisSnapshot, GenerationId};
+use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::{DiscoveryRequest, discover};
 use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_session::bundled_standard_toolchain;
+use nocter_session::{analyze_unit, bundled_standard_toolchain};
+use nocter_workspace_revision::GenerationId;
 
 use crate::compilation_input::ScopeCompilationInput;
 use crate::errors::preparation_diagnostics;
@@ -39,9 +40,9 @@ pub(crate) fn compile_scope(
         }
     };
     match discovered {
-        Ok(unit) => {
-            WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::compile(generation, unit)))
-        }
+        Ok(unit) => WorkspaceAnalysisState::Complete(Box::new(
+            AnalysisSnapshot::from_analyzed_unit(generation, analyze_unit(unit)),
+        )),
         Err(AnalysisPreparationFailure::Discovery(failure)) => {
             WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_discovery_failure(
                 generation, failure,

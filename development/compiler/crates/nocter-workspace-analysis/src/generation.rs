@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use nocter_analysis::{AnalysisSnapshot, GenerationId};
+use nocter_analysis::AnalysisSnapshot;
 use nocter_filesystem::SourceOverlay;
+use nocter_workspace_revision::GenerationId;
 
 use crate::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
 

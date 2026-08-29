@@ -11,10 +11,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_analysis::{
-    EvidenceIntegrityError, GenerationId, SemanticMutationCandidate, ValidatedSemanticMutation,
-    WorkspaceRevisionSequence, WorkspaceSourceRevision,
+    EvidenceIntegrityError, SemanticMutationCandidate, ValidatedSemanticMutation,
 };
 use nocter_filesystem::SourceOverlay;
+use nocter_workspace_revision::{GenerationId, WorkspaceRevisionSequence, WorkspaceSourceRevision};
 
 mod compilation;
 mod compilation_input;
@@ -509,12 +509,11 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nocter_analysis::{
-        AnalysisStatus, DocumentChange, WorkspaceDocuments, WorkspaceSourceRevision,
-    };
+    use nocter_analysis::AnalysisStatus;
     use nocter_filesystem::DocumentVersion;
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
+    use nocter_workspace_revision::{DocumentChange, WorkspaceDocuments, WorkspaceSourceRevision};
 
     use super::*;
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);

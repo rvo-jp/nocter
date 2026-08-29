@@ -19,6 +19,7 @@ stage rules, editor queries, native code generation, or protocol projection.
 - complete diagnostic retention
 - target and executable request composition
 - semantic evidence handoff
+- inseparable discovery-snapshot and session-outcome publication
 - recovery-storage to query-capability projection
 - session profiling and test selection
 
@@ -29,3 +30,4 @@ stage rules, editor queries, native code generation, or protocol projection.
 - A later failure cannot expose an older successful program.
 - Failure-specific repair evidence moves once into its typed recovery owner.
 - Consumers cannot select raw recovery phases or reconstruct phase fallback order.
+- An analyzed unit cannot pair semantic evidence with a different discovery snapshot.
