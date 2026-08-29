@@ -38,15 +38,23 @@ earlier compiler phase or reconstruct a missing result.
 
 ## Next Work
 
-Define v0.20.0 Phase 2 before implementing hashing or associative collections. The next design must
-choose the stable `Hash` and `Hasher` contracts, deterministic-versus-randomized hashing policy,
-allocator and recoverable-failure behavior, the relationship between hashing and key equality,
-iteration-order guarantees, and the minimum `HashMap` and `HashSet` API. Phase 2 must consume Phase
-0 prerequisite closure and Phase 1 query products without source-text inference, duplicate lookup,
-or another semantic pipeline.
+Implement v0.20.0 Phase 2 as the unified CLI and LSP query entry defined in the
+[active milestone](milestones/v0.20.0.md). Extract source-text, parse, declaration-surface,
+module-surface, body-input publication, and closed unit-analysis demand into one shared compiler-
+computation owner. Workspace analysis retains it across accepted revisions; each command creates an
+ephemeral instance. Both paths must discover through its computed syntax provider and pass the same
+closed complete-or-incomplete product to one session consumer.
+
+Delete the direct session semantic pipeline and its public analysis/compilation entry points after
+all command, native, test, and workspace callers use the shared owner. Do not leave forwarding
+wrappers or let callers select query stages. Prove fresh command/workspace equivalence, persistent
+workspace reuse, diagnostic and recovery equality, and native-output preservation before closing
+the phase.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
-semantic programs. Hashing and associative collections remain later v0.20.0 phases.
+semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
+editor analysis, cancellation, parallelism, persistent caches, hashing, and associative collections
+remain later work.
 
 ## Blockers
 

@@ -8,8 +8,8 @@ in [`development/releases/`](../releases/README.md).
 
 The [v0.20.0 milestone](v0.20.0.md) has completed Phase 0 interface prerequisites as one checked
 capability closure and Phase 1 incremental semantic computation as one closed query graph. Phase 2
-hashing and associative-collection design is next, but remains outside the active implementation
-scope until its public contracts are accepted.
+will unify CLI and LSP compilation behind that query entry. Hashing and associative collections
+move to Phase 3 or later.
 
 ## Historical Milestones
 
