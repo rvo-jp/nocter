@@ -6,7 +6,9 @@ use nocter_computation::{
     ComputationError, ComputationKey, Database, Fingerprint, Input, InputRevision, Query,
     QueryValue,
 };
-use nocter_declaration_lowering::{ReusableDeclarations, lower_reusable_declarations};
+use nocter_declaration_lowering::{
+    DeclarationLoweringFailure, ReusableDeclarations, lower_reusable_declarations,
+};
 use nocter_discovery::DiscoveredUnit;
 
 /// Stable identity of one selected semantic compile scope.
@@ -160,7 +162,27 @@ struct DeclarationQuery;
 #[derive(Debug)]
 pub enum DeclarationQueryOutcome {
     Accepted(Arc<ReusableDeclarations>),
-    Rejected,
+    Rejected(RejectedDeclarations),
+    Unavailable,
+}
+
+/// One declaration rejection inseparably paired with the exact source domain that produced it.
+#[derive(Debug)]
+pub struct RejectedDeclarations {
+    unit: Arc<DiscoveredUnit>,
+    failure: Arc<DeclarationLoweringFailure>,
+}
+
+impl RejectedDeclarations {
+    #[must_use]
+    pub fn unit(&self) -> &Arc<DiscoveredUnit> {
+        &self.unit
+    }
+
+    #[must_use]
+    pub fn failure(&self) -> &DeclarationLoweringFailure {
+        &self.failure
+    }
 }
 
 #[derive(Debug)]
@@ -188,21 +210,28 @@ impl Query for DeclarationQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let semantic = database.input::<DeclarationScopeInput>(key)?;
-        let lowered = semantic
-            .unit
-            .compile_input()
-            .ok()
-            .and_then(|input| lower_reusable_declarations(&input).ok());
-        if let Some(lowered) = lowered {
-            return Ok(DeclarationQueryProduct {
-                outcome: DeclarationQueryOutcome::Accepted(Arc::new(lowered)),
-                fingerprint: semantic.fingerprint,
-            });
-        }
+        let failure = match semantic.unit.compile_input() {
+            Ok(input) => match lower_reusable_declarations(&input) {
+                Ok(lowered) => {
+                    return Ok(DeclarationQueryProduct {
+                        outcome: DeclarationQueryOutcome::Accepted(Arc::new(lowered)),
+                        fingerprint: semantic.fingerprint,
+                    });
+                }
+                Err(failure) => Some(failure),
+            },
+            Err(_) => None,
+        };
 
         let current = database.input::<CurrentSourceScopeInput>(key)?;
+        let outcome = failure.map_or(DeclarationQueryOutcome::Unavailable, |failure| {
+            DeclarationQueryOutcome::Rejected(RejectedDeclarations {
+                unit: Arc::clone(&current.unit),
+                failure: Arc::new(failure),
+            })
+        });
         Ok(DeclarationQueryProduct {
-            outcome: DeclarationQueryOutcome::Rejected,
+            outcome,
             fingerprint: current.fingerprint,
         })
     }

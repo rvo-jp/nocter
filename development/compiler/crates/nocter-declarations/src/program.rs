@@ -887,7 +887,7 @@ pub enum RejectedDeclarationAnalysis {
 }
 
 /// Structurally valid declaration facts that cannot enter body analysis.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationAnalysisProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
@@ -902,7 +902,7 @@ impl DeclarationAnalysisProgram {
 
 /// Structurally valid declaration facts admitted to editor body analysis but never to production
 /// compilation.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyAnalysisDeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,

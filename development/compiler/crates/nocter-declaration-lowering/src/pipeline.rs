@@ -16,7 +16,7 @@ use crate::{
     prepare_generic_binders,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DeclarationLoweringError {
     Topology(TopologyDiagnostic),
     Surface(SurfaceDiagnostic),
@@ -101,7 +101,7 @@ impl fmt::Display for DeclarationLoweringError {
 
 impl std::error::Error for DeclarationLoweringError {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationLoweringFailure {
     error: Box<DeclarationLoweringError>,
     recovery: Option<Box<DeclarationLoweringRecovery>>,
@@ -117,6 +117,11 @@ impl DeclarationLoweringFailure {
 
     fn without_recovery(error: DeclarationLoweringError) -> Self {
         Self::new(error, None)
+    }
+
+    #[must_use]
+    pub fn current_branch(&self) -> Self {
+        self.clone()
     }
 
     #[must_use]

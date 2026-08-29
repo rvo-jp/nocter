@@ -24,6 +24,9 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - An accepted declaration result depends only on source-neutral topology and declaration surfaces.
 - A rejected declaration result additionally depends on exact current source, so generation-local
   recovery can never survive an edit through an unchanged declaration fingerprint.
+- Exact current-source identity covers canonical path, normalized bytes, and the current
+  `SourceId` layout. A rejected query may therefore retain its diagnostic and recovery projection;
+  session opens a cloned analysis branch instead of rerunning declaration lowering.
 - Both input families retain the same immutable `DiscoveredUnit`; a query cannot join topology from
   one snapshot with source bytes from another.
 - Compiler-domain rejection is a query value, not a computation-kernel failure.

@@ -140,14 +140,15 @@ selected target, package identities and dependency aliases, module/source member
 `see` and `use` resolutions, package targets, and toolchain attachments. Source contents remain
 owned by source/module surface queries, while body-local imports remain body inputs. The encoding
 uses stable vocabulary supplied by the owning model contracts, validates every retained resolution
-kind, and is independent of discovery traversal order. The declaration query will compose this
+kind, and is independent of discovery traversal order. The declaration query composes this
 topology product with module surfaces instead of rerunning discovery or interpreting its private
 storage.
 
 That composition is now integrated through the dedicated `nocter-semantic-computation` owner.
 Workspace orchestration publishes two fingerprints carrying the same shared discovery snapshot:
 declaration semantics combine canonical topology with all module surfaces, while exact current
-source additionally includes every reached source byte. The declaration query reads only the
+source additionally includes every reached canonical path, normalized byte sequence, and
+`SourceId` layout. The declaration query reads only the
 semantic input on acceptance. It dynamically reads exact current source on rejection, preventing
 generation-local failure evidence from surviving any edit without invalidating successful
 declarations. Session checking consumes an owned branch of an accepted query result and its freshly
@@ -161,10 +162,11 @@ branch. Existing symbol IDs therefore remain valid across a body edit, while a n
 local, member name, body type name, block import alias, or string value is available to the current
 checker without widening declaration invalidation.
 
-Rejected declarations are currently recomputed once by the legacy recovery continuation after the
-query records rejection. Moving source-projected rejection evidence into the dynamically
-current-source-bound query product is required before Phase 1 completion; this is the remaining
-declaration-stage duplicate traversal, not a compatibility path for accepted programs.
+Rejected declarations retain their complete diagnostic and recovery authority inside that exact
+current-source identity domain. Session clones the query-owned recovery branch and continues editor
+analysis from it; it never performs a second declaration traversal. Reuse is valid only when the
+canonical source identity layout and bytes are identical, so generation-local syntax identities
+cannot be joined to a different current source domain.
 
 ## Source Projection
 

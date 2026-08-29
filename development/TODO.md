@@ -38,8 +38,9 @@ invalidation, and declaration lowering now emits a reusable locator recipe that 
 current frontend bindings and source projection together. Discovery now owns a canonical
 source-neutral semantic topology surface. Topology and module surfaces now feed a dedicated
 semantic-computation owner; accepted declaration authority plus recipe is query-owned and session
-checking no longer repeats declaration lowering. Move declaration-rejection recovery into the
-query's dynamically current-source-bound outcome, then give body resolution/checking their own keys; do not cache `NodeId`, `SourceId`, frontend
+checking no longer repeats declaration lowering. Declaration rejection and its recovery now remain
+inside the query's exact-current-source identity domain. Give body resolution/checking their own
+keys; do not cache `NodeId`, `SourceId`, frontend
 bindings, or `SourceIndex` as if they were reusable semantic programs. Hashing and associative
 collections remain later v0.20.0 phases.
 

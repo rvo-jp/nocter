@@ -39,3 +39,6 @@ stage rules, editor queries, native code generation, or protocol projection.
   materializes current frontend bindings plus source projection from its paired recipe. It then
   appends a deterministic current-body symbol suffix while preserving every reusable declaration
   symbol ID; it cannot invoke declaration lowering again.
+- Query-backed declaration rejection opens an owned branch of the query's exact-current recovery
+  product. Session composes its diagnostics and editor evidence without invoking declaration
+  lowering a second time.

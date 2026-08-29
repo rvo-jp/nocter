@@ -19,7 +19,8 @@ pub use analysis::{
     CompileTargetFailure, IncompleteSyntaxAnalysis, analyze_incomplete_syntax, analyze_target,
 };
 pub use analyzed_unit::{
-    AnalyzedUnit, AnalyzedUnitStatus, analyze_unit, analyze_unit_from_declarations,
+    AnalyzedUnit, AnalyzedUnitStatus, DeclarationRejectionDomainError, analyze_unit,
+    analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
 };
 pub use error::CompileSessionError;
 pub use executable::{

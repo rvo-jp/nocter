@@ -58,13 +58,7 @@ pub(crate) fn run_semantic_pipeline(
         match result {
             Ok(lowered) => lowered,
             Err(failure) => {
-                let (error, recovery) = failure.into_parts();
-                let evidence =
-                    recovery.and_then(|recovery| continue_rejected_declarations(&input, recovery));
-                return Err(SemanticPipelineFailure {
-                    error: Box::new(error.into()),
-                    evidence,
-                });
+                return Err(continue_declaration_failure(&input, failure));
             }
         }
     };
@@ -78,6 +72,35 @@ pub(crate) fn run_semantic_pipeline(
         &frontend_bindings,
         source_index,
     )
+}
+
+/// Continues editor recovery from the exact declaration rejection computed by a query.
+pub(crate) fn run_semantic_pipeline_from_declaration_failure(
+    unit: &DiscoveredUnit,
+    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
+) -> SemanticPipelineFailure {
+    let input = match unit.compile_input() {
+        Ok(input) => input,
+        Err(error) => {
+            return SemanticPipelineFailure {
+                error: Box::new(error.into()),
+                evidence: None,
+            };
+        }
+    };
+    continue_declaration_failure(&input, failure.current_branch())
+}
+
+fn continue_declaration_failure(
+    input: &nocter_compile_input::CompileUnitInput<'_>,
+    failure: nocter_declaration_lowering::DeclarationLoweringFailure,
+) -> SemanticPipelineFailure {
+    let (error, recovery) = failure.into_parts();
+    let evidence = recovery.and_then(|recovery| continue_rejected_declarations(input, recovery));
+    SemanticPipelineFailure {
+        error: Box::new(error.into()),
+        evidence,
+    }
 }
 
 /// Continues checking from one source-neutral declaration query result.

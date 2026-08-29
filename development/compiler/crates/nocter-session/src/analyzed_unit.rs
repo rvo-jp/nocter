@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use nocter_discovery::DiscoveredUnit;
 
-use crate::analysis::analyze_target_from_declarations;
+use crate::analysis::{analyze_target_from_declaration_failure, analyze_target_from_declarations};
 use crate::{
     CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView, analyze_incomplete_syntax,
     analyze_target,
@@ -131,6 +131,80 @@ pub fn analyze_unit_from_declarations(
                 state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
             }
         }
+    }
+}
+
+/// Consumes one current discovery snapshot and its query-owned declaration rejection.
+///
+/// # Errors
+///
+/// Returns an integrity error when the rejection was produced from a different semantic topology
+/// or exact current-source identity layout.
+pub fn analyze_unit_from_declaration_failure(
+    unit: Arc<DiscoveredUnit>,
+    rejection_unit: &DiscoveredUnit,
+    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
+) -> Result<AnalyzedUnit, DeclarationRejectionDomainError> {
+    validate_rejection_domain(&unit, rejection_unit)?;
+    if unit.has_syntax_errors() {
+        return Ok(analyze_unit(unit));
+    }
+    let failure = analyze_target_from_declaration_failure(&unit, failure);
+    let (semantic, diagnostics) = (*failure).into_analysis_parts();
+    Ok(AnalyzedUnit {
+        unit,
+        diagnostics,
+        state: AnalyzedUnitState::CompilationFailed(semantic.map(Box::new)),
+    })
+}
+
+fn validate_rejection_domain(
+    current: &DiscoveredUnit,
+    rejection: &DiscoveredUnit,
+) -> Result<(), DeclarationRejectionDomainError> {
+    if std::ptr::eq(current, rejection) {
+        return Ok(());
+    }
+    let current_topology = current.semantic_topology_surface()?;
+    let rejection_topology = rejection.semantic_topology_surface()?;
+    let current_sources = current.current_source_surface()?;
+    let rejection_sources = rejection.current_source_surface()?;
+    if current_topology != rejection_topology || current_sources != rejection_sources {
+        return Err(DeclarationRejectionDomainError::Mismatch);
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeclarationRejectionDomainError {
+    SemanticTopology(nocter_discovery::SemanticTopologyError),
+    CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
+    Mismatch,
+}
+
+impl std::fmt::Display for DeclarationRejectionDomainError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SemanticTopology(error) => error.fmt(formatter),
+            Self::CurrentSource(error) => error.fmt(formatter),
+            Self::Mismatch => formatter.write_str(
+                "declaration rejection and current analysis use different source domains",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DeclarationRejectionDomainError {}
+
+impl From<nocter_discovery::SemanticTopologyError> for DeclarationRejectionDomainError {
+    fn from(error: nocter_discovery::SemanticTopologyError) -> Self {
+        Self::SemanticTopology(error)
+    }
+}
+
+impl From<nocter_discovery::CurrentSourceSurfaceError> for DeclarationRejectionDomainError {
+    fn from(error: nocter_discovery::CurrentSourceSurfaceError) -> Self {
+        Self::CurrentSource(error)
     }
 }
 

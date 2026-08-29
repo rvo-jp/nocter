@@ -11,14 +11,14 @@ use nocter_source_index::SourceIndex;
 /// The snapshot contains no accepted declaration program, builder, or production transition. It
 /// retains source bindings only so the editor-only admission boundary can analyze independent
 /// bodies without rerunning declaration lowering. Consumers cannot pass it to production checking.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationLoweringRecovery {
     program: DeclarationRecoveryProgram,
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum DeclarationRecoveryProgram {
     Declarations(DeclarationAnalysisProgram),
     Bodies(BodyAnalysisDeclarationProgram),
@@ -32,7 +32,7 @@ pub enum DeclarationCheckingTransition {
 }
 
 /// Complete input admitted to editor-only body analysis after declaration rejection.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeclarationBodyAnalysisInput {
     program: BodyAnalysisDeclarationProgram,
     frontend_bindings: FrontendBindings,

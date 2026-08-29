@@ -4,7 +4,7 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
 use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
-    run_semantic_pipeline_from_declarations,
+    run_semantic_pipeline_from_declaration_failure, run_semantic_pipeline_from_declarations,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -149,6 +149,15 @@ pub(crate) fn analyze_target_from_declarations(
         },
     )?;
     finish_semantic_pipeline(unit, output, true)
+}
+
+pub(crate) fn analyze_target_from_declaration_failure(
+    unit: &DiscoveredUnit,
+    failure: &nocter_declaration_lowering::DeclarationLoweringFailure,
+) -> Box<CompileTargetFailure> {
+    let SemanticPipelineFailure { error, evidence } =
+        run_semantic_pipeline_from_declaration_failure(unit, failure);
+    Box::new(CompileTargetFailure::new(*error, evidence))
 }
 
 /// Attempts editor-only semantic analysis beneath an authoritative syntax failure.

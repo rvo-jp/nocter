@@ -870,10 +870,21 @@ mod tests {
         else {
             panic!("newer root text is accepted");
         };
-        analyses.analyze(revision).unwrap();
+        let warm = analyses.analyze(revision).unwrap();
         let after = analyses.declaration_query_counts();
 
         assert_eq!(after.0, before.0 + 1);
+        assert!(!warm.primary().snapshot().unwrap().diagnostics().is_empty());
+
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let fresh = fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, changed).unwrap())
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
     }
 
     #[derive(Debug, Eq, PartialEq)]

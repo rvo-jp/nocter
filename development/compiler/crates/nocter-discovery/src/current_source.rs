@@ -5,7 +5,7 @@ use nocter_source::SourceId;
 use crate::DiscoveredUnit;
 use crate::source_domain::{SourceDomainError, canonical_sources};
 
-/// Canonical exact current-source product used only by generation-local query dependencies.
+/// Canonical exact current-source identity product used by source-projected query dependencies.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CurrentSourceSurface {
     canonical: Box<[u8]>,
@@ -19,7 +19,7 @@ impl CurrentSourceSurface {
 }
 
 impl DiscoveredUnit {
-    /// Freezes every reached source byte in canonical physical-source order.
+    /// Freezes every reached source identity and byte sequence in canonical physical-source order.
     ///
     /// # Errors
     ///
@@ -36,6 +36,7 @@ impl DiscoveredUnit {
                 .get(source.id)
                 .ok_or(CurrentSourceSurfaceError::MissingSource(source.id))?;
             encode(source.path.as_bytes(), &mut canonical);
+            canonical.extend_from_slice(&source.id.index().to_be_bytes());
             encode(file.text().as_bytes(), &mut canonical);
         }
         Ok(CurrentSourceSurface {
