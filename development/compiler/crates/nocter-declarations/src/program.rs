@@ -105,6 +105,21 @@ pub struct AcceptedDeclarationProgram {
 }
 
 impl DeclarationGraph {
+    /// Creates a checking-only graph view with a deterministic body-symbol suffix.
+    ///
+    /// All declaration identities and every declaration symbol retain their existing values. The
+    /// returned graph is therefore suitable for a body branch derived from source-neutral
+    /// declaration semantics, while the reusable graph remains independent of body text.
+    #[must_use]
+    pub fn with_checking_symbols<S>(&self, spellings: impl IntoIterator<Item = S>) -> Self
+    where
+        S: AsRef<str>,
+    {
+        let mut graph = self.clone();
+        graph.symbols = graph.symbols.extended(spellings);
+        graph
+    }
+
     #[must_use]
     pub const fn target(&self) -> CompilationTarget {
         self.target
@@ -910,6 +925,11 @@ pub struct BodyAnalysisDeclarationProgram {
 }
 
 impl BodyAnalysisDeclarationProgram {
+    #[must_use]
+    pub const fn graph(&self) -> &DeclarationGraph {
+        &self.graph
+    }
+
     /// Appends the current body-only symbol domain while preserving declaration symbol IDs.
     #[must_use]
     pub fn with_checking_symbols<S>(mut self, spellings: impl IntoIterator<Item = S>) -> Self

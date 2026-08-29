@@ -16,6 +16,7 @@ use super::{CheckedBody, OpaqueWitnessTable};
 #[derive(Debug)]
 pub struct CheckedProgram {
     environment: crate::program_environment::ProgramEnvironment,
+    source_access: SourceAccessTable,
     semantics: crate::body_check::CheckedSemanticAuthority,
     provenance: ProvenanceTable,
     loans: LoanTable,
@@ -41,9 +42,11 @@ impl CheckedProgram {
         semantics: crate::body_check::CheckedSemanticAuthority,
         authorities: CheckedProgramAuthorities,
         bodies: Arena<BodyId, CheckedBody>,
+        source_access: SourceAccessTable,
     ) -> Self {
         Self {
             environment,
+            source_access,
             semantics,
             provenance: authorities.provenance,
             loans: authorities.loans,
@@ -54,7 +57,7 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn graph(&self) -> &DeclarationGraph {
+    pub fn graph(&self) -> &DeclarationGraph {
         self.environment.graph()
     }
 
@@ -64,7 +67,7 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+    pub fn interface_implementations(&self) -> &InterfaceImplementationTable {
         self.environment.interface_implementations()
     }
 
@@ -77,12 +80,12 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         self.environment.construction_surfaces()
     }
 
     #[must_use]
-    pub const fn instance_operations(&self) -> &InstanceOperationTable {
+    pub fn instance_operations(&self) -> &InstanceOperationTable {
         self.environment.instance_operations()
     }
 
@@ -96,12 +99,12 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn drops(&self) -> &DropTable {
+    pub fn drops(&self) -> &DropTable {
         self.environment.drops()
     }
 
     #[must_use]
-    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+    pub fn standard_semantics(&self) -> &StandardSemanticTable {
         self.environment.standard_semantics()
     }
 
@@ -122,12 +125,12 @@ impl CheckedProgram {
 
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
-        self.environment.source_access()
+        &self.source_access
     }
 
     #[must_use]
     pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
-        self.environment.source_access().ownership()
+        self.source_access.ownership()
     }
 
     /// Creates the semantic visibility contract for one exact source in this checked program.
@@ -139,7 +142,7 @@ impl CheckedProgram {
         &self,
         source: SourceId,
     ) -> Result<crate::SourceAccessContext<'_>, crate::SourceVisibilityError> {
-        crate::SourceAccessContext::for_source(self.environment.source_access(), source)
+        crate::SourceAccessContext::for_source(&self.source_access, source)
             .map_err(crate::SourceVisibilityError::Access)
     }
 

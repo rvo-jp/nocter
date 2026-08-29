@@ -68,7 +68,7 @@ pub(super) fn body_source_access<'program>(
 }
 
 impl<'program> BodyProgramFacts<'program> {
-    pub(super) const fn from_prepared(
+    pub(super) fn from_prepared(
         prepared: &'program crate::preparation::BodyCheckingParts<'_>,
     ) -> Self {
         let environment = &prepared.environment;
@@ -82,7 +82,7 @@ impl<'program> BodyProgramFacts<'program> {
             capability_evidence: environment.capability_evidence(),
             standard_semantics: environment.standard_semantics(),
             source_namespaces: &prepared.source_namespaces,
-            source_access: environment.source_access(),
+            source_access: &prepared.source_access,
             diagnostic_origins: prepared.source_index.diagnostic_origins(),
         }
     }

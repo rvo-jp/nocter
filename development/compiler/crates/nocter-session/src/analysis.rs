@@ -5,6 +5,7 @@ use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 use crate::semantic_pipeline::{
     SemanticPipelineFailure, SemanticPipelineOutput, SyntaxAdmission, run_semantic_pipeline,
     run_semantic_pipeline_from_declaration_failure, run_semantic_pipeline_from_declarations,
+    run_semantic_pipeline_from_prepared_declarations,
 };
 use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
 
@@ -148,6 +149,18 @@ pub(crate) fn analyze_target_from_declarations(
             Box::new(CompileTargetFailure::new(*error, evidence))
         },
     )?;
+    finish_semantic_pipeline(unit, output, true)
+}
+
+pub(crate) fn analyze_target_from_prepared_declarations(
+    unit: &DiscoveredUnit,
+    declarations: &nocter_declaration_lowering::ReusableDeclarations,
+    prepared: &nocter_checking::ReusablePreparedProgram,
+) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
+    let output = run_semantic_pipeline_from_prepared_declarations(unit, declarations, prepared)
+        .map_err(|SemanticPipelineFailure { error, evidence }| {
+            Box::new(CompileTargetFailure::new(*error, evidence))
+        })?;
     finish_semantic_pipeline(unit, output, true)
 }
 

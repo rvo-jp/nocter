@@ -21,6 +21,7 @@ pub use analysis::{
 pub use analyzed_unit::{
     AnalyzedUnit, AnalyzedUnitStatus, DeclarationRejectionDomainError, analyze_unit,
     analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
+    analyze_unit_from_prepared_declarations,
 };
 pub use error::CompileSessionError;
 pub use executable::{

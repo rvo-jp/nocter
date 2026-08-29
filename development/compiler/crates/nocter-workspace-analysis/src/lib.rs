@@ -25,6 +25,7 @@ mod configuration;
 mod errors;
 mod generation;
 mod module_surface;
+mod semantic_products;
 mod source_syntax;
 mod topology;
 
@@ -173,6 +174,14 @@ impl WorkspaceAnalyses {
         (
             nocter_semantic_computation::declaration_execution_count(&self.computation),
             nocter_semantic_computation::declaration_reuse_count(&self.computation),
+        )
+    }
+
+    #[cfg(test)]
+    fn program_preparation_counts(&self) -> (u64, u64) {
+        (
+            nocter_semantic_computation::preparation_execution_count(&self.computation),
+            nocter_semantic_computation::preparation_reuse_count(&self.computation),
         )
     }
 
@@ -893,6 +902,41 @@ mod tests {
         status: AnalysisStatus,
         diagnostics: Vec<nocter_diagnostics::SourceDiagnostic>,
         sources: Vec<(Box<str>, Box<str>)>,
+    }
+
+    fn assert_query_reused(before: (u64, u64), after: (u64, u64)) {
+        assert_eq!(after.0, before.0);
+        assert!(after.1 > before.1);
+    }
+
+    #[test]
+    fn body_only_edit_reuses_program_wide_preparation() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let original = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func answer(): i32 { return 1 }\n",
+        );
+        let changed = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func answer(): i32 { return 2 }\n",
+        );
+        fs::write(&root, original).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        analyses
+            .analyze(documents.open(&root, 1, original).unwrap())
+            .unwrap();
+        let before = analyses.program_preparation_counts();
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, changed).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        analyses.analyze(revision).unwrap();
+
+        assert_query_reused(before, analyses.program_preparation_counts());
     }
 
     fn analysis_signature(generation: &WorkspaceAnalysisGeneration) -> AnalysisSignature {

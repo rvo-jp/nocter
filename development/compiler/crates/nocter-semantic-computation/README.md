@@ -18,6 +18,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - atomic publication of semantic and current-source views of one discovery snapshot
 - stable path-and-declaration-locator body input publication
 - declaration-query evaluation and dependency selection
+- reusable program-wide checking preparation above accepted declarations
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -37,3 +38,6 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - Reusable declaration symbols form a stable prefix. Current body spellings are appended only to
   an owned checking branch, so body edits cannot renumber declaration symbols or enter the
   declaration query result.
+- Successful program preparation owns only source-neutral environment and semantic authorities.
+  Body-only edits reuse that query; current source access and body symbols join later through the
+  checking-owned current-generation opening contract.

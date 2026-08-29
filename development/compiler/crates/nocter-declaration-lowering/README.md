@@ -18,6 +18,7 @@ check callable bodies.
 
 - deterministic identity reservation and definition
 - define-once semantic projection recipes and current-generation materialization
+- declaration-only authority projection separated from current body imports and spellings
 - canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
@@ -38,6 +39,9 @@ check callable bodies.
 - `FrontendBindings` and `SourceIndex` are both interpreted from the same recipe. Documentation is
   read from the current syntax tree during materialization, so trivia-only edits cannot retain
   stale hover text.
+- Current checking materialization computes the exact body-symbol suffix once and returns it with
+  frontend bindings and source projection. Session cannot rescan syntax to construct a parallel
+  symbol domain.
 - Body-local imports remain current body input and cannot enter the reusable declaration recipe.
   Their current syntax identities are joined only through the exact source-neutral module mapping
   frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration

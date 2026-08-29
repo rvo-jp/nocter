@@ -10,10 +10,10 @@ use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_semantic_computation::DeclarationQueryOutcome;
+use nocter_semantic_computation::{DeclarationQueryOutcome, ProgramPreparationOutcome};
 use nocter_session::{
     analyze_unit, analyze_unit_from_declaration_failure, analyze_unit_from_declarations,
-    bundled_standard_toolchain,
+    analyze_unit_from_prepared_declarations, bundled_standard_toolchain,
 };
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
@@ -80,18 +80,22 @@ pub(crate) fn compile_scope(
                 body.publish(&mut revision);
             }
             let _ = revision.commit();
-            let declarations = match nocter_semantic_computation::declarations(computation, scope) {
-                Ok(declarations) => declarations,
-                Err(error) => {
-                    let error = WorkspaceAnalysisError::computation(error);
-                    return WorkspaceAnalysisState::PreparationFailed {
-                        source_overlay,
-                        diagnostics: preparation_diagnostics(&error),
-                        error,
-                    };
-                }
-            };
-            let analyzed = match analyze_declaration_outcome(unit, declarations.outcome()) {
+            let (declarations, preparation) =
+                match crate::semantic_products::demand(computation, scope) {
+                    Ok(products) => products,
+                    Err(error) => {
+                        return WorkspaceAnalysisState::PreparationFailed {
+                            source_overlay,
+                            diagnostics: preparation_diagnostics(&error),
+                            error,
+                        };
+                    }
+                };
+            let analyzed = match analyze_declaration_outcome(
+                unit,
+                declarations.outcome(),
+                preparation.outcome(),
+            ) {
                 Ok(analyzed) => analyzed,
                 Err(error) => {
                     return WorkspaceAnalysisState::PreparationFailed {
@@ -144,11 +148,17 @@ fn prepare_semantic_inputs(
 fn analyze_declaration_outcome(
     unit: Arc<nocter_discovery::DiscoveredUnit>,
     outcome: &DeclarationQueryOutcome,
+    preparation: &ProgramPreparationOutcome,
 ) -> Result<nocter_session::AnalyzedUnit, WorkspaceAnalysisError> {
     match outcome {
-        DeclarationQueryOutcome::Accepted(declarations) => {
-            Ok(analyze_unit_from_declarations(unit, declarations))
-        }
+        DeclarationQueryOutcome::Accepted(declarations) => match preparation {
+            ProgramPreparationOutcome::Prepared(prepared) => Ok(
+                analyze_unit_from_prepared_declarations(unit, declarations, prepared),
+            ),
+            ProgramPreparationOutcome::Unavailable => {
+                Ok(analyze_unit_from_declarations(unit, declarations))
+            }
+        },
         DeclarationQueryOutcome::Rejected(rejection) => {
             analyze_unit_from_declaration_failure(unit, rejection.unit(), rejection.failure())
                 .map_err(WorkspaceAnalysisError::declaration_rejection)

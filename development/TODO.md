@@ -32,17 +32,13 @@ evidence.
 
 ## Next Work
 
-Continue v0.20.0 Phase 1 by separating declaration semantics from generation-local frontend
-bindings and source projection. The source-neutral module-surface query now stops body-only
-invalidation, and declaration lowering now emits a reusable locator recipe that materializes
-current frontend bindings and source projection together. Discovery now owns a canonical
-source-neutral semantic topology surface. Topology and module surfaces now feed a dedicated
-semantic-computation owner; accepted declaration authority plus recipe is query-owned and session
-checking no longer repeats declaration lowering. Declaration rejection and its recovery now remain
-inside the query's exact-current-source identity domain. Give body resolution/checking their own
-keys; do not cache `NodeId`, `SourceId`, frontend
-bindings, or `SourceIndex` as if they were reusable semantic programs. Hashing and associative
-collections remain later v0.20.0 phases.
+Continue v0.20.0 Phase 1 by giving body resolution and checking their own stable keys. Declaration
+lowering, current projection, and program-wide checking preparation are query-owned; a body-only
+edit now reuses the source-neutral `ProgramEnvironment` and every completed program authority.
+Current body spellings and source access join only when session opens a current checking branch.
+Migrate preparation rejection into the same query graph before removing its explicit fallback.
+Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
+semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 
 ## Blockers
 

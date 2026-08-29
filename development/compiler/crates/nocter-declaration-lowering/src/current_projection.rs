@@ -15,12 +15,23 @@ use crate::{ModuleIdentity, ProjectionRecipeError, ReusableDeclarations, Surface
 pub struct CurrentDeclarationProjection {
     frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
+    checking_symbols: crate::current_symbols::CurrentCheckingSymbols,
 }
 
 impl CurrentDeclarationProjection {
     #[must_use]
-    pub fn into_parts(self) -> (FrontendBindings, SourceIndex) {
-        (self.frontend_bindings, self.source_index)
+    pub fn into_parts(
+        self,
+    ) -> (
+        FrontendBindings,
+        SourceIndex,
+        crate::current_symbols::CurrentCheckingSymbols,
+    ) {
+        (
+            self.frontend_bindings,
+            self.source_index,
+            self.checking_symbols,
+        )
     }
 }
 
@@ -37,6 +48,10 @@ impl ReusableDeclarations {
         input: &CompileUnitInput<'_>,
     ) -> Result<CurrentDeclarationProjection, CurrentProjectionError> {
         let sources = canonical_sources(input);
+        let checking_symbols = crate::current_symbols::CurrentCheckingSymbols::from_sources(
+            input.sources(),
+            &sources,
+        )?;
         let block_imports = current_block_imports(input, self, &sources)?;
         let (source_index, frontend_bindings) =
             self.projection_recipe()
@@ -44,6 +59,7 @@ impl ReusableDeclarations {
         Ok(CurrentDeclarationProjection {
             frontend_bindings,
             source_index,
+            checking_symbols,
         })
     }
 }
@@ -138,6 +154,7 @@ pub enum CurrentProjectionError {
     DuplicateUseResolution(NodeId),
     MissingUseResolution(NodeId),
     UnknownModule(ModuleIdentity),
+    CurrentSymbols(crate::CurrentSymbolError),
 }
 
 impl fmt::Display for CurrentProjectionError {
@@ -154,5 +171,11 @@ impl std::error::Error for CurrentProjectionError {}
 impl From<ProjectionRecipeError> for CurrentProjectionError {
     fn from(error: ProjectionRecipeError) -> Self {
         Self::Projection(error)
+    }
+}
+
+impl From<crate::CurrentSymbolError> for CurrentProjectionError {
+    fn from(error: crate::CurrentSymbolError) -> Self {
+        Self::CurrentSymbols(error)
     }
 }

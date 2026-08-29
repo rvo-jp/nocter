@@ -350,6 +350,7 @@ fn finish_checked_program(
 
     let BodyCheckingParts {
         environment,
+        source_access,
         body_sources: _,
         body_names: _,
         source_namespaces: _,
@@ -377,6 +378,7 @@ fn finish_checked_program(
                 associated_type_completion_contexts,
             },
             bodies.finish(),
+            source_access,
         ),
         source_index,
     ))

@@ -188,6 +188,7 @@ impl CheckedProgram {
         select_member_completions(
             MemberCompletionAuthorities {
                 environment: self.environment(),
+                source_access: self.source_access(),
                 semantics: self.semantic_authority(),
                 session,
             },
@@ -199,6 +200,7 @@ impl CheckedProgram {
 #[derive(Clone, Copy)]
 pub(crate) struct MemberCompletionAuthorities<'program> {
     pub(crate) environment: &'program crate::program_environment::ProgramEnvironment,
+    pub(crate) source_access: &'program nocter_frontend_bindings::SourceAccessTable,
     pub(crate) semantics: &'program crate::semantic_authority::SemanticAuthority,
     pub(crate) session: &'program MemberCompletionQuerySession,
 }
@@ -209,6 +211,7 @@ pub(crate) fn select_member_completions(
 ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
     let MemberCompletionAuthorities {
         environment,
+        source_access,
         semantics,
         session,
     } = authorities;
@@ -220,9 +223,8 @@ pub(crate) fn select_member_completions(
         Some(_) => context.receiver,
         None => return Err(MemberCompletionError::UnknownReceiver(context.receiver)),
     };
-    let access =
-        crate::SourceAccessContext::for_source(environment.source_access(), context.source)
-            .map_err(MemberCompletionError::SourceAccess)?;
+    let access = crate::SourceAccessContext::for_source(source_access, context.source)
+        .map_err(MemberCompletionError::SourceAccess)?;
     let mut completions = field_completions(graph, types, access, receiver)?;
     let assumptions = environment
         .body_assumptions()

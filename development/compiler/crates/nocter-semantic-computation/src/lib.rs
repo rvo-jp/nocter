@@ -1,5 +1,12 @@
 //! Demand-owned semantic queries above physical source discovery.
 
+mod program_preparation;
+
+pub use program_preparation::{
+    ProgramPreparationOutcome, ProgramPreparationProduct, preparation_execution_count,
+    preparation_reuse_count, prepared_program,
+};
+
 use std::sync::Arc;
 
 use nocter_computation::{
@@ -265,6 +272,11 @@ impl DeclarationQueryProduct {
     #[must_use]
     pub const fn outcome(&self) -> &DeclarationQueryOutcome {
         &self.outcome
+    }
+
+    #[must_use]
+    pub(crate) const fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
     }
 }
 

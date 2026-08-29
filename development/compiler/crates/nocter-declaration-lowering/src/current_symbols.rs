@@ -1,22 +1,26 @@
 use std::fmt;
 
-use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{Keyword, NodeKind, SyntaxElement, TokenKind};
 
-use crate::{ReusableDeclarations, SurfaceSource};
+use crate::SurfaceSource;
 
 /// Deterministic, current-generation spellings required only while checking bodies.
 ///
 /// Declaration lowering owns the stable symbol prefix. This value is deliberately separate so a
 /// body edit cannot invalidate or renumber reusable declaration identities.
 #[derive(Debug)]
-pub(crate) struct CurrentCheckingSymbols {
+pub struct CurrentCheckingSymbols {
     spellings: Box<[Box<str>]>,
 }
 
 impl CurrentCheckingSymbols {
+    #[must_use]
+    pub fn spellings(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.spellings.iter().map(AsRef::as_ref)
+    }
+
     pub(crate) fn from_sources(
         source_map: &SourceMap,
         sources: &[SurfaceSource<'_>],
@@ -32,11 +36,6 @@ impl CurrentCheckingSymbols {
         })
     }
 
-    pub(crate) fn from_input(input: &CompileUnitInput<'_>) -> Result<Self, CurrentSymbolError> {
-        let sources = crate::current_projection::canonical_sources(input);
-        Self::from_sources(input.sources(), &sources)
-    }
-
     pub(crate) fn extend_accepted(
         &self,
         program: AcceptedDeclarationProgram,
@@ -49,21 +48,6 @@ impl CurrentCheckingSymbols {
         program: BodyAnalysisDeclarationProgram,
     ) -> BodyAnalysisDeclarationProgram {
         program.with_checking_symbols(self.spellings.iter())
-    }
-}
-
-impl ReusableDeclarations {
-    /// Opens a checking branch with the exact body-symbol suffix of `input`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an integrity error when the current source and syntax domains disagree.
-    pub fn checking_branch_for(
-        &self,
-        input: &CompileUnitInput<'_>,
-    ) -> Result<AcceptedDeclarationProgram, CurrentSymbolError> {
-        let symbols = CurrentCheckingSymbols::from_input(input)?;
-        Ok(symbols.extend_accepted(self.checking_branch()))
     }
 }
 

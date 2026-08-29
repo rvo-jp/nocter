@@ -21,7 +21,7 @@ language server.
 - scope caching, invalidation, and generation publication
 - path-keyed source-text and parse queries, input publication, and computation instrumentation
 - source declaration-surface and module-surface query composition
-- atomic semantic-scope input publication and declaration-query demand
+- atomic semantic-scope input publication plus declaration and program-preparation query demand
 - exact per-body input collection from the already demanded source-surface product
 
 ## Invariants
@@ -44,3 +44,5 @@ language server.
 - Workspace orchestration publishes semantic and exact-current fingerprints from the same shared
   discovery snapshot. Accepted declarations enter session checking through their reusable query
   product; workspace code cannot inspect declaration storage or reconstruct its invalidation rule.
+- Workspace passes the opaque prepared-program product to session. It cannot rebuild checking
+  authorities or attach current body symbols itself.

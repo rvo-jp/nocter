@@ -61,6 +61,45 @@ impl<'syntax> PreparedBodyAnalysis<'syntax> {
 pub struct PreparedSemanticProgram {
     environment: crate::program_environment::ProgramEnvironment,
     semantics: crate::semantic_authority::SemanticAuthority,
+    source_access: SourceAccessTable,
+}
+
+/// Source-neutral program-wide checking authorities reusable across body revisions.
+///
+/// The declaration graph contains only its stable declaration-symbol prefix. Opening a current
+/// generation appends body spellings to a graph branch and pairs source access with that branch;
+/// neither operation rebuilds these authorities.
+#[derive(Clone, Debug)]
+pub struct ReusablePreparedProgram {
+    environment: crate::program_environment::ProgramEnvironment,
+    semantics: crate::semantic_authority::SemanticAuthority,
+}
+
+impl ReusablePreparedProgram {
+    #[must_use]
+    pub fn graph(&self) -> &DeclarationGraph {
+        self.environment.graph()
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        self.semantics.types()
+    }
+
+    fn open_current<S>(
+        &self,
+        spellings: impl IntoIterator<Item = S>,
+        source_access: SourceAccessTable,
+    ) -> PreparedSemanticProgram
+    where
+        S: AsRef<str>,
+    {
+        PreparedSemanticProgram {
+            environment: self.environment.with_checking_symbols(spellings),
+            semantics: self.semantics.clone(),
+            source_access,
+        }
+    }
 }
 
 impl PreparedSemanticProgram {
@@ -68,40 +107,8 @@ impl PreparedSemanticProgram {
         &self.environment
     }
 
-    fn new(
-        graph: DeclarationGraph,
-        types: TypeAuthority,
-        standard_semantics: StandardSemanticTable,
-        authorities: PreparedProgramAuthorities,
-        source_access: SourceAccessTable,
-    ) -> Self {
-        let PreparedProgramAuthorities {
-            interface_implementations,
-            construction_surfaces,
-            instance_operations,
-            body_assumptions,
-            capability_evidence,
-            copyabilities,
-            drops,
-        } = authorities;
-        Self {
-            environment: crate::program_environment::ProgramEnvironment::new(
-                graph,
-                interface_implementations,
-                construction_surfaces,
-                instance_operations,
-                body_assumptions,
-                capability_evidence,
-                drops,
-                standard_semantics,
-                source_access,
-            ),
-            semantics: crate::semantic_authority::SemanticAuthority::seal(types, copyabilities),
-        }
-    }
-
     #[must_use]
-    pub const fn graph(&self) -> &DeclarationGraph {
+    pub fn graph(&self) -> &DeclarationGraph {
         self.environment.graph()
     }
 
@@ -111,7 +118,7 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+    pub fn interface_implementations(&self) -> &InterfaceImplementationTable {
         self.environment.interface_implementations()
     }
 
@@ -124,12 +131,12 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         self.environment.construction_surfaces()
     }
 
     #[must_use]
-    pub const fn instance_operations(&self) -> &InstanceOperationTable {
+    pub fn instance_operations(&self) -> &InstanceOperationTable {
         self.environment.instance_operations()
     }
 
@@ -139,29 +146,29 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub const fn drops(&self) -> &DropTable {
+    pub fn drops(&self) -> &DropTable {
         self.environment.drops()
     }
 
     #[must_use]
-    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+    pub fn standard_semantics(&self) -> &StandardSemanticTable {
         self.environment.standard_semantics()
     }
 
     #[must_use]
     pub(crate) const fn source_access(&self) -> &SourceAccessTable {
-        self.environment.source_access()
+        &self.source_access
     }
 
     #[must_use]
     pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
-        self.environment.source_access().ownership()
+        self.source_access.ownership()
     }
 }
 
 impl<'syntax> PreparedChecking<'syntax> {
     #[must_use]
-    pub const fn graph(&self) -> &DeclarationGraph {
+    pub fn graph(&self) -> &DeclarationGraph {
         self.semantic.graph()
     }
 
@@ -171,18 +178,18 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
-    pub const fn interface_implementations(&self) -> &InterfaceImplementationTable {
+    pub fn interface_implementations(&self) -> &InterfaceImplementationTable {
         self.semantic.interface_implementations()
     }
 
     #[cfg(test)]
     #[must_use]
-    pub(crate) const fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
+    pub(crate) fn construction_surfaces(&self) -> &ConstructionSurfaceTable {
         self.semantic.construction_surfaces()
     }
 
     #[must_use]
-    pub const fn instance_operations(&self) -> &InstanceOperationTable {
+    pub fn instance_operations(&self) -> &InstanceOperationTable {
         self.semantic.instance_operations()
     }
 
@@ -192,12 +199,12 @@ impl<'syntax> PreparedChecking<'syntax> {
     }
 
     #[must_use]
-    pub const fn drops(&self) -> &DropTable {
+    pub fn drops(&self) -> &DropTable {
         self.semantic.drops()
     }
 
     #[must_use]
-    pub const fn standard_semantics(&self) -> &StandardSemanticTable {
+    pub fn standard_semantics(&self) -> &StandardSemanticTable {
         self.semantic.standard_semantics()
     }
 
@@ -226,10 +233,12 @@ impl<'syntax> PreparedChecking<'syntax> {
         let PreparedSemanticProgram {
             environment,
             semantics,
+            source_access,
         } = self.semantic;
         PreparedCheckingParts {
             environment,
             semantics,
+            source_access,
             body_sources: self.body_sources,
             body_names: self.body_names,
             source_namespaces: self.source_namespaces,
@@ -241,6 +250,7 @@ impl<'syntax> PreparedChecking<'syntax> {
 pub(crate) struct PreparedCheckingParts<'syntax> {
     pub(crate) environment: crate::program_environment::ProgramEnvironment,
     pub(crate) semantics: crate::semantic_authority::SemanticAuthority,
+    pub(crate) source_access: SourceAccessTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
@@ -258,6 +268,7 @@ impl<'syntax> PreparedCheckingParts<'syntax> {
             self.semantics,
             BodyCheckingParts {
                 environment: self.environment,
+                source_access: self.source_access,
                 body_sources: self.body_sources,
                 body_names: self.body_names,
                 source_namespaces: self.source_namespaces,
@@ -269,6 +280,7 @@ impl<'syntax> PreparedCheckingParts<'syntax> {
 
 pub(crate) struct BodyCheckingParts<'syntax> {
     pub(crate) environment: crate::program_environment::ProgramEnvironment,
+    pub(crate) source_access: SourceAccessTable,
     pub(crate) body_sources: BodySourceCatalog<'syntax>,
     pub(crate) body_names: Arena<BodyId, ResolvedBodyNames>,
     pub(crate) source_namespaces: SourceNamespaceTable,
@@ -287,6 +299,7 @@ impl BodyCheckingParts<'_> {
         let program = PreparedSemanticProgram {
             environment: self.environment,
             semantics,
+            source_access: self.source_access,
         };
         (program, self.body_names, self.source_index)
     }
@@ -578,6 +591,13 @@ enum PreparationProgram {
 }
 
 impl PreparationProgram {
+    fn graph(&self) -> &DeclarationGraph {
+        match self {
+            Self::Accepted(program) => program.graph(),
+            Self::Analysis(program) => program.graph(),
+        }
+    }
+
     fn into_parts(
         self,
     ) -> (
@@ -602,6 +622,94 @@ struct PreparedProgramAuthorities {
     drops: DropTable,
 }
 
+struct ReusablePreparationFailure {
+    error: PreparationError,
+    graph: DeclarationGraph,
+    types: TypeStore,
+    standard_semantics: Option<StandardSemanticTable>,
+}
+
+/// Builds source-neutral program-wide checking authorities from an accepted declaration branch.
+///
+/// Body syntax, body spellings, source access, name resolution, and source projection are not
+/// retained in the returned value. A computation query may therefore reuse it while the accepted
+/// declaration surface remains equal.
+///
+/// # Errors
+///
+/// Returns a program-wide declaration or authority failure. Editor recovery is composed only by
+/// the current-generation preparation endpoint, which owns the required source domain.
+pub fn prepare_reusable_program(
+    input: &CompileUnitInput<'_>,
+    program: AcceptedDeclarationProgram,
+    bindings: &FrontendBindings,
+    diagnostic_origins: DiagnosticOrigins<'_>,
+) -> Result<ReusablePreparedProgram, PreparationError> {
+    prepare_reusable_program_internal(
+        input,
+        PreparationProgram::Accepted(program),
+        bindings,
+        diagnostic_origins,
+    )
+    .map_err(|failure| failure.error)
+}
+
+/// Opens one current source generation from reusable program-wide authorities and resolves its
+/// body names without rebuilding those authorities.
+///
+/// # Errors
+///
+/// Returns current body-source or name-resolution failures. Source-backed name rejection retains
+/// the same typed recovery contract as ordinary preparation.
+pub fn prepare_program_checking_from_reusable_recovering<'syntax, S>(
+    input: &'syntax CompileUnitInput<'syntax>,
+    reusable: &ReusablePreparedProgram,
+    checking_spellings: impl IntoIterator<Item = S>,
+    bindings: &FrontendBindings,
+    source_index: SourceIndex,
+) -> Result<PreparedChecking<'syntax>, PreparationFailure>
+where
+    S: AsRef<str>,
+{
+    validate_preparation_target(input, reusable.graph())?;
+    let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
+    let body_sources =
+        prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
+    let resolution = resolve_cataloged_body_names_recovering(
+        input,
+        semantic.graph(),
+        bindings,
+        source_index,
+        body_sources,
+    );
+    let (body_sources, body_names, source_index) = match resolution {
+        Ok(resolution) => resolution.into_parts(),
+        Err(failure) => {
+            let recovery = failure.recovery.map(|partial| {
+                crate::NameAnalysisRecovery::new(
+                    semantic.graph().clone(),
+                    semantic.types().clone(),
+                    partial.bodies,
+                    bindings.source_ownership().clone(),
+                    partial.source_index,
+                )
+            });
+            let error = PreparationError::NameResolution(*failure.error);
+            return Err(match recovery {
+                Some(recovery) => PreparationFailure::with_name_recovery(error, Box::new(recovery)),
+                None => PreparationFailure::new(error),
+            });
+        }
+    };
+    Ok(PreparedChecking {
+        semantic,
+        body_sources,
+        body_names,
+        source_namespaces: bindings.source_namespaces().clone(),
+        source_index,
+    })
+}
+
 fn prepare_program_checking_internal<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: PreparationProgram,
@@ -612,11 +720,11 @@ fn prepare_program_checking_internal<'syntax>(
     input
         .toolchain()
         .ok_or(PreparationError::MissingToolchain)?;
-    let (graph, types, admission) = program.into_parts();
-    validate_preparation_target(input, &graph)?;
-    let body_sources = match prepare_body_sources(input, &graph, bindings) {
+    validate_preparation_target(input, program.graph())?;
+    let body_sources = match prepare_body_sources(input, program.graph(), bindings) {
         Ok(body_sources) => body_sources,
         Err(error) => {
+            let (graph, types, _) = program.into_parts();
             return Err(declaration_failure(
                 error,
                 retain_names,
@@ -628,48 +736,34 @@ fn prepare_program_checking_internal<'syntax>(
             ));
         }
     };
-    let standard_semantics = match StandardSemanticTable::build(&graph, types.store()) {
-        Ok(semantics) => semantics,
-        Err(error) => {
-            return Err(declaration_failure(
-                error.into(),
-                retain_names,
-                graph,
-                types.into_store(),
-                bindings.source_ownership().clone(),
-                source_index,
-                None,
-            ));
-        }
-    };
-    let mut type_transaction = types.transaction();
-    let authorities = match build_program_authorities(
+    let reusable = match prepare_reusable_program_internal(
         input,
-        &graph,
-        &mut type_transaction,
+        program,
         bindings,
         source_index.diagnostic_origins(),
-        &admission,
     ) {
-        Ok(authorities) => authorities,
-        Err(error) => {
+        Ok(reusable) => reusable,
+        Err(failure) => {
+            let ReusablePreparationFailure {
+                error,
+                graph,
+                types,
+                standard_semantics,
+            } = *failure;
             return Err(declaration_failure(
                 error,
                 retain_names,
                 graph,
-                type_transaction.freeze().into_store(),
+                types,
                 bindings.source_ownership().clone(),
                 source_index,
-                Some(standard_semantics),
+                standard_semantics,
             ));
         }
     };
-    let types = type_transaction
-        .commit(&types)
-        .expect("preparation must commit to its exact declaration authority");
     let resolution = match resolve_cataloged_body_names_recovering(
         input,
-        &graph,
+        reusable.graph(),
         bindings,
         source_index,
         body_sources,
@@ -681,8 +775,8 @@ fn prepare_program_checking_internal<'syntax>(
                 .flatten()
                 .map(|partial| {
                     crate::NameAnalysisRecovery::new(
-                        graph,
-                        types.into_store(),
+                        reusable.graph().clone(),
+                        reusable.types().clone(),
                         partial.bodies,
                         bindings.source_ownership().clone(),
                         partial.source_index,
@@ -697,17 +791,97 @@ fn prepare_program_checking_internal<'syntax>(
     };
     let (body_sources, body_names, source_index) = resolution.into_parts();
     Ok(PreparedChecking {
-        semantic: PreparedSemanticProgram::new(
-            graph,
-            types,
-            standard_semantics,
-            authorities,
-            bindings.source_access().clone(),
-        ),
+        semantic: reusable
+            .open_current(std::iter::empty::<&str>(), bindings.source_access().clone()),
         body_sources,
         body_names,
         source_namespaces: bindings.source_namespaces().clone(),
         source_index,
+    })
+}
+
+fn prepare_reusable_program_internal(
+    input: &CompileUnitInput<'_>,
+    program: PreparationProgram,
+    bindings: &FrontendBindings,
+    diagnostic_origins: DiagnosticOrigins<'_>,
+) -> Result<ReusablePreparedProgram, Box<ReusablePreparationFailure>> {
+    if input.toolchain().is_none() {
+        let (graph, types, _) = program.into_parts();
+        return Err(Box::new(ReusablePreparationFailure {
+            error: PreparationError::MissingToolchain,
+            graph,
+            types: types.into_store(),
+            standard_semantics: None,
+        }));
+    }
+    let (graph, types, admission) = program.into_parts();
+    if input.target() != graph.target() {
+        let program_target = graph.target();
+        return Err(Box::new(ReusablePreparationFailure {
+            error: PreparationError::TargetMismatch {
+                input: input.target(),
+                program: program_target,
+            },
+            graph,
+            types: types.into_store(),
+            standard_semantics: None,
+        }));
+    }
+    let standard_semantics = match StandardSemanticTable::build(&graph, types.store()) {
+        Ok(semantics) => semantics,
+        Err(error) => {
+            return Err(Box::new(ReusablePreparationFailure {
+                error: error.into(),
+                graph,
+                types: types.into_store(),
+                standard_semantics: None,
+            }));
+        }
+    };
+    let mut type_transaction = types.transaction();
+    let authorities = match build_program_authorities(
+        input,
+        &graph,
+        &mut type_transaction,
+        bindings,
+        diagnostic_origins,
+        &admission,
+    ) {
+        Ok(authorities) => authorities,
+        Err(error) => {
+            return Err(Box::new(ReusablePreparationFailure {
+                error,
+                graph,
+                types: type_transaction.freeze().into_store(),
+                standard_semantics: Some(standard_semantics),
+            }));
+        }
+    };
+    let types = type_transaction
+        .commit(&types)
+        .expect("preparation must commit to its exact declaration authority");
+    let PreparedProgramAuthorities {
+        interface_implementations,
+        construction_surfaces,
+        instance_operations,
+        body_assumptions,
+        capability_evidence,
+        copyabilities,
+        drops,
+    } = authorities;
+    Ok(ReusablePreparedProgram {
+        environment: crate::program_environment::ProgramEnvironment::new(
+            graph,
+            interface_implementations,
+            construction_surfaces,
+            instance_operations,
+            body_assumptions,
+            capability_evidence,
+            drops,
+            standard_semantics,
+        ),
+        semantics: crate::semantic_authority::SemanticAuthority::seal(types, copyabilities),
     })
 }
 
@@ -813,12 +987,39 @@ fn declaration_failure(
 
 #[cfg(test)]
 mod tests {
-    use nocter_declaration_lowering::lower_compile_unit_declarations;
+    use nocter_declaration_lowering::{
+        lower_compile_unit_declarations, lower_reusable_declarations,
+    };
     use nocter_declarations::NominalShape;
 
-    use super::prepare_program_checking;
+    use super::{prepare_program_checking, prepare_reusable_program};
     use crate::CopyCondition;
     use crate::test_support::Fixture;
+
+    #[test]
+    fn reusable_program_authority_excludes_body_symbols_until_current_open() {
+        let fixture =
+            Fixture::new("func main(): void {\n    let body_only_name = 1\n    return\n}\n");
+        let input = fixture.input(false);
+        let declarations = lower_reusable_declarations(&input).unwrap();
+        let projection = declarations.materialize_projection(&input).unwrap();
+        let (bindings, source_index, checking_symbols) = projection.into_parts();
+        let reusable = prepare_reusable_program(
+            &input,
+            declarations.checking_branch(),
+            &bindings,
+            source_index.diagnostic_origins(),
+        )
+        .unwrap();
+
+        assert!(reusable.graph().symbols().get("body_only_name").is_none());
+
+        let current = reusable.open_current(
+            checking_symbols.spellings(),
+            bindings.source_access().clone(),
+        );
+        assert!(current.graph().symbols().get("body_only_name").is_some());
+    }
 
     #[test]
     fn preparation_retains_syntax_owned_documentation_on_semantic_identities() {

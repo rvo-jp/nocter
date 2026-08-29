@@ -1811,7 +1811,6 @@ mod tests {
         )
         .with_toolchain(standard_toolchain(&current_standard));
 
-        reusable.materialize_projection(&current_input).unwrap();
         assert_current_body_symbol_domain(&reusable, &current_input);
     }
 
@@ -1821,7 +1820,11 @@ mod tests {
     ) {
         let answer = reusable.program().symbols().get("answer").unwrap();
         assert_eq!(reusable.program().symbols().get("original_local"), None);
-        let checking = reusable.checking_branch_for(current_input).unwrap();
+        let projection = reusable.materialize_projection(current_input).unwrap();
+        let (_, _, checking_symbols) = projection.into_parts();
+        let checking = reusable
+            .checking_branch()
+            .with_checking_symbols(checking_symbols.spellings());
         assert_eq!(checking.symbols().get("answer"), Some(answer));
         assert!(checking.symbols().get("changed").is_some());
         assert_eq!(checking.symbols().get("original_local"), None);

@@ -8,10 +8,12 @@ facts, dispatch decisions, and explicit source-justified recovery evidence.
 ## Contract
 
 Checking receives immutable program facts, exact body syntax projections, diagnostic origins, and
-one semantic construction authority. A successful result exposes `CheckedProgram` and immutable
-semantic authority. A rejected analysis result classifies every reached name/body domain and may
-expose only the recovery capabilities justified by its diagnostics. Source projection is extended
-beside, never inside, semantic output.
+one semantic construction authority. Program-wide authorities can be prepared from the stable
+declaration-symbol prefix and reused independently of body text. Opening a current generation
+adds body spellings and source access without rebuilding those authorities. A successful result
+exposes `CheckedProgram` and immutable semantic authority. A rejected analysis result classifies
+every reached name/body domain and may expose only the recovery capabilities justified by its
+diagnostics. Source projection is extended beside, never inside, semantic output.
 
 ## Internal Responsibilities
 
@@ -26,7 +28,9 @@ beside, never inside, semantic output.
 
 ## Invariants
 
-- One `ProgramEnvironment` carries stable facts through the complete checking lifetime.
+- One source-neutral `ProgramEnvironment` carries stable facts through the complete checking
+  lifetime. Generation-local `SourceAccessTable` storage is paired only by prepared and checked
+  current-generation owners.
 - Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
   one evidence identity; no optional-evidence state exists.
 - One independent capability-evidence table owns each specialized predicate and every authored

@@ -170,6 +170,16 @@ canonical physical path plus locator. A sibling-body edit therefore leaves an un
 and fingerprint equal. Name resolution and body checking still need to consume these inputs through
 their own queries; publication alone is not counted as incremental checking.
 
+Program-wide checking preparation now consumes the accepted declaration query before body work.
+Its successful product contains only the stable declaration graph and immutable checking
+authorities. `ProgramEnvironment` cannot retain `SourceAccessTable`, and its declaration graph
+contains no body-only symbol suffix. Current declaration projection computes that suffix once;
+session opens a graph branch and pairs current source access immediately before name resolution.
+Consequently a body-only edit reuses interface, copyability, drop, construction, instance, and
+capability preparation without allowing a prior generation's source identities into the result.
+Preparation rejection still uses the current non-query recovery path; name and body migration must
+close that remaining fallback before Phase 1 completion.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the

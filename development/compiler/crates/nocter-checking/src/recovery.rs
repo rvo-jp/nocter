@@ -261,6 +261,7 @@ impl BodyAnalysisRecovery {
         Some(select_member_completions(
             crate::member_completion::MemberCompletionAuthorities {
                 environment: self.prepared.environment(),
+                source_access: self.prepared.source_access(),
                 semantics,
                 session,
             },
