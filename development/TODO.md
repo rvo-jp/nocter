@@ -30,34 +30,21 @@ capabilities rather than phase selection. The
 [Phase 0 review](reviews/v0.20.0-phase-0.md) records the corrected boundary audit and qualification
 evidence.
 
+Phase 1 incremental semantic computation is complete and reviewed. The
+[Phase 1 review](reviews/v0.20.0-phase-1.md) records the closed query graph, source-authority
+boundary, rejection and recovery model, instrumentation, and qualification evidence. Workspace
+analysis now demands one complete or incomplete top-level semantic product; it cannot select an
+earlier compiler phase or reconstruct a missing result.
+
 ## Next Work
 
-Continue v0.20.0 Phase 1 with query-owned rejection and finalization. Declaration lowering,
-program preparation, lexical resolution, and successful typed bodies are query-owned. Typed
-products retain body-local type, closure, and source recipes without current syntax/source/symbol
-identities; session replays the canonical complete set without rechecking. Instrumentation proves
-that one body edit executes one lexical and one typed query while reusing a syntax-shifted sibling.
-Typed authored rejection and interruption recovery now travel through the same body query graph.
-Lexical authored rejection is query-owned as well: its current diagnostic and reusable partial
-prefix materialize one canonical `NameAnalysisRecovery` without resolving any body twice.
-Program-wide authored preparation rejection now retains its exact diagnostic, declaration
-recovery, and repair capability in the query graph; session opens an owned branch without running
-preparation again. Canonical body replay and ownership/provenance/loan finalization are now one
-exact-current query. The query shares the sole current declaration projection, retains success and
-failure as immutable branchable values, and session has no typed-body finalization entry point.
-Lexical failure materialization now belongs to that finalization query as well. The query publishes
-the exact diagnostic and canonical `NameAnalysisRecovery`; workspace and session no longer invoke
-name resolution or checking to reconstruct this rejection. Source-complete analysis now accepts
-only closed query success/rejection products; unavailable declaration, preparation, or finalization
-products are integrity errors instead of triggers for a second session pipeline. Next make
-incomplete-syntax recovery a query-owned outcome, review the complete query graph, and close Phase
-1. Incomplete-syntax recovery is now one exact-current query as well: semantic computation owns the
-sole declaration/preparation/body recovery traversal, direct session analysis delegates to that
-same compiler-domain contract, and workspace session code only opens the retained branch. Complete
-source analysis now has one top-level exact-current query that selects declaration rejection,
-preparation rejection, lexical rejection, body rejection, or checked completion. Workspace demands
-that single product and session exposes only one corresponding consumer entry point; neither layer
-can reconstruct stage order. Complete the final graph/boundary review and Phase 1 qualification.
+Define v0.20.0 Phase 2 before implementing hashing or associative collections. The next design must
+choose the stable `Hash` and `Hasher` contracts, deterministic-versus-randomized hashing policy,
+allocator and recoverable-failure behavior, the relationship between hashing and key equality,
+iteration-order guarantees, and the minimum `HashMap` and `HashSet` API. Phase 2 must consume Phase
+0 prerequisite closure and Phase 1 query products without source-text inference, duplicate lookup,
+or another semantic pipeline.
+
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Hashing and associative collections remain later v0.20.0 phases.
 

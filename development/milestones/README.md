@@ -7,8 +7,9 @@ in [`development/releases/`](../releases/README.md).
 ## Active Milestone
 
 The [v0.20.0 milestone](v0.20.0.md) has completed Phase 0 interface prerequisites as one checked
-capability closure. Phase 1 associative-collection design is next, but remains outside the active
-implementation scope until its public contracts are accepted.
+capability closure and Phase 1 incremental semantic computation as one closed query graph. Phase 2
+hashing and associative-collection design is next, but remains outside the active implementation
+scope until its public contracts are accepted.
 
 ## Historical Milestones
 

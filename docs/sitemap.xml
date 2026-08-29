@@ -620,7 +620,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-29</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -722,6 +722,12 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/v0.20.0-phase-0/</loc>
+    <lastmod>2026-08-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/reviews/v0.20.0-phase-1/</loc>
     <lastmod>2026-08-29</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
