@@ -18,21 +18,17 @@ use nocter_workspace_revision::{
     GenerationId, WorkspaceRevisionSequence, WorkspaceSourceChangeKind, WorkspaceSourceRevision,
 };
 
-mod body_inputs;
 mod compilation;
 mod compilation_input;
 mod configuration;
 mod errors;
 mod generation;
-mod module_surface;
-mod semantic_products;
-mod source_syntax;
 mod topology;
 
 use compilation::compile_scope;
 use compilation_input::ScopeCompilationInput;
 pub use configuration::{WorkspaceConfiguration, WorkspaceConfigurationError, WorkspaceToolchain};
-use errors::{SemanticProduct, preparation_diagnostics};
+use errors::preparation_diagnostics;
 pub use errors::{WorkspaceAnalysisError, WorkspaceDiagnosticError};
 use generation::WorkspaceAnalysisState;
 pub use generation::{AnalysisScope, WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};
@@ -50,7 +46,7 @@ pub struct WorkspaceAnalyses {
     source_scopes: BTreeMap<PathBuf, BTreeSet<AnalysisScope>>,
     unscoped: BTreeMap<PathBuf, Arc<WorkspaceAnalysisGeneration>>,
     filesystem_epoch: u64,
-    computation: nocter_computation::Database,
+    computation: nocter_compiler_computation::CompilerComputation,
 }
 
 /// More than one current package context can answer a source request and none is authoritative.
@@ -137,7 +133,7 @@ impl WorkspaceAnalyses {
             source_scopes: BTreeMap::new(),
             unscoped: BTreeMap::new(),
             filesystem_epoch: 0,
-            computation: nocter_computation::Database::new(),
+            computation: nocter_compiler_computation::CompilerComputation::new(),
         }
     }
 
@@ -149,79 +145,82 @@ impl WorkspaceAnalyses {
 
     #[cfg(test)]
     fn source_parse_counts(&self) -> (u64, u64) {
-        (
-            source_syntax::execution_count(&self.computation),
-            source_syntax::reuse_count(&self.computation),
-        )
+        let statistics = self.computation.statistics();
+        (statistics.parse_executions, statistics.parse_reuses)
     }
 
     #[cfg(test)]
     fn source_text_execution_count(&self) -> u64 {
-        source_syntax::source_text_execution_count(&self.computation)
+        self.computation.statistics().source_text_executions
     }
 
     #[cfg(test)]
     fn declaration_surface_counts(&self) -> (u64, u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            source_syntax::declaration_surface_execution_count(&self.computation),
-            module_surface::execution_count(&self.computation),
-            module_surface::reuse_count(&self.computation),
+            statistics.declaration_surface_executions,
+            statistics.module_surface_executions,
+            statistics.module_surface_reuses,
         )
     }
 
     #[cfg(test)]
     fn declaration_query_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::declaration_execution_count(&self.computation),
-            nocter_semantic_computation::declaration_reuse_count(&self.computation),
+            statistics.declaration_executions,
+            statistics.declaration_reuses,
         )
     }
 
     #[cfg(test)]
     fn program_preparation_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::preparation_execution_count(&self.computation),
-            nocter_semantic_computation::preparation_reuse_count(&self.computation),
+            statistics.preparation_executions,
+            statistics.preparation_reuses,
         )
     }
 
     #[cfg(test)]
     fn body_name_query_counts(&self) -> (u64, u64) {
-        (
-            nocter_semantic_computation::body_name_execution_count(&self.computation),
-            nocter_semantic_computation::body_name_reuse_count(&self.computation),
-        )
+        let statistics = self.computation.statistics();
+        (statistics.body_name_executions, statistics.body_name_reuses)
     }
 
     #[cfg(test)]
     fn typed_body_query_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::typed_body_execution_count(&self.computation),
-            nocter_semantic_computation::typed_body_reuse_count(&self.computation),
+            statistics.typed_body_executions,
+            statistics.typed_body_reuses,
         )
     }
 
     #[cfg(test)]
     fn program_finalization_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::finalization_execution_count(&self.computation),
-            nocter_semantic_computation::finalization_reuse_count(&self.computation),
+            statistics.finalization_executions,
+            statistics.finalization_reuses,
         )
     }
 
     #[cfg(test)]
     fn incomplete_analysis_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::incomplete_analysis_execution_count(&self.computation),
-            nocter_semantic_computation::incomplete_analysis_reuse_count(&self.computation),
+            statistics.incomplete_analysis_executions,
+            statistics.incomplete_analysis_reuses,
         )
     }
 
     #[cfg(test)]
     fn program_analysis_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
         (
-            nocter_semantic_computation::program_analysis_execution_count(&self.computation),
-            nocter_semantic_computation::program_analysis_reuse_count(&self.computation),
+            statistics.complete_analysis_executions,
+            statistics.complete_analysis_reuses,
         )
     }
 
@@ -309,7 +308,8 @@ impl WorkspaceAnalyses {
             self.filesystem_epoch
         };
         let source_overlay = source.into_source_overlay();
-        source_syntax::advance_revision(&mut self.computation, &source_overlay, filesystem_epoch)
+        self.computation
+            .advance_sources(&source_overlay, filesystem_epoch)
             .map_err(|_| WorkspaceRevisionError::ComputationRevisionExhausted)?;
         let mut transition = self.plan_transition(
             &document,
@@ -384,7 +384,7 @@ impl WorkspaceAnalyses {
             .union(changed_documents)
             .cloned()
             .collect::<BTreeSet<_>>();
-        let mut source_syntax = source_syntax::ComputedSourceSyntax::new(&self.computation);
+        let mut source_syntax = self.computation.source_syntax();
         let (selections, package_roots) = WorkspaceTopology::build_with_source_syntax(
             &self.configuration,
             source_overlay,
@@ -570,13 +570,10 @@ impl WorkspaceAnalyses {
             .filter(|(_, selected)| *selected == scope)
             .map(|(source, _)| source.clone());
         let input = ScopeCompilationInput::new(scope, requested_sources);
-        let mut candidate_computation = nocter_computation::Database::new();
-        if source_syntax::advance_revision(
-            &mut candidate_computation,
-            candidate.source_overlay(),
-            self.filesystem_epoch,
-        )
-        .is_err()
+        let mut candidate_computation = nocter_compiler_computation::CompilerComputation::new();
+        if candidate_computation
+            .advance_sources(candidate.source_overlay(), self.filesystem_epoch)
+            .is_err()
         {
             return Ok(None);
         }

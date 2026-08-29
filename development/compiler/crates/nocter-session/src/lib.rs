@@ -20,7 +20,7 @@ pub use analysis::{
 };
 pub use analyzed_unit::{
     AnalyzedUnit, AnalyzedUnitStatus, SemanticAnalysisDomainError, analyze_unit,
-    analyze_unit_from_incomplete_analysis, analyze_unit_from_program_analysis,
+    analyze_unit_from_query,
 };
 pub use error::CompileSessionError;
 pub use executable::{

@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_computation::{
-    ComputationError, ComputationKey, Database, Fingerprint, Input, Query, QueryValue,
+    ComputationError, ComputationKey, ComputationRevision, Database, Fingerprint, Input, Query,
+    QueryValue,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_source::{SourceFile, SourceMap, SourceName};
@@ -312,7 +313,7 @@ impl Query for SourceDeclarationSurfaceQuery {
     }
 }
 
-pub(super) fn declaration_surface(
+pub(crate) fn declaration_surface(
     database: &Database,
     path: &Path,
 ) -> Result<Arc<SourceDeclarationSurfaceProduct>, ComputationError> {
@@ -328,11 +329,11 @@ fn tagged_fingerprint(tag: u8, bytes: &[u8]) -> Fingerprint {
 }
 
 /// Publishes the source view for one accepted or isolated candidate computation revision.
-pub(super) fn advance_revision(
+pub(crate) fn advance_revision(
     database: &mut Database,
     overlay: &SourceOverlay,
     filesystem_epoch: u64,
-) -> Result<(), ComputationError> {
+) -> Result<ComputationRevision, ComputationError> {
     let mut revision = database.advance_revision()?;
     let paths = overlay
         .sources()
@@ -343,16 +344,15 @@ pub(super) fn advance_revision(
     for (path, source) in overlay.sources() {
         revision.set::<OverlayTextInput>(&SourcePath::new(path), OverlayText::new(source.bytes()));
     }
-    let _ = revision.commit();
-    Ok(())
+    Ok(revision.commit())
 }
 
-pub(super) struct ComputedSourceSyntax<'database> {
+pub(crate) struct ComputedSourceSyntax<'database> {
     database: &'database Database,
 }
 
 impl<'database> ComputedSourceSyntax<'database> {
-    pub(super) const fn new(database: &'database Database) -> Self {
+    pub(crate) const fn new(database: &'database Database) -> Self {
         Self { database }
     }
 }
@@ -392,22 +392,18 @@ impl fmt::Display for SourceProductError {
 
 impl Error for SourceProductError {}
 
-#[cfg(test)]
-pub(super) fn execution_count(database: &Database) -> u64 {
+pub(crate) fn execution_count(database: &Database) -> u64 {
     database.execution_count::<SourceSyntaxQuery>()
 }
 
-#[cfg(test)]
-pub(super) fn reuse_count(database: &Database) -> u64 {
+pub(crate) fn reuse_count(database: &Database) -> u64 {
     database.reuse_count::<SourceSyntaxQuery>()
 }
 
-#[cfg(test)]
-pub(super) fn source_text_execution_count(database: &Database) -> u64 {
+pub(crate) fn source_text_execution_count(database: &Database) -> u64 {
     database.execution_count::<SourceTextQuery>()
 }
 
-#[cfg(test)]
-pub(super) fn declaration_surface_execution_count(database: &Database) -> u64 {
+pub(crate) fn declaration_surface_execution_count(database: &Database) -> u64 {
     database.execution_count::<SourceDeclarationSurfaceQuery>()
 }

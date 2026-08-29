@@ -250,6 +250,10 @@ Workspace demands only this value, and session has one consumer that validates t
 snapshot before opening its branch. Intermediate products remain memoized dependencies; they are
 not transport objects from which orchestration can reconstruct stage order.
 
+One final exact-current unit-analysis query now selects that source-complete product or the
+incomplete-syntax product. It owns the exact discovery snapshot once. Workspace no longer branches
+on syntax completeness, and session accepts only this unit product from the query-backed path.
+
 Rejected declarations retain their complete diagnostic and recovery authority inside that exact
 current-source identity domain. Session clones the query-owned recovery branch and continues editor
 analysis from it; it never performs a second declaration traversal. Reuse is valid only when the
@@ -266,11 +270,12 @@ seal as defense in depth.
 
 ## Recovery
 
-Complete syntax uses the demand graph described above. Incomplete syntax uses a separate
+Complete syntax uses the demand graph described above. Incomplete syntax remains a separate child
 exact-current query whose value is either not applicable or one editor-only analysis containing the
 selected compiler-domain failure and deepest valid recovery evidence. It cannot claim compilation
-success. The query and direct session API call the same pure recovery traversal, so recovery does
-not create a second semantic meaning or feature-local fallback order. Rejected name and body
+success. The unit-analysis query selects that child without consumer policy. Until direct command
+compilation is removed in v0.20.0 Phase 2, its session API calls the same pure recovery traversal,
+so recovery does not create a second semantic meaning or feature-local fallback order. Rejected name and body
 domains, typed interruptions, diagnostics, and coverage are cacheable only when their source
 justification is complete. Internal inconsistency is never cached as authored recovery.
 

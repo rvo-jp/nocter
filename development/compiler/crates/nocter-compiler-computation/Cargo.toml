@@ -1,5 +1,5 @@
 [package]
-name = "nocter-workspace-analysis"
+name = "nocter-compiler-computation"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,18 +7,14 @@ license.workspace = true
 publish = false
 
 [dependencies]
-nocter-analysis = { path = "../nocter-analysis" }
-nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-computation = { path = "../nocter-computation" }
 nocter-discovery = { path = "../nocter-discovery" }
-nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-model = { path = "../nocter-model" }
-nocter-package = { path = "../nocter-package" }
-nocter-session = { path = "../nocter-session" }
+nocter-semantic-computation = { path = "../nocter-semantic-computation" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
-nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 
 [lints]
 workspace = true

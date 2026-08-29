@@ -7,11 +7,12 @@ explicit recovery evidence.
 
 ## Contract
 
-The crate accepts either a closed compile input for direct compilation or a closed outcome from the
-semantic query graph. Direct compilation runs preparation, body checking, and target construction
-in the only production order. Query-backed analysis only opens the supplied success or rejection
-branch and publishes one immutable session outcome with capability-oriented semantic views for
-complete programs, typed bodies, lexical names, typed interruptions, and exact repair authority.
+The crate temporarily accepts either a closed compile input for direct compilation or the sole
+complete-or-incomplete unit outcome from the semantic query graph. Direct compilation still runs
+preparation and body checking until v0.20.0 Phase 2 migrates command callers. Query-backed analysis
+only opens the supplied success or rejection branch and publishes one immutable session outcome
+with capability-oriented semantic views for complete programs, typed bodies, lexical names, typed
+interruptions, and exact repair authority.
 Recovery storage variants and phase order remain private. The crate does not implement stage rules,
 editor queries, native code generation, or protocol projection.
 
@@ -49,9 +50,7 @@ editor queries, native code generation, or protocol projection.
 - No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
   or typed-body sets. A source-complete query consumer must supply one closed final success or
   rejection branch.
-- Query-backed incomplete syntax opens one exact-current analysis product and only translates its
-  compiler-domain failure/evidence branch. The recovery traversal itself belongs to semantic
-  computation; the direct session API delegates to the same traversal.
-- Source-complete query analysis has one public consumer accepting the closed top-level product.
-  Branch-specific consumers are private translation helpers, so callers cannot choose declaration,
-  preparation, lexical, body, or finalization order.
+- Query-backed analysis has one public consumer accepting the exact-current unit product. It opens
+  either the complete or incomplete compiler-domain branch; branch-specific translators remain
+  private, so callers cannot choose syntax, declaration, preparation, lexical, body, or
+  finalization order.

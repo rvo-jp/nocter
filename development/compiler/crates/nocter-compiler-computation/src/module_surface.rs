@@ -99,7 +99,7 @@ impl Query for ModuleSurfaceQuery {
 }
 
 /// Composes every discovered module's source-neutral declaration surface for this scope.
-pub(super) fn fingerprint(
+pub(crate) fn fingerprint(
     database: &Database,
     unit: &DiscoveredUnit,
 ) -> Result<Fingerprint, ComputationError> {
@@ -127,12 +127,10 @@ fn encode(bytes: &[u8], output: &mut Vec<u8>) {
     output.extend_from_slice(bytes);
 }
 
-#[cfg(test)]
-pub(super) fn execution_count(database: &Database) -> u64 {
+pub(crate) fn execution_count(database: &Database) -> u64 {
     database.execution_count::<ModuleSurfaceQuery>()
 }
 
-#[cfg(test)]
-pub(super) fn reuse_count(database: &Database) -> u64 {
+pub(crate) fn reuse_count(database: &Database) -> u64 {
     database.reuse_count::<ModuleSurfaceQuery>()
 }

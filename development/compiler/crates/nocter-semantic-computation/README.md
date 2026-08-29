@@ -23,6 +23,7 @@ policy. This crate does not discover files, interpret editor requests, or invoke
 - exact-current canonical body replay and whole-program finalization
 - exact-current incomplete-syntax analysis and recovery continuation
 - closed source-complete analysis outcome above every semantic query branch
+- closed complete-or-incomplete unit outcome owning the exact discovery snapshot once
 - computation instrumentation for semantic query tests
 
 ## Invariants
@@ -73,3 +74,5 @@ policy. This crate does not discover files, interpret editor requests, or invoke
   or checked branch. It is the only source-complete product transported across the workspace/session
   boundary. Intermediate queries remain independently memoized but cannot become orchestration
   policy in a consumer.
+- One final exact-current unit query selects complete versus incomplete syntax, owns the paired
+  discovery snapshot, and is the only product accepted by the query-backed session consumer.

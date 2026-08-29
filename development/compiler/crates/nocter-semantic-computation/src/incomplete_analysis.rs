@@ -64,17 +64,11 @@ impl IncompleteSemanticAnalysis {
 /// Exact-current query product paired with the discovery snapshot that justified it.
 #[derive(Debug)]
 pub struct IncompleteAnalysisProduct {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     analysis: Option<IncompleteSemanticAnalysis>,
     fingerprint: Fingerprint,
 }
 
 impl IncompleteAnalysisProduct {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub const fn analysis(&self) -> Option<&IncompleteSemanticAnalysis> {
         self.analysis.as_ref()
@@ -94,7 +88,6 @@ impl Query for IncompleteAnalysisQuery {
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         Ok(IncompleteAnalysisProduct {
-            unit: Arc::clone(&current.unit),
             analysis: analyze_incomplete_semantics(&current.unit),
             fingerprint: current.fingerprint,
         })

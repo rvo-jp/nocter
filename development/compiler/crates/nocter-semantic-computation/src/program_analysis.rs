@@ -56,17 +56,11 @@ pub enum ProgramAnalysisOutcome {
 /// One source-complete semantic outcome inseparably paired with its exact discovery snapshot.
 #[derive(Debug)]
 pub struct ProgramAnalysisProduct {
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
     outcome: ProgramAnalysisOutcome,
     fingerprint: Fingerprint,
 }
 
 impl ProgramAnalysisProduct {
-    #[must_use]
-    pub fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
-        &self.unit
-    }
-
     #[must_use]
     pub const fn outcome(&self) -> &ProgramAnalysisOutcome {
         &self.outcome
@@ -138,7 +132,6 @@ impl Query for ProgramAnalysisQuery {
             }
         };
         Ok(ProgramAnalysisProduct {
-            unit: Arc::clone(&current.unit),
             outcome,
             fingerprint: current.fingerprint,
         })

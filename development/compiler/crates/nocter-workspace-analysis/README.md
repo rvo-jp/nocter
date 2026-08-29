@@ -9,9 +9,9 @@ immutable analysis generations.
 
 The crate consumes canonical workspace roots, installation facts, and linear
 `WorkspaceSourceRevision` values. It prepares package, toolchain-standard, or single-file scopes,
-owns the revisioned computation database, supplies reusable source syntax to discovery, invokes
-compiler analysis once per demanded scope, and publishes normalized workspace outcomes to the
-language server.
+retains the shared compiler-computation owner across revisions, supplies its reusable source syntax
+to discovery, invokes one closed analysis demand per affected scope, and publishes normalized
+workspace outcomes to the language server.
 
 ## Internal Responsibilities
 
@@ -19,11 +19,10 @@ language server.
 - package-root catalog construction and topology freeze
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
-- path-keyed source-text and parse queries, input publication, and computation instrumentation
+- accepted workspace revision publication into the shared compiler-computation owner
 - source declaration-surface and module-surface query composition
-- atomic semantic-scope input publication plus closed semantic-outcome query demand
-- exact per-body input collection from the already demanded source-surface product
-- transport of only final complete/rejected semantic products to session
+- discovery through the shared computed syntax provider
+- transport of only the final complete-or-incomplete unit product to session
 
 ## Invariants
 
@@ -47,11 +46,8 @@ language server.
 - For source-complete input, workspace passes only a closed semantic success/rejection product to
   session. Missing declaration, preparation, or finalization products are integrity errors; they
   cannot select a session fallback that reruns compiler stages.
-- Workspace demands one top-level source-complete analysis query rather than declaration,
-  preparation, lexical, typed, and finalization products separately. Its only semantic branch is
-  complete versus incomplete syntax; the compiler query owns every later stage decision.
-- For syntax-invalid input, workspace demands one exact-current incomplete-analysis product.
-  Session opens that product only after validating its discovery snapshot; workspace cannot invoke
-  or order declaration, preparation, or body recovery stages itself.
+- Workspace demands one top-level unit-analysis query rather than selecting complete versus
+  incomplete syntax or demanding declaration, preparation, lexical, typed, finalization, and
+  recovery products separately.
 - Workspace neither enumerates body queries nor transports intermediate lexical or typed sets.
   Semantic computation owns complete-set demand and canonical finalization order.

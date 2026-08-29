@@ -7,6 +7,7 @@ mod program_analysis;
 mod program_finalization;
 mod program_preparation;
 mod typed_bodies;
+mod unit_analysis;
 
 pub use body_names::{
     BodyNameQueryOutcome, BodyNameQueryProduct, BodyNameSet, SemanticBodyKey,
@@ -35,6 +36,10 @@ pub use program_preparation::{
 pub use typed_bodies::{
     TypedBodyQueryOutcome, TypedBodyQueryProduct, TypedBodySet, typed_bodies, typed_body,
     typed_body_execution_count, typed_body_reuse_count,
+};
+pub use unit_analysis::{
+    UnitAnalysisOutcome, UnitAnalysisProduct, UnitAnalysisUnavailable, analyzed_unit,
+    unit_analysis_execution_count, unit_analysis_reuse_count,
 };
 
 use std::sync::Arc;

@@ -6,7 +6,7 @@ use nocter_discovery::DiscoveredUnit;
 use nocter_semantic_computation::BodySourcePublication;
 
 /// Collects exact body inputs from source-syntax products already demanded by module surfaces.
-pub(super) fn collect(
+pub(crate) fn collect(
     database: &Database,
     unit: &DiscoveredUnit,
 ) -> Result<Vec<BodySourcePublication>, ComputationError> {

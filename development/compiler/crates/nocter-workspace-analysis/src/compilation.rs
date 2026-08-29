@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use nocter_analysis::AnalysisSnapshot;
 use nocter_compile_input::ModuleIdentity;
-use nocter_computation::Database;
 use nocter_discovery::{DiscoveryRequest, discover_with_source_syntax};
 use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
@@ -16,7 +15,6 @@ use nocter_workspace_revision::GenerationId;
 
 use crate::compilation_input::ScopeCompilationInput;
 use crate::errors::preparation_diagnostics;
-use crate::source_syntax::ComputedSourceSyntax;
 use crate::{WorkspaceAnalysisError, WorkspaceAnalysisState, WorkspaceConfiguration};
 
 pub(crate) fn compile_scope(
@@ -24,10 +22,10 @@ pub(crate) fn compile_scope(
     input: &ScopeCompilationInput,
     generation: GenerationId,
     package_roots: PackageRootCatalog,
-    computation: &mut Database,
+    computation: &mut nocter_compiler_computation::CompilerComputation,
 ) -> WorkspaceAnalysisState {
     let source_overlay = package_roots.source_overlay().clone();
-    let mut source_syntax = ComputedSourceSyntax::new(computation);
+    let mut source_syntax = computation.source_syntax();
     let discovered = match input {
         ScopeCompilationInput::Package {
             root,
@@ -46,41 +44,20 @@ pub(crate) fn compile_scope(
             discover_single_file(configuration, source, package_roots, &mut source_syntax)
         }
     };
+    drop(source_syntax);
     match discovered {
         Ok(unit) => {
             let unit = Arc::new(unit);
-            let (scope, publication, body_inputs) =
-                match prepare_semantic_inputs(computation, Arc::clone(&unit)) {
-                    Ok(inputs) => inputs,
-                    Err(error) => return preparation_failed(source_overlay, error),
-                };
-            let mut revision = match computation.advance_revision() {
-                Ok(revision) => revision,
+            let product = match computation.analyze(Arc::clone(&unit)) {
+                Ok(product) => product,
                 Err(error) => {
-                    let error = WorkspaceAnalysisError::computation(error);
-                    return preparation_failed(source_overlay, error);
+                    return preparation_failed(
+                        source_overlay,
+                        WorkspaceAnalysisError::compiler_computation(error),
+                    );
                 }
             };
-            publication.publish(&mut revision, &scope);
-            for body in body_inputs {
-                body.publish(&mut revision);
-            }
-            let _ = revision.commit();
-            if unit.has_syntax_errors() {
-                return analyze_incomplete_scope(
-                    unit,
-                    generation,
-                    source_overlay,
-                    computation,
-                    scope,
-                );
-            }
-            let product = match crate::semantic_products::demand_complete(computation, scope) {
-                Ok(product) => product,
-                Err(error) => return preparation_failed(source_overlay, error),
-            };
-            let analyzed = match nocter_session::analyze_unit_from_program_analysis(unit, &product)
-            {
+            let analyzed = match nocter_session::analyze_unit_from_query(&product) {
                 Ok(analyzed) => analyzed,
                 Err(error) => {
                     return preparation_failed(
@@ -117,58 +94,6 @@ fn preparation_failed(
         diagnostics: preparation_diagnostics(&error),
         error,
     }
-}
-
-fn analyze_incomplete_scope(
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
-    generation: GenerationId,
-    source_overlay: nocter_filesystem::SourceOverlay,
-    computation: &Database,
-    scope: nocter_semantic_computation::SemanticScopeKey,
-) -> WorkspaceAnalysisState {
-    let product = match crate::semantic_products::demand_incomplete(computation, scope) {
-        Ok(product) => product,
-        Err(error) => return preparation_failed(source_overlay, error),
-    };
-    let Some(analysis) = product.analysis() else {
-        let error = WorkspaceAnalysisError::semantic_product_unavailable(
-            crate::SemanticProduct::IncompleteAnalysis,
-        );
-        return preparation_failed(source_overlay, error);
-    };
-    let analyzed =
-        match nocter_session::analyze_unit_from_incomplete_analysis(unit, product.unit(), analysis)
-        {
-            Ok(analyzed) => analyzed,
-            Err(error) => {
-                let error = WorkspaceAnalysisError::semantic_analysis(error);
-                return preparation_failed(source_overlay, error);
-            }
-        };
-    WorkspaceAnalysisState::Complete(Box::new(AnalysisSnapshot::from_analyzed_unit(
-        generation, analyzed,
-    )))
-}
-
-fn prepare_semantic_inputs(
-    computation: &Database,
-    unit: Arc<nocter_discovery::DiscoveredUnit>,
-) -> Result<
-    (
-        nocter_semantic_computation::SemanticScopeKey,
-        nocter_semantic_computation::ScopeInputPublication,
-        Vec<nocter_semantic_computation::BodySourcePublication>,
-    ),
-    WorkspaceAnalysisError,
-> {
-    let module_surface = crate::module_surface::fingerprint(computation, &unit)
-        .map_err(WorkspaceAnalysisError::computation)?;
-    let body_inputs = crate::body_inputs::collect(computation, &unit)
-        .map_err(WorkspaceAnalysisError::computation)?;
-    let (scope, publication) =
-        nocter_semantic_computation::ScopeInputPublication::for_unit(unit, module_surface)
-            .map_err(WorkspaceAnalysisError::semantic_computation)?;
-    Ok((scope, publication, body_inputs))
 }
 
 fn discover_toolchain_standard(

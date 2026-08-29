@@ -102,41 +102,35 @@ pub fn analyze_unit(unit: Arc<DiscoveredUnit>) -> AnalyzedUnit {
     }
 }
 
-/// Consumes one exact-current query-owned incomplete-syntax analysis.
+/// Consumes the sole query-owned complete-or-incomplete semantic outcome.
 ///
 /// # Errors
 ///
-/// Returns an integrity error when the analysis belongs to another source domain or the supplied
-/// unit does not contain syntax errors.
-pub fn analyze_unit_from_incomplete_analysis(
-    unit: Arc<DiscoveredUnit>,
-    analysis_unit: &DiscoveredUnit,
-    analysis: &nocter_semantic_computation::IncompleteSemanticAnalysis,
+/// Returns an integrity error when the query graph did not publish required semantic authority.
+pub fn analyze_unit_from_query(
+    product: &nocter_semantic_computation::UnitAnalysisProduct,
 ) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
-    validate_analysis_domain(&unit, analysis_unit)?;
-    if !unit.has_syntax_errors() {
-        return Err(SemanticAnalysisDomainError::ExpectedSyntaxErrors);
+    let unit = Arc::clone(product.unit());
+    match product.outcome() {
+        nocter_semantic_computation::UnitAnalysisOutcome::Complete(complete) => {
+            analyzed_complete_unit(unit, complete)
+        }
+        nocter_semantic_computation::UnitAnalysisOutcome::Incomplete(incomplete) => {
+            Ok(analyzed_incomplete_unit(
+                unit,
+                crate::analysis::incomplete_syntax_analysis(incomplete),
+            ))
+        }
+        nocter_semantic_computation::UnitAnalysisOutcome::Unavailable(authority) => Err(
+            SemanticAnalysisDomainError::UnavailableUnitAnalysis(*authority),
+        ),
     }
-    Ok(analyzed_incomplete_unit(
-        unit,
-        crate::analysis::incomplete_syntax_analysis(analysis),
-    ))
 }
 
-/// Consumes the sole query-owned source-complete semantic outcome without invoking compiler stages.
-///
-/// # Errors
-///
-/// Returns an integrity error when the product belongs to a different source domain or is supplied
-/// for syntax-invalid input.
-pub fn analyze_unit_from_program_analysis(
+fn analyzed_complete_unit(
     unit: Arc<DiscoveredUnit>,
     product: &nocter_semantic_computation::ProgramAnalysisProduct,
 ) -> Result<AnalyzedUnit, SemanticAnalysisDomainError> {
-    validate_analysis_domain(&unit, product.unit())?;
-    if unit.has_syntax_errors() {
-        return Err(SemanticAnalysisDomainError::ExpectedCompleteSyntax);
-    }
     let analyzed = match product.outcome() {
         nocter_semantic_computation::ProgramAnalysisOutcome::Checked(finalized) => {
             match analyze_target_from_finalized_program(&unit, finalized) {
@@ -207,44 +201,18 @@ fn analyzed_incomplete_unit(
     }
 }
 
-fn validate_analysis_domain(
-    current: &DiscoveredUnit,
-    rejection: &DiscoveredUnit,
-) -> Result<(), SemanticAnalysisDomainError> {
-    if std::ptr::eq(current, rejection) {
-        return Ok(());
-    }
-    let current_topology = current.semantic_topology_surface()?;
-    let rejection_topology = rejection.semantic_topology_surface()?;
-    let current_sources = current.current_source_surface()?;
-    let rejection_sources = rejection.current_source_surface()?;
-    if current_topology != rejection_topology || current_sources != rejection_sources {
-        return Err(SemanticAnalysisDomainError::Mismatch);
-    }
-    Ok(())
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticAnalysisDomainError {
-    SemanticTopology(nocter_discovery::SemanticTopologyError),
-    CurrentSource(nocter_discovery::CurrentSourceSurfaceError),
-    Mismatch,
-    ExpectedSyntaxErrors,
-    ExpectedCompleteSyntax,
+    UnavailableUnitAnalysis(nocter_semantic_computation::UnitAnalysisUnavailable),
     UnavailableProgramAnalysis(nocter_semantic_computation::ProgramAnalysisUnavailable),
 }
 
 impl std::fmt::Display for SemanticAnalysisDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::SemanticTopology(error) => error.fmt(formatter),
-            Self::CurrentSource(error) => error.fmt(formatter),
-            Self::Mismatch => formatter
-                .write_str("semantic product and current analysis use different source domains"),
-            Self::ExpectedSyntaxErrors => formatter
-                .write_str("incomplete semantic analysis requires a syntax-invalid source domain"),
-            Self::ExpectedCompleteSyntax => formatter
-                .write_str("complete semantic analysis requires a syntax-clean source domain"),
+            Self::UnavailableUnitAnalysis(authority) => {
+                write!(formatter, "unit analysis is missing {authority} authority")
+            }
             Self::UnavailableProgramAnalysis(authority) => write!(
                 formatter,
                 "source-complete semantic analysis is missing {authority} authority"
@@ -254,18 +222,6 @@ impl std::fmt::Display for SemanticAnalysisDomainError {
 }
 
 impl std::error::Error for SemanticAnalysisDomainError {}
-
-impl From<nocter_discovery::SemanticTopologyError> for SemanticAnalysisDomainError {
-    fn from(error: nocter_discovery::SemanticTopologyError) -> Self {
-        Self::SemanticTopology(error)
-    }
-}
-
-impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticAnalysisDomainError {
-    fn from(error: nocter_discovery::CurrentSourceSurfaceError) -> Self {
-        Self::CurrentSource(error)
-    }
-}
 
 fn extend_unique_diagnostics(
     diagnostics: &mut Vec<nocter_diagnostics::SourceDiagnostic>,
