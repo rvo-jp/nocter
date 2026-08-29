@@ -1684,6 +1684,111 @@ mod tests {
         }
     }
 
+    #[test]
+    fn reusable_declarations_materialize_against_the_current_source_domain() {
+        let mut original_sources = SourceMap::new();
+        let original_id = add_source(
+            &mut original_sources,
+            "/tmp/example.nct",
+            "/// Original.\nfunc answer(): i32 { return 1 }\n",
+        );
+        let standard_id = add_source(
+            &mut original_sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
+        let prelude_id = add_source(&mut original_sources, "/std/prelude/index.nct", "");
+        let original = parse_source(&original_sources, original_id, ParseGoal::SourceFile);
+        let standard = parse_source(&original_sources, standard_id, ParseGoal::SourceFile);
+        let prelude = parse_source(&original_sources, prelude_id, ParseGoal::SourceFile);
+        let single = PackageIdentity::new("single:/tmp/example.nct");
+        let original_input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &original_sources,
+            vec![
+                PackageInput::new(single.clone(), "example", PackageMode::SingleFile),
+                PackageInput::new(
+                    PackageIdentity::new("toolchain:std"),
+                    "std",
+                    PackageMode::Declared,
+                ),
+            ],
+            vec![
+                ModuleInput::new(
+                    ModuleIdentity::new(single.clone(), Vec::<&str>::new()),
+                    vec![ModuleSourceInput::new(
+                        "/tmp/example.nct",
+                        ModuleSourceKind::SingleFile,
+                        &original,
+                    )],
+                ),
+                module("toolchain:std", &[], "/std/index.nct", &standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    &prelude,
+                ),
+            ],
+            Vec::new(),
+        )
+        .with_toolchain(standard_toolchain(&standard));
+        let reusable = lower_compile_unit_declarations(&original_input)
+            .unwrap()
+            .into_reusable();
+
+        let mut current_sources = SourceMap::new();
+        let current_id = add_source(
+            &mut current_sources,
+            "/tmp/example.nct",
+            "/// Current documentation.\nfunc answer(): i32 {\n    let changed = 2\n    return changed\n}\n",
+        );
+        let current_standard_id = add_source(
+            &mut current_sources,
+            "/std/index.nct",
+            crate::test_support::TEST_BUILTIN_SOURCE,
+        );
+        let current_prelude_id = add_source(&mut current_sources, "/std/prelude/index.nct", "");
+        let current = parse_source(&current_sources, current_id, ParseGoal::SourceFile);
+        let current_standard =
+            parse_source(&current_sources, current_standard_id, ParseGoal::SourceFile);
+        let current_prelude =
+            parse_source(&current_sources, current_prelude_id, ParseGoal::SourceFile);
+        let current_input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &current_sources,
+            vec![
+                PackageInput::new(single.clone(), "example", PackageMode::SingleFile),
+                PackageInput::new(
+                    PackageIdentity::new("toolchain:std"),
+                    "std",
+                    PackageMode::Declared,
+                ),
+            ],
+            vec![
+                ModuleInput::new(
+                    ModuleIdentity::new(single, Vec::<&str>::new()),
+                    vec![ModuleSourceInput::new(
+                        "/tmp/example.nct",
+                        ModuleSourceKind::SingleFile,
+                        &current,
+                    )],
+                ),
+                module("toolchain:std", &[], "/std/index.nct", &current_standard),
+                module(
+                    "toolchain:std",
+                    &["prelude"],
+                    "/std/prelude/index.nct",
+                    &current_prelude,
+                ),
+            ],
+            Vec::new(),
+        )
+        .with_toolchain(standard_toolchain(&current_standard));
+
+        reusable.materialize_projection(&current_input).unwrap();
+    }
+
     fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
         sources
             .add_bytes(SourceName::new(name), text.as_bytes())

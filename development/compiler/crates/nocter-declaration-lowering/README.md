@@ -18,6 +18,7 @@ check callable bodies.
 
 - deterministic identity reservation and definition
 - define-once semantic projection recipes and current-generation materialization
+- canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
 - construction-time binding of inherited associated names before declaration capability freeze
@@ -32,10 +33,15 @@ check callable bodies.
 - `SourceIndex` is output projection, never semantic input.
 - A projection recipe contains semantic identities and declaration-surface locators, never
   `SourceId`, `NodeId`, token ranges, documentation text, or body-local syntax.
+- A recipe retains the source-neutral module identity, canonical path, and source kind for every
+  source ordinal. Current materialization rejects a different domain before resolving any locator.
 - `FrontendBindings` and `SourceIndex` are both interpreted from the same recipe. Documentation is
   read from the current syntax tree during materialization, so trivia-only edits cannot retain
   stale hover text.
 - Body-local imports remain current body input and cannot enter the reusable declaration recipe.
+  Their current syntax identities are joined only through the exact source-neutral module mapping
+  frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration
+  lowering.
 - Contract and private definition joins use exact identities, not text matching downstream.
 - A derived associated binding resolves through bound prerequisite identities to the original
   declaration; lowering never creates an alias declaration for inheritance. The accepted

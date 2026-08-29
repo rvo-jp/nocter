@@ -86,6 +86,20 @@ pub struct SurfaceSource<'syntax> {
 }
 
 impl<'syntax> SurfaceSource<'syntax> {
+    pub(crate) fn new(
+        module: ModuleIdentity,
+        canonical_path: impl Into<Box<str>>,
+        kind: ModuleSourceKind,
+        syntax: &'syntax SyntaxTree,
+    ) -> Self {
+        Self {
+            module,
+            canonical_path: canonical_path.into(),
+            kind,
+            syntax,
+        }
+    }
+
     #[must_use]
     pub const fn module(&self) -> &ModuleIdentity {
         &self.module
@@ -481,12 +495,12 @@ fn collect_declaration_surface_with<'syntax>(
                 .then_with(|| left.canonical_path().cmp(right.canonical_path()))
         });
         for source in module_sources {
-            sources.push(SurfaceSource {
-                module: module.identity().clone(),
-                canonical_path: source.canonical_path().into(),
-                kind: source.kind(),
-                syntax: source.syntax(),
-            });
+            sources.push(SurfaceSource::new(
+                module.identity().clone(),
+                source.canonical_path(),
+                source.kind(),
+                source.syntax(),
+            ));
         }
     }
     let source_by_path: BTreeMap<_, _> = sources

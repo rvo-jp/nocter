@@ -123,6 +123,14 @@ authority is the next integration step. `ReusableDeclarations` is the source-neu
 unit for that query: it contains the accepted authority, primitive bindings, and recipe, while the
 ordinary lowering result keeps current `FrontendBindings` and `SourceIndex` outside it.
 
+The recipe also freezes the complete source-neutral source domain and the exact mapping from
+physical module identities to declaration-program module IDs. Rebinding a reused declaration
+result canonicalizes only the current compile input's source views, proves that their module,
+canonical path, and source kind match the recipe, resolves stable syntax locators, and attaches
+current body-local imports through that frozen module mapping. It does not call declaration
+collection or topology preparation. A mismatched or incomplete current projection is an integrity
+error rather than a partially usable editor index.
+
 The session-owned analyzed unit retains the exact immutable discovery snapshot through shared
 ownership. A declaration query and its final analysis result can therefore borrow the same object;
 neither side clones a graph containing generation-local IDs or reconstructs discovery from paths.

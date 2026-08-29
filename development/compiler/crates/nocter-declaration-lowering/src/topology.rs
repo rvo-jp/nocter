@@ -67,6 +67,7 @@ pub struct LoweredDeclarations {
 pub struct ReusableDeclarations {
     program: AcceptedDeclarationProgram,
     primitive_bindings: Box<[PrimitiveBinding]>,
+    module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
 }
 
@@ -116,12 +117,14 @@ impl LoweredDeclarations {
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
         primitive_bindings: Box<[PrimitiveBinding]>,
+        module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     ) -> Self {
         Self {
             reusable: ReusableDeclarations {
                 program,
                 primitive_bindings,
+                module_bindings,
                 projection_recipe,
             },
             frontend_bindings,
@@ -194,6 +197,13 @@ impl ReusableDeclarations {
     #[must_use]
     pub const fn projection_recipe(&self) -> &crate::FrontendProjectionRecipe {
         &self.projection_recipe
+    }
+
+    pub(crate) fn module_binding(&self, identity: &ModuleIdentity) -> Option<ModuleId> {
+        self.module_bindings
+            .binary_search_by(|(candidate, _)| candidate.cmp(identity))
+            .ok()
+            .map(|index| self.module_bindings[index].1)
     }
 }
 

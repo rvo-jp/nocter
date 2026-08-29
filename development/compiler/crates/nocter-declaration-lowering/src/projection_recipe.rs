@@ -17,7 +17,7 @@ use nocter_syntax::{
     DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin, project_declaration_syntax,
 };
 
-use crate::{SurfaceSource, SurfaceSourceId};
+use crate::{ModuleIdentity, ModuleSourceKind, SurfaceSource, SurfaceSourceId};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct SurfaceOrigin {
@@ -109,7 +109,25 @@ enum ProjectionOperation {
 /// syntax-arena identities enter only while materializing this recipe for one current generation.
 #[derive(Clone, Debug)]
 pub struct FrontendProjectionRecipe {
+    sources: Box<[ProjectionSourceKey]>,
     operations: Box<[ProjectionOperation]>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ProjectionSourceKey {
+    module: ModuleIdentity,
+    canonical_path: Box<str>,
+    kind: ModuleSourceKind,
+}
+
+impl ProjectionSourceKey {
+    fn new(source: &SurfaceSource<'_>) -> Self {
+        Self {
+            module: source.module().clone(),
+            canonical_path: source.canonical_path().into(),
+            kind: source.kind(),
+        }
+    }
 }
 
 impl FrontendProjectionRecipe {
@@ -122,6 +140,15 @@ impl FrontendProjectionRecipe {
         sources: &[SurfaceSource<'_>],
         block_imports: &HashMap<nocter_syntax::NodeId, ModuleId>,
     ) -> Result<(SourceIndex, FrontendBindings), ProjectionRecipeError> {
+        if self.sources.len() != sources.len()
+            || self
+                .sources
+                .iter()
+                .zip(sources)
+                .any(|(expected, current)| *expected != ProjectionSourceKey::new(current))
+        {
+            return Err(ProjectionRecipeError::SourceDomainMismatch);
+        }
         let domain = ProjectionSyntaxDomain::new(source_map, sources)?;
         let mut index = SourceIndexBuilder::new();
         let mut bindings = FrontendBindingsBuilder::new();
@@ -293,6 +320,7 @@ impl FrontendProjectionRecipe {
 
 #[derive(Debug)]
 pub(crate) struct ProjectionRecipeBuilder {
+    sources: Box<[ProjectionSourceKey]>,
     locators: HashMap<SourceId, (SurfaceSourceId, DeclarationSyntaxProjection)>,
     operations: Vec<ProjectionOperation>,
 }
@@ -304,6 +332,11 @@ impl ProjectionRecipeBuilder {
     ) -> Result<Self, ProjectionRecipeError> {
         let domain = ProjectionSyntaxDomain::new(source_map, sources)?;
         Ok(Self {
+            sources: sources
+                .iter()
+                .map(ProjectionSourceKey::new)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             locators: domain
                 .entries
                 .into_iter()
@@ -549,6 +582,7 @@ impl ProjectionRecipeBuilder {
 
     pub(crate) fn finish(self) -> FrontendProjectionRecipe {
         FrontendProjectionRecipe {
+            sources: self.sources,
             operations: self.operations.into_boxed_slice(),
         }
     }
@@ -642,6 +676,7 @@ impl<'syntax> ProjectionSyntaxDomain<'syntax> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProjectionRecipeError {
+    SourceDomainMismatch,
     UnknownSource(SourceId),
     UnknownSurfaceSource(SurfaceSourceId),
     MismatchedSource(SourceId),
