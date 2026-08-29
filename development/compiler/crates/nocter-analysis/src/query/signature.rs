@@ -248,3 +248,40 @@ fn active_parameter(
         .count();
     u32::try_from(completed.min(parameter_count - 1)).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use nocter_checking::StaticDispatch;
+    use nocter_model::{ArenaBuilder, CapabilityEvidenceId};
+
+    use super::static_signature_source;
+    use crate::GenerationId;
+    use crate::query::evidence::EvidenceIntegrityError;
+    use crate::tests::{TempTree, bundled_snapshot};
+
+    #[test]
+    fn structural_signature_requires_exact_capability_evidence() {
+        let tree = TempTree::new();
+        let (_, snapshot) =
+            bundled_snapshot(&tree, "func subject(): i32 { 1 }\n", GenerationId::new(58));
+        let authority = snapshot
+            .semantic_query()
+            .expect("valid semantic index")
+            .expect("semantic query");
+        let mut identities = ArenaBuilder::<CapabilityEvidenceId, ()>::new();
+        let missing = loop {
+            let candidate = identities.insert(());
+            if authority.capability_evidence(candidate).is_none() {
+                break candidate;
+            }
+        };
+
+        assert!(matches!(
+            static_signature_source(
+                &authority,
+                StaticDispatch::StructuralRequirement { evidence: missing }
+            ),
+            Err(EvidenceIntegrityError::MissingCapabilityEvidence(evidence)) if evidence == missing
+        ));
+    }
+}
