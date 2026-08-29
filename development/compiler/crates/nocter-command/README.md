@@ -21,6 +21,8 @@ process argument decoding, terminal rendering, language rules, or stage internal
 ## Invariants
 
 - A command selects its compilation mode explicitly and once.
+- Package-only and single-file-only commands resolve through typed input boundaries; they do not
+  recover a narrower mode by matching a general package/file result.
 - `check`, `build`, and `run` share the same target acceptance boundary.
 - Artifact publication happens only after a complete successful result.
 - Package mutation uses `nocter-package-state` transactions rather than ad hoc writes.

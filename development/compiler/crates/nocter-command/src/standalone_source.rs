@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use nocter_source::{SourceError, SourceName};
 use nocter_source_tooling::{InspectionGoal, SourceInspection};
 
-use crate::{ProgramInputError, ProgramInputOptions, ResolvedProgramInput, resolve_program_input};
+use crate::{ProgramInputError, resolve_single_file_input};
 
 /// One exact standalone source and the immutable syntax snapshot derived from its original bytes.
 pub(super) struct StandaloneSource {
@@ -37,14 +37,8 @@ pub(super) fn load_standalone_source(
     source: PathBuf,
     current_directory: impl AsRef<Path>,
 ) -> Result<StandaloneSource, StandaloneSourceError> {
-    let input = resolve_program_input(
-        current_directory,
-        ProgramInputOptions::positional_file(source),
-    )
-    .map_err(StandaloneSourceError::Input)?;
-    let ResolvedProgramInput::SingleFile(input) = input else {
-        unreachable!("an explicit positional source always resolves in single-file mode")
-    };
+    let input = resolve_single_file_input(current_directory, source)
+        .map_err(StandaloneSourceError::Input)?;
     let path = input.source().to_path_buf();
     let bytes = fs::read(&path).map_err(|source| StandaloneSourceError::Read {
         path: path.clone(),

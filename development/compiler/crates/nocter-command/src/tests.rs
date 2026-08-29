@@ -163,8 +163,10 @@ fn positional_and_explicit_file_forms_converge_without_permitting_conflicts() {
         super::ProgramInputOptions::explicit_file("app.nct"),
     )
     .unwrap();
+    let standalone = super::resolve_single_file_input(&directory, "app.nct").unwrap();
 
     assert_eq!(positional, explicit);
+    assert_eq!(positional.single_file(), Some(&standalone));
     assert!(matches!(
         super::resolve_program_input(
             &directory,

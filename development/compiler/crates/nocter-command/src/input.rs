@@ -166,7 +166,9 @@ pub fn resolve_program_input(
     }
     let current_directory = canonicalize(current_directory.as_ref())?;
     match file.as_deref() {
-        Some(file) => resolve_single_file(&current_directory, file),
+        Some(file) => {
+            resolve_single_file_from(&current_directory, file).map(ResolvedProgramInput::SingleFile)
+        }
         None => resolve_package_input_from(&current_directory, root.as_deref())
             .map(ResolvedProgramInput::Package),
     }
@@ -186,6 +188,22 @@ pub fn resolve_package_input(
 ) -> Result<PackageCommandInput, ProgramInputError> {
     let current_directory = canonicalize(current_directory.as_ref())?;
     resolve_package_input_from(&current_directory, root)
+}
+
+/// Resolves exactly one explicitly selected source for a single-file-only command.
+///
+/// This boundary shares the same canonical path and source validation as program commands while
+/// making package input unrepresentable.
+///
+/// # Errors
+///
+/// Returns the exact invalid path or filesystem operation.
+pub fn resolve_single_file_input(
+    current_directory: impl AsRef<Path>,
+    source: impl AsRef<Path>,
+) -> Result<SingleFileCommandInput, ProgramInputError> {
+    let current_directory = canonicalize(current_directory.as_ref())?;
+    resolve_single_file_from(&current_directory, source.as_ref())
 }
 
 fn resolve_package_input_from(
@@ -220,10 +238,10 @@ fn resolve_package_input_from(
     })
 }
 
-fn resolve_single_file(
+fn resolve_single_file_from(
     current_directory: &Path,
     source: &Path,
-) -> Result<ResolvedProgramInput, ProgramInputError> {
+) -> Result<SingleFileCommandInput, ProgramInputError> {
     let selected = absolute_from(current_directory, source);
     if selected
         .extension()
@@ -235,10 +253,10 @@ fn resolve_single_file(
     if !metadata.is_file() {
         return Err(ProgramInputError::SourceNotFile(selected));
     }
-    Ok(ResolvedProgramInput::SingleFile(SingleFileCommandInput {
+    Ok(SingleFileCommandInput {
         invocation_directory: current_directory.to_path_buf(),
         source: canonicalize(&selected)?,
-    }))
+    })
 }
 
 fn absolute_from(current_directory: &Path, path: &Path) -> PathBuf {

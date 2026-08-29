@@ -60,6 +60,7 @@ pub use init::{InitCommandError, InitCommandResult, InitializedPackageKind, exec
 pub use input::{
     InputOperation, PackageCommandInput, ProgramInputError, ProgramInputOptions,
     ResolvedProgramInput, SingleFileCommandInput, resolve_package_input, resolve_program_input,
+    resolve_single_file_input,
 };
 pub use inspection::{
     SourceInspectionCommandError, SourceInspectionCommandResult, execute_source_inspection,
