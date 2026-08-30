@@ -1,12 +1,16 @@
 //! Owning JSON values, exact number tokens, and strict whole-text parsing.
 
+use /io.Writer
 use /map.Map
 use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./cursor.nct
+see ./escaping.nct
 see ./errors.nct
 see ./failure.nct
+see ./generation.nct
+see ./generation_failure.nct
 see ./number.nct
 see ./parsing.nct
 see ./string_decoding.nct
@@ -48,3 +52,22 @@ pub func parse(text: &str): Value!
 
 /// Parses one complete JSON text with recoverable allocation.
 pub func try_parse(allocator: &+TryAllocator, text: &str): Value! from allocator
+
+/// Generates one compact JSON text using the current allocation context.
+pub func stringify(value: &Value): String
+
+/// Generates one compact JSON text with recoverable allocation.
+pub func try_stringify(
+    allocator: &+TryAllocator,
+    value: &Value,
+): String! from allocator
+
+/// Writes one compact JSON text without constructing a complete intermediate String.
+pub func write<W>(destination: &+W, value: &Value): void! where W impl Writer
+
+/// Writes one compact JSON text with recoverable traversal-stack allocation.
+pub func try_write<W>(
+    allocator: &+TryAllocator,
+    destination: &+W,
+    value: &Value,
+): void! where W impl Writer

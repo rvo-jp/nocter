@@ -1,0 +1,7 @@
+//! Private generator failure classification retained until a public wrapper applies policy.
+
+enum GenerationAttempt {
+    complete
+    sink(failure: error)
+    allocation(failure: error)
+}

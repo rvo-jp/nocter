@@ -1,0 +1,265 @@
+//! Non-recursive compact JSON traversal shared by String and Writer output.
+
+see ./index.nct
+see ./escaping.nct
+see ./generation_failure.nct
+
+use /internal/mem.allocation_abort
+use /io.Writer
+use /map.Map
+use /mem.{TryAllocator, current_try_allocator, page_allocator, page_try_allocator}
+use /json/output.{ByteSink, StringSink, WriterSink}
+use /string.String
+use /vec.Vec
+
+enum GenerationFrame {
+    value(value: &Value)
+    array(values: &Vec<Value>, next_index: usize)
+    object(values: &Map<String, Value>, next_index: usize)
+}
+
+func emit_token<S>(
+    sink: &+S,
+    token: &str,
+): void! where S impl ByteSink {
+    sink.emit(token.bytes())?
+    return
+}
+
+func generate_core<S>(
+    allocator: &+TryAllocator,
+    sink: &+S,
+    value: &Value,
+): GenerationAttempt where S impl ByteSink {
+    var frames: Vec<GenerationFrame> = Vec.try_with_capacity(allocator, 1) catch failure {
+        return GenerationAttempt.allocation(move failure)
+    }
+    frames.try_push(GenerationFrame.value(value)) catch failure {
+        return GenerationAttempt.allocation(move failure)
+    }
+
+    loop {
+        let frame = frames.pop() otherwise { return GenerationAttempt.complete }
+        match move frame {
+            GenerationFrame.value(current) {
+                match current {
+                    Value.null {
+                        emit_token(sink, "null") catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                    }
+                    Value.boolean(state) {
+                        let truth = true
+                        let token = if state == &truth { "true" } else { "false" }
+                        emit_token(sink, token) catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                    }
+                    Value.number(number) {
+                        emit_token(sink, number.text()) catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                    }
+                    Value.string(text) {
+                        emit_json_string(sink, text) catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                    }
+                    Value.array(values) {
+                        emit_token(sink, "[") catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                        frames.try_push(GenerationFrame.array(values, 0)) catch failure {
+                            return GenerationAttempt.allocation(move failure)
+                        }
+                    }
+                    Value.object(values) {
+                        emit_token(sink, "{") catch failure {
+                            return GenerationAttempt.sink(move failure)
+                        }
+                        frames.try_push(GenerationFrame.object(values, 0)) catch failure {
+                            return GenerationAttempt.allocation(move failure)
+                        }
+                    }
+                }
+            }
+            GenerationFrame.array(values, next_index) {
+                if next_index >= values.len() {
+                    emit_token(sink, "]") catch failure {
+                        return GenerationAttempt.sink(move failure)
+                    }
+                    continue
+                }
+                if next_index != 0 {
+                    emit_token(sink, ",") catch failure {
+                        return GenerationAttempt.sink(move failure)
+                    }
+                }
+                frames.try_push(GenerationFrame.array(values, next_index + 1)) catch failure {
+                    return GenerationAttempt.allocation(move failure)
+                }
+                frames.try_push(GenerationFrame.value(&values[next_index])) catch failure {
+                    return GenerationAttempt.allocation(move failure)
+                }
+            }
+            GenerationFrame.object(values, next_index) {
+                let entry = values.entry_at(next_index) otherwise {
+                    emit_token(sink, "}") catch failure {
+                        return GenerationAttempt.sink(move failure)
+                    }
+                    continue
+                }
+                if next_index != 0 {
+                    emit_token(sink, ",") catch failure {
+                        return GenerationAttempt.sink(move failure)
+                    }
+                }
+                emit_json_string(sink, entry.key) catch failure {
+                    return GenerationAttempt.sink(move failure)
+                }
+                emit_token(sink, ":") catch failure {
+                    return GenerationAttempt.sink(move failure)
+                }
+                frames.try_push(GenerationFrame.object(values, next_index + 1)) catch failure {
+                    return GenerationAttempt.allocation(move failure)
+                }
+                frames.try_push(GenerationFrame.value(entry.value)) catch failure {
+                    return GenerationAttempt.allocation(move failure)
+                }
+            }
+        }
+    }
+}
+
+func stringify(value: &Value): String {
+    var allocator = current_try_allocator()
+    var output: String = String.try_with_capacity(&+allocator, 0) catch _ {
+        return allocation_abort()
+    }
+    var sink = StringSink.new(&+output)
+    let attempt = generate_core(&+allocator, &+sink, value)
+    match move attempt {
+        GenerationAttempt.complete { return move output }
+        GenerationAttempt.sink(_) { return allocation_abort() }
+        GenerationAttempt.allocation(_) { return allocation_abort() }
+    }
+}
+
+func try_stringify(
+    allocator: &+TryAllocator,
+    value: &Value,
+): String! from allocator {
+    var output: String = String.try_with_capacity(allocator, 0)?
+    var sink = StringSink.new(&+output)
+    let attempt = generate_core(allocator, &+sink, value)
+    match move attempt {
+        GenerationAttempt.complete { return move output }
+        GenerationAttempt.sink(failure) { return move failure }
+        GenerationAttempt.allocation(failure) { return move failure }
+    }
+}
+
+func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
+    var allocator = current_try_allocator()
+    var sink = WriterSink<W>.new(destination)
+    let attempt = generate_core(&+allocator, &+sink, value)
+    match move attempt {
+        GenerationAttempt.complete { return }
+        GenerationAttempt.sink(failure) { return move failure }
+        GenerationAttempt.allocation(_) { return allocation_abort() }
+    }
+}
+
+func try_write<W>(
+    allocator: &+TryAllocator,
+    destination: &+W,
+    value: &Value,
+): void! where W impl Writer {
+    var sink = WriterSink<W>.new(destination)
+    let attempt = generate_core(allocator, &+sink, value)
+    match move attempt {
+        GenerationAttempt.complete { return }
+        GenerationAttempt.sink(failure) { return move failure }
+        GenerationAttempt.allocation(failure) { return move failure }
+    }
+}
+
+func expect_generated(source: &str, expected: &str): void! {
+    let value = parse(source)?
+    let generated = stringify(&value)
+    if generated != expected {
+        return error.new("std.json.generation", "generated JSON text changed")
+    }
+    return
+}
+
+test generator_preserves_scalar_and_exact_number_spelling {
+    expect_generated("null", "null")?
+    expect_generated("true", "true")?
+    expect_generated("false", "false")?
+    expect_generated("-0", "-0")?
+    expect_generated("12.3400E+2", "12.3400E+2")?
+    return
+}
+
+test generator_uses_one_compact_string_escape_policy {
+    expect_generated("\"plain/solidus\"", "\"plain/solidus\"")?
+    expect_generated(
+        "\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\"",
+        "\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\"",
+    )?
+    expect_generated("\"123456789012345é\"", "\"123456789012345é\"")?
+    return
+}
+
+test generator_traverses_nested_containers_without_whitespace {
+    expect_generated(
+        "{\"items\":[null,true,-0,{\"name\":\"ok\"}]}",
+        "{\"items\":[null,true,-0,{\"name\":\"ok\"}]}",
+    )?
+    return
+}
+
+test generator_visits_every_object_entry_once {
+    let value = parse("{\"left\":1,\"right\":2}")?
+    let generated = stringify(&value)
+    let reparsed = parse(&generated as &str)?
+    match move reparsed {
+        Value.object(values) {
+            let left = String.copy("left")
+            let right = String.copy("right")
+            if values.len() != 2 ||
+                !values.contains_key(&left) ||
+                !values.contains_key(&right) {
+                return error.new("std.json.object", "object traversal changed semantic entries")
+            }
+        }
+        _ { return error.new("std.json.object", "generated object changed root variant") }
+    }
+    return
+}
+
+test generator_uses_an_explicit_stack_for_deep_values {
+    let source = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+    expect_generated(source, source)?
+    return
+}
+
+func recoverable_stringify_inside_region(value: &Value): String! {
+    var selected = page_try_allocator()
+    var backing = page_allocator()
+    region temporary using backing {
+        return try_stringify(&+selected, value)?
+    }
+    loop {}
+}
+
+test recoverable_generator_does_not_capture_the_current_region {
+    let value = parse("[\"owned\",1]")?
+    var generated = recoverable_stringify_inside_region(&value)?
+    generated.try_push_str(" 012345678901234567890123456789")?
+    if generated != "[\"owned\",1] 012345678901234567890123456789" {
+        return error.new("std.json.allocator", "generated text lost selected storage")
+    }
+    return
+}

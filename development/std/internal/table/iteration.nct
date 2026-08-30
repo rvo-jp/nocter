@@ -25,6 +25,16 @@ struct TableIntoIter<K, V> {
 }
 
 instance Table<K, V> where K impl Hash {
+    method &self.entry_at(index: usize): TableEntryRef<K, V>? {
+        if index >= self.keys.len() {
+            return none
+        }
+        return TableEntryRef<K, V> {
+            key: &self.keys[index],
+            value: &self.values[index],
+        }
+    }
+
     method &self.iter(): TableIter<K, V> {
         return TableIter<K, V> {
             keys: &self.keys as &[K],

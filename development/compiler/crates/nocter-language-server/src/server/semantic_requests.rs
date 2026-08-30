@@ -1809,7 +1809,7 @@ mod tests {
     }
 
     #[test]
-    fn json_value_and_parser_contract_are_visible_from_the_root_source() {
+    fn json_value_parser_and_generator_contracts_are_visible_from_the_root_source() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
         let uri = format!("file://{}", source.display());
@@ -1820,9 +1820,10 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
-            "use std/json.{Value, parse}\n",
+            "use std/json.{Value, parse, stringify}\n",
             "func main(): void! {\n",
             "    let value = parse(\"[1]\")?\n",
+            "    let text = stringify(&value)\n",
             "    match move value {\n",
             "        Value.array(items) { let _ = items.len() }\n",
             "        _ { return }\n",
@@ -1861,13 +1862,35 @@ mod tests {
         );
         assert!(parse_hover.issue().is_none(), "{:?}", parse_hover.issue());
 
+        let stringify_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":18}}}}}}"
+        ));
+        let response = stringify_hover.response().unwrap();
+        assert!(
+            response.contains("pub func stringify(value: &Value): String"),
+            "{response}"
+        );
+        for internal in [
+            "GenerationFrame",
+            "GenerationAttempt",
+            "ByteSink",
+            "StringSink",
+        ] {
+            assert!(!response.contains(internal), "{response}");
+        }
+        assert!(
+            stringify_hover.issue().is_none(),
+            "{:?}",
+            stringify_hover.issue()
+        );
+
         let incomplete = text.replace("Value.array", "Value.");
         let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
         assert_eq!(
             changed.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
-        let completion = request_completion(&mut server, &uri, 4, 4, 14);
+        let completion = request_completion(&mut server, &uri, 4, 5, 14);
         let response = completion.response().unwrap();
         for variant in ["null", "boolean", "number", "string", "array", "object"] {
             assert!(

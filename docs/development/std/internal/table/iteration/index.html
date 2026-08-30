@@ -127,6 +127,7 @@
                 <li><a href="../../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
                 <li><a href="../../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
+                <li><a href="../../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -187,6 +188,16 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Table</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">entry_at</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TableEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> self<span class="token-operator">.</span>keys<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-keyword">none</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-type">TableEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+            key<span class="token-operator">:</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>keys<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span>
+            value<span class="token-operator">:</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
     <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TableIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">TableIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
             keys<span class="token-operator">:</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>keys <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">,</span>

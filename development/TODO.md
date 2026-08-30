@@ -7,10 +7,10 @@ artifact, publication, and public re-download evidence is frozen; its tag and re
 not be replaced.
 
 The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON DOM, exact number
-tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 2 are complete
-and reviewed. The public contract, implementation boundary, exact Number representation, lexical
-cursor, Unicode escape foundation, typed allocation/input failure channel, owning Value model, and
-explicit-stack parser are closed; Phase 3 is the next implementation checkpoint.
+tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 3 are complete
+and reviewed. The public contract, exact Number representation, lexical cursor, Unicode escape
+foundation, typed failure channels, owning Value model, explicit-stack parser, and shared
+String/Writer generator are closed; Phase 4 is the next implementation checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -22,21 +22,20 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Implement v0.22.0 Phase 3 from the adopted JSON contract and
+Implement v0.22.0 Phase 4 from the adopted JSON contract and
 `development/docs/json-implementation.md`:
 
-- implement one iterative Value traversal shared by String and Writer destinations;
-- centralize scalar, Number, separator, member-name, and string-escape spelling decisions;
-- keep destination failure distinct from traversal-stack allocation failure until wrappers apply
-  public policy;
-- preserve exact Number spelling, Vec order, and unspecified Map iteration order;
-- qualify control escaping, Unicode output, partial destination failure, deep values, cleanup, and
-  allocator affinity;
-- review Phase 3 traversal ownership and prove that the two destinations cannot diverge in JSON
-  spelling.
+- add a complete runnable JSON application under `examples/` that composes filesystem, Writer, and
+  JSON APIs without a JSON-specific OS path;
+- qualify public-source diagnostics for malformed input and Writer failure;
+- add canonical hover, definition, completion, and signature evidence for the complete JSON
+  surface, including recoverable APIs;
+- add concise user examples to the JSON specification and generated documentation;
+- review the application boundary without introducing pretty printing, streaming input, canonical
+  ordering, or generic serialization.
 
-Do not add pretty printing, canonical member ordering, floating point, `char`, recursive JSON
-traversal, public failure wrappers, or a compiler-known JSON declaration during Phase 3.
+Do not add pretty printing, canonical member ordering, floating point, `char`, streaming JSON input,
+public failure wrappers, or a compiler-known JSON declaration during Phase 4.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

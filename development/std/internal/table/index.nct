@@ -82,6 +82,9 @@ instance Table<K, V> where K impl Hash {
 
     pub(/) method &self.equals(other: &Self): bool where (&V == &V): bool
 
+    /// Projects one semantic entry by iteration ordinal without lending the cursor itself.
+    pub(/) method &self.entry_at(index: usize): TableEntryRef<K, V>?
+
     pub(/) method &self.iter(): TableIter<K, V>
     pub(/) method &+self.iter_mut(): TableIterMut<K, V>
     pub(/) method self.into_iter(): TableIntoIter<K, V>

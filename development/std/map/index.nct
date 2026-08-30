@@ -93,6 +93,9 @@ instance Map<K, V> where K impl Hash {
 
     pub operator (&self == other: &Self): bool where (&V == &V): bool
 
+    /// Projects an entry by unspecified iteration ordinal for package-internal traversal.
+    pub(/) method &self.entry_at(index: usize): MapEntryRef<K, V>?
+
     /// Iterates over readonly semantic entries in unspecified order.
     pub operator (...&self): MapIter<K, V>
 

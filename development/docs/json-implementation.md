@@ -105,9 +105,11 @@ The parser uses only Map's semantic construction, lookup, and insertion contract
 decoded name before insertion and reports a duplicate rather than relying on replacement behavior.
 It cannot inspect table buckets, hashes, seeds, capacity policy, or iteration placement.
 
-Generation consumes the public readonly Map iterator. Unspecified object member order follows the
-public Map contract and is not stabilized by sorting private hashes or dense indices. A future
-canonical JSON API must own a separate ordering contract.
+Generation consumes a package-restricted semantic ordinal projection owned by Map. The projection
+returns the same unspecified semantic entry sequence as readonly iteration but exposes no bucket,
+hash, capacity, or dense-storage field. Keeping the container loan separate from the ordinal lets a
+suspended JSON frame retain a child value loan without also retaining and moving the cursor that
+created it. A future canonical JSON API must own a separate ordering contract.
 
 ## Existing Capabilities and Exact Gaps
 
@@ -182,6 +184,33 @@ now pass their expected success-payload type into direct generic calls, just as 
 already did. This permits `generic_call() catch` and `generic_call() otherwise` to infer result-only
 type parameters. The correction belongs to outcome-expression call planning and contains no JSON
 knowledge.
+
+## Phase 3 Realization
+
+`GenerationFrame` is the only suspended traversal state. A value frame borrows one `Value`; an
+array or object frame borrows its source container and owns the next semantic ordinal. Processing a
+container frame first pushes its resumed ordinal and then its child value, so the LIFO stack emits
+depth-first compact JSON without recursive calls. Frames never own user values and therefore add no
+parallel cleanup authority.
+
+Map owns package-restricted ordinal projection and delegates it to the private table's semantic
+entry projection. This is an inter-module contract, not a representation escape: JSON receives only
+`MapEntryRef`, and Map remains free to replace hashing, buckets, or dense storage while preserving
+the same unspecified iteration semantics. Separating source and ordinal also avoids an invalid
+self-referential state in which a frame would move an iterator while retaining a result loan from
+that iterator.
+
+`ByteSink.emit` is the only destination operation consumed by traversal and escaping. `StringSink`
+and `WriterSink` contain destination adaptation only; neither sees `Value`, punctuation, Number, or
+escape decisions. String escaping batches complete UTF-8 chunks in fixed local storage. Before a
+multibyte scalar crosses the local capacity boundary, the current chunk is flushed, so an owning
+String never receives a partial scalar even though Writer accepts arbitrary bytes.
+
+`GenerationAttempt` preserves destination failure and traversal-stack allocation failure until a
+public wrapper applies policy. `write` returns destination failure and terminates on stack
+allocation failure; `try_write` returns either. String-sink failure is allocation failure by
+construction, so `stringify` terminates and `try_stringify` returns it. None of these wrappers
+compare public error-code text to reconstruct private failure classes.
 
 ## Enforcement
 

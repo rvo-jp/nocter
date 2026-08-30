@@ -22,6 +22,83 @@ use nocter_session::{
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
+const JSON_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public JSON Writer contract tests.
+#package: { name: "json-writer-tests", version: "0.0.0", }
+#test: { name: "writer", module: "." }
+use std/io.Writer
+use std/string.String
+see ./implementation.nct
+pub struct RecordingWriter
+construct RecordingWriter {
+    pub func accepting(): Self
+    pub func failing_after(write_count: usize): Self
+}
+instance RecordingWriter {
+    impl Writer
+    pub method &self.text(): &str
+}
+"#;
+
+const JSON_WRITER_IMPLEMENTATION_TEST_SOURCE: &str = r#"see ./index.nct
+use std/json.{parse, try_write, write}
+use std/mem.page_try_allocator
+use std/string.String
+struct RecordingWriter {
+    output: String
+    write_count: usize
+    failure_at: usize
+}
+construct RecordingWriter {
+    func accepting(): Self {
+        return RecordingWriter { output: String.empty(), write_count: 0, failure_at: 1000000 }
+    }
+    func failing_after(write_count: usize): Self {
+        return RecordingWriter { output: String.empty(), write_count: 0, failure_at: write_count }
+    }
+}
+instance RecordingWriter {
+    method &+self.write(bytes: &[u8]): void! {
+        if self.write_count >= self.failure_at {
+            return error.new("test.destination", "destination rejected JSON bytes")
+        }
+        self.output.try_push_utf8(bytes)?
+        self.write_count += 1
+        return
+    }
+    method &self.text(): &str { return &self.output as &str }
+}
+test write_streams_the_shared_compact_spelling {
+    let value = parse("{\"items\":[1,\"é\"]}")?
+    var writer = RecordingWriter.accepting()
+    write(&+writer, &value)?
+    if writer.text() != "{\"items\":[1,\"é\"]}" {
+        return error.new("test.output", "Writer spelling diverged from String generation")
+    }
+    return
+}
+test try_write_uses_the_selected_traversal_allocator {
+    let value = parse("[null,true,-0]")?
+    var allocator = page_try_allocator()
+    var writer = RecordingWriter.accepting()
+    try_write(&+allocator, &+writer, &value)?
+    if writer.text() != "[null,true,-0]" {
+        return error.new("test.output", "recoverable Writer spelling changed")
+    }
+    return
+}
+test write_returns_destination_failure_after_partial_output {
+    let value = parse("[1,2]")?
+    var writer = RecordingWriter.failing_after(2)
+    write(&+writer, &value) catch failure {
+        if !failure.has_code("test.destination") || writer.text() == "[1,2]" {
+            return error.new("test.failure", "destination failure identity or partial output changed")
+        }
+        return
+    }
+    return error.new("test.failure", "destination failure was not returned")
+}
+"#;
+
 const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
 
 use std/hash.HashState
@@ -903,7 +980,7 @@ fn standard_hash_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_json_phase_two_contract_crosses_native_tests() {
+fn standard_json_phase_three_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -943,14 +1020,49 @@ fn standard_json_phase_two_contract_crosses_native_tests() {
     let mut case_count = 0;
     for target in compiled.targets() {
         let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
-            panic!("standard JSON Phase 2 tests failed native compilation")
+            panic!("standard JSON Phase 3 tests failed native compilation")
         };
         case_count += cases.len();
         for case in cases {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 14);
+    assert_eq!(case_count, 20);
+}
+
+#[test]
+fn standard_json_writer_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("index.nct", JSON_WRITER_CONTRACT_TEST_SOURCE);
+    package_root.source("implementation.nct", JSON_WRITER_IMPLEMENTATION_TEST_SOURCE);
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let package = PackageIdentity::new("workspace:json-writer-tests");
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![
+            resolved,
+            resolved_standard(&standard_root, &standard_package),
+        ]),
+        vec![ModuleIdentity::new(package, Vec::<&str>::new())],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard JSON Writer tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 3);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
 }
 
 #[test]

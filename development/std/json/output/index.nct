@@ -1,0 +1,30 @@
+//! Package-internal JSON byte destinations.
+
+use /io.Writer
+use /string.String
+see ./adapters.nct
+
+pub(/) interface ByteSink {
+    /// Accepts one complete UTF-8 chunk selected by the shared JSON spelling engine.
+    pub method &+self.emit(bytes: &[u8]): void!
+}
+
+pub(/) struct StringSink
+
+pub(/) struct WriterSink<W>
+
+construct StringSink {
+    pub(/) func new(destination: &+String): Self
+}
+
+construct WriterSink<W> {
+    pub(/) func new(destination: &+W): Self
+}
+
+instance StringSink {
+    impl ByteSink
+}
+
+instance WriterSink<W> where W impl Writer {
+    impl ByteSink
+}

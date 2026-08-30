@@ -20,6 +20,11 @@ struct MapIntoIter<K, V> {
 }
 
 instance Map<K, V> where K impl Hash {
+    method &self.entry_at(index: usize): MapEntryRef<K, V>? {
+        let entry = self.table.entry_at(index) otherwise { return none }
+        return MapEntryRef<K, V> { key: entry.key, value: entry.value }
+    }
+
     operator (...&self): MapIter<K, V> {
         return MapIter<K, V> { source: self.table.iter() }
     }

@@ -1,0 +1,40 @@
+//! String and Writer adapters for the package-internal JSON byte-sink contract.
+
+see ./index.nct
+
+use /io.Writer
+use /string.String
+
+struct StringSink {
+    destination: &+String
+}
+
+struct WriterSink<W> {
+    destination: &+W
+}
+
+construct StringSink {
+    func new(destination: &+String): Self {
+        return StringSink { destination: destination }
+    }
+}
+
+construct WriterSink<W> {
+    func new(destination: &+W): Self {
+        return WriterSink<W> { destination: destination }
+    }
+}
+
+instance StringSink {
+    method &+self.emit(bytes: &[u8]): void! {
+        self.destination.try_push_utf8(bytes)?
+        return
+    }
+}
+
+instance WriterSink<W> where W impl Writer {
+    method &+self.emit(bytes: &[u8]): void! {
+        self.destination.write(bytes)?
+        return
+    }
+}

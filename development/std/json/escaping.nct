@@ -1,0 +1,118 @@
+//! One compact JSON string-escaping authority shared by every output sink.
+
+see ./index.nct
+
+use /internal/ptr.slice_from_raw_parts_value
+use /json/output.ByteSink
+use /ptr.from_ref
+
+struct EscapeBuffer {
+    storage: [u8; 16]
+    len: usize
+}
+
+construct EscapeBuffer {
+    func empty(): Self {
+        return EscapeBuffer {
+            storage: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            len: 0,
+        }
+    }
+}
+
+instance EscapeBuffer {
+    method &self.bytes(): &[u8] {
+        return slice_from_raw_parts_value(from_ref(&self.storage[0]), self.len)
+    }
+
+    method &+self.flush<S>(sink: &+S): void! where S impl ByteSink {
+        if self.len == 0 { return }
+        sink.emit(self.bytes())?
+        self.len = 0
+        return
+    }
+
+    method &+self.push<S>(sink: &+S, byte: u8): void! where S impl ByteSink {
+        if self.len == 16 {
+            self.flush(sink)?
+        }
+        self.storage[self.len] = byte
+        self.len += 1
+        return
+    }
+
+    method &+self.prepare<S>(sink: &+S, additional: usize): void! where S impl ByteSink {
+        if self.len + additional > 16 {
+            self.flush(sink)?
+        }
+        return
+    }
+}
+
+func hexadecimal_digit(value: u8): u8 {
+    if value < 10 { return 48 + value }
+    return 65 + value - 10
+}
+
+func push_control_escape<S>(
+    buffer: &+EscapeBuffer,
+    sink: &+S,
+    byte: u8,
+): void! where S impl ByteSink {
+    buffer.push(sink, 92)?
+    if byte == 8 {
+        buffer.push(sink, 98)?
+    } else if byte == 12 {
+        buffer.push(sink, 102)?
+    } else if byte == 10 {
+        buffer.push(sink, 110)?
+    } else if byte == 13 {
+        buffer.push(sink, 114)?
+    } else if byte == 9 {
+        buffer.push(sink, 116)?
+    } else {
+        buffer.push(sink, 117)?
+        buffer.push(sink, 48)?
+        buffer.push(sink, 48)?
+        buffer.push(sink, hexadecimal_digit(byte / 16))?
+        buffer.push(sink, hexadecimal_digit(byte % 16))?
+    }
+    return
+}
+
+func emit_json_string<S>(sink: &+S, text: &str): void! where S impl ByteSink {
+    sink.emit("\"".bytes())?
+    var buffer = EscapeBuffer.empty()
+    let bytes = text.bytes()
+    var index: usize = 0
+    while index < bytes.len() {
+        let byte = bytes[index]
+        if byte == 34 || byte == 92 {
+            buffer.push(sink, 92)?
+            buffer.push(sink, byte)?
+        } else if byte < 32 {
+            push_control_escape(&+buffer, sink, byte)?
+        } else if byte < 128 {
+            buffer.push(sink, byte)?
+        } else {
+            let width: usize = if byte < 224 {
+                2
+            } else if byte < 240 {
+                3
+            } else {
+                4
+            }
+            buffer.prepare(sink, width)?
+            var scalar_index: usize = 0
+            while scalar_index < width {
+                buffer.push(sink, bytes[index + scalar_index])?
+                scalar_index += 1
+            }
+            index += width - 1
+        }
+        index += 1
+    }
+    buffer.flush(sink)?
+    sink.emit("\"".bytes())?
+    return
+}

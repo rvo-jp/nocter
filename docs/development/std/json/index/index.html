@@ -127,6 +127,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -162,13 +163,17 @@
             <div class="markdown-body">
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning JSON values, exact number tokens, and strict whole-text parsing.</span>
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Writer</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>map<span class="token-operator">.</span><span class="token-type">Map</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>cursor<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>escaping<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>generation<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>generation_failure<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>number<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>string_decoding<span class="token-operator">.</span>nct
@@ -210,6 +215,25 @@
 
 <span class="token-comment">/// Parses one complete JSON text with recoverable allocation.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_parse</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span> from allocator
+
+<span class="token-comment">/// Generates one compact JSON text using the current allocation context.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stringify</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+<span class="token-comment">/// Generates one compact JSON text with recoverable allocation.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_stringify</span><span class="token-operator">(</span>
+    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+    value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+
+<span class="token-comment">/// Writes one compact JSON text without constructing a complete intermediate String.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+
+<span class="token-comment">/// Writes one compact JSON text with recoverable traversal-stack allocation.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> try_write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
+    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+    destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span>
+    value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
 </code></pre>
             </div>
         </main>
