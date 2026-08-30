@@ -1,0 +1,95 @@
+//! Representation-neutral cursors over the table's dense entry owner.
+//!
+//! Public collections consume only these paired entry steps. Bucket metadata and the parallel
+//! Vec invariant remain private to this module.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+
+struct TableIter<K, V> {
+    keys: &[K]
+    values: &[V]
+    next_index: usize
+}
+
+struct TableIterMut<K, V> {
+    keys: &[K]
+    values: &+[V]
+    next_index: usize
+}
+
+struct TableIntoIter<K, V> {
+    table: Table<K, V>
+}
+
+instance Table<K, V> where K impl Hash {
+    method &self.iter(): TableIter<K, V> {
+        return TableIter<K, V> {
+            keys: &self.keys as &[K],
+            values: &self.values as &[V],
+            next_index: 0,
+        }
+    }
+
+    method &+self.iter_mut(): TableIterMut<K, V> {
+        return TableIterMut<K, V> {
+            keys: &self.keys as &[K],
+            values: &+self.values as &+[V],
+            next_index: 0,
+        }
+    }
+
+    method self.into_iter(): TableIntoIter<K, V> {
+        return TableIntoIter<K, V> { table: move self }
+    }
+}
+
+instance TableIter<K, V> {
+    method &self.remaining(): usize {
+        return self.keys.len() - self.next_index
+    }
+
+    method &+self.advance(): TableEntryRef<K, V>? {
+        if self.next_index >= self.keys.len() {
+            return none
+        }
+        let index = self.next_index
+        self.next_index = index + 1
+        return TableEntryRef<K, V> {
+            key: &self.keys[index],
+            value: &self.values[index],
+        }
+    }
+}
+
+instance TableIterMut<K, V> {
+    method &self.remaining(): usize {
+        return self.keys.len() - self.next_index
+    }
+
+    method &+self.advance(): TableEntryMut<K, V>? {
+        if self.next_index >= self.keys.len() {
+            return none
+        }
+        let index = self.next_index
+        self.next_index = index + 1
+        return TableEntryMut<K, V> {
+            key: &self.keys[index],
+            value: &+self.values[index],
+        }
+    }
+}
+
+instance TableIntoIter<K, V> {
+    method &self.remaining(): usize {
+        return self.table.keys.len()
+    }
+
+    method &+self.advance(): TableEntry<K, V>? {
+        let key = self.table.keys.pop() otherwise { return none }
+        let value = self.table.values.pop() otherwise { return none }
+        return TableEntry<K, V> { key: move key, value: move value }
+    }
+}

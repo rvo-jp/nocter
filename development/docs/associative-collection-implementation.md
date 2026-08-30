@@ -26,7 +26,7 @@ Map public surface
         -> RawBuffer and allocator contracts
 
 Set public surface
-    -> Map-owned private table contract
+    -> shared private table contract
 ```
 
 The frontend owns authored syntax, key/value types, evaluation order, ownership, cleanup, and
@@ -75,6 +75,27 @@ Public capacity is the minimum of key, value, and usable bucket capacity. A reco
 prepare one internal store before a later allocation fails, but the published minimum and logical
 entries remain unchanged. Capacity arithmetic uses checked standard-internal helpers. No caller
 supplies an initialized count, bucket index, or repair obligation.
+
+## Cursor and Set Boundary
+
+The table exports three package-only cursor capabilities to public collection modules. Readonly
+and readwrite cursors retain paired dense views plus one monotonically increasing index. The
+readwrite cursor projects a readonly key and a readwrite value from the same dense index, so public
+iteration cannot mutate a key or invalidate its hash class. The owning cursor retains the table
+owner itself and transfers one key/value pair from the dense tail on each step. Dropping that cursor
+therefore destroys every unconsumed key and value through the ordinary table owner; no iterator
+maintains a second initialized-count authority.
+
+These cursors deliberately do not implement the public iterator interfaces. Their package contract
+contains only `remaining` and `advance`. `MapIter`, `MapIterMut`, `MapIntoIter`, `SetIter`, and
+`SetIntoIter` are the public protocol adapters and the only owners of public item semantics. Their
+exact remaining length delegates to the cursor's dense count. Map projects semantic entry structs;
+Set projects only keys and destroys its private zero-sized marker internally.
+
+`Set<T>` contains `Table<T, SetValue>` directly. Insertion, lookup, removal, reserve, cleanup,
+seeding, collision handling, and allocation affinity all remain table operations. Set owns only the
+meaning of duplicate insertion, membership, equality, and key-only iteration. There is no second
+probing or repair implementation.
 
 ## Seed Boundary
 

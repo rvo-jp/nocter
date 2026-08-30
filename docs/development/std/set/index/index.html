@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/map/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/map/index.nct.">
+    <title>development/std/set/index.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/set/index.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/map/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/set/index/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/map/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/map/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/map/index/">
+    <meta property="og:title" content="development/std/set/index.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/set/index.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/set/index/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/map/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/map/index.nct.">
+    <meta name="twitter:title" content="development/std/set/index.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/set/index.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/map/index.nct - Nocter","description":"Nocter source code for development/std/map/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/map/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Map","item":"https://nocter.dev/development/std/map/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/map/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/set/index.nct - Nocter","description":"Nocter source code for development/std/set/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/set/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Set","item":"https://nocter.dev/development/std/set/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/set/index/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -150,13 +150,14 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/map/index.nct</span>
+                <span class="markdown-path-text">/development/std/set/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning associative map.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning associative set.</span>
 <span class="token-comment">//!</span>
-<span class="token-comment">//! Map exposes key/value semantics while its seeded open-addressed representation remains</span>
-<span class="token-comment">//! private to the standard library. Bucket count, placement, and iteration order are not API.</span>
+<span class="token-comment">//! Set exposes equality-class membership while sharing the standard library's private seeded</span>
+<span class="token-comment">//! table engine with Map. It has no readwrite iteration because changing a stored value could</span>
+<span class="token-comment">//! invalidate its hash class.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">}</span>
@@ -166,96 +167,61 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>operations<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>iteration<span class="token-operator">.</span>nct
 
-<span class="token-comment">/// An owning collection containing one value for each equality class of keys.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+<span class="token-comment">/// An owning collection containing one representative of each equality class.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Set</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-<span class="token-comment">/// One readonly key/value entry borrowed from a Map.</span>
-<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">MapEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
-<span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">SetIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-<span class="token-comment">/// One Map entry with a readonly key and an exclusive value loan.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapEntryMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
-<span class="token-operator">}</span>
-
-<span class="token-comment">/// One key/value entry transferred from an owning Map iterator.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapEntry</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-type">K</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">V</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+<span class="token-keyword">instance</span> <span class="token-type">SetIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">impl</span> <span class="token-type">ExactSizeIterator</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">MapEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">}</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">SetIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+<span class="token-keyword">instance</span> <span class="token-type">SetIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">impl</span> <span class="token-type">ExactSizeIterator</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">MapEntryMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">}</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">T</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+<span class="token-keyword">construct</span> <span class="token-type">Set</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Constructs a Set from owned items evaluated from left to right.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">ExactSizeIterator</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">MapEntry</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">}</span>
-<span class="token-operator">}</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
-<span class="token-keyword">construct</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Constructs a map from owned key/value entries evaluated from left to right.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">:</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_entries</span><span class="token-operator">(</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_items</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
+        <span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
+<span class="token-keyword">instance</span> <span class="token-type">Set</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">?</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">get_mut</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span><span class="token-operator">?</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains_key</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span><span class="token-operator">!</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
+    <span class="token-comment">/// Iterates over readonly values in unspecified order.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SetIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">V</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-comment">/// Transfers every stored value exactly once in unspecified order.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SetIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
-    <span class="token-comment">/// Iterates over readonly semantic entries in unspecified order.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
-
-    <span class="token-comment">/// Iterates with readonly keys and exclusive value loans in unspecified order.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
-
-    <span class="token-comment">/// Transfers every semantic entry exactly once in unspecified order.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

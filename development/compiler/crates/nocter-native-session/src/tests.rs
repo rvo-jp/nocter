@@ -25,7 +25,6 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
 
 use std/hash.HashState
-use std/map.Map
 use std/mem.page_try_allocator
 use std/string.String
 
@@ -37,6 +36,10 @@ instance CollisionKey {
 instance Marker {
     operator (&self == other: &Self): bool { return true }
     method &self.hash_into(state: &+HashState): void { return }
+}
+
+struct Counter {
+    value: i32
 }
 
 test literal_replacement_mutation_and_equality {
@@ -172,6 +175,84 @@ test recoverable_capacity_overflow_is_semantically_atomic {
         return
     }
     return error.new("std.map.overflow_accepted", "overflowing reserve succeeded")
+}
+
+test map_iteration_modes_are_semantic_and_exact {
+    var values = Map [1: Counter { value: 10 }, 2: Counter { value: 20 }, 3: Counter { value: 30 }]
+    var readonly_count: usize = 0
+    var readonly_total: i32 = 0
+    for entry in &values {
+        readonly_count += 1
+        readonly_total += entry.value.value
+    }
+    if readonly_count != values.len() || readonly_total != 60 {
+        return error.new("std.map.readonly_iteration", "readonly iteration lost an entry")
+    }
+
+    for entry in &+values {
+        entry.value.value += 5
+    }
+    let one: i32 = 1
+    let three: i32 = 3
+    if values[&one].value != 15 || values[&three].value != 35 {
+        return error.new("std.map.mutable_iteration", "mutable iteration did not update values")
+    }
+    return
+}
+
+test owning_map_iteration_transfers_entries_once {
+    let values = Map [1: String "one", 2: String "two", 3: String "three"]
+    var seen: usize = 0
+    for entry in move values {
+        if entry.key == 1 && entry.value == String "one" { seen += 1 }
+        if entry.key == 2 && entry.value == String "two" { seen += 1 }
+        if entry.key == 3 && entry.value == String "three" { seen += 1 }
+    }
+    if seen != 3 {
+        return error.new("std.map.owning_iteration", "owning iteration lost an entry")
+    }
+    return
+}
+
+test abandoned_owning_iteration_drops_the_remaining_table {
+    let values = Map [1: String "one", 2: String "two", 3: String "three"]
+    var yielded: usize = 0
+    for entry in move values {
+        let _ = entry.key
+        yielded += 1
+        break
+    }
+    if yielded != 1 {
+        return error.new("std.map.owning_cleanup", "owning iteration did not yield once")
+    }
+    return
+}
+
+test set_shares_membership_storage_and_iteration {
+    var values = Set [1, 2, 1, 3]
+    if values.len() != 3 || values.insert(2) || !values.insert(4) {
+        return error.new("std.set.insert", "Set duplicate semantics are incorrect")
+    }
+    let two: i32 = 2
+    if !values.contains(&two) || !values.remove(&two) || values.contains(&two) {
+        return error.new("std.set.remove", "Set removal is incorrect")
+    }
+    let expected = Set [4, 3, 1]
+    if !(values == expected) {
+        return error.new("std.set.equality", "Set equality depended on placement or order")
+    }
+
+    var readonly_count: usize = 0
+    for item in &values {
+        let _ = item
+        readonly_count += 1
+    }
+    var owned_total: i32 = 0
+    for item in move values { owned_total += item }
+    if readonly_count != 3 || owned_total != 8 {
+        return error.new("std.set.iteration", "Set iteration lost a value")
+    }
+    return
 }
 
 "#;
@@ -835,7 +916,6 @@ fn standard_map_contract_crosses_native_tests() {
         ),
     );
     let contract_source = "use std/hash.{Hash, HashState}\n\
-         use std/map.Map\n\
          use std/mem.page_try_allocator\n\
          use std/string.String\n\
          see ./implementation.nct\n\
@@ -877,7 +957,7 @@ fn standard_map_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard map tests failed native compilation")
     };
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 8);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

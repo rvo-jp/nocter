@@ -4,13 +4,54 @@
 //! private to the standard library. Bucket count, placement, and iteration order are not API.
 
 use /hash.Hash
+use /iter.{ExactSizeIterator, Iterator}
 use /mem.TryAllocator
 see ./storage.nct
 see ./construction.nct
 see ./operations.nct
+see ./iteration.nct
 
 /// An owning collection containing one value for each equality class of keys.
 pub struct Map<K, V>
+
+/// One readonly key/value entry borrowed from a Map.
+pub copy struct MapEntryRef<K, V> {
+    pub key: &K
+    pub value: &V
+}
+
+/// One Map entry with a readonly key and an exclusive value loan.
+pub struct MapEntryMut<K, V> {
+    pub key: &K
+    pub value: &+V
+}
+
+/// One key/value entry transferred from an owning Map iterator.
+pub struct MapEntry<K, V> {
+    pub key: K
+    pub value: V
+}
+
+pub struct MapIter<K, V>
+
+instance MapIter<K, V> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = MapEntryRef<K, V> }
+}
+
+pub struct MapIterMut<K, V>
+
+instance MapIterMut<K, V> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = MapEntryMut<K, V> }
+}
+
+pub struct MapIntoIter<K, V>
+
+instance MapIntoIter<K, V> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = MapEntry<K, V> }
+}
 
 construct Map<K, V> {
     /// Constructs a map from owned key/value entries evaluated from left to right.
@@ -51,4 +92,13 @@ instance Map<K, V> where K impl Hash {
     pub operator (&+self[key: &K]): &+V
 
     pub operator (&self == other: &Self): bool where (&V == &V): bool
+
+    /// Iterates over readonly semantic entries in unspecified order.
+    pub operator (...&self): MapIter<K, V>
+
+    /// Iterates with readonly keys and exclusive value loans in unspecified order.
+    pub operator (...&+self): MapIterMut<K, V>
+
+    /// Transfers every semantic entry exactly once in unspecified order.
+    pub operator (...self): MapIntoIter<K, V>
 }

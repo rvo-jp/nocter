@@ -1,0 +1,11 @@
+//! Private Set representation over the shared associative table.
+
+see ./index.nct
+
+use /internal/table.Table
+
+struct SetValue {}
+
+struct Set<T> {
+    table: Table<T, SetValue>
+}

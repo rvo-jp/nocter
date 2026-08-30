@@ -1,0 +1,68 @@
+//! Set observation, mutation, and semantic equality.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+
+instance Set<T> where T impl Hash {
+    method &self.len(): usize {
+        return self.table.len()
+    }
+
+    method &self.is_empty(): bool {
+        return self.table.is_empty()
+    }
+
+    method &self.capacity(): usize {
+        return self.table.capacity()
+    }
+
+    method &self.contains(value: &T): bool {
+        return self.table.contains_key(value)
+    }
+
+    method &+self.insert(value: T): bool {
+        let _ = self.table.insert(move value, SetValue {}) otherwise { return true }
+        return false
+    }
+
+    method &+self.try_insert(value: T): bool! {
+        let _ = self.table.try_insert(move value, SetValue {})? otherwise { return true }
+        return false
+    }
+
+    method &+self.remove(value: &T): bool {
+        let _ = self.table.remove(value) otherwise { return false }
+        return true
+    }
+
+    method &+self.clear(): void {
+        self.table.clear()
+        return
+    }
+
+    method &+self.reserve(additional: usize): void {
+        self.table.reserve(additional)
+        return
+    }
+
+    method &+self.try_reserve(additional: usize): void! {
+        self.table.try_reserve(additional)?
+        return
+    }
+
+    operator (&self == other: &Self): bool {
+        if self.len() != other.len() {
+            return false
+        }
+        var entries = self.table.iter()
+        loop {
+            let entry = entries.advance() otherwise { break }
+            if !other.contains(entry.key) {
+                return false
+            }
+        }
+        return true
+    }
+}

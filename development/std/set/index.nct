@@ -1,0 +1,70 @@
+//! Owning associative set.
+//!
+//! Set exposes equality-class membership while sharing the standard library's private seeded
+//! table engine with Map. It has no readwrite iteration because changing a stored value could
+//! invalidate its hash class.
+
+use /hash.Hash
+use /iter.{ExactSizeIterator, Iterator}
+use /mem.TryAllocator
+see ./storage.nct
+see ./construction.nct
+see ./operations.nct
+see ./iteration.nct
+
+/// An owning collection containing one representative of each equality class.
+pub struct Set<T>
+
+pub struct SetIter<T>
+
+instance SetIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = &T }
+}
+
+pub struct SetIntoIter<T>
+
+instance SetIntoIter<T> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = T }
+}
+
+construct Set<T> {
+    /// Constructs a Set from owned items evaluated from left to right.
+    pub literal [](...items: T): Self where T impl Hash
+
+    pub func empty(): Self where T impl Hash
+
+    pub func with_capacity(minimum: usize): Self where T impl Hash
+
+    pub func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where T impl Hash
+
+    pub func try_from_items(
+        allocator: &+TryAllocator,
+        ...items: T,
+    ): Self! where T impl Hash
+}
+
+instance Set<T> where T impl Hash {
+    pub method &self.len(): usize
+    pub method &self.is_empty(): bool
+    pub method &self.capacity(): usize
+    pub method &self.contains(value: &T): bool
+    pub method &+self.insert(value: T): bool
+    pub method &+self.try_insert(value: T): bool!
+    pub method &+self.remove(value: &T): bool
+    pub method &+self.clear(): void
+    pub method &+self.reserve(additional: usize): void
+    pub method &+self.try_reserve(additional: usize): void!
+
+    /// Iterates over readonly values in unspecified order.
+    pub operator (...&self): SetIter<T>
+
+    /// Transfers every stored value exactly once in unspecified order.
+    pub operator (...self): SetIntoIter<T>
+
+    pub operator (&self == other: &Self): bool
+}

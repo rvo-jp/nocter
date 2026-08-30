@@ -1,0 +1,46 @@
+//! Set construction and sequence-literal consumption.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+use /internal/table.Table
+use /mem.TryAllocator
+
+construct Set<T> {
+    literal [](...items: T): Self where T impl Hash {
+        var result: Set<T> = Set.with_capacity(items.len())
+        for item in items {
+            let _ = result.insert(move item)
+        }
+        return move result
+    }
+
+    func empty(): Self where T impl Hash {
+        return Set<T> { table: Table.empty() }
+    }
+
+    func with_capacity(minimum: usize): Self where T impl Hash {
+        return Set<T> { table: Table.with_capacity(minimum) }
+    }
+
+    func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where T impl Hash {
+        return Set<T> {
+            table: Table.try_with_capacity(allocator, minimum)?,
+        }
+    }
+
+    func try_from_items(
+        allocator: &+TryAllocator,
+        ...items: T,
+    ): Self! where T impl Hash {
+        var result: Set<T> = Set.try_with_capacity(allocator, items.len())?
+        for item in items {
+            let _ = result.try_insert(move item)?
+        }
+        return move result
+    }
+}

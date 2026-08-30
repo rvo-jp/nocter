@@ -74,9 +74,14 @@ Phase 3 is complete and reviewed. The
 failure-atomic capacity publication, package-only safety boundary, public `Map<K, V>` delegation,
 and native qualification.
 
-Begin Phase 4 with semantic map entry types, readonly/readwrite/owning Map iterators, readonly and
-owning Set iterators, and `Set<T>` over the same private table. Do not introduce `HashMap`/`HashSet`
-aliases, a compiler-known table, two independent Map/Set storage engines, or public bucket access.
+Phase 4 is complete and reviewed. The
+[Phase 4 review](reviews/v0.21.0-phase-4.md) records package-only paired cursors,
+readonly/readwrite/owning Map iteration, readonly/owning Set iteration, exact remaining lengths,
+shared storage delegation, prelude exports, and native cleanup qualification.
+
+Begin Phase 5 with practical examples, complete editor qualification, user-facing diagnostics,
+formatting, and release-surface review. Do not introduce `HashMap`/`HashSet` aliases, a
+compiler-known table, two independent Map/Set storage engines, or public bucket access.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

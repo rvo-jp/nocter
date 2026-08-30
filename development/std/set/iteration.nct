@@ -1,0 +1,48 @@
+//! Set iterators projected from the shared table cursor contract.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+use /internal/table.{TableIntoIter, TableIter}
+use /iter.{ExactSizeIterator, Iterator}
+
+struct SetIter<T> {
+    source: TableIter<T, SetValue>
+}
+
+struct SetIntoIter<T> {
+    source: TableIntoIter<T, SetValue>
+}
+
+instance Set<T> where T impl Hash {
+    operator (...&self): SetIter<T> {
+        return SetIter<T> { source: self.table.iter() }
+    }
+
+    operator (...self): SetIntoIter<T> {
+        return SetIntoIter<T> { source: self.table.into_iter() }
+    }
+}
+
+instance SetIter<T> {
+    method &self.remaining_len(): usize {
+        return self.source.remaining()
+    }
+
+    method &+self.next(): &T? {
+        let entry = self.source.advance() otherwise { return none }
+        return entry.key
+    }
+}
+
+instance SetIntoIter<T> {
+    method &self.remaining_len(): usize {
+        return self.source.remaining()
+    }
+
+    method &+self.next(): T? {
+        let entry = self.source.advance() otherwise { return none }
+        return move entry.key
+    }
+}

@@ -9,3 +9,5 @@ use /fmt
 pub use /string.String
 pub use /vec.Vec
 pub use /iter.Iterator
+pub use /map.Map
+pub use /set.Set

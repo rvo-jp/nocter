@@ -10,8 +10,48 @@ see ./storage.nct
 see ./probing.nct
 see ./growth.nct
 see ./mutation.nct
+see ./iteration.nct
 
 pub(/) struct Table<K, V>
+
+/// One readonly dense entry projected without exposing table metadata.
+pub(/) copy struct TableEntryRef<K, V> {
+    pub(/) key: &K
+    pub(/) value: &V
+}
+
+/// One entry with a stable readonly key and an exclusive value loan.
+pub(/) struct TableEntryMut<K, V> {
+    pub(/) key: &K
+    pub(/) value: &+V
+}
+
+/// One entry transferred out of an owning table cursor.
+pub(/) struct TableEntry<K, V> {
+    pub(/) key: K
+    pub(/) value: V
+}
+
+pub(/) struct TableIter<K, V>
+
+instance TableIter<K, V> {
+    pub(/) method &self.remaining(): usize
+    pub(/) method &+self.advance(): TableEntryRef<K, V>?
+}
+
+pub(/) struct TableIterMut<K, V>
+
+instance TableIterMut<K, V> {
+    pub(/) method &self.remaining(): usize
+    pub(/) method &+self.advance(): TableEntryMut<K, V>?
+}
+
+pub(/) struct TableIntoIter<K, V>
+
+instance TableIntoIter<K, V> {
+    pub(/) method &self.remaining(): usize
+    pub(/) method &+self.advance(): TableEntry<K, V>?
+}
 
 construct Table<K, V> {
     pub(/) func empty(): Self where K impl Hash
@@ -41,4 +81,8 @@ instance Table<K, V> where K impl Hash {
     pub(/) method &+self.try_reserve(additional: usize): void!
 
     pub(/) method &self.equals(other: &Self): bool where (&V == &V): bool
+
+    pub(/) method &self.iter(): TableIter<K, V>
+    pub(/) method &+self.iter_mut(): TableIterMut<K, V>
+    pub(/) method self.into_iter(): TableIntoIter<K, V>
 }
