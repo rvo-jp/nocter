@@ -10,7 +10,8 @@ The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON 
 tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 5 are complete
 and reviewed. The public contract, implementation, practical integration, adversarial JSON matrix,
 shared collection failure policy, standard dependency audit, and public contract documentation are
-closed. Release preparation is the next checkpoint.
+closed. Release-content identity is fixed; duplicate source and artifact qualification is the
+current checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -22,16 +23,16 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Prepare the v0.22.0 release candidate without changing the completed JSON or standard-library
-contract:
+Qualify the fixed v0.22.0 release-content commit without changing the completed JSON or
+standard-library contract:
 
-- align the release version, standard package identity, manifest, release notes, and public links;
 - run two independent complete source qualifications and warnings-denied Clippy gates;
 - generate two deterministic optimized artifacts and compare both archives and installed homes;
 - qualify a fresh installed home across version, doctor, help, init, offline check/test/graph,
   native run/build, direct execution, and framed LSP requests;
 - remove the JSON future-direction notice only after that installed candidate passes;
-- freeze candidate hashes and evidence, then wait for explicit publication authorization.
+- promote the JSON contract after the installed candidate passes, freeze candidate hashes and
+  evidence, then wait for explicit publication authorization.
 
 Do not add pretty printing, canonical member ordering, floating point, `char`, streaming JSON input,
 public failure wrappers, or a compiler-known JSON declaration during release preparation.

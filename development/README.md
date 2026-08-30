@@ -11,6 +11,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.22.0 milestone](milestones/v0.22.0.md)
+- [v0.22.0 release preparation](milestones/v0.22.0-release-preparation.md)
 - [v0.22.0 Phase 0 JSON design review](reviews/v0.22.0-phase-0.md)
 - [v0.22.0 Phase 1 lexical and Unicode review](reviews/v0.22.0-phase-1.md)
 - [v0.22.0 Phase 2 owning DOM parser review](reviews/v0.22.0-phase-2.md)
