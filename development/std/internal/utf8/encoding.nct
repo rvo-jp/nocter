@@ -1,0 +1,125 @@
+//! Unicode scalar to UTF-8 encoding.
+
+see ./index.nct
+
+use /internal/ptr.slice_from_raw_parts_value
+use /ptr.from_ref
+
+copy struct ScalarEncoding {
+    encoded_bytes: [u8; 4]
+    initialized_len: usize
+}
+
+func encode_scalar(value: u32): ScalarEncoding? {
+    if value > 1114111 { return none }
+    if value >= 55296 && value <= 57343 { return none }
+    if value <= 127 {
+        return ScalarEncoding {
+            encoded_bytes: [u8.truncate(value as u64), 0, 0, 0],
+            initialized_len: 1,
+        }
+    }
+    if value <= 2047 {
+        let first: u32 = 192 + value / 64
+        let second: u32 = 128 + value % 64
+        return ScalarEncoding {
+            encoded_bytes: [
+                u8.truncate(first as u64),
+                u8.truncate(second as u64),
+                0,
+                0,
+            ],
+            initialized_len: 2,
+        }
+    }
+    if value <= 65535 {
+        let first: u32 = 224 + value / 4096
+        let second: u32 = 128 + value / 64 % 64
+        let third: u32 = 128 + value % 64
+        return ScalarEncoding {
+            encoded_bytes: [
+                u8.truncate(first as u64),
+                u8.truncate(second as u64),
+                u8.truncate(third as u64),
+                0,
+            ],
+            initialized_len: 3,
+        }
+    }
+    let first: u32 = 240 + value / 262144
+    let second: u32 = 128 + value / 4096 % 64
+    let third: u32 = 128 + value / 64 % 64
+    let fourth: u32 = 128 + value % 64
+    return ScalarEncoding {
+        encoded_bytes: [
+            u8.truncate(first as u64),
+            u8.truncate(second as u64),
+            u8.truncate(third as u64),
+            u8.truncate(fourth as u64),
+        ],
+        initialized_len: 4,
+    }
+}
+
+instance ScalarEncoding {
+    method &self.bytes(): &[u8] {
+        return slice_from_raw_parts_value(from_ref(&self.encoded_bytes[0]), self.initialized_len)
+    }
+}
+
+func scalar_matches(
+    value: u32,
+    first: u8,
+    second: u8,
+    third: u8,
+    fourth: u8,
+    len: usize,
+): bool {
+    let encoded = encode_scalar(value) otherwise { return false }
+    let bytes = encoded.bytes()
+    if bytes.len() != len { return false }
+    if bytes[0] != first { return false }
+    if len > 1 {
+        if bytes[1] != second { return false }
+    }
+    if len > 2 {
+        if bytes[2] != third { return false }
+    }
+    if len > 3 {
+        if bytes[3] != fourth { return false }
+    }
+    return true
+}
+
+func scalar_is_rejected(value: u32): bool {
+    let _encoded = encode_scalar(value) otherwise { return true }
+    return false
+}
+
+test scalar_boundaries_encode_exact_utf8 {
+    if !scalar_matches(127, 127, 0, 0, 0, 1) {
+        return error.new("std.utf8.encoding", "ASCII scalar encoding changed")
+    }
+    if !scalar_matches(128, 194, 128, 0, 0, 2) {
+        return error.new("std.utf8.encoding", "two-byte scalar encoding changed")
+    }
+    if !scalar_matches(2048, 224, 160, 128, 0, 3) {
+        return error.new("std.utf8.encoding", "three-byte scalar encoding changed")
+    }
+    if !scalar_matches(55295, 237, 159, 191, 0, 3) {
+        return error.new("std.utf8.encoding", "pre-surrogate scalar encoding changed")
+    }
+    if !scalar_matches(57344, 238, 128, 128, 0, 3) {
+        return error.new("std.utf8.encoding", "post-surrogate scalar encoding changed")
+    }
+    if !scalar_matches(65536, 240, 144, 128, 128, 4) {
+        return error.new("std.utf8.encoding", "four-byte scalar encoding changed")
+    }
+    if !scalar_matches(1114111, 244, 143, 191, 191, 4) {
+        return error.new("std.utf8.encoding", "maximum scalar encoding changed")
+    }
+    if !scalar_is_rejected(55296) || !scalar_is_rejected(57343) || !scalar_is_rejected(1114112) {
+        return error.new("std.utf8.encoding", "invalid Unicode scalar was accepted")
+    }
+    return
+}

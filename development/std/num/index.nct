@@ -37,6 +37,14 @@ pub primitive type usize
 /// Pointer-sized signed integer.
 pub primitive type isize
 
+construct u8 {
+    /// Converts a value when it is representable as `u8`.
+    pub func checked(value: u64): Self?
+
+    /// Keeps the low eight bits of a value.
+    pub func truncate(value: u64): Self
+}
+
 instance u64 {
     /// Adds two values modulo 2^64.
     pub method self.wrapping_add(other: u64): u64

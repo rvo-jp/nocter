@@ -835,6 +835,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.22.0-phase-1/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/core/index/</loc>
     <lastmod>2026-08-25</lastmod>
     <changefreq>weekly</changefreq>
@@ -1057,8 +1063,14 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/internal/utf8/encoding/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/internal/utf8/index/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1147,6 +1159,42 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/json/cursor/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/json/errors/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/json/failure/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/json/index/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/json/number/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/json/string_decoding/</loc>
+    <lastmod>2026-08-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/map/construction/</loc>
     <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
@@ -1184,7 +1232,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/mem/index/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1202,7 +1250,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/mem/storage/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1340,13 +1388,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/index/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/mutation/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

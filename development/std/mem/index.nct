@@ -28,6 +28,9 @@ pub struct TryAllocator
 
 pub(/) func current_allocator(): Allocator
 
+/// Adapts the active context for package-internal recoverable implementation cores.
+pub(/) func current_try_allocator(): TryAllocator
+
 pub func page_allocator(): Allocator
 
 pub func page_try_allocator(): TryAllocator

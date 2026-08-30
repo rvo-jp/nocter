@@ -125,6 +125,7 @@
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -196,6 +197,14 @@
 
 <span class="token-comment">/// Pointer-sized signed integer.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">isize</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts a value when it is representable as `u8`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Keeps the low eight bits of a value.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Adds two values modulo 2^64.</span>

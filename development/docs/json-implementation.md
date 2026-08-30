@@ -121,14 +121,36 @@ canonical JSON API must own a separate ordering contract.
 | recoverable destination output | `io.Writer` |
 | move-only partial state and once-only cleanup | language ownership and drop |
 
-Only two shared prerequisites are admitted:
+Only two new standard-internal prerequisites are admitted:
 
 1. a package-internal Unicode-scalar encoder in the existing UTF-8 responsibility;
 2. a package-internal active-context `TryAllocator` adapter in the existing memory responsibility.
 
+The numeric specification already declares `u8.checked(u64)` and `u8.truncate(u64)`. Phase 1 found
+that the authored standard library and backend had not implemented that existing contract. Its one
+source-private primitive role is owned by the general numeric/runtime boundary and is exercised
+independently of JSON. It is not a JSON declaration, parser operation, or ABI.
+
 JSON number scanning, parser frames, errors, traversal, and emission are module implementation,
 not language or compiler gaps. `char`, `f32`, `f64`, reflection, derive metadata, a parser primitive,
 and a JSON-specific ABI are not prerequisites.
+
+## Phase 1 Realization
+
+`Cursor` owns the only byte offset. Number scanning publishes one private `NumberShape` containing
+sign, decimal digit, trailing-zero, and normalized scale facts. Exact integer projection consumes
+that shape and the retained token; it does not scan number grammar again or use floating point.
+
+The private `Attempt<T>` enum is the only lexical failure channel. Input and allocation failures
+remain distinct until `Number.parse` or `Number.try_parse` applies public policy. The input-error
+factory also returns `Attempt<T>`: constructing its offset-bearing message uses the operation's
+`TryAllocator`, so a recoverable parse cannot escape into the current allocation context on an
+error path.
+
+The UTF-8 owner returns an opaque fixed-capacity scalar encoding and a borrow of only its
+initialized prefix. JSON owns UTF-16 escape and surrogate decisions, then passes that proven UTF-8
+view through String's existing validated mutation contract. Neither module reads the other's
+representation.
 
 ## Enforcement
 

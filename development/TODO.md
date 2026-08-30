@@ -7,9 +7,10 @@ artifact, publication, and public re-download evidence is frozen; its tag and re
 not be replaced.
 
 The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON DOM, exact number
-tokens, parsing, and generation in ordinary standard-library source. Phase 0 is complete and
-reviewed. Its future-direction public contract and implementation boundary are closed; Phase 1 is
-the next implementation checkpoint.
+tokens, parsing, and generation in ordinary standard-library source. Phases 0 and 1 are complete
+and reviewed. The public contract, implementation boundary, exact Number representation, lexical
+cursor, Unicode escape foundation, and typed allocation/input failure channel are closed; Phase 2
+is the next implementation checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -21,18 +22,18 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Implement v0.22.0 Phase 1 from the adopted JSON contract and
+Implement v0.22.0 Phase 2 from the adopted JSON contract and
 `development/docs/json-implementation.md`:
 
-- add the package-internal Unicode-scalar encoder under the existing UTF-8 owner;
-- add the package-internal active-context recoverable allocator adapter under `std/mem`;
-- implement the one byte cursor, strict number scanner, exact Number storage and i64/u64 conversion;
-- implement JSON escape decoding and typed internal input/allocation failure classification;
-- qualify valid, boundary, invalid, ownership, allocation, formatting, and semantic-editor behavior;
-- review Phase 1 authority, cleanup, and absence of compiler JSON knowledge before closing it.
+- implement the owning `Value` enum without compiler-recognized recursive storage;
+- build one non-recursive parser over the Phase 1 cursor and an explicit `Vec<Frame>` stack;
+- route every nested String, Vec, and Map allocation through the selected allocator;
+- reject duplicate decoded object names before Map insertion;
+- qualify every root kind, whitespace, malformed boundary, deep nesting, cleanup, and affinity;
+- review Phase 2 ownership, partial-state cleanup, and absence of recursive native parsing.
 
-Do not add container DOM parsing during Phase 1. Do not introduce floating point, `char`, a token
-array, public failure wrappers, or a compiler-known JSON declaration.
+Do not add generation during Phase 2. Do not introduce floating point, `char`, a token array,
+public failure wrappers, recursive JSON input parsing, or a compiler-known JSON declaration.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

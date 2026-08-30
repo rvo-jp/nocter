@@ -1,0 +1,199 @@
+//! Strict JSON string-token decoding over the shared byte cursor.
+
+see ./cursor.nct
+see ./errors.nct
+see ./failure.nct
+
+use /internal/utf8.encode_scalar
+use /mem.{TryAllocator, page_try_allocator}
+use /string.String
+
+func hex_value(byte: u8): u32? {
+    if byte >= 48 && byte <= 57 {
+        return (byte - 48) as u32
+    }
+    if byte >= 65 && byte <= 70 {
+        return (byte - 65 + 10) as u32
+    }
+    if byte >= 97 && byte <= 102 {
+        return (byte - 97 + 10) as u32
+    }
+    return none
+}
+
+func read_hex_quad(cursor: &+Cursor): u32? {
+    var value: u32 = 0
+    var count: usize = 0
+    while count < 4 {
+        let byte = cursor.peek() otherwise { return none }
+        let digit = hex_value(byte) otherwise { return none }
+        let _consumed = cursor.advance() otherwise { return none }
+        value = value * 16 + digit
+        count += 1
+    }
+    return value
+}
+
+func decoded_scalar(cursor: &+Cursor): u32? {
+    let high = read_hex_quad(cursor)?
+    if high >= 56320 && high <= 57343 {
+        return none
+    }
+    if high < 55296 || high > 56319 {
+        return high
+    }
+    if !cursor.next_is(92) {
+        return none
+    }
+    let _slash = cursor.advance() otherwise { return none }
+    if !cursor.next_is(117) {
+        return none
+    }
+    let _u = cursor.advance() otherwise { return none }
+    let low = read_hex_quad(cursor)?
+    if low < 56320 || low > 57343 {
+        return none
+    }
+    return 65536 + (high - 55296) * 1024 + (low - 56320)
+}
+
+func escaped_ascii(byte: u8): u8? {
+    if byte == 34 { return 34 }
+    if byte == 92 { return 92 }
+    if byte == 47 { return 47 }
+    if byte == 98 { return 8 }
+    if byte == 102 { return 12 }
+    if byte == 110 { return 10 }
+    if byte == 114 { return 13 }
+    if byte == 116 { return 9 }
+    return none
+}
+
+func decode_string(
+    allocator: &+TryAllocator,
+    cursor: &+Cursor,
+): Attempt<String> {
+    if !cursor.next_is(34) {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    let _opening = cursor.advance() otherwise {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    var output = String.try_with_capacity(allocator, 0) catch failure {
+        return Attempt.allocation(move failure)
+    }
+    var segment_start = cursor.offset()
+
+    while true {
+        let byte = cursor.peek() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        if byte == 34 {
+            let segment = cursor.range(segment_start, cursor.offset()) otherwise {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            output.try_push_str(segment) catch failure {
+                return Attempt.allocation(move failure)
+            }
+            let _closing = cursor.advance() otherwise {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            return Attempt.success(move output)
+        }
+        if byte < 32 {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        if byte != 92 {
+            let _raw = cursor.advance() otherwise {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            continue
+        }
+
+        let segment = cursor.range(segment_start, cursor.offset()) otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        output.try_push_str(segment) catch failure {
+            return Attempt.allocation(move failure)
+        }
+        let _slash = cursor.advance() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        let escape = cursor.peek() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        let _escape = cursor.advance() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        if escape == 117 {
+            let scalar = decoded_scalar(cursor) otherwise {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            let encoded = encode_scalar(scalar) otherwise {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            output.try_push_utf8(encoded.bytes()) catch failure {
+                return Attempt.allocation(move failure)
+            }
+        } else {
+            let scalar = escaped_ascii(escape) otherwise {
+                return invalid_syntax(allocator, cursor.offset() - 1)
+            }
+            let encoded = encode_scalar(scalar as u32) otherwise {
+                return invalid_syntax(allocator, cursor.offset() - 1)
+            }
+            output.try_push_utf8(encoded.bytes()) catch failure {
+                return Attempt.allocation(move failure)
+            }
+        }
+        segment_start = cursor.offset()
+    }
+    return invalid_syntax(allocator, cursor.offset())
+}
+
+func decoded_string(text: &str): String! {
+    var allocator = page_try_allocator()
+    var cursor = Cursor.new(text)
+    let attempt = decode_string(&+allocator, &+cursor)
+    match move attempt {
+        Attempt.success(value) { return move value }
+        Attempt.input(failure) { return move failure }
+        Attempt.allocation(failure) { return move failure }
+    }
+}
+
+func string_is_invalid(text: &str): bool {
+    let _decoded = decoded_string(text) catch failure {
+        return failure.has_code("std.json.invalid_syntax")
+    }
+    return false
+}
+
+test string_escape_decoding_covers_ascii_and_surrogate_pairs {
+    let escaped = decoded_string("\"line\\nquote: \\\"\"")?
+    if escaped != "line\nquote: \"" {
+        return error.new("std.json.string", "ASCII escape decoding changed")
+    }
+    let slash = decoded_string("\"slash: \\\\ end\"")?
+    if slash != "slash: \\ end" {
+        return error.new("std.json.string", "backslash escape decoding changed")
+    }
+    let scalar = decoded_string("\"\\u0041\\u00a2\\u20ac\\ud800\\udc00\"")?
+    if scalar != "A¢€𐀀" {
+        return error.new("std.json.string", "Unicode escape decoding changed")
+    }
+    return
+}
+
+test string_escape_decoding_rejects_invalid_sequences {
+    if !string_is_invalid("\"\\x\"") || !string_is_invalid("\"\\u12\"") {
+        return error.new("std.json.string", "invalid escape was accepted")
+    }
+    if !string_is_invalid("\"\\ud800\"") || !string_is_invalid("\"\\udc00\"") {
+        return error.new("std.json.string", "unpaired surrogate was accepted")
+    }
+    if !string_is_invalid("\"raw\nnewline\"") {
+        return error.new("std.json.string", "raw control byte was accepted")
+    }
+    return
+}

@@ -1,0 +1,377 @@
+//! Strict JSON number scanning, exact storage, and integer projection.
+
+see ./index.nct
+see ./cursor.nct
+see ./errors.nct
+see ./failure.nct
+
+use /internal/mem.allocation_abort
+use /mem.{TryAllocator, current_try_allocator}
+use /string.String
+
+copy struct NumberShape {
+    negative: bool
+    total_digits: usize
+    trailing_zeroes: usize
+    scale_negative: bool
+    scale: usize
+}
+
+struct Number {
+    source: String
+    shape: NumberShape
+}
+
+copy struct DigitSummary {
+    total: usize
+    trailing_zeroes: usize
+}
+
+copy struct Scale {
+    negative: bool
+    amount: usize
+}
+
+func capped_scale_add(left: usize, right: usize): usize {
+    if left >= 21 || right >= 21 || left > 21 - right {
+        return 21
+    }
+    return left + right
+}
+
+func normalized_scale(
+    fraction_digits: usize,
+    trailing_zeroes: usize,
+    exponent_negative: bool,
+    exponent: usize,
+): Scale {
+    if exponent_negative {
+        if trailing_zeroes < fraction_digits {
+            return Scale { negative: true, amount: 0 }
+        }
+        let available = trailing_zeroes - fraction_digits
+        if available < exponent {
+            return Scale { negative: true, amount: 0 }
+        }
+        return Scale { negative: false, amount: available - exponent }
+    }
+
+    if trailing_zeroes >= fraction_digits {
+        return Scale {
+            negative: false,
+            amount: capped_scale_add(exponent, trailing_zeroes - fraction_digits),
+        }
+    }
+    let deficit = fraction_digits - trailing_zeroes
+    if exponent < deficit {
+        return Scale { negative: true, amount: 0 }
+    }
+    return Scale { negative: false, amount: exponent - deficit }
+}
+
+func record_digit(
+    digit: u8,
+    summary: &+DigitSummary,
+): void {
+    summary.total += 1
+    if digit == 48 {
+        summary.trailing_zeroes += 1
+    } else {
+        summary.trailing_zeroes = 0
+    }
+    return
+}
+
+func is_digit(byte: u8): bool {
+    return byte >= 48 && byte <= 57
+}
+
+func scan_number(cursor: &+Cursor): NumberShape? {
+    var negative = false
+    if cursor.next_is(45) {
+        negative = true
+        let _minus = cursor.advance() otherwise { return none }
+    }
+
+    var summary = DigitSummary { total: 0, trailing_zeroes: 0 }
+    let first = cursor.peek() otherwise { return none }
+    if first == 48 {
+        let digit = cursor.advance() otherwise { return none }
+        record_digit(digit, &+summary)
+    } else if first >= 49 && first <= 57 {
+        while true {
+            let digit = cursor.peek() otherwise { break }
+            if !is_digit(digit) { break }
+            let consumed = cursor.advance() otherwise { return none }
+            record_digit(consumed, &+summary)
+        }
+    } else {
+        return none
+    }
+
+    var fraction_digits: usize = 0
+    if cursor.next_is(46) {
+        let _point = cursor.advance() otherwise { return none }
+        let first_fraction = cursor.peek() otherwise { return none }
+        if !is_digit(first_fraction) { return none }
+        while true {
+            let digit = cursor.peek() otherwise { break }
+            if !is_digit(digit) { break }
+            let consumed = cursor.advance() otherwise { return none }
+            record_digit(consumed, &+summary)
+            fraction_digits += 1
+        }
+    }
+
+    var exponent_negative = false
+    var exponent: usize = 0
+    if cursor.next_is(101) || cursor.next_is(69) {
+        let _marker = cursor.advance() otherwise { return none }
+        if cursor.next_is(43) || cursor.next_is(45) {
+            exponent_negative = cursor.next_is(45)
+            let _sign = cursor.advance() otherwise { return none }
+        }
+        let first_exponent = cursor.peek() otherwise { return none }
+        if !is_digit(first_exponent) { return none }
+        var exponent_cap: usize = 21
+        if cursor.len() > exponent_cap {
+            exponent_cap = cursor.len()
+        }
+        while true {
+            let digit = cursor.peek() otherwise { break }
+            if !is_digit(digit) { break }
+            let consumed = cursor.advance() otherwise { return none }
+            let value = (consumed - 48) as usize
+            if exponent <= (exponent_cap - value) / 10 {
+                exponent = exponent * 10 + value
+            } else {
+                exponent = exponent_cap
+            }
+        }
+    }
+
+    if summary.trailing_zeroes == summary.total {
+        return NumberShape {
+            negative: negative,
+            total_digits: summary.total,
+            trailing_zeroes: summary.trailing_zeroes,
+            scale_negative: false,
+            scale: 0,
+        }
+    }
+    let scale = normalized_scale(
+        fraction_digits,
+        summary.trailing_zeroes,
+        exponent_negative,
+        exponent,
+    )
+    return NumberShape {
+        negative: negative,
+        total_digits: summary.total,
+        trailing_zeroes: summary.trailing_zeroes,
+        scale_negative: scale.negative,
+        scale: scale.amount,
+    }
+}
+
+func try_parse_number(
+    allocator: &+TryAllocator,
+    text: &str,
+): Attempt<Number> {
+    var cursor = Cursor.new(text)
+    let shape = scan_number(&+cursor) otherwise {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    if !cursor.is_finished() {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    let owned = String.try_copy(allocator, text) catch failure {
+        return Attempt.allocation(move failure)
+    }
+    return Attempt.success(Number { source: move owned, shape: shape })
+}
+
+func parse_number(text: &str): Number! {
+    var allocator = current_try_allocator()
+    let attempt = try_parse_number(&+allocator, text)
+    match move attempt {
+        Attempt.success(value) { return move value }
+        Attempt.input(failure) { return move failure }
+        Attempt.allocation(_) { return allocation_abort() }
+    }
+}
+
+func parse_number_with(allocator: &+TryAllocator, text: &str): Number! from allocator {
+    let attempt = try_parse_number(allocator, text)
+    match move attempt {
+        Attempt.success(value) { return move value }
+        Attempt.input(failure) { return move failure }
+        Attempt.allocation(failure) { return move failure }
+    }
+}
+
+func magnitude(number: &Number, limit: u64): u64? {
+    if number.shape.total_digits == number.shape.trailing_zeroes {
+        return 0
+    }
+    if number.shape.scale_negative {
+        return none
+    }
+    let retained_digits = number.shape.total_digits - number.shape.trailing_zeroes
+    let bytes = number.source.bytes()
+    var digit_index: usize = 0
+    var byte_index: usize = 0
+    var value: u64 = 0
+    while byte_index < bytes.len() {
+        let byte = bytes[byte_index]
+        if byte == 101 || byte == 69 {
+            break
+        }
+        if is_digit(byte) {
+            if digit_index < retained_digits {
+                let digit = (byte - 48) as u64
+                if value > (limit - digit) / 10 {
+                    return none
+                }
+                value = value * 10 + digit
+            }
+            digit_index += 1
+        }
+        byte_index += 1
+    }
+    var scale: usize = 0
+    while scale < number.shape.scale {
+        if value > limit / 10 {
+            return none
+        }
+        value *= 10
+        scale += 1
+    }
+    return value
+}
+
+func number_as_u64(number: &Number): u64? {
+    if number.shape.total_digits == number.shape.trailing_zeroes {
+        return 0
+    }
+    if number.shape.negative {
+        return none
+    }
+    return magnitude(number, 18446744073709551615)?
+}
+
+func number_as_i64(number: &Number): i64? {
+    if number.shape.total_digits == number.shape.trailing_zeroes {
+        return 0
+    }
+    if number.shape.scale_negative {
+        return none
+    }
+    let retained_digits = number.shape.total_digits - number.shape.trailing_zeroes
+    let bytes = number.source.bytes()
+    var digit_index: usize = 0
+    var byte_index: usize = 0
+    var value: i64 = 0
+    while byte_index < bytes.len() {
+        let byte = bytes[byte_index]
+        if byte == 101 || byte == 69 { break }
+        if is_digit(byte) {
+            if digit_index < retained_digits {
+                let digit = (byte - 48) as i64
+                if value < (-9223372036854775808 + digit) / 10 { return none }
+                value = value * 10 - digit
+            }
+            digit_index += 1
+        }
+        byte_index += 1
+    }
+    var scale: usize = 0
+    while scale < number.shape.scale {
+        if value < -9223372036854775808 / 10 { return none }
+        value *= 10
+        scale += 1
+    }
+    if number.shape.negative { return value }
+    if value == -9223372036854775808 { return none }
+    return 0 - value
+}
+
+construct Number {
+    func parse(text: &str): Self! {
+        return parse_number(text)?
+    }
+
+    func try_parse(allocator: &+TryAllocator, text: &str): Self! from allocator {
+        return parse_number_with(allocator, text)?
+    }
+}
+
+instance Number {
+    method &self.text(): &str {
+        return &self.source
+    }
+
+    method &self.as_i64(): i64? {
+        return number_as_i64(self)?
+    }
+
+    method &self.as_u64(): u64? {
+        return number_as_u64(self)?
+    }
+}
+
+func number_is_invalid(text: &str): bool {
+    let _number = Number.parse(text) catch failure {
+        return failure.has_code("std.json.invalid_syntax")
+    }
+    return false
+}
+
+func number_failure_message_matches(text: &str, expected: &str): bool {
+    let _number = Number.parse(text) catch failure {
+        return failure.message() == expected
+    }
+    return false
+}
+
+test number_preserves_exact_text_and_projects_integer_boundaries {
+    let decimal = Number.parse("-12.3400e2")?
+    let decimal_value = decimal.as_i64() otherwise {
+        return error.new("std.json.number", "integral decimal did not project to i64")
+    }
+    if decimal.text() != "-12.3400e2" || decimal_value != -1234 {
+        return error.new("std.json.number", "number text or normalized value changed")
+    }
+
+    let unsigned = Number.parse("18446744073709551615")?
+    let unsigned_value = unsigned.as_u64() otherwise {
+        return error.new("std.json.number", "u64 maximum was rejected")
+    }
+    if unsigned_value != 18446744073709551615 {
+        return error.new("std.json.number", "u64 maximum changed")
+    }
+
+    let signed_minimum = Number.parse("-9223372036854775808")?
+    let minimum_value = signed_minimum.as_i64() otherwise {
+        return error.new("std.json.number", "i64 minimum was rejected")
+    }
+    if minimum_value != -9223372036854775808 {
+        return error.new("std.json.number", "i64 minimum changed")
+    }
+    return
+}
+
+test number_rejects_non_json_spelling_and_non_integral_projection {
+    if !number_is_invalid("") || !number_is_invalid("01") || !number_is_invalid("+1") {
+        return error.new("std.json.number", "non-JSON number spelling was accepted")
+    }
+    if !number_failure_message_matches("01", "invalid JSON syntax at byte 1") {
+        return error.new("std.json.number", "number failure byte offset changed")
+    }
+    if !number_is_invalid("1.") || !number_is_invalid("1e") || !number_is_invalid("1e+") {
+        return error.new("std.json.number", "incomplete JSON number was accepted")
+    }
+    let fraction = Number.parse("1.25")?
+    let _integer = fraction.as_i64() otherwise { return }
+    return error.new("std.json.number", "non-integral number projected to i64")
+}

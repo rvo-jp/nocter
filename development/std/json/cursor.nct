@@ -1,0 +1,48 @@
+//! One byte-offset authority over valid UTF-8 JSON input.
+
+copy struct Cursor {
+    text: &str
+    byte_offset: usize
+}
+
+construct Cursor {
+    func new(text: &str): Self from text {
+        return Cursor { text: text, byte_offset: 0 }
+    }
+}
+
+instance Cursor {
+    method &self.offset(): usize {
+        return self.byte_offset
+    }
+
+    method &self.len(): usize {
+        return self.text.len()
+    }
+
+    method &self.is_finished(): bool {
+        return self.byte_offset == self.text.len()
+    }
+
+    method &self.peek(): u8? {
+        if self.byte_offset == self.text.len() {
+            return none
+        }
+        return self.text.bytes()[self.byte_offset]
+    }
+
+    method &self.next_is(expected: u8): bool {
+        let byte = self.peek() otherwise { return false }
+        return byte == expected
+    }
+
+    method &+self.advance(): u8? {
+        let byte = self.peek()?
+        self.byte_offset += 1
+        return byte
+    }
+
+    method &self.range(start: usize, end: usize): &str? from self {
+        return self.text.get_range(start, end)?
+    }
+}

@@ -631,6 +631,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::StringLength | PrimitiveRole::StringPointerAddress => {
             make(0, vec![str_ref()], usize(), private, None, vec![])
         }
+        PrimitiveRole::U8Truncate => make(0, vec![u64()], u8(), private, None, vec![]),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor

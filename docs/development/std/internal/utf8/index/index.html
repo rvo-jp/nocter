@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/utf8/index.nct - Nocter">
@@ -125,6 +125,7 @@
                 <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -160,7 +161,19 @@
             <div class="markdown-body">
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal UTF-8 validation and stable failure construction.</span>
 
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>encoding<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>validation<span class="token-operator">.</span>nct
+
+<span class="token-comment">/// One validated Unicode scalar encoded into its initialized UTF-8 prefix.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">ScalarEncoding</span>
+
+<span class="token-comment">/// Encodes one Unicode scalar value, or returns none for a surrogate or out-of-range value.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">encode_scalar</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ScalarEncoding</span><span class="token-operator">?</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">ScalarEncoding</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns exactly the initialized UTF-8 encoding bytes.</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
 
 <span class="token-comment">/// Returns whether the complete byte view is well-formed UTF-8.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>

@@ -903,6 +903,57 @@ fn standard_hash_contract_crosses_native_tests() {
 }
 
 #[test]
+fn standard_json_phase_one_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str(concat!(
+        "\n#test: { name: \"numeric\", module: \"./num\" }\n",
+        "#test: { name: \"unicode\", module: \"./internal/utf8\" }\n",
+        "#test: { name: \"json\", module: \"./json\" }\n",
+    ));
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["num"]),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "utf8"]),
+            ModuleIdentity::new(standard_package.clone(), ["json"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 3);
+    let output = TempPackage::new();
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard JSON Phase 1 tests failed native compilation")
+        };
+        case_count += cases.len();
+        for case in cases {
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
+    }
+    assert_eq!(case_count, 6);
+}
+
+#[test]
 fn standard_map_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

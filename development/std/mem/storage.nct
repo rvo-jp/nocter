@@ -51,6 +51,13 @@ func current_allocator(): Allocator {
     }
 }
 
+func current_try_allocator(): TryAllocator {
+    return TryAllocator {
+        state: current_allocator_state(),
+        kind: current_allocator_kind(),
+    }
+}
+
 func page_allocator(): Allocator {
     return Allocator { state: 0, kind: page_allocator_kind }
 }

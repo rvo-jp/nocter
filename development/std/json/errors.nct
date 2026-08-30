@@ -1,0 +1,17 @@
+//! Stable JSON input failure construction.
+
+see ./failure.nct
+
+use /fmt.try_append_usize
+use /mem.TryAllocator
+use /string.String
+
+func invalid_syntax<T>(allocator: &+TryAllocator, offset: usize): Attempt<T> {
+    var message = String.try_copy(allocator, "invalid JSON syntax at byte ") catch failure {
+        return Attempt.allocation(move failure)
+    }
+    try_append_usize(&+message, offset) catch failure {
+        return Attempt.allocation(move failure)
+    }
+    return Attempt.input(error.new("std.json.invalid_syntax", &message))
+}

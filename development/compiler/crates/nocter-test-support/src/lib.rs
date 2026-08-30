@@ -94,6 +94,7 @@ pub fn primitive_source_location(
         Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
         Role::StringLength => (&["str"], "str_len_raw"),
         Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
+        Role::U8Truncate => (&["num"], "u8_truncate_raw"),
         Role::U64WrappingAdd => (&["num"], "u64_wrapping_add_raw"),
         Role::U64WrappingMultiply => (&["num"], "u64_wrapping_mul_raw"),
         Role::U64BitwiseXor => (&["num"], "u64_bit_xor_raw"),
@@ -256,10 +257,20 @@ pub primitive type u32
 pub primitive type u64
 pub primitive type usize
 pub primitive type isize
+primitive func u8_truncate_raw(value: u64): u8
 primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
 primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
 primitive func u64_bit_xor_raw(left: u64, right: u64): u64
 primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+construct u8 {
+    pub func checked(value: u64): Self? {
+        if value > 255 { return none }
+        return u8_truncate_raw(value)
+    }
+    pub func truncate(value: u64): Self {
+        return u8_truncate_raw(value)
+    }
+}
 instance u64 {
     pub method self.wrapping_add(other: u64): u64 {
         return u64_wrapping_add_raw(self, other)

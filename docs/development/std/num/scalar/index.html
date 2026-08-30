@@ -125,6 +125,7 @@
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -167,10 +168,22 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> checked_add<span class="token-operator">,</span> checked_multiply<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u8_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span>
 <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u64_wrapping_add_raw</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u64_wrapping_mul_raw</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u64_bit_xor_raw</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u64_rotate_right_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> amount<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> value <span class="token-operator">&gt;</span> <span class="token-number">255</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">u8_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">u8_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
     <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_add</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
@@ -295,6 +308,17 @@
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">try_append_u8</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
+<span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> checked_and_truncating_u8_conversions_are_explicit <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> maximum <span class="token-operator">=</span> <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">checked</span><span class="token-operator">(</span><span class="token-number">255</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.checked"</span><span class="token-operator">,</span> <span class="token-string">"u8 maximum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> maximum <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">255</span> || <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span><span class="token-number">511</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">255</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.truncate"</span><span class="token-operator">,</span> <span class="token-string">"low-byte conversion changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _overflow <span class="token-operator">=</span> <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">checked</span><span class="token-operator">(</span><span class="token-number">256</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.checked"</span><span class="token-operator">,</span> <span class="token-string">"out-of-range u8 conversion succeeded"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

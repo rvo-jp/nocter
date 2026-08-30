@@ -7,10 +7,22 @@ use /mem.TryAllocator
 use /internal/mem.{allocation_abort, checked_add, checked_multiply}
 use /string.String
 
+primitive func u8_truncate_raw(value: u64): u8
 primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
 primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
 primitive func u64_bit_xor_raw(left: u64, right: u64): u64
 primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+
+construct u8 {
+    func checked(value: u64): Self? {
+        if value > 255 { return none }
+        return u8_truncate_raw(value)
+    }
+
+    func truncate(value: u64): Self {
+        return u8_truncate_raw(value)
+    }
+}
 
 instance u64 {
     method self.wrapping_add(other: u64): u64 {
@@ -135,4 +147,15 @@ func try_u8_to_string(
     var result = String.try_with_capacity(allocator, 3)?
     try_append_u8(&+result, value)?
     return move result
+}
+
+test checked_and_truncating_u8_conversions_are_explicit {
+    let maximum = u8.checked(255) otherwise {
+        return error.new("std.num.checked", "u8 maximum was rejected")
+    }
+    if maximum != 255 || u8.truncate(511) != 255 {
+        return error.new("std.num.truncate", "low-byte conversion changed")
+    }
+    let _overflow = u8.checked(256) otherwise { return }
+    return error.new("std.num.checked", "out-of-range u8 conversion succeeded")
 }

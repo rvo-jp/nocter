@@ -1,0 +1,32 @@
+//! Exact JSON number tokens and private lexical foundations.
+//!
+//! Phase 1 exposes Number while the owning Value parser and generators remain future work.
+
+use /mem.TryAllocator
+see ./cursor.nct
+see ./errors.nct
+see ./failure.nct
+see ./number.nct
+see ./string_decoding.nct
+
+/// One exact, validated JSON number token.
+pub struct Number
+
+construct Number {
+    /// Validates and copies exactly one JSON number token.
+    pub func parse(text: &str): Self!
+
+    /// Validates and copies exactly one JSON number token with recoverable allocation.
+    pub func try_parse(allocator: &+TryAllocator, text: &str): Self! from allocator
+}
+
+instance Number {
+    /// Returns the exact validated token spelling retained by this value.
+    pub method &self.text(): &str
+
+    /// Returns the mathematical value when it is exactly representable as i64.
+    pub method &self.as_i64(): i64?
+
+    /// Returns the mathematical value when it is exactly representable as u64.
+    pub method &self.as_u64(): u64?
+}

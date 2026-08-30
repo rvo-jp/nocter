@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.22.0 Phase 1 Lexical and Unicode Review - Nocter</title>
+    <meta name="description" content="This review closes the v0.22.0 lexical and Unicode foundation: exact Number, one JSON byte cursor, strict number scanning, exact i64/u64 projection, escape">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.22.0-phase-1/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.22.0 Phase 1 Lexical and Unicode Review - Nocter">
+    <meta property="og:description" content="This review closes the v0.22.0 lexical and Unicode foundation: exact Number, one JSON byte cursor, strict number scanning, exact i64/u64 projection, escape">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.22.0-phase-1/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.22.0 Phase 1 Lexical and Unicode Review - Nocter">
+    <meta name="twitter:description" content="This review closes the v0.22.0 lexical and Unicode foundation: exact Number, one JSON byte cursor, strict number scanning, exact i64/u64 projection, escape">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.22.0 Phase 1 Lexical and Unicode Review - Nocter","description":"This review closes the v0.22.0 lexical and Unicode foundation: exact Number, one JSON byte cursor, strict number scanning, exact i64/u64 projection, escape","url":"https://nocter.dev/development/reviews/v0.22.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.22.0-phase-1/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.22.0 Phase 1","item":"https://nocter.dev/development/reviews/v0.22.0-phase-1/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/reviews/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 private-table and Map review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 hash-foundation review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/reviews/v0.22.0-phase-1.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-22-0-phase-1-lexical-and-unicode-review">v0.22.0 Phase 1 Lexical and Unicode Review</h1><h2 id="scope">Scope</h2><p>This review closes the v0.22.0 lexical and Unicode foundation: exact <code>Number</code>, one JSON byte cursor, strict number scanning, exact i64/u64 projection, escape and surrogate decoding, scalar UTF-8 encoding, typed input/allocation failure, and current-context recoverable allocation. Container <code>Value</code> parsing and generation remain outside Phase 1.</p><h2 id="authority-review">Authority Review</h2><ul><li><code>Cursor.byte_offset</code> is the only JSON input position. Number and string logic query or advance
+  that cursor and retain no parallel offset authority.</li><li><code>NumberShape</code> is the sole normalized decimal summary. Integer projections consume it and the
+  retained exact token; they do not repeat lexical validation or convert through floating point.</li><li><code>Attempt&lt;T&gt;</code> alone classifies lexical input and allocation failure. Public wrappers apply aborting
+  or recoverable policy without comparing public error-code strings.</li><li>Offset-bearing error construction receives the operation's <code>TryAllocator</code>. Error paths cannot
+  silently allocate in the current context during an explicit recoverable operation.</li><li><code>ScalarEncoding</code> alone owns scalar-to-UTF-8 bytes and publishes only its initialized prefix.
+  JSON owns escape and surrogate syntax but does not duplicate UTF-8 encoding tables.</li><li>Runtime selection recognizes only the general <code>U8Truncate</code> numeric role. No compiler, target,
+  editor, or protocol layer recognizes <code>std/json</code>, <code>Number</code>, JSON tokens, or JSON error codes.</li></ul><h2 id="encapsulation-and-cleanup-review">Encapsulation and Cleanup Review</h2><p><code>Number</code> exposes only its exact text and integer projections. Its owned String and normalized shape remain private and are absent from hover and completion. JSON does not inspect String, allocator, or UTF-8 representation fields. The UTF-8 encoder constructs its own fixed buffer and derives a borrowed initialized-prefix view through existing pointer contracts.</p><p>Number parsing owns either one completed Number or no owned result. String decoding owns one partially built String inside one function. Every failure returns through ordinary move/drop semantics; there is no initialized-byte table, cleanup count, secondary token tree, or recovery-side ownership mirror.</p><p>The review removed two invalid shortcuts before closure:</p><ol><li>1. an initially added public <code>String.try_push_scalar</code> expansion was unnecessary; initialized UTF-8
+   projection belongs to the internal encoder and the existing String API remains unchanged;</li><li>interpolated JSON error messages initially used the current allocator; the typed error factory
+   now preserves the selected allocator even while constructing a failure.</li></ol><h2 id="primitive-boundary-review">Primitive Boundary Review</h2><p>The public numeric specification already required <code>u8.checked(u64)</code> and <code>u8.truncate(u64)</code>, but the standard implementation was absent. Phase 1 completes that existing contract through one private <code>u8_truncate_raw</code> declaration and one source-independent runtime role. Target validation owns its signature; ARM64 selection validates the one-register input/output ABI and preserves the low byte already present in the return register. JSON calls only the public numeric contract.</p><h2 id="qualification-evidence">Qualification Evidence</h2><ul><li><code>cargo test --workspace --quiet</code> passes across the complete compiler workspace.</li><li>Native standard tests execute six Phase 1 cases covering checked/truncating conversion, every
+  UTF-8 scalar boundary, exact number spelling, signed and unsigned limits, invalid number grammar,
+  ASCII escapes, Unicode escapes, surrogate pairs, and malformed sequences.</li><li>The complete bundled standard library crosses semantic checking and target validation with the
+  closed primitive registry.</li><li>Language-server integration proves <code>Number</code> hover and completion expose its public contract and
+  do not expose <code>NumberShape</code> or stored String fields, including syntax-recovery completion.</li><li>The reviewed standard dependency graph includes every new JSON and UTF-8 edge exactly and rejects
+  an unexpected or stale dependency.</li><li><code>cargo fmt --all -- --check</code>, <code>git diff --check</code>, documentation generation, and documentation link
+  validation pass.</li></ul><h2 id="result">Result</h2><p>Phase 1 is complete. Review found no retained compatibility spelling, JSON-specific compiler knowledge, duplicate lexical authority, representation leak, caller-order dependency, or unresolved public choice. Phase 2 may build the owning DOM parser exclusively through the contracts closed here.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

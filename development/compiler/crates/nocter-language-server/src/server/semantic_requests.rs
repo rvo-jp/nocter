@@ -1753,6 +1753,62 @@ mod tests {
     }
 
     #[test]
+    fn json_number_contract_is_visible_without_exposing_its_storage() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/json.Number\n",
+            "func main(): void! {\n",
+            "    let value = Number.parse(\"42\")?\n",
+            "    let exact = value.text()\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct Number"), "{response}");
+        assert!(!response.contains("NumberShape"), "{response}");
+        assert!(!response.contains("source: String"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let incomplete = text.replace("value.text()", "value.");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 3, 3, 22);
+        let response = completion.response().unwrap();
+        for method in ["text", "as_i64", "as_u64"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("shape"), "{response}");
+        assert!(!response.contains("source"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn completion_uses_the_use_site_construction_surface_in_every_generation_state() {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/storage.nct - Nocter">
@@ -125,6 +125,7 @@
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -206,6 +207,13 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Layout</
 
 <span class="token-keyword">func</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
+        state<span class="token-operator">:</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        kind<span class="token-operator">:</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
         state<span class="token-operator">:</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
         kind<span class="token-operator">:</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>

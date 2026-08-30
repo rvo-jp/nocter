@@ -1,0 +1,7 @@
+//! Typed private failure channels retained until a public wrapper applies policy.
+
+enum Attempt<T> {
+    success(value: T)
+    input(failure: error)
+    allocation(failure: error)
+}

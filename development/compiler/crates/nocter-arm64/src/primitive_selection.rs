@@ -110,6 +110,10 @@ pub(crate) fn select(
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)
         }
+        PrimitiveRole::U8Truncate => {
+            validate_register_abi(operation, target, &[1], 1)?;
+            validate_type_arguments(operation, target, 0)
+        }
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor
