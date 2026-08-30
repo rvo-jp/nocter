@@ -611,6 +611,7 @@ impl From<NameResolutionError> for PreparationError {
 /// Returns the exact authored or internal failure selected by body-source cataloging, normalized
 /// type validation, copyability construction, interface implementation construction, or lexical name
 /// resolution.
+#[cfg(any(test, feature = "test-api"))]
 pub fn prepare_program_checking<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: AcceptedDeclarationProgram,

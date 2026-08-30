@@ -12,8 +12,8 @@ nocter-model = { path = "../nocter-model" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }
 
 [dev-dependencies]
-nocter-checking = { path = "../nocter-checking" }
-nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-target-program = { path = "../nocter-target-program" }
 nocter-test-support = { path = "../nocter-test-support" }

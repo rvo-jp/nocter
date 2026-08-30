@@ -7,6 +7,10 @@ disallowed-types = [
 ]
 
 disallowed-methods = [
+    # Recovering and incomplete stage entries expose query-continuation authority and are therefore
+    # restricted to the computation owner. Non-recovering eager wrappers remain available for
+    # focused stage and native-composition tests; production command/workspace dependencies are
+    # enforced separately by nocter-conformance architecture tests.
     { path = "nocter_declaration_lowering::lower_compile_unit_declarations_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },
     { path = "nocter_declaration_lowering::lower_incomplete_body_declarations_recovering", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
     { path = "nocter_checking::prepare_program_checking_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },

@@ -31,6 +31,9 @@ check callable bodies.
 ## Invariants
 
 - Accepted declaration semantics are built once and cannot contain a deferred invalid edge.
+- The eager whole-stage convenience entry exists only behind the `test-api` feature or the crate's
+  own test build. Production consumers can use reusable query contracts but cannot invoke a second
+  declaration scheduler.
 - Target directives, primitive roles, and standard roles are selected once upstream or here.
 - `SourceIndex` is output projection, never semantic input.
 - A projection recipe contains semantic identities and declaration-surface locators, never

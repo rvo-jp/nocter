@@ -1,5 +1,3 @@
-#![allow(clippy::disallowed_methods)]
-
 use nocter_checking::{
     BodyAnalysisRecovery, CheckedProgram, CheckedProgramOutput, DeclarationAnalysisRecovery,
     NameAnalysisRecovery, PreparationFailureEvidence, SourceOwnershipTable,

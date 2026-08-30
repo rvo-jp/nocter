@@ -20,8 +20,8 @@ nocter-target-selection = { path = "../nocter-target-selection" }
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 
 [dev-dependencies]
-nocter-checking = { path = "../nocter-checking" }
-nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 nocter-target-program = { path = "../nocter-target-program" }
 nocter-test-support = { path = "../nocter-test-support" }
 

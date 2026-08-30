@@ -13,6 +13,7 @@ serve as an implementation dependency.
 
 ## Invariants
 
-- Conformance tests exercise public production entry points.
+- Native end-to-end tests compose public stage contracts; command and workspace tests exercise the
+  production compiler-computation entry.
 - Test helpers cannot become a compatibility layer or semantic oracle.
 - Architecture tests validate resolved dependencies and types rather than source-text spellings.

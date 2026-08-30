@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-checking/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -50,7 +50,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-conformance/</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -62,7 +62,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-declaration-lowering/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

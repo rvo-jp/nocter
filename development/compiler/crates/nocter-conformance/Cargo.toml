@@ -8,8 +8,8 @@ publish = false
 
 [dev-dependencies]
 nocter-arm64 = { path = "../nocter-arm64" }
-nocter-checking = { path = "../nocter-checking" }
-nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-language = { path = "../nocter-language" }
 nocter-json = { path = "../nocter-json" }

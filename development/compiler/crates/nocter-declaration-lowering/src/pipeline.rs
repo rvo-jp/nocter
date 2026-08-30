@@ -140,10 +140,11 @@ impl DeclarationLoweringFailure {
     }
 }
 
-/// Lowers one discovery-owned compile unit through the complete declaration pipeline.
+/// Lowers one discovery-owned compile unit eagerly for focused tests and stage diagnostics.
 ///
-/// This is the production entry point. Individual passes remain exposed for focused tests and
-/// compiler development, but consumers do not select or reorder them.
+/// Production compilation and editor analysis enter through `nocter-compiler-computation`, which
+/// owns recovery and query composition. This convenience endpoint deliberately discards recovery;
+/// it is not a second production scheduler.
 ///
 /// # Errors
 ///
@@ -151,6 +152,7 @@ impl DeclarationLoweringFailure {
 /// and freeze-time declaration rules are already projected to common diagnostics;
 /// remaining stage errors stay typed until their diagnostic mappings are completed.
 #[allow(clippy::disallowed_methods)]
+#[cfg(any(test, feature = "test-api"))]
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringError> {

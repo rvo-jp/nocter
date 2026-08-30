@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+test-api = []
+
 [dependencies]
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-compile-input = { path = "../nocter-compile-input" }

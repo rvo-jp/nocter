@@ -59,12 +59,14 @@ pub use associated_type_completion::{
     AssociatedTypeCompletionError,
 };
 pub use associated_type_resolution::AssociatedTypeResolutionError;
+#[cfg(any(test, feature = "test-api"))]
+pub use body_check::check_prepared_program;
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, CapabilityEvidence,
     ProgramBodyCheckingContext, QueriedBodyRejection, QueriedProgramFinalizationOutcome,
     ReusableBodyQueryOutcome, ReusableCheckedBody, ReusableProgramBodyCheckError,
     ReusableProgramBodyNameError, TypedBodyInterruption, TypedBodyInterruptionKind,
-    analyze_prepared_program_bodies, check_prepared_program, check_prepared_program_recovering,
+    analyze_prepared_program_bodies, check_prepared_program_recovering,
     finalize_prepared_program_from_queried_bodies,
 };
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
@@ -158,14 +160,16 @@ pub use names::{
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
+#[cfg(any(test, feature = "test-api"))]
+pub use preparation::prepare_program_checking;
 pub use preparation::{
     PreparationError, PreparationFailure, PreparationFailureEvidence, PreparationRepairEvidence,
     PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram,
     QueriedProgramPreparationRejection, ReusablePreparedProgram,
     ReusableProgramPreparationQueryOutcome, prepare_analysis_program_checking_recovering,
-    prepare_program_checking, prepare_program_checking_from_queried_names,
-    prepare_program_checking_from_reusable_recovering, prepare_program_checking_recovering,
-    prepare_reusable_program, prepare_reusable_program_for_query,
+    prepare_program_checking_from_queried_names, prepare_program_checking_from_reusable_recovering,
+    prepare_program_checking_recovering, prepare_reusable_program,
+    prepare_reusable_program_for_query,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};

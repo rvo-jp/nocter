@@ -74,8 +74,10 @@ pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
+#[cfg(any(test, feature = "test-api"))]
+pub use pipeline::check_prepared_program;
 pub use pipeline::{
-    QueriedProgramFinalizationOutcome, analyze_prepared_program_bodies, check_prepared_program,
+    QueriedProgramFinalizationOutcome, analyze_prepared_program_bodies,
     check_prepared_program_recovering, finalize_prepared_program_from_queried_bodies,
 };
 pub use query::{

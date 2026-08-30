@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+test-api = []
+
 [dependencies]
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-compile-input = { path = "../nocter-compile-input" }
@@ -20,7 +23,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 
 [dev-dependencies]
-nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 
 [lints]
 workspace = true

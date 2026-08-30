@@ -33,6 +33,7 @@ struct CheckedBodyState {
 /// # Errors
 ///
 /// Returns one source-backed body rule or an internal consistency error.
+#[cfg(any(test, feature = "test-api"))]
 pub fn check_prepared_program<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     prepared: PreparedChecking<'syntax>,
