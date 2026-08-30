@@ -53,13 +53,12 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the qualified v0.22.0 release candidate, including the v0.20.0
+This working tree specifies the published v0.22.0 language, including the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, and v0.22.0 JSON standard
-module. The latest published toolchain remains v0.21.0 until the
-[release index](../releases/README.md) is explicitly advanced. Implementation phases and
-qualification evidence belong only to contributor records and are intentionally not restated in
-the public specification. Repository tags preserve the exact specification for every published
-release.
+module. Implementation phases and qualification evidence belong only to contributor records and
+are intentionally not restated in the public specification. The
+[release index](../releases/README.md) owns current publication and download status, and repository
+tags preserve the exact specification for every published release.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise
