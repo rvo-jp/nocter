@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Associative Collections - Nocter</title>
+    <meta name="description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/27-associative-collections/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Associative Collections - Nocter">
+    <meta property="og:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta property="og:url" content="https://nocter.dev/spec/27-associative-collections/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Associative Collections - Nocter">
+    <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Associative Collections - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/27-associative-collections/","mainEntityOfPage":"https://nocter.dev/spec/27-associative-collections/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"27 Associative Collections","item":"https://nocter.dev/spec/27-associative-collections/"}]}]</script>
+
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../00-overview/index.html#content">Overview</a></li>
+                <li><a href="../01-modules-use/index.html#content">Modules, Use Declarations, and Source Visibility</a></li>
+                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
+                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
+                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
+                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
+                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
+                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
+                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
+                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
+                <li><a href="../17-argument-packs-literals-sequence-spread/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a></li>
+                <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
+                <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
+                <li><a href="../24-ordering-operators/index.html#content">Strict Ordering Operators</a></li>
+                <li><a href="../26-constants/index.html#content">Compile-Time Constants</a></li>
+                <li><a href="./index.html#content" aria-current="page">Associative Collections</a></li>
+                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+                <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
+                <li><a href="../../releases/index.html#content">release index</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/27-associative-collections.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="associative-collections">Associative Collections</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><h2 id="status">Status</h2><p>This chapter records the adopted <strong>v0.21.0 Phase 0</strong> contract. The latest published release is v0.19.0 and does not yet provide these APIs or mapping literals. The implementation phases must preserve this contract rather than exposing an interim <code>HashMap</code>, fixed hash algorithm, or compiler-owned table.</p><h2 id="public-meaning-private-representation">Public Meaning, Private Representation</h2><p>The standard associative collections are <code>Map&lt;K, V&gt;</code> and <code>Set&lt;T&gt;</code>:</p><pre><code class="language-nct"><span class="token-keyword">let</span> counts <span class="token-operator">=</span> <span class="token-type">Map</span> <span class="token-operator">[</span>
+    <span class="token-string">"apple"</span><span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span>
+    <span class="token-string">"orange"</span><span class="token-operator">:</span> <span class="token-number">2</span><span class="token-operator">,</span>
+<span class="token-operator">]</span>
+
+<span class="token-keyword">let</span> names <span class="token-operator">=</span> <span class="token-type">Set</span> <span class="token-operator">[</span><span class="token-string">"alice"</span><span class="token-operator">,</span> <span class="token-string">"bob"</span><span class="token-operator">]</span>
+</code></pre><p><code>Map</code> and <code>Set</code> describe collection meaning. Their names do not expose the storage algorithm. The v0.21.0 implementation uses a hash table, but bucket layout, probing, control bytes, load factor, and tombstone representation are private standard-library details. The public library does not provide <code>HashMap</code> or <code>HashSet</code> names or compatibility aliases.</p><p>A future collection that guarantees key ordering and range queries may use the separate names <code>TreeMap&lt;K, V&gt;</code> and <code>TreeSet&lt;T&gt;</code>. <code>Map</code> does not become ordered when those types are introduced.</p><p>The public contract guarantees:</p><ul><li>one stored entry for each equality class of keys or elements;</li><li>expected constant-time lookup, insertion, and removal under a well-behaved <code>Hash</code>
+  implementation;</li><li>storage growth through the ordinary current allocation context or an explicit recoverable
+  allocator API;</li><li>exact once-only destruction of every initialized key, value, and element;</li><li>iteration over every current entry or element exactly once.</li></ul><p>It does not guarantee:</p><ul><li>iteration order, stable hash values, bucket count, or a particular hash algorithm;</li><li>a worst-case constant lookup bound;</li><li>insertion order or key order;</li><li>stable element addresses across a structural mutation.</li></ul><p>Iteration order may differ after insertion, removal, reserve, rebuilding, process restart, target change, or standard-library update. Programs must not use it as serialized or user-visible order.</p><h2 id="hash-contract">Hash Contract</h2><p><code>std/hash</code> declares an opaque state and the key capability:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">HashState</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Hash</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">Self</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">HashState</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+</code></pre><p>Only the standard library constructs or finalizes <code>HashState</code>. A user implementation contributes the complete logical value by delegating to hashable fields or by writing a canonical byte encoding. It does not select an algorithm or read the final hash:</p><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">UserId</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
+
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+        self<span class="token-operator">.</span>namespace<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">)</span>
+        self<span class="token-operator">.</span>value<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>Hash</code> has the following semantic obligations:</p><ul><li><code>a == b</code> implies that hashing <code>a</code> and <code>b</code> into states with the same seed produces the same final
+  hash;</li><li>repeated hashing of an unchanged value into equivalent states contributes the same bytes in the
+  same order;</li><li>every equality-relevant field contributes to the hash;</li><li>a variable-length component contributes an unambiguous boundary, normally through that
+  component's own <code>Hash</code> implementation;</li><li>hashing does not mutate the value, allocate, fail recoverably, or depend on its storage address.</li></ul><p>The compiler checks the declared equality prerequisite and method signatures. It cannot prove behavioral coherence between arbitrary authored equality and hashing bodies. Violating that coherence is a program contract violation: lookup may fail to find an equal key, but memory safety and once-only destruction must remain intact.</p><p>The standard library implements <code>Hash</code> for <code>bool</code>, every built-in integer, <code>str</code>, <code>String</code>, and slices and <code>Vec&lt;T&gt;</code> where <code>T impl Hash</code>. Integer encodings have fixed width and string, slice, and sequence encodings include their length before contents, so component boundaries are unambiguous. <code>Map</code> and <code>Set</code> are not themselves hashable in v0.21.0.</p><p>Every <code>Map</code> owns a hidden seed initialized from the target entropy boundary. <code>Set</code> uses the seed of its owned map storage. The default implementation must not use one published fixed seed. Failure to initialize the ordinary hidden seed terminates construction rather than adding an unrelated recoverable I/O failure to every collection constructor. Hash output and seed values have no public accessor and are not persistent data formats.</p><h2 id="key-stability">Key Stability</h2><p><code>Map&lt;K, V&gt;</code> and <code>Set&lt;T&gt;</code> require their key or element type to implement <code>Hash</code>. While a value is stored, equality- and hash-relevant state must not change. The collections enforce the ordinary case by never returning a readwrite borrow to a stored key or set element.</p><p>A readonly map entry exposes <code>&amp;K</code> and <code>&amp;V</code>. A mutable map entry exposes <code>&amp;K</code> and <code>&amp;+V</code>. Set iteration exposes <code>&amp;T</code>, not <code>&amp;+T</code>. An owning iterator may move keys, values, or elements out only after it owns the complete collection.</p><h2 id="mapping-literals">Mapping Literals</h2><p>Mapping literals are declaration-driven typed literals, not compiler knowledge of <code>Map</code>:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">:</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-operator">}</span>
+</code></pre><p>The use-site form is:</p><pre><code class="language-nct"><span class="token-keyword">let</span> values <span class="token-operator">=</span> <span class="token-type">Map</span> <span class="token-operator">[</span>
+    <span class="token-string">"one"</span><span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span>
+    <span class="token-string">"two"</span><span class="token-operator">:</span> <span class="token-number">2</span><span class="token-operator">,</span>
+<span class="token-operator">]</span>
+
+<span class="token-keyword">let</span> empty <span class="token-operator">=</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span><span class="token-operator">:</span><span class="token-operator">]</span>
+</code></pre><p>There is no bare mapping literal. <code>Map</code> may omit its generic arguments only when the key and value expressions or an expected result type determine both uniquely.</p><p><code>...entries: K: V</code> is a keyed argument pack. One entry contains one owned <code>K</code> and one owned <code>V</code>; its grammar, body operations, ownership, cleanup, forwarding, and ABI are defined only in <a href="../17-argument-packs-literals-sequence-spread/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a>.</p><p>Mapping literal entries are evaluated key first and then value, from left to right. An equal key already present in the same literal retains its first stored key object and replaces its value with the later value. The replaced value and the later redundant key are each destroyed exactly once. Set literals use the existing sequence literal; a duplicate keeps the first stored element and destroys the later equal element.</p><p>An ordinary mapping or set literal allocates through the current aborting allocation context and accepts the existing <code>using allocator_place</code> override. Recoverable construction uses named <code>try_from_entries</code> or <code>try_from_items</code> APIs rather than a second literal syntax.</p><h2 id="map-surface">Map Surface</h2><p><code>std/map</code> exports <code>Map&lt;K, V&gt;</code> where <code>K impl Hash</code>; explicit import is <code>use std/map.Map</code>. Future prelude exposure is defined in <a href="../01-modules-use/index.html#synthetic-standard-prelude">Modules, Use Declarations, and Source Visibility</a>.</p><p>The initial construction and observation surface is:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">:</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_entries</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">get_mut</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains_key</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>capacity</code> is the minimum number of entries that can be held without allocation; it is not a bucket count. <code>reserve(additional)</code> ensures capacity for <code>len() + additional</code> entries. Capacity arithmetic is checked and never wraps.</p><p>Insertion of a new equality class stores its key and value. Insertion of an equal key retains the existing stored key, replaces only its value, and returns the old value. The incoming equal key is destroyed once. <code>try_insert</code> leaves the map unchanged when allocation fails; its consumed inputs are cleaned up normally. Removing an entry returns its value and destroys its key. <code>clear</code> retains the allocation and hidden seed for reuse.</p><p>Borrowed lookup takes <code>&amp;K</code> in v0.21.0. Heterogeneous borrowed lookup, entry handles, drain APIs, retention callbacks, custom hashers, and raw-table access are separate future designs.</p><h2 id="indexing-and-equality">Indexing and Equality</h2><p><code>Map</code> supplies readonly and readwrite indexing:</p><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+        <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">V</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+</code></pre><p>Indexing an absent key terminates through the ordinary bounds-style safety boundary. <code>get</code> and <code>get_mut</code> are the partial operations. Assignment through <code>map[&amp;key]</code> updates an existing value and never inserts, allocates, or constructs a default value. New keys require <code>insert</code>.</p><p>Map equality is independent of capacity, seed, bucket placement, and iteration order. Two maps are equal exactly when they contain equal key classes whose corresponding values are equal. <code>K impl Hash</code> already supplies the equality prerequisite; the operator adds only the value equality requirement.</p><p><code>Set</code> equality likewise ignores capacity, seed, bucket placement, and iteration order. No associative collection defines <code>&lt;</code>. Set union, intersection, difference, and symmetric difference begin as named methods rather than expanding the closed operator grammar solely for one API.</p><h2 id="iteration">Iteration</h2><p>Map iteration uses public semantic entry values rather than exposing table slots:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">MapEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span>
+    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapEntryMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span>
+    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapEntry</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> key<span class="token-operator">:</span> <span class="token-type">K</span>
+    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">V</span>
+<span class="token-operator">}</span>
+</code></pre><p>The expansion surface is:</p><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
+<span class="token-operator">}</span>
+</code></pre><p>Each iterator implements <code>Iterator</code> and <code>ExactSizeIterator</code>. Readonly iteration yields <code>MapEntryRef&lt;K, V&gt;</code>, mutable iteration yields <code>MapEntryMut&lt;K, V&gt;</code>, and owning iteration yields <code>MapEntry&lt;K, V&gt;</code>. Every current entry is yielded exactly once in unspecified order. The ordinary loan rules prevent structural mutation while a borrowed iterator is live.</p><h2 id="set-surface">Set Surface</h2><p><code>std/set</code> exports <code>Set&lt;T&gt;</code> where <code>T impl Hash</code>. Its initial surface parallels map storage without exposing a dummy value:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Set</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_items</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Set</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">&amp;</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SetIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">...</span>self<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SetIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>insert</code> returns <code>true</code> only when it adds a new equality class. A duplicate retains the existing element and destroys the incoming value. <code>remove</code> returns whether an element was present and destroys a removed element.</p><p><code>Set</code> deliberately has no readwrite expansion or index operator. Mutating a stored element could invalidate its hash and equality class without relocating it. The standard implementation owns one private map storage engine; it does not maintain an independent set table algorithm.</p><h2 id="allocation-and-failure-atomicity">Allocation and Failure Atomicity</h2><p>Ordinary constructors, literals, <code>reserve</code>, and <code>insert</code> use the aborting allocation policy. Recoverable constructors and mutations use an explicit <code>TryAllocator</code>, following the same owner affinity as <code>Vec</code> and <code>String</code>. Once storage is bound to an allocator, later growth uses that same owner.</p><p>Every recoverable operation either commits one complete new collection state or leaves the prior state observable. Rehash prepares replacement storage before moving any entry. After movement begins, no fallible operation is permitted. Cleanup metadata, not caller discipline, identifies which old and new slots are initialized at every transition.</p><p>Hashing and equality bodies do not return failure. If an authored body terminates, the program terminates; the collection does not attempt recovery from partially executed user code.</p><h2 id="non-goals-for-v0-21-0">Non-goals for v0.21.0</h2><p>v0.21.0 does not add ordered maps, insertion-ordered maps, heterogeneous lookup, custom hasher selection, stable hash serialization, concurrent collections, weak keys, multimap semantics, entry handles, mutable set iteration, or collection-specific union operators. None of those features may be approximated through a compatibility alias or by exposing the private table.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../script.js" defer></script>
+</body>
+</html>

@@ -1055,3 +1055,38 @@ Outside those positions, an otherwise valid identifier spelling remains ordinary
 semantic rule forbids that declaration name. `alloc`, `import`, and `trait` have no contextual
 production. Removed `alloc func`, legacy import, and trait declarations are diagnosed without
 creating compatibility syntax trees.
+
+## Future Grammar: v0.21.0 Keyed Packs and Mapping Literals
+
+The adopted v0.21.0 Phase 0 design adds the following productions. They are not implemented in the
+latest published release and do not alter the current productions above until the corresponding
+implementation phase completes.
+
+```text
+KeyedPackParameter = "..." Name ":" Type ":" Type
+KeyedCallableParameter = "..." Type ":" Type
+KeyedCallArgument = Expression ":" Expression
+
+KeyedForStatement = "for" Name ":" Name "in" HeaderExpression Block
+
+MappingLiteralDeclaration = "literal" "[" ":" "]"
+                            "(" KeyedPackParameter ")"
+                            CallableTail CallableBody
+
+TypedMappingLiteral = OwnerReference gap MappingBody AllocationOverride?
+MappingBody = "[" (":" | NonEmptyList(MappingElement)) "]"
+MappingElement = Expression ":" Expression
+```
+
+One callable admits at most one final ordinary or keyed pack. `KeyedPackParameter` extends a named
+callable declaration's final parameter, while `KeyedCallableParameter` extends a structural
+callable type's final parameter. `KeyedCallArgument` extends `CallArgument` and is accepted only in
+the final keyed-pack contribution of a call. `KeyedForStatement` extends `ForStatement` and is
+accepted only when its source resolves to the current callable's keyed pack. These semantic
+restrictions do not make parsing depend on name or type resolution.
+
+`MappingLiteralDeclaration` extends `ConstructMember`, and `TypedMappingLiteral` extends
+`TypedLiteral`. `Type [:]` is the only empty mapping body. `Type []` remains an empty sequence, and
+bare `[elements]` remains a fixed-size array. A mapping body has no spread production in v0.21.0.
+The complete ownership and ABI rules live in
+[Argument Packs, Literal Definitions, and Sequence Spread](17-argument-packs-literals-sequence-spread.md).

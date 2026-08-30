@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.21.0 Phase 0 Associative Collection Design Review - Nocter</title>
+    <meta name="description" content="Phase 0 is complete. The reviewed contract exposes one representation-neutral Map and Set choice for normal code, keeps their first hash-table implementati">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.21.0-phase-0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.21.0 Phase 0 Associative Collection Design Review - Nocter">
+    <meta property="og:description" content="Phase 0 is complete. The reviewed contract exposes one representation-neutral Map and Set choice for normal code, keeps their first hash-table implementati">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.21.0-phase-0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.21.0 Phase 0 Associative Collection Design Review - Nocter">
+    <meta name="twitter:description" content="Phase 0 is complete. The reviewed contract exposes one representation-neutral Map and Set choice for normal code, keeps their first hash-table implementati">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.21.0 Phase 0 Associative Collection Design Review - Nocter","description":"Phase 0 is complete. The reviewed contract exposes one representation-neutral Map and Set choice for normal code, keeps their first hash-table implementati","url":"https://nocter.dev/development/reviews/v0.21.0-phase-0/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.21.0-phase-0/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.21.0 Phase 0","item":"https://nocter.dev/development/reviews/v0.21.0-phase-0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/reviews/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.21.0 Phase 0 associative-collection design review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/reviews/v0.21.0-phase-0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-21-0-phase-0-associative-collection-design-review">v0.21.0 Phase 0 Associative Collection Design Review</h1><h2 id="result">Result</h2><p>Phase 0 is complete. The reviewed contract exposes one representation-neutral <code>Map&lt;K, V&gt;</code> and <code>Set&lt;T&gt;</code> choice for normal code, keeps their first hash-table implementation private, and defines the language, ownership, allocation, and tooling behavior needed before source implementation. No implementation blocker or unresolved public choice remains.</p><p>The review found and closed two active documentation defects. The generic-alias example in the type chapter still used <code>Map&lt;K, V&gt; = HashMap&lt;K, V&gt;</code>, contradicting the new absence of a public <code>HashMap</code>; it now uses an unrelated <code>Vec</code> alias. The recoverable-literal policy named <code>try_from_entries</code> and <code>try_from_items</code> without including them in the public construction surface; both declarations are now present and use the same keyed or ordinary pack contract as their aborting literal.</p><h2 id="authority-review">Authority Review</h2><ul><li><a href="../../../spec/27-associative-collections/index.html#content">Associative Collections</a> solely owns Map, Set, Hash,
+  lookup, mutation, equality, iteration, allocation, and collection-specific literal behavior.</li><li><a href="../../../spec/17-argument-packs-literals-sequence-spread/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a>
+  solely owns keyed-pack evaluation, body operations, ownership, forwarding, cleanup, and ABI.</li><li><a href="../../../spec/25-syntactic-grammar/index.html#content">Syntactic Grammar</a> owns the exact future grammar fragments;
+  it labels them unimplemented and does not silently alter current parser behavior.</li><li><a href="../../../spec/01-modules-use/index.html#content">Modules, Use Declarations, and Source Visibility</a> owns future
+  prelude exposure. Hash and HashState remain explicit imports.</li><li><a href="../../../spec/14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a> owns future hover,
+  navigation, signature-help, and semantic-evidence presentation.</li><li>The milestone owns work order, this review owns findings/evidence, and the implementation
+  boundary owns only cross-responsibility direction. None is an alternate public specification.</li></ul><h2 id="representation-review">Representation Review</h2><p>The public surface contains no <code>HashMap</code>, <code>HashSet</code>, bucket, probe, control-byte, tombstone, load-factor, raw-table, final-hash, seed, or custom-hasher API. <code>capacity</code> is defined by how many entries can be retained without allocation rather than by bucket count. Equality ignores seed, capacity, placement, and iteration order.</p><p><code>Hash</code> remains intentionally public even though table representation is private. It is a key capability contract, not permission to inspect the implementation: <code>HashState</code> is opaque, users cannot construct or finalize it, and implementations contribute logical fields without selecting an algorithm. A future internal table change may keep this conservative key capability without changing Map's name or exposing the replacement representation.</p><p><code>TreeMap</code> and <code>TreeSet</code> are reserved for the observably different ordered/range-query contract. They are not alternative names for selecting an internal implementation of ordinary Map or Set.</p><h2 id="ownership-and-failure-review">Ownership and Failure Review</h2><ul><li>A map never returns a readwrite key borrow; mutable iteration exposes <code>&amp;K</code> plus <code>&amp;+V</code>.</li><li>Set has no readwrite iteration or index operation.</li><li>Duplicate insertion retains the first stored key/element and destroys every rejected owner once.</li><li>Optional lookup is separate from terminating index access, and index assignment cannot allocate
+  or insert.</li><li>Recoverable reserve, insertion, and construction publish no partial mutation.</li><li>Replacement allocation and every fallible preparation complete before entry movement starts.</li><li>One table metadata authority identifies initialized sparse slots; cleanup does not trust a
+  caller-maintained count or parallel initialization map.</li><li>Hash/equality behavioral coherence is the one necessarily authored semantic obligation. The
+  compiler proves its structural prerequisite but cannot prove arbitrary bodies. The specification
+  makes violation observable as failed logical lookup while still requiring memory safety and
+  once-only destruction from the collection implementation.</li></ul><h2 id="capability-review">Capability Review</h2><p>Existing owners already supply generic prerequisites, equality evidence, indexing, expansion, exact-size iteration, allocator affinity, RawBuffer, typed layout, and arbitrary sparse store/take/drop. The review therefore rejects a compiler-known table or Map/Set-specific lowering.</p><p>The exact admitted gaps are:</p><ol><li>1. one keyed argument-pack identity carried from syntax through target ABI;</li><li>explicit unsigned wrapping and bit-mixing operations for source-defined hashing;</li><li>one private target entropy boundary for default collection seeds.</li></ol><p>These gaps have distinct owners. They do not justify tuples, mapping spread, entry handles, custom hashers, stable hash output, or a second Set storage engine.</p><h2 id="source-and-tooling-review">Source and Tooling Review</h2><p>The mapping form is declaration-driven. <code>Map [key: value]</code> resolves <code>literal [:]</code>; <code>Map [:]</code> is the only empty mapping, <code>Map []</code> remains a sequence shape, and bare <code>[values]</code> remains an array. The keyed descriptor is one ABI lane and cannot be reconstructed from alternating ordinary values.</p><p>Future tooling consumes the same keyed semantic evidence as compilation. It may not infer pair structure from colon tokens or surface private table terminology. No standard-library source was added during Phase 0, so the current compiler continues to reject the future grammar rather than partially accepting it through compatibility syntax.</p><h2 id="evidence">Evidence</h2><ul><li><code>node docs/build-docs.js</code></li><li><code>cargo fmt --all --check</code></li><li><code>cargo test --workspace --quiet</code></li><li><code>git diff --check</code></li><li>active-source audit for <code>HashMap</code>, <code>HashSet</code>, duplicate Map/Set contracts, and representation
+  vocabulary</li></ul><p>All commands passed on 2026-08-30. The full workspace test retained one existing ignored test and reported no failure.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

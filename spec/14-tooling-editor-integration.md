@@ -131,6 +131,13 @@ typed-literal syntax, signature help, go-to-definition, and the public `index.nc
 the remaining construction API. The compiler does not reconstruct a documentation-only
 construction surface for type hover.
 
+**Future Direction — v0.21.0:** keyed-pack and mapping-literal tooling presents one key/value entry
+contract. Hover and signature help render `...entries: K: V`; mapping literal navigation targets
+the selected `literal [:]` declaration; key and value expressions receive their independently
+resolved semantic evidence. Editor features must not synthesize tuple types, alternating
+parameters, `HashMap` names, table slots, or bucket details. The latest published release does not
+yet implement this surface.
+
 Associated type hover uses the interface-owned declaration identity. A declaration or projection
 is shown as `associated type Interface.Name`; an implementation binding is shown as
 `type Interface.Name = ConcreteType`. Normalized callable presentation preserves a generic

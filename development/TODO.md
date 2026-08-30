@@ -21,7 +21,8 @@ The documentation-authority migration is complete: all workspace crates own loca
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
 
-The [v0.20.0 milestone](milestones/v0.20.0.md) is active. Phase 0 was reopened twice and completed
+The [v0.20.0 milestone](milestones/v0.20.0.md) completed its four compiler-foundation phases.
+Phase 0 was reopened twice and completed
 after design rework and full compiler review on 2026-08-29. It separates dependency and inheritance
 graphs, expands direct prerequisites through a bounded predicate worklist, separates proof and body
 requirements, and separates authored roots from exact capability evidence while retaining explicit
@@ -50,17 +51,19 @@ separate domain values; package cache entries retain no selection authority. The
 
 ## Next Work
 
-Phase 3 dependency-local exact selections and its repository-wide follow-up are complete. Exact
-package acquisition now seals one deterministic content manifest; publication and resolution share
-the `nocter-package-cache` verifier. Provisional selection kind is rejected before lookup or
-transport, and package-state rejects repeated resolver requests rather than trusting driver
-progress. Keep cache representation outside declaration resolution and package-state coordination;
-neither caller may reconstruct or bypass verification.
+The [v0.21.0 milestone](milestones/v0.21.0.md) is active. Phase 0 completed and reviewed the
+separately accepted public design for representation-neutral `Map` and `Set`, equality/hash
+coherence, keyed mapping literals, mutation and iteration guarantees, allocation failure, and the
+minimum implementation prerequisites. Public behavior belongs only to
+[Associative Collections](../spec/27-associative-collections.md); the cross-responsibility
+implementation boundary belongs to
+[Associative Collection Implementation Boundary](docs/associative-collection-implementation.md).
 
-Before implementing hashing and associative collections, write and accept a separate public design
-defining equality/hash coherence, mutation and iteration guarantees, allocation-failure policy, and
-the minimum compiler features required by a standard-library implementation. Do not infer those
-language contracts from a host-language collection API.
+Begin Phase 1 with the keyed-pack model, then implement explicit numeric mixing operations and the
+target entropy boundary as separate owned changes. Do not add collection source until those exact
+prerequisites qualify. Do not introduce
+`HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set storage engines, or an
+interim alternating-argument mapping literal.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

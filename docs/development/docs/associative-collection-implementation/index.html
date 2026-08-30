@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Associative Collection Implementation Boundary - Nocter</title>
+    <meta name="description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/associative-collection-implementation/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Associative Collection Implementation Boundary - Nocter">
+    <meta property="og:description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta property="og:url" content="https://nocter.dev/development/docs/associative-collection-implementation/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Associative Collection Implementation Boundary - Nocter">
+    <meta name="twitter:description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Associative Collection Implementation Boundary - Nocter","description":"This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec","url":"https://nocter.dev/development/docs/associative-collection-implementation/","mainEntityOfPage":"https://nocter.dev/development/docs/associative-collection-implementation/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Associative Collection Implementation","item":"https://nocter.dev/development/docs/associative-collection-implementation/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../architecture/index.html#content">Compiler Architecture</a></li>
+                <li><a href="../../milestones/index.html#content">milestone index</a></li>
+                <li><a href="../../reviews/index.html#content">review index</a></li>
+                <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
+                <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
+                <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
+                <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
+                <li><a href="../semantic-presentation-design/index.html#content">Semantic Presentation Boundary</a></li>
+                <li><a href="../incremental-computation-design/index.html#content">Incremental Computation Boundary</a></li>
+                <li><a href="./index.html#content" aria-current="page">Associative Collection Implementation Boundary</a></li>
+                <li><a href="../grammar-conformance/index.html#content">Grammar Conformance</a></li>
+                <li><a href="../standard-library-source-design/index.html#content">Standard-Library Source Design</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/associative-collection-implementation.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="associative-collection-implementation-boundary">Associative Collection Implementation Boundary</h1><h2 id="purpose">Purpose</h2><p>This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to <a href="../../../spec/27-associative-collections/index.html#content">Associative Collections</a>. Phase scope and completion belong to the <a href="../../milestones/v0.21.0/index.html#content">v0.21.0 milestone</a>.</p><h2 id="responsibility-split">Responsibility Split</h2><pre><code class="language-text">keyed-pack syntax
+    -&gt; checked keyed-entry stream
+        -&gt; TargetProgram pack ABI decision
+            -&gt; MIR and Machine transport
+                -&gt; target descriptor mechanics
+
+Hash implementation source
+    -&gt; opaque HashState
+        -&gt; private final hash value
+            -&gt; private table probing
+
+Map public surface
+    -&gt; private table contract
+        -&gt; RawBuffer and allocator contracts
+
+Set public surface
+    -&gt; Map-owned private table contract
+</code></pre><p>The frontend owns authored syntax, key/value types, evaluation order, ownership, cleanup, and selected literal construction. TargetProgram owns the complete keyed-pack ABI plan. MIR and MachineProgram transport that plan and cannot rediscover pair structure from types or source.</p><p><code>std/hash</code> owns hash composition and algorithm policy. A target boundary supplies seed bytes but does not hash user values. The private table consumes only the hash-state result and equality dispatch selected by checking; it cannot resolve an interface or reinterpret source declarations.</p><p><code>std/map</code> owns public associative meaning. Its internal table owns storage layout, probing, growth, and sparse initialization metadata. Raw memory helpers know byte addresses and typed movement but do not know buckets, keys, equality, or collection policy. <code>std/set</code> delegates storage behavior to that same table contract and does not copy its probing or cleanup algorithm.</p><h2 id="one-way-contracts">One-Way Contracts</h2><ul><li>Syntax publishes one keyed-pack syntax node; downstream layers do not rescan colon tokens.</li><li>Checking publishes one typed key/value entry contract and exact <code>Hash</code>/equality evidence;
+  lowering does not perform lookup again.</li><li>TargetProgram publishes one descriptor and cleanup plan; MachineProgram does not infer ABI from
+  a <code>Map</code> name or pack element layout.</li><li>HashState accepts logical contributions; user code cannot inspect its seed, algorithm state, or
+  result.</li><li>The table publishes representation-neutral insertion, lookup, removal, reserve, iteration-step,
+  and destruction operations to <code>Map</code> and <code>Set</code>.</li><li>Map and Set iterators consume table cursor capabilities; they do not inspect control-byte
+  encoding directly.</li><li>The table consumes allocator and raw-memory contracts; it never reads allocator implementation
+  fields or target syscall results.</li></ul><h2 id="sparse-initialization">Sparse Initialization</h2><p>Table metadata is the sole authority for whether a key and value slot is initialized. Length is an observation derived from committed occupied metadata, not a second initialization map. A table transition follows three states:</p><ol><li>1. replacement storage and empty metadata are fully allocated;</li><li>entries move one at a time, with the destination marked occupied only after both key and value
+   are initialized and the source marked transferred before another fallible boundary;</li><li>the old storage is released only after every occupied source slot has transferred.</li></ol><p>Allocation, layout, and capacity checks complete before step 2. No equality, hashing, allocation, or other fallible/user-authored operation occurs after movement begins. Destruction walks the same metadata authority and therefore cannot depend on a caller-supplied initialized count.</p><h2 id="seed-boundary">Seed Boundary</h2><p>The target entropy operation returns seed material or terminates. It does not return a public <code>error</code>, allocate, initialize HashState, or choose the algorithm. Standard hash source combines the seed with its private state. Each Map retains the resulting seed across reserve and clear; rehash does not request a new seed.</p><p>The target operation is justified only because ordinary Nocter source cannot obtain private OS entropy without turning Map construction into public file or syscall policy. If a target already has a suitable standard-internal entropy source, the hash module must use that source instead of a second primitive.</p><h2 id="capability-audit">Capability Audit</h2><p>The source spike found the following reusable contracts:</p><table><thead><tr><th>Need</th><th>Existing owner</th></tr></thead><tbody><tr><td>allocation owner and recoverable growth</td><td><code>std/mem</code></td></tr><tr><td>checked size/capacity arithmetic</td><td><code>std/internal/mem</code></td></tr><tr><td>typed size and alignment</td><td><code>std/internal/ptr</code></td></tr><tr><td>arbitrary sparse store/take/drop</td><td><code>std/internal/ptr</code></td></tr><tr><td>structural equality prerequisite</td><td>declaration/checking capability evidence</td></tr><tr><td>readonly/readwrite index selection</td><td>checked instance operations</td></tr><tr><td>readonly/readwrite/owned expansion</td><td>checked instance operations and iteration plans</td></tr><tr><td>exact-size iteration</td><td><code>std/iter.ExactSizeIterator</code></td></tr></tbody></table><p>The spike found these exact gaps:</p><table><thead><tr><th>Gap</th><th>Owning change</th></tr></thead><tbody><tr><td>key/value entry syntax and body iteration</td><td>grammar and syntax</td></tr><tr><td>one typed keyed-pack identity and cleanup</td><td>declaration/checking model</td></tr><tr><td>keyed descriptor ABI</td><td>TargetProgram, MIR, MachineProgram, target backend</td></tr><tr><td>source-expressible nontrapping hash mixing</td><td>primitive numeric surface and backend operations</td></tr><tr><td>hidden default seed acquisition</td><td>standard-internal target boundary</td></tr></tbody></table><p>The table algorithm, Map/Set declarations, hash algorithm, collision policy, and iterator cursor are not compiler gaps.</p><h2 id="enforcement">Enforcement</h2><p>Architecture and conformance tests for the implementation phases must reject:</p><ul><li>compiler branching on the source names <code>Map</code>, <code>Set</code>, <code>HashMap</code>, or <code>HashSet</code>;</li><li>a second keyed-pack interpretation below checking;</li><li>a Machine or backend decision based on semantic interface lookup;</li><li>public bucket, probe, control-byte, hash-result, or seed access;</li><li>separate Map and Set probing implementations;</li><li>iterator code that reads private table metadata without a table cursor contract;</li><li>cleanup that trusts a caller-maintained initialized-slot count;</li><li>a recoverable rehash that moves an entry before all fallible preparation succeeds.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

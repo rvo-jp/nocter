@@ -212,3 +212,65 @@ Recoverable allocation uses explicit named `try_*` APIs rather than a second lit
 Argument packs and call spread do not introduce aggregate-initializer spread, mapping spread,
 tuple spread, pattern rest capture, struct embedding, mutable spread, untyped variadics, or a
 source-level pack value type.
+
+## Future Direction: v0.21.0 Keyed Packs and Mapping Literals
+
+The adopted v0.21.0 Phase 0 design extends the same compiler-owned pack model with keyed entries.
+This section is not implemented in the latest published release.
+
+A keyed pack has one key type and one value type:
+
+```nct
+func load(...entries: &str: i32): void {
+    for key: value in entries {
+        consume(key, value)
+    }
+}
+
+load("one": 1, "two": 2)
+```
+
+The declaration `...entries: K: V` is one final pack parameter. It is not two packs, an
+alternating flat value pack, a tuple, or named-argument syntax. A callable has at most one final
+pack, either ordinary or keyed. Its structural callable contract writes `func(...K: V): O`.
+
+Fixed keyed entries are evaluated key first and then value, from left to right. The callee receives
+the cached checked entry count before consuming any entry. Its dedicated body operations are:
+
+- `entries.len()` for the original entry count;
+- `for key: value in entries` to consume each owned key and value once;
+- `target(...entries)` to tail-forward the entire remaining keyed descriptor once.
+
+The same non-escape, exhaustion, residual cleanup, provenance, and early-exit rules as an ordinary
+pack apply to both components. Cleanup destroys an initialized key and value exactly once even
+when evaluation, invocation, or iteration stops between entries. A keyed pack may appear after
+ordinary fixed parameters, but an invocation cannot mix ordinary pack elements and keyed entries.
+
+The initial keyed-pack phase supports fixed entries and exact tail forwarding. It does not define
+spread from a collection because Nocter has no general pair value or pair-expansion contract yet.
+
+A mapping literal is the restricted construction form with exactly one keyed pack and no ordinary
+parameter:
+
+```nct
+construct Map<K, V> {
+    pub literal [:](...entries: K: V): Self {
+        var result = Self.with_capacity(entries.len())
+        for key: value in entries {
+            result.insert(move key, move value)
+        }
+        return move result
+    }
+}
+```
+
+Nonempty use-site syntax is `Type [key: value, ...]`; the empty form is `Type [:]`. A bare mapping
+literal is not introduced. Mapping literals share typed-literal generic inference, allocation
+override, evaluation, ownership, and construction-member visibility with sequence literals. The
+associative collection behavior selected by the standard `Map` declaration is specified in
+[Associative Collections](27-associative-collections.md).
+
+The keyed native descriptor is one ABI lane. TargetProgram fixes both component types, entry
+evaluation, next-entry initialization, and residual cleanup. MIR, MachineProgram, and the target
+backend transport that plan and cannot reconstruct key/value pairing from alternating values or
+source punctuation.

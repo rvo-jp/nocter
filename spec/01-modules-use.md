@@ -399,6 +399,10 @@ declaration fallback, while structural forms such as `[T]` come from the type gr
 a prelude export. `Format`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
 I/O functions require explicit imports from their domain modules.
 
+**Future Direction — v0.21.0:** once the complete associative collection implementation qualifies,
+the prelude also exports `std/map.Map` and `std/set.Set`. `Hash` and `HashState` continue to require
+an explicit `std/hash` import. The latest published release does not yet contain these exports.
+
 ## Package Layout
 
 A package root is a directory whose `index.nct` contains exactly one top-level `#package`

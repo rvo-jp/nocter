@@ -555,7 +555,7 @@ The compiler does not treat `Int` specially, and the standard-library prelude do
 ```nct
 pub type Count = i32
 pub type Bytes = [u8]
-pub type Map<K, V> = HashMap<K, V>
+pub type Items<T> = Vec<T>
 ```
 
 Rules:

@@ -43,6 +43,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Expansion Operators](23-expansion-operators.md)
 - [Strict Ordering Operators](24-ordering-operators.md)
 - [Compile-Time Constants](26-constants.md)
+- [Associative Collections](27-associative-collections.md)
 
 ## Supporting Material
 
@@ -51,8 +52,9 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the adopted v0.20.0 Phase 0 interface-prerequisite contract. v0.19.0
-remains the latest published language. The
+This working tree specifies the implemented v0.20.0 interface-prerequisite contract and the
+adopted v0.21.0 Phase 0 associative-collection direction. The v0.21.0 chapter marks behavior that
+is not implemented yet. v0.19.0 remains the latest published language. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
 

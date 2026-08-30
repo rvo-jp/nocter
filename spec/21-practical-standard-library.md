@@ -88,6 +88,12 @@ destination collection. `std/iter/collect.to_vec` consumes any `Iterator` into a
 `Iterator` default method because making the core iterator module depend on `std/vec` would create
 a module cycle: Vec iteration already depends on `std/iter`.
 
+The adopted v0.21.0 associative collection direction provides representation-neutral `Map<K, V>`
+and `Set<T>` rather than exposing the private hash-table strategy through `HashMap` and `HashSet`
+names. Its hash coherence, mapping literal, lookup, mutation, iteration, allocation, and ordering
+contracts are centralized in [Associative Collections](27-associative-collections.md). That future
+surface is not implemented in the latest published release.
+
 ## Formatting
 
 `std/fmt.Format` is the static contract used by owned string interpolation:
