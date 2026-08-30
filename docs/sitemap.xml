@@ -98,7 +98,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-hash/</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -165,6 +165,12 @@
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-package-acquisition/</loc>
     <lastmod>2026-08-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/compiler/crates/nocter-package-cache/</loc>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -500,7 +506,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -626,7 +632,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

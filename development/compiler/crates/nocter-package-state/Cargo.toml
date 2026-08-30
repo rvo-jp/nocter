@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
+nocter-package-cache = { path = "../nocter-package-cache" }
 
 [dev-dependencies]
 nocter-filesystem = { path = "../nocter-filesystem" }

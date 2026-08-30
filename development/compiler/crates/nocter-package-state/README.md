@@ -8,8 +8,9 @@ publication.
 ## Contract
 
 The crate stages and validates the complete intended dependency graph before making persistent
-changes. It then publishes each validated exact package as an immutable cache entry, revalidates
-the graph, and commits generated `commit` or `sha256` fields with compare-before-write protection.
+changes. It then seals and publishes each validated exact package as an immutable cache entry,
+revalidates the graph, and commits generated `commit` or `sha256` fields with compare-before-write
+protection.
 Exact package cache publication and root-source commit are deliberately separate responsibilities:
 cache entries carry no dependency-selection authority and may safely survive a later root-source
 rejection. The exact field inside each dependency declaration is the sole persistent selection
@@ -26,7 +27,7 @@ filesystem changes.
 
 - root dependency-source compare-before-write authority
 - staging directories and destination validation
-- immutable exact-package cache publication
+- exact-package sealing and immutable cache publication through `nocter-package-cache`
 - exact-selection/source transition assembly and staging cleanup
 - post-commit package-graph revalidation through the injected resolver
 
@@ -36,12 +37,13 @@ filesystem changes.
 - A validated exact cache entry may remain after a later root-source rejection, but cannot select a
   dependency without an authored exact-selection field.
 - Every exact cache destination is one immutable package identity; an existing physical directory
-  wins a concurrent publication race for that identity.
+  wins a concurrent publication race only after the shared content manifest verifies that identity.
 - Concurrent root-source changes are rejected instead of overwritten.
 - Every destination is canonical and inside the authorized package state root.
 - One package-state operation object can run only once.
 - A transaction never returns a package snapshot captured before its own source commit.
 - Resolver retries over in-memory overlays retain one filesystem revision and cannot invalidate
   disk-backed source queries by attempt count.
+- A repeated lock or fetch request is rejected as missing progress before acquisition can repeat.
 - Every transaction requires an injected resolution driver; package state cannot silently select a
   direct parser outside the compiler-computation source authority.

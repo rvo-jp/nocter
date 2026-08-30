@@ -315,7 +315,9 @@ graph does not partially rewrite `index.nct`.
 Each validated exact package is an immutable cache entry and may remain available if a later
 compare-before-write of the root dependency source is rejected, for example after a concurrent
 edit. Such an entry does not select or authorize a dependency: only the source-specific exact field
-inside that dependency record does. A later command may reuse the complete cached identity.
+inside that dependency record does. A later command may reuse the complete cached identity only
+while its sealed package tree still verifies. Missing, altered, or structurally unsafe cache content
+is an error; locked or offline resolution never silently accepts it or substitutes another store.
 
 - `--locked` rejects any operation that would create or change lock selection.
 - `--offline` prohibits source resolution and downloads; every exact package must already exist in

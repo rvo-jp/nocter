@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -9,10 +10,13 @@ use nocter_package::{
     PackageLockOverlayError, PackageResolutionError, PackageResolutionRequest, PackageStoreOverlay,
     PackageStoreOverlayError, ResolvedPackageSelection,
 };
+use nocter_package_cache::{ExactPackageCacheError, seal_exact_package};
 
 use crate::authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
 use crate::filesystem::PackageStateFilesystemError;
-use crate::package_cache::{PackageCachePublication, publish_exact_packages};
+use crate::package_cache::{
+    PackageCachePublication, PackageCachePublicationError, publish_exact_packages,
+};
 use crate::root_source::{RootSourceCommitError, commit_root_source_update};
 use crate::staging::StagingArea;
 
@@ -110,6 +114,7 @@ struct PackageStateOperation {
     staging: Option<StagingArea>,
     generated_selections: bool,
     filesystem_revision: PackageFilesystemRevision,
+    completed_requests: BTreeSet<PackageProgressKey>,
 }
 
 impl PackageStateOperation {
@@ -135,6 +140,7 @@ impl PackageStateOperation {
             staging: None,
             generated_selections: false,
             filesystem_revision: PackageFilesystemRevision::default(),
+            completed_requests: BTreeSet::new(),
         })
     }
 
@@ -158,7 +164,13 @@ impl PackageStateOperation {
                         alias,
                         source,
                     },
-                )) => self.resolve_lock(authority, &package, package_root, &alias, &source)?,
+                )) => {
+                    self.require_progress(PackageProgressKey::Lock {
+                        package: package.clone(),
+                        alias: alias.clone(),
+                    })?;
+                    self.resolve_lock(authority, &package, package_root, &alias, &source)?;
+                }
                 Err(PackageResolutionAttemptError::Domain(
                     PackageResolutionError::FetchRequired {
                         package,
@@ -167,7 +179,14 @@ impl PackageStateOperation {
                         lock,
                         source,
                     },
-                )) => self.fetch(authority, &package, &alias, package_id, &lock, &source)?,
+                )) => {
+                    self.require_progress(PackageProgressKey::Fetch {
+                        package: package.clone(),
+                        alias: alias.clone(),
+                        package_id: package_id.clone(),
+                    })?;
+                    self.fetch(authority, &package, &alias, package_id, &lock, &source)?;
+                }
                 Err(PackageResolutionAttemptError::Domain(error)) => {
                     return Err(PackageStateError::Resolution(Box::new(error)));
                 }
@@ -175,6 +194,24 @@ impl PackageStateOperation {
                     return Err(PackageStateError::ResolutionInfrastructure(error));
                 }
             }
+        }
+    }
+
+    fn require_progress<E: Error + Send + Sync + 'static>(
+        &mut self,
+        request: PackageProgressKey,
+    ) -> Result<(), PackageStateError<E>> {
+        let operation = request.operation();
+        let package = request.package().clone();
+        let alias = Box::<str>::from(request.alias());
+        if self.completed_requests.insert(request) {
+            Ok(())
+        } else {
+            Err(PackageStateError::NoResolutionProgress {
+                operation,
+                package,
+                alias,
+            })
         }
     }
 
@@ -252,10 +289,13 @@ impl PackageStateOperation {
                 &workspace,
             ))
             .map_err(PackageStateError::Acquisition)?;
-        area.validate_package(&package_id)
+        let staged_root = area
+            .package_root(&package_id)
             .map_err(PackageStateError::Filesystem)?;
+        let verified = seal_exact_package(staged_root, package_id.as_str())
+            .map_err(PackageStateError::ExactPackageCache)?;
         self.store
-            .insert(package_id, destination)
+            .insert(package_id, verified)
             .map_err(PackageStateError::StoreOverlay)?;
         Ok(())
     }
@@ -283,7 +323,7 @@ impl PackageStateOperation {
         let requires_filesystem_refresh = staged_packages
             .map(|packages| publish_exact_packages(&self.canonical_root, packages))
             .transpose()
-            .map_err(PackageStateError::Filesystem)?
+            .map_err(package_cache_publication_error)?
             .is_some_and(PackageCachePublication::requires_filesystem_refresh);
         if requires_filesystem_refresh {
             self.filesystem_revision
@@ -311,6 +351,51 @@ impl PackageStateOperation {
             );
         }
         Ok(selected)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum PackageProgressKey {
+    Lock {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    Fetch {
+        package: PackageIdentity,
+        alias: Box<str>,
+        package_id: PackageId,
+    },
+}
+
+impl PackageProgressKey {
+    const fn operation(&self) -> &'static str {
+        match self {
+            Self::Lock { .. } => "resolve exact selection",
+            Self::Fetch { .. } => "fetch exact package",
+        }
+    }
+
+    const fn package(&self) -> &PackageIdentity {
+        match self {
+            Self::Lock { package, .. } | Self::Fetch { package, .. } => package,
+        }
+    }
+
+    const fn alias(&self) -> &str {
+        match self {
+            Self::Lock { alias, .. } | Self::Fetch { alias, .. } => alias,
+        }
+    }
+}
+
+fn package_cache_publication_error<E: Error + Send + Sync + 'static>(
+    error: PackageCachePublicationError,
+) -> PackageStateError<E> {
+    match error {
+        PackageCachePublicationError::Filesystem(error) => PackageStateError::Filesystem(error),
+        PackageCachePublicationError::Integrity(error) => {
+            PackageStateError::ExactPackageCache(error)
+        }
     }
 }
 
@@ -352,9 +437,15 @@ pub enum PackageStateError<E: Error + Send + Sync + 'static> {
         expected: ExactDependencyLockKind,
         actual: ExactDependencyLockKind,
     },
+    NoResolutionProgress {
+        operation: &'static str,
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
     PackageId(PackageIdError),
     LockOverlay(PackageLockOverlayError),
     StoreOverlay(PackageStoreOverlayError),
+    ExactPackageCache(ExactPackageCacheError),
     SelectionSource(nocter_package::PackageExactSelectionSourceError),
     RootSourceCommit(RootSourceCommitError),
     Filesystem(PackageStateFilesystemError),
@@ -395,9 +486,19 @@ impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
                 expected.prefix(),
                 actual.prefix()
             ),
+            Self::NoResolutionProgress {
+                operation,
+                package,
+                alias,
+            } => write!(
+                formatter,
+                "package resolution made no progress while attempting to {operation} for {} dependency {alias}",
+                package.as_str()
+            ),
             Self::PackageId(error) => error.fmt(formatter),
             Self::LockOverlay(error) => error.fmt(formatter),
             Self::StoreOverlay(error) => error.fmt(formatter),
+            Self::ExactPackageCache(error) => error.fmt(formatter),
             Self::SelectionSource(error) => error.fmt(formatter),
             Self::RootSourceCommit(error) => error.fmt(formatter),
             Self::Filesystem(error) => error.fmt(formatter),
@@ -415,13 +516,15 @@ impl<E: Error + Send + Sync + 'static> Error for PackageStateError<E> {
             Self::PackageId(error) => Some(error),
             Self::LockOverlay(error) => Some(error),
             Self::StoreOverlay(error) => Some(error),
+            Self::ExactPackageCache(error) => Some(error),
             Self::SelectionSource(error) => Some(error),
             Self::RootSourceCommit(error) => Some(error),
             Self::Filesystem(error) => Some(error),
             Self::FilesystemRevision(error) => Some(error),
             Self::NonRootLockRequired { .. }
             | Self::UnexpectedLockSource { .. }
-            | Self::LockKindMismatch { .. } => None,
+            | Self::LockKindMismatch { .. }
+            | Self::NoResolutionProgress { .. } => None,
         }
     }
 }

@@ -8,7 +8,6 @@ use nocter_package::PackageId;
 
 use crate::filesystem::{
     PackageStateFilesystemError, create_directory, ensure_contained, ensure_directory, invalid,
-    validate_physical_package_root,
 };
 
 static NEXT_TRANSACTION: AtomicU64 = AtomicU64::new(0);
@@ -65,15 +64,14 @@ impl StagingArea {
         Ok(path)
     }
 
-    pub(crate) fn validate_package(
+    pub(crate) fn package_root(
         &self,
         package: &PackageId,
-    ) -> Result<(), PackageStateFilesystemError> {
-        let root = self
-            .packages
+    ) -> Result<&Path, PackageStateFilesystemError> {
+        self.packages
             .get(package)
-            .ok_or_else(|| invalid("validate unknown staged package", &self.root))?;
-        validate_physical_package_root(root)
+            .map(PathBuf::as_path)
+            .ok_or_else(|| invalid("select unknown staged package", &self.root))
     }
 
     pub(crate) fn take_packages(&mut self) -> Option<StagedPackages> {

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
+use nocter_package_cache::{ExactPackageCacheError, verify_exact_package};
 #[cfg(test)]
 use nocter_syntax::DirectSourceSyntax;
 use nocter_syntax::SourceSyntaxProvider;
@@ -381,6 +382,22 @@ fn resolve_package_edges(
                 });
             }
             let effective_lock = overlay_lock.or(authored_lock.as_ref());
+            if let Some(lock) = effective_lock {
+                let expected = dependency.source().exact_lock_kind().ok_or_else(|| {
+                    PackageResolutionError::UnexpectedPathLock {
+                        package: identity.clone(),
+                        alias: alias.clone(),
+                    }
+                })?;
+                if lock.kind() != expected {
+                    return Err(PackageResolutionError::LockKindMismatch {
+                        package: identity.clone(),
+                        alias: alias.clone(),
+                        expected,
+                        actual: lock.kind(),
+                    });
+                }
+            }
             let mut selection = resolver.resolve(
                 identity,
                 package_root,
@@ -577,8 +594,13 @@ impl DependencyResolver<'_> {
         }
         for store in [self.local_store, self.home_store] {
             let candidate = store.join(package.as_str());
-            match fs::metadata(&candidate) {
-                Ok(_) => return Ok(Some(candidate)),
+            match fs::symlink_metadata(&candidate) {
+                Ok(_) => {
+                    return verify_exact_package(&candidate, package.as_str())
+                        .map(nocter_package_cache::VerifiedExactPackageRoot::into_path)
+                        .map(Some)
+                        .map_err(PackageResolutionError::ExactPackageCache);
+                }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(PackageResolutionError::Filesystem {
@@ -676,7 +698,18 @@ pub enum PackageResolutionError {
         package: PackageIdentity,
         alias: Box<str>,
     },
+    UnexpectedPathLock {
+        package: PackageIdentity,
+        alias: Box<str>,
+    },
+    LockKindMismatch {
+        package: PackageIdentity,
+        alias: Box<str>,
+        expected: crate::ExactDependencyLockKind,
+        actual: crate::ExactDependencyLockKind,
+    },
     PackageId(PackageIdError),
+    ExactPackageCache(ExactPackageCacheError),
     Graph(PackageGraphError),
     Filesystem {
         operation: &'static str,
@@ -740,7 +773,25 @@ impl fmt::Display for PackageResolutionError {
                 "package {} dependency {alias} has conflicting authored and transaction locks",
                 package.as_str()
             ),
+            Self::UnexpectedPathLock { package, alias } => write!(
+                formatter,
+                "package {} path dependency {alias} has a transaction lock",
+                package.as_str()
+            ),
+            Self::LockKindMismatch {
+                package,
+                alias,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "package {} dependency {alias} requires a {} lock but received {}",
+                package.as_str(),
+                expected.prefix(),
+                actual.prefix()
+            ),
             Self::PackageId(error) => error.fmt(formatter),
+            Self::ExactPackageCache(error) => error.fmt(formatter),
             Self::Graph(error) => error.fmt(formatter),
             Self::Filesystem {
                 operation,
@@ -755,6 +806,7 @@ impl std::error::Error for PackageResolutionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::PackageId(error) => Some(error),
+            Self::ExactPackageCache(error) => Some(error),
             Self::Graph(error) => Some(error),
             Self::Filesystem { error, .. } => Some(error),
             Self::LockRequired { .. }
@@ -763,7 +815,9 @@ impl std::error::Error for PackageResolutionError {
             | Self::MissingLockOffline { .. }
             | Self::PackageUnavailableOffline { .. }
             | Self::IdentityRootConflict { .. }
-            | Self::LockOverrideConflict { .. } => None,
+            | Self::LockOverrideConflict { .. }
+            | Self::UnexpectedPathLock { .. }
+            | Self::LockKindMismatch { .. } => None,
         }
     }
 }
@@ -796,6 +850,12 @@ mod tests {
             let path = self.0.join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, text).unwrap();
+        }
+
+        fn exact_package(&self, relative: &str, package: &PackageId, text: &str) {
+            self.source(&format!("{relative}/index.nct"), text);
+            nocter_package_cache::seal_exact_package(&self.0.join(relative), package.as_str())
+                .unwrap();
         }
 
         fn request(&self, policy: PackageResolutionPolicy) -> PackageResolutionRequest {
@@ -843,12 +903,14 @@ mod tests {
     fn resolves_local_store_before_home_and_closes_path_and_standard_edges() {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
-        tree.source(
-            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+        tree.exact_package(
+            &format!("app/.nocter/packages/{}", package_id.as_str()),
+            &package_id,
             "#package: { name: \"package-local-remote\", version: \"0.0.0\", }\n",
         );
-        tree.source(
-            &format!("home/packages/{}/index.nct", package_id.as_str()),
+        tree.exact_package(
+            &format!("home/packages/{}", package_id.as_str()),
+            &package_id,
             "#package: { name: \"home-remote\", version: \"0.0.0\", }\n",
         );
 
@@ -876,8 +938,9 @@ mod tests {
     fn package_resolution_retains_the_exact_open_root_source_overlay() {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
-        tree.source(
-            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+        tree.exact_package(
+            &format!("app/.nocter/packages/{}", package_id.as_str()),
+            &package_id,
             "#package: { name: \"remote\", version: \"0.0.0\", }\n",
         );
         let root_source_path = fs::canonicalize(tree.0.join("app/index.nct")).unwrap();
@@ -986,8 +1049,9 @@ mod tests {
     fn resolves_with_a_provisional_lock_without_editing_the_root_source() {
         let tree = base_tree(false);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
-        tree.source(
-            &format!("app/.nocter/packages/{}/index.nct", package_id.as_str()),
+        tree.exact_package(
+            &format!("app/.nocter/packages/{}", package_id.as_str()),
+            &package_id,
             "#package: { name: \"remote\", version: \"0.0.0\", }\n",
         );
         let root_source_path = tree.0.join("app/index.nct");
@@ -1023,6 +1087,57 @@ mod tests {
     }
 
     #[test]
+    fn rejects_a_provisional_selection_before_source_specific_resolution() {
+        let tree = base_tree(false);
+        let root = canonical_package_root(&tree.0.join("app")).unwrap();
+        let root_id = PackageId::from_canonical_path(&root)
+            .unwrap()
+            .package_identity();
+        let mut overlay = PackageLockOverlay::new();
+        overlay
+            .insert(
+                root_id.clone(),
+                "remote",
+                ExactDependencyLock::sha256(
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        assert!(matches!(
+            resolve_package_graph(
+                tree.request(PackageResolutionPolicy::default())
+                    .with_lock_overlay(overlay)
+            ),
+            Err(PackageResolutionError::LockKindMismatch {
+                ref package,
+                ref alias,
+                ..
+            }) if package == &root_id && alias.as_ref() == "remote"
+        ));
+
+        let mut overlay = PackageLockOverlay::new();
+        overlay
+            .insert(
+                root_id.clone(),
+                "local",
+                ExactDependencyLock::git(COMMIT).unwrap(),
+            )
+            .unwrap();
+        assert!(matches!(
+            resolve_package_graph(
+                tree.request(PackageResolutionPolicy::default())
+                    .with_lock_overlay(overlay)
+            ),
+            Err(PackageResolutionError::UnexpectedPathLock {
+                ref package,
+                ref alias,
+            }) if package == &root_id && alias.as_ref() == "local"
+        ));
+    }
+
+    #[test]
     fn resolves_a_staged_package_without_publishing_it_to_a_store() {
         let tree = base_tree(true);
         let package_id = PackageId::from_git_commit(COMMIT).unwrap();
@@ -1031,8 +1146,10 @@ mod tests {
             "staging/remote/index.nct",
             "#package: { name: \"staged-remote\", version: \"0.0.0\", }\n",
         );
+        let verified =
+            nocter_package_cache::seal_exact_package(&staged, package_id.as_str()).unwrap();
         let mut overlay = PackageStoreOverlay::new();
-        overlay.insert(package_id.clone(), &staged).unwrap();
+        overlay.insert(package_id.clone(), verified).unwrap();
 
         let graph = resolve_package_graph(
             tree.request(PackageResolutionPolicy::default())

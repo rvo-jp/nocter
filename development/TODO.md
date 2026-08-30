@@ -50,13 +50,12 @@ separate domain values; package cache entries retain no selection authority. The
 
 ## Next Work
 
-Phase 2 query-entry unification is complete and reviewed. Source queries require an owner-bound
-current revision token, semantic input publication and query demand are private to
-`nocter-compiler-computation`, session consumes only `nocter-semantic-product`, and root executable
-closure cannot detach an identity from its target program. Compiler computation retains a bounded
-source-revision window and collects inactive query closures. Do not reopen direct session
-compilation, permit native layers to accept discovery snapshots, or add another production source
-parser or package resolver beside the provider-backed compiler-computation path.
+Phase 3 dependency-local exact selections and its repository-wide follow-up are complete. Exact
+package acquisition now seals one deterministic content manifest; publication and resolution share
+the `nocter-package-cache` verifier. Provisional selection kind is rejected before lookup or
+transport, and package-state rejects repeated resolver requests rather than trusting driver
+progress. Keep cache representation outside declaration resolution and package-state coordination;
+neither caller may reconstruct or bypass verification.
 
 Before implementing hashing and associative collections, write and accept a separate public design
 defining equality/hash coherence, mutation and iteration guarantees, allocation-failure policy, and

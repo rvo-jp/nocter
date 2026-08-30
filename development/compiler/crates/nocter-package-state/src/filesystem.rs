@@ -38,34 +38,6 @@ pub(crate) fn create_directory(path: &Path) -> Result<(), PackageStateFilesystem
     })
 }
 
-pub(crate) fn validate_physical_package_root(
-    root: &Path,
-) -> Result<(), PackageStateFilesystemError> {
-    require_physical_directory(root)?;
-    require_physical_file(&root.join("index.nct"))
-}
-
-fn require_physical_directory(path: &Path) -> Result<(), PackageStateFilesystemError> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| PackageStateFilesystemError::new("inspect exact package", path, error))?;
-    if metadata.is_dir() && !metadata.file_type().is_symlink() {
-        Ok(())
-    } else {
-        Err(invalid("validate exact package directory", path))
-    }
-}
-
-fn require_physical_file(path: &Path) -> Result<(), PackageStateFilesystemError> {
-    let metadata = fs::symlink_metadata(path).map_err(|error| {
-        PackageStateFilesystemError::new("inspect exact package file", path, error)
-    })?;
-    if metadata.is_file() && !metadata.file_type().is_symlink() {
-        Ok(())
-    } else {
-        Err(invalid("validate exact package file", path))
-    }
-}
-
 pub(crate) fn invalid(operation: &'static str, path: &Path) -> PackageStateFilesystemError {
     PackageStateFilesystemError::new(
         operation,

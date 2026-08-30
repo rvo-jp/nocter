@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use nocter_package_cache::VerifiedExactPackageRoot;
+
 use crate::PackageId;
 
 /// Exact package roots staged by a package-state transaction before store publication.
@@ -10,7 +12,7 @@ use crate::PackageId;
 /// grant the resolver authority to create, move, or remove a package directory.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PackageStoreOverlay {
-    packages: BTreeMap<PackageId, PathBuf>,
+    packages: BTreeMap<PackageId, VerifiedExactPackageRoot>,
 }
 
 impl PackageStoreOverlay {
@@ -31,15 +33,14 @@ impl PackageStoreOverlay {
     pub fn insert(
         &mut self,
         package: PackageId,
-        root: impl Into<PathBuf>,
+        root: VerifiedExactPackageRoot,
     ) -> Result<(), PackageStoreOverlayError> {
-        let root = root.into();
         if let Some(first) = self.packages.get(&package) {
             if first != &root {
                 return Err(PackageStoreOverlayError {
                     package,
-                    first: first.clone(),
-                    second: root,
+                    first: first.as_path().into(),
+                    second: root.into_path(),
                 });
             }
             return Ok(());
@@ -50,7 +51,9 @@ impl PackageStoreOverlay {
 
     #[must_use]
     pub fn get(&self, package: &PackageId) -> Option<&Path> {
-        self.packages.get(package).map(PathBuf::as_path)
+        self.packages
+            .get(package)
+            .map(VerifiedExactPackageRoot::as_path)
     }
 
     #[must_use]
@@ -99,23 +102,43 @@ impl std::error::Error for PackageStoreOverlayError {}
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use super::*;
+
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+
+    fn sealed_root(name: &str, package: &PackageId) -> VerifiedExactPackageRoot {
+        let root = std::env::temp_dir().join(format!(
+            "nocter-package-store-overlay-{}-{}-{name}",
+            std::process::id(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::write(
+            root.join("index.nct"),
+            "#package: { name: \"fixture\", version: \"0.0.0\", }\n",
+        )
+        .unwrap();
+        nocter_package_cache::seal_exact_package(&root, package.as_str()).unwrap()
+    }
 
     #[test]
     fn repeated_root_is_idempotent_but_relocation_is_rejected() {
         let package =
             PackageId::from_git_commit("7db21c1000000000000000000000000000000000").unwrap();
+        let first = sealed_root("first", &package);
+        let second = sealed_root("second", &package);
         let mut overlay = PackageStoreOverlay::new();
 
-        overlay
-            .insert(package.clone(), "/work/staging/first")
-            .unwrap();
-        overlay
-            .insert(package.clone(), "/work/staging/first")
-            .unwrap();
+        overlay.insert(package.clone(), first.clone()).unwrap();
+        overlay.insert(package.clone(), first.clone()).unwrap();
         assert!(matches!(
-            overlay.insert(package, "/work/staging/second"),
+            overlay.insert(package, second.clone()),
             Err(PackageStoreOverlayError { .. })
         ));
+        fs::remove_dir_all(first.as_path()).unwrap();
+        fs::remove_dir_all(second.as_path()).unwrap();
     }
 }

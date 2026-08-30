@@ -81,24 +81,82 @@ const ROUND: [u32; 64] = [
 /// Computes the SHA-256 digest of `input`.
 #[must_use]
 pub fn sha256(input: &[u8]) -> [u8; 32] {
-    let bit_length = (input.len() as u64).wrapping_mul(8);
-    let padding = 1 + ((55_usize.wrapping_sub(input.len())) & 63) + 8;
-    let mut message = Vec::with_capacity(input.len() + padding);
-    message.extend_from_slice(input);
-    message.push(0x80);
-    message.resize(message.len() + padding - 9, 0);
-    message.extend_from_slice(&bit_length.to_be_bytes());
+    let mut digest = Sha256::new();
+    digest.update(input);
+    digest.finish()
+}
 
-    let mut state = INITIAL;
-    for block in message.chunks_exact(64) {
-        compress(&mut state, block);
+/// Incremental SHA-256 computation for compiler-owned streaming formats.
+#[derive(Clone, Debug)]
+pub struct Sha256 {
+    state: [u32; 8],
+    buffer: [u8; 64],
+    buffered: usize,
+    byte_length: u64,
+}
+
+impl Sha256 {
+    /// Starts one empty digest computation.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            state: INITIAL,
+            buffer: [0; 64],
+            buffered: 0,
+            byte_length: 0,
+        }
     }
 
-    let mut output = [0_u8; 32];
-    for (destination, word) in output.chunks_exact_mut(4).zip(state) {
-        destination.copy_from_slice(&word.to_be_bytes());
+    /// Adds the next bytes in their exact order.
+    pub fn update(&mut self, mut input: &[u8]) {
+        self.byte_length = self.byte_length.wrapping_add(input.len() as u64);
+        if self.buffered != 0 {
+            let copied = (64 - self.buffered).min(input.len());
+            self.buffer[self.buffered..self.buffered + copied].copy_from_slice(&input[..copied]);
+            self.buffered += copied;
+            input = &input[copied..];
+            if self.buffered != 64 {
+                return;
+            }
+            compress(&mut self.state, &self.buffer);
+            self.buffered = 0;
+        }
+        let complete = input.len() / 64 * 64;
+        for block in input[..complete].chunks_exact(64) {
+            compress(&mut self.state, block);
+        }
+        let remainder = &input[complete..];
+        self.buffer[..remainder.len()].copy_from_slice(remainder);
+        self.buffered = remainder.len();
     }
-    output
+
+    /// Finishes the digest without retaining mutable computation state.
+    #[must_use]
+    pub fn finish(mut self) -> [u8; 32] {
+        let bit_length = self.byte_length.wrapping_mul(8);
+        self.buffer[self.buffered] = 0x80;
+        self.buffered += 1;
+        if self.buffered > 56 {
+            self.buffer[self.buffered..].fill(0);
+            compress(&mut self.state, &self.buffer);
+            self.buffered = 0;
+        }
+        self.buffer[self.buffered..56].fill(0);
+        self.buffer[56..].copy_from_slice(&bit_length.to_be_bytes());
+        compress(&mut self.state, &self.buffer);
+
+        let mut output = [0_u8; 32];
+        for (destination, word) in output.chunks_exact_mut(4).zip(self.state) {
+            destination.copy_from_slice(&word.to_be_bytes());
+        }
+        output
+    }
+}
+
+impl Default for Sha256 {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn compress(state: &mut [u32; 8], block: &[u8]) {
@@ -160,6 +218,46 @@ fn round(state: &mut [u32; 8], constant: u32, word: u32) {
         sixth_state,
         seventh_state,
     ];
+}
+
+#[cfg(test)]
+mod streaming_tests {
+    use super::{Sha256, sha256};
+
+    fn lower_hex(bytes: &[u8]) -> String {
+        use std::fmt::Write;
+
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            write!(output, "{byte:02x}").expect("writing to String cannot fail");
+        }
+        output
+    }
+
+    #[test]
+    fn known_sha256_vectors_match() {
+        assert_eq!(
+            lower_hex(&sha256(b"")),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            lower_hex(&sha256(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn incremental_boundaries_match_one_shot_hashing() {
+        let input: Vec<_> = (0_u8..=255).cycle().take(4097).collect();
+        let expected = sha256(&input);
+        for chunk_size in [1, 7, 63, 64, 65, 511] {
+            let mut digest = Sha256::new();
+            for chunk in input.chunks(chunk_size) {
+                digest.update(chunk);
+            }
+            assert_eq!(digest.finish(), expected, "chunk size {chunk_size}");
+        }
+    }
 }
 
 #[cfg(test)]

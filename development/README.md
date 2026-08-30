@@ -10,9 +10,12 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.20.0 milestone](milestones/v0.20.0.md)
+- [v0.20.0 Phase 3 dependency-local exact-selection review](reviews/v0.20.0-phase-3.md)
+- [v0.20.0 Phase 2 unified query-entry review](reviews/v0.20.0-phase-2.md)
+- [v0.20.0 Phase 1 incremental semantic-computation review](reviews/v0.20.0-phase-1.md)
+- [v0.20.0 Phase 0 interface-prerequisite review](reviews/v0.20.0-phase-0.md)
 - [Completed v0.19.0 milestone](milestones/v0.19.0.md)
 - [v0.19.0 release preparation](milestones/v0.19.0-release-preparation.md)
-- [v0.19.0 Phase 4 stabilization review](reviews/v0.19.0-phase-4.md)
 - [Completed v0.18.0 milestone](milestones/v0.18.0.md)
 - [v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
 - [Design reviews](reviews/README.md)

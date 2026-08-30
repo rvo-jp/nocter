@@ -324,7 +324,10 @@ impl GraphCommandError {
     #[must_use]
     pub const fn diagnostic_code(&self) -> &'static str {
         match self {
-            Self::Resolution(PackageResolutionError::Filesystem { .. })
+            Self::Resolution(
+                PackageResolutionError::Filesystem { .. }
+                | PackageResolutionError::ExactPackageCache(_),
+            )
             | Self::NonUnicodeRoot(_) => "E0702",
             Self::Computation(_) | Self::Resolution(_) => "E0800",
         }

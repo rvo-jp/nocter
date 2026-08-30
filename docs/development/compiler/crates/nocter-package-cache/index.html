@@ -3,33 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/iter/sources.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/iter/sources.nct.">
+    <title>nocter-package-cache - Nocter</title>
+    <meta name="description" content="Own the filesystem representation and content-integrity contract of one exact package cache entry.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/iter/sources/">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-package-cache/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/iter/sources.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/iter/sources.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/iter/sources/">
+    <meta property="og:title" content="nocter-package-cache - Nocter">
+    <meta property="og:description" content="Own the filesystem representation and content-integrity contract of one exact package cache entry.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-package-cache/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/iter/sources.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/iter/sources.nct.">
+    <meta name="twitter:title" content="nocter-package-cache - Nocter">
+    <meta name="twitter:description" content="Own the filesystem representation and content-integrity contract of one exact package cache entry.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/iter/sources.nct - Nocter","description":"Nocter source code for development/std/iter/sources.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/iter/sources/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Iter","item":"https://nocter.dev/development/std/iter/"},{"@type":"ListItem","position":5,"name":"Sources","item":"https://nocter.dev/development/std/iter/sources/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-package-cache - Nocter","description":"Own the filesystem representation and content-integrity contract of one exact package cache entry.","url":"https://nocter.dev/development/compiler/crates/nocter-package-cache/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-package-cache/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Package Cache","item":"https://nocter.dev/development/compiler/crates/nocter-package-cache/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
@@ -119,90 +119,15 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.20.0/index.html#content">Active v0.20.0 milestone</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query-entry review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic-computation review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
-                <li><a href="../../../milestones/v0.19.0/index.html#content">Completed v0.19.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.19.0-release-preparation/index.html#content">v0.19.0 release preparation</a></li>
-                <li><a href="../../../milestones/v0.18.0/index.html#content">Completed v0.18.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a></li>
-                <li><a href="../../../reviews/index.html#content">Design reviews</a></li>
-                <li><a href="../../../releases/v0.19.0/index.html#content">Latest published release qualification</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/iter/sources.nct</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-package-cache/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1>sources.nct</h1><pre><code class="language-nocter"><span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>adapters<span class="token-operator">.</span>nct
-
-<span class="token-comment">//! Zero- and one-element owning iterators.</span>
-
-<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_ref_mut
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>store_value_to_ptr<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
-
-<span class="token-comment">/// Constructs an empty iterator.</span>
-<span class="token-keyword">func</span> empty<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span><span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Returns zero because no item can be yielded.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-number">0</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-comment">/// Returns `none` for every call.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-comment">/// Constructs an iterator that yields `item` once.</span>
-<span class="token-keyword">func</span> once<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>item<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-        item<span class="token-operator">:</span> <span class="token-keyword">move</span> item<span class="token-operator">,</span>
-        remaining<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Returns one while the item remains and zero after it is yielded.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> self<span class="token-operator">.</span>remaining
-    <span class="token-operator">}</span>
-
-    <span class="token-comment">/// Transfers the owned item once, then returns `none`.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> self<span class="token-operator">.</span>remaining <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">let</span> empty_value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-keyword">none</span>
-        <span class="token-keyword">let</span> pointer <span class="token-operator">=</span> <span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>item<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> previous<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
-        <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-keyword">move</span> empty_value<span class="token-operator">)</span>
-        self<span class="token-operator">.</span>remaining <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> previous<span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-keyword">move</span> item
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="nocter-package-cache">nocter-package-cache</h1><h2 id="responsibility">Responsibility</h2><p>Own the filesystem representation and content-integrity contract of one exact package cache entry.</p><h2 id="contract">Contract</h2><p>The crate seals an acquisition-owned package tree with a deterministic content manifest and returns only roots whose current physical tree matches that manifest and its expected exact package identity. Package resolution and package-state publication consume the same verification entry. The crate does not select dependencies, interpret source declarations, fetch packages, publish cache directories, or parse Nocter source.</p><h2 id="internal-responsibilities">Internal Responsibilities</h2><ul><li>deterministic streaming package-tree hashing</li><li>exact package manifest encoding and validation</li><li>physical file, directory, and symlink validation</li><li>verified exact-package root capability construction</li></ul><h2 id="invariants">Invariants</h2><ul><li>A verified root contains a regular root <code>index.nct</code> and a valid root manifest.</li><li>Every directory and source artifact included in the package tree contributes to one deterministic
+  digest; filesystem enumeration order cannot change it.</li><li>Symlinks, special files, non-Unicode names, and a reserved root-manifest collision are rejected.</li><li>A cache identity mismatch or any content change invalidates the root before resolution can select
+  it.</li><li>Validation never follows a package-owned symlink or mutates package content.</li></ul>
             </div>
         </main>
     </div>

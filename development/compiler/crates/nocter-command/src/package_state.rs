@@ -103,7 +103,10 @@ impl CommandPackageStateError {
     #[must_use]
     pub const fn diagnostic_code(&self) -> &'static str {
         match self {
-            Self::Resolution(PackageResolutionError::Filesystem { .. }) => "E0702",
+            Self::Resolution(
+                PackageResolutionError::Filesystem { .. }
+                | PackageResolutionError::ExactPackageCache(_),
+            ) => "E0702",
             Self::Resolution(_) | Self::Transaction(_) => "E0800",
         }
     }

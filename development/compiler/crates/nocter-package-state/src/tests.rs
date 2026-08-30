@@ -5,8 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_model::PackageIdentity;
 use nocter_package::{
-    ExactDependencyLock, PackageId, PackageResolutionError, PackageResolutionPolicy,
-    PackageResolutionRequest, ResolvedPackageGraph, ResolvedPackageSpec, StandardPackage,
+    DependencySource, ExactDependencyLock, PackageId, PackageResolutionError,
+    PackageResolutionPolicy, PackageResolutionRequest, ResolvedPackageGraph, ResolvedPackageSpec,
+    StandardPackage,
 };
 
 use crate::root_source::{RootSourceCommitError, commit_root_source_update};
@@ -145,6 +146,40 @@ fn validates_staging_before_publishing_and_commits_the_root_selection_last() {
     assert!(!tree.0.join("app/.nocter/transactions").exists());
 }
 
+#[test]
+fn locked_resolution_rejects_content_changed_after_cache_publication() {
+    let tree = base_tree();
+    let mut authority = FakeAuthority::new("#package: { name: \"remote\", version: \"0.0.0\", }\n");
+    resolve_package_state(
+        tree.request(PackageResolutionPolicy::default()),
+        &mut authority,
+    )
+    .unwrap();
+    let package = PackageId::from_git_commit(COMMIT).unwrap();
+    fs::write(
+        tree.0
+            .join("app/.nocter/packages")
+            .join(package.as_str())
+            .join("index.nct"),
+        "#package: { name: \"changed\", version: \"0.0.0\", }\n",
+    )
+    .unwrap();
+
+    let error = resolve_package_state(
+        tree.request(PackageResolutionPolicy::new(true, false)),
+        &mut authority,
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        PackageStateError::Resolution(error)
+            if matches!(*error, PackageResolutionError::ExactPackageCache(_))
+    ));
+    assert_eq!(authority.lock_calls, 1);
+    assert_eq!(authority.fetch_calls, 1);
+}
+
 struct RecordingResolver {
     revisions: Vec<u64>,
 }
@@ -170,6 +205,59 @@ struct ConcurrentEditResolver {
     source: PathBuf,
     replacement: Box<[u8]>,
     edited: bool,
+}
+
+struct RepeatingLockResolver {
+    repeated: Option<(PackageIdentity, PathBuf, Box<str>, Box<DependencySource>)>,
+}
+
+impl PackageResolutionDriver for RepeatingLockResolver {
+    fn resolve(
+        &mut self,
+        request: PackageResolutionRequest,
+        _filesystem_revision: PackageFilesystemRevision,
+    ) -> Result<nocter_package::ResolvedPackageSelection, PackageResolutionAttemptError> {
+        if let Some((package, package_root, alias, source)) = &self.repeated {
+            return Err(PackageResolutionAttemptError::Domain(
+                PackageResolutionError::LockRequired {
+                    package: package.clone(),
+                    package_root: package_root.clone(),
+                    alias: alias.clone(),
+                    source: source.clone(),
+                },
+            ));
+        }
+        let failure = nocter_package::resolve_package_selection_with_root_catalog(
+            request,
+            nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            &mut nocter_syntax::DirectSourceSyntax,
+        )
+        .unwrap_err()
+        .into_error();
+        let PackageResolutionError::LockRequired {
+            package,
+            package_root,
+            alias,
+            source,
+        } = failure
+        else {
+            panic!("fixture must require one exact selection")
+        };
+        self.repeated = Some((
+            package.clone(),
+            package_root.clone(),
+            alias.clone(),
+            source.clone(),
+        ));
+        Err(PackageResolutionAttemptError::Domain(
+            PackageResolutionError::LockRequired {
+                package,
+                package_root,
+                alias,
+                source,
+            },
+        ))
+    }
 }
 
 impl PackageResolutionDriver for ConcurrentEditResolver {
@@ -223,6 +311,31 @@ fn resolver_revision_advances_only_after_committed_filesystem_changes() {
     .unwrap();
 
     assert_eq!(resolver.revisions, [0, 0, 0, 1, 2]);
+}
+
+#[test]
+fn repeated_driver_request_is_rejected_without_repeating_acquisition() {
+    let tree = base_tree();
+    let mut authority = FakeAuthority::new("#package: { name: \"remote\", version: \"0.0.0\", }\n");
+    let mut resolver = RepeatingLockResolver { repeated: None };
+
+    let error = resolve_package_state_with_driver(
+        tree.request(PackageResolutionPolicy::default()),
+        &mut authority,
+        &mut resolver,
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        PackageStateError::NoResolutionProgress {
+            operation: "resolve exact selection",
+            ref alias,
+            ..
+        } if alias.as_ref() == "remote"
+    ));
+    assert_eq!(authority.lock_calls, 1);
+    assert_eq!(authority.fetch_calls, 0);
 }
 
 #[test]

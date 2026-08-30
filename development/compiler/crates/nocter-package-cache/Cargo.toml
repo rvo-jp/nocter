@@ -1,0 +1,13 @@
+[package]
+name = "nocter-package-cache"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-hash = { path = "../nocter-hash" }
+
+[lints]
+workspace = true

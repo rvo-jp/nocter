@@ -2011,6 +2011,7 @@ dependencies = [
  "nocter-filesystem",
  "nocter-hash",
  "nocter-model",
+ "nocter-package-cache",
  "nocter-source",
  "nocter-syntax",
 ]
@@ -2030,12 +2031,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-package-cache"
+version = "0.0.0"
+dependencies = [
+ "nocter-hash",
+]
+
+[[package]]
 name = "nocter-package-state"
 version = "0.0.0"
 dependencies = [
  "nocter-filesystem",
  "nocter-model",
  "nocter-package",
+ "nocter-package-cache",
  "nocter-syntax",
 ]
 

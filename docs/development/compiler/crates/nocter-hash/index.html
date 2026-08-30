@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-27">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="nocter-hash - Nocter">
     <meta name="twitter:description" content="Provide the repository&#39;s deterministic cryptographic hashing operations without importing package, installation, or executable-image policy.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-hash - Nocter","description":"Provide the repository's deterministic cryptographic hashing operations without importing package, installation, or executable-image policy.","url":"https://nocter.dev/development/compiler/crates/nocter-hash/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-hash/","dateModified":"2026-08-27","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Hash","item":"https://nocter.dev/development/compiler/crates/nocter-hash/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-hash - Nocter","description":"Provide the repository's deterministic cryptographic hashing operations without importing package, installation, or executable-image policy.","url":"https://nocter.dev/development/compiler/crates/nocter-hash/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-hash/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Hash","item":"https://nocter.dev/development/compiler/crates/nocter-hash/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -125,7 +125,7 @@
                 <span class="markdown-path-text">/development/compiler/crates/nocter-hash/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-hash">nocter-hash</h1><h2 id="responsibility">Responsibility</h2><p>Provide the repository's deterministic cryptographic hashing operations without importing package, installation, or executable-image policy.</p><h2 id="contract">Contract</h2><p>Consumers supply bytes and receive exact digest values or renderings. The crate does not read files, select package identities, or decide what content must be hashed.</p><h2 id="invariants">Invariants</h2><ul><li>Equal bytes always produce the same cross-process result.</li><li>Callers cannot replace content identity with platform or iteration order.</li></ul>
+                <h1 id="nocter-hash">nocter-hash</h1><h2 id="responsibility">Responsibility</h2><p>Provide the repository's deterministic cryptographic hashing operations without importing package, installation, or executable-image policy.</p><h2 id="contract">Contract</h2><p>Consumers supply complete bytes or an ordered byte stream and receive an exact digest. The crate does not read files, select package identities, or decide what content must be hashed.</p><h2 id="invariants">Invariants</h2><ul><li>Equal bytes always produce the same cross-process result.</li><li>Incremental chunk boundaries cannot change the resulting digest.</li><li>Callers cannot replace content identity with platform or iteration order.</li></ul>
             </div>
         </main>
     </div>
