@@ -69,10 +69,14 @@ Phase 2 is complete and reviewed. The
 private keyed streaming algorithm, coherent scalar/text/view/owning implementations, and native
 qualification.
 
-Begin Phase 3 with one private open-addressed table and the public `Map<K, V>` layer over it.
-Do not introduce
-`HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set storage engines, or an
-interim alternating-argument mapping literal.
+Phase 3 is complete and reviewed. The
+[Phase 3 review](reviews/v0.21.0-phase-3.md) records the dense ownership and bucket-metadata split,
+failure-atomic capacity publication, package-only safety boundary, public `Map<K, V>` delegation,
+and native qualification.
+
+Begin Phase 4 with semantic map entry types, readonly/readwrite/owning Map iterators, readonly and
+owning Set iterators, and `Set<T>` over the same private table. Do not introduce `HashMap`/`HashSet`
+aliases, a compiler-known table, two independent Map/Set storage engines, or public bucket access.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

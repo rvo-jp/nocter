@@ -1056,11 +1056,10 @@ semantic rule forbids that declaration name. `alloc`, `import`, and `trait` have
 production. Removed `alloc func`, legacy import, and trait declarations are diagnosed without
 creating compatibility syntax trees.
 
-## Future Grammar: v0.21.0 Keyed Packs and Mapping Literals
+## v0.21.0 Keyed Packs and Mapping Literals
 
-The adopted v0.21.0 Phase 0 design adds the following productions. They are not implemented in the
-latest published release and do not alter the current productions above until the corresponding
-implementation phase completes.
+The v0.21.0 working tree implements the following productions. They are not present in the latest
+published release.
 
 ```text
 KeyedPackParameter = "..." Name ":" Type ":" Type

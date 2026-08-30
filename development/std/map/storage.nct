@@ -1,0 +1,9 @@
+//! Private Map representation.
+
+see ./index.nct
+
+use /internal/table.Table
+
+struct Map<K, V> {
+    table: Table<K, V>
+}

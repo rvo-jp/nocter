@@ -1,0 +1,44 @@
+//! Package-private associative storage.
+//!
+//! Parallel dense key/value stores own initialized user values; buckets contain only entry
+//! indices and occupancy state. The table owns hashing, probing, replacement, removal, growth,
+//! and failure-atomic rebuilding. Public Map and Set APIs do not observe this representation.
+
+use /hash.{Hash, HashState}
+use /mem.TryAllocator
+see ./storage.nct
+see ./probing.nct
+see ./growth.nct
+see ./mutation.nct
+
+pub(/) struct Table<K, V>
+
+construct Table<K, V> {
+    pub(/) func empty(): Self where K impl Hash
+
+    pub(/) func with_capacity(minimum: usize): Self where K impl Hash
+
+    pub(/) func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where K impl Hash
+}
+
+instance Table<K, V> where K impl Hash {
+    pub(/) method &self.len(): usize
+    pub(/) method &self.is_empty(): bool
+    pub(/) method &self.capacity(): usize
+
+    pub(/) method &self.get(key: &K): &V?
+    pub(/) method &+self.get_mut(key: &K): &+V?
+    pub(/) method &self.contains_key(key: &K): bool
+
+    pub(/) method &+self.insert(key: K, value: V): V?
+    pub(/) method &+self.try_insert(key: K, value: V): V?!
+    pub(/) method &+self.remove(key: &K): V?
+    pub(/) method &+self.clear(): void
+    pub(/) method &+self.reserve(additional: usize): void
+    pub(/) method &+self.try_reserve(additional: usize): void!
+
+    pub(/) method &self.equals(other: &Self): bool where (&V == &V): bool
+}

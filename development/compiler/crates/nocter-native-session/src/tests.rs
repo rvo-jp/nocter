@@ -22,6 +22,160 @@ use nocter_session::{
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
+const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
+
+use std/hash.HashState
+use std/map.Map
+use std/mem.page_try_allocator
+use std/string.String
+
+instance CollisionKey {
+    operator (&self == other: &Self): bool { return self.id == other.id }
+    method &self.hash_into(state: &+HashState): void { return }
+}
+
+instance Marker {
+    operator (&self == other: &Self): bool { return true }
+    method &self.hash_into(state: &+HashState): void { return }
+}
+
+test literal_replacement_mutation_and_equality {
+    var values = Map [1: 1, 2: 2, 1: 3]
+    let one: i32 = 1
+    if values.len() != 2 || values[&one] != 3 {
+        return error.new("std.map.literal", "mapping literal replacement failed")
+    }
+    let old = values.insert(2, 7) otherwise {
+        return error.new("std.map.replace", "replacement returned no old value")
+    }
+    if old != 2 { return error.new("std.map.replace_value", "wrong old value") }
+    values[&one] = 11
+    let expected = Map [2: 7, 1: 11]
+    if !(values == expected) {
+        return error.new("std.map.equality", "equality depended on placement or order")
+    }
+    let fruit = Map [String "apple": 3, String "orange": 2]
+    let apple = String.copy("apple")
+    let another = String.copy("apple")
+    if !(apple == another) {
+        return error.new("std.map.string_equality", "owned string equality failed")
+    }
+    let borrowed_apple = &apple
+    let borrowed_another = &another
+    if !(borrowed_apple == borrowed_another) {
+        return error.new("std.map.borrowed_string_equality", "borrowed string equality failed")
+    }
+    if !fruit.contains_key(&apple) {
+        return error.new("std.map.string_key", "owned string key lookup failed")
+    }
+
+    var labels = Map [1: String "first"]
+    let old_label = labels.insert(1, String "next") otherwise {
+        return error.new("std.map.owned_replace", "owned replacement returned no old value")
+    }
+    if !(old_label == String "first") {
+        return error.new("std.map.owned_replace_value", "owned replacement returned wrong value")
+    }
+    let removed_label = labels.remove(&one) otherwise {
+        return error.new("std.map.owned_remove", "owned removal returned no value")
+    }
+    if !(removed_label == String "next") {
+        return error.new("std.map.owned_remove_value", "owned removal returned wrong value")
+    }
+
+    var reusable: Map<i32, i32> = Map.with_capacity(4)
+    let retained_capacity = reusable.capacity()
+    let _ = reusable.insert(1, 9)
+    reusable.clear()
+    if !reusable.is_empty() || reusable.capacity() != retained_capacity {
+        return error.new("std.map.clear", "clear discarded retained capacity")
+    }
+    return
+}
+
+test zero_sized_keys_and_values_preserve_logical_state {
+    var values: Map<Marker, Marker> = Map.empty()
+    let _ = values.insert(Marker {}, Marker {})
+    let replaced = values.insert(Marker {}, Marker {}) otherwise {
+        return error.new("std.map.zst_replace", "equal zero-sized key did not replace")
+    }
+    if values.len() != 1 {
+        return error.new("std.map.zst_len", "zero-sized replacement changed length")
+    }
+    let key = Marker {}
+    let _ = values.remove(&key) otherwise {
+        return error.new("std.map.zst_remove", "zero-sized entry was absent")
+    }
+    if !values.is_empty() {
+        return error.new("std.map.zst_empty", "zero-sized removal retained an entry")
+    }
+    return
+}
+
+test collisions_growth_and_swap_removal_preserve_lookup {
+    var values: Map<CollisionKey, i32> = Map.empty()
+    var id: i32 = 0
+    while id < 48 {
+        let _ = values.insert(CollisionKey { id: id }, id * 3)
+        id += 1
+    }
+    if values.len() != 48 || values.capacity() < 48 {
+        return error.new("std.map.growth", "growth lost length or capacity")
+    }
+    id = 0
+    while id < 48 {
+        let key = CollisionKey { id: id }
+        if values[&key] != id * 3 {
+            return error.new("std.map.collision_lookup", "collision lookup failed")
+        }
+        id += 1
+    }
+    id = 0
+    while id < 32 {
+        let key = CollisionKey { id: id }
+        let removed = values.remove(&key) otherwise {
+            return error.new("std.map.remove", "existing collision key was absent")
+        }
+        if removed != id * 3 { return error.new("std.map.remove_value", "wrong removed value") }
+        id += 2
+    }
+    id = 1
+    while id < 48 {
+        let key = CollisionKey { id: id }
+        if !values.contains_key(&key) || values[&key] != id * 3 {
+            return error.new("std.map.swap_index", "swap removal left a stale bucket")
+        }
+        id += 2
+    }
+    return
+}
+
+test recoverable_capacity_overflow_is_semantically_atomic {
+    var allocator = page_try_allocator()
+    var built: Map<i32, i32> = Map.try_from_entries(&+allocator, 1: 10, 2: 20)?
+    let built_key: i32 = 2
+    if built[&built_key] != 20 {
+        return error.new("std.map.try_entries", "recoverable keyed pack construction failed")
+    }
+    var values: Map<i32, i32> = Map.try_with_capacity(&+allocator, 2)?
+    let _ = values.try_insert(7, 70)?
+    let previous_capacity = values.capacity()
+    let key: i32 = 7
+    let maximum: usize = 18446744073709551615
+    values.try_reserve(maximum) catch _ {
+        if values.len() != 1 || values.capacity() != previous_capacity {
+            return error.new("std.map.failed_reserve", "failed reserve changed state")
+        }
+        if values[&key] != 70 {
+            return error.new("std.map.failed_reserve_value", "failed reserve changed an entry")
+        }
+        return
+    }
+    return error.new("std.map.overflow_accepted", "overflowing reserve succeeded")
+}
+
+"#;
+
 struct TestDiscoveredUnit {
     computation: nocter_compiler_computation::CompilerComputation,
     discovered: nocter_compiler_computation::CompilerDiscoveredUnit,
@@ -659,6 +813,69 @@ fn standard_hash_contract_crosses_native_tests() {
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard hash tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 4);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
+fn standard_map_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "index.nct",
+        concat!(
+            "//! Public Map contract tests.\n",
+            "#package: { name: \"map-tests\", version: \"0.0.0\", }\n",
+            "#test: { name: \"map\", module: \"./tests\" }\n",
+        ),
+    );
+    let contract_source = "use std/hash.{Hash, HashState}\n\
+         use std/map.Map\n\
+         use std/mem.page_try_allocator\n\
+         use std/string.String\n\
+         see ./implementation.nct\n\
+         pub struct CollisionKey { pub id: i32 }\n\
+         pub struct Marker {}\n\
+         instance CollisionKey {\n\
+             impl Hash\n\
+             pub operator (&self == other: &Self): bool\n\
+             pub method &self.hash_into(state: &+HashState): void\n\
+         }\n\
+         instance Marker {\n\
+             impl Hash\n\
+             pub operator (&self == other: &Self): bool\n\
+             pub method &self.hash_into(state: &+HashState): void\n\
+         }\n";
+    package_root.source("tests/index.nct", contract_source);
+    package_root.source("tests/implementation.nct", MAP_PHASE3_TEST_SOURCE);
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let package = PackageIdentity::new("workspace:map-tests");
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![
+            resolved,
+            resolved_standard(&standard_root, &standard_package),
+        ]),
+        vec![
+            ModuleIdentity::new(package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(package, ["tests"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard map tests failed native compilation")
     };
     assert_eq!(cases.len(), 4);
     let output = TempPackage::new();

@@ -1,0 +1,46 @@
+//! Map construction and mapping-literal consumption.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+use /internal/table.Table
+use /mem.TryAllocator
+
+construct Map<K, V> {
+    literal [:](...entries: K: V): Self where K impl Hash {
+        var result: Map<K, V> = Map.with_capacity(entries.len())
+        for key: value in entries {
+            let _ = result.insert(move key, move value)
+        }
+        return move result
+    }
+
+    func empty(): Self where K impl Hash {
+        return Map<K, V> { table: Table.empty() }
+    }
+
+    func with_capacity(minimum: usize): Self where K impl Hash {
+        return Map<K, V> { table: Table.with_capacity(minimum) }
+    }
+
+    func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where K impl Hash {
+        return Map<K, V> {
+            table: Table.try_with_capacity(allocator, minimum)?,
+        }
+    }
+
+    func try_from_entries(
+        allocator: &+TryAllocator,
+        ...entries: K: V,
+    ): Self! where K impl Hash {
+        var result: Map<K, V> = Map.try_with_capacity(allocator, entries.len())?
+        for key: value in entries {
+            let _ = result.try_insert(move key, move value)?
+        }
+        return move result
+    }
+}

@@ -3,6 +3,8 @@
 //! These operations construct views, move values, and copy bytes at addresses whose validity has
 //! already been established by their caller. They are not part of the user-facing pointer API.
 
+see ./replacement.nct
+
 pub(/) primitive func from_addr<T>(address: usize): *T
 
 pub(/) primitive func pointee_size<T>(pointer: *T): usize
@@ -20,6 +22,9 @@ pub(/) primitive func store_value_to_ptr<T>(destination: *T, offset: usize, valu
 pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 
 pub(/) primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+
+/// Replaces one initialized value without exposing an uninitialized place to its caller.
+pub(/) func replace_value<T>(place: &+T, replacement: T): T
 
 pub(/) primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
 

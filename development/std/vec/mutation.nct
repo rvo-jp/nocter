@@ -147,6 +147,23 @@ func remove<T>(values: &+Vec<T>, index: usize): T? {
     return move removed
 }
 
+func swap_remove<T>(values: &+Vec<T>, index: usize): T? {
+    let old_len: usize = values.len
+    if index >= old_len {
+        return none
+    }
+
+    let element_size: usize = pointee_size(values.ptr)
+    let last_index: usize = old_len - 1
+    let removed: T = take_value_at_ptr(values.ptr, index * element_size)
+    if index != last_index {
+        let last: T = take_value_at_ptr(values.ptr, last_index * element_size)
+        store_value_to_ptr(values.ptr, index * element_size, move last)
+    }
+    values.len = last_index
+    return move removed
+}
+
 instance Vec<T> {
     method &+self.reserve(additional: usize): void {
         reserve(self, additional)
@@ -213,6 +230,10 @@ instance Vec<T> {
 
     method &+self.remove(index: usize): T? {
         return remove(self, index)?
+    }
+
+    method &+self.swap_remove(index: usize): T? {
+        return swap_remove(self, index)?
     }
 
     method &+self.pop(): T? {

@@ -1,0 +1,141 @@
+//! Seeded hashing, open-addressed bucket probing, and borrowed lookup.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.{Hash, HashState}
+use /vec.Vec
+
+enum Probe {
+    found(bucket_index: usize, entry_index: usize, hash: u64)
+    vacant(bucket_index: usize, hash: u64)
+}
+
+func hash_key<K>(seed: &HashState, key: &K): u64 where K impl Hash {
+    var state = seed.restart()
+    key.hash_into(&+state)
+    return state.finish()
+}
+
+func next_index(index: usize, bucket_count: usize): usize {
+    let next = index + 1
+    if next == bucket_count {
+        return 0
+    }
+    return next
+}
+
+func probe_parts<K>(
+    seed: &HashState,
+    buckets: &Vec<Bucket>,
+    keys: &Vec<K>,
+    key: &K,
+): Probe where K impl Hash {
+    let hash = hash_key(seed, key)
+    let bucket_count = buckets.len()
+    if bucket_count == 0 {
+        return Probe.vacant(0, hash)
+    }
+
+    var bucket_index = hash as usize % bucket_count
+    var examined: usize = 0
+    var first_deleted = bucket_count
+    while examined < bucket_count {
+        match buckets[bucket_index] {
+            Bucket.empty {
+                if first_deleted < bucket_count {
+                    return Probe.vacant(first_deleted, hash)
+                }
+                return Probe.vacant(bucket_index, hash)
+            }
+            Bucket.deleted {
+                if first_deleted == bucket_count {
+                    first_deleted = bucket_index
+                }
+            }
+            Bucket.occupied(entry_index) {
+                if &keys[entry_index] == key {
+                    return Probe.found(bucket_index, entry_index, hash)
+                }
+            }
+        }
+        bucket_index = next_index(bucket_index, bucket_count)
+        examined += 1
+    }
+    if first_deleted < bucket_count {
+        return Probe.vacant(first_deleted, hash)
+    }
+    return Probe.vacant(0, hash)
+}
+
+func probe<K, V>(table: &Table<K, V>, key: &K): Probe where K impl Hash {
+    return probe_parts(&table.seed, &table.buckets, &table.keys, key)
+}
+
+func vacant_for_hash<K, V>(table: &Table<K, V>, hash: u64): usize where K impl Hash {
+    let bucket_count = table.buckets.len()
+    var bucket_index = hash as usize % bucket_count
+    var examined: usize = 0
+    var first_deleted = bucket_count
+    while examined < bucket_count {
+        match table.buckets[bucket_index] {
+            Bucket.empty {
+                if first_deleted < bucket_count {
+                    return first_deleted
+                }
+                return bucket_index
+            }
+            Bucket.deleted {
+                if first_deleted == bucket_count {
+                    first_deleted = bucket_index
+                }
+            }
+            Bucket.occupied(_) {}
+        }
+        bucket_index = next_index(bucket_index, bucket_count)
+        examined += 1
+    }
+    if first_deleted < bucket_count {
+        return first_deleted
+    }
+    return 0
+}
+
+func find_entry_index<K, V>(table: &Table<K, V>, key: &K): usize? where K impl Hash {
+    return match probe(table, key) {
+        Probe.found(_, entry_index, _) { entry_index }
+        Probe.vacant(_, _) { none }
+    }
+}
+
+instance Table<K, V> where K impl Hash {
+    method &self.get(key: &K): &V? {
+        let entry_index = find_entry_index(self, key)?
+        return &self.values[entry_index]
+    }
+
+    method &+self.get_mut(key: &K): &+V? {
+        let entry_index = find_entry_index(self, key)?
+        return &+self.values[entry_index]
+    }
+
+    method &self.contains_key(key: &K): bool {
+        let _ = find_entry_index(self, key) otherwise { return false }
+        return true
+    }
+
+    method &self.equals(other: &Self): bool where (&V == &V): bool {
+        if self.keys.len() != other.keys.len() {
+            return false
+        }
+        var entry_index: usize = 0
+        while entry_index < self.keys.len() {
+            let another = other.get(&self.keys[entry_index]) otherwise { return false }
+            if !(&self.values[entry_index] == another) {
+                return false
+            }
+            entry_index += 1
+        }
+        return true
+    }
+}

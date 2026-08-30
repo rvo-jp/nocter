@@ -52,9 +52,10 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the implemented v0.20.0 interface-prerequisite contract and the
-adopted v0.21.0 Phase 0 associative-collection direction. The v0.21.0 chapter marks behavior that
-is not implemented yet. v0.19.0 remains the latest published language. The
+This working tree specifies the implemented v0.20.0 interface-prerequisite contract and v0.21.0
+associative-collection work through Phase 3. The v0.21.0 chapter distinguishes the remaining
+iteration and `Set` work from implemented keyed packs, hashing, private storage, and `Map`.
+v0.19.0 remains the latest published language. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
 

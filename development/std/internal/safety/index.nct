@@ -1,0 +1,5 @@
+//! Target-neutral safety termination boundaries used by standard containers.
+
+see ./darwin.nct
+
+pub(/) func bounds_abort(): never

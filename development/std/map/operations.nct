@@ -1,0 +1,72 @@
+//! Map observation, mutation, indexing, and semantic equality.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.Hash
+use /internal/safety.bounds_abort
+
+instance Map<K, V> where K impl Hash {
+    method &self.len(): usize {
+        return self.table.len()
+    }
+
+    method &self.is_empty(): bool {
+        return self.table.is_empty()
+    }
+
+    method &self.capacity(): usize {
+        return self.table.capacity()
+    }
+
+    method &self.get(key: &K): &V? {
+        return self.table.get(key)
+    }
+
+    method &+self.get_mut(key: &K): &+V? {
+        return self.table.get_mut(key)
+    }
+
+    method &self.contains_key(key: &K): bool {
+        return self.table.contains_key(key)
+    }
+
+    method &+self.insert(key: K, value: V): V? {
+        return self.table.insert(move key, move value)
+    }
+
+    method &+self.try_insert(key: K, value: V): V?! {
+        return self.table.try_insert(move key, move value)?
+    }
+
+    method &+self.remove(key: &K): V? {
+        return self.table.remove(key)
+    }
+
+    method &+self.clear(): void {
+        self.table.clear()
+        return
+    }
+
+    method &+self.reserve(additional: usize): void {
+        self.table.reserve(additional)
+        return
+    }
+
+    method &+self.try_reserve(additional: usize): void! {
+        self.table.try_reserve(additional)?
+        return
+    }
+
+    operator (&self[key: &K]): &V {
+        return self.get(key) otherwise { return bounds_abort() }
+    }
+
+    operator (&+self[key: &K]): &+V {
+        return self.get_mut(key) otherwise { return bounds_abort() }
+    }
+
+    operator (&self == other: &Self): bool where (&V == &V): bool {
+        return self.table.equals(&other.table)
+    }
+}

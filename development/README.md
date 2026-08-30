@@ -10,6 +10,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.21.0 milestone](milestones/v0.21.0.md)
+- [v0.21.0 Phase 3 private-table and Map review](reviews/v0.21.0-phase-3.md)
 - [v0.21.0 Phase 0 associative-collection design review](reviews/v0.21.0-phase-0.md)
 - [Associative collection implementation boundary](docs/associative-collection-implementation.md)
 - [Completed v0.20.0 compiler-foundation milestone](milestones/v0.20.0.md)

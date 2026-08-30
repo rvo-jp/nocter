@@ -37,10 +37,10 @@ MachineProgram transport that plan and cannot rediscover pair structure from typ
 does not hash user values. The private table consumes only the hash-state result and equality
 dispatch selected by checking; it cannot resolve an interface or reinterpret source declarations.
 
-`std/map` owns public associative meaning. Its internal table owns storage layout, probing, growth,
-and sparse initialization metadata. Raw memory helpers know byte addresses and typed movement but
-do not know buckets, keys, equality, or collection policy. `std/set` delegates storage behavior to
-that same table contract and does not copy its probing or cleanup algorithm.
+`std/map` owns public associative meaning. Its internal table owns dense key/value storage, bucket
+metadata, probing, growth, and removal repair. Vec and pointer helpers know initialized movement or
+replacement but do not know buckets, keys, equality, or collection policy. `std/set` delegates
+storage behavior to that same table contract and does not copy its probing or cleanup algorithm.
 
 ## One-Way Contracts
 
@@ -58,20 +58,23 @@ that same table contract and does not copy its probing or cleanup algorithm.
 - The table consumes allocator and raw-memory contracts; it never reads allocator implementation
   fields or target syscall results.
 
-## Sparse Initialization
+## Dense Ownership and Bucket Metadata
 
-Table metadata is the sole authority for whether a key and value slot is initialized. Length is an
-observation derived from committed occupied metadata, not a second initialization map. A table
-transition follows three states:
+The private table separates ownership from lookup metadata. Parallel dense `Vec<K>` and `Vec<V>`
+stores own exactly `len` initialized keys and values. A bucket is only `empty`, `deleted`, or an
+occupied dense index. Bucket rebuilding hashes dense keys into a prepared metadata range and never
+moves, copies, or destroys user values.
 
-1. replacement storage and empty metadata are fully allocated;
-2. entries move one at a time, with the destination marked occupied only after both key and value
-   are initialized and the source marked transferred before another fallible boundary;
-3. the old storage is released only after every occupied source slot has transferred.
+The table alone maintains the equal-length dense-store invariant. Insertion reserves bucket, key,
+and value capacity before either input is published. Removal applies the same swap removal to both
+dense stores, destroys the removed key, returns the removed value, and repairs the one bucket that
+points to a moved last entry. Clear destroys both initialized prefixes and resets bucket metadata
+without changing the seed or releasing retained capacity.
 
-Allocation, layout, and capacity checks complete before step 2. No equality, hashing, allocation,
-or other fallible/user-authored operation occurs after movement begins. Destruction walks the same
-metadata authority and therefore cannot depend on a caller-supplied initialized count.
+Public capacity is the minimum of key, value, and usable bucket capacity. A recoverable reserve may
+prepare one internal store before a later allocation fails, but the published minimum and logical
+entries remain unchanged. Capacity arithmetic uses checked standard-internal helpers. No caller
+supplies an initialized count, bucket index, or repair obligation.
 
 ## Seed Boundary
 
@@ -101,7 +104,7 @@ elements, and owning `String`/`Vec<T>` delegate to their borrowed views. This ke
 boundaries in standard source rather than in the target or table.
 
 `std/internal/hash` owns only target entropy acquisition. It returns seed material to `std/hash`
-and cannot construct or finalize `HashState`. The future table consumes the package-only
+and cannot construct or finalize `HashState`. The private table consumes the package-only
 `HashState` lifecycle; it cannot inspect the seed or algorithm state.
 
 ## Capability Audit
@@ -112,8 +115,8 @@ The source spike found the following reusable contracts:
 | --- | --- |
 | allocation owner and recoverable growth | `std/mem` |
 | checked size/capacity arithmetic | `std/internal/mem` |
-| typed size and alignment | `std/internal/ptr` |
-| arbitrary sparse store/take/drop | `std/internal/ptr` |
+| dense initialized storage and swap removal | `std/vec` |
+| initialized-place replacement | `std/internal/ptr` |
 | structural equality prerequisite | declaration/checking capability evidence |
 | readonly/readwrite index selection | checked instance operations |
 | readonly/readwrite/owned expansion | checked instance operations and iteration plans |

@@ -1,0 +1,54 @@
+//! Owning associative map.
+//!
+//! Map exposes key/value semantics while its seeded open-addressed representation remains
+//! private to the standard library. Bucket count, placement, and iteration order are not API.
+
+use /hash.Hash
+use /mem.TryAllocator
+see ./storage.nct
+see ./construction.nct
+see ./operations.nct
+
+/// An owning collection containing one value for each equality class of keys.
+pub struct Map<K, V>
+
+construct Map<K, V> {
+    /// Constructs a map from owned key/value entries evaluated from left to right.
+    pub literal [:](...entries: K: V): Self where K impl Hash
+
+    pub func empty(): Self where K impl Hash
+
+    pub func with_capacity(minimum: usize): Self where K impl Hash
+
+    pub func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where K impl Hash
+
+    pub func try_from_entries(
+        allocator: &+TryAllocator,
+        ...entries: K: V,
+    ): Self! where K impl Hash
+}
+
+instance Map<K, V> where K impl Hash {
+    pub method &self.len(): usize
+    pub method &self.is_empty(): bool
+    pub method &self.capacity(): usize
+
+    pub method &self.get(key: &K): &V?
+    pub method &+self.get_mut(key: &K): &+V?
+    pub method &self.contains_key(key: &K): bool
+
+    pub method &+self.insert(key: K, value: V): V?
+    pub method &+self.try_insert(key: K, value: V): V?!
+    pub method &+self.remove(key: &K): V?
+    pub method &+self.clear(): void
+    pub method &+self.reserve(additional: usize): void
+    pub method &+self.try_reserve(additional: usize): void!
+
+    pub operator (&self[key: &K]): &V
+    pub operator (&+self[key: &K]): &+V
+
+    pub operator (&self == other: &Self): bool where (&V == &V): bool
+}

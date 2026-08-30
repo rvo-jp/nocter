@@ -5,23 +5,25 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-This chapter records the adopted **v0.21.0** contract. The hashing foundation is implemented
-through Phase 2; `Map` and `Set` storage remain later phases. The latest published release is
-v0.19.0 and does not yet provide these APIs or mapping literals. The implementation phases must
-preserve this contract rather than exposing an interim `HashMap`, fixed hash algorithm, or
-compiler-owned table.
+This chapter records the adopted **v0.21.0** contract. The working tree implements keyed mapping
+literals, hashing, the private table, and `Map` through Phase 3; iteration and `Set` remain later
+phases. The latest published release is v0.19.0 and does not yet provide these APIs or mapping
+literals. The remaining implementation phases must preserve this contract rather than exposing an
+interim `HashMap`, fixed hash algorithm, or compiler-owned table.
 
 ## Public Meaning, Private Representation
 
 The standard associative collections are `Map<K, V>` and `Set<T>`:
 
 ```nct
+use std/string.String
+
 let counts = Map [
-    "apple": 3,
-    "orange": 2,
+    String "apple": 3,
+    String "orange": 2,
 ]
 
-let names = Set ["alice", "bob"]
+let names = Set [String "alice", String "bob"]
 ```
 
 `Map` and `Set` describe collection meaning. Their names do not expose the storage algorithm. The
@@ -139,13 +141,19 @@ construct Map<K, V> {
 The use-site form is:
 
 ```nct
+use std/string.String
+
 let values = Map [
-    "one": 1,
-    "two": 2,
+    String "one": 1,
+    String "two": 2,
 ]
 
 let empty = Map<String, i32> [:]
 ```
+
+A string expression has type `&str`; an owning string key therefore uses the `String "..."`
+literal shown above. Generic arguments may still be omitted because those key expressions identify
+`String` and the values identify `i32`.
 
 There is no bare mapping literal. `Map` may omit its generic arguments only when the key and value
 expressions or an expected result type determine both uniquely.
@@ -335,9 +343,9 @@ affinity as `Vec` and `String`. Once storage is bound to an allocator, later gro
 owner.
 
 Every recoverable operation either commits one complete new collection state or leaves the prior
-state observable. Rehash prepares replacement storage before moving any entry. After movement
-begins, no fallible operation is permitted. Cleanup metadata, not caller discipline, identifies
-which old and new slots are initialized at every transition.
+state observable. All fallible capacity work completes before an input key or value becomes part
+of the collection. Internal ownership and metadata, not caller discipline, identify every
+initialized key and value at every transition.
 
 Hashing and equality bodies do not return failure. If an authored body terminates, the program
 terminates; the collection does not attempt recovery from partially executed user code.

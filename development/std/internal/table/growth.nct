@@ -1,0 +1,124 @@
+//! Failure-atomic bucket rebuilding and capacity management.
+
+see ./index.nct
+see ./storage.nct
+see ./probing.nct
+
+use /hash.Hash
+use /internal/mem.{allocation_abort, checked_add}
+use /internal/ptr.replace_value
+use /vec.Vec
+
+func reserve_destination(
+    buckets: &+Vec<Bucket>,
+    new_start: usize,
+    new_count: usize,
+    hash: u64,
+    entry_index: usize,
+): void {
+    var destination = hash as usize % new_count
+    loop {
+        let bucket_index = new_start + destination
+        let available = match buckets[bucket_index] {
+            Bucket.empty { true }
+            _ { false }
+        }
+        if available {
+            let _ = replace_value(
+                &+buckets[bucket_index],
+                Bucket.occupied(entry_index),
+            )
+            return
+        }
+        destination = next_index(destination, new_count)
+    }
+}
+
+func try_rebuild<K, V>(table: &+Table<K, V>, new_count: usize): void! where K impl Hash {
+    let old_count = table.buckets.len()
+
+    // The only fallible operation finishes before published bucket state changes.
+    // Vec grows through its owned allocator, preserving table affinity.
+    table.buckets.try_reserve(new_count)?
+    var appended: usize = 0
+    while appended < new_count {
+        table.buckets.push(Bucket.empty)
+        appended += 1
+    }
+
+    // The appended range is a complete new bucket table. Entries remain in their
+    // dense owner, so rebuilding never moves, copies, or destroys user values.
+    var entry_index: usize = 0
+    while entry_index < table.keys.len() {
+        let hash = hash_key(&table.seed, &table.keys[entry_index])
+        reserve_destination(
+            &+table.buckets,
+            old_count,
+            new_count,
+            hash,
+            entry_index,
+        )
+        entry_index += 1
+    }
+
+    var destination: usize = 0
+    while destination < new_count {
+        let moved = replace_value(
+            &+table.buckets[old_count + destination],
+            Bucket.empty,
+        )
+        let _ = replace_value(&+table.buckets[destination], move moved)
+        destination += 1
+    }
+    table.buckets.truncate(new_count)
+    table.usable_bucket_capacity = usable_capacity(new_count)
+    table.tombstones = 0
+    return
+}
+
+func try_reserve_table<K, V>(table: &+Table<K, V>, additional: usize): void! where K impl Hash {
+    let required = checked_add(table.keys.len(), additional) otherwise {
+        return capacity_overflow()
+    }
+    if required <= table_capacity(table) {
+        return
+    }
+
+    // Every partial reserve remains hidden by the minimum-capacity contract. Bucket
+    // rebuilding never moves keys or values, and publication happens only after all
+    // three stores can hold the requested logical entry count.
+    if required > table.usable_bucket_capacity {
+        let new_count = bucket_count_for(required, true)?
+        try_rebuild(table, new_count)?
+    }
+    table.keys.try_reserve(additional)?
+    table.values.try_reserve(additional)?
+    return
+}
+
+func cleanup_sparse<K, V>(table: &+Table<K, V>): void where K impl Hash {
+    if table.tombstones < 8 || table.tombstones <= table.keys.len() {
+        return
+    }
+    let bucket_count = table.buckets.len()
+    try_rebuild(table, bucket_count) catch _ {
+        // Cleanup is an optimization. A failed temporary allocation does not turn an
+        // otherwise capacity-sufficient insertion into failure.
+        return
+    }
+    return
+}
+
+instance Table<K, V> where K impl Hash {
+    method &+self.reserve(additional: usize): void {
+        try_reserve_table(self, additional) catch _ {
+            return allocation_abort()
+        }
+        return
+    }
+
+    method &+self.try_reserve(additional: usize): void! {
+        try_reserve_table(self, additional)?
+        return
+    }
+}

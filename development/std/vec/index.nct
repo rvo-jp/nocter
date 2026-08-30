@@ -107,6 +107,9 @@ instance Vec<T> {
     /// Removes and transfers an element, or returns `none` out of bounds.
     pub method &+self.remove(index: usize): T?
 
+    /// Removes an element without preserving order for package-internal dense storage.
+    pub(/) method &+self.swap_remove(index: usize): T?
+
     /// Transfers and returns the last initialized element, or `none` when empty.
     pub method &+self.pop(): T?
 }

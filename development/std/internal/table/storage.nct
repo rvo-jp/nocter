@@ -1,0 +1,138 @@
+//! Dense entry ownership and bucket metadata representation.
+
+see ./index.nct
+
+use /hash.{Hash, HashState}
+use /internal/mem.{allocation_abort, checked_add}
+use /mem.TryAllocator
+use /vec.Vec
+
+enum Bucket {
+    empty
+    deleted
+    occupied(entry_index: usize)
+}
+
+struct Table<K, V> {
+    keys: Vec<K>
+    values: Vec<V>
+    buckets: Vec<Bucket>
+    usable_bucket_capacity: usize
+    tombstones: usize
+    seed: HashState
+}
+
+func capacity_overflow(): error {
+    return error.new("std.map.capacity_overflow", "Map capacity overflow")
+}
+
+func usable_capacity(bucket_count: usize): usize {
+    return bucket_count - bucket_count / 4
+}
+
+func bucket_count_for(minimum: usize, bind_empty: bool): usize! {
+    if minimum == 0 && !bind_empty {
+        return 0
+    }
+    var bucket_count: usize = 8
+    while usable_capacity(bucket_count) < minimum {
+        let next = checked_add(bucket_count, bucket_count) otherwise { return capacity_overflow() }
+        bucket_count = next
+    }
+    return bucket_count
+}
+
+func fill_empty(buckets: &+Vec<Bucket>, count: usize): void {
+    var index: usize = 0
+    while index < count {
+        buckets.push(Bucket.empty)
+        index += 1
+    }
+    return
+}
+
+func try_fill_empty(buckets: &+Vec<Bucket>, count: usize): void! {
+    var index: usize = 0
+    while index < count {
+        buckets.try_push(Bucket.empty)?
+        index += 1
+    }
+    return
+}
+
+func table_capacity<K, V>(table: &Table<K, V>): usize {
+    let key_capacity = table.keys.capacity()
+    let value_capacity = table.values.capacity()
+    let dense_capacity = if key_capacity < value_capacity { key_capacity } else { value_capacity }
+    if dense_capacity < table.usable_bucket_capacity {
+        return dense_capacity
+    }
+    return table.usable_bucket_capacity
+}
+
+construct Table<K, V> {
+    func empty(): Self where K impl Hash {
+        return Table<K, V> {
+            keys: Vec.empty(),
+            values: Vec.empty(),
+            buckets: Vec.empty(),
+            usable_bucket_capacity: 0,
+            tombstones: 0,
+            seed: HashState.fresh(),
+        }
+    }
+
+    func with_capacity(minimum: usize): Self where K impl Hash {
+        let bucket_count = bucket_count_for(minimum, false) catch _ {
+            return allocation_abort()
+        }
+        var keys: Vec<K> = Vec.with_capacity(minimum)
+        var values: Vec<V> = Vec.with_capacity(minimum)
+        var buckets: Vec<Bucket> = Vec.with_capacity(bucket_count)
+        fill_empty(&+buckets, bucket_count)
+        return Table<K, V> {
+            keys: move keys,
+            values: move values,
+            buckets: move buckets,
+            usable_bucket_capacity: if bucket_count == 0 { 0 } else { usable_capacity(bucket_count) },
+            tombstones: 0,
+            seed: HashState.fresh(),
+        }
+    }
+
+    func try_with_capacity(
+        allocator: &+TryAllocator,
+        minimum: usize,
+    ): Self! where K impl Hash {
+        // One entry of logical capacity keeps an explicitly empty table bound to the
+        // supplied allocator. Zero-sized entries need no physical affinity.
+        let dense_capacity: usize = if minimum == 0 { 1 } else { minimum }
+        let bucket_count = bucket_count_for(minimum, true)?
+        var keys: Vec<K> = Vec.try_with_capacity(allocator, dense_capacity)?
+        var values: Vec<V> = Vec.try_with_capacity(allocator, dense_capacity)?
+        var buckets: Vec<Bucket> = Vec.try_with_capacity(allocator, bucket_count)?
+        try_fill_empty(&+buckets, bucket_count)?
+        return Table<K, V> {
+            keys: move keys,
+            values: move values,
+            buckets: move buckets,
+            usable_bucket_capacity: usable_capacity(bucket_count),
+            tombstones: 0,
+            seed: HashState.fresh(),
+        }
+    }
+}
+
+instance Table<K, V> where K impl Hash {
+    method &self.len(): usize {
+        return self.keys.len()
+    }
+
+    method &self.is_empty(): bool {
+        return self.keys.len() == 0
+    }
+
+    method &self.capacity(): usize {
+        return table_capacity(self)
+    }
+}

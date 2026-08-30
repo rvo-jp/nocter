@@ -213,10 +213,10 @@ Argument packs and call spread do not introduce aggregate-initializer spread, ma
 tuple spread, pattern rest capture, struct embedding, mutable spread, untyped variadics, or a
 source-level pack value type.
 
-## Future Direction: v0.21.0 Keyed Packs and Mapping Literals
+## v0.21.0 Keyed Packs and Mapping Literals
 
-The adopted v0.21.0 Phase 0 design extends the same compiler-owned pack model with keyed entries.
-This section is not implemented in the latest published release.
+The v0.21.0 working tree extends the same compiler-owned pack model with keyed entries. This
+section is implemented in the working tree but not in the latest published release.
 
 A keyed pack has one key type and one value type:
 

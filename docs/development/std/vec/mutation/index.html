@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/vec/mutation.nct - Nocter">
@@ -124,6 +124,7 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Active v0.21.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 private-table and Map review</a></li>
                 <li><a href="../../../reviews/v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
                 <li><a href="../../../docs/associative-collection-implementation/index.html#content">Associative collection implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.20.0/index.html#content">Completed v0.20.0 compiler-foundation milestone</a></li>
@@ -301,6 +302,23 @@
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> removed
 <span class="token-operator">}</span>
 
+<span class="token-keyword">func</span> swap_remove<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> old_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> values<span class="token-operator">.</span>len
+    <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> old_len <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> last_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> old_len - <span class="token-number">1</span>
+    <span class="token-keyword">let</span> removed<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
+    <span class="token-keyword">if</span> index <span class="token-operator">!</span><span class="token-operator">=</span> last_index <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> last<span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> last_index <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
+        <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> index <span class="token-operator">*</span> element_size<span class="token-operator">,</span> <span class="token-keyword">move</span> last<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    values<span class="token-operator">.</span>len <span class="token-operator">=</span> last_index
+    <span class="token-keyword">return</span> <span class="token-keyword">move</span> removed
+<span class="token-operator">}</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">reserve</span><span class="token-operator">(</span>self<span class="token-operator">,</span> additional<span class="token-operator">)</span>
@@ -367,6 +385,10 @@
 
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">remove</span><span class="token-operator">(</span>self<span class="token-operator">,</span> index<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">swap_remove</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">swap_remove</span><span class="token-operator">(</span>self<span class="token-operator">,</span> index<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">pop</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>

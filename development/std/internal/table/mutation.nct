@@ -1,0 +1,115 @@
+//! Entry replacement, insertion, removal, and retained-allocation clearing.
+
+see ./index.nct
+see ./storage.nct
+see ./probing.nct
+see ./growth.nct
+
+use /hash.Hash
+use /internal/mem.allocation_abort
+use /internal/ptr.replace_value
+
+func place_new<K, V>(
+    table: &+Table<K, V>,
+    bucket_index: usize,
+    key: K,
+    value: V,
+): void where K impl Hash {
+    let reused_tombstone = match table.buckets[bucket_index] {
+        Bucket.deleted { true }
+        _ { false }
+    }
+    let entry_index = table.keys.len()
+    table.keys.push(move key)
+    table.values.push(move value)
+    let _ = replace_value(
+        &+table.buckets[bucket_index],
+        Bucket.occupied(entry_index),
+    )
+    if reused_tombstone {
+        table.tombstones -= 1
+    }
+    return
+}
+
+func try_insert_value<K, V>(table: &+Table<K, V>, key: K, value: V): V?! where K impl Hash {
+    let located = probe(table, &key)
+    match located {
+        Probe.found(_, entry_index, _) {
+            return replace_value(&+table.values[entry_index], move value)
+        }
+        Probe.vacant(_, hash) {
+            cleanup_sparse(table)
+            try_reserve_table(table, 1)?
+            let bucket_index = vacant_for_hash(table, hash)
+            place_new(table, bucket_index, move key, move value)
+            return none
+        }
+    }
+}
+
+instance Table<K, V> where K impl Hash {
+    method &+self.insert(key: K, value: V): V? {
+        return try_insert_value(self, move key, move value) catch _ {
+            return allocation_abort()
+        }
+    }
+
+    method &+self.try_insert(key: K, value: V): V?! {
+        return try_insert_value(self, move key, move value)?
+    }
+
+    method &+self.remove(key: &K): V? {
+        let located = probe(self, key)
+        var bucket_index = self.buckets.len()
+        var entry_index = self.keys.len()
+        match located {
+            Probe.found(found_bucket, found_entry, _) {
+                bucket_index = found_bucket
+                entry_index = found_entry
+            }
+            Probe.vacant(_, _) { return none }
+        }
+
+        let last_index = self.keys.len() - 1
+        var moved_bucket = self.buckets.len()
+        if entry_index != last_index {
+            let moved_key = &self.keys[last_index]
+            match probe_parts(
+                &self.seed,
+                &self.buckets,
+                &self.keys,
+                moved_key,
+            ) {
+                Probe.found(found_bucket, _, _) { moved_bucket = found_bucket }
+                Probe.vacant(_, _) {}
+            }
+        }
+
+        let removed_key = self.keys.swap_remove(entry_index) otherwise { return none }
+        let removed_value = self.values.swap_remove(entry_index) otherwise { return none }
+        let _ = replace_value(&+self.buckets[bucket_index], Bucket.deleted)
+        self.tombstones += 1
+        if entry_index != last_index {
+            let _ = replace_value(
+                &+self.buckets[moved_bucket],
+                Bucket.occupied(entry_index),
+            )
+        }
+
+        drop removed_key
+        return move removed_value
+    }
+
+    method &+self.clear(): void {
+        self.keys.clear()
+        self.values.clear()
+        var bucket_index: usize = 0
+        while bucket_index < self.buckets.len() {
+            let _ = replace_value(&+self.buckets[bucket_index], Bucket.empty)
+            bucket_index += 1
+        }
+        self.tombstones = 0
+        return
+    }
+}
