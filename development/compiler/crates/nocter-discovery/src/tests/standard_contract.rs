@@ -61,7 +61,6 @@ pub(super) fn assert_standard_root_visibility_boundaries(unit: &crate::Discovere
 const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("fmt", "internal/mem"),
     ("fmt", "internal/ptr"),
-    ("fmt", "ptr"),
     ("fmt", "string"),
     ("fs", "internal/io"),
     ("fs", "internal/os"),
@@ -110,7 +109,6 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("io/buffer", "string"),
     ("io/buffer", "vec"),
     ("iter", "internal/ptr"),
-    ("iter", "ptr"),
     ("iter/collect", "iter"),
     ("iter/collect", "vec"),
     ("json", "fmt"),
@@ -168,6 +166,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("string", "mem"),
     ("vec", "internal/mem"),
     ("vec", "internal/ptr"),
+    ("vec", "internal/safety"),
     ("vec", "iter"),
     ("vec", "mem"),
     ("vec", "ptr"),

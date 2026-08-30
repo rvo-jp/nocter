@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -182,30 +183,38 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>utf8<span class="token-operator">.</span>nct
 
+<span class="token-comment">/// An owning, growable well-formed UTF-8 string.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">String</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Copies a static string view into owned storage in the current allocation context.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
+    <span class="token-comment">/// Constructs an empty String without binding storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
+    <span class="token-comment">/// Constructs an empty String with at least the requested byte capacity.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
+    <span class="token-comment">/// Constructs an empty String using recoverable storage from `allocator`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Copies borrowed UTF-8 text into owned storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">copy</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
     <span class="token-comment">/// Concatenates borrowed UTF-8 parts into one owned string.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">concat</span><span class="token-operator">(</span><span class="token-operator">...</span>parts<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
+    <span class="token-comment">/// Copies borrowed UTF-8 text using recoverable storage from `allocator`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator
 
+    <span class="token-comment">/// Validates and copies UTF-8 bytes into current-context storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Validates and copies UTF-8 bytes using recoverable storage from `allocator`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_utf8</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
@@ -219,16 +228,22 @@
     <span class="token-comment">/// Exposes the initialized UTF-8 prefix without transferring ownership.</span>
     <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 
+    <span class="token-comment">/// Returns the byte capacity available without growth.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
+    <span class="token-comment">/// Ensures capacity for at least `additional` more UTF-8 bytes.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
+    <span class="token-comment">/// Ensures additional byte capacity with recoverable allocation failure.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Removes all text while retaining reusable storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
+    <span class="token-comment">/// Appends borrowed UTF-8 text.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
+    <span class="token-comment">/// Appends borrowed UTF-8 text with recoverable allocation failure.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Validates and appends UTF-8 bytes with recoverable allocation failure.</span>

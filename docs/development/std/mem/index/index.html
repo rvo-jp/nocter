@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -179,15 +180,19 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>raw_buffer<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
+<span class="token-comment">/// A validated storage size and alignment pair.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">Layout</span>
 
 <span class="token-comment">/// Owned raw storage shared by package-level collection implementations.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">RawBuffer</span>
 
+<span class="token-comment">/// An allocator whose failure policy terminates the program.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Allocator</span>
 
+<span class="token-comment">/// The allocator selected for a lexical allocation region.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">AllocationContext</span>
 
+<span class="token-comment">/// An allocator that reports storage failure through `T!`.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TryAllocator</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span>
@@ -195,8 +200,10 @@
 <span class="token-comment">/// Adapts the active context for package-internal recoverable implementation cores.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span>
 
+<span class="token-comment">/// Returns an ordinary page-backed allocator.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span>
 
+<span class="token-comment">/// Returns a recoverable page-backed allocator.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">empty_unbound_buffer</span><span class="token-operator">(</span>align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
@@ -204,14 +211,17 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">take_raw_buffer</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Layout</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Validates `size` and power-of-two `align` as one allocation request.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// Allocates one validated layout with recoverable failure.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_alloc_layout</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     requested<span class="token-operator">:</span> <span class="token-type">Layout</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">!</span>
 
+<span class="token-comment">/// Allocates one validated layout under the allocator's terminating policy.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">alloc_layout</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span>
     requested<span class="token-operator">:</span> <span class="token-type">Layout</span><span class="token-operator">,</span>
@@ -220,31 +230,41 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">try_grow_owned</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> new_size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Allocates `size` bytes with `align`, terminating on failure.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">alloc</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
 
+    <span class="token-comment">/// Grows owned storage while preserving its allocator affinity.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">grow</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> new_size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Allocates `size` bytes with recoverable layout or storage failure.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_alloc</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Grows owned storage with recoverable failure and preserved allocator affinity.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_grow</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> new_size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Exposes all owned bytes as a readonly view.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
 
+    <span class="token-comment">/// Exposes all owned bytes as an exclusive view.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">bytes_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
 
+    <span class="token-comment">/// Returns a readonly prefix or a bounds error.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">prefix</span><span class="token-operator">(</span>len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Returns an exclusive prefix or a bounds error.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">prefix_mut</span><span class="token-operator">(</span>len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Layout</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the validated byte size.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">size</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
+    <span class="token-comment">/// Returns the validated alignment.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">align</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
 </code></pre>

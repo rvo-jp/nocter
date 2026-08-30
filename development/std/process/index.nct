@@ -9,26 +9,39 @@ use /vec.Vec
 see ./darwin.nct
 
 pub copy struct EnvironmentEntry {
+    /// Borrowed environment-variable name retained by process storage.
     pub name: &str
+
+    /// Borrowed environment-variable value retained by process storage.
     pub value: &str
 }
 
+/// Copies all process arguments into an owning Vec of process-lifetime views.
 pub func args(): Vec<&str>!
 
+/// Returns the number of process arguments, including the executable spelling.
 pub func arg_count(): usize
 
+/// Returns one process argument, `none` out of range, or a decoding failure.
 pub func arg(index: usize): &str?!
 
+/// Returns the number of environment entries.
 pub func environment_count(): usize
 
+/// Returns one environment entry, `none` out of range, or a decoding failure.
 pub func environment(index: usize): EnvironmentEntry?!
 
+/// Returns the value of one environment variable, `none` when absent, or a decoding failure.
 pub func env(name: &str): &str?!
 
+/// Returns the current working directory in current-context storage.
 pub func cwd(): String!
 
+/// Returns the current working directory using recoverable storage from `allocator`.
 pub func try_cwd(allocator: &+TryAllocator): String!
 
+/// Terminates the process with `code` and does not return.
 pub func exit(code: i32): never
 
+/// Terminates the process immediately with an unsuccessful status.
 pub func abort(): never

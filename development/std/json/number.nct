@@ -352,6 +352,18 @@ func number_failure_message_matches(text: &str, expected: &str): bool {
     return false
 }
 
+func number_projects_i64(text: &str): bool {
+    let number = Number.parse(text) catch _ { return false }
+    let _value = number.as_i64() otherwise { return false }
+    return true
+}
+
+func number_projects_u64(text: &str): bool {
+    let number = Number.parse(text) catch _ { return false }
+    let _value = number.as_u64() otherwise { return false }
+    return true
+}
+
 test number_preserves_exact_text_and_projects_integer_boundaries {
     let decimal = Number.parse("-12.3400e2")?
     let decimal_value = decimal.as_i64() otherwise {
@@ -376,6 +388,22 @@ test number_preserves_exact_text_and_projects_integer_boundaries {
     if minimum_value != -9223372036854775808 {
         return error.new("std.json.number", "i64 minimum changed")
     }
+
+    let signed_maximum = Number.parse("9223372036854775807")?
+    let maximum_value = signed_maximum.as_i64() otherwise {
+        return error.new("std.json.number", "i64 maximum was rejected")
+    }
+    if maximum_value != 9223372036854775807 {
+        return error.new("std.json.number", "i64 maximum changed")
+    }
+
+    let exponent = Number.parse("184467440737095516150e-1")?
+    let exponent_value = exponent.as_u64() otherwise {
+        return error.new("std.json.number", "exact exponent projection was rejected")
+    }
+    if exponent_value != 18446744073709551615 {
+        return error.new("std.json.number", "exact exponent projection changed")
+    }
     return
 }
 
@@ -389,7 +417,17 @@ test number_rejects_non_json_spelling_and_non_integral_projection {
     if !number_is_invalid("1.") || !number_is_invalid("1e") || !number_is_invalid("1e+") {
         return error.new("std.json.number", "incomplete JSON number was accepted")
     }
-    let fraction = Number.parse("1.25")?
-    let _integer = fraction.as_i64() otherwise { return }
-    return error.new("std.json.number", "non-integral number projected to i64")
+    if number_projects_u64("18446744073709551616") {
+        return error.new("std.json.number", "out-of-range unsigned number projected to u64")
+    }
+    if number_projects_i64("9223372036854775808") {
+        return error.new("std.json.number", "out-of-range signed number projected to i64")
+    }
+    if number_projects_i64("1e-999999999999999999999999999999") {
+        return error.new("std.json.number", "tiny non-integral exponent projected to i64")
+    }
+    if number_projects_i64("1.25") {
+        return error.new("std.json.number", "non-integral number projected to i64")
+    }
+    return
 }

@@ -15,6 +15,7 @@ see ./iteration.nct
 /// An owning collection containing one representative of each equality class.
 pub struct Set<T>
 
+/// A readonly iterator over Set values in unspecified order.
 pub struct SetIter<T>
 
 instance SetIter<T> {
@@ -22,6 +23,7 @@ instance SetIter<T> {
     impl Iterator { .Item = &T }
 }
 
+/// An owning iterator that transfers every Set value exactly once.
 pub struct SetIntoIter<T>
 
 instance SetIntoIter<T> {
@@ -33,15 +35,19 @@ construct Set<T> {
     /// Constructs a Set from owned items evaluated from left to right.
     pub literal [](...items: T): Self where T impl Hash
 
+    /// Constructs an empty set without binding storage.
     pub func empty(): Self where T impl Hash
 
+    /// Constructs an empty set with capacity for at least `minimum` values.
     pub func with_capacity(minimum: usize): Self where T impl Hash
 
+    /// Constructs an empty set using recoverable storage from `allocator`.
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         minimum: usize,
     ): Self! where T impl Hash
 
+    /// Constructs a set from items using recoverable storage from `allocator`.
     pub func try_from_items(
         allocator: &+TryAllocator,
         ...items: T,
@@ -49,15 +55,34 @@ construct Set<T> {
 }
 
 instance Set<T> where T impl Hash {
+    /// Returns the number of equality classes represented by this set.
     pub method &self.len(): usize
+
+    /// Returns whether this set contains no values.
     pub method &self.is_empty(): bool
+
+    /// Returns how many values fit without growth.
     pub method &self.capacity(): usize
+
+    /// Returns whether an equal value is present.
     pub method &self.contains(value: &T): bool
+
+    /// Inserts a value and reports whether its equality class was absent.
     pub method &+self.insert(value: T): bool
+
+    /// Inserts with recoverable allocation and reports whether the value was absent.
     pub method &+self.try_insert(value: T): bool!
+
+    /// Removes an equal value and reports whether one was present.
     pub method &+self.remove(value: &T): bool
+
+    /// Removes every value while retaining reusable storage.
     pub method &+self.clear(): void
+
+    /// Ensures capacity for at least `additional` more values.
     pub method &+self.reserve(additional: usize): void
+
+    /// Ensures additional capacity with recoverable allocation failure.
     pub method &+self.try_reserve(additional: usize): void!
 
     /// Iterates over readonly values in unspecified order.
@@ -66,5 +91,6 @@ instance Set<T> where T impl Hash {
     /// Transfers every stored value exactly once in unspecified order.
     pub operator (...self): SetIntoIter<T>
 
+    /// Compares membership without depending on placement or iteration order.
     pub operator (&self == other: &Self): bool
 }

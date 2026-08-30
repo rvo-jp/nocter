@@ -16,6 +16,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 - [v0.22.0 Phase 2 owning DOM parser review](reviews/v0.22.0-phase-2.md)
 - [v0.22.0 Phase 3 shared generator review](reviews/v0.22.0-phase-3.md)
 - [v0.22.0 Phase 4 practical integration review](reviews/v0.22.0-phase-4.md)
+- [v0.22.0 Phase 5 standard-library stabilization review](reviews/v0.22.0-phase-5.md)
 - [JSON implementation boundary](docs/json-implementation.md)
 - [Completed v0.21.0 milestone](milestones/v0.21.0.md)
 - [v0.21.0 release preparation](milestones/v0.21.0-release-preparation.md)

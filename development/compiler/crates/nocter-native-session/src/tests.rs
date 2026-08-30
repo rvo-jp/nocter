@@ -104,6 +104,7 @@ const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
 use std/hash.HashState
 use std/mem.page_try_allocator
 use std/string.String
+use std/vec.Vec
 
 instance CollisionKey {
     operator (&self == other: &Self): bool { return self.id == other.id }
@@ -242,7 +243,10 @@ test recoverable_capacity_overflow_is_semantically_atomic {
     let previous_capacity = values.capacity()
     let key: i32 = 7
     let maximum: usize = 18446744073709551615
-    values.try_reserve(maximum) catch _ {
+    values.try_reserve(maximum) catch failure {
+        if !failure.has_code("std.mem.capacity_overflow") {
+            return error.new("std.map.reserve_error", "overflowing reserve returned the wrong error")
+        }
         if values.len() != 1 || values.capacity() != previous_capacity {
             return error.new("std.map.failed_reserve", "failed reserve changed state")
         }
@@ -252,6 +256,43 @@ test recoverable_capacity_overflow_is_semantically_atomic {
         return
     }
     return error.new("std.map.overflow_accepted", "overflowing reserve succeeded")
+}
+
+test shared_collection_capacity_and_bounds_errors_are_stable {
+    var allocator = page_try_allocator()
+    let maximum: usize = 18446744073709551615
+
+    var values: Vec<i32> = Vec.try_with_capacity(&+allocator, 1)?
+    values.try_push(7)?
+    var vec_overflow_failed = false
+    values.try_reserve(maximum) catch failure {
+        if !failure.has_code("std.mem.capacity_overflow") {
+            return error.new("std.vec.reserve_error", "Vec returned a representation-specific capacity error")
+        }
+        vec_overflow_failed = true
+    }
+    if !vec_overflow_failed {
+        return error.new("std.vec.overflow_accepted", "overflowing Vec reserve succeeded")
+    }
+    var vec_bounds_failed = false
+    values.try_insert(2, 9) catch failure {
+        if !failure.has_code("std.vec.index_out_of_bounds") {
+            return error.new("std.vec.insert_error", "Vec returned the wrong insertion error")
+        }
+        vec_bounds_failed = true
+    }
+    if !vec_bounds_failed {
+        return error.new("std.vec.bounds_accepted", "out-of-bounds Vec insertion succeeded")
+    }
+
+    var text = String.try_copy(&+allocator, "x")?
+    text.try_reserve(maximum) catch failure {
+        if !failure.has_code("std.mem.capacity_overflow") {
+            return error.new("std.string.reserve_error", "String returned a representation-specific capacity error")
+        }
+        return
+    }
+    return error.new("std.string.overflow_accepted", "overflowing String reserve succeeded")
 }
 
 test map_iteration_modes_are_semantic_and_exact {
@@ -1120,7 +1161,7 @@ fn standard_map_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard map tests failed native compilation")
     };
-    assert_eq!(cases.len(), 8);
+    assert_eq!(cases.len(), 9);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

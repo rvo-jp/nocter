@@ -208,6 +208,10 @@ test generator_uses_one_compact_string_escape_policy {
         "\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\"",
         "\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\"",
     )?
+    expect_generated(
+        "\"\\u0001\\u0007\\u000b\\u001f\"",
+        "\"\\u0001\\u0007\\u000B\\u001F\"",
+    )?
     expect_generated("\"123456789012345é\"", "\"123456789012345é\"")?
     return
 }

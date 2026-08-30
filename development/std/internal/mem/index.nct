@@ -12,3 +12,6 @@ pub(/) func checked_multiply(left: usize, right: usize): usize?
 
 /// Selects geometric capacity no smaller than `required`.
 pub(/) func growth_capacity(current: usize, required: usize): usize
+
+/// Constructs the one stable error for unrepresentable storage capacity.
+pub(/) func capacity_overflow(): error

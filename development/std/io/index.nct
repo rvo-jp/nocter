@@ -30,24 +30,32 @@ pub interface Writer {
     pub default method &+self.write_text(text: &str): void!
 }
 
+/// An owning byte stream backed by one open file descriptor.
 pub struct File
 
+/// Returns the process standard-output stream without taking ownership of the descriptor.
 pub func stdout(): File
 
+/// Returns the process standard-error stream without taking ownership of the descriptor.
 pub func stderr(): File
 
 construct File {
+    /// Opens an existing file for reading.
     pub func open(path: &str): Self!
 
+    /// Creates or truncates a file for writing.
     pub func create(path: &str): Self!
 
+    /// Opens or creates a file and positions writes at its end.
     pub func append(path: &str): Self!
 }
 
 instance File {
+    /// Closes the owned descriptor. Repeated calls are harmless.
     pub method &+self.close(): void
     impl Reader
     impl Writer
 }
 
+/// Writes UTF-8 text to standard output without adding a newline.
 pub func print(text: &str): void!

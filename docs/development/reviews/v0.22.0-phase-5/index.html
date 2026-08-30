@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/json/generation_failure.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/json/generation_failure.nct.">
+    <title>v0.22.0 Phase 5 Standard-Library Stabilization Review - Nocter</title>
+    <meta name="description" content="Phase 5 is complete. The completed JSON implementation passed its adversarial source qualification, and the standard-library audit corrected three concrete">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/json/generation_failure/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.22.0-phase-5/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/json/generation_failure.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/json/generation_failure.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/json/generation_failure/">
+    <meta property="og:title" content="v0.22.0 Phase 5 Standard-Library Stabilization Review - Nocter">
+    <meta property="og:description" content="Phase 5 is complete. The completed JSON implementation passed its adversarial source qualification, and the standard-library audit corrected three concrete">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.22.0-phase-5/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/json/generation_failure.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/json/generation_failure.nct.">
+    <meta name="twitter:title" content="v0.22.0 Phase 5 Standard-Library Stabilization Review - Nocter">
+    <meta name="twitter:description" content="Phase 5 is complete. The completed JSON implementation passed its adversarial source qualification, and the standard-library audit corrected three concrete">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/json/generation_failure.nct - Nocter","description":"Nocter source code for development/std/json/generation_failure.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/json/generation_failure/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Json","item":"https://nocter.dev/development/std/json/"},{"@type":"ListItem","position":5,"name":"Generation_failure","item":"https://nocter.dev/development/std/json/generation_failure/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.22.0 Phase 5 Standard-Library Stabilization Review - Nocter","description":"Phase 5 is complete. The completed JSON implementation passed its adversarial source qualification, and the standard-library audit corrected three concrete","url":"https://nocter.dev/development/reviews/v0.22.0-phase-5/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.22.0-phase-5/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.22.0 Phase 5","item":"https://nocter.dev/development/reviews/v0.22.0-phase-5/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,57 +120,51 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
-                <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
-                <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
-                <li><a href="../../../docs/associative-collection-implementation/index.html#content">Associative collection implementation boundary</a></li>
-                <li><a href="../../../milestones/v0.20.0/index.html#content">Completed v0.20.0 compiler-foundation milestone</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query-entry review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic-computation review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
-                <li><a href="../../../milestones/v0.19.0/index.html#content">Completed v0.19.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.19.0-release-preparation/index.html#content">v0.19.0 release preparation</a></li>
-                <li><a href="../../../milestones/v0.18.0/index.html#content">Completed v0.18.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a></li>
-                <li><a href="../../../reviews/index.html#content">Design reviews</a></li>
-                <li><a href="../../../releases/v0.21.0/index.html#content">Latest published release qualification</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
+                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
+                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.22.0 Phase 5 standard-library stabilization review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 private-table and Map review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 hash-foundation review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/json/generation_failure.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.22.0-phase-5.md</span>
             </div>
             <div class="markdown-body">
-                <h1>generation_failure.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Private generator failure classification retained until a public wrapper applies policy.</span>
-
-<span class="token-keyword">enum</span> <span class="token-type">GenerationAttempt</span> <span class="token-operator">{</span>
-    complete
-    <span class="token-function">sink</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> error<span class="token-operator">)</span>
-    <span class="token-function">allocation</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> error<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="v0-22-0-phase-5-standard-library-stabilization-review">v0.22.0 Phase 5 Standard-Library Stabilization Review</h1><h2 id="outcome">Outcome</h2><p>Phase 5 is complete. The completed JSON implementation passed its adversarial source qualification, and the standard-library audit corrected three concrete cross-module defects without expanding the public API. No unresolved correctness or responsibility-boundary finding remains in the reviewed scope. Version identity, artifact generation, installed-home qualification, and publication remain release-preparation work.</p><h2 id="failure-and-ownership-policy">Failure and Ownership Policy</h2><p>Vec, String, and the table shared by Map and Set previously constructed separate capacity errors. The table's <code>std.map.capacity_overflow</code> spelling leaked one public collection's name through Set. All unrepresentable collection capacities now use one <code>std/internal/mem</code> constructor and the already specified <code>std.mem.capacity_overflow</code> code. A native contract proves the shared identity for Vec, String, and Map while preserving each collection's state after failure.</p><p>Ordinary <code>Vec.insert</code> previously flattened both recoverable bounds and allocation failures into the allocation-abort path. It now validates bounds through the standard safety boundary before calling the failure-atomic recoverable insertion core. The core remains the sole owner of growth and element movement; no second insertion algorithm or error-code comparison was added.</p><p>Formatting copied scalar values by reconstructing a raw slice locally, and <code>OnceIter</code> manually took and replaced optional storage. Both operations now cross focused generic helpers in <code>std/internal/ptr</code>. This removes direct public-pointer dependencies from <code>fmt</code> and <code>iter</code>, keeps the unsafe representation proof in one responsibility, and leaves call sites expressed in value terms.</p><h2 id="json-adversarial-qualification">JSON Adversarial Qualification</h2><p>The existing same-module tests remain colocated intentionally: they exercise private cursor, Number, Unicode, parser, and traversal invariants that an external public package cannot observe. Public integration remains independently covered by the Writer, process, editor, and example tests. Phase 5 adds coverage for:</p><ul><li>i64 and u64 extrema, first out-of-range values, exact exponent normalization, huge negative
+  exponents, and non-integral projection;</li><li>the maximum Unicode scalar, invalid surrogate combinations, escaped solidus, raw controls, BOM,
+  non-JSON whitespace, trailing tokens, and decoded duplicate names;</li><li>compact uppercase control escapes and preservation of exact Number spelling;</li><li>shared capacity failure identity, failure atomicity, deep explicit-stack traversal, selected
+  allocator affinity, and destination failure.</li></ul><p>The audit found one cursor, one Number grammar and normalized shape, one parser state machine, one String/Writer traversal, one escaping engine, and one private failure classification for each recoverable core. No JSON decision is repeated in the compiler, editor, example, or output adapter.</p><h2 id="public-contracts-and-dependency-review">Public Contracts and Dependency Review</h2><p>Frequently used Map, Set, Vec, String, memory, formatting, I/O, path, and process declarations now carry documentation in their module contract roots. LSP hover can therefore explain construction, capacity, ownership, failure, and iteration behavior without reading implementation files or exposing representation fields.</p><p>The standard-library dependency test remains an exact reviewed graph, not a permissive allowlist. It records removal of <code>fmt -&gt; ptr</code> and <code>iter -&gt; ptr</code>, records the intentional Vec bounds-termination dependency, and fails on either a new unreviewed edge or a stale expected edge. The final graph has no public JSON-to-representation dependency and no private internal module with global visibility.</p><h2 id="qualification">Qualification</h2><p>Phase 5 passed:</p><ul><li><code>cargo test --workspace --quiet</code> in <code>development/compiler/</code>;</li><li>all ten focused native standard-library contract tests, including 20 JSON internal cases, three
+  public Writer cases, and the expanded collection failure matrix;</li><li><code>cargo clippy --workspace --all-targets -- -D warnings</code>;</li><li><code>cargo fmt --all -- --check</code>;</li><li>canonical formatter qualification for every runnable example;</li><li>generated documentation and link validation through <code>node docs/build-docs.js</code>;</li><li><code>git diff --check</code> and a final authority/representation review.</li></ul><p>The public JSON chapter remains marked future direction because the published v0.21.0 toolchain does not contain it. Release preparation may promote that chapter only after the deterministic v0.22.0 artifact and a fresh installed home pass their complete qualification gate.</p>
             </div>
         </main>
     </div>
@@ -186,6 +180,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

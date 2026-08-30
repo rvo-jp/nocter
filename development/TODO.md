@@ -7,11 +7,10 @@ artifact, publication, and public re-download evidence is frozen; its tag and re
 not be replaced.
 
 The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON DOM, exact number
-tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 4 are complete
-and reviewed. The public contract, exact Number representation, lexical cursor, Unicode escape
-foundation, typed failure channels, owning Value model, explicit-stack parser, shared String/Writer
-generator, and practical application/tooling integration are closed; Phase 5 stabilization is the
-next checkpoint.
+tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 5 are complete
+and reviewed. The public contract, implementation, practical integration, adversarial JSON matrix,
+shared collection failure policy, standard dependency audit, and public contract documentation are
+closed. Release preparation is the next checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -23,21 +22,19 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Implement v0.22.0 Phase 5 from the adopted JSON contract and
-`development/docs/json-implementation.md`:
+Prepare the v0.22.0 release candidate without changing the completed JSON or standard-library
+contract:
 
-- run adversarial RFC 8259, Unicode, exact-number, duplicate-name, deep-input, cleanup, and
-  allocation qualification over the completed parser and generator;
-- qualify the complete native, LSP, formatter, documentation, packaging, and installed-artifact
-  surface without weakening tests around private authority boundaries;
-- audit the complete `std/json` source graph for repeated grammar, traversal, ownership, failure,
-  or representation decisions;
-- remove the future-direction notice only after the implementation and installed release candidate
-  pass the complete gate;
-- prepare release evidence only after the Phase 5 review has no unresolved practical defect.
+- align the release version, standard package identity, manifest, release notes, and public links;
+- run two independent complete source qualifications and warnings-denied Clippy gates;
+- generate two deterministic optimized artifacts and compare both archives and installed homes;
+- qualify a fresh installed home across version, doctor, help, init, offline check/test/graph,
+  native run/build, direct execution, and framed LSP requests;
+- remove the JSON future-direction notice only after that installed candidate passes;
+- freeze candidate hashes and evidence, then wait for explicit publication authorization.
 
 Do not add pretty printing, canonical member ordering, floating point, `char`, streaming JSON input,
-public failure wrappers, or a compiler-known JSON declaration during Phase 5.
+public failure wrappers, or a compiler-known JSON declaration during release preparation.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

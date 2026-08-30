@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -346,6 +347,14 @@
     <span class="token-keyword">if</span> scalar <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"A¢€𐀀"</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.string"</span><span class="token-operator">,</span> <span class="token-string">"Unicode escape decoding changed"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> maximum <span class="token-operator">=</span> <span class="token-function">decoded_string</span><span class="token-operator">(</span><span class="token-string">"\"\\uDBFF\\uDFFF\""</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> maximum <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"􏿿"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.string"</span><span class="token-operator">,</span> <span class="token-string">"maximum Unicode scalar decoding changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> solidus <span class="token-operator">=</span> <span class="token-function">decoded_string</span><span class="token-operator">(</span><span class="token-string">"\"\\/\""</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> solidus <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"/"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.string"</span><span class="token-operator">,</span> <span class="token-string">"escaped solidus decoding changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -353,7 +362,10 @@
     <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\x\""</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\u12\""</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.string"</span><span class="token-operator">,</span> <span class="token-string">"invalid escape was accepted"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\ud800\""</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\udc00\""</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\ud800\""</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\udc00\""</span><span class="token-operator">)</span> ||
+        <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\ud800\\u0041\""</span><span class="token-operator">)</span> ||
+        <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\ud800\\ud800\""</span><span class="token-operator">)</span> ||
+        <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"\\udbff\\ue000\""</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.string"</span><span class="token-operator">,</span> <span class="token-string">"unpaired surrogate was accepted"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">string_is_invalid</span><span class="token-operator">(</span><span class="token-string">"\"raw\nnewline\""</span><span class="token-operator">)</span> <span class="token-operator">{</span>

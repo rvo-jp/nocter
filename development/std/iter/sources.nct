@@ -3,8 +3,7 @@ see ./adapters.nct
 
 //! Zero- and one-element owning iterators.
 
-use /ptr.from_ref_mut
-use /internal/ptr.{store_value_to_ptr, take_value_at_ptr}
+use /internal/ptr.replace_value
 
 /// Constructs an empty iterator.
 func empty<T>(): EmptyIter<T> {
@@ -42,10 +41,7 @@ instance OnceIter<T> {
         if self.remaining == 0 {
             return none
         }
-        let empty_value: T? = none
-        let pointer = from_ref_mut(&+self.item)
-        let previous: T? = take_value_at_ptr(pointer, 0)
-        store_value_to_ptr(pointer, 0, move empty_value)
+        let previous: T? = replace_value(&+self.item, none)
         self.remaining = 0
         let item = move previous?
         return move item

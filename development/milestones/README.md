@@ -8,9 +8,9 @@ in [`development/releases/`](../releases/README.md).
 ## Active Milestone
 
 The [v0.22.0 milestone](v0.22.0.md) returns to practical standard-library work with an owning JSON
-DOM, exact decimal tokens, strict parsing, and compact generation. Phase 0 is complete and reviewed;
-Phase 1 lexical and Unicode foundation is next. The adopted public API remains explicitly marked
-future direction until its implementation qualifies.
+DOM, exact decimal tokens, strict parsing, and compact generation. Phases 0 through 5 are complete
+and reviewed; release preparation is next. The adopted public API remains explicitly marked future
+direction until an installed v0.22.0 candidate qualifies.
 
 ## Latest Completed Milestone
 

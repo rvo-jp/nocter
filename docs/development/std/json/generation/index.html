@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -371,6 +372,10 @@
     <span class="token-function">expect_generated</span><span class="token-operator">(</span>
         <span class="token-string">"\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\""</span><span class="token-operator">,</span>
         <span class="token-string">"\"\\u0000\\b\\f\\n\\r\\t\\\"\\\\/\""</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_generated</span><span class="token-operator">(</span>
+        <span class="token-string">"\"\\u0001\\u0007\\u000b\\u001f\""</span><span class="token-operator">,</span>
+        <span class="token-string">"\"\\u0001\\u0007\\u000B\\u001F\""</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">expect_generated</span><span class="token-operator">(</span><span class="token-string">"\"123456789012345é\""</span><span class="token-operator">,</span> <span class="token-string">"\"123456789012345é\""</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>

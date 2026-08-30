@@ -247,3 +247,23 @@ Implementation and review must reject:
 - JSON code that reads Map, String, Vec, allocator, or Writer representation fields;
 - floating-point conversion used as the Number storage authority;
 - a fixed nesting limit introduced only to accommodate an implementation shortcut.
+
+## Phase 5 Stabilization
+
+The final source qualification extends the native matrix across integer range and exponent
+boundaries, non-JSON whitespace, duplicate decoded names, maximum and invalid Unicode scalars,
+every compact control-escape class, deep values, explicit allocator affinity, and Writer failure.
+These cases exercise the same cursor, Number shape, parser state, traversal, and escaping authority;
+no adversarial-only parser or serializer exists.
+
+Standard capacity failures now come from one package-internal memory function with the public code
+`std.mem.capacity_overflow`. Vec, String, Map, and Set retain their own representation and growth
+algorithms but cannot invent representation-specific capacity error identities. Formatting and
+single-item iteration use generic copy and replacement helpers from `std/internal/ptr`, so neither
+module reconstructs raw pointer operations locally or depends directly on public pointer
+primitives.
+
+The exact standard dependency graph is executable review evidence. Phase 5 removes the direct
+`fmt -> ptr` and `iter -> ptr` edges, records the intentional `vec -> internal/safety` bounds-abort
+edge, and rejects any unreviewed future cross-module dependency. Artifact identity and installed
+home qualification remain release-preparation responsibilities.

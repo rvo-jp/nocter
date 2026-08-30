@@ -1,7 +1,6 @@
 see ./index.nct
 see ./formatting.nct
-use /ptr.from_ref
-use /internal/ptr.slice_from_raw_parts_value
+use /internal/ptr.copy_value
 use /string.String
 
 //! Standard Format implementations for compiler built-in and owned text types.
@@ -95,10 +94,4 @@ instance usize {
         append_usize(output, copy_value(self))
         return
     }
-}
-
-func copy_value<T>(value: &T): T where copy T {
-    let pointer: *T = from_ref(value)
-    let values: &[T] = slice_from_raw_parts_value(pointer, 1)
-    return values[0]
 }

@@ -33,3 +33,7 @@ func growth_capacity(current: usize, required: usize): usize {
     }
     return doubled
 }
+
+func capacity_overflow(): error {
+    return error.new("std.mem.capacity_overflow", "storage capacity overflow")
+}

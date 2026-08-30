@@ -339,8 +339,10 @@ test parser_rejects_extensions_boundaries_and_decoded_duplicates {
         !parse_has_error("[1,]", "std.json.invalid_syntax") ||
         !parse_has_error("{\"a\":1,}", "std.json.invalid_syntax") ||
         !parse_has_error("true false", "std.json.invalid_syntax") ||
+        !parse_has_error("truex", "std.json.invalid_syntax") ||
         !parse_has_error("/*x*/null", "std.json.invalid_syntax") ||
         !parse_has_error("﻿null", "std.json.invalid_syntax") ||
+        !parse_has_error(" null", "std.json.invalid_syntax") ||
         !parse_has_error("[{\"a\":[1,2,", "std.json.invalid_syntax") {
         return error.new("std.json.invalid", "non-JSON grammar was accepted")
     }
@@ -364,6 +366,7 @@ test parser_rejects_malformed_container_boundaries {
         !parse_has_error("{\"a\" 1}", "std.json.invalid_syntax") ||
         !parse_has_error("{\"a\":}", "std.json.invalid_syntax") ||
         !parse_has_error("{\"a\":1 \"b\":2}", "std.json.invalid_syntax") ||
+        !parse_has_error("{\"a\":1,\"a\":2}", "std.json.duplicate_name") ||
         !parse_has_error("\"text\" trailing", "std.json.invalid_syntax") ||
         !parse_has_error("01", "std.json.invalid_syntax") {
         return error.new("std.json.boundary", "malformed container boundary was accepted")

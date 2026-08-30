@@ -1,8 +1,4 @@
-//! Stable Vec failure construction shared by construction and mutation.
-
-func capacity_overflow(): error {
-    return error.new("std.vec.capacity_overflow", "Vec capacity overflow")
-}
+//! Vec-specific failure construction shared by construction and mutation.
 
 func index_out_of_bounds(): error {
     return error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")

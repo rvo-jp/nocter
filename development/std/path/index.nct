@@ -5,9 +5,11 @@
 
 see ./utf8_path.nct
 
+/// An owning path whose complete byte spelling is well-formed UTF-8.
 pub struct Utf8Path
 
 construct Utf8Path {
+    /// Validates and copies one UTF-8 path spelling.
     pub func new(value: &str): Self!
 }
 
@@ -15,9 +17,12 @@ instance Utf8Path {
     /// Exposes the validated UTF-8 path text without transferring ownership.
     pub coerce &self as &str
 
+    /// Returns whether the path begins at the filesystem root.
     pub method &self.is_absolute(): bool
 
+    /// Joins a relative child path and returns a validated owning result.
     pub method &self.join(child: &str): Utf8Path!
 }
 
+/// Validates one UTF-8 path spelling without constructing an owning path.
 pub func validate(value: &str): void!

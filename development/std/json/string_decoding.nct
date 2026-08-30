@@ -182,6 +182,14 @@ test string_escape_decoding_covers_ascii_and_surrogate_pairs {
     if scalar != "A¢€𐀀" {
         return error.new("std.json.string", "Unicode escape decoding changed")
     }
+    let maximum = decoded_string("\"\\uDBFF\\uDFFF\"")?
+    if maximum != "􏿿" {
+        return error.new("std.json.string", "maximum Unicode scalar decoding changed")
+    }
+    let solidus = decoded_string("\"\\/\"")?
+    if solidus != "/" {
+        return error.new("std.json.string", "escaped solidus decoding changed")
+    }
     return
 }
 
@@ -189,7 +197,10 @@ test string_escape_decoding_rejects_invalid_sequences {
     if !string_is_invalid("\"\\x\"") || !string_is_invalid("\"\\u12\"") {
         return error.new("std.json.string", "invalid escape was accepted")
     }
-    if !string_is_invalid("\"\\ud800\"") || !string_is_invalid("\"\\udc00\"") {
+    if !string_is_invalid("\"\\ud800\"") || !string_is_invalid("\"\\udc00\"") ||
+        !string_is_invalid("\"\\ud800\\u0041\"") ||
+        !string_is_invalid("\"\\ud800\\ud800\"") ||
+        !string_is_invalid("\"\\udbff\\ue000\"") {
         return error.new("std.json.string", "unpaired surrogate was accepted")
     }
     if !string_is_invalid("\"raw\nnewline\"") {

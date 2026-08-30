@@ -3,7 +3,7 @@
 see ./index.nct
 see ./storage.nct
 
-use /internal/mem.{allocation_abort, checked_add, growth_capacity}
+use /internal/mem.{allocation_abort, capacity_overflow, checked_add, growth_capacity}
 use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
 use /internal/utf8.validate_utf8
 use /mem.try_grow_owned
@@ -63,10 +63,6 @@ func try_push_utf8(text: &+String, value: &[u8]): void! {
     }
     text.len = next_len
     return
-}
-
-func capacity_overflow(): error {
-    return error.new("std.string.capacity_overflow", "string capacity overflow")
 }
 
 instance String {

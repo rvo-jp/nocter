@@ -5,7 +5,7 @@ see ./storage.nct
 see ./probing.nct
 
 use /hash.Hash
-use /internal/mem.{allocation_abort, checked_add}
+use /internal/mem.{allocation_abort, capacity_overflow, checked_add}
 use /internal/ptr.replace_value
 use /vec.Vec
 

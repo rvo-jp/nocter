@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -167,7 +168,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> checked_add<span class="token-operator">,</span> growth_capacity<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> capacity_overflow<span class="token-operator">,</span> checked_add<span class="token-operator">,</span> growth_capacity<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_str_to_ptr<span class="token-operator">,</span> store_u8_to_ptr<span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8<span class="token-operator">.</span>validate_utf8
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span>try_grow_owned
@@ -227,10 +228,6 @@
     <span class="token-operator">}</span>
     text<span class="token-operator">.</span>len <span class="token-operator">=</span> next_len
     <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.string.capacity_overflow"</span><span class="token-operator">,</span> <span class="token-string">"string capacity overflow"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">String</span> <span class="token-operator">{</span>

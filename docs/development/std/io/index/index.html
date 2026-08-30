@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-26">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/io/index.nct - Nocter">
@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -194,26 +195,34 @@
     <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// An owning byte stream backed by one open file descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">File</span>
 
+<span class="token-comment">/// Returns the process standard-output stream without taking ownership of the descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 
+<span class="token-comment">/// Returns the process standard-error stream without taking ownership of the descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Opens an existing file for reading.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Creates or truncates a file for writing.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">create</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Opens or creates a file and positions writes at its end.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Closes the owned descriptor. Repeated calls are harmless.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
     <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
     <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// Writes UTF-8 text to standard output without adding a newline.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">print</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>

@@ -29,15 +29,19 @@ construct Vec<T> {
     /// Constructs a Vec from owned elements evaluated from left to right.
     pub literal [](...items: T): Self
 
+    /// Constructs an empty Vec without binding storage.
     pub func empty(): Self
 
+    /// Constructs an empty Vec with at least the requested element capacity.
     pub func with_capacity(requested_capacity: usize): Self
 
+    /// Constructs an empty Vec using recoverable storage from `allocator`.
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self!
 
+    /// Copies every element of a borrowed slice into a new Vec.
     pub func from_slice(values: &[T]): Self where copy T
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
@@ -48,6 +52,7 @@ construct Vec<T> {
         iterator: I,
     ): Self where I impl ExactSizeIterator { .Item = T }
 
+    /// Copies a borrowed slice using recoverable storage from `allocator`.
     pub func try_from_slice(
         allocator: &+TryAllocator,
         values: &[T],
@@ -79,23 +84,28 @@ instance Vec<T> {
     /// Returns the owning iterator explicitly for method-chain construction.
     pub method self.into_iter(): VecIntoIter<T>
 
+    /// Returns how many elements fit without growth.
     pub method &self.capacity(): usize
 
     /// Ensures capacity for at least `additional` more elements.
     pub method &+self.reserve(additional: usize): void
 
+    /// Ensures additional capacity with recoverable allocation failure.
     pub method &+self.try_reserve(additional: usize): void!
 
     /// Destroys every initialized element and keeps the allocation for reuse.
     pub method &+self.clear(): void
 
+    /// Drops elements after `requested_len` and does nothing when already shorter.
     pub method &+self.truncate(requested_len: usize): void
 
+    /// Keeps elements accepted by `predicate` while preserving their order.
     pub method &+self.retain<F>(predicate: F): void where F: &+func(&T): bool
 
     /// Transfers `value` into the end of the initialized prefix.
     pub method &+self.push(value: T): void
 
+    /// Transfers `value` into the end with recoverable allocation failure.
     pub method &+self.try_push(value: T): void!
 
     /// Inserts an owned value and aborts if growth or bounds validation fails.

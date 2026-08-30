@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -196,6 +197,7 @@
     <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">V</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// A readonly iterator over Map entries in unspecified order.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -203,6 +205,7 @@
     <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">MapEntryRef</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// An iterator over readonly keys and exclusive value loans in unspecified order.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">MapIterMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -210,6 +213,7 @@
     <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-type">MapEntryMut</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// An owning iterator that transfers every Map entry exactly once.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">MapIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -221,15 +225,19 @@
     <span class="token-comment">/// Constructs a map from owned key/value entries evaluated from left to right.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">:</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
+    <span class="token-comment">/// Constructs an empty map without binding storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
+    <span class="token-comment">/// Constructs an empty map with capacity for at least `minimum` entries.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
+    <span class="token-comment">/// Constructs an empty map using recoverable storage from `allocator`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
 
+    <span class="token-comment">/// Constructs a map from entries using recoverable storage from `allocator`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_entries</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         <span class="token-operator">...</span>entries<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">,</span>
@@ -237,24 +245,49 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the number of semantic entries.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+    <span class="token-comment">/// Returns whether the map contains no entries.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Returns how many entries fit without growth.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
+    <span class="token-comment">/// Returns the value for an equal key, or `none` when absent.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Returns an exclusive value loan for an equal key, or `none` when absent.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">get_mut</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Returns whether an equal key is present.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains_key</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 
+    <span class="token-comment">/// Inserts an entry, returning the replaced value when the key was present.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Inserts with recoverable allocation, returning the replaced value when present.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Removes and returns the value for an equal key, or `none` when absent.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">remove</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Removes every entry while retaining reusable storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Ensures capacity for at least `additional` more entries.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Ensures additional capacity with recoverable allocation failure.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_reserve</span><span class="token-operator">(</span>additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Returns the value for an equal key, aborting when absent.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
+
+    <span class="token-comment">/// Returns an exclusive value loan for an equal key, aborting when absent.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>key<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
 
+    <span class="token-comment">/// Compares semantic entries without depending on placement or iteration order.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">V</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 
     <span class="token-comment">/// Projects an entry by unspecified iteration ordinal for package-internal traversal.</span>

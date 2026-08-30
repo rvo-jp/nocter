@@ -129,6 +129,7 @@
                 <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -516,6 +517,18 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Scale</s
     <span class="token-keyword">return</span> <span class="token-keyword">false</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">func</span> <span class="token-function">number_projects_i64</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> number <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _value <span class="token-operator">=</span> number<span class="token-operator">.</span><span class="token-function">as_i64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">true</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">number_projects_u64</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> number <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _value <span class="token-operator">=</span> number<span class="token-operator">.</span><span class="token-function">as_u64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">true</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">test</span> number_preserves_exact_text_and_projects_integer_boundaries <span class="token-operator">{</span>
     <span class="token-keyword">let</span> decimal <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span><span class="token-string">"-12.3400e2"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> decimal_value <span class="token-operator">=</span> decimal<span class="token-operator">.</span><span class="token-function">as_i64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
@@ -540,6 +553,22 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Scale</s
     <span class="token-keyword">if</span> minimum_value <span class="token-operator">!</span><span class="token-operator">=</span> -<span class="token-number">9223372036854775808</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"i64 minimum changed"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> signed_maximum <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span><span class="token-string">"9223372036854775807"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> maximum_value <span class="token-operator">=</span> signed_maximum<span class="token-operator">.</span><span class="token-function">as_i64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"i64 maximum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> maximum_value <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9223372036854775807</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"i64 maximum changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> exponent <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span><span class="token-string">"184467440737095516150e-1"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> exponent_value <span class="token-operator">=</span> exponent<span class="token-operator">.</span><span class="token-function">as_u64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"exact exponent projection was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> exponent_value <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"exact exponent projection changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -553,9 +582,19 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Scale</s
     <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">number_is_invalid</span><span class="token-operator">(</span><span class="token-string">"1."</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">number_is_invalid</span><span class="token-operator">(</span><span class="token-string">"1e"</span><span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-function">number_is_invalid</span><span class="token-operator">(</span><span class="token-string">"1e+"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"incomplete JSON number was accepted"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> fraction <span class="token-operator">=</span> <span class="token-type">Number</span><span class="token-operator">.</span><span class="token-function">parse</span><span class="token-operator">(</span><span class="token-string">"1.25"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> _integer <span class="token-operator">=</span> fraction<span class="token-operator">.</span><span class="token-function">as_i64</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"non-integral number projected to i64"</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> <span class="token-function">number_projects_u64</span><span class="token-operator">(</span><span class="token-string">"18446744073709551616"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"out-of-range unsigned number projected to u64"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">number_projects_i64</span><span class="token-operator">(</span><span class="token-string">"9223372036854775808"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"out-of-range signed number projected to i64"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">number_projects_i64</span><span class="token-operator">(</span><span class="token-string">"1e-999999999999999999999999999999"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"tiny non-integral exponent projected to i64"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">number_projects_i64</span><span class="token-operator">(</span><span class="token-string">"1.25"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.number"</span><span class="token-operator">,</span> <span class="token-string">"non-integral number projected to i64"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

@@ -3,7 +3,7 @@
 see ./index.nct
 
 use /hash.{Hash, HashState}
-use /internal/mem.{allocation_abort, checked_add}
+use /internal/mem.{allocation_abort, capacity_overflow, checked_add}
 use /mem.TryAllocator
 use /vec.Vec
 
@@ -20,10 +20,6 @@ struct Table<K, V> {
     usable_bucket_capacity: usize
     tombstones: usize
     seed: HashState
-}
-
-func capacity_overflow(): error {
-    return error.new("std.map.capacity_overflow", "Map capacity overflow")
 }
 
 func usable_capacity(bucket_count: usize): usize {

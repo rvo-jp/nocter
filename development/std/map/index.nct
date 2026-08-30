@@ -32,6 +32,7 @@ pub struct MapEntry<K, V> {
     pub value: V
 }
 
+/// A readonly iterator over Map entries in unspecified order.
 pub struct MapIter<K, V>
 
 instance MapIter<K, V> {
@@ -39,6 +40,7 @@ instance MapIter<K, V> {
     impl Iterator { .Item = MapEntryRef<K, V> }
 }
 
+/// An iterator over readonly keys and exclusive value loans in unspecified order.
 pub struct MapIterMut<K, V>
 
 instance MapIterMut<K, V> {
@@ -46,6 +48,7 @@ instance MapIterMut<K, V> {
     impl Iterator { .Item = MapEntryMut<K, V> }
 }
 
+/// An owning iterator that transfers every Map entry exactly once.
 pub struct MapIntoIter<K, V>
 
 instance MapIntoIter<K, V> {
@@ -57,15 +60,19 @@ construct Map<K, V> {
     /// Constructs a map from owned key/value entries evaluated from left to right.
     pub literal [:](...entries: K: V): Self where K impl Hash
 
+    /// Constructs an empty map without binding storage.
     pub func empty(): Self where K impl Hash
 
+    /// Constructs an empty map with capacity for at least `minimum` entries.
     pub func with_capacity(minimum: usize): Self where K impl Hash
 
+    /// Constructs an empty map using recoverable storage from `allocator`.
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         minimum: usize,
     ): Self! where K impl Hash
 
+    /// Constructs a map from entries using recoverable storage from `allocator`.
     pub func try_from_entries(
         allocator: &+TryAllocator,
         ...entries: K: V,
@@ -73,24 +80,49 @@ construct Map<K, V> {
 }
 
 instance Map<K, V> where K impl Hash {
+    /// Returns the number of semantic entries.
     pub method &self.len(): usize
+
+    /// Returns whether the map contains no entries.
     pub method &self.is_empty(): bool
+
+    /// Returns how many entries fit without growth.
     pub method &self.capacity(): usize
 
+    /// Returns the value for an equal key, or `none` when absent.
     pub method &self.get(key: &K): &V?
+
+    /// Returns an exclusive value loan for an equal key, or `none` when absent.
     pub method &+self.get_mut(key: &K): &+V?
+
+    /// Returns whether an equal key is present.
     pub method &self.contains_key(key: &K): bool
 
+    /// Inserts an entry, returning the replaced value when the key was present.
     pub method &+self.insert(key: K, value: V): V?
+
+    /// Inserts with recoverable allocation, returning the replaced value when present.
     pub method &+self.try_insert(key: K, value: V): V?!
+
+    /// Removes and returns the value for an equal key, or `none` when absent.
     pub method &+self.remove(key: &K): V?
+
+    /// Removes every entry while retaining reusable storage.
     pub method &+self.clear(): void
+
+    /// Ensures capacity for at least `additional` more entries.
     pub method &+self.reserve(additional: usize): void
+
+    /// Ensures additional capacity with recoverable allocation failure.
     pub method &+self.try_reserve(additional: usize): void!
 
+    /// Returns the value for an equal key, aborting when absent.
     pub operator (&self[key: &K]): &V
+
+    /// Returns an exclusive value loan for an equal key, aborting when absent.
     pub operator (&+self[key: &K]): &+V
 
+    /// Compares semantic entries without depending on placement or iteration order.
     pub operator (&self == other: &Self): bool where (&V == &V): bool
 
     /// Projects an entry by unspecified iteration ordinal for package-internal traversal.

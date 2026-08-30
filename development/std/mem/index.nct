@@ -15,15 +15,19 @@ see ./layout.nct
 see ./raw_buffer.nct
 see ./storage.nct
 
+/// A validated storage size and alignment pair.
 pub copy struct Layout
 
 /// Owned raw storage shared by package-level collection implementations.
 pub struct RawBuffer
 
+/// An allocator whose failure policy terminates the program.
 pub struct Allocator
 
+/// The allocator selected for a lexical allocation region.
 pub struct AllocationContext
 
+/// An allocator that reports storage failure through `T!`.
 pub struct TryAllocator
 
 pub(/) func current_allocator(): Allocator
@@ -31,8 +35,10 @@ pub(/) func current_allocator(): Allocator
 /// Adapts the active context for package-internal recoverable implementation cores.
 pub(/) func current_try_allocator(): TryAllocator
 
+/// Returns an ordinary page-backed allocator.
 pub func page_allocator(): Allocator
 
+/// Returns a recoverable page-backed allocator.
 pub func page_try_allocator(): TryAllocator
 
 pub(/) func empty_unbound_buffer(align: usize): RawBuffer
@@ -40,14 +46,17 @@ pub(/) func empty_unbound_buffer(align: usize): RawBuffer
 pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
 construct Layout {
+    /// Validates `size` and power-of-two `align` as one allocation request.
     pub func new(size: usize, align: usize): Self!
 }
 
+/// Allocates one validated layout with recoverable failure.
 pub func try_alloc_layout(
     allocator: &+TryAllocator,
     requested: Layout,
 ): RawBuffer!
 
+/// Allocates one validated layout under the allocator's terminating policy.
 pub func alloc_layout(
     allocator: &+Allocator,
     requested: Layout,
@@ -56,30 +65,40 @@ pub func alloc_layout(
 pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void!
 
 instance Allocator {
+    /// Allocates `size` bytes with `align`, terminating on failure.
     pub method &+self.alloc(size: usize, align: usize): RawBuffer
 
+    /// Grows owned storage while preserving its allocator affinity.
     pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void
 }
 
 instance TryAllocator {
+    /// Allocates `size` bytes with recoverable layout or storage failure.
     pub method &+self.try_alloc(size: usize, align: usize): RawBuffer!
 
+    /// Grows owned storage with recoverable failure and preserved allocator affinity.
     pub method &+self.try_grow(buffer: &+RawBuffer, new_size: usize): void!
 
 }
 
 instance RawBuffer {
+    /// Exposes all owned bytes as a readonly view.
     pub method &self.bytes(): &[u8]
 
+    /// Exposes all owned bytes as an exclusive view.
     pub method &+self.bytes_mut(): &+[u8]
 
+    /// Returns a readonly prefix or a bounds error.
     pub method &self.prefix(len: usize): &[u8]!
 
+    /// Returns an exclusive prefix or a bounds error.
     pub method &+self.prefix_mut(len: usize): &+[u8]!
 }
 
 instance Layout {
+    /// Returns the validated byte size.
     pub method &self.size(): usize
 
+    /// Returns the validated alignment.
     pub method &self.align(): usize
 }

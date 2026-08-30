@@ -26,6 +26,9 @@ pub(/) primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
 /// Replaces one initialized value without exposing an uninitialized place to its caller.
 pub(/) func replace_value<T>(place: &+T, replacement: T): T
 
+/// Copies one `copy` value through a readonly borrow without exposing its representation.
+pub(/) func copy_value<T>(value: &T): T where copy T
+
 pub(/) primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
 
 pub(/) primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]

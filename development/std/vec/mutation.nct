@@ -4,9 +4,11 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use /internal/mem.{allocation_abort, checked_add, checked_multiply, growth_capacity}
+use /internal/mem.{allocation_abort, capacity_overflow, checked_add, checked_multiply}
+use /internal/mem.growth_capacity
 use /internal/ptr.{drop_value_at_ptr, from_addr, pointee_size}
 use /internal/ptr.{slice_from_raw_parts_value, store_value_to_ptr, take_value_at_ptr}
+use /internal/safety.bounds_abort
 use /mem.try_grow_owned
 use /ptr.addr
 
@@ -99,11 +101,8 @@ func push<T>(values: &+Vec<T>, value: T): void {
     return
 }
 
-func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
+func try_insert_in_bounds<T>(values: &+Vec<T>, index: usize, value: T): void! {
     let old_len: usize = values.len
-    if index > old_len {
-        return index_out_of_bounds()
-    }
 
     // No fallible operation is permitted after this point. The initialized
     // prefix remains unchanged if capacity growth fails.
@@ -121,8 +120,19 @@ func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
     return
 }
 
+func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
+    if index > values.len {
+        return index_out_of_bounds()
+    }
+    try_insert_in_bounds(values, index, move value)?
+    return
+}
+
 func insert<T>(values: &+Vec<T>, index: usize, value: T): void {
-    try_insert(values, index, move value) catch insert_error {
+    if index > values.len {
+        return bounds_abort()
+    }
+    try_insert_in_bounds(values, index, move value) catch allocation_error {
         return allocation_abort()
     }
     return

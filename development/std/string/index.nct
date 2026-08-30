@@ -18,30 +18,38 @@ see ./mutation.nct
 see ./storage.nct
 see ./utf8.nct
 
+/// An owning, growable well-formed UTF-8 string.
 pub struct String
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.
     pub literal ""(text: &str): Self
 
+    /// Constructs an empty String without binding storage.
     pub func empty(): Self
 
+    /// Constructs an empty String with at least the requested byte capacity.
     pub func with_capacity(requested_capacity: usize): Self
 
+    /// Constructs an empty String using recoverable storage from `allocator`.
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self!
 
+    /// Copies borrowed UTF-8 text into owned storage.
     pub func copy(value: &str): Self
 
     /// Concatenates borrowed UTF-8 parts into one owned string.
     pub func concat(...parts: &str): Self
 
+    /// Copies borrowed UTF-8 text using recoverable storage from `allocator`.
     pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator
 
+    /// Validates and copies UTF-8 bytes into current-context storage.
     pub func from_utf8(candidate: &[u8]): Self!
 
+    /// Validates and copies UTF-8 bytes using recoverable storage from `allocator`.
     pub func try_from_utf8(
         allocator: &+TryAllocator,
         candidate: &[u8],
@@ -55,16 +63,22 @@ instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
     pub coerce &self as &str
 
+    /// Returns the byte capacity available without growth.
     pub method &self.capacity(): usize
 
+    /// Ensures capacity for at least `additional` more UTF-8 bytes.
     pub method &+self.reserve(additional: usize): void
 
+    /// Ensures additional byte capacity with recoverable allocation failure.
     pub method &+self.try_reserve(additional: usize): void!
 
+    /// Removes all text while retaining reusable storage.
     pub method &+self.clear(): void
 
+    /// Appends borrowed UTF-8 text.
     pub method &+self.push_str(value: &str): void
 
+    /// Appends borrowed UTF-8 text with recoverable allocation failure.
     pub method &+self.try_push_str(value: &str): void!
 
     /// Validates and appends UTF-8 bytes with recoverable allocation failure.

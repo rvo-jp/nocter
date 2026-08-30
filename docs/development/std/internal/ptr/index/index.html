@@ -129,6 +129,7 @@
                 <li><a href="../../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
                 <li><a href="../../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
                 <li><a href="../../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -189,6 +190,9 @@
 
 <span class="token-comment">/// Replaces one initialized value without exposing an uninitialized place to its caller.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> replace_value<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>place<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span><span class="token-operator">,</span> replacement<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span>
+
+<span class="token-comment">/// Copies one `copy` value through a readonly borrow without exposing its representation.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> copy_value<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> where copy <span class="token-type">T</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">str_from_raw_parts</span><span class="token-operator">(</span>pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span><span class="token-operator">,</span> len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 
