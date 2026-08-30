@@ -1,6 +1,6 @@
 # Contributor Documentation
 
-Nocter has published v0.19.0 with a compiler built from the language specification. The v0.13.0
+Nocter has published v0.21.0 with a compiler built from the language specification. The v0.13.0
 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
@@ -9,8 +9,8 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
-- [Active v0.21.0 milestone](milestones/v0.21.0.md)
-- [Qualified v0.21.0 release candidate](milestones/v0.21.0-release-preparation.md)
+- [Completed v0.21.0 milestone](milestones/v0.21.0.md)
+- [v0.21.0 release preparation](milestones/v0.21.0-release-preparation.md)
 - [v0.21.0 Phase 5 practical qualification review](reviews/v0.21.0-phase-5.md)
 - [v0.21.0 Phase 4 iteration and Set review](reviews/v0.21.0-phase-4.md)
 - [v0.21.0 Phase 0 associative-collection design review](reviews/v0.21.0-phase-0.md)
@@ -25,7 +25,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 - [Completed v0.18.0 milestone](milestones/v0.18.0.md)
 - [v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
 - [Design reviews](reviews/README.md)
-- [Latest published release qualification](releases/v0.19.0.md)
+- [Latest published release qualification](releases/v0.21.0.md)
 - [Compiler architecture](docs/architecture.md)
 - [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)

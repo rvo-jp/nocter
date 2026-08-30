@@ -5,11 +5,10 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-This chapter defines the adopted **v0.21.0** contract. The latest published release is v0.19.0 and
-does not provide these APIs or mapping literals. The [release index](../releases/README.md) owns
-publication status; contributor milestones own implementation progress. Neither changes the
-representation-neutral contract below into an interim `HashMap`, fixed hash algorithm, or
-compiler-owned table.
+This chapter defines the published **v0.21.0** contract. The
+[release index](../releases/README.md) owns publication status; contributor milestones own
+implementation progress. Neither changes the representation-neutral contract below into an interim
+`HashMap`, fixed hash algorithm, or compiler-owned table.
 
 ## Public Meaning, Private Representation
 

@@ -78,8 +78,8 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
-- `development/milestones/v0.21.0.md`: active design scope and completed phase records
-- `development/releases/v0.19.0.md`: latest published release evidence
+- `development/milestones/v0.21.0.md`: latest completed design scope and phase records
+- `development/releases/v0.21.0.md`: latest published release evidence
 - `development/docs/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
   authority boundaries only
 - `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output

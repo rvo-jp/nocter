@@ -215,8 +215,7 @@ source-level pack value type.
 
 ## v0.21.0 Keyed Packs and Mapping Literals
 
-The v0.21.0 working tree extends the same compiler-owned pack model with keyed entries. This
-section is implemented in the working tree but not in the latest published release.
+The published v0.21.0 language extends the same compiler-owned pack model with keyed entries.
 
 A keyed pack has one key type and one value type:
 

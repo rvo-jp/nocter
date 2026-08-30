@@ -135,8 +135,7 @@ construction surface for type hover.
 signature help render `...entries: K: V`; mapping literal navigation targets the selected
 `literal [:]` declaration; key and value expressions receive their independently resolved semantic
 evidence. Editor features do not synthesize tuple types, alternating parameters, `HashMap` names,
-table slots, or bucket details. The working tree implements this surface; the latest published
-release does not.
+table slots, or bucket details. This surface is part of the published v0.21.0 language.
 
 Associated type hover uses the interface-owned declaration identity. A declaration or projection
 is shown as `associated type Interface.Name`; an implementation binding is shown as

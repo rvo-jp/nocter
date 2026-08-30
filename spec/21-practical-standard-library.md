@@ -91,8 +91,7 @@ a module cycle: Vec iteration already depends on `std/iter`.
 The adopted v0.21.0 associative collection direction provides representation-neutral `Map<K, V>`
 and `Set<T>` rather than exposing the private hash-table strategy through `HashMap` and `HashSet`
 names. Its hash coherence, mapping literal, lookup, mutation, iteration, allocation, and ordering
-contracts are centralized in [Associative Collections](27-associative-collections.md). The v0.21.0
-surface is not included in the latest published release.
+contracts are centralized in [Associative Collections](27-associative-collections.md).
 
 ## Formatting
 

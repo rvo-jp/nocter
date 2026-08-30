@@ -1058,8 +1058,7 @@ creating compatibility syntax trees.
 
 ## v0.21.0 Keyed Packs and Mapping Literals
 
-The v0.21.0 working tree implements the following productions. They are not present in the latest
-published release.
+The published v0.21.0 language implements the following productions.
 
 ```text
 KeyedPackParameter = "..." Name ":" Type ":" Type

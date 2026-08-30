@@ -1,23 +1,24 @@
 # Development Milestones
 
-This directory contains one active development milestone and historical milestone records.
+This directory contains completed development milestones and historical milestone records.
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
 
-## Active Milestone
+## Latest Completed Milestone
 
 The [v0.21.0 milestone](v0.21.0.md) returns to practical standard-library work with
 representation-neutral `Map` and `Set` contracts, a private hash-table implementation, and the
 language and target prerequisites needed to implement them in ordinary Nocter source. Phase 0
 through Phase 5 and release qualification are complete; its
 [release preparation](v0.21.0-release-preparation.md) owns the frozen candidate identity and
-qualification evidence. Publication remains pending explicit authorization.
+qualification evidence. The release is published and externally audited in the
+[v0.21.0 publication record](../releases/v0.21.0.md).
 
 The [v0.20.0 milestone](v0.20.0.md) completed interface prerequisites, incremental semantic
 computation, unified CLI/LSP query entry, and dependency-local exact selections. It remains an
 unpublished compiler-foundation record rather than the active work plan.
 
-## Historical Milestones
+## Earlier Milestones
 
 The [v0.19.0 milestone](v0.19.0.md) and its
 [release preparation](v0.19.0-release-preparation.md) are complete, and v0.19.0 is published.
