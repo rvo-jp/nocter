@@ -729,41 +729,47 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
                 }
                 (allocation, true)
             }
-            CheckedOperation::Closure(closure) => {
-                let mut value = ValueProvenance::independent();
-                for capture in closure.captures() {
-                    let (initializer, reaches) = self.evaluate(capture.initializer(), state)?;
-                    if !reaches {
-                        return Ok(self.record_node(node, ValueProvenance::independent(), false));
-                    }
-                    let checked_initializer = self
-                        .body
-                        .nodes()
-                        .get(capture.initializer())
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    let captured = match checked_initializer.operation() {
-                        CheckedOperation::Borrow { place, .. } => self.read_place(*place, state)?,
-                        _ => initializer.clone(),
-                    };
-                    value.insert_projection(
-                        ProvenanceProjection::ClosureCaptureValue(capture.binding()),
-                        captured,
-                    );
-                    if matches!(
-                        checked_initializer.operation(),
-                        CheckedOperation::Borrow { .. }
-                    ) {
-                        value.insert_projection(
-                            ProvenanceProjection::ClosureCaptureStorage(capture.binding()),
-                            initializer,
-                        );
-                    }
-                }
-                (value, true)
-            }
+            CheckedOperation::Closure(closure) => self.evaluate_closure(&closure, state)?,
         };
         let reaches = result.1 && ty != self.types.builtin(BuiltinType::Never);
         Ok(self.record_node(node, result.0, reaches))
+    }
+
+    fn evaluate_closure(
+        &mut self,
+        closure: &crate::CheckedClosure,
+        state: &mut ProvenanceState,
+    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+        let mut value = ValueProvenance::independent();
+        for capture in closure.captures() {
+            let (initializer, reaches) = self.evaluate(capture.initializer(), state)?;
+            if !reaches {
+                return Ok((ValueProvenance::independent(), false));
+            }
+            let checked_initializer = self
+                .body
+                .nodes()
+                .get(capture.initializer())
+                .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+            let captured = match checked_initializer.operation() {
+                CheckedOperation::Borrow { place, .. } => self.read_place(*place, state)?,
+                _ => initializer.clone(),
+            };
+            value.insert_projection(
+                ProvenanceProjection::ClosureCaptureValue(capture.binding()),
+                captured,
+            );
+            if matches!(
+                checked_initializer.operation(),
+                CheckedOperation::Borrow { .. }
+            ) {
+                value.insert_projection(
+                    ProvenanceProjection::ClosureCaptureStorage(capture.binding()),
+                    initializer,
+                );
+            }
+        }
+        Ok((value, true))
     }
 
     fn record_node(

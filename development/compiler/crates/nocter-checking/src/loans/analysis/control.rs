@@ -349,48 +349,12 @@ impl Analyzer<'_, '_> {
                         | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
-            if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
-                iteration.set_root(PlaceRoot::Local(*binding), LoanValue::independent());
-            }
-            if condition_reaches
-                && let LoopKind::For {
-                    binding,
-                    iteration: contract,
-                } = definition.kind()
-            {
-                let value = self.iteration_item_loans(
-                    contract,
-                    iterator
-                        .as_ref()
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?,
+            if condition_reaches {
+                self.initialize_loop_bindings(
+                    definition.kind(),
+                    iterator.as_ref(),
+                    &mut iteration,
                 )?;
-                iteration.set_root(PlaceRoot::Local(*binding), value);
-            }
-            if condition_reaches
-                && let LoopKind::KeyedArgumentPack {
-                    key_binding,
-                    value_binding,
-                    parameter,
-                    ..
-                } = definition.kind()
-            {
-                let value = iteration.value(&LiveSlot::Place(LivePlace::from_parts(
-                    PlaceRoot::Parameter(*parameter),
-                    Box::new([]),
-                )));
-                iteration.set_root(PlaceRoot::Local(*key_binding), value.clone());
-                iteration.set_root(PlaceRoot::Local(*value_binding), value);
-            }
-            if condition_reaches
-                && let LoopKind::ArgumentPack {
-                    binding, parameter, ..
-                } = definition.kind()
-            {
-                let value = iteration.value(&LiveSlot::Place(LivePlace::from_parts(
-                    PlaceRoot::Parameter(*parameter),
-                    Box::new([]),
-                )));
-                iteration.set_root(PlaceRoot::Local(*binding), value);
             }
             let body_reaches =
                 condition_reaches && self.evaluate(definition.body(), &mut iteration, extra)?.1;
@@ -414,6 +378,44 @@ impl Analyzer<'_, '_> {
             state.join(&exits);
             return Ok((LoanValue::independent(), !exits.is_empty()));
         }
+    }
+
+    fn initialize_loop_bindings(
+        &self,
+        kind: &LoopKind,
+        iterator: Option<&LoanValue>,
+        state: &mut LoanState,
+    ) -> Result<(), BodyCheckError> {
+        match kind {
+            LoopKind::While { .. } | LoopKind::Infinite => {}
+            LoopKind::Range { binding, .. } => {
+                state.set_root(PlaceRoot::Local(*binding), LoanValue::independent());
+            }
+            LoopKind::For { binding, iteration } => {
+                let value = self.iteration_item_loans(
+                    iteration,
+                    iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                )?;
+                state.set_root(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::ArgumentPack {
+                binding, parameter, ..
+            } => {
+                let value = argument_pack_parameter_loans(state, *parameter);
+                state.set_root(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::KeyedArgumentPack {
+                key_binding,
+                value_binding,
+                parameter,
+                ..
+            } => {
+                let value = argument_pack_parameter_loans(state, *parameter);
+                state.set_root(PlaceRoot::Local(*key_binding), value.clone());
+                state.set_root(PlaceRoot::Local(*value_binding), value);
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn loop_frame_mut(
@@ -447,4 +449,14 @@ impl Analyzer<'_, '_> {
             }
         }
     }
+}
+
+fn argument_pack_parameter_loans(
+    state: &LoanState,
+    parameter: nocter_model::ParameterId,
+) -> LoanValue {
+    state.value(&LiveSlot::Place(LivePlace::from_parts(
+        PlaceRoot::Parameter(parameter),
+        Box::new([]),
+    )))
 }

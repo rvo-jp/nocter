@@ -757,27 +757,8 @@ impl OwnershipAnalyzer<'_> {
                         | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
-            if condition_reaches
-                && let LoopKind::Range { binding, .. }
-                | LoopKind::For { binding, .. }
-                | LoopKind::ArgumentPack { binding, .. } = definition.kind()
-            {
-                iteration
-                    .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
-                    .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-            }
-            if condition_reaches
-                && let LoopKind::KeyedArgumentPack {
-                    key_binding,
-                    value_binding,
-                    ..
-                } = definition.kind()
-            {
-                for binding in [*key_binding, *value_binding] {
-                    iteration
-                        .declare_initialized(MovePath::root(crate::PlaceRoot::Local(binding)))
-                        .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-                }
+            if condition_reaches {
+                Self::declare_loop_bindings(definition.kind(), &mut iteration)?;
             }
             let body_reaches =
                 condition_reaches && self.visit(definition.body(), &mut iteration)?;
@@ -808,6 +789,29 @@ impl OwnershipAnalyzer<'_> {
                 .map_err(|_| BodyCheckInternalError::OwnershipState)?;
             return Ok(!exits.is_empty());
         }
+    }
+
+    fn declare_loop_bindings(
+        kind: &LoopKind,
+        state: &mut OwnershipState,
+    ) -> Result<(), BodyCheckInternalError> {
+        let bindings: &[LocalBindingId] = match kind {
+            LoopKind::Range { binding, .. }
+            | LoopKind::For { binding, .. }
+            | LoopKind::ArgumentPack { binding, .. } => std::slice::from_ref(binding),
+            LoopKind::KeyedArgumentPack {
+                key_binding,
+                value_binding,
+                ..
+            } => &[*key_binding, *value_binding],
+            LoopKind::While { .. } | LoopKind::Infinite => &[],
+        };
+        for binding in bindings {
+            state
+                .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
+                .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+        }
+        Ok(())
     }
 
     fn enter_scope(&mut self, scope: BodyScopeId) -> Result<(), BodyCheckInternalError> {

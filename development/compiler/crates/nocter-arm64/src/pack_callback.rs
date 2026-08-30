@@ -116,6 +116,14 @@ fn materialize_fixed_next(
     };
     let frame = frame_builder.finish()?;
     let destination = destination.close(&frame, staging, key)?;
+    let segment_copy = FixedSegmentCopy {
+        machine,
+        pack,
+        frame: &frame,
+        destination,
+        payload_offset,
+        key,
+    };
     let mut code = Arm64CodeBuilder::new();
     Arm64FrameCode::emit_prologue(&frame, &mut code);
     move_register(&mut code, state_register(), argument(0));
@@ -152,59 +160,7 @@ fn materialize_fixed_next(
         code.bind(label)?;
         destination.zero(&frame, next_layout.size(), &mut code)?;
         destination.store_byte(&frame, tag_offset, 0, &mut code)?;
-        match (segment, layout) {
-            (
-                nocter_machine::MachinePackSegment::Value { .. },
-                crate::Arm64PackSegmentLayout::Value {
-                    value_offset, size, ..
-                },
-            ) => destination.copy_from_register(
-                &frame,
-                payload_offset,
-                state_register(),
-                *value_offset,
-                *size,
-                &mut code,
-            )?,
-            (
-                nocter_machine::MachinePackSegment::KeyedValue { .. },
-                crate::Arm64PackSegmentLayout::KeyedValue {
-                    key_offset,
-                    key_size,
-                    value_offset,
-                    value_size,
-                    ..
-                },
-            ) => {
-                let Some(nocter_machine::MachineLayoutKind::PackEntry {
-                    key: key_layout,
-                    value: value_layout,
-                }) = machine
-                    .layouts()
-                    .get(pack.element())
-                    .map(|layout| layout.kind())
-                else {
-                    return Err(Arm64MaterializationError::InvalidPackCallback(key));
-                };
-                destination.copy_from_register(
-                    &frame,
-                    checked_add(payload_offset, key_layout.offset())?,
-                    state_register(),
-                    *key_offset,
-                    *key_size,
-                    &mut code,
-                )?;
-                destination.copy_from_register(
-                    &frame,
-                    checked_add(payload_offset, value_layout.offset())?,
-                    state_register(),
-                    *value_offset,
-                    *value_size,
-                    &mut code,
-                )?;
-            }
-            _ => return Err(Arm64MaterializationError::InvalidPackCallback(key)),
-        }
+        segment_copy.copy(segment, layout, &mut code)?;
         let next = u64::try_from(index)
             .ok()
             .and_then(|index| index.checked_add(1))
@@ -238,6 +194,79 @@ fn materialize_fixed_next(
     code.bind(finish)?;
     Arm64FrameCode::emit_epilogue(&frame, &mut code);
     code.finish().map_err(Arm64MaterializationError::Code)
+}
+
+struct FixedSegmentCopy<'a> {
+    machine: &'a nocter_machine::MachineProgram,
+    pack: &'a nocter_machine::MachinePack,
+    frame: &'a Arm64FrameLayout,
+    destination: ClosedNextDestination,
+    payload_offset: u64,
+    key: Arm64PackCallbackKey,
+}
+
+impl FixedSegmentCopy<'_> {
+    fn copy(
+        &self,
+        segment: &nocter_machine::MachinePackSegment,
+        layout: &crate::Arm64PackSegmentLayout,
+        code: &mut Arm64CodeBuilder,
+    ) -> Result<(), Arm64MaterializationError> {
+        match (segment, layout) {
+            (
+                nocter_machine::MachinePackSegment::Value { .. },
+                crate::Arm64PackSegmentLayout::Value {
+                    value_offset, size, ..
+                },
+            ) => self.destination.copy_from_register(
+                self.frame,
+                self.payload_offset,
+                state_register(),
+                *value_offset,
+                *size,
+                code,
+            ),
+            (
+                nocter_machine::MachinePackSegment::KeyedValue { .. },
+                crate::Arm64PackSegmentLayout::KeyedValue {
+                    key_offset,
+                    key_size,
+                    value_offset,
+                    value_size,
+                    ..
+                },
+            ) => {
+                let Some(nocter_machine::MachineLayoutKind::PackEntry {
+                    key: key_layout,
+                    value: value_layout,
+                }) = self
+                    .machine
+                    .layouts()
+                    .get(self.pack.element())
+                    .map(nocter_machine::MachineLayout::kind)
+                else {
+                    return Err(Arm64MaterializationError::InvalidPackCallback(self.key));
+                };
+                self.destination.copy_from_register(
+                    self.frame,
+                    checked_add(self.payload_offset, key_layout.offset())?,
+                    state_register(),
+                    *key_offset,
+                    *key_size,
+                    code,
+                )?;
+                self.destination.copy_from_register(
+                    self.frame,
+                    checked_add(self.payload_offset, value_layout.offset())?,
+                    state_register(),
+                    *value_offset,
+                    *value_size,
+                    code,
+                )
+            }
+            _ => Err(Arm64MaterializationError::InvalidPackCallback(self.key)),
+        }
+    }
 }
 
 struct FixedNextShape<'layout> {

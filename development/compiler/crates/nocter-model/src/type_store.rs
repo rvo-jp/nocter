@@ -53,13 +53,17 @@ impl<T: Copy> ArgumentPack<T> {
     }
 
     /// Returns the component types in their source and ABI order.
-    #[must_use]
     pub fn components(self) -> impl Iterator<Item = T> {
         [Some(self.primary()), self.value()].into_iter().flatten()
     }
 }
 
 impl<T> ArgumentPack<T> {
+    /// Applies one fallible transformation to every component while preserving the pack shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `map`, in source and ABI component order.
     pub fn try_map<U, E>(
         self,
         mut map: impl FnMut(T) -> Result<U, E>,

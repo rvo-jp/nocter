@@ -45,39 +45,7 @@ impl FunctionLowerer<'_> {
         body: BodyNodeId,
     ) -> Result<(), MirLoweringError> {
         let pack = self.require_pack(node, parameter)?;
-        let bindings = match bindings {
-            PackLoopBindings::Values { binding, item } => {
-                let item = self.concrete_type(item)?;
-                if item != pack.element() {
-                    return Err(MirLoweringError::InvalidLoop(loop_));
-                }
-                PackLoopBindings::Values { binding, item }
-            }
-            PackLoopBindings::Keyed {
-                key_binding,
-                value_binding,
-                key,
-                value,
-            } => {
-                let key = self.concrete_type(key)?;
-                let value = self.concrete_type(value)?;
-                if !matches!(
-                    self.executable.types().get(pack.element()),
-                    Some(nocter_model::TypeKind::PackEntry {
-                        key: expected_key,
-                        value: expected_value,
-                    }) if *expected_key == key && *expected_value == value
-                ) {
-                    return Err(MirLoweringError::InvalidLoop(loop_));
-                }
-                PackLoopBindings::Keyed {
-                    key_binding,
-                    value_binding,
-                    key,
-                    value,
-                }
-            }
-        };
+        let bindings = self.concrete_pack_bindings(loop_, pack.element(), bindings)?;
         let next = pack.next();
         let next_local = self.builder.add_local(next, MirLocalKind::Temporary, true);
         let next_place = self
@@ -165,6 +133,47 @@ impl FunctionLowerer<'_> {
         self.leave_loop(loop_)?;
         self.current = Some(exit);
         Ok(())
+    }
+
+    fn concrete_pack_bindings(
+        &mut self,
+        loop_: LoopId,
+        element: TypeId,
+        bindings: PackLoopBindings,
+    ) -> Result<PackLoopBindings, MirLoweringError> {
+        match bindings {
+            PackLoopBindings::Values { binding, item } => {
+                let item = self.concrete_type(item)?;
+                if item != element {
+                    return Err(MirLoweringError::InvalidLoop(loop_));
+                }
+                Ok(PackLoopBindings::Values { binding, item })
+            }
+            PackLoopBindings::Keyed {
+                key_binding,
+                value_binding,
+                key,
+                value,
+            } => {
+                let key = self.concrete_type(key)?;
+                let value = self.concrete_type(value)?;
+                if !matches!(
+                    self.executable.types().get(element),
+                    Some(nocter_model::TypeKind::PackEntry {
+                        key: expected_key,
+                        value: expected_value,
+                    }) if *expected_key == key && *expected_value == value
+                ) {
+                    return Err(MirLoweringError::InvalidLoop(loop_));
+                }
+                Ok(PackLoopBindings::Keyed {
+                    key_binding,
+                    value_binding,
+                    key,
+                    value,
+                })
+            }
+        }
     }
 
     fn move_pack_entry_component(

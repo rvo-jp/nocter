@@ -47,92 +47,105 @@ fn validate_pack(
         return Err(invalid());
     }
     for segment in pack.segments() {
-        match segment {
-            MirPackSegment::Value { value, destruction } => {
-                if function
+        validate_pack_segment(environment, function, operation, pack, segment)?;
+    }
+    Ok(())
+}
+
+fn validate_pack_segment(
+    environment: &(impl MirValidationEnvironment + ?Sized),
+    function: &MirBody,
+    operation: MirOperationId,
+    pack: &MirPackArgument,
+    segment: &MirPackSegment,
+) -> Result<(), MirValidationError> {
+    let invalid = || MirValidationError::OperationType(operation);
+    let types = environment.types();
+    match segment {
+        MirPackSegment::Value { value, destruction } => {
+            if function
+                .values()
+                .get(*value)
+                .copied()
+                .map(crate::MirValue::ty)
+                != Some(pack.element())
+            {
+                return Err(invalid());
+            }
+            validate_segment_destruction(environment, destruction.as_ref(), pack.element())?;
+        }
+        MirPackSegment::KeyedValue {
+            key,
+            key_destruction,
+            value,
+            value_destruction,
+        } => {
+            let Some(TypeKind::PackEntry {
+                key: key_type,
+                value: value_type,
+            }) = types.get(pack.element())
+            else {
+                return Err(invalid());
+            };
+            if function
+                .values()
+                .get(*key)
+                .copied()
+                .map(crate::MirValue::ty)
+                != Some(*key_type)
+                || function
                     .values()
                     .get(*value)
                     .copied()
                     .map(crate::MirValue::ty)
-                    != Some(pack.element())
-                {
-                    return Err(invalid());
-                }
-                validate_segment_destruction(environment, destruction.as_ref(), pack.element())?;
+                    != Some(*value_type)
+            {
+                return Err(invalid());
             }
-            MirPackSegment::KeyedValue {
-                key,
-                key_destruction,
-                value,
-                value_destruction,
-            } => {
-                let Some(TypeKind::PackEntry {
-                    key: key_type,
-                    value: value_type,
-                }) = types.get(pack.element())
-                else {
-                    return Err(invalid());
-                };
-                if function
-                    .values()
-                    .get(*key)
-                    .copied()
-                    .map(crate::MirValue::ty)
-                    != Some(*key_type)
-                    || function
-                        .values()
-                        .get(*value)
-                        .copied()
-                        .map(crate::MirValue::ty)
-                        != Some(*value_type)
-                {
-                    return Err(invalid());
-                }
-                validate_segment_destruction(environment, key_destruction.as_ref(), *key_type)?;
-                validate_segment_destruction(environment, value_destruction.as_ref(), *value_type)?;
+            validate_segment_destruction(environment, key_destruction.as_ref(), *key_type)?;
+            validate_segment_destruction(environment, value_destruction.as_ref(), *value_type)?;
+        }
+        MirPackSegment::Spread(spread) => {
+            let iterator_ty = function
+                .places()
+                .get(spread.iterator())
+                .map(crate::MirPlace::ty)
+                .ok_or(MirValidationError::UnknownPlace(spread.iterator()))?;
+            if function
+                .values()
+                .get(spread.remaining())
+                .copied()
+                .map(crate::MirValue::ty)
+                != Some(types.builtin(BuiltinType::Usize))
+                || !matches!(
+                    types.get(spread.next_result()),
+                    Some(TypeKind::Optional(payload)) if *payload == spread.item()
+                )
+            {
+                return Err(invalid());
             }
-            MirPackSegment::Spread(spread) => {
-                let iterator_ty = function
-                    .places()
-                    .get(spread.iterator())
-                    .map(crate::MirPlace::ty)
-                    .ok_or(MirValidationError::UnknownPlace(spread.iterator()))?;
-                if function
-                    .values()
-                    .get(spread.remaining())
-                    .copied()
-                    .map(crate::MirValue::ty)
-                    != Some(types.builtin(BuiltinType::Usize))
-                    || !matches!(
-                        types.get(spread.next_result()),
-                        Some(TypeKind::Optional(payload)) if *payload == spread.item()
-                    )
-                {
-                    return Err(invalid());
-                }
-                let next = MirCall::new(spread.next_target().clone(), [spread.receiver()]);
-                validate_call(
-                    environment,
-                    function,
-                    operation,
-                    &next,
-                    spread.next_result(),
-                )?;
-                let valid_contribution = match spread.contribution() {
-                    MirPackContribution::Direct => spread.item() == pack.element(),
-                    MirPackContribution::CopyBorrowed => matches!(
-                        types.get(spread.item()),
-                        Some(TypeKind::Borrow {
-                            capability: BorrowCapability::Readonly,
-                            referent,
-                        }) if *referent == pack.element()
-                    ),
-                };
-                if !valid_contribution {
-                    return Err(invalid());
-                }
-                validate_segment_destruction(environment, spread.destruction(), iterator_ty)?;
+            let next = MirCall::new(spread.next_target().clone(), [spread.receiver()]);
+            validate_call(
+                environment,
+                function,
+                operation,
+                &next,
+                spread.next_result(),
+            )?;
+            let valid_contribution = match spread.contribution() {
+                MirPackContribution::Direct => spread.item() == pack.element(),
+                MirPackContribution::CopyBorrowed => matches!(
+                    types.get(spread.item()),
+                    Some(TypeKind::Borrow {
+                        capability: BorrowCapability::Readonly,
+                        referent,
+                    }) if *referent == pack.element()
+                ),
+            };
+            if !valid_contribution {
+                return Err(invalid());
             }
+            validate_segment_destruction(environment, spread.destruction(), iterator_ty)?;
         }
     }
     Ok(())

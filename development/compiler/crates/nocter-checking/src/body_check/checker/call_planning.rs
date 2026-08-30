@@ -228,113 +228,128 @@ impl BodyChecker<'_, '_> {
             )?);
             destinations.push(destination);
         }
-        let pack = if let Some(shape) = patterns.pack {
-            let mut segments = Vec::new();
-            let pack_syntax = &arguments[patterns.fixed.len()..];
-            for (position, syntax) in pack_syntax.iter().copied().enumerate() {
-                if self.kind(syntax)? == NodeKind::SpreadExpression {
-                    let source = self.required_child(syntax, NodeKind::Expression)?;
-                    if let Some((parameter, contribution)) = self.argument_pack_parameter(source)? {
-                        if position != 0 || pack_syntax.len() != 1 {
-                            return Err(self.rule(BodyRule::InvalidArgumentPackUse, syntax)?);
-                        }
-                        match (shape, contribution) {
-                            (ArgumentPack::Values(expected), ArgumentPack::Values(actual)) => {
-                                inference.constrain_exact(expected, actual)
-                            }
-                            (
-                                ArgumentPack::Keyed {
-                                    key: expected_key,
-                                    value: expected_value,
-                                },
-                                ArgumentPack::Keyed {
-                                    key: actual_key,
-                                    value: actual_value,
-                                },
-                            ) => {
-                                inference.constrain_exact(expected_key, actual_key);
-                                inference.constrain_exact(expected_value, actual_value);
-                            }
-                            _ => return Err(self.rule(BodyRule::InvalidCall, syntax)?),
-                        }
-                        self.register_argument_pack_forwarding(parameter, syntax)?;
-                        return Ok(DraftedCallValues {
-                            values,
-                            destinations,
-                            pack: Some(ArgumentPackDraft::Forwarded(parameter)),
-                            inference,
-                        });
-                    }
-                    let ArgumentPack::Values(element) = shape else {
-                        return Err(self.rule(BodyRule::InvalidCall, syntax)?);
-                    };
-                    let spread = self.check_argument_spread(syntax, syntax)?;
-                    inference.constrain_exact(element, spread.contribution);
-                    segments.push(PackSegmentDraft::Spread(spread));
-                    continue;
-                }
-                match shape {
-                    ArgumentPack::Values(element) => {
-                        if self.kind(syntax)? == NodeKind::KeyedArgument {
-                            return Err(self.rule(BodyRule::InvalidCall, syntax)?);
-                        }
-                        let position = values.len();
-                        values.push(self.draft_positional_value(
-                            syntax,
-                            element,
-                            patterns.inference_parameters,
-                            patterns.requirements,
-                            &mut inference,
-                            BodyRule::InvalidCall,
-                        )?);
-                        destinations.push(element);
-                        segments.push(PackSegmentDraft::Value(position));
-                    }
-                    ArgumentPack::Keyed { key, value } => {
-                        if self.kind(syntax)? != NodeKind::KeyedArgument {
-                            return Err(self.rule(BodyRule::InvalidCall, syntax)?);
-                        }
-                        let parts = child_nodes(self.tree(), syntax);
-                        let [key_syntax, value_syntax] = parts.as_slice() else {
-                            return Err(BodyCheckInternalError::InvalidSyntax(syntax).into());
-                        };
-                        let key_position = values.len();
-                        values.push(self.draft_positional_value(
-                            *key_syntax,
-                            key,
-                            patterns.inference_parameters,
-                            patterns.requirements,
-                            &mut inference,
-                            BodyRule::InvalidCall,
-                        )?);
-                        destinations.push(key);
-                        let value_position = values.len();
-                        values.push(self.draft_positional_value(
-                            *value_syntax,
-                            value,
-                            patterns.inference_parameters,
-                            patterns.requirements,
-                            &mut inference,
-                            BodyRule::InvalidCall,
-                        )?);
-                        destinations.push(value);
-                        segments.push(PackSegmentDraft::KeyedValue {
-                            key: key_position,
-                            value: value_position,
-                        });
-                    }
-                }
-            }
-            Some(ArgumentPackDraft::Prepared(segments))
-        } else {
-            None
-        };
+        let pack = patterns
+            .pack
+            .map(|shape| {
+                self.draft_argument_pack(
+                    arguments,
+                    patterns,
+                    shape,
+                    &mut inference,
+                    &mut values,
+                    &mut destinations,
+                )
+            })
+            .transpose()?;
         Ok(DraftedCallValues {
             values,
             destinations,
             pack,
             inference,
         })
+    }
+
+    fn draft_argument_pack(
+        &mut self,
+        arguments: &[NodeId],
+        patterns: CallValuePatterns<'_>,
+        shape: ArgumentPackType,
+        inference: &mut CallableInference,
+        values: &mut Vec<ValueDraft>,
+        destinations: &mut Vec<TypeId>,
+    ) -> Result<ArgumentPackDraft, BodyCheckError> {
+        let mut segments = Vec::new();
+        let pack_syntax = &arguments[patterns.fixed.len()..];
+        for (position, syntax) in pack_syntax.iter().copied().enumerate() {
+            if self.kind(syntax)? == NodeKind::SpreadExpression {
+                let source = self.required_child(syntax, NodeKind::Expression)?;
+                if let Some((parameter, contribution)) = self.argument_pack_parameter(source)? {
+                    if position != 0 || pack_syntax.len() != 1 {
+                        return Err(self.rule(BodyRule::InvalidArgumentPackUse, syntax)?);
+                    }
+                    match (shape, contribution) {
+                        (ArgumentPack::Values(expected), ArgumentPack::Values(actual)) => {
+                            inference.constrain_exact(expected, actual);
+                        }
+                        (
+                            ArgumentPack::Keyed {
+                                key: expected_key,
+                                value: expected_value,
+                            },
+                            ArgumentPack::Keyed {
+                                key: actual_key,
+                                value: actual_value,
+                            },
+                        ) => {
+                            inference.constrain_exact(expected_key, actual_key);
+                            inference.constrain_exact(expected_value, actual_value);
+                        }
+                        _ => return Err(self.rule(BodyRule::InvalidCall, syntax)?),
+                    }
+                    self.register_argument_pack_forwarding(parameter, syntax)?;
+                    return Ok(ArgumentPackDraft::Forwarded(parameter));
+                }
+                let ArgumentPack::Values(element) = shape else {
+                    return Err(self.rule(BodyRule::InvalidCall, syntax)?);
+                };
+                let spread = self.check_argument_spread(syntax, syntax)?;
+                inference.constrain_exact(element, spread.contribution);
+                segments.push(PackSegmentDraft::Spread(spread));
+                continue;
+            }
+            match shape {
+                ArgumentPack::Values(element) => {
+                    if self.kind(syntax)? == NodeKind::KeyedArgument {
+                        return Err(self.rule(BodyRule::InvalidCall, syntax)?);
+                    }
+                    let position = values.len();
+                    values.push(self.draft_positional_value(
+                        syntax,
+                        element,
+                        patterns.inference_parameters,
+                        patterns.requirements,
+                        inference,
+                        BodyRule::InvalidCall,
+                    )?);
+                    destinations.push(element);
+                    segments.push(PackSegmentDraft::Value(position));
+                }
+                ArgumentPack::Keyed { key, value } => {
+                    if self.kind(syntax)? != NodeKind::KeyedArgument {
+                        return Err(self.rule(BodyRule::InvalidCall, syntax)?);
+                    }
+                    let parts = child_nodes(self.tree(), syntax);
+                    let [key_syntax, value_syntax] = parts.as_slice() else {
+                        return Err(BodyCheckInternalError::InvalidSyntax(syntax).into());
+                    };
+                    let key_position = values.len();
+                    values.push(self.draft_positional_value(
+                        *key_syntax,
+                        key,
+                        patterns.inference_parameters,
+                        patterns.requirements,
+                        inference,
+                        BodyRule::InvalidCall,
+                    )?);
+                    destinations.push(key);
+                    let value_position = values.len();
+                    values.push(self.draft_positional_value(
+                        *value_syntax,
+                        value,
+                        patterns.inference_parameters,
+                        patterns.requirements,
+                        inference,
+                        BodyRule::InvalidCall,
+                    )?);
+                    destinations.push(value);
+                    segments.push(PackSegmentDraft::KeyedValue {
+                        key: key_position,
+                        value: value_position,
+                    });
+                }
+            }
+        }
+        Ok(ArgumentPackDraft::Prepared(segments))
     }
 
     fn declared_parameter_shape(

@@ -276,48 +276,7 @@ impl ExecutableClosureBuilder<'_> {
                 })
             }
             ArgumentPackSegment::KeyedValue { key, value } => {
-                let ArgumentPack::Keyed {
-                    key: expected_key,
-                    value: expected_value,
-                } = context.input.shape()
-                else {
-                    return Err(context.invalid());
-                };
-                let key_type = context
-                    .node_types
-                    .get(key)
-                    .copied()
-                    .ok_or_else(|| context.invalid())?;
-                let value_type = context
-                    .node_types
-                    .get(value)
-                    .copied()
-                    .ok_or_else(|| context.invalid())?;
-                let concrete_key = self
-                    .resolver
-                    .specialize_type(key_type, context.substitution)?;
-                let concrete_value = self
-                    .resolver
-                    .specialize_type(value_type, context.substitution)?;
-                if concrete_key != expected_key || concrete_value != expected_value {
-                    return Err(context.invalid());
-                }
-                let key_destruction = self
-                    .resolver
-                    .resolve_destruction(key_type, context.substitution)?;
-                let value_destruction = self
-                    .resolver
-                    .resolve_destruction(value_type, context.substitution)?;
-                self.record_pack_destruction(key_destruction.as_ref(), drops)?;
-                self.record_pack_destruction(value_destruction.as_ref(), drops)?;
-                Ok(ExecutablePackSegment::KeyedValue {
-                    key: *key,
-                    key_type: concrete_key,
-                    key_destruction,
-                    value: *value,
-                    value_type: concrete_value,
-                    value_destruction,
-                })
+                self.specialize_keyed_pack_segment(*key, *value, context, drops)
             }
             ArgumentPackSegment::Spread {
                 mode,
@@ -367,6 +326,57 @@ impl ExecutableClosureBuilder<'_> {
                 )))
             }
         }
+    }
+
+    fn specialize_keyed_pack_segment(
+        &mut self,
+        key: BodyNodeId,
+        value: BodyNodeId,
+        context: &SegmentSpecialization<'_>,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<ExecutablePackSegment, ExecutableProgramError> {
+        let ArgumentPack::Keyed {
+            key: expected_key,
+            value: expected_value,
+        } = context.input.shape()
+        else {
+            return Err(context.invalid());
+        };
+        let key_type = context
+            .node_types
+            .get(&key)
+            .copied()
+            .ok_or_else(|| context.invalid())?;
+        let value_type = context
+            .node_types
+            .get(&value)
+            .copied()
+            .ok_or_else(|| context.invalid())?;
+        let concrete_key = self
+            .resolver
+            .specialize_type(key_type, context.substitution)?;
+        let concrete_value = self
+            .resolver
+            .specialize_type(value_type, context.substitution)?;
+        if concrete_key != expected_key || concrete_value != expected_value {
+            return Err(context.invalid());
+        }
+        let key_destruction = self
+            .resolver
+            .resolve_destruction(key_type, context.substitution)?;
+        let value_destruction = self
+            .resolver
+            .resolve_destruction(value_type, context.substitution)?;
+        self.record_pack_destruction(key_destruction.as_ref(), drops)?;
+        self.record_pack_destruction(value_destruction.as_ref(), drops)?;
+        Ok(ExecutablePackSegment::KeyedValue {
+            key,
+            key_type: concrete_key,
+            key_destruction,
+            value,
+            value_type: concrete_value,
+            value_destruction,
+        })
     }
 
     fn record_pack_destruction(
