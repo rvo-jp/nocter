@@ -10,8 +10,8 @@ The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON 
 tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 5 are complete
 and reviewed. The public contract, implementation, practical integration, adversarial JSON matrix,
 shared collection failure policy, standard dependency audit, and public contract documentation are
-closed. Release-content identity is fixed; duplicate source and artifact qualification is the
-current checkpoint.
+closed. Release candidate qualification is complete, and the retained artifact is frozen pending
+explicit publication authorization.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -23,19 +23,18 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Qualify the fixed v0.22.0 release-content commit without changing the completed JSON or
-standard-library contract:
+Wait for explicit publication authorization. When authorized:
 
-- run two independent complete source qualifications and warnings-denied Clippy gates;
-- generate two deterministic optimized artifacts and compare both archives and installed homes;
-- qualify a fresh installed home across version, doctor, help, init, offline check/test/graph,
-  native run/build, direct execution, and framed LSP requests;
-- remove the JSON future-direction notice only after that installed candidate passes;
-- promote the JSON contract after the installed candidate passes, freeze candidate hashes and
-  evidence, then wait for explicit publication authorization.
+- reuse `dist/nocter-v0.22.0-arm64-darwin.tar.gz` without rebuilding it;
+- advance the root README and public release index from v0.21.0 to v0.22.0;
+- commit publication metadata, create and push an annotated `v0.22.0` tag, and upload the retained
+  archive;
+- download the public asset into a fresh temporary directory and compare it byte for byte with the
+  qualified candidate;
+- record public release, tag, digest, latest-release, and re-download evidence.
 
 Do not add pretty printing, canonical member ordering, floating point, `char`, streaming JSON input,
-public failure wrappers, or a compiler-known JSON declaration during release preparation.
+public failure wrappers, or a compiler-known JSON declaration while the candidate is frozen.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

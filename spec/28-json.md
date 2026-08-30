@@ -3,13 +3,9 @@
 This file is part of the Nocter language specification. The specification entry point is
 [README.md](README.md).
 
-## Future Direction: v0.22.0 JSON API
+## v0.22.0 JSON API
 
-The contract in this chapter is adopted for v0.22.0 but is not implemented by the published
-v0.21.0 toolchain. Until the implementation milestone removes this notice, `std/json` is not a
-current standard module.
-
-The future `std/json` module represents and exchanges JSON as defined by
+Starting with v0.22.0, `std/json` represents and exchanges JSON as defined by
 [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259). It is an ordinary standard-library module. The
 compiler does not recognize JSON values, JSON number spelling, object names, parsing, or generation
 as language primitives.

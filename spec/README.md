@@ -44,7 +44,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Strict Ordering Operators](24-ordering-operators.md)
 - [Compile-Time Constants](26-constants.md)
 - [Associative Collections](27-associative-collections.md)
-- [JSON Values and Text](28-json.md) — adopted v0.22.0 future direction
+- [JSON Values and Text](28-json.md) — v0.22.0 standard-library contract
 
 ## Supporting Material
 
@@ -53,14 +53,13 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.21.0 language, including the v0.20.0
-interface-prerequisite foundation and v0.21.0 associative-collection contract. It also records the
-adopted v0.22.0 JSON contract under an explicit **Future Direction** heading; that API is not
-implemented by the published toolchain. Implementation phases and completion evidence belong only
-to the contributor milestone records and are intentionally not restated in the public
-specification. The
-[release index](../releases/README.md) owns current publication and download status, and repository
-tags preserve the exact specification for every published release.
+This working tree specifies the qualified v0.22.0 release candidate, including the v0.20.0
+interface-prerequisite foundation, v0.21.0 associative collections, and v0.22.0 JSON standard
+module. The latest published toolchain remains v0.21.0 until the
+[release index](../releases/README.md) is explicitly advanced. Implementation phases and
+qualification evidence belong only to contributor records and are intentionally not restated in
+the public specification. Repository tags preserve the exact specification for every published
+release.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

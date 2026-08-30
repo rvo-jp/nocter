@@ -9,9 +9,9 @@ in [`development/releases/`](../releases/README.md).
 
 The [v0.22.0 milestone](v0.22.0.md) returns to practical standard-library work with an owning JSON
 DOM, exact decimal tokens, strict parsing, and compact generation. Phases 0 through 5 are complete
-and reviewed; release-content identity is fixed and candidate qualification is in progress. The
-adopted public API remains explicitly marked future direction until an installed v0.22.0 candidate
-qualifies.
+and reviewed; the release candidate is qualified and awaits publication authorization. The JSON
+API is current for the qualified v0.22.0 candidate, while the release index and root download remain
+on published v0.21.0 until publication.
 
 ## Latest Completed Milestone
 

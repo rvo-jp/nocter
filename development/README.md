@@ -1,8 +1,8 @@
 # Contributor Documentation
 
-Nocter has published v0.21.0 and started the v0.22.0 practical JSON milestone with a compiler built
-from the language specification. The v0.13.0 compiler implementation was not an input to the
-rewrite.
+Nocter has published v0.21.0 and qualified the v0.22.0 practical JSON release candidate with a
+compiler built from the language specification. Publication remains explicitly unauthorized. The
+v0.13.0 compiler implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
