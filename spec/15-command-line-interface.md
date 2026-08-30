@@ -16,8 +16,8 @@ form prints package identities and labeled edges. `--format json` emits determin
 data containing package IDs, names, versions, roots, dependency source kinds, exact locks, and
 resolved package IDs. `--locked` and `--offline` retain their normal resolution meaning.
 
-Graph inspection never writes generated lock data. `nocter fetch` remains the only command that
-intentionally updates dependency locks.
+Graph inspection never writes generated exact-selection data. `nocter fetch` remains the only
+command that intentionally adds missing dependency selections.
 
 Initialization has this exact public surface:
 
@@ -81,9 +81,10 @@ The JSON form is one LF-terminated object:
 `source` is exactly `standard`, `git`, `archive`, or `path`. `lock` is JSON null when absent. Every
 valid package has a version. The root package and bundled standard package are ordinary entries in
 `packages`.
-Graph resolution uses only authored locks and already installed exact packages. When a required
-lock or package is absent, it reports the normal resolution requirement without downloading,
-creating package-store state, or editing `index.nct`; the user may run `nocter fetch` explicitly.
+Graph resolution uses only exact selections authored inside dependency records and already installed
+exact packages. When a required selection or package is absent, it reports the normal resolution
+requirement without downloading, creating package-store state, or editing `index.nct`; the user may
+run `nocter fetch` explicitly.
 
 ## Command Model
 
@@ -211,39 +212,36 @@ ordinary declarations follow the directive prefix in the same `index.nct`.
 Directive list elements and record fields are comma-delimited and may use one trailing comma on any
 layout under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
 
-Dependencies and their generated exact locks share `index.nct`:
+Each dependency record owns both its source intent and optional exact selection:
 
 ```nct
 #dependencies: {
     json: {
         git: "https://github.com/example/json.git",
         revision: "main",
+        commit: "7db21c1000000000000000000000000000000000",
     },
     http: {
         archive: "https://nocter.dev/lib/http-v1.0.0.tar.gz",
+        sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     },
     local_math: {
         path: "./packages/math",
     },
 }
-
-#lock: {
-    format: 1,
-    dependencies: {
-        http: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        json: "git:7db21c1000000000000000000000000000000000",
-    },
-}
 ```
 
-Git builds use only the locked commit and archives use only the locked SHA-256 content. Path
-dependencies are mutable development inputs and have no lock entry. No separate lockfile exists.
-The generated block is sorted by dependency alias.
+`git` plus `revision` and `archive` express authored source intent. `nocter fetch` adds only the
+missing source-specific `commit` or `sha256` field after validating the complete graph; it does not
+reserialize the surrounding dependency declaration. Git builds use only the exact `commit`, and
+archives use only the exact `sha256` content. Path dependencies are mutable development inputs and
+cannot contain either exact field. A top-level `#lock` directive is invalid, and no separate
+lockfile exists.
 
 Every exact dependency selection has one canonical, Windows-safe `PackageId`:
 
-- a Git lock `git:<40-hex-commit>` becomes `git-<lowercase-40-hex-commit>`
-- an archive lock `sha256:<64-hex-digest>` becomes `sha256-<lowercase-64-hex-digest>`
+- a Git `commit` becomes `git-<lowercase-40-hex-commit>`
+- an archive `sha256` becomes `sha256-<lowercase-64-hex-digest>`
 - a path package becomes `path-<64-lowercase-hex>`, where the digest is SHA-256 over the UTF-8
   bytes of its canonical absolute path
 
@@ -305,23 +303,24 @@ nocter fetch --locked
 nocter fetch --offline
 ```
 
-`fetch` resolves missing direct locks, writes the generated `#lock` block atomically, and installs
-exact packages under `<package-root>/.nocter/packages/<PackageId>`. The directory basename is the
-complete canonical `PackageId`; it is not an alias or display name. Package commands may perform
-the same missing lock generation and fetch before analysis.
+`fetch` resolves missing direct exact selections, atomically adds their `commit` or `sha256` fields
+to `#dependencies`, and installs exact packages under
+`<package-root>/.nocter/packages/<PackageId>`. The directory basename is the complete canonical
+`PackageId`; it is not an alias or display name. Package commands may perform the same missing
+selection generation and fetch before analysis.
 
-The complete dependency graph is validated before generated lock data is committed. A failed graph
-does not partially rewrite `index.nct`.
+The complete dependency graph is validated before generated exact fields are committed. A failed
+graph does not partially rewrite `index.nct`.
 
 Each validated exact package is an immutable cache entry and may remain available if a later
-compare-before-write of the generated root `#lock` is rejected, for example after a concurrent edit.
-Such an entry does not select or authorize a dependency: only the root package's authored `#lock`
-does. A later command may reuse the complete cached identity.
+compare-before-write of the root dependency source is rejected, for example after a concurrent
+edit. Such an entry does not select or authorize a dependency: only the source-specific exact field
+inside that dependency record does. A later command may reuse the complete cached identity.
 
 - `--locked` rejects any operation that would create or change lock selection.
 - `--offline` prohibits source resolution and downloads; every exact package must already exist in
   the package-local or Nocter-home store.
-- Existing locks are never changed implicitly.
+- Existing `commit` and `sha256` fields are never changed implicitly.
 - LSP behaves as locked and offline regardless of command defaults.
 - Resolution first checks `<package-root>/.nocter/packages/<PackageId>`, then
   `<Nocter-home>/packages/<PackageId>`. It never searches by package name, version, URL, or a

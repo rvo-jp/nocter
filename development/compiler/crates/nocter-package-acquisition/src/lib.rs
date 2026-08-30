@@ -1,7 +1,7 @@
 //! Embedded HTTPS acquisition for exact Git and `.tar.gz` Nocter packages.
 //!
 //! This crate owns transport and materialization policy. Package graph validation, publication,
-//! and generated lock commits remain in `nocter-package-state`.
+//! and generated exact-selection commits remain in `nocter-package-state`.
 
 mod archive;
 mod error;

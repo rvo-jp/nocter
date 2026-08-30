@@ -13,7 +13,7 @@ use nocter_package::{
 use crate::authority::{LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest};
 use crate::filesystem::PackageStateFilesystemError;
 use crate::package_cache::{PackageCachePublication, publish_exact_packages};
-use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
+use crate::root_source::{RootSourceCommitError, commit_root_source_update};
 use crate::staging::StagingArea;
 
 /// Read-only package-graph authority used by one mutable package-state operation.
@@ -108,7 +108,7 @@ struct PackageStateOperation {
     locks: PackageLockOverlay,
     store: PackageStoreOverlay,
     staging: Option<StagingArea>,
-    generated_locks: bool,
+    generated_selections: bool,
     filesystem_revision: PackageFilesystemRevision,
 }
 
@@ -133,7 +133,7 @@ impl PackageStateOperation {
             locks: PackageLockOverlay::new(),
             store: PackageStoreOverlay::new(),
             staging: None,
-            generated_locks: false,
+            generated_selections: false,
             filesystem_revision: PackageFilesystemRevision::default(),
         })
     }
@@ -204,10 +204,12 @@ impl PackageStateOperation {
             ))
             .map_err(PackageStateError::Acquisition)?;
         let expected =
-            source_lock_kind(source).ok_or_else(|| PackageStateError::UnexpectedLockSource {
-                package: package.clone(),
-                alias: alias.into(),
-            })?;
+            source
+                .exact_lock_kind()
+                .ok_or_else(|| PackageStateError::UnexpectedLockSource {
+                    package: package.clone(),
+                    alias: alias.into(),
+                })?;
         if lock.kind() != expected {
             return Err(PackageStateError::LockKindMismatch {
                 package: package.clone(),
@@ -219,7 +221,7 @@ impl PackageStateOperation {
         self.locks
             .insert(self.root.clone(), alias, lock)
             .map_err(PackageStateError::LockOverlay)?;
-        self.generated_locks = true;
+        self.generated_selections = true;
         Ok(())
     }
 
@@ -275,7 +277,7 @@ impl PackageStateOperation {
         resolver: &mut R,
     ) -> Result<ResolvedPackageSelection, PackageStateError<E>> {
         let staged_packages = self.staging.as_mut().and_then(StagingArea::take_packages);
-        if !self.generated_locks && staged_packages.is_none() {
+        if !self.generated_selections && staged_packages.is_none() {
             return Ok(selection);
         }
         let requires_filesystem_refresh = staged_packages
@@ -293,12 +295,12 @@ impl PackageStateOperation {
             self.request.clone().with_lock_overlay(self.locks.clone()),
             self.filesystem_revision,
         )?;
-        if self.generated_locks {
+        if self.generated_selections {
             let update = selected
                 .graph()
-                .root_lock_update(&self.root)
-                .map_err(PackageStateError::LockSource)?;
-            commit_root_lock_source(&update).map_err(PackageStateError::RootSourceCommit)?;
+                .root_selection_update(&self.root)
+                .map_err(PackageStateError::SelectionSource)?;
+            commit_root_source_update(&update).map_err(PackageStateError::RootSourceCommit)?;
             self.filesystem_revision
                 .advance()
                 .map_err(PackageStateError::FilesystemRevision)?;
@@ -329,14 +331,6 @@ fn resolve_attempt<E: Error + Send + Sync + 'static, R: PackageResolutionDriver>
         })
 }
 
-fn source_lock_kind(source: &DependencySource) -> Option<ExactDependencyLockKind> {
-    match source {
-        DependencySource::Git { .. } => Some(ExactDependencyLockKind::Git),
-        DependencySource::Archive { .. } => Some(ExactDependencyLockKind::Sha256),
-        DependencySource::Path { .. } => None,
-    }
-}
-
 #[derive(Debug)]
 pub enum PackageStateError<E: Error + Send + Sync + 'static> {
     Acquisition(E),
@@ -361,7 +355,7 @@ pub enum PackageStateError<E: Error + Send + Sync + 'static> {
     PackageId(PackageIdError),
     LockOverlay(PackageLockOverlayError),
     StoreOverlay(PackageStoreOverlayError),
-    LockSource(nocter_package::PackageLockSourceError),
+    SelectionSource(nocter_package::PackageExactSelectionSourceError),
     RootSourceCommit(RootSourceCommitError),
     Filesystem(PackageStateFilesystemError),
     FilesystemRevision(PackageFilesystemRevisionError),
@@ -404,7 +398,7 @@ impl<E: Error + Send + Sync + 'static> fmt::Display for PackageStateError<E> {
             Self::PackageId(error) => error.fmt(formatter),
             Self::LockOverlay(error) => error.fmt(formatter),
             Self::StoreOverlay(error) => error.fmt(formatter),
-            Self::LockSource(error) => error.fmt(formatter),
+            Self::SelectionSource(error) => error.fmt(formatter),
             Self::RootSourceCommit(error) => error.fmt(formatter),
             Self::Filesystem(error) => error.fmt(formatter),
             Self::FilesystemRevision(error) => error.fmt(formatter),
@@ -421,7 +415,7 @@ impl<E: Error + Send + Sync + 'static> Error for PackageStateError<E> {
             Self::PackageId(error) => Some(error),
             Self::LockOverlay(error) => Some(error),
             Self::StoreOverlay(error) => Some(error),
-            Self::LockSource(error) => Some(error),
+            Self::SelectionSource(error) => Some(error),
             Self::RootSourceCommit(error) => Some(error),
             Self::Filesystem(error) => Some(error),
             Self::FilesystemRevision(error) => Some(error),

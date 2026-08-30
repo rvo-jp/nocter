@@ -2,8 +2,8 @@
 
 ## Responsibility
 
-Parse package declarations, identify package roots, resolve dependencies and locks, and freeze one
-deterministic package graph from an immutable filesystem view.
+Parse package declarations, identify package roots, resolve dependency intent and exact selections,
+and freeze one deterministic package graph from an immutable filesystem view.
 
 ## Contract
 
@@ -14,7 +14,7 @@ separate crates.
 
 ## Internal Responsibilities
 
-- package declaration and lock decoding
+- package declaration decoding, including source-specific exact-selection fields
 - revision-local package-root source catalog and canonical package identity
 - dependency graph resolution
 - package-store and lock overlays for validation
@@ -24,6 +24,8 @@ separate crates.
 
 - `index.nct` with `#package` is the sole package-root declaration.
 - Dependency aliases never replace canonical package identities.
+- Each dependency declaration is the sole syntax authority for both its source intent and optional
+  exact selection; no parallel alias-to-lock map is decoded from source.
 - Resolution is deterministic and independent of filesystem enumeration order.
 - One root catalog retains the exact bytes and result behind every package-boundary decision.
   Package loading binds the same retained parse product to its semantic source identity, while

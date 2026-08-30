@@ -2,9 +2,9 @@ use std::fmt;
 
 /// One exact dependency selection independent of its authored source location.
 ///
-/// Package declarations retain syntax-bearing [`crate::DependencyLock`] values. Resolution and
-/// package-state transactions use this value so a provisional lock can validate a complete graph
-/// before it is committed to `index.nct`.
+/// Package declarations retain syntax-bearing [`crate::DependencyExactSelection`] values.
+/// Resolution and package-state operations use this value so a provisional exact selection can
+/// validate a complete graph before it is committed to `index.nct`.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ExactDependencyLock {
     kind: ExactDependencyLockKind,

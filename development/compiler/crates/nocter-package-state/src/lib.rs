@@ -1,8 +1,8 @@
 //! Package-state coordination above read-only exact graph resolution.
 //!
 //! Acquisition is injected explicitly. This crate owns staging, append-only exact-package cache
-//! publication, graph revalidation, and failure-atomic generated lock-source commit; it does not
-//! implement a transport protocol.
+//! publication, graph revalidation, and failure-atomic generated exact-selection commit; it does
+//! not implement a transport protocol.
 
 mod authority;
 mod filesystem;

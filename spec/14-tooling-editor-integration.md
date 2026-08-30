@@ -60,8 +60,8 @@ code actions, inlay hints, and semantic tokens for that request observe the same
 
 An open document overrides disk content throughout its generation. Package graphs for open
 `index.nct` overlays are locked, offline, and read-only: analysis never fetches dependencies,
-generates locks, or rewrites source. Changed imports invalidate reverse importers; unrelated modules
-and nested packages retain independent state.
+generates exact-selection fields, or rewrites source. Changed imports invalidate reverse importers;
+unrelated modules and nested packages retain independent state.
 
 A failed source or package load retains every reached source and unresolved candidate needed for
 future invalidation. A failed graph is not replaced by a stale successful graph.

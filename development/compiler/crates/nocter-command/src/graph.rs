@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_remote_lock_is_reported_without_creating_package_state() {
+    fn missing_remote_selection_is_reported_without_creating_package_state() {
         let directory = temporary_root();
         let standard = directory.join("std");
         let package = directory.join("package");
@@ -497,7 +497,7 @@ mod tests {
         assert!(
             !fs::read_to_string(package.join("index.nct"))
                 .unwrap()
-                .contains("#lock")
+                .contains("sha256:")
         );
         fs::remove_dir_all(directory).unwrap();
     }

@@ -9,7 +9,7 @@ use nocter_package::{
     PackageResolutionRequest, ResolvedPackageGraph, ResolvedPackageSpec, StandardPackage,
 };
 
-use crate::root_source::{RootSourceCommitError, commit_root_lock_source};
+use crate::root_source::{RootSourceCommitError, commit_root_source_update};
 use crate::{
     LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
     PackageFilesystemRevision, PackageResolutionAttemptError, PackageResolutionDriver,
@@ -121,7 +121,7 @@ fn base_tree() -> TempTree {
 }
 
 #[test]
-fn validates_staging_before_publishing_and_commits_the_root_lock_last() {
+fn validates_staging_before_publishing_and_commits_the_root_selection_last() {
     let tree = base_tree();
     let mut authority = FakeAuthority::new("#package: { name: \"remote\", version: \"0.0.0\", }\n");
 
@@ -141,7 +141,7 @@ fn validates_staging_before_publishing_and_commits_the_root_lock_last() {
         snapshot.identity() == &package.package_identity() && snapshot.root() == canonical_stored
     }));
     let package_source = fs::read_to_string(tree.0.join("app/index.nct")).unwrap();
-    assert!(package_source.contains(&format!("remote: \"git:{COMMIT}\"")));
+    assert!(package_source.contains(&format!("commit: \"{COMMIT}\"")));
     assert!(!tree.0.join("app/.nocter/transactions").exists());
 }
 
@@ -261,7 +261,7 @@ fn exact_cache_can_warm_without_publishing_a_rejected_root_transition() {
 }
 
 #[test]
-fn invalid_transitive_lock_state_publishes_neither_package_nor_root_lock() {
+fn invalid_transitive_selection_state_publishes_neither_package_nor_root_selection() {
     let tree = base_tree();
     let original = fs::read(tree.0.join("app/index.nct")).unwrap();
     let mut authority = FakeAuthority::new(
@@ -310,7 +310,7 @@ fn root_source_commit_rejects_a_concurrent_source_change() {
     tree.source(
         "app/index.nct",
         &format!(
-            "#package: {{ name: \"app\", version: \"0.0.0\", }}\n#dependencies: {{ remote: {{ git: \"https://example.test/remote.git\", revision: \"main\", }}, }}\n#lock: {{ format: 1, dependencies: {{ remote: \"git:{COMMIT}\", }}, }}\n"
+            "#package: {{ name: \"app\", version: \"0.0.0\", }}\n#dependencies: {{ remote: {{ git: \"https://example.test/remote.git\", revision: \"main\", commit: \"{COMMIT}\", }}, }}\n"
         ),
     );
     tree.source(
@@ -323,12 +323,12 @@ fn root_source_commit_rejects_a_concurrent_source_change() {
             .with_dependency("remote", PackageIdentity::new("remote")),
         ResolvedPackageSpec::new(PackageIdentity::new("remote"), tree.0.join("remote")),
     ]);
-    let update = graph.root_lock_update(&app).unwrap();
+    let update = graph.root_selection_update(&app).unwrap();
     let path = tree.0.join("app/index.nct");
     let concurrent = b"#package: { name: \"changed\", version: \"0.0.0\", }\n";
     fs::write(&path, concurrent).unwrap();
 
-    let error = commit_root_lock_source(&update).unwrap_err();
+    let error = commit_root_source_update(&update).unwrap_err();
 
     assert!(matches!(error, RootSourceCommitError::SourceChanged(_)));
     assert_eq!(fs::read(path).unwrap(), concurrent);

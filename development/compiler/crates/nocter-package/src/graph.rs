@@ -12,8 +12,8 @@ use nocter_syntax::DirectSourceSyntax;
 use nocter_syntax::{SourceSyntaxProvider, SyntaxTree};
 
 use crate::{
-    DependencySource, ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration,
-    PackageDeclarationError, PackageLockSourceError, PackageLockSourceUpdate, PackageRootCatalog,
+    DependencySource, ExactDependencyLock, PackageDeclaration, PackageDeclarationError,
+    PackageExactSelectionSourceError, PackageExactSelectionSourceUpdate, PackageRootCatalog,
     PackageRootCatalogBuilder, PackageRootProbeError, decode_package_declaration,
 };
 
@@ -105,8 +105,8 @@ impl ResolvedPackageSnapshot {
 
     /// Returns the exact effective locks used for remote dependency edges.
     ///
-    /// This may see transaction overlays that were validated before their generated source
-    /// block was committed.
+    /// This may see operation overlays that were validated before their generated exact field was
+    /// committed to the dependency declaration.
     #[must_use]
     pub const fn locks(&self) -> &BTreeMap<Box<str>, ExactDependencyLock> {
         &self.locks
@@ -267,35 +267,35 @@ impl ResolvedPackageGraph {
         self.package_roots.source_overlay()
     }
 
-    /// Renders one package declaration with its validated effective locks.
+    /// Renders missing exact selections into one package's dependency declarations.
     ///
-    /// Existing generated lock syntax is replaced as a unit. When no lock directive exists, one
-    /// canonical sorted block is appended. No filesystem state is changed.
+    /// Existing authored source and exact fields remain unchanged. Only a missing source-specific
+    /// `commit` or `sha256` field is inserted. No filesystem state is changed.
     ///
     /// # Errors
     ///
     /// Returns an error if the package is absent or its retained source/syntax identity is
     /// internally inconsistent.
-    pub fn root_lock_update(
+    pub fn root_selection_update(
         &self,
         identity: &PackageIdentity,
-    ) -> Result<PackageLockSourceUpdate, PackageLockSourceError> {
+    ) -> Result<PackageExactSelectionSourceUpdate, PackageExactSelectionSourceError> {
         let package = self
             .packages
             .iter()
             .find(|package| package.identity() == identity)
-            .ok_or(PackageLockSourceError::UnknownPackage)?;
+            .ok_or(PackageExactSelectionSourceError::UnknownPackage)?;
         let syntax = self
             .syntax
             .get(package.declaration_syntax())
-            .ok_or(PackageLockSourceError::MissingPackageSyntax)?;
+            .ok_or(PackageExactSelectionSourceError::MissingPackageSyntax)?;
         self.sources
             .get(syntax.root_id().source())
-            .ok_or(PackageLockSourceError::MissingPackageSource)?;
+            .ok_or(PackageExactSelectionSourceError::MissingPackageSource)?;
         let declaration = package
             .declaration()
-            .ok_or(PackageLockSourceError::MissingPackageDeclaration)?;
-        crate::lock_source::render_effective_locks(
+            .ok_or(PackageExactSelectionSourceError::MissingPackageDeclaration)?;
+        crate::selection_source::render_effective_selections(
             package.declaration_path(),
             &package.root_source_bytes,
             syntax,
@@ -589,10 +589,9 @@ fn validate_edges(
                     }
                 }
                 DependencySource::Git { .. } | DependencySource::Archive { .. } => {
-                    let authored = declaration
-                        .locks()
-                        .get(alias)
-                        .map(crate::DependencyLock::exact);
+                    let authored = dependency
+                        .selection()
+                        .map(crate::DependencyExactSelection::exact);
                     let selected = resolved_locks
                         .get(alias)
                         .cloned()
@@ -612,11 +611,10 @@ fn validate_edges(
                             alias: alias.clone(),
                         });
                     }
-                    let expected = match dependency.source() {
-                        DependencySource::Git { .. } => ExactDependencyLockKind::Git,
-                        DependencySource::Archive { .. } => ExactDependencyLockKind::Sha256,
-                        DependencySource::Path { .. } => unreachable!(),
-                    };
+                    let expected = dependency
+                        .source()
+                        .exact_lock_kind()
+                        .expect("remote dependency has one exact selection kind");
                     if selected.kind() != expected {
                         return Err(PackageGraphError::LockKindMismatch {
                             package: package.clone(),
@@ -1084,11 +1082,9 @@ mod tests {
 
         assert_eq!(graph.packages()[0].locks().get("remote"), Some(&lock));
         assert!(
-            graph.packages()[0]
-                .declaration()
-                .unwrap()
-                .locks()
-                .is_empty()
+            graph.packages()[0].declaration().unwrap().dependencies()["remote"]
+                .selection()
+                .is_none()
         );
     }
 
@@ -1097,7 +1093,7 @@ mod tests {
         let tree = TempTree::new();
         tree.source(
             "app/index.nct",
-            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", }, }\n#lock: { format: 1, dependencies: { remote: \"git:7db21c1000000000000000000000000000000000\", }, }\n",
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { remote: { git: \"https://example.test/r.git\", revision: \"main\", commit: \"7db21c1000000000000000000000000000000000\", }, }\n",
         );
         tree.source(
             "remote/index.nct",

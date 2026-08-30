@@ -122,20 +122,20 @@ Package interpretation and package-state mutation are separate:
 
 | Responsibility | Owner |
 |---|---|
-| package declarations, roots, locks, and resolved graphs | [`nocter-package`](../compiler/crates/nocter-package/README.md) |
-| root lock-source transitions and exact-package cache publication | [`nocter-package-state`](../compiler/crates/nocter-package-state/README.md) |
+| package declarations, roots, exact selections, and resolved graphs | [`nocter-package`](../compiler/crates/nocter-package/README.md) |
+| root dependency-source transitions and exact-package cache publication | [`nocter-package-state`](../compiler/crates/nocter-package-state/README.md) |
 | authenticated Git/archive acquisition | [`nocter-package-acquisition`](../compiler/crates/nocter-package-acquisition/README.md) |
 | installed toolchain validation | [`nocter-installation`](../compiler/crates/nocter-installation/README.md) |
 
 Resolution consumes an immutable filesystem view. Acquisition and package-state publication cannot
-run through an editor overlay. Root lock-source commit is failure-atomic and remains the sole
-dependency-selection authority. Validated exact packages publish independently into an append-only
-cache, so a cache entry may remain after a later root-source rejection without changing the selected
-graph. An interrupted acquisition cannot expose a partial exact package, and an interrupted
-installation cannot expose a partial toolchain. Package display names never replace canonical
-package identities. Workspace topology freezes a revision-local package-root catalog; package
-loading and discovery extend that catalog without reopening a root already selected from the same
-overlay.
+run through an editor overlay. Root dependency-source commit is failure-atomic; each dependency's
+source-specific `commit` or `sha256` field is its sole selection authority. Validated exact packages
+publish independently into an append-only cache, so a cache entry may remain after a later
+root-source rejection without changing the selected graph. An interrupted acquisition cannot expose
+a partial exact package, and an interrupted installation cannot expose a partial toolchain. Package
+display names never replace canonical package identities. Workspace topology freezes a
+revision-local package-root catalog; package loading and discovery extend that catalog without
+reopening a root already selected from the same overlay.
 
 ## Editor Generation Boundary
 

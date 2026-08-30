@@ -40,42 +40,59 @@ pub enum DependencySource {
     },
 }
 
+impl DependencySource {
+    #[must_use]
+    pub const fn exact_lock_kind(&self) -> Option<crate::ExactDependencyLockKind> {
+        match self {
+            Self::Git { .. } => Some(crate::ExactDependencyLockKind::Git),
+            Self::Archive { .. } => Some(crate::ExactDependencyLockKind::Sha256),
+            Self::Path { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DependencyDeclaration {
-    field: NodeId,
+    record: NodeId,
     source: DependencySource,
+    selection: Option<DependencyExactSelection>,
 }
 
 impl DependencyDeclaration {
     #[must_use]
-    pub const fn field(&self) -> NodeId {
-        self.field
+    pub const fn record(&self) -> NodeId {
+        self.record
     }
 
     #[must_use]
     pub const fn source(&self) -> &DependencySource {
         &self.source
     }
+
+    #[must_use]
+    pub const fn selection(&self) -> Option<&DependencyExactSelection> {
+        self.selection.as_ref()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DependencyLock {
-    Git(AuthoredString),
-    Sha256(AuthoredString),
+pub enum DependencyExactSelection {
+    GitCommit(AuthoredString),
+    ArchiveSha256(AuthoredString),
 }
 
-impl DependencyLock {
-    /// Removes syntax identity from an already validated authored lock.
+impl DependencyExactSelection {
+    /// Removes syntax identity from an already validated authored exact selection.
     #[must_use]
     pub fn exact(&self) -> crate::ExactDependencyLock {
         match self {
-            Self::Git(authored) => crate::ExactDependencyLock::validated(
+            Self::GitCommit(authored) => crate::ExactDependencyLock::validated(
                 crate::ExactDependencyLockKind::Git,
-                authored.value().trim_start_matches("git:"),
+                authored.value(),
             ),
-            Self::Sha256(authored) => crate::ExactDependencyLock::validated(
+            Self::ArchiveSha256(authored) => crate::ExactDependencyLock::validated(
                 crate::ExactDependencyLockKind::Sha256,
-                authored.value().trim_start_matches("sha256:"),
+                authored.value(),
             ),
         }
     }
@@ -122,8 +139,6 @@ pub struct PackageDeclaration {
     name: AuthoredString,
     version: AuthoredString,
     dependencies: BTreeMap<Box<str>, DependencyDeclaration>,
-    locks: BTreeMap<Box<str>, DependencyLock>,
-    lock_directive: Option<NodeId>,
     targets: Box<[PackageTargetDeclaration]>,
 }
 
@@ -141,16 +156,6 @@ impl PackageDeclaration {
     #[must_use]
     pub const fn dependencies(&self) -> &BTreeMap<Box<str>, DependencyDeclaration> {
         &self.dependencies
-    }
-
-    #[must_use]
-    pub const fn locks(&self) -> &BTreeMap<Box<str>, DependencyLock> {
-        &self.locks
-    }
-
-    #[must_use]
-    pub const fn lock_directive(&self) -> Option<NodeId> {
-        self.lock_directive
     }
 
     #[must_use]
@@ -198,10 +203,9 @@ pub enum PackageDeclarationRule {
     InvalidDependencySource,
     InvalidTargetName,
     InvalidModulePath,
-    InvalidLockFormat,
-    UnknownLockDependency,
-    PathDependencyLock,
-    LockKindMismatch,
+    InvalidGitCommit,
+    InvalidArchiveDigest,
+    UnexpectedDependencySelection,
     TargetOrderOverflow,
     MissingPackageDirective,
 }
@@ -242,8 +246,6 @@ pub fn decode_package_declaration(
 
     let mut package = None;
     let mut dependencies = None;
-    let mut locks = None;
-    let mut lock_directive = None;
     let mut targets = Vec::new();
     let mut target_order = 0_u32;
 
@@ -269,15 +271,6 @@ pub fn decode_package_declaration(
                 declaration,
                 "dependencies",
             )?,
-            "lock" => {
-                set_once(
-                    &mut locks,
-                    decode_lock(source, tree, declaration)?,
-                    declaration,
-                    "lock",
-                )?;
-                lock_directive = Some(declaration);
-            }
             "executable" | "test" => {
                 let kind = if directive.as_ref() == "executable" {
                     PackageTargetKind::Executable
@@ -310,8 +303,6 @@ pub fn decode_package_declaration(
     }
 
     let dependencies = dependencies.unwrap_or_default();
-    let locks = locks.unwrap_or_default();
-    validate_locks(&dependencies, &locks)?;
     let (name, version) = package.ok_or_else(|| {
         error(
             tree.root_id(),
@@ -323,8 +314,6 @@ pub fn decode_package_declaration(
         name,
         version,
         dependencies,
-        locks,
-        lock_directive,
         targets: targets.into_boxed_slice(),
     })
 }
@@ -376,43 +365,8 @@ fn decode_dependencies(
                 Some(alias),
             ));
         }
-        let dependency_record = required_record(tree, field)?;
-        let fields = unique_fields(source, tree, dependency_record)?;
-        let git = optional_string(source, tree, &fields, "git")?;
-        let revision = optional_string(source, tree, &fields, "revision")?;
-        let archive = optional_string(source, tree, &fields, "archive")?;
-        let path = optional_string(source, tree, &fields, "path")?;
-        for name in fields.keys() {
-            if !matches!(name.as_ref(), "git" | "revision" | "archive" | "path") {
-                return Err(error(
-                    fields[name],
-                    PackageDeclarationRule::UnknownField,
-                    Some(name.clone()),
-                ));
-            }
-        }
-        let dependency_source = match (git, revision, archive, path) {
-            (Some(url), Some(revision), None, None) => DependencySource::Git { url, revision },
-            (None, None, Some(url), None) => DependencySource::Archive { url },
-            (None, None, None, Some(path)) => DependencySource::Path { path },
-            _ => {
-                return Err(error(
-                    field,
-                    PackageDeclarationRule::InvalidDependencySource,
-                    Some(alias),
-                ));
-            }
-        };
-        if result
-            .insert(
-                alias.clone(),
-                DependencyDeclaration {
-                    field,
-                    source: dependency_source,
-                },
-            )
-            .is_some()
-        {
+        let dependency = decode_dependency(source, tree, field, &alias)?;
+        if result.insert(alias.clone(), dependency).is_some() {
             return Err(error(
                 field,
                 PackageDeclarationRule::DuplicateField,
@@ -423,15 +377,25 @@ fn decode_dependencies(
     Ok(result)
 }
 
-fn decode_lock(
+fn decode_dependency(
     source: &SourceFile,
     tree: &SyntaxTree,
-    declaration: NodeId,
-) -> Result<BTreeMap<Box<str>, DependencyLock>, PackageDeclarationError> {
-    let record = required_record(tree, declaration)?;
+    field: NodeId,
+    alias: &str,
+) -> Result<DependencyDeclaration, PackageDeclarationError> {
+    let record = required_record(tree, field)?;
     let fields = unique_fields(source, tree, record)?;
+    let git = optional_string(source, tree, &fields, "git")?;
+    let revision = optional_string(source, tree, &fields, "revision")?;
+    let archive = optional_string(source, tree, &fields, "archive")?;
+    let path = optional_string(source, tree, &fields, "path")?;
+    let commit = optional_string(source, tree, &fields, "commit")?;
+    let sha256 = optional_string(source, tree, &fields, "sha256")?;
     for name in fields.keys() {
-        if !matches!(name.as_ref(), "format" | "dependencies") {
+        if !matches!(
+            name.as_ref(),
+            "git" | "revision" | "archive" | "path" | "commit" | "sha256"
+        ) {
             return Err(error(
                 fields[name],
                 PackageDeclarationRule::UnknownField,
@@ -439,83 +403,59 @@ fn decode_lock(
             ));
         }
     }
-    let format_field = required_field(&fields, declaration, "format")?;
-    let format = integer_value(source, tree, format_field)?;
-    if format != "1" {
-        return Err(error(
-            format_field,
-            PackageDeclarationRule::InvalidLockFormat,
-            Some(format.into()),
-        ));
-    }
-    let dependencies_field = required_field(&fields, declaration, "dependencies")?;
-    let dependencies_record = required_record(tree, dependencies_field)?;
-    let mut locks = BTreeMap::new();
-    for field in direct_fields(tree, dependencies_record) {
-        let alias = field_name(source, tree, field)?;
-        if alias.as_ref() == "std" {
+    let dependency_source = match (git, revision, archive, path) {
+        (Some(url), Some(revision), None, None) => DependencySource::Git { url, revision },
+        (None, None, Some(url), None) => DependencySource::Archive { url },
+        (None, None, None, Some(path)) => DependencySource::Path { path },
+        _ => {
             return Err(error(
                 field,
-                PackageDeclarationRule::ReservedStandardDependency,
-                Some(alias),
+                PackageDeclarationRule::InvalidDependencySource,
+                Some(alias.into()),
             ));
         }
-        let authored = authored_string(source, tree, field)?;
-        let lock = if valid_prefixed_hex(authored.value(), "git:", 40) {
-            DependencyLock::Git(authored)
-        } else if valid_prefixed_hex(authored.value(), "sha256:", 64) {
-            DependencyLock::Sha256(authored)
-        } else {
-            return Err(error(
-                field,
-                PackageDeclarationRule::InvalidLockFormat,
-                Some(alias),
-            ));
-        };
-        if locks.insert(alias.clone(), lock).is_some() {
-            return Err(error(
-                field,
-                PackageDeclarationRule::DuplicateField,
-                Some(alias),
-            ));
-        }
-    }
-    Ok(locks)
-}
-
-fn validate_locks(
-    dependencies: &BTreeMap<Box<str>, DependencyDeclaration>,
-    locks: &BTreeMap<Box<str>, DependencyLock>,
-) -> Result<(), PackageDeclarationError> {
-    for (alias, lock) in locks {
-        let Some(dependency) = dependencies.get(alias) else {
-            return Err(error(
-                lock_literal(lock),
-                PackageDeclarationRule::UnknownLockDependency,
-                Some(alias.clone()),
-            ));
-        };
-        let valid = match (dependency.source(), lock) {
-            (DependencySource::Git { .. }, DependencyLock::Git(_))
-            | (DependencySource::Archive { .. }, DependencyLock::Sha256(_)) => true,
-            (DependencySource::Path { .. }, _) => {
+    };
+    let selection = match (&dependency_source, commit, sha256) {
+        (DependencySource::Git { .. }, Some(commit), None) => {
+            if !valid_hex(commit.value(), 40) {
                 return Err(error(
-                    lock_literal(lock),
-                    PackageDeclarationRule::PathDependencyLock,
-                    Some(alias.clone()),
+                    commit.literal(),
+                    PackageDeclarationRule::InvalidGitCommit,
+                    Some(alias.into()),
                 ));
             }
-            _ => false,
-        };
-        if !valid {
+            Some(DependencyExactSelection::GitCommit(commit))
+        }
+        (DependencySource::Archive { .. }, None, Some(sha256)) => {
+            if !valid_hex(sha256.value(), 64) {
+                return Err(error(
+                    sha256.literal(),
+                    PackageDeclarationRule::InvalidArchiveDigest,
+                    Some(alias.into()),
+                ));
+            }
+            Some(DependencyExactSelection::ArchiveSha256(sha256))
+        }
+        (
+            DependencySource::Git { .. }
+            | DependencySource::Archive { .. }
+            | DependencySource::Path { .. },
+            None,
+            None,
+        ) => None,
+        _ => {
             return Err(error(
-                lock_literal(lock),
-                PackageDeclarationRule::LockKindMismatch,
-                Some(alias.clone()),
+                field,
+                PackageDeclarationRule::UnexpectedDependencySelection,
+                Some(alias.into()),
             ));
         }
-    }
-    Ok(())
+    };
+    Ok(DependencyDeclaration {
+        record,
+        source: dependency_source,
+        selection,
+    })
 }
 
 fn decode_target(
@@ -653,23 +593,6 @@ fn required_record(tree: &SyntaxTree, subject: NodeId) -> Result<NodeId, Package
         .ok_or_else(|| error(subject, PackageDeclarationRule::ExpectedRecord, None))
 }
 
-fn integer_value<'source>(
-    source: &'source SourceFile,
-    tree: &SyntaxTree,
-    subject: NodeId,
-) -> Result<&'source str, PackageDeclarationError> {
-    value_node(tree, subject)
-        .into_iter()
-        .flat_map(|value| tree.children(value))
-        .find_map(|element| match element {
-            SyntaxElement::Token(token) if token.kind() == TokenKind::IntegerLiteral => {
-                source.text_at(token.range())
-            }
-            SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
-        })
-        .ok_or_else(|| error(subject, PackageDeclarationRule::InvalidLockFormat, None))
-}
-
 fn value_node(tree: &SyntaxTree, subject: NodeId) -> Option<NodeId> {
     direct_node(tree, subject, NodeKind::DirectiveValue)
 }
@@ -729,16 +652,8 @@ fn valid_module_segment(segment: &str) -> bool {
         && Keyword::from_spelling(segment).is_none()
 }
 
-fn valid_prefixed_hex(value: &str, prefix: &str, digits: usize) -> bool {
-    value.strip_prefix(prefix).is_some_and(|value| {
-        value.len() == digits && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-    })
-}
-
-fn lock_literal(lock: &DependencyLock) -> NodeId {
-    match lock {
-        DependencyLock::Git(value) | DependencyLock::Sha256(value) => value.literal(),
-    }
+fn valid_hex(value: &str, digits: usize) -> bool {
+    value.len() == digits && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn direct_fields(tree: &SyntaxTree, record: NodeId) -> impl Iterator<Item = NodeId> + '_ {
@@ -782,16 +697,9 @@ mod tests {
         let declaration = decode(
             "#package: { name: \"app\", version: \"1.2.3\", }\n\
              #dependencies: {\n\
-               git_dep: { git: \"https://example.test/a.git\", revision: \"main\", },\n\
-               archive_dep: { archive: \"https://example.test/a.tar.gz\", },\n\
+               git_dep: { git: \"https://example.test/a.git\", revision: \"main\", commit: \"0123456789abcdef0123456789abcdef01234567\", },\n\
+               archive_dep: { archive: \"https://example.test/a.tar.gz\", sha256: \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", },\n\
                local_dep: { path: \"./local\", },\n\
-             }\n\
-             #lock: {\n\
-               format: 1,\n\
-               dependencies: {\n\
-                 archive_dep: \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\n\
-                 git_dep: \"git:0123456789abcdef0123456789abcdef01234567\",\n\
-               },\n\
              }\n\
              #executable: { name: \"app\", }\n\
              #test: { name: \"unit\", module: \"./tests/unit\", }\n",
@@ -801,7 +709,17 @@ mod tests {
         assert_eq!(declaration.name().value(), "app");
         assert_eq!(declaration.version().value(), "1.2.3");
         assert_eq!(declaration.dependencies().len(), 3);
-        assert_eq!(declaration.locks().len(), 2);
+        assert!(declaration.dependencies()["git_dep"].selection().is_some());
+        assert!(
+            declaration.dependencies()["archive_dep"]
+                .selection()
+                .is_some()
+        );
+        assert!(
+            declaration.dependencies()["local_dep"]
+                .selection()
+                .is_none()
+        );
         assert_eq!(declaration.targets().len(), 2);
         assert_eq!(
             declaration.targets()[0].kind(),
@@ -822,7 +740,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_inconsistent_source_and_lock_shapes() {
+    fn rejects_inconsistent_source_and_exact_selection_shapes() {
         let mixed =
             decode("#dependencies: { bad: { git: \"u\", revision: \"r\", path: \"p\", }, }\n")
                 .unwrap_err();
@@ -831,12 +749,29 @@ mod tests {
             PackageDeclarationRule::InvalidDependencySource
         );
 
-        let wrong_lock = decode(
-            "#dependencies: { archive_dep: { archive: \"u\", }, }\n\
-             #lock: { format: 1, dependencies: { archive_dep: \"git:0123456789abcdef0123456789abcdef01234567\", }, }\n",
+        let wrong_selection = decode(
+            "#dependencies: { archive_dep: { archive: \"u\", commit: \"0123456789abcdef0123456789abcdef01234567\", }, }\n",
         )
         .unwrap_err();
-        assert_eq!(wrong_lock.rule(), PackageDeclarationRule::LockKindMismatch);
+        assert_eq!(
+            wrong_selection.rule(),
+            PackageDeclarationRule::UnexpectedDependencySelection
+        );
+
+        let malformed_commit = decode(
+            "#dependencies: { git_dep: { git: \"u\", revision: \"r\", commit: \"bad\", }, }\n",
+        )
+        .unwrap_err();
+        assert_eq!(
+            malformed_commit.rule(),
+            PackageDeclarationRule::InvalidGitCommit
+        );
+
+        let legacy_lock = decode(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n#lock: { format: 1, dependencies: {}, }\n",
+        )
+        .unwrap_err();
+        assert_eq!(legacy_lock.rule(), PackageDeclarationRule::InvalidDirective);
     }
 
     #[test]

@@ -3,14 +3,14 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nocter_package::PackageLockSourceUpdate;
+use nocter_package::PackageExactSelectionSourceUpdate;
 
 use crate::filesystem::PackageStateFilesystemError;
 
 static NEXT_SOURCE: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) fn commit_root_lock_source(
-    update: &PackageLockSourceUpdate,
+pub(crate) fn commit_root_source_update(
+    update: &PackageExactSelectionSourceUpdate,
 ) -> Result<(), RootSourceCommitError> {
     let path = update.path();
     let current = fs::read(path).map_err(|error| filesystem("read package source", path, error))?;
@@ -36,16 +36,16 @@ fn write_and_replace(
     destination: &Path,
 ) -> Result<(), RootSourceCommitError> {
     file.write_all(bytes)
-        .map_err(|error| filesystem("write generated lock source", temporary, error))?;
+        .map_err(|error| filesystem("write generated exact selection", temporary, error))?;
     let permissions = fs::metadata(destination)
         .map_err(|error| filesystem("read package source metadata", destination, error))?
         .permissions();
     file.set_permissions(permissions)
         .map_err(|error| filesystem("preserve package source permissions", temporary, error))?;
     file.sync_all()
-        .map_err(|error| filesystem("synchronize generated lock source", temporary, error))?;
+        .map_err(|error| filesystem("synchronize generated exact selection", temporary, error))?;
     fs::rename(temporary, destination)
-        .map_err(|error| filesystem("commit generated lock source", destination, error))
+        .map_err(|error| filesystem("commit generated dependency source", destination, error))
 }
 
 fn create_unique_file(parent: &Path) -> Result<(PathBuf, File), RootSourceCommitError> {
@@ -55,7 +55,13 @@ fn create_unique_file(parent: &Path) -> Result<(PathBuf, File), RootSourceCommit
         match open_private_file(&path) {
             Ok(file) => return Ok((path, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(filesystem("create generated lock source", path, error)),
+            Err(error) => {
+                return Err(filesystem(
+                    "create generated dependency source",
+                    path,
+                    error,
+                ));
+            }
         }
     }
     Err(RootSourceCommitError::Filesystem(invalid(parent)))
@@ -79,7 +85,7 @@ fn open_private_file(path: &Path) -> io::Result<File> {
 
 fn invalid(path: &Path) -> PackageStateFilesystemError {
     PackageStateFilesystemError::new(
-        "select generated lock source",
+        "select generated dependency source update",
         path,
         io::Error::new(io::ErrorKind::InvalidInput, "invalid package source path"),
     )

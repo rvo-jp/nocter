@@ -170,13 +170,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-package-state/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-package/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -272,7 +272,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/architecture/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -470,7 +470,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/milestones/v0.20.0/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1400,7 +1400,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/01-modules-use/</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1478,13 +1478,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/14-tooling-editor-integration/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/15-command-line-interface/</loc>
-    <lastmod>2026-08-29</lastmod>
+    <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

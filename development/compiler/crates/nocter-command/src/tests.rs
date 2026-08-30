@@ -601,7 +601,7 @@ fn package_build_commits_graph_validated_acquisition_before_discovery() {
             .is_file()
     );
     let root_source = fs::read_to_string(package_root.join("index.nct")).unwrap();
-    assert!(root_source.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    assert!(root_source.contains(&format!("sha256: \"{ARCHIVE_DIGEST}\"")));
     assert!(package_root.join("hello").is_file());
     fs::remove_dir_all(directory).unwrap();
 }
@@ -646,7 +646,7 @@ fn fetch_commits_the_shared_graph_validated_package_transaction_without_compilin
             .is_file()
     );
     let root_source = fs::read_to_string(package_root.join("index.nct")).unwrap();
-    assert!(root_source.contains(&format!("remote: \"sha256:{ARCHIVE_DIGEST}\"")));
+    assert!(root_source.contains(&format!("sha256: \"{ARCHIVE_DIGEST}\"")));
     let mut root_entries = fs::read_dir(&package_root)
         .unwrap()
         .map(|entry| entry.unwrap().file_name())

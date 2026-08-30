@@ -449,7 +449,7 @@ Package-root rules:
 - file documentation precedes the package directive prefix
 - that file documentation belongs to the package; the root module does not register a second copy
 - `#package` is required and requires string fields `name` and `version`
-- `#dependencies`, generated `#lock`, `#executable`, and `#test` follow in the same directive prefix
+- `#dependencies`, `#executable`, and `#test` follow in the same directive prefix
 - every package directive precedes `see`, `use`, and ordinary declarations
 - `#executable` is repeatable, requires `name`, and accepts an optional `module`
 - an omitted executable `module` selects `.`
@@ -462,7 +462,7 @@ Package-root rules:
 - package directives are invalid outside the package root `index.nct`
 - a descendant `index.nct` containing `#package` starts a nested package; one without `#package`
   starts a child module
-- dependency declarations and generated exact locks remain in the package root `index.nct`
+- dependency source intent and generated exact-selection fields remain together in `#dependencies`
 
 The compiler does not discover a package target by probing `main.nct` or another conventional
 filename.
@@ -474,10 +474,10 @@ The active Nocter home contributes one immutable package at `<Nocter-home>/std`.
 installation. Every compilation graph binds reserved dependency alias `std` to this exact package,
 including imports written inside `std` itself.
 
-User `#dependencies` and generated `#lock` data must not contain `std`. A package named `std`, a
-directory with that spelling, or a dependency alias cannot shadow the compiler-selected package or
-gain its primitive authority. Single-file mode uses the same toolchain package without creating a
-package declaration for the source file.
+User `#dependencies` must not contain `std`. A package named `std`, a directory with that spelling,
+or a dependency alias cannot shadow the compiler-selected package or gain its primitive authority.
+Single-file mode uses the same toolchain package without creating a package declaration for the
+source file.
 
 ## Compile Units
 

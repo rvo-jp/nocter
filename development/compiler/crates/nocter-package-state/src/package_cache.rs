@@ -22,8 +22,8 @@ impl PackageCachePublication {
 /// Publishes validated exact-package identities independently from root-source selection.
 ///
 /// Cache entries are immutable and carry no dependency-selection authority. Consequently an entry
-/// may safely survive a later root lock-source rejection. An existing physical directory wins a
-/// concurrent publication race for the same exact identity.
+/// may safely survive a later root exact-selection rejection. An existing physical directory wins
+/// a concurrent publication race for the same exact identity.
 pub(crate) fn publish_exact_packages(
     package_root: &Path,
     packages: StagedPackages,

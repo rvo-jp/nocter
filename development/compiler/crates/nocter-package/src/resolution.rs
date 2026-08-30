@@ -366,10 +366,9 @@ fn resolve_package_edges(
     let mut pending = Vec::new();
     if let Some(declaration) = declaration {
         for (alias, dependency) in declaration.dependencies() {
-            let authored_lock = declaration
-                .locks()
-                .get(alias)
-                .map(crate::DependencyLock::exact);
+            let authored_lock = dependency
+                .selection()
+                .map(crate::DependencyExactSelection::exact);
             let overlay_lock = overlay.get(identity, alias);
             if authored_lock
                 .as_ref()
@@ -816,13 +815,13 @@ mod tests {
     }
 
     fn root_source(lock: bool) -> String {
-        let lock = if lock {
-            format!("#lock: {{ format: 1, dependencies: {{ remote: \"git:{COMMIT}\", }}, }}\n")
+        let exact = if lock {
+            format!(" commit: \"{COMMIT}\",")
         } else {
             String::new()
         };
         format!(
-            "#package: {{ name: \"app\", version: \"0.0.0\", }}\n#dependencies: {{ remote: {{ git: \"https://example.test/repository.git\", revision: \"main\", }}, local: {{ path: \"../local\", }}, }}\n{lock}"
+            "#package: {{ name: \"app\", version: \"0.0.0\", }}\n#dependencies: {{ remote: {{ git: \"https://example.test/repository.git\", revision: \"main\",{exact} }}, local: {{ path: \"../local\", }}, }}\n"
         )
     }
 
@@ -1015,7 +1014,11 @@ mod tests {
             .find(|package| package.identity() == &root_id)
             .unwrap();
         assert_eq!(root.locks().get("remote"), Some(&lock));
-        assert!(root.declaration().unwrap().locks().is_empty());
+        assert!(
+            root.declaration().unwrap().dependencies()["remote"]
+                .selection()
+                .is_none()
+        );
         assert_eq!(fs::read(root_source_path).unwrap(), before);
     }
 

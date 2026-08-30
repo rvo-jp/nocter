@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use nocter_hash::sha256;
 use nocter_model::PackageIdentity;
 
-use crate::{DependencyLock, ExactDependencyLock, ExactDependencyLockKind};
+use crate::{ExactDependencyLock, ExactDependencyLockKind};
 
 const GIT_PREFIX: &str = "git-";
 const ARCHIVE_PREFIX: &str = "sha256-";
@@ -18,16 +18,6 @@ const PATH_PREFIX: &str = "path-";
 pub struct PackageId(Box<str>);
 
 impl PackageId {
-    /// Creates the identity selected by a decoded exact dependency lock.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a lock was constructed outside the declaration decoder with malformed
-    /// exact data.
-    pub fn from_lock(lock: &DependencyLock) -> Result<Self, PackageIdError> {
-        Self::from_exact_lock(&lock.exact())
-    }
-
     /// Creates the package identity selected by one source-independent exact lock.
     ///
     /// # Errors

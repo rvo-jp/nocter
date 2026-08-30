@@ -2,16 +2,18 @@
 
 ## Responsibility
 
-Own recoverable root lock-source mutation and validated append-only exact-package cache publication.
+Own recoverable root dependency-source mutation and validated append-only exact-package cache
+publication.
 
 ## Contract
 
 The crate stages and validates the complete intended dependency graph before making persistent
 changes. It then publishes each validated exact package as an immutable cache entry, revalidates
-the graph, and commits generated root lock source with compare-before-write protection. Exact
-package cache publication and root-source commit are deliberately separate responsibilities: cache
-entries carry no dependency-selection authority and may safely survive a later root-source
-rejection. The authored `#lock` block is the sole persistent selection authority.
+the graph, and commits generated `commit` or `sha256` fields with compare-before-write protection.
+Exact package cache publication and root-source commit are deliberately separate responsibilities:
+cache entries carry no dependency-selection authority and may safely survive a later root-source
+rejection. The exact field inside each dependency declaration is the sole persistent selection
+authority.
 
 Package resolution supplies domain values; acquisition supplies staged content. A caller injects
 the read-only package resolver so command parsing uses its compiler-computation source authority.
@@ -22,17 +24,17 @@ filesystem changes.
 
 ## Internal Responsibilities
 
-- root-source compare-before-write authority
+- root dependency-source compare-before-write authority
 - staging directories and destination validation
 - immutable exact-package cache publication
-- lock/source transition assembly and staging cleanup
+- exact-selection/source transition assembly and staging cleanup
 - post-commit package-graph revalidation through the injected resolver
 
 ## Invariants
 
 - A rejected root-source transition never publishes partial root source or returns a selected graph.
 - A validated exact cache entry may remain after a later root-source rejection, but cannot select a
-  dependency without an authored lock.
+  dependency without an authored exact-selection field.
 - Every exact cache destination is one immutable package identity; an existing physical directory
   wins a concurrent publication race for that identity.
 - Concurrent root-source changes are rejected instead of overwritten.
