@@ -5,11 +5,11 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-This chapter records the adopted **v0.21.0** contract. The working tree implements keyed mapping
-literals, hashing, the private table, and `Map` through Phase 3; iteration and `Set` remain later
-phases. The latest published release is v0.19.0 and does not yet provide these APIs or mapping
-literals. The remaining implementation phases must preserve this contract rather than exposing an
-interim `HashMap`, fixed hash algorithm, or compiler-owned table.
+This chapter defines the adopted **v0.21.0** contract. The latest published release is v0.19.0 and
+does not provide these APIs or mapping literals. The [release index](../releases/README.md) owns
+publication status; contributor milestones own implementation progress. Neither changes the
+representation-neutral contract below into an interim `HashMap`, fixed hash algorithm, or
+compiler-owned table.
 
 ## Public Meaning, Private Representation
 

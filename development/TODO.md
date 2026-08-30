@@ -93,8 +93,7 @@ storage engines, or public bucket access.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
-editor analysis, cancellation, parallelism, persistent caches, hashing, and associative collections
-remain later work.
+editor analysis, cancellation, parallelism, and persistent caches remain later work.
 
 ## Blockers
 

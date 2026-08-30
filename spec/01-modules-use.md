@@ -392,16 +392,16 @@ The standard prelude exports:
 pub use std/string.String
 pub use std/vec.Vec
 pub use std/iter.Iterator
+pub use std/map.Map
+pub use std/set.Set
 ```
 
 Named builtins such as `str` and primitive numeric types come from the compiler-managed universal
 declaration fallback, while structural forms such as `[T]` come from the type grammar. Neither is
 a prelude export. `Format`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
-I/O functions require explicit imports from their domain modules.
-
-**Future Direction — v0.21.0:** once the complete associative collection implementation qualifies,
-the prelude also exports `std/map.Map` and `std/set.Set`. `Hash` and `HashState` continue to require
-an explicit `std/hash` import. The latest published release does not yet contain these exports.
+I/O functions require explicit imports from their domain modules. `Hash` and `HashState` likewise
+require an explicit `std/hash` import. The latest published release does not yet contain the
+v0.21.0 `Map` and `Set` exports.
 
 ## Package Layout
 
