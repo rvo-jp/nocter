@@ -366,6 +366,7 @@ const fn is_comma_list(kind: NodeKind) -> bool {
             | NodeKind::StructInitializer
             | NodeKind::ArrayLiteral
             | NodeKind::SequenceBody
+            | NodeKind::MappingBody
             | NodeKind::EnumPatternPayload
     )
 }

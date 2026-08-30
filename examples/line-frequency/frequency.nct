@@ -1,0 +1,60 @@
+use std/io.{File, Reader, print}
+
+use std/num.usize_to_string
+
+use std/path.Utf8Path
+
+use std/process.arg
+
+use std/string.String
+
+see ./index.nct
+
+func run(): i32! {
+    let requested: &str = arg(1)? otherwise {
+        print("usage: line-frequency PATH NEEDLE\n")?
+        return 2
+    }
+    let requested_needle: &str = arg(2)? otherwise {
+        print("usage: line-frequency PATH NEEDLE\n")?
+        return 2
+    }
+    let path = Utf8Path.new(requested)?
+    var file = File.open(&path)?
+    let text = file.read_to_string()?
+
+    var frequencies: Map<String, usize> = Map.empty()
+    var unique: Set<String> = Set.empty()
+    var line_count: usize = 0
+    for line in text.lines() {
+        line_count += 1
+        let key = String.copy(line)
+        if frequencies.contains_key(&key) {
+            frequencies[&key] += 1
+        } else {
+            let _ = frequencies.insert(move key, 1)
+        }
+        let _ = unique.insert(String.copy(line))
+    }
+
+    let needle = String.copy(requested_needle)
+    let matching = if frequencies.contains_key(&needle) {
+        frequencies[&needle]
+    } else {
+        0
+    }
+    let lines_text = usize_to_string(line_count)
+    let unique_text = usize_to_string(unique.len())
+    let matching_text = usize_to_string(matching)
+    let output = String.concat(
+        "lines: ",
+        &lines_text,
+        "\nunique: ",
+        &unique_text,
+        "\nmatching: ",
+        &matching_text,
+        "\n",
+    )
+    print(&output)?
+    return 0
+}

@@ -1674,6 +1674,85 @@ mod tests {
     }
 
     #[test]
+    fn associative_collections_share_checked_editor_identity_across_features() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func main(): void {\n",
+            "    var frequencies = Map [String.copy(\"alpha\"): 1]\n",
+            "    let key = String.copy(\"alpha\")\n",
+            "    let found = frequencies.contains_key(&key)\n",
+            "    let previous = frequencies.insert(String.copy(\"beta\"), 2)\n",
+            "    var unique = Set [String.copy(\"alpha\")]\n",
+            "    let probe = String.copy(\"alpha\")\n",
+            "    let present = unique.contains(&probe)\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let map_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":23}}}}}}"
+        ));
+        let response = map_hover.response().unwrap();
+        assert!(response.contains("pub struct Map<K, V>"), "{response}");
+        assert!(!response.contains("Table"), "{response}");
+        assert!(!response.contains("Bucket"), "{response}");
+        assert!(map_hover.issue().is_none(), "{:?}", map_hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":23}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/map/index.nct"), "{response}");
+        assert!(!response.contains("storage.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":60}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("insert(key: String, value: i32): i32?"),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":1"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let incomplete = text.replace("frequencies.contains_key(&key)", "frequencies.");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 5, 3, 28);
+        let response = completion.response().unwrap();
+        for method in ["get", "contains_key", "insert", "remove"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("table"), "{response}");
+        assert!(!response.contains("bucket"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn completion_uses_the_use_site_construction_surface_in_every_generation_state() {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);

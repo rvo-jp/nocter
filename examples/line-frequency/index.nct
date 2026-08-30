@@ -1,0 +1,14 @@
+#package: {
+    name: "line-frequency",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "line-frequency",
+}
+
+see ./frequency.nct
+
+func main(): i32! {
+    return run()?
+}

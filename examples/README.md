@@ -69,6 +69,19 @@ nocter run examples/ordering.nct
 
 ## Package Examples
 
+[line-frequency/index.nct](line-frequency/index.nct) counts logical input lines with `Map`,
+tracks distinct lines with `Set`, and reports the frequency of a requested line. Its
+[frequency.nct](line-frequency/frequency.nct) implementation demonstrates the prelude collection
+surface, keyed mapping operations, indexing mutation, ownership transfer, process arguments,
+fallible file input, and a package root containing only its tiny executable adapter.
+
+```sh
+cd examples/line-frequency
+nocter check
+nocter build
+./line-frequency ../../README.md Nocter
+```
+
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line
 argument and reports the number of newline bytes. Its private
 [summary.nct](file-summary/summary.nct) helper demonstrates a direct source-visibility edge without

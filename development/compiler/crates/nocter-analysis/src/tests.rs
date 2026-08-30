@@ -651,6 +651,54 @@ fn inaccessible_namespace_member_uses_the_module_visibility_diagnostic() {
     assert_eq!(snapshot.diagnostics()[0].code(), "E0348");
 }
 
+#[test]
+fn associative_collection_misuse_is_reported_at_the_public_source_operation() {
+    let tree = TempTree::new();
+    let (_, wrong_key) = bundled_snapshot(
+        &tree,
+        concat!(
+            "func main(): void {\n",
+            "    let values = Map [1: 10]\n",
+            "    let key = String.copy(\"one\")\n",
+            "    let _ = values.get(&key)\n",
+            "    return\n",
+            "}\n",
+        ),
+        GenerationId::new(61),
+    );
+    assert_eq!(wrong_key.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(wrong_key.diagnostics().len(), 1);
+    assert_eq!(wrong_key.diagnostics()[0].code(), "E0370");
+    assert!(
+        wrong_key.diagnostics()[0]
+            .message()
+            .contains("expected destination type")
+    );
+
+    let tree = TempTree::new();
+    let (_, mutable_set) = bundled_snapshot(
+        &tree,
+        concat!(
+            "func main(): void {\n",
+            "    var values = Set [1, 2]\n",
+            "    for value in &+values {\n",
+            "        let _ = value\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        ),
+        GenerationId::new(62),
+    );
+    assert_eq!(mutable_set.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(mutable_set.diagnostics().len(), 1);
+    assert_eq!(mutable_set.diagnostics()[0].code(), "E0404");
+    assert!(
+        mutable_set.diagnostics()[0]
+            .message()
+            .contains("collection source")
+    );
+}
+
 fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> AnalysisSnapshot {
     let package = PackageIdentity::new("workspace:app");
     let standard = PackageIdentity::new("toolchain:std");

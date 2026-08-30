@@ -79,9 +79,17 @@ Phase 4 is complete and reviewed. The
 readonly/readwrite/owning Map iteration, readonly/owning Set iteration, exact remaining lengths,
 shared storage delegation, prelude exports, and native cleanup qualification.
 
-Begin Phase 5 with practical examples, complete editor qualification, user-facing diagnostics,
-formatting, and release-surface review. Do not introduce `HashMap`/`HashSet` aliases, a
-compiler-known table, two independent Map/Set storage engines, or public bucket access.
+Phase 5 is complete and reviewed. The
+[Phase 5 review](reviews/v0.21.0-phase-5.md) records the runnable `line-frequency` package, exact
+native process contract, public-source misuse diagnostics, shared checked editor queries,
+mapping-literal formatter correction, generated documentation, and final private-representation
+audit.
+
+Begin v0.21.0 release preparation. Freeze the qualified language and standard-library surface;
+update release identity and notes, assemble deterministic artifacts, run archive and installed
+toolchain qualification, then publish only after explicit authorization. Do not add release-scope
+features or introduce `HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set
+storage engines, or public bucket access.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

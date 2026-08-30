@@ -317,13 +317,15 @@ fn space_before_punctuation(
             !is_attached_left_parenthesis(parent) && !is_prefix_parent(previous_parent)
         }
         Punctuation::LeftBracket => {
-            parent == Some(NodeKind::SequenceBody)
-                || parent != Some(NodeKind::IndexSuffix)
-                    && matches!(
-                        previous,
-                        TokenKind::Punctuation(previous)
-                            if space_after_punctuation(previous, None)
-                    )
+            matches!(
+                parent,
+                Some(NodeKind::LiteralShape | NodeKind::SequenceBody | NodeKind::MappingBody)
+            ) || parent != Some(NodeKind::IndexSuffix)
+                && matches!(
+                    previous,
+                    TokenKind::Punctuation(previous)
+                        if space_after_punctuation(previous, previous_parent)
+                )
         }
         Punctuation::Dot if parent == Some(NodeKind::AssociatedTypeBinding) => true,
         Punctuation::Dot if parent == Some(NodeKind::SourceVisibilityPath) => {
@@ -363,7 +365,7 @@ fn space_before_punctuation(
                 || matches!(
                     previous,
                     TokenKind::Punctuation(previous)
-                        if space_after_punctuation(previous, None)
+                        if space_after_punctuation(previous, previous_parent)
                 )
         }
         Punctuation::RightParen
@@ -610,6 +612,18 @@ mod tests {
             ),
             "func choose<T, U>(\n    left: T,\n    right: U,\n): void { let values = [left, right]\n    return consume(left, right)\n}\n\nfunc generic<\n    T,\n    U,\n>(): void {}\n"
         );
+    }
+
+    #[test]
+    fn formats_keyed_packs_and_mapping_literals_with_the_shared_list_model() {
+        let formatted = format(
+            "construct Assoc<K,V>{ pub literal [:](...entries:K:V):Self { return Self {} } }\nfunc make():void { let pairs=Map [\"a\":1,\"b\":2,]\nlet empty=Map<&str,i32> [:]\nreturn\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "construct Assoc<K, V> { pub literal [:](...entries: K: V): Self { return Self {} } }\n\nfunc make(): void { let pairs = Map [\"a\": 1, \"b\": 2]\n    let empty = Map<&str, i32> [:]\n    return\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
     }
 
     #[test]

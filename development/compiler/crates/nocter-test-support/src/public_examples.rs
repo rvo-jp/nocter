@@ -100,6 +100,34 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "line-frequency",
+        package_identity: "workspace:line-frequency",
+        executable: "line-frequency",
+        fixtures: &[PublicExampleFixture::File {
+            path: "input.txt",
+            contents: b"alpha\nbeta\nalpha\n",
+        }],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                status: 2,
+                stdout: b"usage: line-frequency PATH NEEDLE\n",
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "success",
+                arguments: &[
+                    PublicExampleArgument::FixturePath("input.txt"),
+                    PublicExampleArgument::Text("alpha"),
+                ],
+                status: 0,
+                stdout: b"lines: 3\nunique: 2\nmatching: 2\n",
+                stderr: b"",
+            },
+        ],
+    },
+    PublicPackageExample {
         directory: "file-summary",
         package_identity: "workspace:file-summary",
         executable: "file-summary",
