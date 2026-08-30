@@ -9,8 +9,9 @@ in [`development/releases/`](../releases/README.md).
 The [v0.21.0 milestone](v0.21.0.md) returns to practical standard-library work with
 representation-neutral `Map` and `Set` contracts, a private hash-table implementation, and the
 language and target prerequisites needed to implement them in ordinary Nocter source. Phase 0
-through Phase 5 are complete; its [release preparation](v0.21.0-release-preparation.md) owns the
-candidate identity and qualification contract.
+through Phase 5 and release qualification are complete; its
+[release preparation](v0.21.0-release-preparation.md) owns the frozen candidate identity and
+qualification evidence. Publication remains pending explicit authorization.
 
 The [v0.20.0 milestone](v0.20.0.md) completed interface prerequisites, incremental semantic
 computation, unified CLI/LSP query entry, and dependency-local exact selections. It remains an

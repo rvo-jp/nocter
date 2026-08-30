@@ -10,7 +10,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.21.0 milestone](milestones/v0.21.0.md)
-- [v0.21.0 release preparation](milestones/v0.21.0-release-preparation.md)
+- [Qualified v0.21.0 release candidate](milestones/v0.21.0-release-preparation.md)
 - [v0.21.0 Phase 5 practical qualification review](reviews/v0.21.0-phase-5.md)
 - [v0.21.0 Phase 4 iteration and Set review](reviews/v0.21.0-phase-4.md)
 - [v0.21.0 Phase 0 associative-collection design review](reviews/v0.21.0-phase-0.md)

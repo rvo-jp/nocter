@@ -85,11 +85,10 @@ native process contract, public-source misuse diagnostics, shared checked editor
 mapping-literal formatter correction, generated documentation, and final private-representation
 audit.
 
-Qualify the clean v0.21.0 release-content commit through two independent external Cargo targets,
-warnings-denied Clippy, deterministic package generation, fresh extraction, installed CLI and LSP
-smoke tests, and the explicit public-HTTPS acquisition test. Qualification must not publish the
-candidate. Do not add release-scope features or introduce `HashMap`/`HashSet` aliases, a
-compiler-known table, two independent Map/Set storage engines, or public bucket access.
+Wait for explicit publication authorization. When authorized, update the root README and public
+release index from v0.19.0 to v0.21.0, rebuild generated documentation, commit that public state,
+create the annotated `v0.21.0` tag, push, publish the frozen qualified archive, and perform the
+public re-download audit. Do not rebuild or replace the qualified candidate during publication.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
