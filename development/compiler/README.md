@@ -65,9 +65,11 @@ cargo clippy --manifest-path development/compiler/Cargo.toml --workspace --all-t
 cargo test --manifest-path development/compiler/Cargo.toml --workspace
 ```
 
-Cargo writes incremental build artifacts to `development/compiler/target/`. The directory is
-ignored by Git and is a disposable cache, not repository state. Reclaim it without touching source
-or release artifacts with:
+Cargo writes build artifacts to `development/compiler/target/`. The directory is ignored by Git and
+is a disposable cache, not repository state. Workspace-owned development and test profiles retain
+line-table debugging while disabling incremental object graphs, which removes the largest
+edit-history-dependent part of the many-crate cache. Reclaim stale build generations without
+touching source or release artifacts with:
 
 ```sh
 cargo clean --manifest-path development/compiler/Cargo.toml
