@@ -767,6 +767,23 @@ mod tests {
             PackageDeclarationRule::InvalidGitCommit
         );
 
+        let malformed_digest =
+            decode("#dependencies: { archive_dep: { archive: \"u\", sha256: \"bad\", }, }\n")
+                .unwrap_err();
+        assert_eq!(
+            malformed_digest.rule(),
+            PackageDeclarationRule::InvalidArchiveDigest
+        );
+
+        let selected_path = decode(
+            "#dependencies: { local: { path: \"../local\", sha256: \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", }, }\n",
+        )
+        .unwrap_err();
+        assert_eq!(
+            selected_path.rule(),
+            PackageDeclarationRule::UnexpectedDependencySelection
+        );
+
         let legacy_lock = decode(
             "#package: { name: \"app\", version: \"0.0.0\", }\n#lock: { format: 1, dependencies: {}, }\n",
         )

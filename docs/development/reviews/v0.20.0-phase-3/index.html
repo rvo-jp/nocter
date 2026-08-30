@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.20.0 Phase 3 Dependency-Local Exact Selection Review - Nocter</title>
+    <meta name="description" content="Phase 3 is complete. No correctness or architecture blocker remains in the reviewed scope. A dependency entry in dependencies is now the only authored synt">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.20.0-phase-3/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.20.0 Phase 3 Dependency-Local Exact Selection Review - Nocter">
+    <meta property="og:description" content="Phase 3 is complete. No correctness or architecture blocker remains in the reviewed scope. A dependency entry in dependencies is now the only authored synt">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.20.0-phase-3/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.20.0 Phase 3 Dependency-Local Exact Selection Review - Nocter">
+    <meta name="twitter:description" content="Phase 3 is complete. No correctness or architecture blocker remains in the reviewed scope. A dependency entry in dependencies is now the only authored synt">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.20.0 Phase 3 Dependency-Local Exact Selection Review - Nocter","description":"Phase 3 is complete. No correctness or architecture blocker remains in the reviewed scope. A dependency entry in dependencies is now the only authored synt","url":"https://nocter.dev/development/reviews/v0.20.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.20.0-phase-3/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.20.0 Phase 3","item":"https://nocter.dev/development/reviews/v0.20.0-phase-3/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/reviews/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/reviews/v0.20.0-phase-3.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-20-0-phase-3-dependency-local-exact-selection-review">v0.20.0 Phase 3 Dependency-Local Exact Selection Review</h1><h2 id="result">Result</h2><p>Phase 3 is complete. No correctness or architecture blocker remains in the reviewed scope. A dependency entry in <code>#dependencies</code> is now the only authored syntax authority for both source intent and optional exact selection. Top-level <code>#lock</code> is rejected as an unknown package directive; there is no compatibility decoder, format version, prefixed source literal, or second authored alias map.</p><p>Git dependencies use optional <code>commit</code>, archive dependencies use optional <code>sha256</code>, and path dependencies accept neither. The source-specific fields are syntax-bearing declaration facts; resolution converts them into syntax-independent <code>ExactDependencyLock</code> values. The internal lock name remains intentional because <code>--locked</code>, provisional resolution overlays, acquisition verification, and format-1 graph output still model exact locks. It is not a second source syntax.</p><h2 id="accepted-model">Accepted Model</h2><pre><code class="language-text">#dependencies alias record
+        |
+        +---- DependencySource --------&gt; acquisition intent
+        |
+        +---- optional exact field ----&gt; exact selection
+                                             |
+                                  effective selection overlay
+                                             |
+                                  immutable resolved graph
+                                             |
+                           missing-field source projection only
+</code></pre><p><code>PackageDeclaration</code> owns one <code>DependencyDeclaration</code> per alias. That value owns the dependency record syntax identity, one <code>DependencySource</code>, and one optional <code>DependencyExactSelection</code>. Resolution may overlay a provisional exact selection while validating acquisition, but the overlay cannot publish source. The resolved graph closes the effective selection before package state asks for a source update.</p><p><code>selection_source</code> receives that closed graph evidence and the retained original syntax. It validates complete alias coverage, source-kind agreement, and agreement with every existing authored field. It then inserts only missing <code>commit</code> or <code>sha256</code> fields. Package state separately publishes complete exact packages into the append-only cache, revalidates the graph, and compare-before-writes the root source. A cached package still carries no selection authority.</p><h2 id="findings-closed-during-review">Findings Closed During Review</h2><h3 id="package-source-had-two-alias-authorities">Package source had two alias authorities</h3><p>The old declaration decoder built independent dependency and lock maps, then repaired their relationship through alias, source-kind, and path-lock validation. The dependency declaration now owns its exact selection directly. The <code>#lock</code> decoder, <code>lock_directive</code>, lock format validation, unknown-lock matching, and path-lock cross-check were deleted.</p><h3 id="generated-updates-rewrote-an-unrelated-directive">Generated updates rewrote an unrelated directive</h3><p>The old renderer replaced a complete sorted <code>#lock</code> block. The new updater records dependency record syntax identities and produces insertion edits only. It preserves dependency order, surrounding fields, comments, inline or multiline layout, LF or CRLF, and records with or without a trailing comma. Reapplying the same effective selection is byte-identical.</p><h3 id="source-kind-knowledge-was-repeated-across-mutation-layers">Source-kind knowledge was repeated across mutation layers</h3><p>Graph validation, package-state acquisition, and source generation each selected Git versus archive lock kinds independently. <code>DependencySource::exact_lock_kind</code> is now the domain contract consumed by all three. The declaration decoder still owns field spelling and structural validation; later layers do not reinterpret <code>commit</code> or <code>sha256</code> syntax.</p><h3 id="source-generation-trusted-a-correctly-assembled-map">Source generation trusted a correctly assembled map</h3><p>A caller could previously rely on the graph to supply a complete compatible map. The new source updater rejects a missing remote selection, a selection for a path dependency, a source-kind mismatch, an unknown alias, or disagreement with an authored field. Correct source mutation is no longer a caller obligation.</p><h2 id="boundary-audit">Boundary Audit</h2><ul><li><code>PackageDeclaration</code> contains no independent authored lock map or lock-directive identity.</li><li>Package syntax is decoded once; resolution consumes structured source and selection values.</li><li>The resolved graph owns effective exact selections, including provisional overlays, without
+  becoming source mutation authority.</li><li>Source generation consumes retained syntax and closed graph evidence. It does not parse source,
+  resolve dependencies, fetch packages, or serialize the whole directive.</li><li>Package state owns staging, cache publication, graph revalidation, and root-source commit. It does
+  not know dependency-record layout.</li><li>Exact-package cache visibility and dependency selection remain separate. Only <code>commit</code> or
+  <code>sha256</code> inside the dependency record persists selection authority.</li><li>LSP and graph inspection remain locked, offline, and read-only; they cannot invoke source
+  generation.</li><li>Historical release records retain their historical syntax. Active specification and development
+  contracts describe only the new form.</li></ul><h2 id="evidence">Evidence</h2><ul><li>Declaration tests cover valid Git/archive/path records, malformed commit and digest values,
+  source/selection mismatches, selected path dependencies, and rejection of top-level <code>#lock</code>.</li><li>Source-update tests cover inline and multiline records, two source kinds, missing trailing comma,
+  comments, CRLF, idempotence, incomplete maps, path selections, and source-kind mismatch.</li><li>Package-state tests cover complete graph validation, cache publication, exact-field commit,
+  concurrent root edits, post-commit revalidation, locked policy, and rejected transitive state.</li><li>Command integration tests cover fetch and build acquisition through generated archive <code>sha256</code>
+  fields; graph inspection remains read-only.</li><li>Complete workspace tests, warnings-denied all-target Clippy, warnings-denied rustdoc, formatting,
+  generated documentation, and repository integrity gates passed on 2026-08-30.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

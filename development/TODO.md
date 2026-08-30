@@ -42,10 +42,11 @@ after its final enforcement review. The
 package/discovery flow, native target boundary, parse-goal correction, post-commit package snapshot
 fix, instrumentation, and qualification evidence.
 
-Phase 3 dependency-local exact-selection migration is in progress. It removes top-level `#lock`
-without compatibility parsing and makes each dependency record the sole syntax authority for its
-source intent plus optional `commit` or `sha256`. Source intent and exact selection remain separate
-domain values; package cache entries retain no selection authority.
+Phase 3 dependency-local exact-selection migration is complete and reviewed. It removes top-level
+`#lock` without compatibility parsing and makes each dependency record the sole syntax authority
+for its source intent plus optional `commit` or `sha256`. Source intent and exact selection remain
+separate domain values; package cache entries retain no selection authority. The
+[Phase 3 review](reviews/v0.20.0-phase-3.md) records the final boundary audit and evidence.
 
 ## Next Work
 
@@ -57,11 +58,10 @@ source-revision window and collects inactive query closures. Do not reopen direc
 compilation, permit native layers to accept discovery snapshots, or add another production source
 parser or package resolver beside the provider-backed compiler-computation path.
 
-Complete Phase 3 and its final review before returning to hashing and associative collections.
-Before implementing those APIs, write and accept a separate public design defining equality/hash
-coherence, mutation and iteration guarantees, allocation-failure policy, and the minimum compiler
-features required by a standard-library implementation. Do not infer those language contracts from
-a host-language collection API.
+Before implementing hashing and associative collections, write and accept a separate public design
+defining equality/hash coherence, mutation and iteration guarantees, allocation-failure policy, and
+the minimum compiler features required by a standard-library implementation. Do not infer those
+language contracts from a host-language collection API.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

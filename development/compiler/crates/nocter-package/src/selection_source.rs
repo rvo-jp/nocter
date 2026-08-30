@@ -317,6 +317,13 @@ mod tests {
         source: &str,
         selections: &[(&str, ExactDependencyLock)],
     ) -> PackageExactSelectionSourceUpdate {
+        render_result(source, selections).unwrap()
+    }
+
+    fn render_result(
+        source: &str,
+        selections: &[(&str, ExactDependencyLock)],
+    ) -> Result<PackageExactSelectionSourceUpdate, PackageExactSelectionSourceError> {
         let mut sources = SourceMap::new();
         let source_id = sources
             .add_bytes(SourceName::new("index.nct"), source.as_bytes())
@@ -335,7 +342,6 @@ mod tests {
             &declaration,
             &selections,
         )
-        .unwrap()
     }
 
     #[test]
@@ -413,6 +419,46 @@ mod tests {
         assert!(replacement.contains("// Generated selections stay below authored intent."));
         assert!(replacement.contains(
             "// Generated selections stay below authored intent.\n        commit: \"7db21c1000000000000000000000000000000000\","
+        ));
+    }
+
+    #[test]
+    fn rejects_incomplete_or_inconsistent_effective_selection_maps() {
+        let remote = "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { json: { git: \"u\", revision: \"main\", } }\n";
+        assert!(matches!(
+            render_result(remote, &[]),
+            Err(PackageExactSelectionSourceError::MissingSelection(alias))
+                if alias.as_ref() == "json"
+        ));
+        assert!(matches!(
+            render_result(
+                remote,
+                &[(
+                    "json",
+                    ExactDependencyLock::sha256(
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    )
+                    .unwrap(),
+                )],
+            ),
+            Err(PackageExactSelectionSourceError::SelectionKindMismatch(alias))
+                if alias.as_ref() == "json"
+        ));
+
+        let local = "#package: { name: \"app\", version: \"0.0.0\", }\n#dependencies: { local: { path: \"../local\", } }\n";
+        assert!(matches!(
+            render_result(
+                local,
+                &[(
+                    "local",
+                    ExactDependencyLock::git(
+                        "7db21c1000000000000000000000000000000000"
+                    )
+                    .unwrap(),
+                )],
+            ),
+            Err(PackageExactSelectionSourceError::UnexpectedSelection(alias))
+                if alias.as_ref() == "local"
         ));
     }
 }
