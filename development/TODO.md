@@ -2,16 +2,18 @@
 
 ## Current State
 
-Nocter v0.21.0 is [published and externally audited](releases/v0.21.0.md). Its v0.20.0
-compiler-foundation work and v0.21.0 Map/Set phases are complete and reviewed. Release-content
-commit `df0cf643c51e109fa80fe793d15f67668c82d2d4` passed duplicate source and artifact
-qualification. The exact source, artifact, publication, and public re-download evidence is frozen.
-The `v0.21.0` tag and release asset must not be replaced.
+Nocter v0.21.0 is [published and externally audited](releases/v0.21.0.md). The exact source,
+artifact, publication, and public re-download evidence is frozen; its tag and release asset must
+not be replaced.
+
+The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON DOM, exact number
+tokens, parsing, and generation in ordinary standard-library source. Phase 0 is complete and
+reviewed. Its future-direction public contract and implementation boundary are closed; Phase 1 is
+the next implementation checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
-`development/milestones/v0.21.0.md`, `development/releases/v0.21.0.md`, and
-`development/reviews/` rather than this handoff.
+milestone, release, and review records rather than this handoff.
 
 The documentation-authority migration is complete: all workspace crates own local contracts,
 central design documents own cross-crate boundaries only, and generated documentation validates
@@ -19,8 +21,18 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer v0.22.0 scope from unfinished ideas or historical milestone plans.
+Implement v0.22.0 Phase 1 from the adopted JSON contract and
+`development/docs/json-implementation.md`:
+
+- add the package-internal Unicode-scalar encoder under the existing UTF-8 owner;
+- add the package-internal active-context recoverable allocator adapter under `std/mem`;
+- implement the one byte cursor, strict number scanner, exact Number storage and i64/u64 conversion;
+- implement JSON escape decoding and typed internal input/allocation failure classification;
+- qualify valid, boundary, invalid, ownership, allocation, formatting, and semantic-editor behavior;
+- review Phase 1 authority, cleanup, and absence of compiler JSON knowledge before closing it.
+
+Do not add container DOM parsing during Phase 1. Do not introduce floating point, `char`, a token
+array, public failure wrappers, or a compiler-known JSON declaration.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

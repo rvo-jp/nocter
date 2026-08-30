@@ -1,7 +1,8 @@
 # Contributor Documentation
 
-Nocter has published v0.21.0 with a compiler built from the language specification. The v0.13.0
-compiler implementation was not an input to the rewrite.
+Nocter has published v0.21.0 and started the v0.22.0 practical JSON milestone with a compiler built
+from the language specification. The v0.13.0 compiler implementation was not an input to the
+rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
@@ -9,6 +10,9 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
+- [Active v0.22.0 milestone](milestones/v0.22.0.md)
+- [v0.22.0 Phase 0 JSON design review](reviews/v0.22.0-phase-0.md)
+- [JSON implementation boundary](docs/json-implementation.md)
 - [Completed v0.21.0 milestone](milestones/v0.21.0.md)
 - [v0.21.0 release preparation](milestones/v0.21.0-release-preparation.md)
 - [v0.21.0 Phase 5 practical qualification review](reviews/v0.21.0-phase-5.md)

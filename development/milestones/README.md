@@ -1,8 +1,16 @@
 # Development Milestones
 
-This directory contains completed development milestones and historical milestone records.
+This directory contains the active development milestone, completed milestones, and historical
+milestone records.
 Public language behavior belongs in [`spec/`](../../spec/README.md); published qualification belongs
 in [`development/releases/`](../releases/README.md).
+
+## Active Milestone
+
+The [v0.22.0 milestone](v0.22.0.md) returns to practical standard-library work with an owning JSON
+DOM, exact decimal tokens, strict parsing, and compact generation. Phase 0 is complete and reviewed;
+Phase 1 lexical and Unicode foundation is next. The adopted public API remains explicitly marked
+future direction until its implementation qualifies.
 
 ## Latest Completed Milestone
 
@@ -36,5 +44,6 @@ The [v0.17.0 milestone](v0.17.0.md) and its
 refactoring was superseded before publication by a specification-first compiler rewrite. The
 [release preparation](v0.14.0-release-preparation.md) is complete.
 
-Every listed milestone records past work only. Historical records are not normative language
-sources and must not be used to reconstruct behavior missing from the current specification.
+Every milestone before v0.22.0 records past work only. Historical records are not normative
+language sources and must not be used to reconstruct behavior missing from the current
+specification.

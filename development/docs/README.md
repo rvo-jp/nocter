@@ -24,6 +24,7 @@ milestones, not in current design documents.
 - [Semantic Presentation Boundary](semantic-presentation-design.md)
 - [Incremental Computation Boundary](incremental-computation-design.md)
 - [Associative Collection Implementation Boundary](associative-collection-implementation.md)
+- [JSON Implementation Boundary](json-implementation.md)
 
 ## Maintenance Contracts
 
