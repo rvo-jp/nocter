@@ -7,6 +7,29 @@ use /mem.TryAllocator
 use /internal/mem.{allocation_abort, checked_add, checked_multiply}
 use /string.String
 
+primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
+primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
+primitive func u64_bit_xor_raw(left: u64, right: u64): u64
+primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+
+instance u64 {
+    method self.wrapping_add(other: u64): u64 {
+        return u64_wrapping_add_raw(self, other)
+    }
+
+    method self.wrapping_mul(other: u64): u64 {
+        return u64_wrapping_mul_raw(self, other)
+    }
+
+    method self.bit_xor(other: u64): u64 {
+        return u64_bit_xor_raw(self, other)
+    }
+
+    method self.rotate_right(amount: u64): u64 {
+        return u64_rotate_right_raw(self, amount)
+    }
+}
+
 func parse_usize(text: &str): usize? {
     let raw = text.bytes()
     if raw.len() == 0 { return none }

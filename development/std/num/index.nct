@@ -37,6 +37,20 @@ pub primitive type usize
 /// Pointer-sized signed integer.
 pub primitive type isize
 
+instance u64 {
+    /// Adds two values modulo 2^64.
+    pub method self.wrapping_add(other: u64): u64
+
+    /// Multiplies two values modulo 2^64.
+    pub method self.wrapping_mul(other: u64): u64
+
+    /// Returns the bitwise exclusive OR of two values.
+    pub method self.bit_xor(other: u64): u64
+
+    /// Rotates the bits right; only the low six bits of amount are significant.
+    pub method self.rotate_right(amount: u64): u64
+}
+
 pub func parse_usize(text: &str): usize?
 
 pub func parse_u8(text: &str): u8?

@@ -26,9 +26,9 @@ mod argument_pack;
 mod build;
 mod callable_invocation;
 mod closure_layout;
+mod pack_literal;
 mod primitive_dependency;
 mod semantic_environment;
-mod sequence;
 mod signature;
 mod type_representation;
 
@@ -36,8 +36,8 @@ pub(crate) use argument_pack::ExecutablePackIteration;
 pub use argument_pack::{ExecutableArgumentPackPlan, ExecutablePackSegment, ExecutablePackSpread};
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
+pub use pack_literal::ExecutablePackLiteralPlan;
 pub use primitive_dependency::ExecutablePrimitiveDependency;
-pub use sequence::ExecutableSequencePlan;
 pub use signature::{
     ExecutableInput, ExecutableInputSource, ExecutablePackInput, ExecutableSignature,
 };
@@ -253,7 +253,7 @@ pub struct ExecutableBody {
     types: Box<[ExecutableTypeEdge]>,
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
     destructions: Box<[ExecutableDestructionEdge]>,
-    sequences: Box<[ExecutableSequencePlan]>,
+    pack_literals: Box<[ExecutablePackLiteralPlan]>,
     argument_packs: Box<[ExecutableArgumentPackPlan]>,
 }
 
@@ -355,16 +355,16 @@ impl ExecutableBody {
     }
 
     #[must_use]
-    pub const fn sequences(&self) -> &[ExecutableSequencePlan] {
-        &self.sequences
+    pub const fn pack_literals(&self) -> &[ExecutablePackLiteralPlan] {
+        &self.pack_literals
     }
 
     #[must_use]
-    pub fn sequence(&self, source: BodyNodeId) -> Option<&ExecutableSequencePlan> {
-        self.sequences
-            .binary_search_by_key(&source, ExecutableSequencePlan::source)
+    pub fn pack_literal(&self, source: BodyNodeId) -> Option<&ExecutablePackLiteralPlan> {
+        self.pack_literals
+            .binary_search_by_key(&source, ExecutablePackLiteralPlan::source)
             .ok()
-            .map(|index| &self.sequences[index])
+            .map(|index| &self.pack_literals[index])
     }
 
     #[must_use]
@@ -628,7 +628,7 @@ pub enum ExecutableProgramError {
     MissingRoot(BodyNodeId),
     InvalidArgumentPackSignature(nocter_model::CallableId),
     InvalidArgumentPackPlan(BodyNodeId),
-    InvalidSequencePlan(BodyNodeId),
+    InvalidPackLiteralPlan(BodyNodeId),
     InvalidCallableInvocation(TypeId),
     InvalidPrimitiveDependency(PrimitiveRole),
     RuntimeTypes(RuntimeTypeTableBuildError),
@@ -673,7 +673,7 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingRoot(_)
             | Self::InvalidArgumentPackSignature(_)
             | Self::InvalidArgumentPackPlan(_)
-            | Self::InvalidSequencePlan(_)
+            | Self::InvalidPackLiteralPlan(_)
             | Self::InvalidCallableInvocation(_)
             | Self::InvalidPrimitiveDependency(_)
             | Self::DuplicateClosureLayout(_)

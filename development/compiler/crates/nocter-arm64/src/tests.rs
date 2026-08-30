@@ -194,6 +194,16 @@ fn encodes_multiply_divide_shift_and_wide_immediates() {
         }),
         0x9ac2_2020
     );
+    assert_eq!(
+        word(Arm64Instruction::VariableShift {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64Shift::RotateRight,
+            destination: x(0),
+            value: x(1),
+            amount: x(2),
+        }),
+        0x9ac2_2c20
+    );
 }
 
 #[test]

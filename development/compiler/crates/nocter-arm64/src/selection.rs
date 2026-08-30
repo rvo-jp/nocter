@@ -256,6 +256,8 @@ pub enum Arm64SelectedBinaryOperation {
     Remainder { signed: bool },
     ShiftLeft,
     ShiftRight { signed: bool },
+    BitwiseXor,
+    RotateRight,
     Equal,
     Less { signed: bool },
 }

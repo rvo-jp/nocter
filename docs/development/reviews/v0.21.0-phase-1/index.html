@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.18.0 Phase 0 Construction Review - Nocter</title>
-    <meta name="description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
+    <title>v0.21.0 Phase 1 Keyed-Pack and Hashing-Prerequisite Review - Nocter</title>
+    <meta name="description" content="Phase 1 is complete. Mapping literals and keyed forwarding now use one typed key/value entry from parsing through native execution. The standard numeric su">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.18.0-phase-0/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.21.0-phase-1/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.18.0 Phase 0 Construction Review - Nocter">
-    <meta property="og:description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.18.0-phase-0/">
+    <meta property="og:title" content="v0.21.0 Phase 1 Keyed-Pack and Hashing-Prerequisite Review - Nocter">
+    <meta property="og:description" content="Phase 1 is complete. Mapping literals and keyed forwarding now use one typed key/value entry from parsing through native execution. The standard numeric su">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.21.0-phase-1/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-25">
+    <meta property="article:modified_time" content="2026-08-30">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.18.0 Phase 0 Construction Review - Nocter">
-    <meta name="twitter:description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
+    <meta name="twitter:title" content="v0.21.0 Phase 1 Keyed-Pack and Hashing-Prerequisite Review - Nocter">
+    <meta name="twitter:description" content="Phase 1 is complete. Mapping literals and keyed forwarding now use one typed key/value entry from parsing through native execution. The standard numeric su">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.18.0 Phase 0 Construction Review - Nocter","description":"Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl","url":"https://nocter.dev/development/reviews/v0.18.0-phase-0/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.18.0-phase-0/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.18.0 Phase 0","item":"https://nocter.dev/development/reviews/v0.18.0-phase-0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.21.0 Phase 1 Keyed-Pack and Hashing-Prerequisite Review - Nocter","description":"Phase 1 is complete. Mapping literals and keyed forwarding now use one typed key/value entry from parsing through native execution. The standard numeric su","url":"https://nocter.dev/development/reviews/v0.21.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.21.0-phase-1/","dateModified":"2026-08-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.21.0 Phase 1","item":"https://nocter.dev/development/reviews/v0.21.0-phase-1/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -123,7 +123,7 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
                 <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
                 <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
                 <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
@@ -134,7 +134,7 @@
                 <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
                 <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
                 <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
                 <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
                 <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
                 <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
@@ -147,15 +147,33 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.18.0-phase-0.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.21.0-phase-1.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-18-0-phase-0-construction-review">v0.18.0 Phase 0 Construction Review</h1><p><strong>Result: passed (2026-08-25).</strong> This review covers the breaking removal of construction <code>default</code>, structural-construction independence, and nominal-hover simplification. It evaluates the completed working tree rather than the published v0.17.0 tag.</p><h2 id="review-criteria">Review Criteria</h2><p>The review searched for:</p><ul><li>superseded syntax, semantic fields, diagnostics, presentation branches, and standard-library
-  spellings;</li><li>wrappers, indexes, and public APIs retained only for the removed default-member state;</li><li>repeated visibility, construction-entry, or declaration-member decisions;</li><li>analysis or presentation code reinterpreting checking internals;</li><li>multiple authorities for representation opacity, structural construction, or hover shape;</li><li>dependencies that require one responsibility to know another responsibility's private storage.</li></ul><p>Historical release notes and completed milestone records remain unchanged because they describe the language that was published at their tags. They are not compatibility inputs to the active parser.</p><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="removed-default-member-authority">Removed default-member authority</h3><p>The syntax parser, declaration model, definition lowering, graph validation, checking surface, canonical renderer, diagnostics, tests, standard library, and current documentation retained parts of the old feature. Phase 0 removed the state rather than setting it to <code>None</code>: there is no construction-default field, selected-default index, duplicate-default rule, <code>E0314</code> projection, public-presentation surface, or construction-only contextual-word scanner.</p><h3 id="structural-completion-repeated-the-same-decision">Structural completion repeated the same decision</h3><p>Structural-field completion first selected the complete construction surface and then fetched the same structural fields again. <code>ConstructionSurfaceTable::accessible_structural_fields</code> now owns the single complete decision. The lower-level <code>representation_fields</code> query remains separate because body checking must diagnose an inaccessible named field rather than collapse it into a generic invalid-construction result.</p><h3 id="hover-reconstructed-a-weaker-visibility-rule">Hover reconstructed a weaker visibility rule</h3><p>The first nominal-hover implementation checked public module visibility directly and could diverge from direct-source visibility used by checking. <code>SourceAccessContext</code> now exposes the exact checking-owned declaration-site and representation queries. Analysis receives that read-only contract from <code>CheckedProgram</code>; the raw <code>SourceAccessTable</code> and construction-surface table are not public analysis APIs. Construction selection no longer stores a second opaque-representation bit.</p><h3 id="the-semantic-graph-admitted-an-empty-construct">The semantic graph admitted an empty construct</h3><p>The parser rejected an empty construct, but freeze-time graph validation still accepted an empty <code>ConstructionDeclaration</code>. The immutable graph now rejects that shape as an integrity failure. A dedicated graph test protects the boundary, and the duplicate-construction test now uses real construction members rather than relying on the invalid empty shape.</p><h3 id="hover-looked-up-each-nominal-member-twice">Hover looked up each nominal member twice</h3><p>Nominal hover first checked field or variant visibility and then repeated the declaration lookup while rendering. It now retains the validated declarations for the rendering pass. This preserves the all-or-header rule without a second graph traversal.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/</code> is the only owner of observable construction and hover behavior.</li><li>syntax owns recognition and the nonempty construct shape; it retains no compatibility parse.</li><li>declarations own construction identity and graph integrity, but no primary-entry concept.</li><li>checking owns derived construction indexes and exact source visibility. Its public editor contract
-  exposes decisions, not tables.</li><li>analysis owns canonical text rendering and consumes only declaration identities plus the
-  checking-owned visibility contract. It does not consume a checking construction view for type
-  hover.</li><li>the language server converts ranges and protocol values; it does not select construction or
-  representation policy.</li><li>standard-library source uses the same ordinary construct syntax as user packages.</li></ul><p>No unresolved responsibility leak, duplicate authority, compatibility branch, or feature-specific wrapper was found in the completed Phase 0 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed:</p><ul><li><code>cargo test --workspace --quiet</code> using an external target directory;</li><li><code>cargo clippy --workspace --all-targets -- -D warnings</code> using the same external target;</li><li><code>cargo fmt --all --check</code>;</li><li><code>node docs/build-docs.js</code>;</li><li>active-source searches for removed semantic and diagnostic identities;</li><li><code>git diff --check</code>.</li></ul>
+                <h1 id="v0-21-0-phase-1-keyed-pack-and-hashing-prerequisite-review">v0.21.0 Phase 1 Keyed-Pack and Hashing-Prerequisite Review</h1><h2 id="result">Result</h2><p>Phase 1 is complete. Mapping literals and keyed forwarding now use one typed key/value entry from parsing through native execution. The standard numeric surface supplies the four exact <code>u64</code> mixing operations admitted by Phase 0, and standard internals own a narrow target entropy adapter. No collection storage or compiler-known Map behavior entered this phase.</p><p>The review found one material transport defect during implementation: interface-method matching initially retained only the primary key type plus a keyed-pack flag. A required <code>...entries: K: V</code> could therefore lose <code>V</code> before conformance comparison. Required parameters now carry the complete <code>ArgumentPackType</code>, substitutions traverse both components, and a focused negative test rejects a value-type mismatch. No unresolved Phase 1 finding remains.</p><h2 id="semantic-authority">Semantic Authority</h2><ul><li><code>ArgumentPack&lt;T&gt;</code> is the sole checked representation of ordinary and keyed packs.
+  <code>ArgumentPackType::Keyed { key, value }</code> remains intact in callable signatures, interface
+  requirements, literal selection, ownership checks, origin analysis, and editor presentation.</li><li>Parsing recognizes a keyed entry only after parsing its key expression and consuming the entry
+  colon. It does not infer mapping meaning from token lookahead or from a known collection name.</li><li><code>TypeKind::PackEntry</code> is a compiler-owned transport type, not a source type. Source formatting,
+  diagnostics, and type presentation use the declared key/value pack contract and cannot expose
+  the internal carrier.</li><li>The old target/MIR <code>sequence</code> planning names were generalized to <code>pack_literal</code>; the distinction
+  between literal-owned and call-owned packs is an enum rather than a boolean convention.</li></ul><h2 id="ownership-and-abi">Ownership and ABI</h2><ul><li>One keyed entry occupies one argument-pack lane and keeps one entry identity through checked,
+  target, MIR, machine, and ARM64 lowering.</li><li>Key and value projections are independently typed. A consumer may move or destroy each component
+  without reconstructing two unrelated packs or relying on an alternating-value convention.</li><li>Cleanup tests prove that an unconsumed key and value are each destroyed exactly once. Forwarding
+  and mapping-literal native tests prove that transport preserves both components and their order.</li><li>Target specialization consumes the typed pack plan supplied by the preceding responsibility. It
+  does not reparse source syntax or repeat literal selection.</li></ul><h2 id="numeric-boundary">Numeric Boundary</h2><ul><li><code>u64.wrapping_add</code>, <code>u64.wrapping_mul</code>, <code>u64.bit_xor</code>, and <code>u64.rotate_right</code> are ordinary public
+  methods implemented by private exact-contract primitives.</li><li>Primitive identity and ABI are centralized in <code>PrimitiveRole</code> and the target primitive-contract
+  registry. ARM64 selection receives those roles and emits the corresponding add, multiply,
+  exclusive-OR, or variable rotate instruction; it does not recognize source function names.</li><li>Wrapping operations bypass normal arithmetic overflow traps intentionally. A native conformance
+  test covers modulo addition and multiplication, XOR, and rotation including the low-six-bit
+  amount rule.</li></ul><h2 id="entropy-boundary">Entropy Boundary</h2><ul><li><code>std/internal/hash</code> owns seed acquisition. Its Darwin adapter asks the existing package-internal
+  syscall boundary to fill exactly eight bytes and terminates on failure.</li><li>The adapter returns only <code>u64</code>; operating-system handles, syscall numbers, and errno policy do not
+  cross into the future hashing or collection surface.</li><li>The raw seed function remains private until a Phase 2 hashing consumer exists. This avoids
+  publishing an unused package API merely to anticipate that consumer; Phase 2 must expose the
+  smallest consumed internal contract rather than making the syscall adapter public.</li></ul><h2 id="source-and-tooling">Source and Tooling</h2><ul><li>Keyed declarations, direct entries, forwarding, mapping literals, empty <code>[:]</code>, and keyed loop
+  binding have parser, formatter, AST JSON, diagnostic, and native coverage from the keyed-pack
+  implementation commit.</li><li>Hover and signature presentation retain both key and value types. They consume checked pack
+  evidence and do not recover keyed structure from source punctuation.</li><li>The standard source dependency audit explicitly records only the <code>internal/hash</code> dependencies on
+  <code>internal/os/darwin</code> and <code>ptr</code>. No collection implementation or public hash algorithm was added.</li></ul><h2 id="evidence">Evidence</h2><ul><li><code>cargo test -p nocter-arm64 --quiet</code></li><li><code>cargo test -p nocter-conformance --quiet</code></li><li><code>cargo test -p nocter-discovery authored_standard_library_is_one_discoverable_declaration_unit</code></li><li><code>cargo test --workspace --quiet</code></li><li><code>cargo fmt --all --check</code></li><li><code>node docs/build-docs.js</code></li><li><code>git diff --check</code></li></ul><p>All commands passed on 2026-08-30. The full workspace test retained one existing ignored test and reported no failure.</p>
             </div>
         </main>
     </div>

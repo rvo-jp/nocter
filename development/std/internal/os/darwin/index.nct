@@ -51,6 +51,9 @@ pub(/) const sys_stat64: usize
 pub(/) const sys_getdirentries64: usize
 
 #target: "arm64-darwin"
+pub(/) const sys_getentropy: usize
+
+#target: "arm64-darwin"
 pub(/) const open_read_only: usize
 
 #target: "arm64-darwin"

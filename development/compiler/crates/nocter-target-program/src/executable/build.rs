@@ -17,8 +17,8 @@ use super::{
     ExecutableProgramError, ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
 };
 
+mod pack_literal;
 mod primitive;
-mod sequence;
 use crate::{
     CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
     collect_body_dependencies, select_executable_entry, select_test_target,
@@ -245,7 +245,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
 
         let prepared_borrows = self.specialize_prepared_borrows(&dependencies, &substitution)?;
-        let sequences = self.specialize_sequence_plans(
+        let pack_literals = self.specialize_pack_literal_plans(
             context.body,
             &dependencies,
             &substitution,
@@ -299,7 +299,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             types,
             prepared_borrows,
             destructions,
-            sequences,
+            pack_literals,
             argument_packs,
         })
     }
@@ -772,7 +772,7 @@ struct DraftItem {
     types: Vec<ExecutableTypeEdge>,
     prepared_borrows: Vec<ExecutableBorrowEdge>,
     destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
-    sequences: Vec<sequence::DraftSequencePlan>,
+    pack_literals: Vec<pack_literal::DraftPackLiteralPlan>,
     argument_packs: Vec<super::ExecutableArgumentPackPlan>,
 }
 
@@ -901,12 +901,12 @@ fn freeze_body(
         .map(|(source, plan)| ExecutableDestructionEdge { source, plan })
         .collect::<Vec<_>>();
     destructions.sort_unstable_by(|left, right| left.source.cmp(&right.source));
-    let mut sequences = draft
-        .sequences
+    let mut pack_literals = draft
+        .pack_literals
         .into_iter()
         .map(|plan| plan.freeze(item_ids))
         .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
-    sequences.sort_unstable_by_key(super::ExecutableSequencePlan::source);
+    pack_literals.sort_unstable_by_key(super::ExecutablePackLiteralPlan::source);
     let mut argument_packs = draft.argument_packs;
     argument_packs.sort_unstable_by_key(super::ExecutableArgumentPackPlan::source);
     Ok((
@@ -922,7 +922,7 @@ fn freeze_body(
             types: types.into_boxed_slice(),
             prepared_borrows: prepared_borrows.into_boxed_slice(),
             destructions: destructions.into_boxed_slice(),
-            sequences: sequences.into_boxed_slice(),
+            pack_literals: pack_literals.into_boxed_slice(),
             argument_packs: argument_packs.into_boxed_slice(),
         },
     ))

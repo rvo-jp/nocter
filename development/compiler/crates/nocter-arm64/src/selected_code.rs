@@ -418,7 +418,8 @@ fn emit_binary(
             emit_remainder(code, size, destination.register, left, right, signed);
         }
         Arm64SelectedBinaryOperation::ShiftLeft
-        | Arm64SelectedBinaryOperation::ShiftRight { .. } => {
+        | Arm64SelectedBinaryOperation::ShiftRight { .. }
+        | Arm64SelectedBinaryOperation::RotateRight => {
             let operation = match operation {
                 Arm64SelectedBinaryOperation::ShiftLeft => Arm64Shift::Left,
                 Arm64SelectedBinaryOperation::ShiftRight { signed: true } => {
@@ -427,6 +428,7 @@ fn emit_binary(
                 Arm64SelectedBinaryOperation::ShiftRight { signed: false } => {
                     Arm64Shift::RightLogical
                 }
+                Arm64SelectedBinaryOperation::RotateRight => Arm64Shift::RotateRight,
                 _ => unreachable!(),
             };
             code.append(Arm64Instruction::VariableShift {
@@ -435,6 +437,15 @@ fn emit_binary(
                 destination: destination.register,
                 value: left,
                 amount: right,
+            });
+        }
+        Arm64SelectedBinaryOperation::BitwiseXor => {
+            code.append(Arm64Instruction::LogicalRegister {
+                size,
+                operation: crate::Arm64Logical::ExclusiveOr,
+                destination: Arm64DataRegister::General(destination.register),
+                left: Arm64DataRegister::General(left),
+                right: Arm64DataRegister::General(right),
             });
         }
         Arm64SelectedBinaryOperation::Equal | Arm64SelectedBinaryOperation::Less { .. } => {

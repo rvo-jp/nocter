@@ -42,6 +42,7 @@ pub enum Arm64Shift {
     Left,
     RightLogical,
     RightArithmetic,
+    RotateRight,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

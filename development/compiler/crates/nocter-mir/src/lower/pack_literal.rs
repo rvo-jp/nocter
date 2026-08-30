@@ -40,7 +40,7 @@ enum PreparedSegment {
 }
 
 impl FunctionLowerer<'_> {
-    pub(super) fn lower_sequence(
+    pub(super) fn lower_pack_literal(
         &mut self,
         node: BodyNodeId,
         ty: TypeId,
@@ -48,7 +48,7 @@ impl FunctionLowerer<'_> {
         let plan = self
             .item
             .body()
-            .sequence(node)
+            .pack_literal(node)
             .cloned()
             .ok_or(MirLoweringError::InvalidDispatch(node))?;
         if plan.result() != ty {
@@ -107,9 +107,9 @@ impl FunctionLowerer<'_> {
         input: ExecutablePackInput,
         segments: &[ExecutablePackSegment],
     ) -> Result<MirPackArgument, MirLoweringError> {
-        let prepared = self.prepare_sequence_segments(node, input, segments)?;
+        let prepared = self.prepare_pack_segments(node, input, segments)?;
         let (length, remaining) = self.compute_pack_length(node, &prepared)?;
-        let segments = self.finish_sequence_segments(node, prepared, remaining)?;
+        let segments = self.finish_pack_segments(node, prepared, remaining)?;
         Ok(MirPackArgument::new(
             input.element(),
             input.next(),
@@ -118,7 +118,7 @@ impl FunctionLowerer<'_> {
         ))
     }
 
-    fn prepare_sequence_segments(
+    fn prepare_pack_segments(
         &mut self,
         owner: BodyNodeId,
         input: ExecutablePackInput,
@@ -249,7 +249,7 @@ impl FunctionLowerer<'_> {
         Ok((length, remaining))
     }
 
-    fn finish_sequence_segments(
+    fn finish_pack_segments(
         &mut self,
         owner: BodyNodeId,
         segments: Vec<PreparedSegment>,

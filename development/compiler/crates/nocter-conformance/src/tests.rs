@@ -136,6 +136,46 @@ fn scalar_call_and_arithmetic_cross_the_complete_native_pipeline() {
 }
 
 #[test]
+fn explicit_u64_mixing_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func main(): i32 {\n\
+             let maximum: u64 = 18446744073709551615\n\
+             if maximum.wrapping_add(1) != 0 { return 1 }\n\
+             let high: u64 = 9223372036854775808\n\
+             if high.wrapping_mul(2) != 0 { return 2 }\n\
+             let left: u64 = 240\n\
+             if left.bit_xor(170) != 90 { return 3 }\n\
+             let one: u64 = 1\n\
+             if one.rotate_right(1) != high { return 4 }\n\
+             return 42\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn target_entropy_boundary_crosses_the_complete_native_pipeline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/os/darwin.fill_seed_for_test\n\
+         use std/ptr.{addr, from_ref_mut}\n\
+         func main(): i32 {\n\
+             var seed: u64 = 0\n\
+             fill_seed_for_test(addr(from_ref_mut(&+seed)))\n\
+             return 42\n\
+         }\n",
+        &[&["internal", "os", "darwin"], &["ptr"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn fixed_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "struct Sum { value: i32 }\n\

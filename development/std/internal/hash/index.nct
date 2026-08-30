@@ -1,0 +1,3 @@
+//! Package-internal target entropy boundary for hash-table seeds.
+
+see ./darwin.nct

@@ -59,9 +59,13 @@ minimum implementation prerequisites. Public behavior belongs only to
 implementation boundary belongs to
 [Associative Collection Implementation Boundary](docs/associative-collection-implementation.md).
 
-Begin Phase 1 with the keyed-pack model, then implement explicit numeric mixing operations and the
-target entropy boundary as separate owned changes. Do not add collection source until those exact
-prerequisites qualify. Do not introduce
+Phase 1 is complete and reviewed. The
+[Phase 1 review](reviews/v0.21.0-phase-1.md) records the single keyed-pack authority, entry ABI,
+separate key/value ownership, ordinary `u64` mixing API, narrow entropy adapter, editor behavior,
+and qualification evidence.
+
+Begin Phase 2 by creating the opaque `HashState` contract and its source-defined implementation.
+Do not introduce
 `HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set storage engines, or an
 interim alternating-argument mapping literal.
 

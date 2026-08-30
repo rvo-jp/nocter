@@ -74,6 +74,8 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("fs", "ptr"),
     ("fs", "string"),
     ("fs", "vec"),
+    ("internal/hash", "internal/os/darwin"),
+    ("internal/hash", "ptr"),
     ("internal/io", "internal/os"),
     ("internal/os/darwin", "internal/os"),
     ("internal/os/darwin", "ptr"),

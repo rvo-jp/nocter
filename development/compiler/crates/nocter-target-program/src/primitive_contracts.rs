@@ -419,6 +419,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let usize = || builtin(BuiltinType::Usize);
     let i32 = || builtin(BuiltinType::I32);
     let u8 = || builtin(BuiltinType::U8);
+    let u64 = || builtin(BuiltinType::U64);
     let str_ref = || TypeContract::readonly(builtin(BuiltinType::Str));
     let byte_pointer = || TypeContract::pointer(u8());
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
@@ -629,6 +630,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::StringLength | PrimitiveRole::StringPointerAddress => {
             make(0, vec![str_ref()], usize(), private, None, vec![])
+        }
+        PrimitiveRole::U64WrappingAdd
+        | PrimitiveRole::U64WrappingMultiply
+        | PrimitiveRole::U64BitwiseXor
+        | PrimitiveRole::U64RotateRight => {
+            make(0, vec![u64(), u64()], u64(), private, None, vec![])
         }
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
         PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {

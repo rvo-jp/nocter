@@ -9,6 +9,7 @@ internally without forcing consumers that use only its contract to change.
 
 ## Current Candidate Reviews
 
+- [v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review](v0.21.0-phase-1.md) — complete
 - [v0.21.0 Phase 0 associative-collection design review](v0.21.0-phase-0.md) — complete
 - [v0.20.0 Phase 3 dependency-local exact-selection review](v0.20.0-phase-3.md) — complete
 - [v0.20.0 Phase 2 unified query entry review](v0.20.0-phase-2.md) — complete

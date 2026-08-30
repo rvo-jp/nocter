@@ -86,6 +86,9 @@ const sys_stat64: usize = 0x02000152
 const sys_getdirentries64: usize = 0x02000158
 
 #target: "arm64-darwin"
+const sys_getentropy: usize = 0x020001f4
+
+#target: "arm64-darwin"
 const open_read_only: usize = 0
 
 #target: "arm64-darwin"

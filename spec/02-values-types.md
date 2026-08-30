@@ -708,6 +708,20 @@ construct u8 {
 }
 ```
 
+Explicit `u64` bit-mixing APIs are ordinary methods:
+
+```nct
+let sum = left.wrapping_add(right)
+let product = left.wrapping_mul(right)
+let mixed = left.bit_xor(right)
+let rotated = left.rotate_right(amount)
+```
+
+`wrapping_add` and `wrapping_mul` compute modulo 2^64. `rotate_right` uses the low six bits of
+`amount`, so every `u64` amount is valid. These methods do not allocate or fail. Normal arithmetic
+operators retain the trapping rules below; the mixing methods do not introduce new operator
+spellings.
+
 Arithmetic trap rules:
 
 - Overflow in normal integer arithmetic traps.
@@ -723,7 +737,7 @@ Arithmetic trap rules:
 
 Trap semantics are specified in [Control Flow](03-control-flow.md#never-and-reachability). These arithmetic safety checks are always-on for every build mode; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 
-The exact names for wrapping arithmetic APIs belong to the primitive numeric API surface, not to the operator grammar.
+Other fixed-width numeric mixing APIs are not part of the current standard surface.
 
 ## Operators, Comparison, and Precedence
 

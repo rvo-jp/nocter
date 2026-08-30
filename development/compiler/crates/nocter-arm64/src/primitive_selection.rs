@@ -110,6 +110,10 @@ pub(crate) fn select(
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)
         }
+        PrimitiveRole::U64WrappingAdd
+        | PrimitiveRole::U64WrappingMultiply
+        | PrimitiveRole::U64BitwiseXor
+        | PrimitiveRole::U64RotateRight => select_u64_mixing(operation, target, selected),
         PrimitiveRole::AllocationAbort
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::Syscall0
@@ -124,6 +128,30 @@ pub(crate) fn select(
             super::system_primitive_selection::select(operation, target, selected)
         }
     }
+}
+
+fn select_u64_mixing(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[1, 1], 1)?;
+    validate_type_arguments(operation, target, 0)?;
+    let operation = match target.role() {
+        PrimitiveRole::U64WrappingAdd => Arm64SelectedBinaryOperation::Add,
+        PrimitiveRole::U64WrappingMultiply => Arm64SelectedBinaryOperation::Multiply,
+        PrimitiveRole::U64BitwiseXor => Arm64SelectedBinaryOperation::BitwiseXor,
+        PrimitiveRole::U64RotateRight => Arm64SelectedBinaryOperation::RotateRight,
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    selected.push(Arm64SelectedInstruction::Binary {
+        size: Arm64DataSize::Bits64,
+        operation,
+        destination: fixed_register(0)?,
+        left: fixed_register(0)?,
+        right: fixed_register(1)?,
+    });
+    Ok(())
 }
 
 fn select_noop_destruction(

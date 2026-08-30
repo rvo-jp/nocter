@@ -110,6 +110,11 @@ to initialize the ordinary hidden seed terminates construction rather than addin
 recoverable I/O failure to every collection constructor. Hash output and seed values have no
 public accessor and are not persistent data formats.
 
+The target entropy boundary is package-internal standard-library infrastructure. Collection and
+hashing source receives only a `u64` seed; it cannot observe an operating-system handle, syscall
+number, or recoverable I/O result. On Darwin, the adapter obtains all eight seed bytes from
+`getentropy` and terminates if the call fails.
+
 ## Key Stability
 
 `Map<K, V>` and `Set<T>` require their key or element type to implement `Hash`. While a value is

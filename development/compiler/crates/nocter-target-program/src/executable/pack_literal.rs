@@ -3,9 +3,9 @@ use nocter_model::{BodyNodeId, ExecutableItemId, TypeId};
 
 use super::{ExecutablePackInput, ExecutablePackSegment};
 
-/// One typed sequence construction whose elements use the shared argument-pack transport.
+/// One typed sequence or mapping construction using the shared argument-pack transport.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutableSequencePlan {
+pub struct ExecutablePackLiteralPlan {
     source: BodyNodeId,
     constructor: ExecutableItemId,
     input: ExecutablePackInput,
@@ -14,7 +14,7 @@ pub struct ExecutableSequencePlan {
     allocation: AllocationSelection,
 }
 
-impl ExecutableSequencePlan {
+impl ExecutablePackLiteralPlan {
     pub(crate) fn new(
         source: BodyNodeId,
         constructor: ExecutableItemId,

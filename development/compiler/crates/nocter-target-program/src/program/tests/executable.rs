@@ -373,7 +373,7 @@ fn executable_signature_specializes_even_unused_parameters() {
 }
 
 #[test]
-fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
+fn literal_argument_pack_is_not_an_ordinary_executable_input() {
     let target = build_target_program(&Fixture::with_app(
         "struct Vec<T> {}\n\
          construct Vec<T> {\n\
@@ -430,10 +430,10 @@ fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
         panic!("expected process root")
     };
     let main = executable.items().get(*entry).unwrap();
-    let [plan] = main.body().sequences() else {
-        panic!("expected one sequence plan")
+    let [plan] = main.body().pack_literals() else {
+        panic!("expected one pack-literal plan")
     };
-    assert_eq!(main.body().sequence(plan.source()), Some(plan));
+    assert_eq!(main.body().pack_literal(plan.source()), Some(plan));
     assert_eq!(plan.constructor(), literal_id);
     assert_eq!(plan.input(), pack);
     assert_eq!(plan.result(), item.signature().result());
@@ -447,7 +447,7 @@ fn sequence_argument_pack_is_not_an_ordinary_executable_input() {
 }
 
 #[test]
-fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
+fn pack_literal_plan_freezes_spread_types_and_dispatch_in_source_order() {
     let fixture = Fixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
@@ -490,8 +490,8 @@ fn sequence_plan_freezes_spread_types_and_dispatch_in_source_order() {
         panic!("expected process root")
     };
     let main = executable.items().get(*entry).unwrap();
-    let [plan] = main.body().sequences() else {
-        panic!("expected one sequence plan")
+    let [plan] = main.body().pack_literals() else {
+        panic!("expected one pack-literal plan")
     };
     let [
         ExecutablePackSegment::Value {

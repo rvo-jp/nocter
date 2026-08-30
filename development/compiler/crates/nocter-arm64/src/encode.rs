@@ -449,6 +449,7 @@ const fn variable_shift_bits(operation: Arm64Shift) -> u32 {
         Arm64Shift::Left => 0x1ac0_2000,
         Arm64Shift::RightLogical => 0x1ac0_2400,
         Arm64Shift::RightArithmetic => 0x1ac0_2800,
+        Arm64Shift::RotateRight => 0x1ac0_2c00,
     }
 }
 

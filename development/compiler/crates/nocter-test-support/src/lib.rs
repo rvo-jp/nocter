@@ -94,6 +94,10 @@ pub fn primitive_source_location(
         Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
         Role::StringLength => (&["str"], "str_len_raw"),
         Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
+        Role::U64WrappingAdd => (&["num"], "u64_wrapping_add_raw"),
+        Role::U64WrappingMultiply => (&["num"], "u64_wrapping_mul_raw"),
+        Role::U64BitwiseXor => (&["num"], "u64_bit_xor_raw"),
+        Role::U64RotateRight => (&["num"], "u64_rotate_right_raw"),
         Role::ProcessExit => (&["process"], "exit_raw"),
         Role::ProcessArgumentCount => (&["process"], "arg_count_raw"),
         Role::ProcessArgument => (&["process"], "arg_raw"),
@@ -252,6 +256,24 @@ pub primitive type u32
 pub primitive type u64
 pub primitive type usize
 pub primitive type isize
+primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
+primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
+primitive func u64_bit_xor_raw(left: u64, right: u64): u64
+primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+instance u64 {
+    pub method self.wrapping_add(other: u64): u64 {
+        return u64_wrapping_add_raw(self, other)
+    }
+    pub method self.wrapping_mul(other: u64): u64 {
+        return u64_wrapping_mul_raw(self, other)
+    }
+    pub method self.bit_xor(other: u64): u64 {
+        return u64_bit_xor_raw(self, other)
+    }
+    pub method self.rotate_right(amount: u64): u64 {
+        return u64_rotate_right_raw(self, amount)
+    }
+}
 ";
 const CORE_SOURCE: &str = "\
 pub primitive type void
@@ -323,6 +345,12 @@ pub func syscall3_value_for_test(
 pub func terminate_for_test(use_unreachable: bool): never {
     if use_unreachable { unreachable() }
     trap()
+}
+#target: \"arm64-darwin\"
+pub func fill_seed_for_test(address: usize): void {
+    let result = syscall2(0x020001f4, address, 8)
+    if result.errno != 0 { return trap() }
+    return
 }
 ";
 

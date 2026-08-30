@@ -352,10 +352,10 @@ impl<'program> DependencyCollector<'program> {
                     self.record_selection(selection);
                 }
             }
-            CheckedOperation::PackLiteral(sequence) => {
-                self.record_selection(sequence.constructor());
-                self.visit_argument_pack(sequence.pack())?;
-                self.visit_allocation(sequence.allocation())?;
+            CheckedOperation::PackLiteral(literal) => {
+                self.record_selection(literal.constructor());
+                self.visit_argument_pack(literal.pack())?;
+                self.visit_allocation(literal.allocation())?;
             }
             CheckedOperation::StringLiteral {
                 constructor,

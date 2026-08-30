@@ -29,11 +29,11 @@ mod loop_control;
 mod opaque;
 mod operand;
 mod outcome;
+mod pack_literal;
 mod pattern;
 mod place;
 mod region;
 mod root;
-mod sequence;
 mod string;
 mod value_storage;
 

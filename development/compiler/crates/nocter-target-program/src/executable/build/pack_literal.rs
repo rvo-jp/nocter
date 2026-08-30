@@ -12,10 +12,10 @@ use super::{
 use crate::executable::ExecutablePackIteration;
 use crate::{
     CallableInstanceKey, ExecutableArgumentPackPlan, ExecutableItemKey, ExecutablePackInput,
-    ExecutablePackSegment, ExecutablePackSpread, ExecutableProgramError, ExecutableSequencePlan,
+    ExecutablePackLiteralPlan, ExecutablePackSegment, ExecutablePackSpread, ExecutableProgramError,
 };
 
-pub(super) struct DraftSequencePlan {
+pub(super) struct DraftPackLiteralPlan {
     source: BodyNodeId,
     constructor: ExecutableItemKey,
     input: ExecutablePackInput,
@@ -26,29 +26,34 @@ pub(super) struct DraftSequencePlan {
 
 struct SegmentSpecialization<'a> {
     owner: BodyNodeId,
-    sequence: bool,
+    owner_kind: PackOwnerKind,
     input: ExecutablePackInput,
     substitution: &'a TypeSubstitution,
     dispatches: &'a [DraftDispatchEdge],
     node_types: &'a BTreeMap<BodyNodeId, TypeId>,
 }
 
+#[derive(Clone, Copy)]
+enum PackOwnerKind {
+    Literal,
+    Call,
+}
+
 impl SegmentSpecialization<'_> {
     fn invalid(&self) -> ExecutableProgramError {
-        if self.sequence {
-            ExecutableProgramError::InvalidSequencePlan(self.owner)
-        } else {
-            ExecutableProgramError::InvalidArgumentPackPlan(self.owner)
+        match self.owner_kind {
+            PackOwnerKind::Literal => ExecutableProgramError::InvalidPackLiteralPlan(self.owner),
+            PackOwnerKind::Call => ExecutableProgramError::InvalidArgumentPackPlan(self.owner),
         }
     }
 }
 
-impl DraftSequencePlan {
+impl DraftPackLiteralPlan {
     pub(super) fn freeze(
         self,
         item_ids: &BTreeMap<ExecutableItemKey, ExecutableItemId>,
-    ) -> Result<ExecutableSequencePlan, ExecutableProgramError> {
-        Ok(ExecutableSequencePlan::new(
+    ) -> Result<ExecutablePackLiteralPlan, ExecutableProgramError> {
+        Ok(ExecutablePackLiteralPlan::new(
             self.source,
             item_id(item_ids, &self.constructor)?,
             self.input,
@@ -60,15 +65,15 @@ impl DraftSequencePlan {
 }
 
 impl ExecutableClosureBuilder<'_> {
-    pub(super) fn specialize_sequence_plans(
+    pub(super) fn specialize_pack_literal_plans(
         &mut self,
         body: BodyId,
         dependencies: &crate::CheckedBodyDependencies,
         substitution: &TypeSubstitution,
         dispatches: &[DraftDispatchEdge],
         drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
-    ) -> Result<Vec<DraftSequencePlan>, ExecutableProgramError> {
-        let (node_types, sequences) = {
+    ) -> Result<Vec<DraftPackLiteralPlan>, ExecutableProgramError> {
+        let (node_types, literals) = {
             let checked = self
                 .target
                 .checked()
@@ -87,25 +92,25 @@ impl ExecutableClosureBuilder<'_> {
                         .ok_or(ExecutableProgramError::MissingRoot(node))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let sequences = dependencies
+            let literals = dependencies
                 .nodes()
                 .iter()
                 .copied()
                 .filter_map(|source| {
                     let node = checked.nodes().get(source)?;
-                    let nocter_checking::CheckedOperation::PackLiteral(sequence) = node.operation()
+                    let nocter_checking::CheckedOperation::PackLiteral(literal) = node.operation()
                     else {
                         return None;
                     };
-                    Some((source, node.ty(), sequence.clone()))
+                    Some((source, node.ty(), literal.clone()))
                 })
                 .collect::<Vec<_>>();
-            (node_types, sequences)
+            (node_types, literals)
         };
         let mut plans = Vec::new();
-        for (source, source_type, sequence) in sequences {
-            let constructor = direct_callable_key(dispatches, sequence.constructor())
-                .ok_or(ExecutableProgramError::InvalidSequencePlan(source))?;
+        for (source, source_type, literal) in literals {
+            let constructor = direct_callable_key(dispatches, literal.constructor())
+                .ok_or(ExecutableProgramError::InvalidPackLiteralPlan(source))?;
             let signature = super::callable_signature(
                 self.target,
                 &mut self.resolver,
@@ -113,20 +118,20 @@ impl ExecutableClosureBuilder<'_> {
                 &constructor.substitution(),
             )?;
             let Some(input) = signature.pack() else {
-                return Err(ExecutableProgramError::InvalidSequencePlan(source));
+                return Err(ExecutableProgramError::InvalidPackLiteralPlan(source));
             };
             let result = self.resolver.specialize_type(source_type, substitution)?;
             if !signature.inputs().is_empty() || signature.result() != result {
-                return Err(ExecutableProgramError::InvalidSequencePlan(source));
+                return Err(ExecutableProgramError::InvalidPackLiteralPlan(source));
             }
-            let segments = sequence
+            let segments = literal
                 .pack()
                 .segments()
                 .iter()
                 .map(|element| {
                     let context = SegmentSpecialization {
                         owner: source,
-                        sequence: true,
+                        owner_kind: PackOwnerKind::Literal,
                         input,
                         substitution,
                         dispatches,
@@ -135,13 +140,13 @@ impl ExecutableClosureBuilder<'_> {
                     self.specialize_pack_segment(element, &context, drops)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            plans.push(DraftSequencePlan {
+            plans.push(DraftPackLiteralPlan {
                 source,
                 constructor: ExecutableItemKey::Callable(constructor),
                 input,
                 result,
                 segments,
-                allocation: sequence.allocation(),
+                allocation: literal.allocation(),
             });
         }
         Ok(plans)
@@ -222,7 +227,7 @@ impl ExecutableClosureBuilder<'_> {
             }
             let context = SegmentSpecialization {
                 owner: source,
-                sequence: false,
+                owner_kind: PackOwnerKind::Call,
                 input,
                 substitution,
                 dispatches,
@@ -263,7 +268,7 @@ impl ExecutableClosureBuilder<'_> {
                 let destruction = self
                     .resolver
                     .resolve_destruction(source_type, context.substitution)?;
-                self.record_sequence_destruction(destruction.as_ref(), drops)?;
+                self.record_pack_destruction(destruction.as_ref(), drops)?;
                 Ok(ExecutablePackSegment::Value {
                     source: *source,
                     ty,
@@ -303,8 +308,8 @@ impl ExecutableClosureBuilder<'_> {
                 let value_destruction = self
                     .resolver
                     .resolve_destruction(value_type, context.substitution)?;
-                self.record_sequence_destruction(key_destruction.as_ref(), drops)?;
-                self.record_sequence_destruction(value_destruction.as_ref(), drops)?;
+                self.record_pack_destruction(key_destruction.as_ref(), drops)?;
+                self.record_pack_destruction(value_destruction.as_ref(), drops)?;
                 Ok(ExecutablePackSegment::KeyedValue {
                     key: *key,
                     key_type: concrete_key,
@@ -347,7 +352,7 @@ impl ExecutableClosureBuilder<'_> {
                 if contribution != context.input.element() {
                     return Err(context.invalid());
                 }
-                self.record_sequence_destruction(destruction.as_ref(), drops)?;
+                self.record_pack_destruction(destruction.as_ref(), drops)?;
                 Ok(ExecutablePackSegment::Spread(ExecutablePackSpread::new(
                     *mode,
                     ExecutablePackIteration::new(
@@ -364,7 +369,7 @@ impl ExecutableClosureBuilder<'_> {
         }
     }
 
-    fn record_sequence_destruction(
+    fn record_pack_destruction(
         &mut self,
         plan: Option<&ConcreteDestructionPlan>,
         drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
