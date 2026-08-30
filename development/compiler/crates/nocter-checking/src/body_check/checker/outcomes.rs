@@ -200,11 +200,6 @@ impl BodyChecker<'_, '_> {
         if self.kind(*clause)? != NodeKind::RecoveryClause {
             return Err(BodyCheckInternalError::InvalidSyntax(*clause).into());
         }
-        let operand = self.check_expression(*operand_syntax, None)?;
-        let operand_type = self.node_type(operand)?;
-        let Some((layer, payload)) = outcome_layer(self.types, operand_type) else {
-            return Err(self.rule(BodyRule::InvalidOutcomeOperation, *clause)?);
-        };
         let catch = self.tree().children(*clause).iter().any(|element| {
             matches!(
                 element,
@@ -212,6 +207,12 @@ impl BodyChecker<'_, '_> {
                     if token.kind() == TokenKind::Keyword(Keyword::Catch)
             )
         });
+        let result_context = expected.map(CallResultContext::OutcomePayload);
+        let operand = self.check_outcome_operand_expression(*operand_syntax, result_context)?;
+        let operand_type = self.node_type(operand)?;
+        let Some((layer, payload)) = outcome_layer(self.types, operand_type) else {
+            return Err(self.rule(BodyRule::InvalidOutcomeOperation, *clause)?);
+        };
         if catch != (layer == OutcomeLayer::Fallible) {
             return Err(self.rule(BodyRule::InvalidOutcomeOperation, *clause)?);
         }

@@ -140,7 +140,9 @@
   root/origin derivation that establishes it. Requirement order cannot select one derivation as
   the semantic authority.</li><li>Type and copyability authority cannot be paired across generations.</li><li>A body transaction commits all semantic mutations together or is discarded/frozen as one branch.</li><li>Checked dispatch is selected once; Target and MIR receive no lookup inputs.</li><li>Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
-  source derivations to whichever requirement was visited first.</li><li>A checked query derives type and visibility from its own body generation.</li><li>Reusable body-name evidence contains body-local locators and spellings, never <code>NodeId</code>,
+  source derivations to whichever requirement was visited first.</li><li>Direct calls receive one explicit result context: a complete expected type, an outcome payload,
+  or a propagation result. <code>?</code>, <code>catch</code>, and <code>otherwise</code> route through that same call-planning
+  boundary, so result-only generic parameters are not inferred differently by elimination syntax.</li><li>A checked query derives type and visibility from its own body generation.</li><li>Reusable body-name evidence contains body-local locators and spellings, never <code>NodeId</code>,
   <code>SyntaxToken</code>, <code>SourceId</code>, source spans, or current symbol IDs.</li><li>A reusable checked body contains no current source identity, span, syntax identity, or symbol ID.
   Node origins, references, and associated-type completion sites use one body-local locator recipe.
   Local and capture declarations are restored from the lexical recipe instead of being duplicated

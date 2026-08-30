@@ -6,12 +6,35 @@ use /fmt.try_append_usize
 use /mem.TryAllocator
 use /string.String
 
-func invalid_syntax<T>(allocator: &+TryAllocator, offset: usize): Attempt<T> {
-    var message = String.try_copy(allocator, "invalid JSON syntax at byte ") catch failure {
+func input_failure<T>(
+    allocator: &+TryAllocator,
+    code: &str,
+    message_prefix: &str,
+    offset: usize,
+): Attempt<T> {
+    var message = String.try_copy(allocator, message_prefix) catch failure {
         return Attempt.allocation(move failure)
     }
     try_append_usize(&+message, offset) catch failure {
         return Attempt.allocation(move failure)
     }
-    return Attempt.input(error.new("std.json.invalid_syntax", &message))
+    return Attempt.input(error.new(code, &message))
+}
+
+func invalid_syntax<T>(allocator: &+TryAllocator, offset: usize): Attempt<T> {
+    return input_failure(
+        allocator,
+        "std.json.invalid_syntax",
+        "invalid JSON syntax at byte ",
+        offset,
+    )
+}
+
+func duplicate_name<T>(allocator: &+TryAllocator, offset: usize): Attempt<T> {
+    return input_failure(
+        allocator,
+        "std.json.duplicate_name",
+        "duplicate JSON object name at byte ",
+        offset,
+    )
 }

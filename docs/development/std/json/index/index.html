@@ -126,6 +126,7 @@
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -159,15 +160,17 @@
                 <span class="markdown-path-text">/development/std/json/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Exact JSON number tokens and private lexical foundations.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Phase 1 exposes Number while the owning Value parser and generators remain future work.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning JSON values, exact number tokens, and strict whole-text parsing.</span>
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>map<span class="token-operator">.</span><span class="token-type">Map</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>cursor<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>number<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>string_decoding<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// One exact, validated JSON number token.</span>
@@ -191,6 +194,22 @@
     <span class="token-comment">/// Returns the mathematical value when it is exactly representable as u64.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">as_u64</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
+
+<span class="token-comment">/// One owning JSON value.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">Value</span> <span class="token-operator">{</span>
+    null
+    <span class="token-function">boolean</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span>
+    <span class="token-function">number</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Number</span><span class="token-operator">)</span>
+    <span class="token-function">string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span>
+    <span class="token-function">array</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">Value</span><span class="token-operator">&gt;</span><span class="token-operator">)</span>
+    <span class="token-function">object</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Map</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">Value</span><span class="token-operator">&gt;</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Parses one complete JSON text using the current allocation context.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Parses one complete JSON text with recoverable allocation.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_parse</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span> from allocator
 </code></pre>
             </div>
         </main>

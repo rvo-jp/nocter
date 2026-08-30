@@ -50,6 +50,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.
+- Direct calls receive one explicit result context: a complete expected type, an outcome payload,
+  or a propagation result. `?`, `catch`, and `otherwise` route through that same call-planning
+  boundary, so result-only generic parameters are not inferred differently by elimination syntax.
 - A checked query derives type and visibility from its own body generation.
 - Reusable body-name evidence contains body-local locators and spellings, never `NodeId`,
   `SyntaxToken`, `SourceId`, source spans, or current symbol IDs.

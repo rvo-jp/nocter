@@ -152,6 +152,37 @@ initialized prefix. JSON owns UTF-16 escape and surrogate decisions, then passes
 view through String's existing validated mutation contract. Neither module reads the other's
 representation.
 
+## Phase 2 Realization
+
+The parser has one active `ParserState` and one `Vec<Continuation>`. Active state owns the current
+root value, array, or object plus its next grammatical obligation. A continuation owns only a
+parent array or a parent object together with its decoded pending name. It is therefore impossible
+for a stack entry to claim both “waiting for a child” and a separator phase, or for a child to have
+two partial-container owners.
+
+Starting a scalar produces a complete `Value`. Starting a container produces a new active state.
+When a value completes, the parser pops exactly one continuation, transfers the value into its
+container, and changes that container to its separator state. An empty continuation stack means the
+complete value is the root; only trailing JSON whitespace may remain. Parsing never calls itself,
+materializes a token sequence, or stores a per-node source range.
+
+Arrays begin with a zero-capacity Vec bound to the selected allocator, objects begin with a Map
+bound to that allocator, and the continuation stack uses the same allocator. Number text, decoded
+strings, object names, error detail, child growth, and Map growth all receive or retain that
+selection. Native qualification returns an explicitly page-allocated parse result and input error
+from inside a different current region, proving that neither path silently captures current
+storage.
+
+Decoded names are checked through Map's semantic `contains_key` contract before insertion. JSON
+does not inspect a hash, bucket, dense index, or replacement implementation. Once absence has been
+established, the normal Map insertion contract owns allocation and publication.
+
+Phase 2 also corrected a general checker boundary exposed by the implementation: recovery operands
+now pass their expected success-payload type into direct generic calls, just as propagation operands
+already did. This permits `generic_call() catch` and `generic_call() otherwise` to infer result-only
+type parameters. The correction belongs to outcome-expression call planning and contains no JSON
+knowledge.
+
 ## Enforcement
 
 Implementation and review must reject:

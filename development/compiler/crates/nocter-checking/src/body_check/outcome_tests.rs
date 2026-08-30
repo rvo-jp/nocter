@@ -96,6 +96,17 @@ fn propagation_carries_its_payload_context_into_generic_call_inference() {
 }
 
 #[test]
+fn recovery_carries_its_payload_context_into_generic_call_inference() {
+    check(
+        "func fallible<T>(): T! { loop {} }\n\
+         func optional<T>(): T? { loop {} }\n\
+         func recover_failure(): i32 { fallible() catch _ { 0 } }\n\
+         func recover_absence(): i32 { optional() otherwise { 0 } }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn propagation_with_both_result_layers_infers_a_statically_shaped_generic_operand() {
     check(
         "func produce<T>(): T? { loop {} }\n\

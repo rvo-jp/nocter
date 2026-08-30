@@ -903,7 +903,7 @@ fn standard_hash_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_json_phase_one_contract_crosses_native_tests() {
+fn standard_json_phase_two_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -943,14 +943,14 @@ fn standard_json_phase_one_contract_crosses_native_tests() {
     let mut case_count = 0;
     for target in compiled.targets() {
         let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
-            panic!("standard JSON Phase 1 tests failed native compilation")
+            panic!("standard JSON Phase 2 tests failed native compilation")
         };
         case_count += cases.len();
         for case in cases {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 6);
+    assert_eq!(case_count, 14);
 }
 
 #[test]

@@ -1,12 +1,14 @@
-//! Exact JSON number tokens and private lexical foundations.
-//!
-//! Phase 1 exposes Number while the owning Value parser and generators remain future work.
+//! Owning JSON values, exact number tokens, and strict whole-text parsing.
 
+use /map.Map
 use /mem.TryAllocator
+use /string.String
+use /vec.Vec
 see ./cursor.nct
 see ./errors.nct
 see ./failure.nct
 see ./number.nct
+see ./parsing.nct
 see ./string_decoding.nct
 
 /// One exact, validated JSON number token.
@@ -30,3 +32,19 @@ instance Number {
     /// Returns the mathematical value when it is exactly representable as u64.
     pub method &self.as_u64(): u64?
 }
+
+/// One owning JSON value.
+pub enum Value {
+    null
+    boolean(value: bool)
+    number(value: Number)
+    string(value: String)
+    array(value: Vec<Value>)
+    object(value: Map<String, Value>)
+}
+
+/// Parses one complete JSON text using the current allocation context.
+pub func parse(text: &str): Value!
+
+/// Parses one complete JSON text with recoverable allocation.
+pub func try_parse(allocator: &+TryAllocator, text: &str): Value! from allocator

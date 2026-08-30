@@ -7,10 +7,10 @@ artifact, publication, and public re-download evidence is frozen; its tag and re
 not be replaced.
 
 The active [v0.22.0 milestone](milestones/v0.22.0.md) adds a strict owning JSON DOM, exact number
-tokens, parsing, and generation in ordinary standard-library source. Phases 0 and 1 are complete
+tokens, parsing, and generation in ordinary standard-library source. Phases 0 through 2 are complete
 and reviewed. The public contract, implementation boundary, exact Number representation, lexical
-cursor, Unicode escape foundation, and typed allocation/input failure channel are closed; Phase 2
-is the next implementation checkpoint.
+cursor, Unicode escape foundation, typed allocation/input failure channel, owning Value model, and
+explicit-stack parser are closed; Phase 3 is the next implementation checkpoint.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -22,18 +22,21 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Implement v0.22.0 Phase 2 from the adopted JSON contract and
+Implement v0.22.0 Phase 3 from the adopted JSON contract and
 `development/docs/json-implementation.md`:
 
-- implement the owning `Value` enum without compiler-recognized recursive storage;
-- build one non-recursive parser over the Phase 1 cursor and an explicit `Vec<Frame>` stack;
-- route every nested String, Vec, and Map allocation through the selected allocator;
-- reject duplicate decoded object names before Map insertion;
-- qualify every root kind, whitespace, malformed boundary, deep nesting, cleanup, and affinity;
-- review Phase 2 ownership, partial-state cleanup, and absence of recursive native parsing.
+- implement one iterative Value traversal shared by String and Writer destinations;
+- centralize scalar, Number, separator, member-name, and string-escape spelling decisions;
+- keep destination failure distinct from traversal-stack allocation failure until wrappers apply
+  public policy;
+- preserve exact Number spelling, Vec order, and unspecified Map iteration order;
+- qualify control escaping, Unicode output, partial destination failure, deep values, cleanup, and
+  allocator affinity;
+- review Phase 3 traversal ownership and prove that the two destinations cannot diverge in JSON
+  spelling.
 
-Do not add generation during Phase 2. Do not introduce floating point, `char`, a token array,
-public failure wrappers, recursive JSON input parsing, or a compiler-known JSON declaration.
+Do not add pretty printing, canonical member ordering, floating point, `char`, recursive JSON
+traversal, public failure wrappers, or a compiler-known JSON declaration during Phase 3.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

@@ -126,6 +126,7 @@
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Active v0.22.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
                 <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
                 <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
@@ -167,14 +168,37 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
-<span class="token-keyword">func</span> invalid_syntax<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Attempt</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> message <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-string">"invalid JSON syntax at byte "</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+<span class="token-keyword">func</span> input_failure<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
+    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+    code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    message_prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    offset<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Attempt</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> message <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> message_prefix<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>message<span class="token-operator">,</span> offset<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.json.invalid_syntax"</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">,</span> <span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> invalid_syntax<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Attempt</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">input_failure</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">,</span>
+        <span class="token-string">"std.json.invalid_syntax"</span><span class="token-operator">,</span>
+        <span class="token-string">"invalid JSON syntax at byte "</span><span class="token-operator">,</span>
+        offset<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> duplicate_name<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Attempt</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">input_failure</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">,</span>
+        <span class="token-string">"std.json.duplicate_name"</span><span class="token-operator">,</span>
+        <span class="token-string">"duplicate JSON object name at byte "</span><span class="token-operator">,</span>
+        offset<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

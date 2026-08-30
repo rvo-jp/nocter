@@ -1809,6 +1809,78 @@ mod tests {
     }
 
     #[test]
+    fn json_value_and_parser_contract_are_visible_from_the_root_source() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/json.{Value, parse}\n",
+            "func main(): void! {\n",
+            "    let value = parse(\"[1]\")?\n",
+            "    match move value {\n",
+            "        Value.array(items) { let _ = items.len() }\n",
+            "        _ { return }\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let value_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":16}}}}}}"
+        ));
+        let response = value_hover.response().unwrap();
+        assert!(response.contains("pub enum Value"), "{response}");
+        for variant in ["null", "boolean", "number", "string", "array", "object"] {
+            assert!(response.contains(variant), "{response}");
+        }
+        assert!(!response.contains("ParserState"), "{response}");
+        assert!(!response.contains("Continuation"), "{response}");
+        assert!(value_hover.issue().is_none(), "{:?}", value_hover.issue());
+
+        let parse_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+        ));
+        let response = parse_hover.response().unwrap();
+        assert!(
+            response.contains("pub func parse(text: &str): Value!"),
+            "{response}"
+        );
+        assert!(parse_hover.issue().is_none(), "{:?}", parse_hover.issue());
+
+        let incomplete = text.replace("Value.array", "Value.");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 4, 4, 14);
+        let response = completion.response().unwrap();
+        for variant in ["null", "boolean", "number", "string", "array", "object"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{variant}\",\"kind\":20")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("ParserState"), "{response}");
+        assert!(!response.contains("Continuation"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn completion_uses_the_use_site_construction_surface_in_every_generation_state() {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);

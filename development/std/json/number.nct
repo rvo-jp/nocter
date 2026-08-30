@@ -174,21 +174,39 @@ func scan_number(cursor: &+Cursor): NumberShape? {
     }
 }
 
+func parse_number_from_cursor(
+    allocator: &+TryAllocator,
+    cursor: &+Cursor,
+): Attempt<Number> {
+    let start = cursor.offset()
+    let shape = scan_number(cursor) otherwise {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    let token = cursor.range(start, cursor.offset()) otherwise {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    let owned = String.try_copy(allocator, token) catch failure {
+        return Attempt.allocation(move failure)
+    }
+    return Attempt.success(Number { source: move owned, shape: shape })
+}
+
 func try_parse_number(
     allocator: &+TryAllocator,
     text: &str,
 ): Attempt<Number> {
     var cursor = Cursor.new(text)
-    let shape = scan_number(&+cursor) otherwise {
-        return invalid_syntax(allocator, cursor.offset())
+    let attempt = parse_number_from_cursor(allocator, &+cursor)
+    match move attempt {
+        Attempt.success(value) {
+            if !cursor.is_finished() {
+                return invalid_syntax(allocator, cursor.offset())
+            }
+            return Attempt.success(move value)
+        }
+        Attempt.input(failure) { return Attempt.input(move failure) }
+        Attempt.allocation(failure) { return Attempt.allocation(move failure) }
     }
-    if !cursor.is_finished() {
-        return invalid_syntax(allocator, cursor.offset())
-    }
-    let owned = String.try_copy(allocator, text) catch failure {
-        return Attempt.allocation(move failure)
-    }
-    return Attempt.success(Number { source: move owned, shape: shape })
 }
 
 func parse_number(text: &str): Number! {

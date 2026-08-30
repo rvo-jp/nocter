@@ -1,0 +1,436 @@
+//! Non-recursive whole-text JSON parsing with one partial-state owner.
+
+see ./index.nct
+see ./cursor.nct
+see ./errors.nct
+see ./failure.nct
+see ./number.nct
+see ./string_decoding.nct
+
+use /internal/mem.allocation_abort
+use /map.Map
+use /mem.{TryAllocator, current_try_allocator, page_allocator, page_try_allocator}
+use /string.String
+use /vec.Vec
+
+enum Continuation {
+    array(values: Vec<Value>)
+    object(values: Map<String, Value>, name: String)
+}
+
+enum ParserState {
+    value
+    array_value(values: Vec<Value>, may_close: bool)
+    array_separator(values: Vec<Value>)
+    object_name(values: Map<String, Value>, may_close: bool)
+    object_separator(values: Map<String, Value>)
+    complete(value: Value)
+}
+
+func skip_whitespace(cursor: &+Cursor): void {
+    while true {
+        let byte = cursor.peek() otherwise { return }
+        if byte != 32 && byte != 9 && byte != 10 && byte != 13 {
+            return
+        }
+        let _ = cursor.advance() otherwise { return }
+    }
+    return
+}
+
+func consume_literal(cursor: &+Cursor, expected: &str): bool {
+    let bytes = expected.bytes()
+    var index: usize = 0
+    while index < bytes.len() {
+        if !cursor.next_is(bytes[index]) {
+            return false
+        }
+        let _ = cursor.advance() otherwise { return false }
+        index += 1
+    }
+    return true
+}
+
+func start_value(
+    allocator: &+TryAllocator,
+    cursor: &+Cursor,
+): Attempt<ParserState> {
+    let byte = cursor.peek() otherwise {
+        return invalid_syntax(allocator, cursor.offset())
+    }
+    if byte == 110 {
+        if !consume_literal(cursor, "null") {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        return Attempt.success(ParserState.complete(Value.null))
+    }
+    if byte == 116 {
+        if !consume_literal(cursor, "true") {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        return Attempt.success(ParserState.complete(Value.boolean(true)))
+    }
+    if byte == 102 {
+        if !consume_literal(cursor, "false") {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        return Attempt.success(ParserState.complete(Value.boolean(false)))
+    }
+    if byte == 34 {
+        let decoded = decode_string(allocator, cursor)
+        match move decoded {
+            Attempt.success(value) {
+                return Attempt.success(ParserState.complete(Value.string(move value)))
+            }
+            Attempt.input(failure) { return Attempt.input(move failure) }
+            Attempt.allocation(failure) { return Attempt.allocation(move failure) }
+        }
+    }
+    if byte == 91 {
+        let _opening = cursor.advance() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        let values: Vec<Value> = Vec.try_with_capacity(allocator, 0) catch failure {
+            return Attempt.allocation(move failure)
+        }
+        return Attempt.success(ParserState.array_value(move values, true))
+    }
+    if byte == 123 {
+        let _opening = cursor.advance() otherwise {
+            return invalid_syntax(allocator, cursor.offset())
+        }
+        let values: Map<String, Value> = Map.try_with_capacity(allocator, 0) catch failure {
+            return Attempt.allocation(move failure)
+        }
+        return Attempt.success(ParserState.object_name(move values, true))
+    }
+    if byte == 45 || (byte >= 48 && byte <= 57) {
+        let parsed = parse_number_from_cursor(allocator, cursor)
+        match move parsed {
+            Attempt.success(value) {
+                return Attempt.success(ParserState.complete(Value.number(move value)))
+            }
+            Attempt.input(failure) { return Attempt.input(move failure) }
+            Attempt.allocation(failure) { return Attempt.allocation(move failure) }
+        }
+    }
+    return invalid_syntax(allocator, cursor.offset())
+}
+
+func parse_core(
+    allocator: &+TryAllocator,
+    text: &str,
+): Attempt<Value> {
+    var cursor = Cursor.new(text)
+    var continuations: Vec<Continuation> = Vec.try_with_capacity(allocator, 1) catch failure {
+        return Attempt.allocation(move failure)
+    }
+    skip_whitespace(&+cursor)
+    var state = ParserState.value
+
+    loop {
+        let next = match move state {
+            ParserState.value {
+                skip_whitespace(&+cursor)
+                let started = start_value(allocator, &+cursor)
+                match move started {
+                    Attempt.success(value) { move value }
+                    Attempt.input(failure) { return Attempt.input(move failure) }
+                    Attempt.allocation(failure) { return Attempt.allocation(move failure) }
+                }
+            }
+            ParserState.array_value(values, may_close) {
+                skip_whitespace(&+cursor)
+                if may_close && cursor.next_is(93) {
+                    let _closing = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.complete(Value.array(move values))
+                } else {
+                    continuations.try_push(Continuation.array(move values)) catch failure {
+                        return Attempt.allocation(move failure)
+                    }
+                    ParserState.value
+                }
+            }
+            ParserState.array_separator(values) {
+                skip_whitespace(&+cursor)
+                if cursor.next_is(44) {
+                    let _comma = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.array_value(move values, false)
+                } else if cursor.next_is(93) {
+                    let _closing = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.complete(Value.array(move values))
+                } else {
+                    return invalid_syntax(allocator, cursor.offset())
+                }
+            }
+            ParserState.object_name(values, may_close) {
+                skip_whitespace(&+cursor)
+                if may_close && cursor.next_is(125) {
+                    let _closing = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.complete(Value.object(move values))
+                } else {
+                    let name_offset = cursor.offset()
+                    let decoded = decode_string(allocator, &+cursor)
+                    let name = match move decoded {
+                        Attempt.success(value) { move value }
+                        Attempt.input(failure) { return Attempt.input(move failure) }
+                        Attempt.allocation(failure) { return Attempt.allocation(move failure) }
+                    }
+                    if values.contains_key(&name) {
+                        return duplicate_name(allocator, name_offset)
+                    }
+                    skip_whitespace(&+cursor)
+                    if !cursor.next_is(58) {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    let _colon = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    continuations.try_push(Continuation.object(move values, move name)) catch failure {
+                        return Attempt.allocation(move failure)
+                    }
+                    ParserState.value
+                }
+            }
+            ParserState.object_separator(values) {
+                skip_whitespace(&+cursor)
+                if cursor.next_is(44) {
+                    let _comma = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.object_name(move values, false)
+                } else if cursor.next_is(125) {
+                    let _closing = cursor.advance() otherwise {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    ParserState.complete(Value.object(move values))
+                } else {
+                    return invalid_syntax(allocator, cursor.offset())
+                }
+            }
+            ParserState.complete(value) {
+                let continuation = continuations.pop() otherwise {
+                    skip_whitespace(&+cursor)
+                    if !cursor.is_finished() {
+                        return invalid_syntax(allocator, cursor.offset())
+                    }
+                    return Attempt.success(move value)
+                }
+                match move continuation {
+                    Continuation.array(values) {
+                        var owner = move values
+                        owner.try_push(move value) catch failure {
+                            return Attempt.allocation(move failure)
+                        }
+                        ParserState.array_separator(move owner)
+                    }
+                    Continuation.object(values, name) {
+                        var owner = move values
+                        let _replaced = owner.try_insert(move name, move value) catch failure {
+                            return Attempt.allocation(move failure)
+                        }
+                        ParserState.object_separator(move owner)
+                    }
+                }
+            }
+        }
+        state = move next
+    }
+}
+
+func parse(text: &str): Value! {
+    var allocator = current_try_allocator()
+    let attempt = parse_core(&+allocator, text)
+    match move attempt {
+        Attempt.success(value) { return move value }
+        Attempt.input(failure) { return move failure }
+        Attempt.allocation(_) { return allocation_abort() }
+    }
+}
+
+func try_parse(allocator: &+TryAllocator, text: &str): Value! from allocator {
+    let attempt = parse_core(allocator, text)
+    match move attempt {
+        Attempt.success(value) { return move value }
+        Attempt.input(failure) { return move failure }
+        Attempt.allocation(failure) { return move failure }
+    }
+}
+
+func parse_has_error(text: &str, code: &str): bool {
+    let _value = parse(text) catch failure {
+        return failure.has_code(code)
+    }
+    return false
+}
+
+func parse_failure_message_matches(text: &str, expected: &str): bool {
+    let _value = parse(text) catch failure {
+        return failure.message() == expected
+    }
+    return false
+}
+
+test parser_accepts_every_root_kind_and_whitespace {
+    let _null = parse(" \t\nnull\r ")?
+    let boolean = parse("true")?
+    match move boolean {
+        Value.boolean(value) {
+            if !value { return error.new("std.json.root", "boolean root changed") }
+        }
+        _ { return error.new("std.json.root", "boolean root changed variant") }
+    }
+    let number = parse("-12.5e1")?
+    match move number {
+        Value.number(value) {
+            let projected = value.as_i64() otherwise {
+                return error.new("std.json.root", "number root lost projection")
+            }
+            if projected != -125 {
+                return error.new("std.json.root", "number root changed value")
+            }
+        }
+        _ { return error.new("std.json.root", "number root changed variant") }
+    }
+    let string = parse("\"text\"")?
+    match move string {
+        Value.string(value) {
+            if value != "text" { return error.new("std.json.root", "string root changed") }
+        }
+        _ { return error.new("std.json.root", "string root changed variant") }
+    }
+    let _array = parse("[]")?
+    let _object = parse("{}")?
+    return
+}
+
+test parser_owns_nested_arrays_objects_and_decoded_names {
+    let parsed = parse("{\"name\":[null,true,{\"value\":\"ok\"}]}")?
+    match move parsed {
+        Value.object(values) {
+            let name = String.copy("name")
+            let nested = values.get(&name) otherwise {
+                return error.new("std.json.object", "decoded object name was absent")
+            }
+            match nested {
+                Value.array(items) {
+                    if items.len() != 3 {
+                        return error.new("std.json.array", "nested array length changed")
+                    }
+                }
+                _ { return error.new("std.json.array", "nested value was not an array") }
+            }
+        }
+        _ { return error.new("std.json.object", "root value was not an object") }
+    }
+    return
+}
+
+test parser_rejects_extensions_boundaries_and_decoded_duplicates {
+    if !parse_has_error("", "std.json.invalid_syntax") ||
+        !parse_has_error("[1,]", "std.json.invalid_syntax") ||
+        !parse_has_error("{\"a\":1,}", "std.json.invalid_syntax") ||
+        !parse_has_error("true false", "std.json.invalid_syntax") ||
+        !parse_has_error("/*x*/null", "std.json.invalid_syntax") ||
+        !parse_has_error("﻿null", "std.json.invalid_syntax") ||
+        !parse_has_error("[{\"a\":[1,2,", "std.json.invalid_syntax") {
+        return error.new("std.json.invalid", "non-JSON grammar was accepted")
+    }
+    if !parse_has_error("{\"name\":1,\"\\u006Eame\":2}", "std.json.duplicate_name") {
+        return error.new("std.json.duplicate", "decoded duplicate name was accepted")
+    }
+    if !parse_failure_message_matches(
+        "{\"name\":1,\"\\u006Eame\":2}",
+        "duplicate JSON object name at byte 10",
+    ) {
+        return error.new("std.json.duplicate", "duplicate name byte offset changed")
+    }
+    return
+}
+
+test parser_rejects_malformed_container_boundaries {
+    if !parse_has_error("[}", "std.json.invalid_syntax") ||
+        !parse_has_error("{]", "std.json.invalid_syntax") ||
+        !parse_has_error("[1 2]", "std.json.invalid_syntax") ||
+        !parse_has_error("[true false]", "std.json.invalid_syntax") ||
+        !parse_has_error("{\"a\" 1}", "std.json.invalid_syntax") ||
+        !parse_has_error("{\"a\":}", "std.json.invalid_syntax") ||
+        !parse_has_error("{\"a\":1 \"b\":2}", "std.json.invalid_syntax") ||
+        !parse_has_error("\"text\" trailing", "std.json.invalid_syntax") ||
+        !parse_has_error("01", "std.json.invalid_syntax") {
+        return error.new("std.json.boundary", "malformed container boundary was accepted")
+    }
+    return
+}
+
+test parser_uses_an_explicit_stack_for_deep_input {
+    let parsed = parse("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[null]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")?
+    let _ = move parsed
+    return
+}
+
+test recoverable_parser_owns_result_in_selected_allocator {
+    var allocator = page_try_allocator()
+    let parsed = try_parse(&+allocator, "[\"owned\"]")?
+    match move parsed {
+        Value.array(values) {
+            var items = move values
+            items.try_push(Value.null)?
+            if items.len() != 2 {
+                return error.new("std.json.allocator", "owned array did not retain growable storage")
+            }
+        }
+        _ { return error.new("std.json.allocator", "recoverable root changed variant") }
+    }
+    return
+}
+
+func recoverable_parse_inside_region(): Value! {
+    var selected = page_try_allocator()
+    var backing = page_allocator()
+    region temporary using backing {
+        return try_parse(&+selected, "[1,2]")?
+    }
+    loop {}
+}
+
+test recoverable_parser_does_not_capture_the_current_region {
+    let parsed = recoverable_parse_inside_region()?
+    match move parsed {
+        Value.array(values) {
+            if values.len() != 2 {
+                return error.new("std.json.allocator", "result changed after current region ended")
+            }
+        }
+        _ { return error.new("std.json.allocator", "region result changed variant") }
+    }
+    return
+}
+
+func recoverable_failure_inside_region(): error {
+    var selected = page_try_allocator()
+    var backing = page_allocator()
+    region temporary using backing {
+        let _value = try_parse(&+selected, "[1,]") catch failure {
+            return move failure
+        }
+    }
+    loop {}
+}
+
+test recoverable_failure_does_not_capture_the_current_region {
+    let failure = recoverable_failure_inside_region()
+    if !failure.has_code("std.json.invalid_syntax") ||
+        failure.message() != "invalid JSON syntax at byte 3" {
+        return error.new("std.json.allocator", "recoverable input failure lost owned detail")
+    }
+    return
+}
