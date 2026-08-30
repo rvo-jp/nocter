@@ -22,7 +22,7 @@ explicit module below `std/internal`. No implementation source may add restricte
 declarations: module roots remain the sole surface authority. A package-only operation that is
 inseparable from a public type's private representation may therefore remain in that public module
 root only when moving it would expose the representation or change the public type identity.
-`std/mem` raw-buffer transfer and owned-growth operations are the current reviewed exception. Do
+`std/mem` raw-buffer transfer and owned-growth operations are the reviewed exception. Do
 not put independent package plumbing in a public root merely to make it discoverable, and do not
 hide a cross-module contract inside an implementation body.
 
@@ -37,7 +37,7 @@ package. Helpers used only by implementation sources in their declaring module s
 those sources use direct `see` edges. Every private free function in an implementation source must
 also have a semantic reference unless it completes a callable declared by the module root.
 Compiler-owned primitives are exempt because their declaration itself defines a target or runtime
-boundary even when current Nocter source has no caller. The authored-standard-library test enforces
+boundary even when authored Nocter source has no caller. The authored-standard-library test enforces
 these rules from declaration identity and the checked source index rather than name matching.
 
 The same test requires the reviewed module-dependency relation to exactly equal discovery's
@@ -57,9 +57,9 @@ Stable error codes are behavioral API; helper functions that construct those err
 Error factories remain private unless callers must select them independently for a documented
 reason.
 
-## Current Foundation Ownership
+## Foundation Ownership
 
-The reconstructed foundation has the following implementation owners:
+The standard-library foundation has the following implementation owners:
 
 | Responsibility | Owner |
 | --- | --- |
@@ -107,16 +107,16 @@ Interface defaults follow the same rule. Nontrivial defaults use a bodyless `pub
 contract in the root and a private `default method` body in `defaults.nct` or another
 responsibility-named source.
 
-The current authored standard library intentionally uses no inline root bodies. Its discovery test
-rejects every `Block` node in a standard-library module root. Introducing even a trivial exception
-therefore requires an explicit policy and test change rather than an unnoticed convenience edit.
+The authored standard library uses no inline root bodies. Its discovery test rejects every `Block`
+node in a standard-library module root. Introducing even a trivial exception requires an explicit
+policy and test change rather than an unnoticed convenience edit.
 
 A `drop` declaration is not a bodyless API contract: its grammar always carries a body. Put it only
 in the responsibility-named private source that owns the type's destruction behavior.
 
 ## Review Gate
 
-A standard-library module migration is complete only when:
+A standard-library module satisfies this design only when:
 
 - its root declares every public contract, every package-only contract has an explicit internal
   owner, and no implementation source adds exported surface;

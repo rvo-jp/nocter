@@ -154,13 +154,9 @@ not a phase ordinal. Set-valued queries state whether coverage is complete; muta
 validated complete candidate before publication.
 
 The [semantic presentation boundary](semantic-presentation-design.md) owns compiler-to-editor
-rendering rules. The completed
-[semantic tooling reconstruction](../reviews/v0.18.0-semantic-tooling-reconstruction.md) records why
-the current authority shape replaced the older sparse recovery model.
-
-The [incremental computation boundary](incremental-computation-design.md) owns the active migration
-from eager scope recompilation to revision-pinned dependency queries. It does not change the
-semantic authority or editor presentation contracts above.
+rendering rules. The [incremental computation boundary](incremental-computation-design.md) owns the
+revision-pinned dependency graph, invalidation, and reuse contract. Computation may reuse an owning
+stage's immutable product but cannot change its semantic authority or editor presentation contract.
 
 ## Dependency Enforcement
 

@@ -1,159 +1,101 @@
 # Declaration Diagnostic Boundary
 
-This document records the closed failure classification of the declaration-lowering production
-facade. It defines compiler responsibility, not language behavior. Public diagnostic meanings and
-codes remain owned by [Diagnostics](../../spec/12-diagnostics.md).
+This document owns the cross-crate failure and diagnostic contract from discovery through
+declaration analysis. Public diagnostic meaning and stable codes remain owned by
+[Diagnostics](../../spec/12-diagnostics.md). Exact Rust variants and crate-local adapters belong to
+their defining source and rustdoc.
 
-## Boundary Rule
+## Production Path
 
-`lower_compile_unit_declarations` accepts a discovery-complete, successfully parsed compile unit.
-Every failure leaving that facade belongs to exactly one of these classes:
+```text
+DiscoveredUnit + canonical declaration surfaces
+        |
+        v
+private declaration query
+        |
+        +--> accepted ReusableDeclarations
+        +--> exact-current authored rejection
+        `--> integrity unavailability
+                    |
+                    v
+        closed program/unit analysis result
+                    |
+                    v
+        session diagnostic and recovery evidence
+```
 
-- **authored rule**: the compiler selected a stable language rule and retained its diagnostic
-  subjects before the representation that selected the rule was consumed;
-- **upstream rejection**: source has lexer or parser diagnostics and cannot enter semantic
-  lowering; the source error is authored, but its diagnostic belongs to the source/syntax stage;
-- **discovery contract**: the caller supplied missing, duplicate, stale, unreachable, or
-  contradictory package, module, source-visibility, or use inputs;
-- **compiler integrity**: a completed earlier pass, semantic builder, source projection, or
-  canonical arena is inconsistent with its own guarantees.
+`nocter-compiler-computation` is the production query owner. Eager declaration-lowering helpers
+exist only for focused tests and native composition tests; command, workspace, session, analysis,
+and LSP code cannot use them to establish a second failure order.
 
-Only authored rules become `SourceDiagnostic` values in this facade. An upstream rejection is not
-relabeled as an internal compiler error by the complete compiler, but the declaration facade does
-not manufacture a second semantic diagnostic for it. Discovery and compiler-integrity failures
-never receive a public language code.
+## Failure Classes
 
-## Validation Authority
+Every failure has one owner and one class:
 
-Declaration validation is one semantic decision, not an error probe followed by a recovery scan.
-After graph integrity succeeds, the validation pass produces one immutable outcome containing:
+- **source or syntax rejection**: lexing or parsing owns the diagnostic; declaration analysis does
+  not manufacture a second semantic error for the same malformed syntax;
+- **authored declaration rule**: declaration lowering selects a stable rule and retains exact
+  semantic subjects that can be projected to source;
+- **discovery contract failure**: package, module, source membership, visibility, import, target, or
+  toolchain input contradicts the frozen discovery snapshot;
+- **compiler integrity failure**: an identity, arena, projection recipe, or completed earlier-stage
+  contract is internally inconsistent.
 
-- every declaration-rule violation found in the structurally valid graph;
-- exact declaration-site subjects for source projection;
-- admission facts for construction, inherent-instance, interface-implementation, and destruction containers; and
-- a closed editor-analysis outcome that is either declaration-only or carries the sole
-  body-analysis input after inadmissible containers have been quarantined.
+Only the first two classes may produce public source diagnostics. Discovery contract and compiler
+integrity failures remain typed infrastructure failures; assigning them a language code would
+misrepresent a compiler defect as an authored mistake.
 
-The validation pass is the sole owner of those decisions. Recovery code must consume its admission
-facts and the selected outcome variant; it must not infer them from diagnostic codes or traverse
-declarations to repeat authorization, duplicate, target-shape, or signature rules. Production
-checking accepts
-only a validation outcome with no violations. Editor-only checking receives a distinct rejected
-program type carrying the frozen admission facts and cannot be converted into a production
-program. A declaration-only rejection cannot construct the type accepted by editor body checking;
-there is no boolean guard that a caller can omit.
+## Rule Selection and Projection
 
-Structural integrity remains fail-fast. An unknown identity, owner mismatch, malformed arena, or
-other broken compiler invariant makes further semantic validation untrustworthy and yields no
-authored diagnostic report. Authored declaration mistakes are independent: validation collects all
-of them from a structurally sound graph even when one error disables editor body analysis.
+The stage that detects an authored violation owns its rule identity and semantic subjects.
+`nocter-diagnostics` owns the phase-neutral envelope and rendering, but it cannot select a rule,
+repeat lookup, or infer a subject from display text.
 
-## Diagnostic Cardinality and Ownership
+Declaration lowering projects a complete authored report through the current source projection.
+The report is ordered canonically and duplicate-free before it leaves the stage. A missing subject
+or mismatched generation invalidates the whole projection; consumers cannot publish whichever
+prefix happened to project successfully.
 
-A rejected declaration program owns an ordered, duplicate-free `DeclarationValidationReport`.
-Declaration lowering projects the entire report through the frozen `SourceIndex` exactly once. A
-missing projection subject is a compiler-integrity failure for the whole projection; consumers must
-not publish a partial subset that depends on where projection stopped.
+`SourceIndex` locates an already selected semantic subject. It never decides that a declaration is
+invalid, changes diagnostic cardinality, or supplies a fallback rule.
 
-The session failure then owns the projected `SourceDiagnostic` collection alongside its typed
-failure and optional semantic recovery. CLI and LSP consumers read that same collection. They do
-not call a singular diagnostic accessor on the typed error and do not recreate diagnostics from
-display text or rule identities. This gives one diagnostic authority for batch and editor entry
-points while retaining typed failures for orchestration and debugging.
+## Rejection and Recovery
 
-After projection, declaration lowering retains only that ordered source collection. It does not
-keep a second semantic report with a different ordering beside the projected diagnostics.
+An authored rejection is a first-class exact-current query value. It retains its complete
+diagnostic set and one branchable declaration recovery product. The top-level analysis query, not
+session, continues that recovery through the deepest body/name evidence permitted by the rejected
+declarations.
 
-Diagnostic order is canonical and independent of the first failing validation loop. Validation
-orders semantic violations by their declaration subjects and rule code, then removes identical
-rule/subject tuples. Source projection applies a final source/path/range order before the collection
-crosses the session boundary. Adding a new validator therefore cannot change which earlier error is
-visible merely by changing traversal order.
+Recovery consumes admission facts selected during declaration validation. It cannot infer
+authorization from diagnostic codes, rerun a validator, or traverse rejected declarations to
+reconstruct the same decision. A declaration-only rejection cannot be converted into the input
+accepted by body analysis.
 
-## Exhaustive Stage Classification
+Session receives one closed success or rejection branch and preserves the complete diagnostic set
+in its failure envelope. CLI and LSP presentation read that same set; neither narrows it to one
+primary error and rebuilds the remainder.
 
-The following tables cover every error variant reachable through the facade. Variants grouped in
-one row have the same classification and boundary reason.
+## Stage Ownership
 
-| Stage error | Class | Reason |
-|---|---|---|
-| `LoweringError::Rule` | authored rule | `E0270` and `E0271` retain exact source-edge subjects. |
-| `DuplicatePackage`, `DuplicateModule`, `DuplicateSourcePath`, `DuplicateSource`, `UnknownPackage`, `MissingSource`, `InvalidPackageDeclaration`, `InvalidModuleSource`, `InvalidModuleSegment`, `InvalidModuleLayout`, `InvalidPackageModuleSet`, `InvalidSingleFilePackage`, `MissingSourceVisibilityResolution`, `DuplicateSourceVisibilityResolution`, `InvalidSourceVisibilityResolution`, `UnknownSourceVisibilityTarget`, `MissingUseResolution`, `DuplicateUseResolution`, `InvalidUseResolution`, `UnknownUseTarget` | discovery contract | Package discovery owns identities, physical source ownership, layouts, and one exact-source visibility edge per authored `see` plus one module edge per authored `use`. |
-| `InconsistentSyntax`, `MissingCollectedSymbol`, `Program` | compiler integrity | Valid syntax projection, complete symbol collection, and legal semantic builder operations are earlier-pass guarantees. Source-projection issues remain outside this error domain. |
-
-| Surface error | Class | Reason |
-|---|---|---|
-| `Topology(Rule)` | authored rule | Delegates to the topology rule domain. |
-| `ImplementationVisibility`, `InvalidNominalContract`, `MissingConstructionContractVisibility` | authored rule | `E0230`-`E0232` retain their exact visibility or declaration node. |
-| `SyntaxErrors` | upstream rejection | The syntax tree already contains its authoritative lexer/parser diagnostics. |
-| `Topology` with a non-rule error | discovery contract or compiler integrity | Preserves the topology classification above. |
-| `InvalidRootShape`, `InvalidItemShape`, `InconsistentSourceVisibilityResolution`, `InconsistentUseResolution` | compiler integrity | A valid parse goal and prepared topology guarantee these shapes and independently retained source and module resolutions. |
-
-| Contract/reservation error | Class | Reason |
-|---|---|---|
-| `DeclarationContractError::MissingBody`, `MismatchedBody`, `DuplicateBody`, `InvalidBodyOmission` | authored rule | `E0250`-`E0253` distinguish public callable contracts from their private definitions. Private implementation-only members need no public contract. |
-| `DeclarationContractError::InterfaceImplementationOutsideRoot` | authored rule | `E0254` keeps each `impl Interface` fact in the module root while exact-header open instance fragments let private sources provide the ordinary method bodies. The authored source role is validated before representative selection. |
-| `DeclarationContractError::MissingRepresentation`, `MismatchedRepresentation`, `DuplicateRepresentation`, `RepresentationCompletedAgain` | authored rule | `E0255`-`E0258` distinguish public nominal contracts from their one private representation definition. |
-| `DeclarationContractError::InconsistentSurface` | compiler integrity | Contract joining consumes the already validated surface inventory. |
-| every `ReservationError` variant: `Contract`, `Program`, `MissingSymbol`, `UnknownPackage`, `UnknownModule`, `InvalidOwner`, `InconsistentSurface`, `InconsistentSource` | compiler integrity | Production reservation receives analyzed contracts, canonical symbols/topology, and valid owners. |
-
-| Header/generic error | Class | Reason |
-|---|---|---|
-| `HeaderError::Namespace` | authored rule | `E0240`-`E0242` retain the exact name or visibility syntax. |
-| `HeaderError::Program`, `MissingDeclaration`, `MissingSource`, `MissingName`, `InconsistentName`, `InvalidVisibility`, `InconsistentSource` | compiler integrity | Parsing and surface collection close declaration names and visibility forms; contract joining and topology close representative names and sources. |
-| `GenericError::Rule` | authored rule | `E0280`-`E0282` retain the offending binder and any first/inherited binder. |
-| `GenericError::MissingSource`, `InconsistentSource`, `InconsistentBinder`, `InvalidOwner`, `InconsistentContract` | compiler integrity | Generic preparation consumes canonical surface owners and exact joined headers. |
-
-| Import/prelude error | Class | Reason |
-|---|---|---|
-| `ImportError::Rule`, `ImportError::Namespace`, `PreludeError::Rule` | authored rule | `E0260`-`E0262`, `E0412`, and shared namespace rules retain exact import syntax. |
-| `ImportError::Program`, `MissingSource`, `InvalidSyntax`, `UnknownModule`, `InvalidVisibility`, `DependencyCycle`, `InconsistentSource` | compiler integrity | Topology, syntax, header visibility, and canonical dependency ordering are complete before import preparation. |
-| `PreludeError::UnknownModule` | discovery contract | Toolchain discovery must provide the selected standard prelude identity. |
-| `PreludeError::InconsistentImport`, `Program` | compiler integrity | Authored imports retain their path nodes, and the builder owns prelude attachment authority. |
-
-| Type error | Class | Reason |
-|---|---|---|
-| `TypeBindingError::Rule` | authored rule | `E0290`-`E0302` retain exact type, name, argument, requirement, and duplicate subjects. |
-| `TypeBindingError::MissingSource`, `InvalidSyntax`, `InconsistentSource` | compiler integrity | Binding accepts syntax-complete declarations and canonical source/symbol projections. |
-| `TypeNormalizationError::Rule` | authored rule | `E0310`-`E0314` consume subjects retained in `NormalizationOrigins`. |
-| `TypeNormalizationError::InvalidBoundType`, `InconsistentTypeStore`, `MissingInterfaceApplicationContext`, `MissingAlias`, `InvalidSelf`, `InconsistentAssociatedIndex` | compiler integrity | Every item is a broken binding-arena, canonical-store, declaration-context, or semantic-index invariant. |
-
-| Definition/freeze error | Class | Reason |
-|---|---|---|
-| `HeaderDefinitionError::Rule` | authored rule | `E0315`-`E0319`, `E0321`-`E0326`, and constant-expression rules retain exact provenance, result-type, associated-binding, argument-pack, or constant subjects. |
-| `HeaderDefinitionError::Declaration` | authored rule | `E0200`-`E0213` collect syntax-independent semantic declaration sites and project the complete report through the frozen source index. |
-| `MissingSource`, `MissingName`, `MissingSite`, `MissingType`, `MissingCallableResult`, `InvalidOwner`, `InvalidSurface`, `InvalidTypePattern`, `InvalidTargetGate`, `InvalidProvenance`, `InconsistentType`, `InconsistentSource`, `MissingDiagnosticSubject`, `Definition`, `Program` | compiler integrity | All are absent normalized state, an invalid semantic relationship, or rejected semantic builder authority after the responsible authored rule has already been separated. |
-
-`ProgramBuildError::InvalidProgram(Declaration)` is the only nested builder failure converted to a
-public declaration-diagnostic collection. `InvalidProgram(Integrity)`, all other `ProgramBuildError` variants,
-and both `DefinitionError` variants (`UnknownId`, `AlreadyDefined`) are compiler-integrity failures.
-
-## Facade Enforcement
-
-The outer `DeclarationLoweringError` prevents categories from being confused:
-
-- `Topology`, `Surface`, `CallableContract`, `Namespace`, `Generic`, `Import`, `TypeBinding`,
-  `TypeNormalization`, `Definition`, and `Declaration` contain projected authored diagnostics;
-- every `Internal*`, `Reservation`, and non-rule `Prelude` variant contains no public diagnostic;
-- `source_diagnostics()` is exhaustive over the outer enum and returns a nonempty slice only for
-  projected authored variants.
-
-Each stage adapter must return the original typed failure when projection cannot find its retained
-subject. The facade then exposes that failure through the matching internal variant. This makes a
-lost source origin an integrity failure instead of silently widening a span or inventing a code.
-
-## Grammar Boundary Ownership
-
-The G001-G018 semantic-boundary matrix spans more than declaration lowering. Rows are assigned as
-follows:
-
-| Grammar rows | Owning boundary |
+| Failure domain | Sole owner |
 |---|---|
-| G001 | package declaration analysis after syntax; duplicate directives are not a declaration-lowering rule |
-| G002-G004, G006-G013, G015-G018 where the current rule concerns declarations, names, imports, headers, or header types | declaration lowering and the diagnostic families classified above |
-| G005 | target selection after the declaration program has retained target gates |
-| G014 and the data-position part of G016/G018 | checked-program type well-formedness |
-| body/interface-implementation behavior not decidable from headers | checked-program body and interface-implementation checking |
+| source bytes, lexing, parsing, and syntax recovery | `nocter-source` and `nocter-syntax` |
+| package roots, modules, imports, visibility edges, and discovery topology | `nocter-package`, `nocter-target-selection`, and `nocter-discovery` |
+| declaration contracts, headers, generics, types, definitions, and authored imports | `nocter-declaration-lowering` |
+| body names, typing, capability evidence, ownership, provenance, and loans | `nocter-checking` |
+| target availability, executable closure, ABI, and artifact construction | their target or backend owner |
+| diagnostic envelope and human/JSON rendering | `nocter-diagnostics` |
 
-Tests for a row must enter its owning facade. Reusing the declaration facade for a later semantic
-row would either guess behavior early or turn a valid intermediate program into an error.
+The [grammar conformance matrix](grammar-conformance.md) assigns syntax and semantic-boundary cases
+to the narrowest owning stage. A declaration query cannot reject a valid intermediate program on
+behalf of checking, target validation, or a backend.
+
+## Required Invariants
+
+- One authored violation has one rule owner and one source projection.
+- Diagnostic rendering cannot affect compilation or recovery.
+- Authored reports have deterministic ordering independent of traversal order.
+- A lost source subject is an integrity failure, not permission to widen a range.
+- Internal failure cannot become an authored diagnostic or an empty successful result.
+- Session and feature code cannot restart declaration analysis.
+- CLI and LSP consume the same closed diagnostic collection.

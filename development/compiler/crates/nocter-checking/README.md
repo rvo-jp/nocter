@@ -81,6 +81,4 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared
-with adjacent stages. The
-[persistent authority record](../../../reviews/v0.18.0-persistent-semantic-authority.md) explains the
-completed v0.18.0 migration.
+with adjacent stages.

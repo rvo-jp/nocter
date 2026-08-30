@@ -1,4 +1,4 @@
-# Grammar Conformance Plan
+# Grammar Conformance
 
 This document derives parser tests from the normative
 [Syntactic Grammar](../../spec/25-syntactic-grammar.md). It does not define accepted source. If a
@@ -18,11 +18,11 @@ Parser tests must not resolve a name, inspect a type, or invoke a semantic fallb
 of these expectations. Each accepted case also records a lossless syntax-tree snapshot so later
 error recovery cannot silently change its shape.
 
-The implemented G001-G033 boundary has grouped accepted node-shape snapshots plus rejected and
+The G001-G033 boundary uses grouped accepted node-shape snapshots plus rejected and
 semantic-boundary source fixtures under `development/compiler/tests/fixtures/syntax/`. Focused
 unit cases exercise the individual optional, repeated, newline, ambiguity, and recovery branches
-inside those groups. Every future grammar production must add the same three fixture classes when
-it is introduced.
+inside those groups. A grammar production is not complete until it has the same three fixture
+classes.
 
 Declaration-owned G006-G010, G012-G013, and G015-G018 semantic cases also enter the production
 declaration-lowering facade in both forward and reversed package/module input order. The test
