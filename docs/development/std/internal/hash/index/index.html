@@ -155,6 +155,9 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal target entropy boundary for hash-table seeds.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
+
+<span class="token-comment">/// Returns a fresh process-local seed or terminates when target entropy is unavailable.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">acquire_seed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 </code></pre>
             </div>
         </main>

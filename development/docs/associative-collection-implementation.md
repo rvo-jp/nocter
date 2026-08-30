@@ -85,6 +85,25 @@ entropy without turning Map construction into public file or syscall policy. If 
 has a suitable standard-internal entropy source, the hash module must use that source instead of a
 second primitive.
 
+## Hash Foundation
+
+`std/hash` owns the public opaque `HashState` and the complete private streaming algorithm. The
+public contract permits only byte contribution. Package-only construction, restart, and finalization
+remain associated with the same type owner, so another module never initializes or interprets its
+fields. A retained template owns one hidden seed; each lookup restarts an independent state from
+that seed without requesting new entropy.
+
+The current private implementation buffers eight bytes and compresses them through a keyed
+add/XOR/rotate state. Its constants, lane count, block size, and finalization are not contracts and
+may change. Standard scalar implementations contribute their exact fixed-width initialized bytes
+through type-specific helpers. Text and sequences contribute a length before their bytes or
+elements, and owning `String`/`Vec<T>` delegate to their borrowed views. This keeps component
+boundaries in standard source rather than in the target or table.
+
+`std/internal/hash` owns only target entropy acquisition. It returns seed material to `std/hash`
+and cannot construct or finalize `HashState`. The future table consumes the package-only
+`HashState` lifecycle; it cannot inspect the seed or algorithm state.
+
 ## Capability Audit
 
 The source spike found the following reusable contracts:

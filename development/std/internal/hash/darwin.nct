@@ -7,7 +7,7 @@ use /ptr.{addr, from_ref_mut}
 
 #target: "arm64-darwin"
 /// Returns a fresh process-local seed or terminates when target entropy is unavailable.
-func seed(): u64 {
+func acquire_seed(): u64 {
     var value: u64 = 0
     let pointer = from_ref_mut(&+value)
     let result = syscall2(sys_getentropy, addr(pointer), 8)
@@ -15,9 +15,4 @@ func seed(): u64 {
         return trap()
     }
     return value
-}
-
-test target_entropy_is_available {
-    let _ = seed()
-    return
 }

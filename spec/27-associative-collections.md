@@ -5,7 +5,8 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-This chapter records the adopted **v0.21.0 Phase 0** contract. The latest published release is
+This chapter records the adopted **v0.21.0** contract. The hashing foundation is implemented
+through Phase 2; `Map` and `Set` storage remain later phases. The latest published release is
 v0.19.0 and does not yet provide these APIs or mapping literals. The implementation phases must
 preserve this contract rather than exposing an interim `HashMap`, fixed hash algorithm, or
 compiler-owned table.

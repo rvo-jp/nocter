@@ -1,0 +1,159 @@
+//! Fixed-width Hash implementations for compiler built-in scalar values.
+
+see ./index.nct
+
+use /internal/ptr.{from_addr, pointee_size, slice_from_raw_parts}
+use /ptr.{addr, from_ref}
+
+func write_bool(state: &+HashState, value: &bool): void {
+    let pointer: *bool = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_i8(state: &+HashState, value: &i8): void {
+    let pointer: *i8 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_i16(state: &+HashState, value: &i16): void {
+    let pointer: *i16 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_i32(state: &+HashState, value: &i32): void {
+    let pointer: *i32 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_i64(state: &+HashState, value: &i64): void {
+    let pointer: *i64 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_isize(state: &+HashState, value: &isize): void {
+    let pointer: *isize = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_u8(state: &+HashState, value: &u8): void {
+    let pointer: *u8 = from_ref(value)
+    state.write(slice_from_raw_parts(pointer, pointee_size(pointer)))
+    return
+}
+
+func write_u16(state: &+HashState, value: &u16): void {
+    let pointer: *u16 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_u32(state: &+HashState, value: &u32): void {
+    let pointer: *u32 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_u64(state: &+HashState, value: &u64): void {
+    let pointer: *u64 = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+func write_usize(state: &+HashState, value: &usize): void {
+    let pointer: *usize = from_ref(value)
+    let bytes_pointer: *u8 = from_addr(addr(pointer))
+    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    return
+}
+
+instance bool {
+    method &self.hash_into(state: &+HashState): void {
+        write_bool(state, self)
+        return
+    }
+}
+
+instance i8 {
+    method &self.hash_into(state: &+HashState): void {
+        write_i8(state, self)
+        return
+    }
+}
+
+instance i16 {
+    method &self.hash_into(state: &+HashState): void {
+        write_i16(state, self)
+        return
+    }
+}
+
+instance i32 {
+    method &self.hash_into(state: &+HashState): void {
+        write_i32(state, self)
+        return
+    }
+}
+
+instance i64 {
+    method &self.hash_into(state: &+HashState): void {
+        write_i64(state, self)
+        return
+    }
+}
+
+instance isize {
+    method &self.hash_into(state: &+HashState): void {
+        write_isize(state, self)
+        return
+    }
+}
+
+instance u8 {
+    method &self.hash_into(state: &+HashState): void {
+        write_u8(state, self)
+        return
+    }
+}
+
+instance u16 {
+    method &self.hash_into(state: &+HashState): void {
+        write_u16(state, self)
+        return
+    }
+}
+
+instance u32 {
+    method &self.hash_into(state: &+HashState): void {
+        write_u32(state, self)
+        return
+    }
+}
+
+instance u64 {
+    method &self.hash_into(state: &+HashState): void {
+        write_u64(state, self)
+        return
+    }
+}
+
+instance usize {
+    method &self.hash_into(state: &+HashState): void {
+        write_usize(state, self)
+        return
+    }
+}

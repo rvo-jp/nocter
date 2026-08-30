@@ -627,6 +627,47 @@ fn standard_directory_record_failures_are_terminal_in_native_tests() {
 }
 
 #[test]
+fn standard_hash_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"hash\", module: \"./hash\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["hash"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard hash tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 4);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
 fn constants_cross_fixed_array_checking_and_native_lowering() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

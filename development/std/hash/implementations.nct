@@ -1,0 +1,122 @@
+//! Standard Hash implementations.
+
+see ./index.nct
+see ./state.nct
+see ./scalars.nct
+
+use /string.String
+use /vec.Vec
+
+func write_values<T>(state: &+HashState, values: &[T]): void where T impl Hash {
+    let length: usize = values.len()
+    write_usize(state, &length)
+    var index: usize = 0
+    while index < values.len() {
+        values[index].hash_into(state)
+        index += 1
+    }
+    return
+}
+
+instance str {
+    method &self.hash_into(state: &+HashState): void {
+        let length: usize = self.len()
+        write_usize(state, &length)
+        state.write(self.bytes())
+        return
+    }
+}
+
+instance String {
+    method &self.hash_into(state: &+HashState): void {
+        let text: &str = self as &str
+        text.hash_into(state)
+        return
+    }
+}
+
+instance [T] where T impl Hash {
+    method &self.hash_into(state: &+HashState): void {
+        write_values(state, self)
+        return
+    }
+}
+
+instance Vec<T> where T impl Hash {
+    method &self.hash_into(state: &+HashState): void {
+        let values: &[T] = self as &[T]
+        write_values(state, values)
+        return
+    }
+}
+
+test equal_primitive_and_text_values_hash_equally {
+    var left = HashState.from_seed(7)
+    var right = HashState.from_seed(7)
+    let left_number: i64 = -42
+    let right_number: i64 = -42
+    left_number.hash_into(&+left)
+    right_number.hash_into(&+right)
+    "Nocter".hash_into(&+left)
+    let text = String.copy("Nocter")
+    text.hash_into(&+right)
+    if left.finish() != right.finish() {
+        return error.new("std.hash.incoherent", "equal values produced different hashes")
+    }
+
+    var owned_hash = HashState.from_seed(9)
+    var view_hash = HashState.from_seed(9)
+    let values = Vec [1, 2, 3]
+    let view: &[i32] = &values as &[i32]
+    values.hash_into(&+owned_hash)
+    view.hash_into(&+view_hash)
+    if owned_hash.finish() != view_hash.finish() {
+        return error.new("std.hash.incoherent", "equal owning and borrowed sequences differed")
+    }
+    return
+}
+
+test byte_writes_are_streaming {
+    var joined = HashState.from_seed(11)
+    var split = HashState.from_seed(11)
+    joined.write("Nocter".bytes())
+    split.write("Noc".bytes())
+    split.write("ter".bytes())
+    if joined.finish() != split.finish() {
+        return error.new("std.hash.not_streaming", "write boundaries changed the hash")
+    }
+    return
+}
+
+test seeds_and_component_boundaries_are_effective {
+    var first = HashState.from_seed(17)
+    var second = HashState.from_seed(19)
+    "same".hash_into(&+first)
+    "same".hash_into(&+second)
+    if first.finish() == second.finish() {
+        return error.new("std.hash.seed_ignored", "different seeds produced the same test hash")
+    }
+
+    var left = HashState.from_seed(23)
+    var right = HashState.from_seed(23)
+    let left_parts = Vec [String.copy("ab"), String.copy("c")]
+    let right_parts = Vec [String.copy("a"), String.copy("bc")]
+    left_parts.hash_into(&+left)
+    right_parts.hash_into(&+right)
+    if left.finish() == right.finish() {
+        return error.new("std.hash.boundary_lost", "component boundaries produced the same test hash")
+    }
+    return
+}
+
+test fresh_state_restarts_with_one_hidden_seed {
+    let template = HashState.fresh()
+    var first = template.restart()
+    var second = template.restart()
+    "seeded".hash_into(&+first)
+    "seeded".hash_into(&+second)
+    if first.finish() != second.finish() {
+        return error.new("std.hash.restart_changed_seed", "one template produced inconsistent hashes")
+    }
+    return
+}

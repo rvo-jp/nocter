@@ -64,7 +64,12 @@ Phase 1 is complete and reviewed. The
 separate key/value ownership, ordinary `u64` mixing API, narrow entropy adapter, editor behavior,
 and qualification evidence.
 
-Begin Phase 2 by creating the opaque `HashState` contract and its source-defined implementation.
+Phase 2 is complete and reviewed. The
+[Phase 2 review](reviews/v0.21.0-phase-2.md) records the opaque state, package-only lifecycle,
+private keyed streaming algorithm, coherent scalar/text/view/owning implementations, and native
+qualification.
+
+Begin Phase 3 with one private open-addressed table and the public `Map<K, V>` layer over it.
 Do not introduce
 `HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set storage engines, or an
 interim alternating-argument mapping literal.

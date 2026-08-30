@@ -161,7 +161,7 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">/// Returns a fresh process-local seed or terminates when target entropy is unavailable.</span>
-<span class="token-keyword">func</span> <span class="token-function">seed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">acquire_seed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> value<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">let</span> pointer <span class="token-operator">=</span> <span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>value<span class="token-operator">)</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">syscall2</span><span class="token-operator">(</span>sys_getentropy<span class="token-operator">,</span> <span class="token-function">addr</span><span class="token-operator">(</span>pointer<span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span>
@@ -169,11 +169,6 @@
         <span class="token-keyword">return</span> <span class="token-function">trap</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> value
-<span class="token-operator">}</span>
-
-<span class="token-keyword">test</span> target_entropy_is_available <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">seed</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

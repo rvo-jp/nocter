@@ -1,3 +1,6 @@
 //! Package-internal target entropy boundary for hash-table seeds.
 
 see ./darwin.nct
+
+/// Returns a fresh process-local seed or terminates when target entropy is unavailable.
+pub(/) func acquire_seed(): u64

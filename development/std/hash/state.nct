@@ -1,0 +1,139 @@
+//! Private streaming hash-state representation and algorithm.
+
+see ./index.nct
+
+use /internal/hash.acquire_seed
+use /num
+
+struct HashState {
+    seed: u64
+    lane0: u64
+    lane1: u64
+    lane2: u64
+    lane3: u64
+    buffered: u64
+    buffer: u64
+    written: u64
+}
+
+construct HashState {
+    func fresh(): Self {
+        return HashState.from_seed(acquire_seed())
+    }
+
+    func from_seed(seed: u64): Self {
+        let rotated = seed.rotate_right(32)
+        return HashState {
+            seed: seed,
+            lane0: seed.bit_xor(8317987319222330741),
+            lane1: rotated.bit_xor(7237128888997146477),
+            lane2: seed.bit_xor(7816392313619706465),
+            lane3: rotated.bit_xor(8387220255154660723),
+            buffered: 0,
+            buffer: 0,
+            written: 0,
+        }
+    }
+}
+
+instance HashState {
+    method &self.restart(): Self {
+        return HashState.from_seed(self.seed)
+    }
+
+    method &+self.write(bytes: &[u8]): void {
+        var index: usize = 0
+        while index < bytes.len() {
+            let current_buffer: u64 = self.buffer
+            let shifted = current_buffer.wrapping_mul(256)
+            self.buffer = shifted.wrapping_add(bytes[index] as u64)
+            let current_buffered: u64 = self.buffered
+            self.buffered = current_buffered.wrapping_add(1)
+            let current_written: u64 = self.written
+            self.written = current_written.wrapping_add(1)
+            if self.buffered == 8 {
+                let message: u64 = self.buffer
+                compress(self, message)
+                self.buffered = 0
+                self.buffer = 0
+            }
+            index += 1
+        }
+        return
+    }
+
+    method &self.finish(): u64 {
+        var final = HashState {
+            seed: self.seed,
+            lane0: self.lane0,
+            lane1: self.lane1,
+            lane2: self.lane2,
+            lane3: self.lane3,
+            buffered: self.buffered,
+            buffer: self.buffer,
+            written: self.written,
+        }
+        let buffered: u64 = final.buffered
+        let boundary = buffered.rotate_right(8)
+        let buffer: u64 = final.buffer
+        compress(&+final, buffer.bit_xor(boundary))
+        let written: u64 = final.written
+        compress(&+final, written)
+        let lane2: u64 = final.lane2
+        final.lane2 = lane2.bit_xor(255)
+        mix_round(&+final)
+        mix_round(&+final)
+        mix_round(&+final)
+        mix_round(&+final)
+        let left = final.lane0.bit_xor(final.lane1)
+        let right = final.lane2.bit_xor(final.lane3)
+        return left.bit_xor(right)
+    }
+}
+
+func compress(state: &+HashState, message: u64): void {
+    let lane3: u64 = state.lane3
+    state.lane3 = lane3.bit_xor(message)
+    mix_round(state)
+    mix_round(state)
+    let lane0: u64 = state.lane0
+    state.lane0 = lane0.bit_xor(message)
+    return
+}
+
+func mix_round(state: &+HashState): void {
+    let lane0: u64 = state.lane0
+    let lane1: u64 = state.lane1
+    state.lane0 = lane0.wrapping_add(lane1)
+    state.lane1 = lane1.rotate_right(51)
+    let rotated1: u64 = state.lane1
+    let sum0: u64 = state.lane0
+    state.lane1 = rotated1.bit_xor(sum0)
+    state.lane0 = sum0.rotate_right(32)
+
+    let lane2: u64 = state.lane2
+    let lane3: u64 = state.lane3
+    state.lane2 = lane2.wrapping_add(lane3)
+    state.lane3 = lane3.rotate_right(48)
+    let rotated3: u64 = state.lane3
+    let sum2: u64 = state.lane2
+    state.lane3 = rotated3.bit_xor(sum2)
+
+    let next0: u64 = state.lane0
+    let next3: u64 = state.lane3
+    state.lane0 = next0.wrapping_add(next3)
+    state.lane3 = next3.rotate_right(43)
+    let final3: u64 = state.lane3
+    let final0: u64 = state.lane0
+    state.lane3 = final3.bit_xor(final0)
+
+    let next2: u64 = state.lane2
+    let next1: u64 = state.lane1
+    state.lane2 = next2.wrapping_add(next1)
+    state.lane1 = next1.rotate_right(47)
+    let final1: u64 = state.lane1
+    let final2: u64 = state.lane2
+    state.lane1 = final1.bit_xor(final2)
+    state.lane2 = final2.rotate_right(32)
+    return
+}

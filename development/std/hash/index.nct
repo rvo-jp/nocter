@@ -1,0 +1,95 @@
+//! Algorithm-neutral hashing contracts.
+//!
+//! Values contribute their complete logical representation to an opaque state. Hash output,
+//! seeding, and algorithm selection remain package-internal implementation details.
+
+use /string.String
+use /vec.Vec
+see ./state.nct
+see ./scalars.nct
+see ./implementations.nct
+
+/// Opaque state selected and initialized by the standard library.
+pub struct HashState
+
+construct HashState {
+    /// Creates a hidden random seed template for package-internal associative storage.
+    pub(/) func fresh(): Self
+}
+
+/// Values whose equality classes can be used as associative-collection keys.
+pub interface Hash where (&Self == &Self): bool {
+    /// Contributes the complete equality-relevant value without allocation.
+    pub method &self.hash_into(state: &+HashState): void
+}
+
+instance HashState {
+    /// Contributes an exact byte sequence to this state.
+    pub method &+self.write(bytes: &[u8]): void
+
+    /// Starts an independent hash with this state's retained seed.
+    pub(/) method &self.restart(): Self
+
+    /// Finalizes the current contribution without exposing mutable state.
+    pub(/) method &self.finish(): u64
+}
+
+instance bool {
+    impl Hash
+}
+
+instance i8 {
+    impl Hash
+}
+
+instance i16 {
+    impl Hash
+}
+
+instance i32 {
+    impl Hash
+}
+
+instance i64 {
+    impl Hash
+}
+
+instance isize {
+    impl Hash
+}
+
+instance u8 {
+    impl Hash
+}
+
+instance u16 {
+    impl Hash
+}
+
+instance u32 {
+    impl Hash
+}
+
+instance u64 {
+    impl Hash
+}
+
+instance usize {
+    impl Hash
+}
+
+instance str {
+    impl Hash
+}
+
+instance String {
+    impl Hash
+}
+
+instance [T] where T impl Hash {
+    impl Hash
+}
+
+instance Vec<T> where T impl Hash {
+    impl Hash
+}
