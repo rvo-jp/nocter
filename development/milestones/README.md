@@ -7,13 +7,15 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-The [v0.22.0 milestone](v0.22.0.md) returns to practical standard-library work with an owning JSON
-DOM, exact decimal tokens, strict parsing, and compact generation. Phases 0 through 5 are complete
-and reviewed; the release candidate is qualified and awaits publication authorization. The JSON
-API is current for the qualified v0.22.0 candidate, while the release index and root download remain
-on published v0.21.0 until publication.
+No later milestone has been adopted. New product work requires an explicit milestone and acceptance
+criteria rather than extending a completed release record.
 
 ## Latest Completed Milestone
+
+The [v0.22.0 milestone](v0.22.0.md) adds an owning JSON DOM, exact decimal tokens, strict parsing,
+compact generation, practical application integration, and standard-library stabilization. Phases
+0 through 5 and release qualification are complete. The release is published and externally
+audited in the [v0.22.0 publication record](../releases/v0.22.0.md).
 
 The [v0.21.0 milestone](v0.21.0.md) returns to practical standard-library work with
 representation-neutral `Map` and `Set` contracts, a private hash-table implementation, and the
